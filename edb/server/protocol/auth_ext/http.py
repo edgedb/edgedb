@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 import datetime
 import http
 import http.cookies
@@ -29,7 +31,7 @@ import os
 import mimetypes
 import uuid
 
-from typing import Any, Optional, Tuple, FrozenSet, cast
+from typing import Any, Optional, Tuple, FrozenSet, cast, TYPE_CHECKING
 
 import aiosmtplib
 from jwcrypto import jwk, jwt
@@ -54,6 +56,9 @@ from . import (
     magic_link,
 )
 
+if TYPE_CHECKING:
+    from edb.server.protocol import protocol
+
 
 logger = logging.getLogger('edb.server')
 
@@ -61,15 +66,24 @@ logger = logging.getLogger('edb.server')
 class Router:
     test_url: Optional[str]
 
-    def __init__(self, *, db: Any, base_path: str, tenant: edbtenant.Tenant):
+    def __init__(
+        self,
+        *,
+        db: edbtenant.dbview.Database,
+        base_path: str,
+        tenant: edbtenant.Tenant
+    ):
         self.db = db
         self.base_path = base_path
         self.tenant = tenant
         self.test_mode = tenant.server.in_test_mode()
 
     async def handle_request(
-        self, request: Any, response: Any, args: list[str]
-    ):
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+        args: list[str],
+    ) -> None:
         if self.db.db_config is None:
             await self.db.introspection()
 
@@ -83,72 +97,65 @@ class Router:
             else None
         )
 
-        handler_args = (request, response)
         try:
             match args:
                 # API routes
                 case ("authorize",):
-                    return await self.handle_authorize(*handler_args)
+                    await self.handle_authorize(request, response)
                 case ("callback",):
-                    return await self.handle_callback(*handler_args)
+                    await self.handle_callback(request, response)
                 case ("token",):
-                    return await self.handle_token(*handler_args)
+                    await self.handle_token(request, response)
                 case ("register",):
-                    return await self.handle_register(*handler_args)
+                    await self.handle_register(request, response)
                 case ("authenticate",):
-                    return await self.handle_authenticate(*handler_args)
+                    await self.handle_authenticate(request, response)
                 case ("verify",):
-                    return await self.handle_verify(*handler_args)
+                    await self.handle_verify(request, response)
                 case ("resend-verification-email",):
-                    return await self.handle_resend_verification_email(
-                        *handler_args
+                    await self.handle_resend_verification_email(
+                        request, response
                     )
                 case ('send-reset-email',):
-                    return await self.handle_send_reset_email(*handler_args)
+                    await self.handle_send_reset_email(request, response)
                 case ('reset-password',):
-                    return await self.handle_reset_password(*handler_args)
+                    await self.handle_reset_password(request, response)
                 case ('magic-link', 'register'):
-                    return await self.handle_magic_link_register(*handler_args)
+                    await self.handle_magic_link_register(request, response)
                 case ('magic-link', 'email'):
-                    return await self.handle_magic_link_email(*handler_args)
+                    await self.handle_magic_link_email(request, response)
                 case ('magic-link', 'authenticate'):
-                    return await self.handle_magic_link_authenticate(
-                        *handler_args
-                    )
+                    await self.handle_magic_link_authenticate(request, response)
 
                 # WebAuthn routes
                 case ('webauthn', 'register'):
-                    return await self.handle_webauthn_register(*handler_args)
+                    await self.handle_webauthn_register(request, response)
                 case ('webauthn', 'register', 'options'):
-                    return await self.handle_webauthn_register_options(
-                        *handler_args
+                    await self.handle_webauthn_register_options(
+                        request, response
                     )
                 case ('webauthn', 'authenticate'):
-                    return await self.handle_webauthn_authenticate(
-                        *handler_args
-                    )
+                    await self.handle_webauthn_authenticate(request, response)
                 case ('webauthn', 'authenticate', 'options'):
-                    return await self.handle_webauthn_authenticate_options(
-                        *handler_args
+                    await self.handle_webauthn_authenticate_options(
+                        request, response
                     )
 
                 # UI routes
                 case ('ui', 'signin'):
-                    return await self.handle_ui_signin(*handler_args)
+                    await self.handle_ui_signin(request, response)
                 case ('ui', 'signup'):
-                    return await self.handle_ui_signup(*handler_args)
+                    await self.handle_ui_signup(request, response)
                 case ('ui', 'forgot-password'):
-                    return await self.handle_ui_forgot_password(*handler_args)
+                    await self.handle_ui_forgot_password(request, response)
                 case ('ui', 'reset-password'):
-                    return await self.handle_ui_reset_password(*handler_args)
+                    await self.handle_ui_reset_password(request, response)
                 case ("ui", "verify"):
-                    return await self.handle_ui_verify(*handler_args)
+                    await self.handle_ui_verify(request, response)
                 case ("ui", "resend-verification"):
-                    return await self.handle_ui_resend_verification(
-                        *handler_args
-                    )
+                    await self.handle_ui_resend_verification(request, response)
                 case ("ui", "magic-link-sent"):
-                    return await self.handle_ui_magic_link_sent(*handler_args)
+                    await self.handle_ui_magic_link_sent(request, response)
                 case ('ui', '_static', filename):
                     filepath = os.path.join(
                         os.path.dirname(__file__), '_static', filename
@@ -234,7 +241,11 @@ class Router:
                 ex=edb_errors.InternalServerError(str(ex)),
             )
 
-    async def handle_authorize(self, request: Any, response: Any):
+    async def handle_authorize(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         query = urllib.parse.parse_qs(
             request.url.query.decode("ascii") if request.url.query else ""
         )
@@ -269,7 +280,11 @@ class Router:
         response.status = http.HTTPStatus.FOUND
         response.custom_headers["Location"] = authorize_url
 
-    async def handle_callback(self, request: Any, response: Any):
+    async def handle_callback(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         if request.method == b"POST" and (
             request.content_type == b"application/x-www-form-urlencoded"
         ):
@@ -383,7 +398,11 @@ class Router:
         response.custom_headers["Location"] = new_url
         _set_cookie(response, "edgedb-session", session_token)
 
-    async def handle_token(self, request: Any, response: Any):
+    async def handle_token(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         query = urllib.parse.parse_qs(
             request.url.query.decode("ascii") if request.url.query else ""
         )
@@ -431,7 +450,11 @@ class Router:
         else:
             raise errors.PKCEVerificationFailed
 
-    async def handle_register(self, request: Any, response: Any):
+    async def handle_register(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         data = self._get_data_from_request(request)
 
         maybe_redirect_to = cast(Optional[str], data.get("redirect_to"))
@@ -516,7 +539,11 @@ class Router:
             else:
                 raise ex
 
-    async def handle_authenticate(self, request: Any, response: Any):
+    async def handle_authenticate(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         data = self._get_data_from_request(request)
 
         authenticate_provider_name = data.get("provider")
@@ -588,7 +615,11 @@ class Router:
             else:
                 raise ex
 
-    async def handle_verify(self, request: Any, response: Any):
+    async def handle_verify(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         data = self._get_data_from_request(request)
 
         _check_keyset(data, {"verification_token", "provider"})
@@ -645,8 +676,10 @@ class Router:
                 response.status = http.HTTPStatus.NO_CONTENT
 
     async def handle_resend_verification_email(
-        self, request: Any, response: Any
-    ):
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         data = self._get_data_from_request(request)
 
         _check_keyset(data, {"provider"})
@@ -702,7 +735,11 @@ class Router:
 
         response.status = http.HTTPStatus.OK
 
-    async def handle_send_reset_email(self, request: Any, response: Any):
+    async def handle_send_reset_email(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         data = self._get_data_from_request(request)
 
         _check_keyset(data, {"provider", "email", "reset_url", "challenge"})
@@ -786,7 +823,11 @@ class Router:
             else:
                 raise ex
 
-    async def handle_reset_password(self, request: Any, response: Any):
+    async def handle_reset_password(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         data = self._get_data_from_request(request)
 
         _check_keyset(data, {"provider", "reset_token"})
@@ -842,7 +883,11 @@ class Router:
             else:
                 raise ex
 
-    async def handle_magic_link_register(self, request: Any, response: Any):
+    async def handle_magic_link_register(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         data = self._get_data_from_request(request)
 
         _check_keyset(
@@ -931,7 +976,11 @@ class Router:
                 redirect_on_failure, redirect_params
             )
 
-    async def handle_magic_link_email(self, request: Any, response: Any):
+    async def handle_magic_link_email(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         data = self._get_data_from_request(request)
 
         maybe_redirect_to = data.get("redirect_to")
@@ -1014,7 +1063,11 @@ class Router:
                     redirect_on_failure, redirect_params
                 )
 
-    async def handle_magic_link_authenticate(self, request: Any, response: Any):
+    async def handle_magic_link_authenticate(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         query = urllib.parse.parse_qs(
             request.url.query.decode("ascii") if request.url.query else ""
         )
@@ -1062,8 +1115,10 @@ class Router:
                 )
 
     async def handle_webauthn_register_options(
-        self, request: Any, response: Any
-    ):
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         query = urllib.parse.parse_qs(
             request.url.query.decode("ascii") if request.url.query else ""
         )
@@ -1086,7 +1141,11 @@ class Router:
         )
         response.body = registration_options
 
-    async def handle_webauthn_register(self, request: Any, response: Any):
+    async def handle_webauthn_register(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         data = self._get_data_from_request(request)
 
         _check_keyset(
@@ -1166,8 +1225,10 @@ class Router:
             ).encode()
 
     async def handle_webauthn_authenticate_options(
-        self, request: Any, response: Any
-    ):
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         query = urllib.parse.parse_qs(
             request.url.query.decode("ascii") if request.url.query else ""
         )
@@ -1190,7 +1251,11 @@ class Router:
         response.content_type = b"application/json"
         response.body = registration_options
 
-    async def handle_webauthn_authenticate(self, request: Any, response: Any):
+    async def handle_webauthn_authenticate(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         data = self._get_data_from_request(request)
 
         _check_keyset(
@@ -1229,7 +1294,11 @@ class Router:
             }
         ).encode()
 
-    async def handle_ui_signin(self, request: Any, response: Any):
+    async def handle_ui_signin(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         ui_config = self._get_ui_config()
 
         if ui_config is None:
@@ -1279,7 +1348,11 @@ class Router:
                 brand_color=app_details_config.brand_color,
             )
 
-    async def handle_ui_signup(self, request: Any, response: Any):
+    async def handle_ui_signup(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         ui_config = self._get_ui_config()
         if ui_config is None:
             response.status = http.HTTPStatus.NOT_FOUND
@@ -1328,7 +1401,11 @@ class Router:
                 brand_color=app_details_config.brand_color,
             )
 
-    async def handle_ui_forgot_password(self, request: Any, response: Any):
+    async def handle_ui_forgot_password(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         ui_config = self._get_ui_config()
         password_provider = (
             self._get_password_provider() if ui_config is not None else None
@@ -1365,7 +1442,11 @@ class Router:
                 brand_color=app_details_config.brand_color,
             )
 
-    async def handle_ui_reset_password(self, request: Any, response: Any):
+    async def handle_ui_reset_password(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         ui_config = self._get_ui_config()
         password_provider = (
             self._get_password_provider() if ui_config is not None else None
@@ -1401,7 +1482,7 @@ class Router:
                     is_valid = (
                         await email_password_client.validate_reset_secret(
                             identity_id, secret
-                        )
+                        ) is not None
                     )
                 except Exception:
                     is_valid = False
@@ -1425,7 +1506,11 @@ class Router:
                 brand_color=app_details_config.brand_color,
             )
 
-    async def handle_ui_verify(self, request: Any, response: Any):
+    async def handle_ui_verify(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         error_messages: list[str] = []
         ui_config = self._get_ui_config()
         if ui_config is None:
@@ -1536,7 +1621,11 @@ class Router:
             brand_color=app_details_config.brand_color,
         )
 
-    async def handle_ui_resend_verification(self, request: Any, response: Any):
+    async def handle_ui_resend_verification(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         query = urllib.parse.parse_qs(
             request.url.query.decode("ascii") if request.url.query else ""
         )
@@ -1594,7 +1683,11 @@ class Router:
             brand_color=app_details_config.brand_color,
         )
 
-    async def handle_ui_magic_link_sent(self, request: Any, response: Any):
+    async def handle_ui_magic_link_sent(
+        self,
+        request: protocol.HttpRequest,
+        response: protocol.HttpResponse,
+    ) -> None:
         """
         Success page for when a magic link is sent
         """
@@ -1646,7 +1739,7 @@ class Router:
             claims=state_claims,
         )
         state_token.make_signed_token(signing_key)
-        return state_token.serialize()
+        return cast(str, state_token.serialize())
 
     def _make_session_token(self, identity_id: str) -> str:
         signing_key = self._get_auth_signing_key()
@@ -1670,7 +1763,7 @@ class Router:
         )
         session_token.make_signed_token(signing_key)
         metrics.auth_successful_logins.inc(1.0, self.tenant.get_instance_name())
-        return session_token.serialize()
+        return cast(str, session_token.serialize())
 
     def _get_from_claims(self, state: str, key: str) -> str:
         signing_key = self._get_auth_signing_key()
@@ -1719,9 +1812,14 @@ class Router:
         else:
             signing_key = util.derive_key(input_key_material, key_info)
         verified = jwt.JWT(key=signing_key, jwt=jwtStr)
-        return json.loads(verified.claims)
+        return cast(
+            dict[str, str | int | float | bool],
+            json.loads(verified.claims)
+        )
 
-    def _get_data_from_magic_link_token(self, token: str):
+    def _get_data_from_magic_link_token(
+        self, token: str
+    ) -> tuple[str, str, str]:
         try:
             claims = self._verify_and_extract_claims(token, "magic_link")
         except Exception:
@@ -1811,7 +1909,9 @@ class Router:
                 )
         return return_value
 
-    def _get_data_from_request(self, request: Any) -> dict[Any, Any]:
+    def _get_data_from_request(
+        self, request: protocol.HttpRequest,
+    ) -> dict[Any, Any]:
         content_type = request.content_type
         match content_type:
             case b"application/x-www-form-urlencoded":
@@ -1830,10 +1930,10 @@ class Router:
                 return data
             case _:
                 raise errors.InvalidData(
-                    f"Unsupported Content-Type: {content_type}"
+                    f"Unsupported Content-Type: {content_type!r}"
                 )
 
-    def _get_ui_config(self):
+    def _get_ui_config(self) -> config.UIConfig:
         return cast(
             config.UIConfig,
             util.maybe_get_config(
@@ -1841,10 +1941,10 @@ class Router:
             ),
         )
 
-    def _get_app_details_config(self):
+    def _get_app_details_config(self) -> config.AppDetailsConfig:
         return util.get_app_details_config(self.db)
 
-    def _get_password_provider(self):
+    def _get_password_provider(self) -> Optional[config.ProviderConfig]:
         providers = cast(
             list[config.ProviderConfig],
             util.get_config(
@@ -1892,7 +1992,7 @@ class Router:
         to_addr: str,
         maybe_challenge: str | None,
         maybe_redirect_to: str | None,
-    ):
+    ) -> None:
         if not self._is_url_allowed(verify_url):
             raise errors.InvalidData(
                 "Verify URL does not match any allowed URLs.",
@@ -1996,10 +2096,10 @@ class Router:
 
 def _fail_with_error(
     *,
-    response: Any,
+    response: protocol.HttpResponse,
     status: http.HTTPStatus,
     ex: Exception,
-):
+) -> None:
     err_dct = {
         "message": str(ex),
         "type": str(ex.__class__.__name__),
@@ -2044,7 +2144,7 @@ def _maybe_get_form_field(
 
 def _get_pkce_challenge(
     *,
-    response,
+    response: protocol.HttpResponse,
     cookies: http.cookies.SimpleCookie,
     query_dict: dict[str, list[str]],
 ) -> str | None:
@@ -2061,7 +2161,7 @@ def _get_pkce_challenge(
 
 
 def _set_cookie(
-    response: Any,
+    response: protocol.HttpResponse,
     name: str,
     value: str,
     *,
@@ -2069,8 +2169,10 @@ def _set_cookie(
     secure: bool = True,
     same_site: str = "Strict",
     path: Optional[str] = None,
-):
-    val: http.cookies.Morsel = http.cookies.SimpleCookie({name: value})[name]
+) -> None:
+    val: http.cookies.Morsel[str] = (
+        http.cookies.SimpleCookie({name: value})[name]
+    )
     val["httponly"] = http_only
     val["secure"] = secure
     val["samesite"] = same_site
@@ -2088,7 +2190,7 @@ def _with_appended_qs(url: str, query: dict[str, list[str]]) -> str:
     return urllib.parse.urlunparse(url_parts)
 
 
-def _check_keyset(candidate: dict[str, Any], keyset: set[str]):
+def _check_keyset(candidate: dict[str, Any], keyset: set[str]) -> None:
     missing_fields = [field for field in keyset if field not in candidate]
     if missing_fields:
         raise errors.InvalidData(

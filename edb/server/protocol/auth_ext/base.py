@@ -21,7 +21,7 @@ import urllib.parse
 import json
 import enum
 
-from typing import Callable
+from typing import Any, Callable
 from jwcrypto import jwt, jwk
 from datetime import datetime
 
@@ -75,9 +75,9 @@ class OpenIDProvider(BaseProvider):
         self,
         name: str,
         issuer_url: str,
-        *args,
+        *args: Any,
         content_type: ContentType = ContentType.JSON,
-        **kwargs,
+        **kwargs: Any,
     ):
         super().__init__(name, issuer_url, *args, **kwargs)
         self.content_type = content_type
@@ -183,7 +183,7 @@ class OpenIDProvider(BaseProvider):
             picture=payload.get("picture"),
         )
 
-    async def _get_oidc_config(self):
+    async def _get_oidc_config(self) -> data.OpenIDConfig:
         client = self.http_factory(base_url=self.issuer_url)
         response = await client.get('/.well-known/openid-configuration')
         config = response.json()

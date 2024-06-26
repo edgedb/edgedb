@@ -17,6 +17,7 @@
 #
 
 
+from typing import Any
 import urllib.parse
 import functools
 
@@ -24,7 +25,7 @@ from . import base, data, errors
 
 
 class DiscordProvider(base.BaseProvider):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__("discord", "https://discord.com", *args, **kwargs)
         self.auth_domain = self.issuer_url
         self.api_domain = f"{self.issuer_url}/api/v10"

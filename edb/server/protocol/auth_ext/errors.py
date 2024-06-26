@@ -29,7 +29,7 @@ class NotFound(AuthExtError):
     def __init__(self, description: str):
         self.description = description
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"description={self.description!r}"
@@ -47,7 +47,7 @@ class MissingConfiguration(AuthExtError):
         self.key = key
         self.description = description
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"key={self.key!r} "
@@ -65,7 +65,7 @@ class InvalidData(AuthExtError):
     def __init__(self, description: str):
         self.description = description
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"description={self.description!r}"
@@ -82,7 +82,7 @@ class MisconfiguredProvider(AuthExtError):
     def __init__(self, description: str):
         self.description = description
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"description={self.description!r}"
@@ -104,7 +104,7 @@ class NoIdentityFound(AuthExtError):
     ):
         self.description = description
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"description={self.description!r}"
@@ -124,7 +124,7 @@ class UserAlreadyRegistered(AuthExtError):
     ):
         self.description = description
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"description={self.description!r}"
@@ -144,7 +144,7 @@ class OAuthProviderFailure(AuthExtError):
     ):
         self.description = description
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"description={self.description!r}"
@@ -164,7 +164,7 @@ class VerificationTokenExpired(AuthExtError):
     ):
         self.description = description
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"description={self.description!r}"
@@ -184,7 +184,7 @@ class VerificationRequired(AuthExtError):
     ):
         self.description = description
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"description={self.description!r}"
@@ -203,7 +203,7 @@ class PKCECreationFailed(AuthExtError):
     ):
         self.description = description
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"description={self.description!r}"
@@ -222,7 +222,7 @@ class PKCEVerificationFailed(AuthExtError):
     ):
         self.description = description
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"description={self.description!r}"
@@ -239,7 +239,7 @@ class WebAuthnAuthenticationFailed(AuthExtError):
     def __init__(self, description: str = "WebAuthn authentication failed"):
         self.description = description
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"description={self.description!r}"

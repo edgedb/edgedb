@@ -16,12 +16,15 @@
 # limitations under the License.
 #
 
-from typing import Optional
+from __future__ import annotations
+from typing import cast, Optional
 
 import html
 
 from email.mime import multipart
 from email.mime import text as mime_text
+
+from edb.server.protocol.auth_ext import config as auth_config
 
 from . import components as render
 
@@ -29,7 +32,7 @@ from . import components as render
 def render_signin_page(
     *,
     base_path: str,
-    providers: frozenset,
+    providers: frozenset[auth_config.ProviderConfig],
     error_message: Optional[str] = None,
     email: Optional[str] = None,
     challenge: str,
@@ -41,7 +44,7 @@ def render_signin_page(
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = None,
-):
+) -> bytes:
     password_provider = None
     webauthn_provider = None
     magic_link_provider = None
@@ -54,7 +57,9 @@ def render_signin_page(
         elif p.name == 'builtin::local_magic_link':
             magic_link_provider = p
         elif p.name.startswith('builtin::oauth_'):
-            oauth_providers.append(p)
+            oauth_providers.append(
+                cast(auth_config.OAuthProviderConfig, p)
+            )
 
     base_email_factor_form = f"""
       <input type="hidden" name="challenge" value="{challenge}" />
@@ -189,14 +194,14 @@ def render_signin_page(
 
 def render_email_factor_form(
     *,
-    base_email_factor_form=None,
-    password_input='',
-    selected_tab=None,
-    single_form_fields='',
-    password_form,
-    webauthn_form,
-    magic_link_form,
-):
+    base_email_factor_form: Optional[str] = None,
+    password_input: str = '',
+    selected_tab: Optional[str] = None,
+    single_form_fields: str = '',
+    password_form: Optional[str],
+    webauthn_form: Optional[str],
+    magic_link_form: Optional[str],
+) -> Optional[str]:
     if (
         password_form is None and
         webauthn_form is None and
@@ -272,7 +277,7 @@ def render_email_factor_form(
 def render_signup_page(
     *,
     base_path: str,
-    providers: frozenset,
+    providers: frozenset[auth_config.ProviderConfig],
     error_message: Optional[str] = None,
     email: Optional[str] = None,
     challenge: str,
@@ -284,7 +289,7 @@ def render_signup_page(
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = None,
-):
+) -> bytes:
     password_provider = None
     webauthn_provider = None
     magic_link_provider = None
@@ -297,7 +302,9 @@ def render_signup_page(
         elif p.name == 'builtin::local_magic_link':
             magic_link_provider = p
         elif p.name.startswith('builtin::oauth_'):
-            oauth_providers.append(p)
+            oauth_providers.append(
+                cast(auth_config.OAuthProviderConfig, p)
+            )
 
     base_email_factor_form = f"""
       <input type="hidden" name="challenge" value="{challenge}" />
@@ -410,7 +417,7 @@ def render_forgot_password_page(
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = None,
-):
+) -> bytes:
     if email_sent is not None:
         content = render.success_message(
             f'Password reset email has been sent to <b>{email_sent}</b>'
@@ -464,7 +471,7 @@ def render_reset_password_page(
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = None,
-):
+) -> bytes:
     if not is_valid and challenge is None:
         content = render.error_message(
             f'''Reset token is invalid, challenge string is missing. Please
@@ -519,7 +526,7 @@ def render_email_verification_page(
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = None,
-):
+) -> bytes:
     resend_url = None
     if verification_token:
         verification_token = html.escape(verification_token)
@@ -562,7 +569,7 @@ def render_email_verification_expired_page(
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = None,
-):
+) -> bytes:
     verification_token = html.escape(verification_token)
     content = render.error_message(
         f'''
@@ -597,7 +604,7 @@ def render_resend_verification_done_page(
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = None,
-):
+) -> bytes:
     if verification_token is None:
         content = render.error_message(
             f"""
@@ -639,7 +646,7 @@ def render_magic_link_sent_page(
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = None,
-):
+) -> bytes:
     content = render.success_message(
         "A sign in link has been sent to your email. Please check your email."
     )

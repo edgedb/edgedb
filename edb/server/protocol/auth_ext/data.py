@@ -21,7 +21,7 @@ import dataclasses
 import datetime
 import base64
 
-from typing import Optional, NamedTuple
+from typing import Any, Optional
 
 
 @dataclasses.dataclass
@@ -96,7 +96,7 @@ class OpenIDConfig:
     token_endpoint: str
     jwks_uri: str
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any):
         for field in dataclasses.fields(self):
             setattr(self, field.name, kwargs.get(field.name))
 
@@ -116,7 +116,7 @@ class OAuthAccessTokenResponse:
     expires_in: int
     refresh_token: str | None
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any):
         for field in dataclasses.fields(self):
             if field.name in kwargs:
                 setattr(self, field.name, kwargs.pop(field.name))
@@ -134,14 +134,8 @@ class OpenIDConnectAccessTokenResponse(OAuthAccessTokenResponse):
 
     id_token: str
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
-
-
-class ProviderConfig(NamedTuple):
-    client_id: str
-    secret: str
-    additional_scope: Optional[str]
 
 
 @dataclasses.dataclass
@@ -159,15 +153,15 @@ class WebAuthnFactor:
     def __init__(
         self,
         *,
-        id,
-        created_at,
-        modified_at,
-        identity,
-        email,
-        verified_at,
-        user_handle,
-        credential_id,
-        public_key,
+        id: str,
+        created_at: datetime.datetime,
+        modified_at: datetime.datetime,
+        identity: LocalIdentity,
+        email: str,
+        verified_at: Optional[datetime.datetime],
+        user_handle: bytes,
+        credential_id: bytes,
+        public_key: bytes,
     ):
         self.id = id
         self.created_at = created_at
@@ -192,7 +186,15 @@ class WebAuthnAuthenticationChallenge:
     challenge: bytes
     factors: list[WebAuthnFactor]
 
-    def __init__(self, *, id, created_at, modified_at, challenge, factors):
+    def __init__(
+            self,
+            *,
+            id: str,
+            created_at: datetime.datetime,
+            modified_at: datetime.datetime,
+            challenge: bytes,
+            factors: list[WebAuthnFactor],
+        ):
         self.id = id
         self.created_at = created_at
         self.modified_at = modified_at

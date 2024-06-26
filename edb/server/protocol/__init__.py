@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from . import protocol  # type: ignore
+from . import protocol
 
 HttpProtocol = protocol.HttpProtocol
 

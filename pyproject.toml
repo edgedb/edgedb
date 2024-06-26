@@ -161,11 +161,12 @@ module = [
     "edb.schema.*",
     "edb.schema.reflection.*",
     "edb.server.cluster",
+    "edb.server.compiler.*",
     "edb.server.config",
     "edb.server.connpool.*",
+    "edb.server.protocol.*",
     "edb.server.pgcluster",
     "edb.server.pgconnparams",
-    "edb.server.compiler.*",
 ]
 # Equivalent of --strict on the command line,
 # but without disallow_untyped_calls:
