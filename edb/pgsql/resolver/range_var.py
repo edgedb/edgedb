@@ -81,12 +81,12 @@ def _resolve_RelRangeVar(
     ctx: Context,
 ) -> Tuple[pgast.BaseRangeVar, context.Table]:
     with ctx.child() as subctx:
-        subctx.include_inherited = range_var.include_inherited
-
         relation: Union[pgast.BaseRelation, pgast.CommonTableExpr]
         if isinstance(range_var.relation, pgast.BaseRelation):
             relation, table = dispatch.resolve_relation(
-                range_var.relation, ctx=subctx
+                range_var.relation,
+                include_inherited=range_var.include_inherited,
+                ctx=subctx,
             )
         else:
             relation, cte = resolve_CommonTableExpr(
