@@ -78,7 +78,7 @@ cdef class Database:
         object _cache_notify_task
         object _cache_notify_queue
 
-        int _tx_seq
+        uint64_t _tx_seq
         object _active_tx_list
         object _func_cache_gt_tx_seq
 
@@ -113,8 +113,8 @@ cdef class Database:
     cpdef start_stop_extensions(self)
     cdef get_state_serializer(self, protocol_version)
     cpdef set_state_serializer(self, protocol_version, serializer)
-    cdef inline int tx_seq_begin_tx(self)
-    cdef inline tx_seq_end_tx(self, int seq)
+    cdef inline uint64_t tx_seq_begin_tx(self)
+    cdef inline tx_seq_end_tx(self, uint64_t seq)
 
 
 cdef class DatabaseConnectionView:
@@ -160,7 +160,7 @@ cdef class DatabaseConnectionView:
         bint _in_tx_with_dbconfig
         bint _in_tx_with_set
         bint _tx_error
-        int _in_tx_seq
+        uint64_t _in_tx_seq
 
         uint64_t _capability_mask
 

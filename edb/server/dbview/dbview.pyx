@@ -71,7 +71,6 @@ cdef INT32_PACKER = struct.Struct('!l').pack
 
 cdef int VER_COUNTER = 0
 cdef DICTDEFAULT = (None, None)
-cdef int TX_SEQ_MAX = 2147483647
 cdef object logger = logging.getLogger('edb.server')
 
 
@@ -143,10 +142,8 @@ cdef class Database:
         self._sql_to_compiled = lru.LRUMapping(
             maxsize=defines._MAX_QUERIES_CACHE)
 
-        # Tracks the active transactions and their creation sequence.
-        # The sequence ID is incremental-only and wraps around before
-        # overflows. ID 0 is reserved as a non-exist ID, and TX_SEQ_MAX
-        # indicates a wrapping-around.
+        # Tracks the active transactions and their creation sequence. The
+        # sequence ID is incremental-only. ID 0 is reserved as a non-exist ID.
         self._tx_seq = 0  # most-recently used transaction sequence ID
         self._active_tx_list = {}  # name it "list" to emphasize the order
 
@@ -254,53 +251,34 @@ cdef class Database:
                     units[0].maybe_use_func_cache()
                 self._cache_notify_queue.put_nowait(str(units[0].cache_key))
 
-    cdef inline int tx_seq_begin_tx(self):
+    cdef inline uint64_t tx_seq_begin_tx(self):
         self._tx_seq += 1
-
-        if self._tx_seq == TX_SEQ_MAX:
-            # Wrap around to a valid ID, and append a marker to the list
-            self._tx_seq = 1
-            self._active_tx_list[TX_SEQ_MAX] = None
-            # Also append a wrapping marker to the pending func cache list
-            self._func_cache_gt_tx_seq[None] = None
-
-        self._active_tx_list[self._tx_seq] = None
+        self._active_tx_list[self._tx_seq] = True
         return self._tx_seq
 
-    cdef inline tx_seq_end_tx(self, int seq):
-        if seq not in self._active_tx_list:
+    cdef inline tx_seq_end_tx(self, uint64_t seq):
+        # Remove the ending transaction from the active list
+        if not self._active_tx_list.pop(seq, False):
             return
-
-        # First, remove the ending transaction from the active list
-        self._active_tx_list.pop(seq, None)
-
-        # Second, grab the seq ID of the oldest active transaction
-        if self._active_tx_list:
-            seq = next(iter(self._active_tx_list.keys()))
-            if seq == TX_SEQ_MAX:
-                # Hit a wrapping marker, pop it out so that we can see the real
-                # oldest active transaction later
-                self._active_tx_list.pop(TX_SEQ_MAX)
 
         # Stop early if we don't have func cache to activate
         if not self._func_cache_gt_tx_seq:
             return
 
-        # If all tx ended, we should just activate all pending func cache
-        if not self._active_tx_list:
+        if self._active_tx_list:
+            # Grab the seq ID of the oldest active transaction
+            active_tx = next(iter(self._active_tx_list.keys()))
+        else:
+            # If all tx ended, we should just activate all pending func cache
             for units in self._func_cache_gt_tx_seq.values():
                 units[0].maybe_use_func_cache()
             self._func_cache_gt_tx_seq.clear()
             return
 
-        # At last, keep activating func cache until the oldest active tx
+        # Or else, keep activating func cache until the oldest active tx
         drops = []
         for query_req, units in self._func_cache_gt_tx_seq.items():
-            if query_req is None:
-                # Hit a wrapping marker, grab the real oldest active tx ID
-                seq = next(iter(self._active_tx_list.keys()))
-                drops.append(None)
-            elif units.tx_seq_id < seq:
+            if units.tx_seq_id < active_tx:
                 units[0].maybe_use_func_cache()
                 drops.append(query_req)
             else:
@@ -451,14 +429,14 @@ cdef class Database:
             if query_req not in self._eql_to_compiled:
                 unit = dbstate.QueryUnit.deserialize(out_data)
                 group = dbstate.QueryUnitGroup()
-                group.append(unit)
+                group.append(unit, serialize=False)
                 group.cache_state = CacheState.Present
                 if self._active_tx_list:
                     # Any active tx would delay the time we flip to func cache
                     group.tx_seq_id = self._tx_seq
                     self._func_cache_gt_tx_seq[query_req] = group
                 else:
-                    unit.maybe_use_func_cache()
+                    group[0].maybe_use_func_cache()
                 self._eql_to_compiled[query_req] = group
 
     def clear_query_cache(self):
