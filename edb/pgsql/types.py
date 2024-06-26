@@ -765,3 +765,33 @@ def _ptrref_storable_in_pointer(ptrref: irast.BasePointerRef) -> bool:
             ptrref.out_cardinality.is_multi()
             or ptrref.has_properties
         )
+
+
+# Modules where all the "types" in them are really just custom views
+# provided by metaschema.
+VIEW_MODULES = ('sys', 'cfg')
+
+
+def is_cfg_view(
+    obj: s_obj.Object,
+    schema: s_schema.Schema,
+) -> bool:
+    return (
+        isinstance(obj, (s_objtypes.ObjectType, s_pointers.Pointer))
+        and (
+            obj.get_name(schema).module in VIEW_MODULES
+            or bool(
+                (cfg_object := schema.get(
+                    'cfg::ConfigObject',
+                    type=s_objtypes.ObjectType, default=None
+                ))
+                and (
+                    nobj := (
+                        obj if isinstance(obj, s_objtypes.ObjectType)
+                        else obj.get_source(schema)
+                    )
+                )
+                and nobj.issubclass(schema, cfg_object)
+            )
+        )
+    )

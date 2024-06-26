@@ -79,6 +79,7 @@ from edb.server import pgcluster
 from edb.server import pgcon
 
 from edb.pgsql import common as pg_common
+from edb.pgsql import types as pg_types
 from edb.pgsql import dbops
 from edb.pgsql import delta as delta_cmds
 from edb.pgsql import metaschema
@@ -1134,7 +1135,7 @@ async def create_branch(
     multi_properties = {
         prop for prop in schema.get_objects(type=s_props.Property)
         if prop.get_cardinality(schema).is_multi()
-        and prop.get_name(schema).module not in delta_cmds.VIEW_MODULES
+        and prop.get_name(schema).module not in pg_types.VIEW_MODULES
     }
 
     for mprop in multi_properties:
