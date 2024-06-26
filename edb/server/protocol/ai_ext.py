@@ -17,12 +17,14 @@
 #
 
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import (
     Any,
     AsyncIterator,
     ClassVar,
     NoReturn,
     Optional,
+    Sequence,
     TYPE_CHECKING,
 )
 
@@ -46,6 +48,7 @@ from edb.common import uuidgen
 from edb.server import compiler
 from edb.server.compiler import sertypes
 from edb.server.protocol import execute
+from edb.server.protocol import request_scheduler as rs
 
 if TYPE_CHECKING:
     from edb.server import dbview
@@ -146,25 +149,36 @@ async def _ext_ai_index_builder_controller_loop(
     naptime_cfg = db.lookup_config("ext::ai::Config::indexer_naptime")
     naptime = naptime_cfg.to_microseconds() / 1000000
 
+    provider_schedulers: dict[str, ProviderScheduler] = {}
+
     try:
         while True:
             try:
                 pgconn = await tenant.acquire_pgcon(dbname)
                 models = []
-                processed = 0
-                errors = 0
+                sleep_timer: rs.Timer = rs.Timer(None, False)
                 try:
                     models = await _ext_ai_fetch_active_models(pgconn)
                     if models:
                         if not holding_lock:
                             holding_lock = await _ext_ai_lock(pgconn)
                         if holding_lock:
+                            provider_contexts = _prepare_provider_contexts(
+                                db,
+                                pgconn,
+                                models,
+                                provider_schedulers,
+                                naptime,
+                            )
                             try:
-                                processed, errors = (
+                                sleep_timer = (
                                     await _ext_ai_index_builder_work(
-                                        db, pgconn, models))
+                                        provider_schedulers,
+                                        provider_contexts,
+                                    )
+                                )
                             finally:
-                                if processed == 0 or errors != 0:
+                                if not sleep_timer.is_ready_and_urgent():
                                     await asyncutil.deferred_shield(
                                         _ext_ai_unlock(pgconn))
                                     holding_lock = False
@@ -173,17 +187,15 @@ async def _ext_ai_index_builder_controller_loop(
             except Exception:
                 logger.exception(f"caught error in {task_name}")
 
-            if processed == 0:
-                # No work, sleep for a bit.
-                logger.debug(
-                    f"{task_name} napping for {naptime:.2f} seconds: no work")
-                await asyncio.sleep(naptime)
-            elif errors != 0:
-                # No work, sleep for a bit.
-                logger.debug(
-                    f"{task_name} napping for {naptime:.2f} seconds: there "
-                    f"were {errors} error(s) during last run.")
-                await asyncio.sleep(naptime)
+            if not sleep_timer.is_ready_and_urgent():
+                delay = sleep_timer.remaining_time(naptime)
+                if delay == naptime:
+                    logger.debug(
+                        f"{task_name}: "
+                        f"No work. Napping for {naptime:.2f} seconds."
+                    )
+                await asyncio.sleep(delay)
+
     finally:
         logger.info(f"stopped {task_name}")
 
@@ -232,12 +244,13 @@ async def _ext_ai_unlock(
         b"SELECT pg_advisory_unlock(" + _EXT_AI_ADVISORY_LOCK + b")")
 
 
-async def _ext_ai_index_builder_work(
+def _prepare_provider_contexts(
     db: dbview.Database,
     pgconn: pgcon.PGConnection,
     models: list[tuple[int, str, str]],
-) -> tuple[int, int]:
-    task_name = _task_name.get()
+    provider_schedulers: dict[str, ProviderScheduler],
+    naptime: float,
+) -> dict[str, ProviderContext]:
 
     models_by_provider: dict[str, list[str]] = {}
     for entry in models:
@@ -249,111 +262,257 @@ async def _ext_ai_index_builder_work(
             m = models_by_provider[provider_name] = []
             m.append(model_name)
 
-    submit_list: dict[str, dict[str, list[tuple[bytes, ...]]]] = {}
+    # Drop any extra providers, they were probably deleted.
+    unused_provider_names = {
+        provider_name
+        for provider_name in provider_schedulers.keys()
+        if provider_name not in models_by_provider
+    }
+    for unused_provider_name in unused_provider_names:
+        provider_schedulers.pop(unused_provider_name, None)
+
+    # Create contexts
+    provider_contexts = {}
 
     for provider_name, provider_models in models_by_provider.items():
-        for model_name in provider_models:
-            logger.debug(
-                f"{task_name} considering {model_name!r} "
-                f"indexes via {provider_name!r}"
+        if provider_name not in provider_schedulers:
+            # Create new schedulers if necessary
+            provider_schedulers[provider_name] = ProviderScheduler(
+                provider_name=provider_name
             )
+        provider_scheduler = provider_schedulers[provider_name]
 
-            entries = await pgconn.sql_fetch(
-                f"""
-                SELECT
-                    *
-                FROM
-                    (
-                        SELECT
-                            "id",
-                            "text",
-                            "target_rel",
-                            "target_attr",
-                            "target_dims_shortening"
-                        FROM
-                            edgedbext."ai_pending_embeddings_{model_name}"
-                        LIMIT
-                            500
-                    ) AS q
-                ORDER BY
-                    q."target_dims_shortening",
-                    q."target_rel"
-                """.encode()
-            )
+        if not provider_scheduler.timer.is_ready():
+            continue
 
-            if not entries:
+        provider_contexts[provider_name] = ProviderContext(
+            naptime=naptime,
+            db=db,
+            pgconn=pgconn,
+            provider_models=provider_models,
+        )
+
+    return provider_contexts
+
+
+async def _ext_ai_index_builder_work(
+    provider_schedulers: dict[str, ProviderScheduler],
+    provider_contexts: dict[str, ProviderContext],
+) -> rs.Timer:
+
+    async with asyncio.TaskGroup() as g:
+        for provider_name, provider_scheduler in provider_schedulers.items():
+            if provider_name not in provider_contexts:
                 continue
 
-            logger.debug(f"{task_name} found {len(entries)} entries to index")
+            provider_context = provider_contexts[provider_name]
+            g.create_task(provider_scheduler.process(provider_context))
 
-            try:
-                provider_list = submit_list[provider_name]
-            except KeyError:
-                provider_list = submit_list[provider_name] = {}
+    sleep_timer = rs.Timer.combine(
+        provider_scheduler.timer
+        for provider_scheduler in provider_schedulers.values()
+    )
+    if sleep_timer is not None:
+        return sleep_timer
+    else:
+        # Return any non-urgent timer
+        return rs.Timer(None, False)
 
-            try:
-                model_list = provider_list[model_name]
-            except KeyError:
-                model_list = provider_list[model_name] = []
 
-            model_list.extend(entries)
+@dataclass(frozen=True)
+class EmbeddingsData:
+    embeddings: bytes
 
-    errors = 0
-    if submit_list:
-        cfg = db.lookup_config("ext::ai::Config::providers")
 
-        providers_cfg = {}
-        for provider in cfg:
-            providers_cfg[provider.name] = provider
+@dataclass
+class ProviderContext(rs.Context):
 
-        tasks = {}
-        async with asyncio.TaskGroup() as g:
-            for provider_name, provider_list in submit_list.items():
-                try:
-                    provider_cfg = _get_provider_config(
-                        db=db, provider_name=provider_name)
-                except LookupError as e:
-                    logger.error(f"{task_name}: {e}")
-                    errors += 1
-                    continue
+    db: dbview.Database
+    pgconn: pgcon.PGConnection
+    provider_models: list[str]
 
-                for model_name, entries in provider_list.items():
-                    groups = itertools.groupby(entries, key=lambda e: e[4])
-                    for shortening_datum, part_iter in groups:
-                        if shortening_datum is not None:
-                            shortening = int.from_bytes(
-                                shortening_datum,
-                                byteorder="big",
-                                signed=False,
-                            )
-                        else:
-                            shortening = None
-                        part = list(part_iter)
-                        task = g.create_task(
-                            _generate_embeddings_task(
-                                provider_cfg,
-                                model_name,
-                                [entry[1].decode("utf-8") for entry in part],
-                                shortening,
-                            ),
-                        )
-                        tasks[task] = part
 
-        for task, entries in tasks.items():
-            embeddings = task.result()
-            if embeddings is None:
-                # error
-                errors += 1
+@dataclass
+class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
+
+    provider_name: str = ''
+
+    async def get_params(
+        self, context: rs.Context,
+    ) -> Optional[Sequence[EmbeddingsParams]]:
+        assert isinstance(context, ProviderContext)
+        return await _generate_embeddings_params(
+            context.db,
+            context.pgconn,
+            self.provider_name,
+            context.provider_models,
+        )
+
+    def finalize(self, execution_report: rs.ExecutionReport) -> None:
+        task_name = _task_name.get()
+
+        for message in execution_report.known_error_messages:
+            logger.error(
+                f"{task_name}: "
+                f"Could not generate embeddings for {self.provider_name} "
+                f"due to an internal error: {message}"
+            )
+
+
+@dataclass(frozen=True)
+class EmbeddingsParams(rs.Params[EmbeddingsData]):
+    pgconn: pgcon.PGConnection
+    provider: Any
+    model_name: str
+    inputs: list[str]
+    shortening: Optional[int]
+
+    entries: list[tuple[bytes, ...]]
+
+    def cost(self) -> int:
+        return 1
+
+    def create_request(self) -> EmbeddingsRequest:
+        return EmbeddingsRequest(self)
+
+
+class EmbeddingsRequest(rs.Request[EmbeddingsData]):
+
+    async def run(self) -> Optional[rs.Result[EmbeddingsData]]:
+        task_name = _task_name.get()
+
+        try:
+            assert isinstance(self.params, EmbeddingsParams)
+            result = await _generate_embeddings(
+                self.params.provider,
+                self.params.model_name,
+                self.params.inputs,
+                self.params.shortening,
+            )
+            result.pgconn = self.params.pgconn
+            result.entries = self.params.entries
+            return result
+        except AIExtError as e:
+            logger.error(f"{task_name}: {e}")
+            return None
+        except Exception as e:
+            logger.error(
+                f"{task_name}: could not generate embeddings "
+                f"due to an internal error: {e}"
+            )
+            return None
+
+
+class EmbeddingsResult(rs.Result[EmbeddingsData]):
+
+    pgconn: Optional[Any] = None
+    entries: Optional[list[tuple[bytes, ...]]] = None
+
+    async def finalize(self) -> None:
+        if isinstance(self.data, rs.Error):
+            return
+        if self.pgconn is None or self.entries is None:
+            return
+
+        groups = itertools.groupby(
+            self.entries, key=lambda e: e[2:],
+        )
+        offset = 0
+        for (rel, attr, *_), items in groups:
+            ids = [item[0] for item in items]
+            await _update_embeddings_in_db(
+                self.pgconn,
+                rel,
+                attr,
+                ids,
+                self.data.embeddings,
+                offset,
+            )
+            offset += len(ids)
+
+
+async def _generate_embeddings_params(
+    db: dbview.Database,
+    pgconn: pgcon.PGConnection,
+    provider_name: str,
+    provider_models: list[str],
+) -> Optional[list[EmbeddingsParams]]:
+    task_name = _task_name.get()
+
+    try:
+        provider_cfg = _get_provider_config(
+            db=db, provider_name=provider_name)
+    except LookupError as e:
+        logger.error(f"{task_name}: {e}")
+        return None
+
+    model_entries: dict[str, list[tuple[bytes, ...]]] = {}
+
+    for model_name in provider_models:
+        logger.debug(
+            f"{task_name} considering {model_name!r} "
+            f"indexes via {provider_name!r}"
+        )
+
+        entries = await pgconn.sql_fetch(
+            f"""
+            SELECT
+                *
+            FROM
+                (
+                    SELECT
+                        "id",
+                        "text",
+                        "target_rel",
+                        "target_attr",
+                        "target_dims_shortening"
+                    FROM
+                        edgedbext."ai_pending_embeddings_{model_name}"
+                    LIMIT
+                        500
+                ) AS q
+            ORDER BY
+                q."target_dims_shortening",
+                q."target_rel"
+            """.encode()
+        )
+
+        if not entries:
+            continue
+
+        logger.debug(f"{task_name} found {len(entries)} entries to index")
+
+        try:
+            model_list = model_entries[model_name]
+        except KeyError:
+            model_list = model_entries[model_name] = []
+
+        model_list.extend(entries)
+
+    embeddings_params: list[EmbeddingsParams] = []
+
+    for model_name, entries in model_entries.items():
+        groups = itertools.groupby(entries, key=lambda e: e[4])
+        for shortening_datum, part_iter in groups:
+            if shortening_datum is not None:
+                shortening = int.from_bytes(
+                    shortening_datum,
+                    byteorder="big",
+                    signed=False,
+                )
             else:
-                groups = itertools.groupby(entries, key=lambda e: e[2:])
-                offset = 0
-                for (rel, attr, *_), items in groups:
-                    ids = [item[0] for item in items]
-                    await _update_embeddings_in_db(
-                        pgconn, rel, attr, ids, embeddings, offset)
-                    offset += len(ids)
+                shortening = None
+            part = list(part_iter)
+            embeddings_params.append(EmbeddingsParams(
+                pgconn,
+                provider_cfg,
+                model_name,
+                [entry[1].decode("utf-8") for entry in part],
+                shortening,
+                part,
+            ))
 
-    return len(submit_list), errors
+    return embeddings_params
 
 
 async def _update_embeddings_in_db(
@@ -405,35 +564,12 @@ async def _update_embeddings_in_db(
     return int(entries.decode())
 
 
-async def _generate_embeddings_task(
-    provider,
-    model_name: str,
-    inputs: list[str],
-    shortening: Optional[int],
-) -> Optional[bytes]:
-    task_name = _task_name.get()
-
-    try:
-        return await _generate_embeddings(
-            provider, model_name, inputs, shortening,
-        )
-    except AIExtError as e:
-        logger.error(f"{task_name}: {e}")
-        return None
-    except Exception as e:
-        logger.error(
-            f"{task_name}: could not generate embeddings "
-            f"due to an internal error: {e}"
-        )
-        return None
-
-
 async def _generate_embeddings(
     provider,
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
-) -> bytes:
+) -> EmbeddingsResult:
     task_name = _task_name.get()
     count = len(inputs)
     suf = "s" if count > 1 else ""
@@ -444,7 +580,8 @@ async def _generate_embeddings(
 
     if provider.api_style == "OpenAI":
         return await _generate_openai_embeddings(
-            provider, model_name, inputs, shortening)
+            provider, model_name, inputs, shortening,
+        )
     else:
         raise RuntimeError(
             f"unsupported model provider API style: {provider.api_style}, "
@@ -457,7 +594,8 @@ async def _generate_openai_embeddings(
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
-) -> bytes:
+) -> EmbeddingsResult:
+
     headers = {
         "Authorization": f"Bearer {provider.secret}",
     }
@@ -481,13 +619,57 @@ async def _generate_openai_embeddings(
         json=params,
     )
 
+    error = None
     if result.status_code >= 400:
-        raise AIProviderError(
-            f"API call to generate embeddings failed with status "
-            f"{result.status_code}: {result.text}"
+        error = rs.Error(
+            message=(
+                f"API call to generate embeddings failed with status "
+                f"{result.status_code}: {result.text}"
+            ),
+            retry=(
+                # If the request fails with 429 - too many requests, it can be
+                # retried
+                result.status_code == 429
+            ),
         )
-    else:
-        return result.content
+
+    return EmbeddingsResult(
+        data=(error if error else EmbeddingsData(result.content)),
+        request_limits=_read_openai_limits(result),
+    )
+
+
+def _read_openai_limits(
+    result: Any,
+) -> rs.Limits:
+    try:
+        header = (
+            result.headers['x-ratelimit-limit-project-requests']
+            if 'x-ratelimit-limit-project-requests' in result.headers else
+            result.headers['x-ratelimit-limit-requests']
+            if 'x-ratelimit-limit-requests' in result.headers else
+            None
+        )
+        request_limit = int(header) if header is not None else None
+    except Exception:
+        request_limit = None
+
+    try:
+        header = (
+            result.headers['x-ratelimit-remaining-project-requests']
+            if 'x-ratelimit-remaining-project-requests' in result.headers else
+            result.headers['x-ratelimit-remaining-requests']
+            if 'x-ratelimit-remaining-requests' in result.headers else
+            None
+        )
+        request_remaining = int(header) if header is not None else None
+    except Exception:
+        request_remaining = None
+
+    return rs.Limits(
+        total=request_limit,
+        remaining=request_remaining
+    )
 
 
 async def _start_chat(
@@ -1144,10 +1326,12 @@ async def _handle_embeddings_request(
         inputs,
         shortening=None,
     )
+    if isinstance(result.data, rs.Error):
+        raise AIProviderError(result.data.message)
 
     response.status = http.HTTPStatus.OK
     response.content_type = b'application/json'
-    response.body = result
+    response.body = result.data.embeddings
 
 
 async def _edgeql_query_json(
@@ -1360,5 +1544,8 @@ async def _generate_embeddings_for_type(
         shortening = index["index_embedding_dimensions"]
     else:
         shortening = None
-    return await _generate_embeddings(
+    result = await _generate_embeddings(
         provider, index["model"], [content], shortening=shortening)
+    if isinstance(result.data, rs.Error):
+        raise AIProviderError(result.data.message)
+    return result.data.embeddings
