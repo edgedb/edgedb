@@ -4,7 +4,7 @@ use std::{
 };
 use tracing::trace;
 
-use crate::block::Name;
+use crate::{block::Name, metrics::MetricVariant};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Determines the rebalance plan based on the current pool state.
@@ -33,17 +33,14 @@ pub trait HasPoolAlgorithmData: std::fmt::Debug {
     fn target(&self) -> usize;
 }
 
-pub trait VisitPoolAlgoData<D: HasPoolAlgorithmData> {
+pub trait VisitPoolAlgoData<D: PoolAlgorithmDataBlock>: PoolAlgorithmDataPool {
     /// Materializes the algorithm data in preparation for computation.
-    fn update_algo_data(&self);
-    fn with_algo_data_all(&self, f: impl FnMut(&Name, &PoolAlgoTargetData));
-    fn with_algo_data<T>(&self, db: &str, f: impl Fn(&PoolAlgoTargetData) -> T) -> Option<T>;
-    fn total(&self) -> usize;
+    fn with_all(&self, f: impl FnMut(&Name, &D));
+    fn with<T>(&self, db: &str, f: impl Fn(&D) -> T) -> Option<T>;
 
     #[inline]
     fn target(&self, db: &str) -> usize {
-        self.with_algo_data(db, |data| data.target())
-            .unwrap_or_default()
+        self.with(db, |data| data.target()).unwrap_or_default()
     }
 }
 
@@ -62,6 +59,67 @@ pub struct PoolAlgorithmData {
     pub avg_disconnect_time: usize,
     pub avg_hold_time: usize,
 }
+
+pub trait PoolAlgorithmDataMetrics {
+    fn total(&self) -> usize;
+    fn count(&self, variant: MetricVariant) -> usize;
+    fn total_max(&self) -> usize;
+    fn max(&self, variant: MetricVariant) -> usize;
+    fn avg_ms(&self, variant: MetricVariant) -> usize;
+}
+
+pub trait PoolAlgorithmDataBlock: PoolAlgorithmDataMetrics {
+    fn target(&self) -> usize;
+    fn set_target(&self, target: usize);
+    fn oldest_ms(&self, variant: MetricVariant) -> usize;
+
+    fn hunger_score(&self) -> Option<NonZeroUsize> {
+        const DIFF_WEIGHT: usize = 100;
+        const WAITER_WEIGHT: usize = 1;
+
+        let waiters = self
+            .count(MetricVariant::Waiting)
+            .saturating_sub(self.count(MetricVariant::Connecting));
+        let current = self.total();
+        let target = self.target();
+        trace!("{} {} {}", current, target, waiters);
+        if current > target {
+            None
+        } else {
+            if target > current {
+                let diff = target - current;
+                let score = diff * DIFF_WEIGHT + waiters * WAITER_WEIGHT;
+                score.try_into().ok()
+            } else if waiters > 0 {
+                (waiters * WAITER_WEIGHT).try_into().ok()
+            } else {
+                None
+            }
+        }
+    }
+
+    fn overfull_score(&self, will_release: bool) -> Option<NonZeroUsize> {
+        const DIFF_WEIGHT: usize = 100;
+        const IDLE_WEIGHT: usize = 1;
+
+        let idle = self.count(MetricVariant::Idle) + if will_release { 1 } else { 0 };
+        let current = self.total();
+        let target = self.target();
+        if target >= current || idle == 0 {
+            None
+        } else {
+            if current > target {
+                let diff = current - target;
+                let score = diff * DIFF_WEIGHT + idle * IDLE_WEIGHT;
+                score.try_into().ok()
+            } else {
+                (idle * IDLE_WEIGHT).try_into().ok()
+            }
+        }
+    }
+}
+
+pub trait PoolAlgorithmDataPool: PoolAlgorithmDataMetrics {}
 
 impl PoolAlgorithmData {
     pub fn hunger_score(&self, target: usize) -> Option<NonZeroUsize> {
@@ -137,21 +195,18 @@ impl PoolConstraints {
     where
         U: VisitPoolAlgoData<T>,
         T: 'b,
-        T: HasPoolAlgorithmData,
+        T: PoolAlgorithmDataBlock,
     {
-        it.update_algo_data();
-
         // First, compute the overall request load and number of backend targets
         let mut total_requested = 0;
         let mut total_target = 0;
         let mut total_demand = 0;
 
-        it.with_algo_data_all(|name, data| {
-            let count = data.with_algo_data(|data| data.max_concurrent + data.max_waiters);
-            let demand = data.with_algo_data(|data| data.avg_hold_time * data.waiters);
+        it.with_all(|name, data| {
+            let count = data.max(MetricVariant::Active) + data.max(MetricVariant::Waiting);
+            let demand = data.avg_ms(MetricVariant::Active) * data.max(MetricVariant::Waiting);
             total_requested += count;
             total_target += 1;
-            trace!("{name}: {data:?}");
         });
 
         // Empty pool, no math
@@ -166,9 +221,9 @@ impl PoolConstraints {
             let spare = self.max - total_requested;
             let mut allocated = 0;
 
-            it.with_algo_data_all(|name, data| {
+            it.with_all(|name, data| {
                 let target_size =
-                    data.with_algo_data(|data| data.max_concurrent + data.max_waiters);
+                    data.max(MetricVariant::Active) + data.max(MetricVariant::Waiting);
 
                 // Give everyone what they requested, plus a share of the spare
                 // capacity. If there is leftover spare capacity, that capacity
@@ -191,7 +246,7 @@ impl PoolConstraints {
         // Once we start getting constrained, connections will compete for resources and require
         // us to use the various stats to determine which one is "more important".
         let min = total_target / self.max;
-        it.with_algo_data_all(|name, data| {
+        it.with_all(|name, data| {
             data.set_target(min);
         });
     }
@@ -200,7 +255,7 @@ impl PoolConstraints {
     where
         U: VisitPoolAlgoData<T>,
         T: 'b,
-        T: HasPoolAlgorithmData,
+        T: PoolAlgorithmDataBlock,
     {
         // If nobody in the pool is waiting for anything, we don't do any work
         // here.
@@ -209,14 +264,11 @@ impl PoolConstraints {
         // waiters, we want to transfer from the most overloaded block.
         let mut overloaded = vec![];
         let mut hungriest = vec![];
-        it.update_algo_data();
 
-        it.with_algo_data_all(|name, block| {
-            if let Some(value) = block.with_algo_data(|data| data.hunger_score(block.target())) {
+        it.with_all(|name, block| {
+            if let Some(value) = block.hunger_score() {
                 hungriest.push((value, name.clone()))
-            } else if let Some(value) =
-                block.with_algo_data(|data| data.overfull_score(block.target(), false))
-            {
+            } else if let Some(value) = block.overfull_score(false) {
                 overloaded.push((value, name.clone()))
             }
         });
@@ -245,12 +297,10 @@ impl PoolConstraints {
     where
         U: VisitPoolAlgoData<T>,
         T: 'b,
-        T: HasPoolAlgorithmData,
+        T: PoolAlgorithmDataBlock,
     {
         let target_block_size = it.target(db);
-        let current_block_size = it
-            .with_algo_data(db, |data| data.with_algo_data(|data| data.total))
-            .unwrap_or_default();
+        let current_block_size = it.with(db, |data| data.total()).unwrap_or_default();
         let current_pool_size = it.total();
         let max_pool_size = self.max;
 
@@ -260,10 +310,8 @@ impl PoolConstraints {
         if pool_is_full && block_has_room {
             let mut max = 0;
             let mut which = None;
-            it.with_algo_data_all(|name, block| {
-                if let Some(overfullness) =
-                    block.with_algo_data(|data| data.overfull_score(block.target(), false))
-                {
+            it.with_all(|name, block| {
+                if let Some(overfullness) = block.overfull_score(false) {
                     let overfullness: usize = overfullness.into();
                     if overfullness > max {
                         which = Some(name.clone());
@@ -286,19 +334,15 @@ impl PoolConstraints {
     where
         U: VisitPoolAlgoData<T>,
         T: 'b,
-        T: HasPoolAlgorithmData,
+        T: PoolAlgorithmDataBlock,
     {
-        it.update_algo_data();
         // We only want to consider a release elsewhere if this block is overfull
-        if let Some(Some(overfull)) = it.with_algo_data(db, |block| {
-            block.with_algo_data(|data| data.overfull_score(block.target(), true))
-        }) {
+        if let Some(Some(overfull)) = it.with(db, |block| block.overfull_score(true)) {
             trace!("Block is overfull, trying to release {overfull}");
             let mut max = 0;
             let mut which = None;
-            it.with_algo_data_all(|name, block| {
-                if let Some(hunger) = block.with_algo_data(|data| data.hunger_score(block.target()))
-                {
+            it.with_all(|name, block| {
+                if let Some(hunger) = block.hunger_score() {
                     let hunger: usize = hunger.into();
                     if hunger > max {
                         which = Some(name.clone());

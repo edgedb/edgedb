@@ -1,11 +1,15 @@
 use crate::{
-    algo::{PoolAlgoTargetData, VisitPoolAlgoData},
+    algo::{
+        HasPoolAlgorithmData, PoolAlgoTargetData, PoolAlgorithmDataBlock, PoolAlgorithmDataMetrics,
+        PoolAlgorithmDataPool, VisitPoolAlgoData,
+    },
     conn::*,
     metrics::{MetricVariant, MetricsAccum, PoolMetrics},
     waitqueue::WaitQueue,
 };
 use futures::future::Either;
 use std::{
+    borrow::{Borrow, BorrowMut},
     cell::RefCell,
     collections::{BTreeSet, HashMap},
     future::{poll_fn, ready, Future},
@@ -298,26 +302,106 @@ impl<C: Connector, D: Default> Default for Blocks<C, D> {
     }
 }
 
-impl<C: Connector> VisitPoolAlgoData<PoolAlgoTargetData> for Blocks<C, PoolAlgoTargetData> {
-    fn update_algo_data(&self) {
-        for it in self.map.borrow().values() {
-            // trace!("{}: {:?}", it.db_name, it.metrics().summary());
-            *it.data.data.borrow_mut() = (&*it.metrics()).into();
-        }
+impl<C: Connector> PoolAlgorithmDataMetrics for Block<C, PoolAlgoTargetData> {
+    #[inline(always)]
+    fn avg_ms(&self, variant: MetricVariant) -> usize {
+        self.state.metrics.avg_ms(variant)
     }
-    #[inline]
-    fn with_algo_data_all(&self, mut f: impl FnMut(&Name, &PoolAlgoTargetData)) {
-        for it in self.map.borrow().values() {
-            f(&it.db_name, &it.data)
-        }
+    #[inline(always)]
+    fn count(&self, variant: MetricVariant) -> usize {
+        self.state.metrics.count(variant)
     }
-    #[inline]
-    fn with_algo_data<T>(&self, db: &str, f: impl Fn(&PoolAlgoTargetData) -> T) -> Option<T> {
-        self.map.borrow().get(db).map(|d| f(&d.data))
+    #[inline(always)]
+    fn max(&self, variant: MetricVariant) -> usize {
+        self.state.metrics.max(variant)
     }
+    #[inline(always)]
+    fn total(&self) -> usize {
+        self.state.metrics.total()
+    }
+    #[inline(always)]
+    fn total_max(&self) -> usize {
+        self.state.metrics.total_max()
+    }
+}
+
+impl<C: Connector> PoolAlgorithmDataBlock for Block<C, PoolAlgoTargetData> {
+    #[inline(always)]
+    fn target(&self) -> usize {
+        self.data.target()
+    }
+    #[inline(always)]
+    fn set_target(&self, target: usize) {
+        self.data.set_target(target);
+    }
+    #[inline(always)]
+    fn oldest_ms(&self, variant: MetricVariant) -> usize {
+        0
+    }
+}
+
+impl<C: Connector> PoolAlgorithmDataMetrics for Blocks<C, PoolAlgoTargetData> {
+    #[inline(always)]
+    fn avg_ms(&self, variant: MetricVariant) -> usize {
+        self.metrics.avg_ms(variant)
+    }
+    #[inline(always)]
+    fn count(&self, variant: MetricVariant) -> usize {
+        self.metrics.count(variant)
+    }
+    #[inline(always)]
+    fn max(&self, variant: MetricVariant) -> usize {
+        self.metrics.max(variant)
+    }
+    #[inline(always)]
     fn total(&self) -> usize {
         self.metrics.total()
     }
+    #[inline(always)]
+    fn total_max(&self) -> usize {
+        self.metrics.total_max()
+    }
+}
+
+impl<C: Connector> PoolAlgorithmDataPool for Blocks<C, PoolAlgoTargetData> {}
+
+impl<C: Connector> VisitPoolAlgoData<Block<C, PoolAlgoTargetData>>
+    for Blocks<C, PoolAlgoTargetData>
+{
+    fn with<T>(&self, db: &str, f: impl Fn(&Block<C, PoolAlgoTargetData>) -> T) -> Option<T> {
+        if let Some(block) = self.map.borrow().get(db) {
+            Some(f(&block))
+        } else {
+            None
+        }
+    }
+
+    fn with_all(&self, mut f: impl FnMut(&Name, &Block<C, PoolAlgoTargetData>)) {
+        for it in self.map.borrow().values() {
+            //         // trace!("{}: {:?}", it.db_name, it.metrics().summary());
+            f(&it.db_name, &it);
+        }
+    }
+
+    // fn update_algo_data(&self) {
+    //     for it in self.map.borrow().values() {
+    //         // trace!("{}: {:?}", it.db_name, it.metrics().summary());
+    //         *it.data.data.borrow_mut() = (&*it.metrics()).into();
+    //     }
+    // }
+    // #[inline]
+    // fn with_algo_data_all(&self, mut f: impl FnMut(&Name, &PoolAlgoTargetData)) {
+    //     for it in self.map.borrow().values() {
+    //         f(&it.db_name, &it.data)
+    //     }
+    // }
+    // #[inline]
+    // fn with_algo_data<T>(&self, db: &str, f: impl Fn(&PoolAlgoTargetData) -> T) -> Option<T> {
+    //     self.map.borrow().get(db).map(|d| f(&d.data))
+    // }
+    // fn total(&self) -> usize {
+    //     self.metrics.total()
+    // }
 }
 
 impl<C: Connector, D: Default> Blocks<C, D> {

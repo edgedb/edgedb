@@ -3,6 +3,7 @@ use strum::EnumCount;
 use strum::IntoEnumIterator;
 
 use crate::algo::PoolAlgorithmData;
+use crate::algo::PoolAlgorithmDataMetrics;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, strum::EnumCount, strum::EnumIter)]
 pub enum MetricVariant {
@@ -219,6 +220,29 @@ impl RawMetrics {
 pub struct MetricsAccum {
     raw: RefCell<RawMetrics>,
     parent: Option<Rc<MetricsAccum>>,
+}
+
+impl PoolAlgorithmDataMetrics for MetricsAccum {
+    #[inline(always)]
+    fn avg_ms(&self, variant: MetricVariant) -> usize {
+        self.raw.borrow().times[variant].avg() as _
+    }
+    #[inline(always)]
+    fn count(&self, variant: MetricVariant) -> usize {
+        self.raw.borrow().counts[variant]
+    }
+    #[inline(always)]
+    fn max(&self, variant: MetricVariant) -> usize {
+        self.raw.borrow().max[variant]
+    }
+    #[inline(always)]
+    fn total(&self) -> usize {
+        self.raw.borrow().total
+    }
+    #[inline(always)]
+    fn total_max(&self) -> usize {
+        self.raw.borrow().total_max
+    }
 }
 
 impl MetricsAccum {
