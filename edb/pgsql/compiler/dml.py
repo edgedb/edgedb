@@ -436,7 +436,7 @@ def fini_dml_stmt(
         assert len(parts.dml_ctes) == 1
         cte = next(iter(parts.dml_ctes.values()))[0]
         relctx.add_type_rel_overlay(
-            ir_stmt.subject.typeref, 'union', cte,
+            ir_stmt.subject.typeref, context.OverlayOp.UNION, cte,
             dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
     elif isinstance(ir_stmt, irast.UpdateStmt):
         base_typeref = ir_stmt.subject.typeref.real_material_type
@@ -461,11 +461,11 @@ def fini_dml_stmt(
             # First, filter out objects that have been updated, then union them
             # back in. (If we just did union, we'd see the old values also.)
             relctx.add_type_rel_overlay(
-                typeref, 'filter', cte,
+                typeref, context.OverlayOp.FILTER, cte,
                 stop_ref=stop_ref,
                 dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
             relctx.add_type_rel_overlay(
-                typeref, 'union', cte,
+                typeref, context.OverlayOp.UNION, cte,
                 stop_ref=stop_ref,
                 dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
 
@@ -482,7 +482,7 @@ def fini_dml_stmt(
                 stop_ref = base_typeref
 
             relctx.add_type_rel_overlay(
-                typeref, 'except', cte,
+                typeref, context.OverlayOp.EXCEPT, cte,
                 stop_ref=stop_ref,
                 dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
 
@@ -1549,10 +1549,17 @@ def compile_insert_else_body_failure_check(
     overlays_map = ctx.rel_overlays.type.get(None, immu.Map())
     for k, overlays in overlays_map.items():
         # Strip out filters, which we don't care about in this context
-        overlays = tuple([(k, r, p) for k, r, p in overlays if k != 'filter'])
+        overlays = tuple([
+            (k, r, p)
+            for k, r, p in overlays
+            if k != context.OverlayOp.FILTER
+        ])
         # Drop the initial set
-        if overlays and overlays[0][0] == 'union':
-            overlays = (('replace', *overlays[0][1:]), *overlays[1:])
+        if overlays and overlays[0][0] == context.OverlayOp.UNION:
+            overlays = (
+                (context.OverlayOp.REPLACE, *overlays[0][1:]),
+                *overlays[1:]
+            )
         overlays_map = overlays_map.set(k, overlays)
 
     ctx.rel_overlays.type = ctx.rel_overlays.type.set(None, overlays_map)
@@ -2606,8 +2613,13 @@ def process_link_update(
         # context to ensure that references to the link in the result
         # of this DML statement yield the expected results.
         relctx.add_ptr_rel_overlay(
-            mptrref, 'except', delcte, path_id=path_id.ptr_path(),
-            dml_stmts=ctx.dml_stmt_stack, ctx=ctx)
+            mptrref,
+            context.OverlayOp.EXCEPT,
+            delcte,
+            path_id=path_id.ptr_path(),
+            dml_stmts=ctx.dml_stmt_stack,
+            ctx=ctx
+        )
         toplevel.append_cte(delcte)
     else:
         delqry = None
@@ -2645,8 +2657,12 @@ def process_link_update(
                 # to work without it
                 subctx.rel_overlays = subctx.rel_overlays.copy()
                 relctx.add_ptr_rel_overlay(
-                    ptrref, 'except', delcte, path_id=path_id.ptr_path(),
-                    ctx=subctx)
+                    ptrref,
+                    context.OverlayOp.EXCEPT,
+                    delcte,
+                    path_id=path_id.ptr_path(),
+                    ctx=subctx
+                )
 
                 check_cte, _ = process_link_values(
                     ir_stmt=ir_stmt,
@@ -2790,14 +2806,22 @@ def process_link_update(
             # based filter to filter out links that were already present
             # and have been re-added.
             relctx.add_ptr_rel_overlay(
-                mptrref, 'filter', overlay_cte, dml_stmts=ctx.dml_stmt_stack,
+                mptrref,
+                context.OverlayOp.FILTER,
+                overlay_cte,
+                dml_stmts=ctx.dml_stmt_stack,
                 path_id=path_id.ptr_path(),
-                ctx=octx)
+                ctx=octx
+            )
 
         relctx.add_ptr_rel_overlay(
-            mptrref, 'union', overlay_cte, dml_stmts=ctx.dml_stmt_stack,
+            mptrref,
+            context.OverlayOp.UNION,
+            overlay_cte,
+            dml_stmts=ctx.dml_stmt_stack,
             path_id=path_id.ptr_path(),
-            ctx=octx)
+            ctx=octx
+        )
 
     if policy_ctx:
         policy_ctx.rel_overlays = policy_ctx.rel_overlays.copy()
@@ -3138,16 +3162,20 @@ def compile_trigger(
             overlays.extend(ov)
 
     # Handle deletions by turning except into union
-    # Drop 'filter', which is included by update but doesn't help us here
+    # Drop FILTER, which is included by update but doesn't help us here
     overlays = [
-        ('union', *x[1:]) if x[0] == 'except' else x
+        (
+            (context.OverlayOp.UNION, *x[1:])
+            if x[0] == context.OverlayOp.EXCEPT
+            else x
+        )
         for x in overlays
-        if x[0] != 'filter'
+        if x[0] != context.OverlayOp.FILTER
     ]
-    # Replace an initial union with 'replace', since we *don't* want whatever
+    # Replace an initial union with REPLACE, since we *don't* want whatever
     # already existed
-    assert overlays and overlays[0][0] == 'union'
-    overlays[0] = ('replace', *overlays[0][1:])
+    assert overlays and overlays[0][0] == context.OverlayOp.UNION
+    overlays[0] = (context.OverlayOp.REPLACE, *overlays[0][1:])
 
     # Produce a CTE containing all of the affected objects for this trigger
     with ctx.newrel() as ictx:

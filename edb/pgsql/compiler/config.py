@@ -582,7 +582,7 @@ def _rewrite_config_insert(
 
     relctx.add_type_rel_overlay(
         ir_set.typeref,
-        'replace',
+        context.OverlayOp.REPLACE,
         overwrite_query,
         path_id=ir_set.path_id,
         ctx=ctx,

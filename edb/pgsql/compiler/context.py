@@ -44,6 +44,7 @@ import uuid
 import immutables as immu
 
 from edb.common import compiler
+from edb.common import enum as s_enum
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import params as pgparams
@@ -87,8 +88,15 @@ class OutputFormat(enum.Enum):
 NO_STMT = pgast.SelectStmt()
 
 
+class OverlayOp(s_enum.StrEnum):
+    UNION = 'union'
+    REPLACE = 'replace'
+    FILTER = 'filter'
+    EXCEPT = 'except'
+
+
 OverlayEntry = tuple[
-    str,
+    OverlayOp,
     Union[pgast.BaseRelation, pgast.CommonTableExpr],
     'irast.PathId',
 ]
@@ -186,7 +194,7 @@ class RelOverlays:
             Tuple[uuid.UUID, str],
             Tuple[
                 Tuple[
-                    str,
+                    OverlayOp,
                     Union[pgast.BaseRelation, pgast.CommonTableExpr],
                     irast.PathId,
                 ], ...
