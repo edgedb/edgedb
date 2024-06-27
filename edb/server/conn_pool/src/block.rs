@@ -4,14 +4,19 @@ use crate::{
     metrics::{MetricVariant, MetricsAccum, PoolMetrics},
     waitqueue::WaitQueue,
 };
+use futures::future::Either;
 use std::{
     cell::RefCell,
     collections::{BTreeSet, HashMap},
-    future::poll_fn,
-    future::Future,
+    future::{poll_fn, ready, Future},
     rc::Rc,
 };
 use tracing::trace;
+
+#[cfg(test)]
+use mock_instant::thread_local::Instant;
+#[cfg(not(test))]
+use std::time::Instant;
 
 /// Perform a consistency check on entry and exit for this function.
 macro_rules! consistency_check {
@@ -77,7 +82,7 @@ impl<C: Connector, D: Default> Block<C, D> {
         let metrics = Rc::new(MetricsAccum::new(parent_metrics));
         let state = ConnState {
             db_name: db_name.clone(),
-            waiters: WaitQueue::new(metrics.clone()),
+            waiters: WaitQueue::new(),
             metrics,
         }
         .into();
@@ -113,7 +118,7 @@ impl<C: Connector, D: Default> Block<C, D> {
             for conn in &*self.conns.borrow() {
                 conn_metrics.insert(conn.variant())
             }
-            conn_metrics.set_value(MetricVariant::Waiting, self.state.waiters.len());
+            conn_metrics.set_value(MetricVariant::Waiting, self.state.waiters.lock.get());
             assert_eq!(self.metrics().summary().value, conn_metrics.summary().value);
         }
     }
@@ -147,34 +152,60 @@ impl<C: Connector, D: Default> Block<C, D> {
     }
 
     /// Creates a connection from this block.
-    async fn create(&self, connector: &C) -> ConnResult<ConnHandle<C>> {
-        consistency_check!(self);
-        let conn = Conn::new(connector.connect(&self.db_name), &self.state.metrics);
-        self.conns.borrow_mut().push(conn.clone());
-        poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics)).await?;
-        Ok(self.conn(conn))
-    }
-
-    /// Awaits a connection from this block.
-    async fn queue(&self) -> ConnResult<ConnHandle<C>> {
-        consistency_check!(self);
-        loop {
-            if let Some(conn) = self.try_acquire_used() {
-                trace!("Got a connection");
-                return Ok(self.conn(conn));
-            }
-            trace!("Queueing for a connection");
-            self.state.waiters.queue().await;
+    fn create(self: Rc<Self>, connector: &C) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
+        let conn = {
+            consistency_check!(self);
+            let conn = Conn::new(connector.connect(&self.db_name), &self.state.metrics);
+            self.conns.borrow_mut().push(conn.clone());
+            conn
+        };
+        async move {
+            consistency_check!(self);
+            poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics)).await?;
+            Ok(self.conn(conn))
         }
     }
 
     /// Awaits a connection from this block.
-    async fn create_if_needed(&self, connector: &C) -> ConnResult<(bool, ConnHandle<C>)> {
-        consistency_check!(self);
+    fn queue(self: Rc<Self>) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
         if let Some(conn) = self.try_acquire_used() {
-            return Ok((false, self.conn(conn)));
+            trace!("Got a connection");
+            return Either::Left(ready(Ok(self.conn(conn))));
         }
-        Ok((true, self.create(connector).await?))
+        // Update the metrics now before we actually queue
+        self.state.waiters.lock();
+        self.state.metrics.insert(MetricVariant::Waiting);
+        let state = self.state.clone();
+        let now = Instant::now();
+        let guard = scopeguard::guard((), move |_| {
+            state.waiters.unlock();
+            state
+                .metrics
+                .remove_time(MetricVariant::Waiting, now.elapsed());
+        });
+        Either::Right(async move {
+            consistency_check!(self);
+            loop {
+                if let Some(conn) = self.try_acquire_used() {
+                    trace!("Got a connection");
+                    drop(guard);
+                    return Ok(self.conn(conn));
+                }
+                trace!("Queueing for a connection");
+                self.state.waiters.queue().await;
+            }
+        })
+    }
+
+    /// Awaits a connection from this block.
+    fn create_if_needed(
+        self: Rc<Self>,
+        connector: &C,
+    ) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
+        if let Some(conn) = self.try_acquire_used() {
+            return Either::Left(ready(Ok(self.conn(conn))));
+        }
+        Either::Right(self.create(connector))
     }
 
     /// Close one of idle connections in this block
@@ -270,18 +301,22 @@ impl<C: Connector, D: Default> Default for Blocks<C, D> {
 impl<C: Connector> VisitPoolAlgoData<PoolAlgoTargetData> for Blocks<C, PoolAlgoTargetData> {
     fn update_algo_data(&self) {
         for it in self.map.borrow().values() {
+            // trace!("{}: {:?}", it.db_name, it.metrics().summary());
             *it.data.data.borrow_mut() = (&*it.metrics()).into();
         }
     }
     #[inline]
-    fn with_algo_data_all(&self, mut f: impl FnMut(&Name, &PoolAlgoTargetData, usize)) {
+    fn with_algo_data_all(&self, mut f: impl FnMut(&Name, &PoolAlgoTargetData)) {
         for it in self.map.borrow().values() {
-            f(&it.db_name, &it.data, it.metrics().get(MetricVariant::Idle))
+            f(&it.db_name, &it.data)
         }
     }
     #[inline]
     fn with_algo_data<T>(&self, db: &str, f: impl Fn(&PoolAlgoTargetData) -> T) -> Option<T> {
         self.map.borrow().get(db).map(|d| f(&d.data))
+    }
+    fn total(&self) -> usize {
+        self.metrics.total()
     }
 }
 
@@ -317,8 +352,8 @@ impl<C: Connector, D: Default> Blocks<C, D> {
         }
     }
 
-    pub fn prepare(&self, db: &str) {
-        _ = self.block(db)
+    pub fn prepare(&self, db: &str) -> Name {
+        self.block(db).db_name.clone()
     }
 
     pub fn contains(&self, db: &str) -> bool {
@@ -348,11 +383,9 @@ impl<C: Connector, D: Default> Blocks<C, D> {
     pub fn summary(&self) -> PoolMetrics {
         let mut metrics = PoolMetrics::default();
         metrics.pool = self.metrics.summary();
-        // let mut summary = ConnMetrics::default();
-        // for block in self.map.borrow().values() {
-        //     summary += block.metrics().summary();
-        // }
-        // summary
+        for block in self.map.borrow().values() {
+            metrics.blocks.push(block.metrics().summary());
+        }
         metrics
     }
 
@@ -368,25 +401,33 @@ impl<C: Connector, D: Default> Blocks<C, D> {
         }
     }
 
-    pub async fn create(&self, connector: &C, db: &str) -> ConnResult<ConnHandle<C>> {
+    pub fn create(
+        &self,
+        connector: &C,
+        db: &str,
+    ) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
         consistency_check!(self);
         let block = self.block(db);
-        block.create(connector).await
+        block.create(connector)
     }
 
-    pub async fn queue(&self, db: &str) -> ConnResult<ConnHandle<C>> {
+    pub fn queue(&self, db: &str) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
         consistency_check!(self);
         let block = self.block(db);
-        block.queue().await
+        block.queue()
     }
 
-    pub async fn create_if_needed(&self, connector: &C, db: &str) -> ConnResult<ConnHandle<C>> {
+    pub fn create_if_needed(
+        &self,
+        connector: &C,
+        db: &str,
+    ) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
         consistency_check!(self);
         let block = self.block(db);
-        let (new, c) = block.create_if_needed(connector).await?;
-        Ok(c)
+        block.create_if_needed(connector)
     }
 
+    /// Closes one connection in a block.
     pub fn task_close_one(&self, connector: &C, db: &str) -> impl Future<Output = ConnResult<()>> {
         consistency_check!(self);
         let block = self.block(db);
@@ -454,13 +495,13 @@ mod tests {
     async fn test_block() -> Result<()> {
         let connector = BasicConnector::no_delay();
         let block = Rc::new(Block::<BasicConnector>::new(Name::from("db"), None));
-        let conn = block.create(&connector).await?;
+        let conn = block.clone().create(&connector).await?;
         assert_block!(block has 1 Active);
         let local = LocalSet::new();
         let block2 = block.clone();
         local.spawn_local(async move {
             assert_block!(block2 has 1 Active);
-            let conn = block2.queue().await?;
+            let conn = block2.clone().queue().await?;
             assert_block!(block2 has 1 Active);
             drop(conn);
             Ok(())
@@ -477,9 +518,9 @@ mod tests {
     async fn test_block_parallel_acquire() -> Result<()> {
         let connector = BasicConnector::no_delay();
         let block = Rc::new(Block::<BasicConnector>::new(Name::from("db"), None));
-        block.create(&connector).await?;
-        block.create(&connector).await?;
-        block.create(&connector).await?;
+        block.clone().create(&connector).await?;
+        block.clone().create(&connector).await?;
+        block.clone().create(&connector).await?;
         assert_block!(block has 3 Idle);
 
         let local = LocalSet::new();
@@ -489,7 +530,7 @@ mod tests {
                 for _ in 0..i % 10 {
                     tokio::task::yield_now().await;
                 }
-                block2.queue().await
+                block2.clone().queue().await
             });
         }
         local.await;

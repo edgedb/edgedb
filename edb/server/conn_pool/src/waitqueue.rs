@@ -5,7 +5,7 @@ use std::{
     collections::VecDeque,
     future::poll_fn,
     rc::Rc,
-    task::Poll,
+    task::{Poll, Waker},
 };
 use tracing::trace;
 
@@ -16,16 +16,16 @@ use std::time::Instant;
 
 pub struct WaitQueue {
     id: Cell<usize>,
-    waiters: RefCell<VecDeque<(usize, Instant, std::task::Waker)>>,
-    metrics: Rc<MetricsAccum>,
+    waiters: RefCell<VecDeque<(usize, Instant, Waker)>>,
+    pub(crate) lock: Cell<usize>,
 }
 
 impl WaitQueue {
-    pub fn new(metrics: Rc<MetricsAccum>) -> Self {
+    pub fn new() -> Self {
         Self {
             id: Cell::default(),
             waiters: RefCell::default(),
-            metrics,
+            lock: Cell::default(),
         }
     }
 
@@ -52,12 +52,9 @@ impl WaitQueue {
         defer! {
             // Remove ourselves
             if !normal_exit.get() {
-                self.metrics.remove(MetricVariant::Waiting);
                 self.waiters.borrow_mut().retain(|(id_, _, _)| *id_ != id);
             }
         }
-
-        self.metrics.insert(MetricVariant::Waiting);
 
         // Wait for a waker
         let mut defer = true;
@@ -84,8 +81,6 @@ impl WaitQueue {
         .await;
 
         let (_, t, _) = self.waiters.borrow_mut().pop_front().unwrap();
-        self.metrics
-            .remove_time(MetricVariant::Waiting, t.elapsed());
 
         // Prevent defer block
         normal_exit.set(true);
@@ -93,5 +88,12 @@ impl WaitQueue {
 
     pub fn len(&self) -> usize {
         self.waiters.borrow().len()
+    }
+
+    pub(crate) fn lock(&self) {
+        self.lock.set(self.lock.get() + 1);
+    }
+    pub(crate) fn unlock(&self) {
+        self.lock.set(self.lock.get() - 1);
     }
 }

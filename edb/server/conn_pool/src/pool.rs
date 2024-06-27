@@ -1,5 +1,8 @@
 use crate::{
-    algo::{Hunger, PoolAlgoTargetData, PoolConstraints, VisitPoolAlgoData},
+    algo::{
+        AcquireOp, Hunger, PoolAlgoTargetData, PoolConstraints, RebalanceOp, ReleaseOp,
+        VisitPoolAlgoData,
+    },
     block::Blocks,
     conn::{ConnHandle, ConnResult, Connector},
     metrics::PoolMetrics,
@@ -162,41 +165,12 @@ impl<C: Connector> Pool<C> {
         }
 
         self.config.constraints.adjust(&self.blocks);
-
-        // If nobody in the pool is waiting for anything, we don't do any work
-        // here.
-
-        // For any block with less connections than its quota that has
-        // waiters, we want to transfer from the most overloaded block.
-        let mut overloaded = vec![];
-        let mut hungriest = vec![];
-
-        self.blocks.with_algo_data_all(|name, block, free| {
-            match block.hunger.get() {
-                Hunger::Hungry(value) => hungriest.push((value, name.clone())),
-                Hunger::Overfull(value) => {
-                    // We can't steal from a block that has no idle connections
-                    if free > 0 {
-                        overloaded.push((value, name.clone()))
-                    }
+        for op in self.config.constraints.plan_rebalance(&self.blocks) {
+            match op {
+                RebalanceOp::Transfer(from, to) => {
+                    tokio::task::spawn_local(self.blocks.task_steal(&self.connector, &to, &from));
                 }
-                Hunger::Satisfied => {}
             }
-        });
-
-        overloaded.sort();
-        hungriest.sort();
-
-        loop {
-            let Some((hunger, to)) = hungriest.pop() else {
-                break;
-            };
-
-            let Some((_, from)) = overloaded.last() else {
-                break;
-            };
-
-            tokio::task::spawn_local(self.blocks.task_steal(&self.connector, &to, &from));
         }
     }
 
@@ -212,49 +186,28 @@ impl<C: Connector> Pool<C> {
         // `config.adjustment_interval` ms, we re-run the quota algorithm to recompute.
         // 3. If the block is not new and the quota algorithm has been run, we just add ourselves to the
         // wait list (which will potentially give us a connection if there are some free).
-
-        if !self.blocks.contains(db) {
-            self.blocks.prepare(db);
-            self.config.constraints.adjust(&self.blocks);
-        } else if self.last_adjust.get().elapsed() > self.config.adjustment_interval {
-            self.config.constraints.adjust(&self.blocks);
-        }
-
-        let target_block_size = self.blocks.target(db);
-        let current_block_size = self.blocks.block_conn_count(db);
-        let current_pool_size = self.blocks.conn_count();
-        let max_pool_size = self.config.constraints.max;
-
-        let pool_is_full = current_pool_size >= max_pool_size;
-        let block_has_room = current_block_size < target_block_size;
-
-        let conn = if pool_is_full && block_has_room {
-            // We need to try to steal a connection
-            if let Some(from) = self.config.constraints.identify_victim(&self.blocks) {
+        self.dirty.set(true);
+        let conn = match self.config.constraints.plan_acquire(db, &self.blocks) {
+            AcquireOp::Create => self.blocks.create_if_needed(&self.connector, db).await,
+            AcquireOp::Steal(from) => {
                 tokio::task::spawn_local(self.blocks.task_steal(&self.connector, db, &from));
-            };
-            self.blocks.queue(db).await
-        } else if block_has_room {
-            self.blocks.create_if_needed(&self.connector, db).await
-        } else {
-            self.blocks.queue(db).await
+                self.blocks.queue(db).await
+            }
+            AcquireOp::Wait => self.blocks.queue(db).await,
         }?;
 
-        self.dirty.set(true);
         Ok(PoolHandle::new(conn, self.clone()))
     }
 
     /// Internal release method
     fn release(self: Rc<Self>, conn: ConnHandle<C>) {
+        let db = &conn.state.db_name;
         self.dirty.set(true);
-        if let Some(hungriest) = self.config.constraints.identify_hungriest(&self.blocks) {
-            let rc = self;
-            tokio::task::spawn_local(async move {
-                rc.blocks
-                    .task_move_to(&rc.connector, conn, &hungriest)
-                    .await
-                    .expect("Failed to move a connction: TODO");
-            });
+        match self.config.constraints.plan_release(db, &self.blocks) {
+            ReleaseOp::Release => {}
+            ReleaseOp::ReleaseTo(db) => {
+                tokio::task::spawn_local(self.blocks.task_move_to(&self.connector, conn, &db));
+            }
         }
     }
 
@@ -312,11 +265,72 @@ mod tests {
                     });
                     tasks.push(task);
                 }
+                let monitor = tokio::task::spawn_local(async move {
+                    loop {
+                        let mut s = "".to_owned();
+                        for block in pool.metrics().blocks {
+                            s += &format!("{} ", block.total);
+                        }
+                        info!("Blocks: {s}");
+                        virtual_sleep(Duration::from_millis(100)).await;
+                    }
+                });
                 for task in tasks {
                     task.await??;
                 }
-                let metrics = pool.metrics();
-                info!("{metrics:?}");
+                // let metrics = pool.metrics();
+                // info!("{metrics:?}");
+                Ok(())
+            })
+            .await?;
+        info!(
+            "Took {:?} of virtual time ({:?} real time) for {CONNECTIONS} connections to {DATABASES} databases",
+            start.elapsed(), real_time.elapsed()
+        );
+        Ok(())
+    }
+
+    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
+    async fn test_pool_overfull() -> Result<()> {
+        let config = PoolConfig::suggested_default_for(10);
+
+        let local = LocalSet::new();
+        let start = Instant::now();
+        const CONNECTIONS: usize = 12;
+        const DATABASES: usize = 12;
+        info!("Starting tasks");
+        let real_time = std::time::Instant::now();
+        local
+            .run_until(async {
+                let mut tasks = vec![];
+                let pool = Rc::new(Pool::new(config, BasicConnector::delay()));
+                for i in 0..CONNECTIONS {
+                    let pool = pool.clone();
+                    let task = tokio::task::spawn_local(async move {
+                        let db = format!("db-{}", i % DATABASES);
+                        trace!("In local task for connection {i} (using {db})");
+                        let conn = pool.acquire(&db).await?;
+                        virtual_sleep(Duration::from_millis(500)).await;
+                        drop(conn);
+                        Ok(())
+                    });
+                    tasks.push(task);
+                }
+                let monitor = tokio::task::spawn_local(async move {
+                    loop {
+                        let mut s = "".to_owned();
+                        for block in pool.metrics().blocks {
+                            s += &format!("{} ", block.total);
+                        }
+                        info!("Blocks: {s}");
+                        virtual_sleep(Duration::from_millis(100)).await;
+                    }
+                });
+                for task in tasks {
+                    task.await??;
+                }
+                // let metrics = pool.metrics();
+                // info!("{metrics:?}");
                 Ok(())
             })
             .await?;

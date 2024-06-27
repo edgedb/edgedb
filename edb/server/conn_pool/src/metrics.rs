@@ -118,6 +118,8 @@ pub struct ConnMetrics {
     pub(crate) value: VariantArray<usize>,
     pub(crate) max: VariantArray<usize>,
     pub(crate) avg_time: VariantArray<u32>,
+    pub(crate) total: usize,
+    pub(crate) total_max: usize,
 }
 
 impl std::fmt::Debug for ConnMetrics {
@@ -218,6 +220,8 @@ impl MetricsAccum {
             value: lock.counts,
             max: lock.max,
             avg_time,
+            total: lock.total,
+            total_max: lock.total_max,
         }
     }
 
@@ -280,7 +284,8 @@ impl MetricsAccum {
 impl From<&RawMetrics> for PoolAlgorithmData {
     fn from(val: &RawMetrics) -> Self {
         PoolAlgorithmData {
-            active: val.counts[MetricVariant::Active] as _,
+            total: val.total,
+            active: val.counts[MetricVariant::Active],
             idle: val.counts[MetricVariant::Idle],
             waiters: val.counts[MetricVariant::Waiting],
             avg_connect_time: val.times[MetricVariant::Connecting].avg() as _,

@@ -53,4 +53,40 @@ resource
 
 ## Detailed Algorithm
 
+The algorithm is designed to 1) maximize time spent running queries in a
+database and 2) minimize latency of queries waiting for their turn to run. These
+goals may be in conflict at times. We do this by optimizing the time spent
+switching between databases, which is considered "dead time" -- as the database
+is not actively performing operations.
 
+The demand for a connection is based on estimated total sequential processing
+time. We use the average time that a connection is held, times the number of
+connections in demand as a rough idea of how much total sequential time a
+certain block demands in the future.
+
+At a regular interval, we compute two items for each block: a quota, and a
+"hunger" metric. The hunger metric may indicate that a block is "hungry"
+(wanting more connections), satisfied (having the expected number of
+connections) or overfull (holding more connections than it should). The "hungry"
+score is determined by the estimated total sequential time needed for a block.
+The "overfull" score is determined by the number of extra connections held by
+this block, in combination with how old the longest-held connection is. Quota is
+determined by the connection rate.
+
+We then use the hunger metric and quota in an attempt to rebalance the pool
+proactively to ensure that the connection capacity of each block reflects its
+most recent demand profile. Blocks are sorted into a list of hungry and overfull
+blocks, and we attempt to transfer from the most hungry to the most overfull
+until we run out of either list. We may not be able to perform the rebalance
+fully because of block activity that cannot be interrupted.
+
+If a connection is requested for a block that is hungry, it is allowed to steal
+a connection from the block that most overfull and has idle connections. As the
+"overfull" score is calculated in part by the longest-held connection's age, we
+minimize context switching.
+
+When a connection is released, we choose what happens based on its state. If
+more connections are waiting on this block, we return the connection to the
+block to be re-used immediately. If no connections are waiting but the block is
+hungry, we return it. If the block is satisfied or overfull and we have hungry
+blocks waiting, we transfer it to a hungry block that has waiters.
