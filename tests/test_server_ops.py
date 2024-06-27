@@ -488,6 +488,43 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             finally:
                 await cluster.stop()
 
+    async def test_server_ops_postgres_multitenant_env(self):
+        async def test(pgdata_path, tenant):
+            async with tb.start_edgedb_server(
+                reset_auth=True,
+                backend_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
+                runstate_dir=None if devmode.is_in_dev_mode() else pgdata_path,
+                env={"EDGEDB_SERVER_TENANT_ID": tenant},
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.execute(f'CREATE DATABASE {tenant}')
+                    await con.execute(f'CREATE SUPERUSER ROLE {tenant}')
+                    databases = await con.query('SELECT sys::Database.name')
+                    self.assertEqual(set(databases), {'main', tenant})
+                    roles = await con.query('SELECT sys::Role.name')
+                    self.assertEqual(set(roles), {'edgedb', tenant})
+                finally:
+                    await con.aclose()
+
+        with tempfile.TemporaryDirectory() as td:
+            cluster = await pgcluster.get_local_pg_cluster(td, log_level='s')
+            cluster.set_connection_params(
+                pgconnparams.ConnectionParameters(
+                    user='postgres',
+                    database='template1',
+                ),
+            )
+            self.assertTrue(await cluster.ensure_initialized())
+
+            await cluster.start()
+            try:
+                async with asyncio.TaskGroup() as tg:
+                    tg.create_task(test(td, 'tenant1'))
+                    tg.create_task(test(td, 'tenant2'))
+            finally:
+                await cluster.stop()
+
     async def test_server_ops_postgres_multitenant(self):
         async def test(pgdata_path, tenant):
             async with tb.start_edgedb_server(
