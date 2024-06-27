@@ -200,6 +200,28 @@ SLACK_DISCOVERY_DOCUMENT = {
     ],
 }
 
+GENERIC_OIDC_DISCOVERY_DOCUMENT = {
+    "issuer": "https://example.com",
+    "authorization_endpoint": "https://example.com/auth",
+    "token_endpoint": "https://example.com/token",
+    "userinfo_endpoint": "https://example.com/userinfo",
+    "jwks_uri": "https://example.com/jwks",
+    "scopes_supported": ["openid", "profile", "email"],
+    "response_types_supported": ["code"],
+    "response_modes_supported": ["query"],
+    "grant_types_supported": ["authorization_code"],
+    "subject_types_supported": ["public"],
+    "id_token_signing_alg_values_supported": ["RS256"],
+    "claims_supported": ["sub", "auth_time", "iss"],
+    "claims_parameter_supported": False,
+    "request_parameter_supported": False,
+    "request_uri_parameter_supported": True,
+    "token_endpoint_auth_methods_supported": [
+        "client_secret_post",
+        "client_secret_basic",
+    ],
+}
+
 
 def utcnow():
     return datetime.datetime.now(datetime.timezone.utc)
@@ -212,6 +234,7 @@ AZURE_SECRET = 'c' * 32
 APPLE_SECRET = 'c' * 32
 DISCORD_SECRET = 'd' * 32
 SLACK_SECRET = 'd' * 32
+GENERIC_OIDC_SECRET = 'e' * 32
 APP_NAME = "Test App"
 LOGO_URL = "http://example.com/logo.png"
 DARK_LOGO_URL = "http://example.com/darklogo.png"
@@ -295,6 +318,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         }};
 
         CONFIGURE CURRENT DATABASE
+        INSERT ext::auth::OpenIDConnectProvider {{
+            secret := '{GENERIC_OIDC_SECRET}',
+            client_id := '{uuid.uuid4()}',
+            name := 'generic_oidc',
+            display_name := 'My Generic OIDC Provider',
+            issuer_url := 'https://example.com',
+            additional_scope := 'profile',
+        }};
+
+        CONFIGURE CURRENT DATABASE
         INSERT ext::auth::EmailPasswordProviderConfig {{
             require_verification := false,
         }};
@@ -321,7 +354,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     def setUp(self):
         self.mock_provider = tb.MockHttpServer(
-            handler_type=tb.MultiHostMockHttpServerHandler)
+            handler_type=tb.MultiHostMockHttpServerHandler
+        )
         self.mock_provider.start()
         HTTP_TEST_PORT.set(self.mock_provider.get_base_url())
 
@@ -371,18 +405,23 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             headers['x-edgedb-oauth-test-server'] = test_port
         return super().http_con_send_request(*args, headers=headers, **kwargs)
 
-    async def get_builtin_provider_config_by_name(self, provider_name: str):
+    async def get_provider_config_by_name(self, fqn: str):
         return await self.con.query_single(
             """
-            SELECT assert_exists(assert_single(
+            SELECT assert_exists(
                 cfg::Config.extensions[is ext::auth::AuthConfig].providers {
                     *,
                     [is ext::auth::OAuthProviderConfig].client_id,
                     [is ext::auth::OAuthProviderConfig].additional_scope,
-                } filter .name = 'builtin::' ++ <str>$0
-            ));
+                } filter .name = <str>$0
+            );
             """,
-            provider_name,
+            fqn,
+        )
+
+    async def get_builtin_provider_config_by_name(self, provider_name: str):
+        return await self.get_provider_config_by_name(
+            f"builtin::{provider_name}"
         )
 
     async def get_auth_config_value(self, key: str):
@@ -1284,8 +1323,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 2)
 
             requests_for_token = self.mock_provider.requests[token_request]
@@ -1381,8 +1421,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 1)
 
             pkce = await self.con.query(
@@ -1452,8 +1493,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 1)
 
             pkce = await self.con.query(
@@ -1585,8 +1627,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 2)
 
             requests_for_token = self.mock_provider.requests[token_request]
@@ -1666,8 +1709,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 1)
 
             pkce = await self.con.query(
@@ -1804,8 +1848,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 2)
 
             requests_for_token = self.mock_provider.requests[token_request]
@@ -2091,8 +2136,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 2)
 
             requests_for_token = self.mock_provider.requests[token_request]
@@ -2188,8 +2234,87 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
+            self.assertEqual(len(requests_for_discovery), 1)
+
+            pkce = await self.con.query(
+                """
+                select ext::auth::PKCEChallenge
+                filter .challenge = <str>$challenge
+                """,
+                challenge=challenge,
+            )
+            self.assertEqual(len(pkce), 1)
+
+    async def test_http_auth_ext_generic_oidc_authorize_01(self):
+        with self.http_con() as http_con:
+            provider_config = await self.get_provider_config_by_name(
+                "generic_oidc"
+            )
+            provider_name = provider_config.name
+            client_id = provider_config.client_id
+            challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(
+                        base64.urlsafe_b64encode(os.urandom(43)).rstrip(b'=')
+                    ).digest()
+                )
+                .rstrip(b'=')
+                .decode()
+            )
+
+            discovery_request = (
+                "GET",
+                "https://example.com",
+                "/.well-known/openid-configuration",
+            )
+            self.mock_provider.register_route_handler(*discovery_request)(
+                (
+                    json.dumps(GENERIC_OIDC_DISCOVERY_DOCUMENT),
+                    200,
+                )
+            )
+
+            redirect_to = f"{self.http_addr}/some/path"
+            _, headers, status = self.http_con_request(
+                http_con,
+                {
+                    "provider": provider_name,
+                    "redirect_to": redirect_to,
+                    "challenge": challenge,
+                },
+                path="authorize",
+            )
+
+            self.assertEqual(status, 302)
+
+            location = headers.get("location")
+            assert location is not None
+            url = urllib.parse.urlparse(location)
+            qs = urllib.parse.parse_qs(url.query, keep_blank_values=True)
+            self.assertEqual(url.scheme, "https")
+            self.assertEqual(url.hostname, "example.com")
+            self.assertEqual(url.path, "/auth")
+            self.assertEqual(qs.get("scope"), ["openid profile "])
+
+            state = qs.get("state")
+            assert state is not None
+
+            claims = await self.extract_jwt_claims(state[0])
+            self.assertEqual(claims.get("provider"), provider_name)
+            self.assertEqual(claims.get("iss"), self.http_addr)
+            self.assertEqual(claims.get("redirect_to"), redirect_to)
+
+            self.assertEqual(
+                qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
+            )
+            self.assertEqual(qs.get("client_id"), [client_id])
+
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 1)
 
             pkce = await self.con.query(
@@ -2409,7 +2534,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 400)
 
             # Non-matching port
-            form_data["redirect_to"] = "https://oauth.example.com:8080/app/some/path"
+            form_data["redirect_to"] = (
+                "https://oauth.example.com:8080/app/some/path"
+            )
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
             _, _, status = self.http_con_request(
@@ -2424,7 +2551,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 400)
 
             # Path doesn't match
-            form_data["redirect_to"] = "https://oauth.example.com/wrong-base/path"
+            form_data["redirect_to"] = (
+                "https://oauth.example.com/wrong-base/path"
+            )
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
             _, _, status = self.http_con_request(

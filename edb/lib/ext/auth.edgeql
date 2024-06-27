@@ -177,8 +177,16 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
     };
 
-    create type ext::auth::OpenIDConnectProviderConfig
+    create type ext::auth::OpenIDConnectProvider
         extending ext::auth::OAuthProviderConfig {
+        alter property name {
+            set protected := false;
+        };
+
+        alter property display_name {
+            set protected := false;
+        };
+
         create required property issuer_url: std::str {
             create annotation std::description :=
                 "The issuer URL of the provider.";
