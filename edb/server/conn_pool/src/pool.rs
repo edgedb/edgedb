@@ -221,6 +221,7 @@ mod tests {
     use super::*;
     use crate::test::{virtual_sleep, BasicConnector};
     use anyhow::{Ok, Result};
+    use rstest::rstest;
     use std::rc::Rc;
     use test_log::test;
     use tokio::task::LocalSet;
@@ -240,13 +241,16 @@ mod tests {
     }
 
     #[test(tokio::test(flavor = "current_thread", start_paused = true))]
-    async fn test_pool_large() -> Result<()> {
+    #[rstest]
+    #[case::small(10)]
+    #[case::medium(12)]
+    #[case::large(20)]
+    async fn test_pool(#[case] databases: usize) -> Result<()> {
         let config = PoolConfig::suggested_default_for(10);
 
         let local = LocalSet::new();
         let start = Instant::now();
         const CONNECTIONS: usize = 10000;
-        const DATABASES: usize = 10;
         info!("Starting tasks");
         let real_time = std::time::Instant::now();
         local
@@ -256,7 +260,7 @@ mod tests {
                 for i in 0..CONNECTIONS {
                     let pool = pool.clone();
                     let task = tokio::task::spawn_local(async move {
-                        let db = format!("db-{}", i % DATABASES);
+                        let db = format!("db-{}", i % databases);
                         trace!("In local task for connection {i} (using {db})");
                         let conn = pool.acquire(&db).await?;
                         virtual_sleep(Duration::from_millis(500)).await;
@@ -278,64 +282,14 @@ mod tests {
                 for task in tasks {
                     task.await??;
                 }
+                monitor.abort();
                 // let metrics = pool.metrics();
                 // info!("{metrics:?}");
                 Ok(())
             })
             .await?;
         info!(
-            "Took {:?} of virtual time ({:?} real time) for {CONNECTIONS} connections to {DATABASES} databases",
-            start.elapsed(), real_time.elapsed()
-        );
-        Ok(())
-    }
-
-    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
-    async fn test_pool_overfull() -> Result<()> {
-        let config = PoolConfig::suggested_default_for(10);
-
-        let local = LocalSet::new();
-        let start = Instant::now();
-        const CONNECTIONS: usize = 12;
-        const DATABASES: usize = 12;
-        info!("Starting tasks");
-        let real_time = std::time::Instant::now();
-        local
-            .run_until(async {
-                let mut tasks = vec![];
-                let pool = Rc::new(Pool::new(config, BasicConnector::delay()));
-                for i in 0..CONNECTIONS {
-                    let pool = pool.clone();
-                    let task = tokio::task::spawn_local(async move {
-                        let db = format!("db-{}", i % DATABASES);
-                        trace!("In local task for connection {i} (using {db})");
-                        let conn = pool.acquire(&db).await?;
-                        virtual_sleep(Duration::from_millis(500)).await;
-                        drop(conn);
-                        Ok(())
-                    });
-                    tasks.push(task);
-                }
-                let monitor = tokio::task::spawn_local(async move {
-                    loop {
-                        let mut s = "".to_owned();
-                        for block in pool.metrics().blocks {
-                            s += &format!("{} ", block.total);
-                        }
-                        info!("Blocks: {s}");
-                        virtual_sleep(Duration::from_millis(100)).await;
-                    }
-                });
-                for task in tasks {
-                    task.await??;
-                }
-                // let metrics = pool.metrics();
-                // info!("{metrics:?}");
-                Ok(())
-            })
-            .await?;
-        info!(
-            "Took {:?} of virtual time ({:?} real time) for {CONNECTIONS} connections to {DATABASES} databases",
+            "Took {:?} of virtual time ({:?} real time) for {CONNECTIONS} connections to {databases} databases",
             start.elapsed(), real_time.elapsed()
         );
         Ok(())
