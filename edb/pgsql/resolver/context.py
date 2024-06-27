@@ -19,7 +19,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Optional, Sequence, List
+from typing import Optional, Sequence, List, Dict
 from dataclasses import dataclass, field
 import enum
 import uuid
@@ -27,7 +27,9 @@ import uuid
 from edb.pgsql import ast as pgast
 
 from edb.common import compiler
+
 from edb.schema import schema as s_schema
+from edb.schema import objects as s_objects
 from edb.schema import pointers as s_pointers
 
 
@@ -161,6 +163,10 @@ class ResolverContextLevel(compiler.ContextLevel):
     # in the top-level WITH binding.
     ctes_buffer: List[pgast.CommonTableExpr]
 
+    # A mapping of from objects to CTEs that provide an "inheritance view",
+    # which is basically a union of all of their descendant's tables.
+    inheritance_ctes: Dict[s_objects.InheritingObject, str]
+
     options: Options
 
     def __init__(
@@ -181,6 +187,7 @@ class ResolverContextLevel(compiler.ContextLevel):
             self.names = compiler.AliasGenerator()
             self.subquery_depth = 0
             self.ctes_buffer = []
+            self.inheritance_ctes = dict()
 
         else:
             self.schema = prevlevel.schema
@@ -189,6 +196,7 @@ class ResolverContextLevel(compiler.ContextLevel):
 
             self.subquery_depth = prevlevel.subquery_depth + 1
             self.ctes_buffer = prevlevel.ctes_buffer
+            self.inheritance_ctes = prevlevel.inheritance_ctes
 
             if mode == ContextSwitchMode.EMPTY:
                 self.scope = Scope(ctes=prevlevel.scope.ctes)
