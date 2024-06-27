@@ -631,6 +631,7 @@ _server_options = [
         '--tenant-id',
         type=str,
         callback=_validate_tenant_id,
+        envvar="EDGEDB_SERVER_TENANT_ID",
         help='Specifies the tenant ID of this server when hosting'
              ' multiple EdgeDB instances on one Postgres cluster.'
              ' Must be an alphanumeric ASCII string, maximum'
@@ -730,6 +731,7 @@ _server_options = [
              f'by default)'),
     click.option(
         '--max-backend-connections', type=int, metavar='NUM',
+        envvar="EDGEDB_SERVER_MAX_BACKEND_CONNECTIONS",
         help=f'The maximum NUM of connections this EdgeDB instance could make '
              f'to the backend PostgreSQL cluster. If not set, EdgeDB will '
              f'detect and calculate the NUM: RAM/100MiB='
@@ -739,11 +741,13 @@ _server_options = [
         callback=_validate_max_backend_connections),
     click.option(
         '--compiler-pool-size', type=int,
+        envvar="EDGEDB_SERVER_COMPILER_POOL_SIZE",
         callback=_validate_compiler_pool_size),
     click.option(
         '--compiler-pool-mode',
         type=CompilerPoolModeChoice(),
         default=CompilerPoolMode.Default.value,
+        envvar="EDGEDB_SERVER_COMPILER_POOL_MODE",
         help='Choose a mode for the compiler pool to scale. "fixed" means the '
              'pool will not scale and sticks to --compiler-pool-size, while '
              '"on_demand" means the pool will maintain at least 1 worker and '
@@ -755,6 +759,7 @@ _server_options = [
         '--compiler-pool-addr',
         hidden=True,
         callback=_validate_host_port,
+        envvar="EDGEDB_SERVER_COMPILER_POOL_ADDR",
         help=f'Specify the host[:port] of the compiler pool to connect to, '
              f'only used if --compiler-pool-mode=remote. Default host is '
              f'localhost, port is {defines.EDGEDB_REMOTE_COMPILER_PORT}',
@@ -764,6 +769,7 @@ _server_options = [
         hidden=True,
         type=int,
         default=100,
+        envvar="EDGEDB_SERVER_COMPILER_POOL_TENANT_CACHE_SIZE",
         help="Maximum number of tenants for which each compiler worker can "
              "cache their schemas, "
              "only used when --compiler-pool-mode=fixed_multi_tenant"
