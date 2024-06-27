@@ -37,6 +37,7 @@ async def handle_request(
     path_parts,
     server,
     tenant,
+    auth_method,
 ):
     try:
         if tenant is None:
@@ -64,6 +65,28 @@ async def handle_request(
                     handle_liveness_query(request, response, tenant),
                     interruptable=False,
                 )
+        elif path_parts[0] == 'branches' and request.method == b'GET':
+            if auth_method == "Trust":
+                # A proper authentication other than "trust" is required for
+                # this endpoint, in order to avoid accidental branch name leaks
+                _response_error(
+                    response,
+                    http.HTTPStatus.UNAUTHORIZED,
+                    "this endpoint requires authentication",
+                    errors.AuthenticationError,
+                )
+                return
+
+            schema_version = "schema-version" in path_parts[1:]
+            if tenant is None:
+                rv = {}
+                for tenant in server.iter_tenants():
+                    rv[tenant.get_instance_name()] = handle_list_branches(
+                        tenant, schema_version
+                    )
+            else:
+                rv = handle_list_branches(tenant, schema_version)
+            _response_ok(response, json.dumps(rv).encode())
         else:
             response.body = b'Unknown path'
             response.status = http.HTTPStatus.NOT_FOUND
@@ -150,3 +173,17 @@ async def handle_readiness_query(
         )
     else:
         _response_ok(response, await _ping(tenant))
+
+
+def handle_list_branches(tenant, schema_version=False):
+    rv = []
+    for db in tenant.iter_dbs():
+        if db.name == edbdef.EDGEDB_SYSTEM_DB:
+            continue
+        row = {"name": db.name}
+        if schema_version:
+            row["schema_version"] = (
+                db.schema_version and str(db.schema_version)
+            )
+        rv.append(row)
+    return rv
