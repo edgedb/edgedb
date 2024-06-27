@@ -35,6 +35,7 @@ from edb.ir import utils as irutils
 from edb.pgsql import ast as pgast
 from edb.pgsql import common
 from edb.pgsql import types as pg_types
+from edb.pgsql.common import PathAspect
 
 from . import astutils
 from . import config
@@ -765,7 +766,10 @@ def _compile_set(
         shape_tuple = shapecomp.compile_shape(ir_set, ir_set.shape, ctx=ctx)
         for element in shape_tuple.elements:
             pathctx.put_path_var_if_not_exists(
-                ctx.rel, element.path_id, element.val, aspect='value'
+                ctx.rel,
+                element.path_id,
+                element.val,
+                aspect=PathAspect.VALUE,
             )
 
 
@@ -855,7 +859,9 @@ def compile_Pointer(
     # will be only one in scope), but sometimes we do (for example NEW
     # in trigger functions).
     rvar_name = []
-    if src := ctx.env.external_rvars.get((source.path_id, 'source')):
+    if src := ctx.env.external_rvars.get(
+        (source.path_id, PathAspect.SOURCE)
+    ):
         rvar_name = [src.alias.aliasname]
 
     # compile column name
