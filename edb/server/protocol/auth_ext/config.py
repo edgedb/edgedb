@@ -42,8 +42,17 @@ class AppDetailsConfig:
     brand_color: Optional[str]
 
 
+@dataclass
 class ProviderConfig:
     name: str
+
+
+@dataclass
+class OAuthProviderConfig(ProviderConfig):
+    display_name: str
+    client_id: str
+    secret: str
+    additional_scope: Optional[str]
 
 
 class WebAuthnProviderConfig(ProviderConfig):

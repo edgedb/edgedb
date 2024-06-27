@@ -23,7 +23,7 @@ import re
 hex_color_regexp = re.compile(r'[0-9a-fA-F]{6}')
 
 
-def get_colour_vars(bg_hex: str):
+def get_colour_vars(bg_hex: str) -> str:
     bg_rgb = hex_to_rgb(bg_hex)
     bg_hsl = rgb_to_hsl(*bg_rgb)
     luma = rgb_to_luma(*bg_rgb)

@@ -22,7 +22,7 @@ import json
 import base64
 
 from jwcrypto import jwk
-from typing import Any
+from typing import Any, cast
 from edb.server.protocol import execute
 
 from . import util
@@ -42,7 +42,7 @@ class Client:
 
     async def verify_email(
         self, identity_id: str, verified_at: datetime.datetime
-    ):
+    ) -> bytes:
         r = await execute.parse_execute_json(
             db=self.db,
             query="""\
@@ -80,7 +80,7 @@ select ext::auth::EmailFactor {
 
         assert len(result_json) == 1
 
-        return result_json[0]["email"]
+        return cast(str, result_json[0]["email"])
 
     async def get_verified_by_identity_id(self, identity_id: str) -> str | None:
         r = await execute.parse_execute_json(
@@ -100,7 +100,7 @@ select ext::auth::EmailFactor {
 
         assert len(result_json) == 1
 
-        return result_json[0]["verified_at"]
+        return cast(str, result_json[0]["verified_at"])
 
     async def get_identity_id_by_email(
         self, email: str, *, factor_type: str = 'EmailFactor'
@@ -125,4 +125,4 @@ select identity.id;""",
 
         assert len(result_json) == 1
 
-        return result_json[0]
+        return cast(str, result_json[0])

@@ -16,12 +16,14 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
+
 import dataclasses
 import base64
 import json
 import webauthn
 
-from typing import Any, Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING
 from webauthn.helpers import (
     parse_authentication_credential_json,
     structs as webauthn_structs,
@@ -32,6 +34,9 @@ from edb.errors import ConstraintViolationError
 from edb.server.protocol import execute
 
 from . import config, data, errors, util, local
+
+if TYPE_CHECKING:
+    from edb.server import tenant as edbtenant
 
 
 @dataclasses.dataclass(repr=False)
@@ -47,7 +52,7 @@ class WebAuthnRegistrationChallenge:
 
 
 class Client(local.Client):
-    def __init__(self, db: Any):
+    def __init__(self, db: edbtenant.dbview.Database):
         self.db = db
         self.provider = self._get_provider()
         self.app_name = self._get_app_name()
@@ -72,7 +77,9 @@ class Client(local.Client):
     def _get_app_name(self) -> Optional[str]:
         return util.maybe_get_config(self.db, "ext::auth::AuthConfig::app_name")
 
-    async def create_registration_options_for_email(self, email: str):
+    async def create_registration_options_for_email(
+        self, email: str,
+    ) -> tuple[str, bytes]:
         maybe_user_handle = await self._maybe_get_existing_user_handle(
             email=email
         )
@@ -95,7 +102,9 @@ class Client(local.Client):
             webauthn.options_to_json(registration_options).encode(),
         )
 
-    async def _maybe_get_existing_user_handle(self, email: str):
+    async def _maybe_get_existing_user_handle(
+        self, email: str,
+    ) -> Optional[bytes]:
         result = await execute.parse_execute_json(
             self.db,
             """
@@ -123,7 +132,7 @@ select assert_single((select distinct factors.user_handle));""",
         email: str,
         challenge: bytes,
         user_handle: bytes,
-    ):
+    ) -> None:
         await execute.parse_execute_json(
             self.db,
             """
@@ -149,7 +158,7 @@ insert ext::auth::WebAuthnRegistrationChallenge {
         credentials: str,
         email: str,
         user_handle: bytes,
-    ):
+    ) -> data.LocalIdentity:
         registration_challenge = await self._get_registration_challenge(
             email=email,
             user_handle=user_handle,
@@ -248,7 +257,7 @@ filter .email = email and .user_handle = user_handle;""",
         self,
         email: str,
         user_handle: bytes,
-    ):
+    ) -> None:
         await execute.parse_execute_json(
             self.db,
             """
@@ -377,7 +386,7 @@ select (factor.verified_at <= std::datetime_current()) ?? false;""",
         self,
         email: str,
         credential_id: bytes,
-    ):
+    ) -> data.WebAuthnAuthenticationChallenge:
         result = await execute.parse_execute_json(
             self.db,
             """
@@ -429,7 +438,7 @@ filter .factors.email = email and .factors.credential_id = credential_id;""",
         self,
         email: str,
         credential_id: bytes,
-    ):
+    ) -> None:
         await execute.parse_execute_json(
             self.db,
             """
