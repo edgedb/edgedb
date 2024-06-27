@@ -1,10 +1,8 @@
-use crate::metrics::{MetricVariant, MetricsAccum};
 use scopeguard::defer;
 use std::{
     cell::{Cell, RefCell},
     collections::VecDeque,
     future::poll_fn,
-    rc::Rc,
     task::{Poll, Waker},
 };
 use tracing::trace;

@@ -112,10 +112,25 @@ impl<C: Connector> Conn<C> {
         });
     }
 
-    pub fn reopen(&self, connector: &C, to: &MetricsAccum, db: &str) {
+    pub fn transfer(&self, connector: &C, to: &MetricsAccum, db: &str) {
         self.transition(|inner| match inner {
             ConnInner::Active(_, conn, ..) => {
                 to.insert(MetricVariant::Connecting);
+                let f = connector.reconnect(conn, db).boxed_local();
+                ConnInner::Connecting(Instant::now(), f)
+            }
+            _ => unreachable!(),
+        });
+    }
+
+    pub fn reopen(&self, connector: &C, metrics: &MetricsAccum, db: &str) {
+        self.transition(|inner| match inner {
+            ConnInner::Active(t, conn) => {
+                metrics.transition(
+                    MetricVariant::Active,
+                    MetricVariant::Connecting,
+                    t.elapsed(),
+                );
                 let f = connector.reconnect(conn, db).boxed_local();
                 ConnInner::Connecting(Instant::now(), f)
             }
@@ -199,7 +214,6 @@ impl<C: Connector> Conn<C> {
         match &*self.inner.borrow() {
             ConnInner::Active(t, _)
             | ConnInner::Idle(t, _)
-            | ConnInner::Poisoned(t, _)
             | ConnInner::Connecting(t, _)
             | ConnInner::Disconnecting(t, _) => metrics.remove_time(self.variant(), t.elapsed()),
             other => metrics.remove(other.into()),
@@ -214,7 +228,6 @@ enum ConnInner<C: Connector> {
     Disconnecting(Instant, Pin<Box<dyn Future<Output = ConnResult<()>>>>),
     Idle(Instant, C::Conn),
     Active(Instant, C::Conn),
-    Poisoned(Instant, C::Conn),
     Failed,
     Closed,
     /// Transitioning
@@ -228,7 +241,6 @@ impl<C: Connector> From<&ConnInner<C>> for MetricVariant {
             ConnInner::Disconnecting(..) => MetricVariant::Disconnecting,
             ConnInner::Idle(..) => MetricVariant::Idle,
             ConnInner::Active(..) => MetricVariant::Active,
-            ConnInner::Poisoned(..) => MetricVariant::Poisoned,
             ConnInner::Failed => MetricVariant::Failed,
             ConnInner::Closed => MetricVariant::Closed,
             ConnInner::Transition => unreachable!(),
@@ -248,20 +260,11 @@ pub struct ConnHandle<C: Connector> {
     pub(crate) conn: Conn<C>,
     #[debug(skip)]
     pub(crate) state: Rc<ConnState>,
-    poison: Cell<bool>,
 }
 
 impl<C: Connector> ConnHandle<C> {
     pub fn new(conn: Conn<C>, state: Rc<ConnState>) -> Self {
-        Self {
-            conn,
-            state,
-            poison: Cell::new(false),
-        }
-    }
-
-    pub fn poison(&self) {
-        self.poison.set(true)
+        Self { conn, state }
     }
 }
 
@@ -269,26 +272,16 @@ impl<C: Connector> Drop for ConnHandle<C> {
     fn drop(&mut self) {
         self.conn.transition(|inner| match inner {
             ConnInner::Active(t, c) => {
-                let next = if self.poison.get() {
-                    self.state.metrics.transition(
-                        MetricVariant::Active,
-                        MetricVariant::Poisoned,
-                        t.elapsed(),
-                    );
-                    ConnInner::Poisoned(Instant::now(), c)
-                } else {
-                    self.state.metrics.transition(
-                        MetricVariant::Active,
-                        MetricVariant::Idle,
-                        t.elapsed(),
-                    );
-                    ConnInner::Idle(Instant::now(), c)
-                };
+                self.state.metrics.transition(
+                    MetricVariant::Active,
+                    MetricVariant::Idle,
+                    t.elapsed(),
+                );
                 self.state.waiters.trigger();
-                next
+                ConnInner::Idle(Instant::now(), c)
             }
             _ => {
-                unreachable!()
+                unreachable!("Impossible state: {:?}", MetricVariant::from(&inner))
             }
         });
     }

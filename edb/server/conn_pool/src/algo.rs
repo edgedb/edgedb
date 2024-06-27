@@ -1,7 +1,5 @@
-use std::{
-    cell::{Cell, RefCell},
-    num::NonZeroUsize,
-};
+use scopeguard::defer;
+use std::{cell::Cell, num::NonZeroUsize};
 use tracing::trace;
 
 use crate::{block::Name, metrics::MetricVariant};
@@ -23,14 +21,8 @@ pub enum AcquireOp {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReleaseOp {
     Release,
+    Reopen,
     ReleaseTo(Name),
-}
-
-pub trait HasPoolAlgorithmData: std::fmt::Debug {
-    fn with_algo_data<T>(&self, f: impl FnOnce(&PoolAlgorithmData) -> T) -> T;
-
-    fn set_target(&self, target: usize);
-    fn target(&self) -> usize;
 }
 
 pub trait VisitPoolAlgoData<D: PoolAlgorithmDataBlock>: PoolAlgorithmDataPool {
@@ -42,22 +34,6 @@ pub trait VisitPoolAlgoData<D: PoolAlgorithmDataBlock>: PoolAlgorithmDataPool {
     fn target(&self, db: &str) -> usize {
         self.with(db, |data| data.target()).unwrap_or_default()
     }
-}
-
-/// Factual information about the current state of the pool.
-#[derive(Default, Debug, Clone, Copy)]
-pub struct PoolAlgorithmData {
-    pub total: usize,
-    pub active: usize,
-    pub connecting: usize,
-    pub idle: usize,
-    pub waiters: usize,
-    pub max_waiters: usize,
-    pub oldest_waiter_ms: usize,
-    pub max_concurrent: usize,
-    pub avg_connect_time: usize,
-    pub avg_disconnect_time: usize,
-    pub avg_hold_time: usize,
 }
 
 pub trait PoolAlgorithmDataMetrics {
@@ -119,66 +95,21 @@ pub trait PoolAlgorithmDataBlock: PoolAlgorithmDataMetrics {
     }
 }
 
-pub trait PoolAlgorithmDataPool: PoolAlgorithmDataMetrics {}
-
-impl PoolAlgorithmData {
-    pub fn hunger_score(&self, target: usize) -> Option<NonZeroUsize> {
-        const DIFF_WEIGHT: usize = 100;
-        const WAITER_WEIGHT: usize = 1;
-
-        let waiters = self.waiters.saturating_sub(self.connecting);
-        let current = self.total;
-        trace!("{} {} {}", current, target, waiters);
-        if current > target {
-            None
-        } else {
-            if target > current {
-                let diff = target - current;
-                let score = diff * DIFF_WEIGHT + waiters * WAITER_WEIGHT;
-                score.try_into().ok()
-            } else if waiters > 0 {
-                (waiters * WAITER_WEIGHT).try_into().ok()
-            } else {
-                None
-            }
-        }
-    }
-
-    pub fn overfull_score(&self, target: usize, will_release: bool) -> Option<NonZeroUsize> {
-        const DIFF_WEIGHT: usize = 100;
-        const IDLE_WEIGHT: usize = 1;
-
-        let idle = self.idle + if will_release { 1 } else { 0 };
-        let current = self.total;
-        if target >= current || idle == 0 {
-            None
-        } else {
-            if current > target {
-                let diff = current - target;
-                let score = diff * DIFF_WEIGHT + idle * IDLE_WEIGHT;
-                score.try_into().ok()
-            } else {
-                (self.idle * IDLE_WEIGHT).try_into().ok()
-            }
-        }
-    }
+pub trait PoolAlgorithmDataPool: PoolAlgorithmDataMetrics {
+    fn reset_max(&self);
 }
 
 #[derive(Default, Debug)]
 pub struct PoolAlgoTargetData {
     /// A numeric score representing hunger or overfullness.
     target_size: Cell<usize>,
-    pub data: RefCell<PoolAlgorithmData>,
 }
 
-impl HasPoolAlgorithmData for PoolAlgoTargetData {
-    fn with_algo_data<T>(&self, f: impl FnOnce(&PoolAlgorithmData) -> T) -> T {
-        f(&self.data.borrow())
-    }
-    fn set_target(&self, target: usize) {
+impl PoolAlgoTargetData {
+    pub fn set_target(&self, target: usize) {
         self.target_size.set(target);
     }
-    fn target(&self) -> usize {
+    pub fn target(&self) -> usize {
         self.target_size.get()
     }
 }
@@ -197,6 +128,9 @@ impl PoolConstraints {
         T: 'b,
         T: PoolAlgorithmDataBlock,
     {
+        // Once we've adjusted the constraints, reset the max settings
+        defer!(it.reset_max());
+
         // First, compute the overall request load and number of backend targets
         let mut total_requested = 0;
         let mut total_target = 0;
@@ -278,8 +212,9 @@ impl PoolConstraints {
 
         let mut tasks = vec![];
 
+        // TODO: rebalance more than one?
         loop {
-            let Some((hunger, to)) = hungriest.pop() else {
+            let Some((_, to)) = hungriest.pop() else {
                 break;
             };
 
@@ -330,12 +265,16 @@ impl PoolConstraints {
         }
     }
 
-    pub fn plan_release<'a, 'b, T, U>(&self, db: &str, it: &'a U) -> ReleaseOp
+    pub fn plan_release<'a, 'b, T, U>(&self, db: &str, poison: bool, it: &'a U) -> ReleaseOp
     where
         U: VisitPoolAlgoData<T>,
         T: 'b,
         T: PoolAlgorithmDataBlock,
     {
+        if poison {
+            return ReleaseOp::Reopen;
+        }
+
         // We only want to consider a release elsewhere if this block is overfull
         if let Some(Some(overfull)) = it.with(db, |block| block.overfull_score(true)) {
             trace!("Block is overfull, trying to release {overfull}");
@@ -401,7 +340,7 @@ mod tests {
                     assert_eq!(
                         config
                             .constraints
-                            .plan_release(&conn?.state.db_name, &blocks),
+                            .plan_release(&conn?.state.db_name, false, &blocks),
                         ReleaseOp::Release
                     );
                 }
@@ -410,7 +349,7 @@ mod tests {
                     assert_eq!(
                         config
                             .constraints
-                            .plan_release(&conn?.state.db_name, &blocks),
+                            .plan_release(&conn?.state.db_name, false, &blocks),
                         ReleaseOp::Release
                     );
                 }
@@ -459,7 +398,7 @@ mod tests {
                     let conn = conn?;
                     let res = config
                         .constraints
-                        .plan_release(&conn.state.db_name, &blocks);
+                        .plan_release(&conn.state.db_name, false, &blocks);
                     let ReleaseOp::ReleaseTo(to) = res else {
                         panic!("Wrong release: {res:?}");
                     };
@@ -469,7 +408,7 @@ mod tests {
                     let conn = conn?;
                     let res = config
                         .constraints
-                        .plan_release(&conn.state.db_name, &blocks);
+                        .plan_release(&conn.state.db_name, false, &blocks);
                     let ReleaseOp::Release = res else {
                         panic!("Wrong release: {res:?}");
                     };

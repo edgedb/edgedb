@@ -1,6 +1,6 @@
 use crate::{
     algo::{
-        HasPoolAlgorithmData, PoolAlgoTargetData, PoolAlgorithmDataBlock, PoolAlgorithmDataMetrics,
+        PoolAlgoTargetData, PoolAlgorithmDataBlock, PoolAlgorithmDataMetrics,
         PoolAlgorithmDataPool, VisitPoolAlgoData,
     },
     conn::*,
@@ -9,9 +9,8 @@ use crate::{
 };
 use futures::future::Either;
 use std::{
-    borrow::{Borrow, BorrowMut},
     cell::RefCell,
-    collections::{BTreeSet, HashMap},
+    collections::HashMap,
     future::{poll_fn, ready, Future},
     rc::Rc,
 };
@@ -234,8 +233,8 @@ impl<C: Connector, D: Default> Block<C, D> {
     }
 
     fn task_reconnect(
-        from: Rc<Block<C, D>>,
-        to: Rc<Block<C, D>>,
+        from: Rc<Self>,
+        to: Rc<Self>,
         connector: &C,
     ) -> impl Future<Output = ConnResult<()>> {
         let conn = {
@@ -246,7 +245,7 @@ impl<C: Connector, D: Default> Block<C, D> {
                 .try_take_used()
                 .expect("Could not acquire a connection");
             to.conns.borrow_mut().push(conn.clone());
-            conn.reopen(connector, &to.state.metrics, &to.db_name);
+            conn.transfer(connector, &to.state.metrics, &to.db_name);
             conn
         };
         async move {
@@ -259,8 +258,8 @@ impl<C: Connector, D: Default> Block<C, D> {
     }
 
     fn task_reconnect_conn(
-        from: Rc<Block<C, D>>,
-        to: Rc<Block<C, D>>,
+        from: Rc<Self>,
+        to: Rc<Self>,
         mut conn: ConnHandle<C>,
         connector: &C,
     ) -> impl Future<Output = ConnResult<()>> {
@@ -274,13 +273,32 @@ impl<C: Connector, D: Default> Block<C, D> {
             conn.conn.untrack(&from.state.metrics);
             conn.state = to.state.clone();
             to.conns.borrow_mut().push(conn.conn.clone());
-            conn.conn.reopen(connector, &to.state.metrics, &to.db_name);
+            conn.conn
+                .transfer(connector, &to.state.metrics, &to.db_name);
             conn
         };
         async move {
             consistency_check!(from);
             consistency_check!(to);
             poll_fn(|cx| conn.conn.poll_ready(cx, &to.state.metrics)).await?;
+            Ok(())
+        }
+    }
+
+    fn task_reopen(
+        self: Rc<Self>,
+        conn: ConnHandle<C>,
+        connector: &C,
+    ) -> impl Future<Output = ConnResult<()>> {
+        let conn = {
+            consistency_check!(self);
+            conn.conn
+                .reopen(connector, &self.state.metrics, &self.db_name);
+            conn
+        };
+        async move {
+            consistency_check!(self);
+            poll_fn(|cx| conn.conn.poll_ready(cx, &self.state.metrics)).await?;
             Ok(())
         }
     }
@@ -363,7 +381,12 @@ impl<C: Connector> PoolAlgorithmDataMetrics for Blocks<C, PoolAlgoTargetData> {
     }
 }
 
-impl<C: Connector> PoolAlgorithmDataPool for Blocks<C, PoolAlgoTargetData> {}
+impl<C: Connector> PoolAlgorithmDataPool for Blocks<C, PoolAlgoTargetData> {
+    #[inline(always)]
+    fn reset_max(&self) {
+        self.metrics.reset_max();
+    }
+}
 
 impl<C: Connector> VisitPoolAlgoData<Block<C, PoolAlgoTargetData>>
     for Blocks<C, PoolAlgoTargetData>
@@ -542,6 +565,16 @@ impl<C: Connector, D: Default> Blocks<C, D> {
         let to_block = self.block(db);
         Block::task_reconnect_conn(from_block, to_block, conn, connector)
     }
+
+    /// Marks a connection as requiring re-open.
+    pub fn task_reopen(
+        &self,
+        connector: &C,
+        conn: ConnHandle<C>,
+    ) -> impl Future<Output = ConnResult<()>> {
+        let block = self.block(&conn.state.db_name);
+        block.task_reopen(conn, connector)
+    }
 }
 
 #[cfg(test)]
@@ -590,6 +623,7 @@ mod tests {
         let conn = f.await?;
         assert_block!(block has 1 Active);
         drop(conn);
+        assert_block!(block has 1 Idle);
 
         Ok(())
     }

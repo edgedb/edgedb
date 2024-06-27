@@ -57,7 +57,7 @@ impl PoolConfig {
     }
 }
 
-struct HandleAndPool<C: Connector>(ConnHandle<C>, Rc<Pool<C>>);
+struct HandleAndPool<C: Connector>(ConnHandle<C>, Rc<Pool<C>>, Cell<bool>);
 
 pub struct PoolHandle<C: Connector> {
     conn: ConsumeOnDrop<HandleAndPool<C>>,
@@ -71,7 +71,7 @@ impl<C: Connector> Debug for PoolHandle<C> {
 
 impl<C: Connector> Consume for HandleAndPool<C> {
     fn consume(self) {
-        self.1.release(self.0)
+        self.1.release(self.0, self.2.get())
     }
 }
 
@@ -80,7 +80,7 @@ impl<C: Connector> PoolHandle<C> {
     /// most likely case for this is that the underlying connection's stream has closed, or
     /// the remote end is no longer valid for some reason.
     pub fn poison(&self) {
-        self.conn.0.poison()
+        self.conn.2.set(true)
     }
 
     #[inline(always)]
@@ -90,7 +90,7 @@ impl<C: Connector> PoolHandle<C> {
 
     fn new(conn: ConnHandle<C>, pool: Rc<Pool<C>>) -> Self {
         Self {
-            conn: ConsumeOnDrop::new(HandleAndPool(conn, pool)),
+            conn: ConsumeOnDrop::new(HandleAndPool(conn, pool, Cell::default())),
         }
     }
 }
@@ -197,13 +197,20 @@ impl<C: Connector> Pool<C> {
     }
 
     /// Internal release method
-    fn release(self: Rc<Self>, conn: ConnHandle<C>) {
+    fn release(self: Rc<Self>, conn: ConnHandle<C>, poison: bool) {
         let db = &conn.state.db_name;
         self.dirty.set(true);
-        match self.config.constraints.plan_release(db, &self.blocks) {
+        match self
+            .config
+            .constraints
+            .plan_release(db, poison, &self.blocks)
+        {
             ReleaseOp::Release => {}
             ReleaseOp::ReleaseTo(db) => {
                 tokio::task::spawn_local(self.blocks.task_move_to(&self.connector, conn, &db));
+            }
+            ReleaseOp::Reopen => {
+                tokio::task::spawn_local(self.blocks.task_reopen(&self.connector, conn));
             }
         }
     }
@@ -226,15 +233,21 @@ mod tests {
 
     #[test(tokio::test)]
     async fn test_pool_basic() -> Result<()> {
-        let config = PoolConfig::suggested_default_for(10);
+        LocalSet::new()
+            .run_until(async {
+                let config = PoolConfig::suggested_default_for(10);
 
-        let pool = Pool::new(config, BasicConnector::no_delay());
-        let conn1 = pool.acquire("1").await?;
-        let conn2 = pool.acquire("1").await?;
+                let pool = Pool::new(config, BasicConnector::no_delay());
+                let conn1 = pool.acquire("1").await?;
+                let conn2 = pool.acquire("1").await?;
 
-        drop(conn1);
-        drop(conn2);
-        Ok(())
+                drop(conn1);
+                conn2.poison();
+                drop(conn2);
+
+                Ok(())
+            })
+            .await
     }
 
     #[test(tokio::test(flavor = "current_thread", start_paused = true))]

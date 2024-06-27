@@ -2,16 +2,16 @@ use std::{cell::RefCell, rc::Rc, time::Duration};
 use strum::EnumCount;
 use strum::IntoEnumIterator;
 
-use crate::algo::PoolAlgorithmData;
 use crate::algo::PoolAlgorithmDataMetrics;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, strum::EnumCount, strum::EnumIter)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, strum::EnumCount, strum::EnumIter, strum::AsRefStr,
+)]
 pub enum MetricVariant {
     Connecting,
     Disconnecting,
     Idle,
     Active,
-    Poisoned,
     Failed,
     Closed,
     Waiting,
@@ -122,17 +122,13 @@ impl<T: Default + Copy + std::ops::AddAssign> std::iter::Sum for VariantArray<T>
 
 impl<T: std::fmt::Debug + std::cmp::Eq + Default> std::fmt::Debug for VariantArray<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("{\n")?;
+        let mut d = f.debug_struct("");
         for variant in MetricVariant::iter() {
             if self[variant] != T::default() {
-                f.write_fmt(format_args!(
-                    "    {variant:?}: {:?}\n",
-                    self.0[variant as usize]
-                ))?;
+                d.field(variant.as_ref(), &self[variant]);
             }
         }
-        f.write_str("}")?;
-        Ok(())
+        d.finish()
     }
 }
 
@@ -183,6 +179,12 @@ struct RawMetrics {
 }
 
 impl RawMetrics {
+    #[inline(always)]
+    fn reset_max(&mut self) {
+        self.max = self.counts;
+        self.total_max = self.total;
+    }
+
     #[inline(always)]
     fn inc(&mut self, to: MetricVariant) {
         self.counts[to] += 1;
@@ -254,15 +256,20 @@ impl MetricsAccum {
     }
 
     /// Get the current total
-    #[inline]
+    #[inline(always)]
     pub fn total(&self) -> usize {
         self.raw.borrow().total
     }
 
     /// Get the current value of a variant
-    #[inline]
+    #[inline(always)]
     pub fn get(&self, variant: MetricVariant) -> usize {
         self.raw.borrow().counts[variant]
+    }
+
+    #[inline(always)]
+    pub fn reset_max(&self) {
+        self.raw.borrow_mut().reset_max();
     }
 
     pub fn summary(&self) -> ConnMetrics {
@@ -333,30 +340,5 @@ impl MetricsAccum {
         if let Some(parent) = &self.parent {
             parent.remove(from);
         }
-    }
-}
-
-impl From<&RawMetrics> for PoolAlgorithmData {
-    fn from(val: &RawMetrics) -> Self {
-        PoolAlgorithmData {
-            total: val.total,
-            active: val.counts[MetricVariant::Active],
-            idle: val.counts[MetricVariant::Idle],
-            waiters: val.counts[MetricVariant::Waiting],
-            connecting: val.counts[MetricVariant::Connecting],
-            avg_connect_time: val.times[MetricVariant::Connecting].avg() as _,
-            avg_disconnect_time: val.times[MetricVariant::Disconnecting].avg() as _,
-            avg_hold_time: val.times[MetricVariant::Active].avg() as _,
-            max_concurrent: val.max[MetricVariant::Active],
-            max_waiters: val.max[MetricVariant::Waiting],
-            // TODO
-            oldest_waiter_ms: 0,
-        }
-    }
-}
-
-impl From<&MetricsAccum> for PoolAlgorithmData {
-    fn from(val: &MetricsAccum) -> Self {
-        (&*val.raw.borrow()).into()
     }
 }
