@@ -38,6 +38,7 @@ from . import codegen
 from . import types
 from . import ast as pgast
 
+from .common import PathAspect
 from .common import qname as q
 from .common import quote_literal as ql
 from .common import quote_ident as qi
@@ -121,7 +122,7 @@ def _compile_ir_index_exprs(
         index_expr,
         singleton_mode=True,
         external_rvars={
-            (subject_id, 'source'): pgast.RelRangeVar(
+            (subject_id, PathAspect.SOURCE): pgast.RelRangeVar(
                 alias=pgast.Alias(aliasname='NEW'),
                 relation=pgast.Relation(name='NEW'),
             )

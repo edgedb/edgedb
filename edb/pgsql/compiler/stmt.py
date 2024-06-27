@@ -27,6 +27,7 @@ from edb.ir import ast as irast
 from edb.ir import utils as irutils
 
 from edb.pgsql import ast as pgast
+from edb.pgsql.common import PathAspect
 
 from . import astutils
 from . import clauses
@@ -80,7 +81,7 @@ def compile_SelectStmt(
                     clauses.setup_iterator_volatility(last_iterator, ctx=ictx)
                     iterator_rvar = clauses.compile_iterator_expr(
                         query, iterator_set, is_dml=False, ctx=ictx)
-                for aspect in {'identity', 'value'}:
+                for aspect in {PathAspect.IDENTITY, PathAspect.VALUE}:
                     pathctx.put_path_rvar(
                         query,
                         path_id=iterator_set.path_id,

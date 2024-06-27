@@ -28,6 +28,7 @@ from typing import Literal, Optional, Tuple, Union, overload
 import uuid
 
 from edb import buildmeta
+from edb.common import enum as s_enum
 from edb.common import uuidgen
 from edb.schema import casts as s_casts
 from edb.schema import constraints as s_constr
@@ -52,6 +53,14 @@ from . import keywords as pg_keywords
 # Note that this can be overridden in custom builds.
 # https://www.postgresql.org/docs/current/datatype-enum.html
 MAX_ENUM_LABEL_LENGTH = 63
+
+
+class PathAspect(s_enum.StrEnum):
+    IDENTITY = 'identity'
+    VALUE = 'value'
+    SOURCE = 'source'
+    SERIALIZED = 'serialized'
+    ITERATOR = 'iterator'
 
 
 def quote_e_literal(string: str) -> str:
