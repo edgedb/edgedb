@@ -150,8 +150,8 @@ functionality.
 .. note::
 
   The IANA timezone database is maintained by Paul Eggert for the IANA. You can
-  find a GitHub repository with the latest timezone data `here
-  <https://github.com/eggert/tz>`_, and the list of timezone names `here
+  find a `GitHub repository with the latest timezone data here
+  <https://github.com/eggert/tz>`_, and the `list of timezone names here
   <https://github.com/eggert/tz/blob/master/zone1970.tab>`_.
 
 
