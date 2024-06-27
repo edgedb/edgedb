@@ -228,7 +228,8 @@ def compile_TypeCast(
         assert expr.cast_name
 
         func_name = common.get_cast_backend_name(
-            expr.cast_name, aspect="function"
+            expr.cast_name, aspect="function",
+            versioned=ctx.env.versioned_stdlib,
         )
 
         args = [pg_expr]
@@ -504,7 +505,8 @@ def compile_operator(
                     lexpr, rexpr, expr.sql_function[1:])
         else:
             func_name = common.get_operator_backend_name(
-                expr.func_shortname, aspect='function')
+                expr.func_shortname, aspect='function',
+                versioned=ctx.env.versioned_stdlib)
 
         args = []
         if lexpr is not None:

@@ -75,7 +75,11 @@ def compile_ir_to_sql_tree(
     ] = None,
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
     detach_params: bool = False,
+    versioned_stdlib: bool = True,
 ) -> CompileResult:
+    if singleton_mode:
+        versioned_stdlib = False
+
     try:
         # Transform to sql tree
         query_params = []
@@ -122,6 +126,7 @@ def compile_ir_to_sql_tree(
             scope_tree_nodes=scope_tree_nodes,
             external_rvars=external_rvars,
             backend_runtime_params=backend_runtime_params,
+            versioned_stdlib=versioned_stdlib,
         )
 
         ctx = context.CompilerContextLevel(

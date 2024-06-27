@@ -1892,6 +1892,7 @@ def _compile_ql_query(
         expand_inhviews=options.expand_inhviews,
         detach_params=(use_persistent_cache
                        and cache_mode is config.QueryCacheMode.PgFunc),
+        versioned_stdlib=True,
     )
 
     sql_text = pg_codegen.generate_source(sql_res.ast)

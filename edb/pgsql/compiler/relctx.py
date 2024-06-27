@@ -596,7 +596,9 @@ def new_pointer_rvar(
     ptrref = ir_ptr.ptrref
 
     ptr_info = pg_types.get_ptrref_storage_info(
-        ptrref, resolve_type=False, link_bias=link_bias, allow_missing=True)
+        ptrref, resolve_type=False, link_bias=link_bias, allow_missing=True,
+        versioned=ctx.env.versioned_stdlib,
+    )
 
     if ptr_info and ptr_info.table_type == 'ObjectType':
         # Inline link
@@ -2013,12 +2015,14 @@ def range_for_ptrref(
             # needs to contain any link properties, for one reason.)
             ptr_info = pg_types.get_ptrref_storage_info(
                 src_ptrref, resolve_type=False, link_bias=True,
+                versioned=ctx.env.versioned_stdlib,
             )
             if not ptr_info:
                 assert ptrref.union_components
 
                 ptr_info = pg_types.get_ptrref_storage_info(
                     src_ptrref, resolve_type=False, link_bias=False,
+                    versioned=ctx.env.versioned_stdlib,
                 )
 
             cols = [
