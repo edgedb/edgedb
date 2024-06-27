@@ -28,6 +28,5 @@ class SlackProvider(base.OpenIDProvider):
             "slack",
             "https://slack.com",
             *args,
-            content_type=base.ContentType.FORM_ENCODED,
             **kwargs,
         )

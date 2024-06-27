@@ -1291,13 +1291,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = self.mock_provider.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                json.loads(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0]["body"]),
                 {
-                    "grant_type": "authorization_code",
-                    "code": "abc123",
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "redirect_uri": f"{self.http_addr}/callback",
+                    "grant_type": ["authorization_code"],
+                    "code": ["abc123"],
+                    "client_id": [client_id],
+                    "client_secret": [client_secret],
+                    "redirect_uri": [f"{self.http_addr}/callback"],
                 },
             )
 

@@ -30,7 +30,6 @@ class AppleProvider(base.OpenIDProvider):
             "apple",
             "https://appleid.apple.com",
             *args,
-            content_type=base.ContentType.FORM_ENCODED,
             **kwargs,
         )
 
