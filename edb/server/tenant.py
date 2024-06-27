@@ -1310,6 +1310,10 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._accepting_connections = self.is_online()
 
+    def set_readiness_state(self, state: srvargs.ReadinessState, reason: str):
+        self._readiness = state
+        self._readiness_reason = reason
+
     def reload(self):
         # In multi-tenant mode, the file paths for the following states may be
         # unset in a reload, while it's impossible in a regular server.

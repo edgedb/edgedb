@@ -273,6 +273,10 @@ class MultiTenantServer(server.BaseServer):
 
     async def _destroy_tenant(self, tenant: edbtenant.Tenant):
         try:
+            if tenant.is_online():
+                tenant.set_readiness_state(
+                    srvargs.ReadinessState.Offline, "tenant is removed"
+                )
             tenant.stop_accepting_connections()
             tenant.stop()
             try:
