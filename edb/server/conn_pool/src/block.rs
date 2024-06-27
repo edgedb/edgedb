@@ -472,11 +472,11 @@ mod tests {
 
     /// Tiny DSL to make the tests more readable
     macro_rules! assert_block {
-        ($block:ident has $count:literal $type:ident) => {
+        ($block:ident has $($count:literal $type:ident),+) => {
             assert_eq!(
                 $block.metrics().summary().value,
-                VariantArray::with(MetricVariant::$type, $count),
-                stringify!(Expected block has $count $type)
+                [$(VariantArray::with(MetricVariant::$type, $count)),+].into_iter().sum(),
+                stringify!(Expected block has $($count $type),+)
             );
         };
         ($block:ident $db:literal is empty) => {
@@ -489,6 +489,25 @@ mod tests {
                 stringify!(Expected block has $count $type)
             );
         };
+    }
+
+    #[test(tokio::test)]
+    async fn test_counts_updated() -> Result<()> {
+        let connector = BasicConnector::no_delay();
+        let block = Rc::new(Block::<BasicConnector>::new(Name::from("db"), None));
+        let f = block.clone().create(&connector);
+        assert_block!(block has 1 Connecting);
+        let conn = f.await?;
+        assert_block!(block has 1 Active);
+        let f = block.clone().queue();
+        assert_block!(block has 1 Waiting, 1 Active);
+        drop(conn);
+        assert_block!(block has 1 Waiting, 1 Idle);
+        let conn = f.await?;
+        assert_block!(block has 1 Active);
+        drop(conn);
+
+        Ok(())
     }
 
     #[test(tokio::test)]

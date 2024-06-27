@@ -90,6 +90,35 @@ impl<T> std::ops::IndexMut<MetricVariant> for VariantArray<T> {
     }
 }
 
+impl<T: Copy + std::ops::AddAssign> std::ops::Add for VariantArray<T> {
+    type Output = VariantArray<T>;
+    fn add(self, rhs: Self) -> Self::Output {
+        let mut out = *&self;
+        for i in MetricVariant::iter() {
+            out[i] += rhs[i];
+        }
+        out
+    }
+}
+
+impl<T: Copy + std::ops::AddAssign> std::ops::AddAssign for VariantArray<T> {
+    fn add_assign(&mut self, rhs: Self) {
+        for i in MetricVariant::iter() {
+            self[i] += rhs[i];
+        }
+    }
+}
+
+impl<T: Default + Copy + std::ops::AddAssign> std::iter::Sum for VariantArray<T> {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        let mut sum = Default::default();
+        for i in iter {
+            sum += i;
+        }
+        sum
+    }
+}
+
 impl<T: std::fmt::Debug> std::fmt::Debug for VariantArray<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("{\n")?;
