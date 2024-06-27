@@ -1,8 +1,5 @@
 use crate::{
-    algo::{
-        AcquireOp, Hunger, PoolAlgoTargetData, PoolConstraints, RebalanceOp, ReleaseOp,
-        VisitPoolAlgoData,
-    },
+    algo::{AcquireOp, PoolAlgoTargetData, PoolConstraints, RebalanceOp, ReleaseOp},
     block::Blocks,
     conn::{ConnHandle, ConnResult, Connector},
     metrics::PoolMetrics,
@@ -275,7 +272,7 @@ mod tests {
                         for block in pool.metrics().blocks {
                             s += &format!("{} ", block.total);
                         }
-                        info!("Blocks: {s}");
+                        trace!("Blocks: {s}");
                         virtual_sleep(Duration::from_millis(100)).await;
                     }
                 });

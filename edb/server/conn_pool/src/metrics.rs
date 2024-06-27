@@ -119,14 +119,16 @@ impl<T: Default + Copy + std::ops::AddAssign> std::iter::Sum for VariantArray<T>
     }
 }
 
-impl<T: std::fmt::Debug> std::fmt::Debug for VariantArray<T> {
+impl<T: std::fmt::Debug + std::cmp::Eq + Default> std::fmt::Debug for VariantArray<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("{\n")?;
         for variant in MetricVariant::iter() {
-            f.write_fmt(format_args!(
-                "    {variant:?}: {:?}\n",
-                self.0[variant as usize]
-            ))?;
+            if self[variant] != T::default() {
+                f.write_fmt(format_args!(
+                    "    {variant:?}: {:?}\n",
+                    self.0[variant as usize]
+                ))?;
+            }
         }
         f.write_str("}")?;
         Ok(())
@@ -317,6 +319,7 @@ impl From<&RawMetrics> for PoolAlgorithmData {
             active: val.counts[MetricVariant::Active],
             idle: val.counts[MetricVariant::Idle],
             waiters: val.counts[MetricVariant::Waiting],
+            connecting: val.counts[MetricVariant::Connecting],
             avg_connect_time: val.times[MetricVariant::Connecting].avg() as _,
             avg_disconnect_time: val.times[MetricVariant::Disconnecting].avg() as _,
             avg_hold_time: val.times[MetricVariant::Active].avg() as _,

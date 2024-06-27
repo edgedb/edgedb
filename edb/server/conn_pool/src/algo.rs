@@ -26,27 +26,6 @@ pub enum ReleaseOp {
     ReleaseTo(Name),
 }
 
-/// How hungry or overfull a block is.
-#[derive(Default, Debug, Clone, Copy)]
-pub enum Hunger {
-    /// This block has the correct number of connections.
-    #[default]
-    Satisfied,
-    /// This block has an expected deficit of connections. Ideally the pool
-    /// should transfer this number of connections here, if possible.
-    Hungry(NonZeroUsize),
-    /// This block has an expected excess of connections. The pool may transfer
-    /// up to this number of connections away from this block if the block has
-    /// enough idle capacity.
-    Overfull(NonZeroUsize),
-}
-
-pub enum LiveState {
-    HasWaiters(NonZeroUsize),
-    Capacity,
-    HasIdle(NonZeroUsize),
-}
-
 pub trait HasPoolAlgorithmData: std::fmt::Debug {
     fn with_algo_data<T>(&self, f: impl FnOnce(&PoolAlgorithmData) -> T) -> T;
 
@@ -73,6 +52,7 @@ pub trait VisitPoolAlgoData<D: HasPoolAlgorithmData> {
 pub struct PoolAlgorithmData {
     pub total: usize,
     pub active: usize,
+    pub connecting: usize,
     pub idle: usize,
     pub waiters: usize,
     pub max_waiters: usize,
@@ -84,42 +64,22 @@ pub struct PoolAlgorithmData {
 }
 
 impl PoolAlgorithmData {
-    pub fn hunger(&self, target: usize) -> Hunger {
-        let current = self.total;
-        if current < target {
-            Hunger::Hungry((target - current).try_into().unwrap())
-        } else if current > target {
-            Hunger::Overfull((current - target).try_into().unwrap())
-        } else {
-            Hunger::Satisfied
-        }
-    }
-
-    pub fn live(&self) -> LiveState {
-        if self.waiters > 0 {
-            LiveState::HasWaiters(self.waiters.try_into().unwrap())
-        } else if self.idle > 0 {
-            LiveState::HasIdle(self.idle.try_into().unwrap())
-        } else {
-            LiveState::Capacity
-        }
-    }
-
     pub fn hunger_score(&self, target: usize) -> Option<NonZeroUsize> {
         const DIFF_WEIGHT: usize = 100;
         const WAITER_WEIGHT: usize = 1;
 
+        let waiters = self.waiters.saturating_sub(self.connecting);
         let current = self.total;
-        trace!("{} {} {}", current, target, self.waiters);
+        trace!("{} {} {}", current, target, waiters);
         if current > target {
             None
         } else {
             if target > current {
                 let diff = target - current;
-                let score = diff * DIFF_WEIGHT + self.waiters * WAITER_WEIGHT;
+                let score = diff * DIFF_WEIGHT + waiters * WAITER_WEIGHT;
                 score.try_into().ok()
-            } else if self.waiters > 0 {
-                (self.waiters * WAITER_WEIGHT).try_into().ok()
+            } else if waiters > 0 {
+                (waiters * WAITER_WEIGHT).try_into().ok()
             } else {
                 None
             }
@@ -423,7 +383,7 @@ mod tests {
                 let config = PoolConfig::suggested_default_for(10);
                 let blocks = Blocks::default();
                 let futures = FuturesUnordered::new();
-                for i in 0..config.constraints.max {
+                for i in 0..5 {
                     let db = format!("{i}");
                     assert_eq!(
                         config.constraints.plan_acquire(&db, &blocks),
@@ -432,15 +392,25 @@ mod tests {
                     futures.push(blocks.create_if_needed(&connector, &db));
                 }
                 let futures2 = FuturesUnordered::new();
-                for i in 0..config.constraints.max {
-                    let db = format!("{i}b");
+                for i in 5..10 {
+                    let db = format!("{i}");
+                    assert_eq!(
+                        config.constraints.plan_acquire(&db, &blocks),
+                        AcquireOp::Create
+                    );
+                    futures2.push(blocks.create_if_needed(&connector, &db));
+                }
+                let futures3 = FuturesUnordered::new();
+                for i in 10..15 {
+                    let db = format!("{i}");
                     assert_eq!(
                         config.constraints.plan_acquire(&db, &blocks),
                         AcquireOp::Wait
                     );
-                    futures2.push(blocks.queue(&db));
+                    futures3.push(blocks.queue(&db));
                 }
                 let conns: Vec<_> = futures.collect().await;
+                let conns2: Vec<_> = futures2.collect().await;
                 for conn in conns {
                     let conn = conn?;
                     let res = config
@@ -450,6 +420,15 @@ mod tests {
                         panic!("Wrong release: {res:?}");
                     };
                     blocks.task_move_to(&connector, conn, &to).await?;
+                }
+                for conn in conns2 {
+                    let conn = conn?;
+                    let res = config
+                        .constraints
+                        .plan_release(&conn.state.db_name, &blocks);
+                    let ReleaseOp::Release = res else {
+                        panic!("Wrong release: {res:?}");
+                    };
                 }
                 Ok(())
             })
