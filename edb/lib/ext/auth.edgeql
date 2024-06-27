@@ -177,6 +177,37 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
     };
 
+    create type ext::auth::OpenIDConnectProviderConfig
+        extending ext::auth::OAuthProviderConfig {
+        create required property issuer_url: std::str {
+            create annotation std::description :=
+                "The issuer URL of the provider.";
+            create constraint exclusive;
+        };
+
+        create property logo_url: std::str {
+            create annotation std::description :=
+                "A url to an image of the provider's logo.";
+        };
+
+        create property dark_logo_url: std::str {
+            create annotation std::description :=
+                "A url to an image of the provider's logo to be used with the \
+                dark theme.";
+        };
+
+        create property brand_color: std::str {
+            create annotation std::description :=
+                "The brand color of the provider as a hex string.";
+        };
+
+        create property dark_brand_color: std::str {
+            create annotation std::description :=
+                "The brand color of the provider as a hex string to be used \
+                with the dark theme.";
+        };
+    };
+
     create type ext::auth::AppleOAuthProvider
         extending ext::auth::OAuthProviderConfig {
         alter property name {
