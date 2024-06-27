@@ -7215,6 +7215,7 @@ def _generate_config_type_view(
     path: List[Tuple[s_pointers.Pointer, List[s_pointers.Pointer]]],
     rptr: Optional[s_pointers.Pointer],
     existing_view_columns: Optional[dict[str, list[str]]],
+    override_exclusive_props: Optional[list[s_pointers.Pointer]] = None,
     _memo: Optional[Set[s_obj.Object]] = None,
 ) -> Tuple[
     List[Tuple[Tuple[str, str], str]],
@@ -7410,6 +7411,14 @@ def _generate_config_type_view(
                 if any(c.issubclass(schema, exc) for c in constraints):
                     exclusive_props.append(pp)
 
+    if override_exclusive_props:
+        exclusive_props = [
+            stype.getptr(
+                schema, s_name.UnqualName(p.get_shortname(schema).name)
+            )
+            for p in override_exclusive_props
+        ]
+
     exclusive_props.sort(key=lambda p: p.get_shortname(schema).name)
 
     if is_ext_cfg:
@@ -7489,6 +7498,7 @@ def _generate_config_type_view(
                     path=target_path,
                     rptr=link,
                     existing_view_columns=existing_view_columns,
+                    override_exclusive_props=target_exc_props,
                     _memo=_memo,
                 )
                 views.extend(desc_views)
@@ -7594,6 +7604,7 @@ def _generate_config_type_view(
                     path=target_path,
                     rptr=link,
                     existing_view_columns=existing_view_columns,
+                    override_exclusive_props=target_exc_props,
                     _memo=_memo,
                 )
                 views.extend(desc_views)
