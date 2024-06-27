@@ -117,7 +117,9 @@ class MultiTenantServer(server.BaseServer):
         return self._sys_config
 
     def _sni_callback(self, sslobj, server_name, _sslctx):
-        if tenant := self._tenants.get(server_name):
+        if server_name is None:
+            self._tenants_by_sslobj[sslobj] = edbtenant.host_tenant
+        elif tenant := self._tenants.get(server_name):
             self._tenants_by_sslobj[sslobj] = tenant
 
     def get_default_tenant(self) -> edbtenant.Tenant:
