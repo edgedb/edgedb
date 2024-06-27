@@ -45,6 +45,7 @@ from . import output
 from . import pathctx
 from . import relgen
 from . import shapecomp
+from .enums import PathAspect
 
 
 @dispatch.compile.register(irast.Set)
@@ -793,7 +794,10 @@ def _compile_set(
         shape_tuple = shapecomp.compile_shape(ir_set, ir_set.shape, ctx=ctx)
         for element in shape_tuple.elements:
             pathctx.put_path_var_if_not_exists(
-                ctx.rel, element.path_id, element.val, aspect='value'
+                ctx.rel,
+                element.path_id,
+                element.val,
+                aspect=PathAspect.VALUE,
             )
 
 
@@ -883,7 +887,9 @@ def compile_Pointer(
     # will be only one in scope), but sometimes we do (for example NEW
     # in trigger functions).
     rvar_name = []
-    if src := ctx.env.external_rvars.get((source.path_id, 'source')):
+    if src := ctx.env.external_rvars.get(
+        (source.path_id, PathAspect.SOURCE)
+    ):
         rvar_name = [src.alias.aliasname]
 
     # compile column name
