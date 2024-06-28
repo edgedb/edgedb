@@ -324,7 +324,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             name := 'generic_oidc',
             display_name := 'My Generic OIDC Provider',
             issuer_url := 'https://example.com',
-            additional_scope := 'profile',
+            additional_scope := 'custom_provider_scope_string',
         }};
 
         CONFIGURE CURRENT DATABASE
@@ -2297,7 +2297,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.scheme, "https")
             self.assertEqual(url.hostname, "example.com")
             self.assertEqual(url.path, "/auth")
-            self.assertEqual(qs.get("scope"), ["openid profile "])
+            self.assertEqual(
+                qs.get("scope"),
+                ["openid profile email custom_provider_scope_string"],
+            )
 
             state = qs.get("state")
             assert state is not None
@@ -2325,6 +2328,161 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 challenge=challenge,
             )
             self.assertEqual(len(pkce), 1)
+
+    async def test_http_auth_ext_generic_oidc_callback_01(self):
+        with self.http_con() as http_con:
+            provider_config = await self.get_provider_config_by_name(
+                "generic_oidc"
+            )
+            provider_name = provider_config.name
+            client_id = provider_config.client_id
+            client_secret = GENERIC_OIDC_SECRET
+
+            now = utcnow()
+
+            discovery_request = (
+                "GET",
+                "https://example.com",
+                ".well-known/openid-configuration",
+            )
+            self.mock_provider.register_route_handler(*discovery_request)(
+                (
+                    json.dumps(GENERIC_OIDC_DISCOVERY_DOCUMENT),
+                    200,
+                    {"cache-control": "max-age=3600"},
+                )
+            )
+
+            jwks_request = (
+                "GET",
+                "https://example.com",
+                "jwks",
+            )
+            # Generate a JWK Set
+            k = jwk.JWK.generate(kty='RSA', size=4096)
+            ks = jwk.JWKSet()
+            ks.add(k)
+            jwk_set: dict[str, Any] = ks.export(
+                private_keys=False, as_dict=True
+            )
+
+            self.mock_provider.register_route_handler(*jwks_request)(
+                (
+                    json.dumps(jwk_set),
+                    200,
+                )
+            )
+
+            token_request = (
+                "POST",
+                "https://example.com",
+                "token",
+            )
+            id_token_claims = {
+                "iss": "https://example.com",
+                "sub": "1",
+                "aud": client_id,
+                "exp": (now + datetime.timedelta(minutes=5)).timestamp(),
+                "iat": now.timestamp(),
+                "email": "test@example.com",
+            }
+            id_token = jwt.JWT(header={"alg": "RS256"}, claims=id_token_claims)
+            id_token.make_signed_token(k)
+
+            self.mock_provider.register_route_handler(*token_request)(
+                (
+                    json.dumps(
+                        {
+                            "access_token": "oidc_access_token",
+                            "id_token": id_token.serialize(),
+                            "scope": "openid",
+                            "token_type": "bearer",
+                        }
+                    ),
+                    200,
+                )
+            )
+
+            challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(
+                        base64.urlsafe_b64encode(os.urandom(43)).rstrip(b'=')
+                    ).digest()
+                )
+                .rstrip(b'=')
+                .decode()
+            )
+            await self.con.query(
+                """
+                insert ext::auth::PKCEChallenge {
+                    challenge := <str>$challenge,
+                }
+                """,
+                challenge=challenge,
+            )
+
+            signing_key = await self.get_signing_key()
+
+            expires_at = now + datetime.timedelta(minutes=5)
+            state_claims = {
+                "iss": self.http_addr,
+                "provider": str(provider_name),
+                "exp": expires_at.timestamp(),
+                "redirect_to": f"{self.http_addr}/some/path",
+                "challenge": challenge,
+            }
+            state_token = self.generate_state_value(state_claims, signing_key)
+
+            data, headers, status = self.http_con_request(
+                http_con,
+                {"state": state_token, "code": "abc123"},
+                path="callback",
+            )
+
+            self.assertEqual(data, b"")
+            self.assertEqual(status, 302)
+
+            location = headers.get("location")
+            assert location is not None
+            server_url = urllib.parse.urlparse(self.http_addr)
+            url = urllib.parse.urlparse(location)
+            self.assertEqual(url.scheme, server_url.scheme)
+            self.assertEqual(url.hostname, server_url.hostname)
+            self.assertEqual(url.path, f"{server_url.path}/some/path")
+
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
+            self.assertEqual(len(requests_for_discovery), 2)
+
+            requests_for_token = self.mock_provider.requests[token_request]
+            self.assertEqual(len(requests_for_token), 1)
+            self.assertEqual(
+                urllib.parse.parse_qs(requests_for_token[0]["body"]),
+                {
+                    "grant_type": ["authorization_code"],
+                    "code": ["abc123"],
+                    "client_id": [client_id],
+                    "client_secret": [client_secret],
+                    "redirect_uri": [f"{self.http_addr}/callback"],
+                },
+            )
+
+            identity = await self.con.query(
+                """
+                SELECT ext::auth::Identity
+                FILTER .subject = '1'
+                AND .issuer = 'https://example.com'
+                """
+            )
+            self.assertEqual(len(identity), 1)
+
+            session_claims = await self.extract_session_claims(headers)
+            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
+            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
+            tomorrow = now + datetime.timedelta(hours=25)
+            self.assertTrue(session_claims.get("exp") > now.timestamp())
+            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
 
     async def test_http_auth_ext_local_password_register_form_01(self):
         with self.http_con() as http_con:

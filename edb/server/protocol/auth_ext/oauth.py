@@ -46,19 +46,26 @@ class Client:
         }
 
         provider_class: Type[base.BaseProvider]
-        match provider_name:
-            case "builtin::oauth_github":
+        match (provider_name, provider_config.issuer_url):
+            case ("builtin::oauth_github", _):
                 provider_class = github.GitHubProvider
-            case "builtin::oauth_google":
+            case ("builtin::oauth_google", _):
                 provider_class = google.GoogleProvider
-            case "builtin::oauth_azure":
+            case ("builtin::oauth_azure", _):
                 provider_class = azure.AzureProvider
-            case "builtin::oauth_apple":
+            case ("builtin::oauth_apple", _):
                 provider_class = apple.AppleProvider
-            case "builtin::oauth_discord":
+            case ("builtin::oauth_discord", _):
                 provider_class = discord.DiscordProvider
-            case "builtin::oauth_slack":
+            case ("builtin::oauth_slack", _):
                 provider_class = slack.SlackProvider
+            case (provider_name, str(issuer_url)):
+                provider_args = (
+                    provider_name,
+                    issuer_url,
+                    *provider_args,
+                )
+                provider_class = base.OpenIDConnectProvider
             case _:
                 raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
@@ -121,7 +128,7 @@ select {
 
         return (
             data.Identity(**result_json[0]['identity']),
-            result_json[0]['new']
+            result_json[0]['new'],
         )
 
     def _get_provider_config(
