@@ -3763,6 +3763,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertIn(APP_NAME, body_str)
             self.assertIn(LOGO_URL, body_str)
             self.assertIn(BRAND_COLOR, body_str)
+
+            # Check for OAuth buttons
+            self.assertIn("Sign in with Google", body_str)
+            self.assertIn("Sign in with GitHub", body_str)
+            self.assertIn("Sign in with My Generic OIDC Provider", body_str)
             self.assertEqual(status, 200)
 
     async def test_http_auth_ext_webauthn_register_options(self):
