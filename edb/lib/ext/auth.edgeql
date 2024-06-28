@@ -197,23 +197,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 "A url to an image of the provider's logo.";
         };
 
-        create property dark_logo_url: std::str {
-            create annotation std::description :=
-                "A url to an image of the provider's logo to be used with the \
-                dark theme.";
-        };
-
-        create property brand_color: std::str {
-            create annotation std::description :=
-                "The brand color of the provider as a hex string.";
-        };
-
-        create property dark_brand_color: std::str {
-            create annotation std::description :=
-                "The brand color of the provider as a hex string to be used \
-                with the dark theme.";
-        };
-
         create constraint exclusive on ((.issuer_url, .client_id));
     };
 
