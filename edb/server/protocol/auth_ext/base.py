@@ -70,13 +70,13 @@ class ContentType(enum.StrEnum):
     FORM_ENCODED = "application/x-www-form-urlencoded"
 
 
-class OpenIDProvider(BaseProvider):
+class OpenIDConnectProvider(BaseProvider):
     def __init__(
         self,
         name: str,
         issuer_url: str,
-        *args,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ):
         super().__init__(name, issuer_url, *args, **kwargs)
 

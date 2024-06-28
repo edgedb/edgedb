@@ -24,7 +24,7 @@ import urllib.parse
 from . import base
 
 
-class AppleProvider(base.OpenIDProvider):
+class AppleProvider(base.OpenIDConnectProvider):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(
             "apple",

@@ -22,7 +22,7 @@ from typing import Any
 from . import base
 
 
-class AzureProvider(base.OpenIDProvider):
+class AzureProvider(base.OpenIDConnectProvider):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(
             "azure",
