@@ -1739,3 +1739,7 @@ class Tenant(ha_base.ClusterProtocol):
     def iter_dbs(self) -> Iterator[dbview.Database]:
         if self._dbindex is not None:
             yield from self._dbindex.iter_dbs()
+
+
+# sentinel Tenant object to indicate an empty SNI
+host_tenant = Tenant.__new__(Tenant)
