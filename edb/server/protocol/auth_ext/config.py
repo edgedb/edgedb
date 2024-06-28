@@ -54,6 +54,7 @@ class OAuthProviderConfig(ProviderConfig):
     secret: str
     additional_scope: Optional[str]
     issuer_url: Optional[str]
+    logo_url: Optional[str]
 
 
 class WebAuthnProviderConfig(ProviderConfig):

@@ -146,7 +146,8 @@ select {
                     client_id=cfg.client_id,
                     secret=cfg.secret,
                     additional_scope=cfg.additional_scope,
-                    issuer_url=getattr(cfg, 'issuer_url', None)
+                    issuer_url=getattr(cfg, 'issuer_url', None),
+                    logo_url=getattr(cfg, 'logo_url', None),
                 )
 
         raise errors.MissingConfiguration(
