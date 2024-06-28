@@ -3310,10 +3310,12 @@ def get_func_call_backend_name(
     if expr.func_sql_function:
         # The name might contain a "." if it's one of our
         # metaschema helpers.
+        # XXX: VERSIONING?
         func_name = tuple(expr.func_sql_function.split('.', 1))
     else:
         func_name = common.get_function_backend_name(
-            expr.func_shortname, expr.backend_name)
+            expr.func_shortname, expr.backend_name,
+            versioned=ctx.env.versioned_stdlib)
     return func_name
 
 

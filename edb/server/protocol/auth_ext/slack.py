@@ -17,11 +17,13 @@
 #
 
 
+from typing import Any
+
 from . import base
 
 
 class SlackProvider(base.OpenIDProvider):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(
             "slack",
             "https://slack.com",

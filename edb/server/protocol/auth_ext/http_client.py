@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+from typing import Any
 import urllib.parse
 
 import hishel
@@ -24,7 +25,11 @@ import httpx
 
 class HttpClient(httpx.AsyncClient):
     def __init__(
-        self, *args, edgedb_test_url: str | None, base_url: str, **kwargs
+        self,
+        *args: Any,
+        edgedb_test_url: str | None,
+        base_url: str,
+        **kwargs: Any,
     ):
         self.edgedb_orig_base_url = None
         if edgedb_test_url:
@@ -34,14 +39,28 @@ class HttpClient(httpx.AsyncClient):
             transport=httpx.AsyncHTTPTransport(),
             storage=hishel.AsyncInMemoryStorage(capacity=5),
         )
-        super().__init__(*args, base_url=base_url, transport=cache, **kwargs)
+        super().__init__(
+            *args, base_url=base_url, transport=cache, **kwargs
+        )
 
-    async def post(self, path, *args, **kwargs):
+    async def post(  # type: ignore[override]
+        self,
+        path: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> httpx.Response:
         if self.edgedb_orig_base_url:
             path = f'{self.edgedb_orig_base_url}/{path}'
-        return await super().post(path, *args, **kwargs)
+        return await super().post(
+            path, *args, **kwargs
+        )
 
-    async def get(self, path, *args, **kwargs):
+    async def get(  # type: ignore[override]
+        self,
+        path: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> httpx.Response:
         if self.edgedb_orig_base_url:
             path = f'{self.edgedb_orig_base_url}/{path}'
         return await super().get(path, *args, **kwargs)

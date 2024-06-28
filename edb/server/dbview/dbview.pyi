@@ -50,6 +50,7 @@ class Database:
     dbver: int
     db_config: Config
     extensions: set[str]
+    user_config_spec: config.Spec
 
     @property
     def server(self) -> server.Server:

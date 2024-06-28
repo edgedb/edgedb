@@ -16,7 +16,8 @@
 # limitations under the License.
 #
 
-
+from __future__ import annotations
+from typing import Type, TYPE_CHECKING
 import http
 import json
 
@@ -28,17 +29,21 @@ from edb.common import markup
 from edb.server import compiler
 from edb.server import defines as edbdef
 
-from . import execute  # type: ignore
+from . import execute
+
+if TYPE_CHECKING:
+    from edb.server import tenant as edbtenant, server as edbserver
+    from edb.server.protocol import protocol
 
 
 async def handle_request(
-    request,
-    response,
-    path_parts,
-    server,
-    tenant,
-    is_tenant_host,
-):
+    request: protocol.HttpRequest,
+    response: protocol.HttpResponse,
+    path_parts: list[str],
+    server: edbserver.BaseServer,
+    tenant: edbtenant.Tenant,
+    is_tenant_host: bool,
+) -> None:
     try:
         if tenant is None:
             try:
@@ -98,7 +103,12 @@ async def handle_request(
         )
 
 
-def _response_error(response, status, message, ex_type):
+def _response_error(
+    response: protocol.HttpResponse,
+    status: http.HTTPStatus,
+    message: str,
+    ex_type: Type[errors.EdgeDBError],
+) -> None:
     err_dct = {
         'message': message,
         'type': str(ex_type.__name__),
@@ -107,18 +117,23 @@ def _response_error(response, status, message, ex_type):
     _response(response, status, json.dumps({'error': err_dct}).encode(), True)
 
 
-def _response(response, status, message, close_connection):
+def _response(
+    response: protocol.HttpResponse,
+    status: http.HTTPStatus,
+    message: bytes,
+    close_connection: bool,
+) -> None:
     response.body = message
     response.status = status
     response.content_type = b'application/json'
     response.close_connection = close_connection
 
 
-def _response_ok(response, message):
+def _response_ok(response: protocol.HttpResponse, message: bytes) -> None:
     _response(response, http.HTTPStatus.OK, message, False)
 
 
-async def _ping(tenant):
+async def _ping(tenant: edbtenant.Tenant) -> bytes:
     if tenant.get_backend_runtime_params().has_create_database:
         dbname = edbdef.EDGEDB_SYSTEM_DB
     else:
@@ -136,7 +151,10 @@ async def _ping(tenant):
     )
 
 
-async def handle_compiler_query(server, response):
+async def handle_compiler_query(
+    server: edbserver.BaseServer,
+    response: protocol.HttpResponse,
+) -> None:
     try:
         # This is just testing if the RPC to the compiler is healthy
         await server.get_compiler_pool().make_compilation_config_serializer()
@@ -154,18 +172,18 @@ async def handle_compiler_query(server, response):
 
 
 async def handle_liveness_query(
-    request,
-    response,
-    tenant,
-):
+    request: protocol.HttpRequest,
+    response: protocol.HttpResponse,
+    tenant: edbtenant.Tenant,
+) -> None:
     _response_ok(response, await _ping(tenant))
 
 
 async def handle_readiness_query(
-    request,
-    response,
-    tenant,
-):
+    request: protocol.HttpRequest,
+    response: protocol.HttpResponse,
+    tenant: edbtenant.Tenant,
+) -> None:
     if not tenant.is_ready():
         _response_error(
             response,

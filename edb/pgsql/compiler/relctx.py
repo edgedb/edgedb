@@ -596,7 +596,9 @@ def new_pointer_rvar(
     ptrref = ir_ptr.ptrref
 
     ptr_info = pg_types.get_ptrref_storage_info(
-        ptrref, resolve_type=False, link_bias=link_bias, allow_missing=True)
+        ptrref, resolve_type=False, link_bias=link_bias, allow_missing=True,
+        versioned=ctx.env.versioned_stdlib,
+    )
 
     if ptr_info and ptr_info.table_type == 'ObjectType':
         # Inline link
@@ -1564,7 +1566,7 @@ def range_for_material_objtype(
             pathctx.put_path_value_rvar(qry, sub_path_id, rvar)
             pathctx.put_path_source_rvar(qry, sub_path_id, rvar)
 
-            ops.append(('union', qry))
+            ops.append((context.OverlayOp.UNION, qry))
 
         rvar = range_from_queryset(
             ops,
@@ -1621,7 +1623,7 @@ def range_for_material_objtype(
             pathctx.put_path_source_rvar(qry, path_id, rvar)
         pathctx.put_path_bond(qry, path_id)
 
-        set_ops.append(('union', qry))
+        set_ops.append((context.OverlayOp.UNION, qry))
 
         for op, cte, cte_path_id in overlays:
             rvar = rvar_for_rel(cte, typeref=typeref, ctx=ctx)
@@ -1651,8 +1653,8 @@ def range_for_material_objtype(
                 pathctx.put_path_source_rvar(qry2, path_id, qry_rvar)
             pathctx.put_path_bond(qry2, path_id)
 
-            if op == 'replace':
-                op = 'union'
+            if op == context.OverlayOp.REPLACE:
+                op = context.OverlayOp.UNION
                 set_ops = []
             set_ops.append((op, qry2))
 
@@ -1718,7 +1720,7 @@ def range_for_typeref(
 
             pathctx.put_path_bond(qry, path_id)
 
-            set_ops.append(('union', qry))
+            set_ops.append((context.OverlayOp.UNION, qry))
 
         rvar = range_from_queryset(
             set_ops,
@@ -1794,7 +1796,7 @@ def anti_join(
 
 
 def range_from_queryset(
-    set_ops: Sequence[Tuple[str, pgast.SelectStmt]],
+    set_ops: Sequence[Tuple[context.OverlayOp, pgast.SelectStmt]],
     objname: sn.Name,
     *,
     prep_filter: Callable[
@@ -1813,7 +1815,7 @@ def range_from_queryset(
         qry = set_ops[0][1]
 
         for op, rarg in set_ops[1:]:
-            if op == 'filter':
+            if op == context.OverlayOp.FILTER:
                 qry = wrap_set_op_query(qry, ctx=ctx)
                 prep_filter(qry, rarg)
                 anti_join(qry, rarg, path_id, ctx=ctx)
@@ -2013,12 +2015,14 @@ def range_for_ptrref(
             # needs to contain any link properties, for one reason.)
             ptr_info = pg_types.get_ptrref_storage_info(
                 src_ptrref, resolve_type=False, link_bias=True,
+                versioned=ctx.env.versioned_stdlib,
             )
             if not ptr_info:
                 assert ptrref.union_components
 
                 ptr_info = pg_types.get_ptrref_storage_info(
                     src_ptrref, resolve_type=False, link_bias=False,
+                    versioned=ctx.env.versioned_stdlib,
                 )
 
             cols = [
@@ -2045,7 +2049,7 @@ def range_for_ptrref(
                 qry.target_list.append(
                     pgast.ResTarget(val=selexpr, name=output_colname))
 
-            sub_set_ops.append(('union', qry))
+            sub_set_ops.append((context.OverlayOp.UNION, qry))
 
             # We need the identity var for semi_join to work and
             # the source rvar so that linkprops can be found here.
@@ -2076,7 +2080,7 @@ def range_for_ptrref(
             pathctx.put_path_identity_var(sub_qry, path_id, var=target_ref)
             pathctx.put_path_source_rvar(sub_qry, path_id, sub_rvar)
 
-        set_ops.append(('union', sub_qry))
+        set_ops.append((context.OverlayOp.UNION, sub_qry))
 
         # Only fire off the overlays at the end of each expanded inhview.
         # This only matters when we are doing expand_inhviews, and prevents
@@ -2178,12 +2182,13 @@ def rvar_for_rel(
 
 
 def _add_type_rel_overlay(
-        typeid: uuid.UUID,
-        op: str,
-        rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
-        dml_stmts: Iterable[irast.MutatingLikeStmt] = (),
-        path_id: irast.PathId,
-        ctx: context.CompilerContextLevel) -> None:
+    typeid: uuid.UUID,
+    op: context.OverlayOp,
+    rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
+    dml_stmts: Iterable[irast.MutatingLikeStmt] = (),
+    path_id: irast.PathId,
+    ctx: context.CompilerContextLevel
+) -> None:
     entry = (op, rel, path_id)
     dml_stmts2 = dml_stmts if dml_stmts else (None,)
     # If there is a "global" overlay, and there is none for the
@@ -2200,13 +2205,14 @@ def _add_type_rel_overlay(
 
 
 def add_type_rel_overlay(
-        typeref: irast.TypeRef,
-        op: str,
-        rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
-        stop_ref: Optional[irast.TypeRef]=None,
-        dml_stmts: Iterable[irast.MutatingLikeStmt] = (),
-        path_id: irast.PathId,
-        ctx: context.CompilerContextLevel) -> None:
+    typeref: irast.TypeRef,
+    op: context.OverlayOp,
+    rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
+    stop_ref: Optional[irast.TypeRef]=None,
+    dml_stmts: Iterable[irast.MutatingLikeStmt] = (),
+    path_id: irast.PathId,
+    ctx: context.CompilerContextLevel
+) -> None:
     typeref = typeref.real_material_type
     objs = [typeref]
     if typeref.ancestors:
@@ -2269,13 +2275,14 @@ def reuse_type_rel_overlays(
 
 
 def _add_ptr_rel_overlay(
-        typeid: uuid.UUID,
-        ptrref_name: str,
-        op: str,
-        rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
-        dml_stmts: Iterable[irast.MutatingLikeStmt] = (),
-        path_id: irast.PathId,
-        ctx: context.CompilerContextLevel) -> None:
+    typeid: uuid.UUID,
+    ptrref_name: str,
+    op: context.OverlayOp,
+    rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
+    dml_stmts: Iterable[irast.MutatingLikeStmt] = (),
+    path_id: irast.PathId,
+    ctx: context.CompilerContextLevel
+) -> None:
 
     entry = (op, rel, path_id)
     dml_stmts2 = dml_stmts if dml_stmts else (None,)
@@ -2294,12 +2301,13 @@ def _add_ptr_rel_overlay(
 
 
 def add_ptr_rel_overlay(
-        ptrref: irast.PointerRef,
-        op: str,
-        rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
-        dml_stmts: Iterable[irast.MutatingLikeStmt] = (),
-        path_id: irast.PathId,
-        ctx: context.CompilerContextLevel) -> None:
+    ptrref: irast.PointerRef,
+    op: context.OverlayOp,
+    rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
+    dml_stmts: Iterable[irast.MutatingLikeStmt] = (),
+    path_id: irast.PathId,
+    ctx: context.CompilerContextLevel
+) -> None:
 
     typeref = ptrref.out_source.real_material_type
     objs = [typeref]

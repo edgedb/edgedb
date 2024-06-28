@@ -19,11 +19,11 @@
 
 import json
 
-from typing import Any, Type
+from typing import cast, Any, Type
 from edb.server.protocol import execute
 
 from . import github, google, azure, apple, discord, slack
-from . import errors, util, data, base, http_client
+from . import config, errors, util, data, base, http_client
 
 
 class Client:
@@ -63,7 +63,8 @@ class Client:
                 raise errors.InvalidData(f"Invalid provider: {provider_name}")
 
         self.provider = provider_class(
-            *provider_args, **provider_kwargs  # type: ignore
+            *provider_args,
+            **provider_kwargs,  # type: ignore[arg-type]
         )
 
     async def get_authorize_url(self, state: str, redirect_uri: str) -> str:
@@ -123,14 +124,21 @@ select {
             result_json[0]['new']
         )
 
-    def _get_provider_config(self, provider_name: str):
+    def _get_provider_config(
+        self, provider_name: str
+    ) -> config.OAuthProviderConfig:
         provider_client_config = util.get_config(
             self.db, "ext::auth::AuthConfig::providers", frozenset
         )
         for cfg in provider_client_config:
             if cfg.name == provider_name:
-                return data.ProviderConfig(
-                    cfg.client_id, cfg.secret, cfg.additional_scope
+                cfg = cast(config.OAuthProviderConfig, cfg)
+                return config.OAuthProviderConfig(
+                    name=cfg.name,
+                    display_name=cfg.display_name,
+                    client_id=cfg.client_id,
+                    secret=cfg.secret,
+                    additional_scope=cfg.additional_scope,
                 )
 
         raise errors.MissingConfiguration(

@@ -19,6 +19,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import (
+    cast,
     Any,
     AsyncIterator,
     ClassVar,
@@ -42,6 +43,7 @@ import httpx_sse
 from edb import errors
 from edb.common import asyncutil
 from edb.common import debug
+from edb.common import enum as s_enum
 from edb.common import markup
 from edb.common import uuidgen
 
@@ -99,6 +101,21 @@ class InternalError(AIExtError):
 
 class BadRequestError(AIExtError):
     http_status = http.HTTPStatus.BAD_REQUEST
+
+
+class ApiStyle(s_enum.StrEnum):
+    OpenAI = 'OpenAI'
+    Anthropic = 'Anthropic'
+
+
+@dataclass
+class ProviderConfig:
+    name: str
+    display_name: str
+    api_url: str
+    client_id: str
+    secret: str
+    api_style: ApiStyle
 
 
 def start_extension(
@@ -565,7 +582,7 @@ async def _update_embeddings_in_db(
 
 
 async def _generate_embeddings(
-    provider,
+    provider: ProviderConfig,
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
@@ -578,7 +595,7 @@ async def _generate_embeddings(
         f"of {provider.name!r} for {len(inputs)} object{suf}"
     )
 
-    if provider.api_style == "OpenAI":
+    if provider.api_style == ApiStyle.OpenAI:
         return await _generate_openai_embeddings(
             provider, model_name, inputs, shortening,
         )
@@ -590,7 +607,7 @@ async def _generate_embeddings(
 
 
 async def _generate_openai_embeddings(
-    provider,
+    provider: ProviderConfig,
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
@@ -676,9 +693,9 @@ async def _start_chat(
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
-    provider,
+    provider: ProviderConfig,
     model_name: str,
-    messages: list[dict],
+    messages: list[dict[str, Any]],
     stream: bool,
 ) -> None:
     if provider.api_style == "OpenAI":
@@ -725,7 +742,7 @@ async def _start_openai_like_chat(
     response: protocol.HttpResponse,
     client: httpx.AsyncClient,
     model_name: str,
-    messages: list[dict],
+    messages: list[dict[str, Any]],
     stream: bool,
 ) -> None:
     if stream:
@@ -847,9 +864,9 @@ async def _start_openai_chat(
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
-    provider,
+    provider: ProviderConfig,
     model_name: str,
-    messages: list[dict],
+    messages: list[dict[str, Any]],
     stream: bool,
 ) -> None:
     headers = {
@@ -879,9 +896,9 @@ async def _start_anthropic_chat(
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
-    provider,
+    provider: ProviderConfig,
     model_name: str,
-    messages: list[dict],
+    messages: list[dict[str, Any]],
     stream: bool,
 ) -> None:
     headers = {
@@ -1010,7 +1027,7 @@ async def handle_request(
     db: dbview.Database,
     args: list[str],
     tenant: srv_tenant.Tenant,
-):
+) -> None:
     if len(args) != 1 or args[0] not in {"rag", "embeddings"}:
         response.body = b'Unknown path'
         response.status = http.HTTPStatus.NOT_FOUND
@@ -1239,7 +1256,7 @@ async def _handle_rag_request(
             "messages": [],
         }
 
-    messages: dict[str, list[dict]] = {}
+    messages: dict[str, list[dict[str, Any]]] = {}
     for message in prompt["messages"]:
         if message["participant_role"] == "User":
             content = message["content"].format(
@@ -1356,7 +1373,7 @@ async def _edgeql_query_json(
         except Exception as iex:
             raise iex from None
     else:
-        return content
+        return cast(list[Any], content)
 
 
 async def _db_error(
@@ -1394,12 +1411,20 @@ async def _db_error(
 def _get_provider_config(
     db: dbview.Database,
     provider_name: str,
-) -> Any:
+) -> ProviderConfig:
     cfg = db.lookup_config("ext::ai::Config::providers")
 
     for provider in cfg:
         if provider.name == provider_name:
-            return provider
+            provider = cast(ProviderConfig, provider)
+            return ProviderConfig(
+                name=provider.name,
+                display_name=provider.display_name,
+                api_url=provider.api_url,
+                client_id=provider.client_id,
+                secret=provider.secret,
+                api_style=provider.api_style,
+            )
     else:
         raise ConfigurationError(
             f"provider {provider_name!r} has not been configured"
@@ -1447,7 +1472,7 @@ async def _get_model_provider(
     elif len(models) > 1:
         raise InternalError("multiple models defined as requested model")
 
-    return models[0]["provider"]
+    return cast(str, models[0]["provider"])
 
 
 async def _generate_embeddings_for_type(

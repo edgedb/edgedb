@@ -16,12 +16,16 @@
 # limitations under the License.
 #
 
-from typing import Optional
+from __future__ import annotations
+from typing import Optional, TYPE_CHECKING
 
 import html
 import urllib.parse
 
 from . import util
+
+if TYPE_CHECKING:
+    from edb.server.protocol.auth_ext import config as auth_config
 
 known_oauth_provider_names = [
     'builtin::oauth_github',
@@ -110,7 +114,7 @@ def oauth_buttons(
     redirect_to: str,
     challenge: str,
     redirect_to_on_signup: Optional[str],
-    oauth_providers: list,
+    oauth_providers: list[auth_config.OAuthProviderConfig],
     label_prefix: str,
     collapsed: bool
 ) -> str:
@@ -138,7 +142,12 @@ def oauth_buttons(
     '''
 
 
-def _oauth_button(provider, params: dict, *, label_prefix: str) -> str:
+def _oauth_button(
+    provider: auth_config.OAuthProviderConfig,
+    params: dict[str, str],
+    *,
+    label_prefix: str,
+) -> str:
     href = '../authorize?' + urllib.parse.urlencode({
         'provider': provider.name,
         **params

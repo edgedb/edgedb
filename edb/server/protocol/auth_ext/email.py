@@ -14,7 +14,7 @@ async def send_password_reset_email(
     to_addr: str,
     reset_url: str,
     test_mode: bool,
-):
+) -> None:
     from_addr = util.get_config(db, "ext::auth::SMTPConfig::sender")
     app_details_config = util.get_app_details_config(db)
     if app_details_config is None:
@@ -50,7 +50,7 @@ async def send_verification_email(
     verification_token: str,
     provider: str,
     test_mode: bool,
-):
+) -> None:
     from_addr = util.get_config(db, "ext::auth::SMTPConfig::sender")
     app_details_config = util.get_app_details_config(db)
     verification_token_params = urllib.parse.urlencode(
@@ -92,7 +92,7 @@ async def send_magic_link_email(
     to_addr: str,
     link: str,
     test_mode: bool,
-):
+) -> None:
     from_addr = util.get_config(db, "ext::auth::SMTPConfig::sender")
     app_details_config = util.get_app_details_config(db)
     if app_details_config is None:
@@ -120,8 +120,8 @@ async def send_magic_link_email(
     await _protected_send(coro, tenant)
 
 
-async def send_fake_email(tenant: tenant.Tenant):
-    async def noop_coroutine():
+async def send_fake_email(tenant: tenant.Tenant) -> None:
+    async def noop_coroutine() -> None:
         pass
 
     coro = noop_coroutine()
@@ -130,7 +130,7 @@ async def send_fake_email(tenant: tenant.Tenant):
 
 async def _protected_send(
     coro: Coroutine[Any, Any, None], tenant: tenant.Tenant
-):
+) -> None:
     task = tenant.create_task(coro, interruptable=False)
     # Prevent timing attack
     await asyncio.sleep(random.random() * 0.5)
