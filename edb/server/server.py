@@ -1103,6 +1103,7 @@ class BaseServer:
         await self._stop_servers(self._servers.values())
         self._servers = {}
 
+        # This should be done by tenant.stop(), but let's still do it again
         for conn in self._binary_conns:
             conn.request_stop()
         self._binary_conns.clear()
@@ -1110,6 +1111,23 @@ class BaseServer:
         for conn in self._pgext_conns.values():
             conn.request_stop()
         self._pgext_conns.clear()
+
+    def request_frontend_stop(self, tenant: edbtenant.Tenant):
+        dropped = []
+        for conn in self._binary_conns:
+            if conn.tenant is tenant:
+                conn.request_stop()
+                dropped.append(conn)
+        for conn in dropped:
+            self._binary_conns.pop(conn, None)
+
+        dropped.clear()
+        for conn in self._pgext_conns.values():
+            if conn.tenant is tenant:
+                conn.request_stop()
+                dropped.append(conn)
+        for conn in dropped:
+            self._pgext_conns.pop(conn, None)
 
     async def serve_forever(self):
         await self._stop_evt.wait()
