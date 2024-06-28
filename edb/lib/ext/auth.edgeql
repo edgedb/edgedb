@@ -190,7 +190,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property issuer_url: std::str {
             create annotation std::description :=
                 "The issuer URL of the provider.";
-            create constraint exclusive;
         };
 
         create property logo_url: std::str {
@@ -214,6 +213,8 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 "The brand color of the provider as a hex string to be used \
                 with the dark theme.";
         };
+
+        create constraint exclusive on ((.issuer_url, .client_id));
     };
 
     create type ext::auth::AppleOAuthProvider
