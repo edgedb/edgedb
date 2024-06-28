@@ -1,0 +1,139 @@
+import edb.server._conn_pool
+import asyncio
+import threading
+import typing
+
+# Connections must be hashable because we use them to reverse-lookup
+# an internal ID.
+C = typing.TypeVar("C", bound=typing.Hashable)
+
+
+class ConnectionFactory(typing.Protocol[C]):
+    """The async interface to create and destroy database connections.
+
+    All connections returned from successful calls to `connect` or reconnect
+    are guaranteed to be `disconnect`ed or `reconnect`ed."""
+
+    async def connect(self, db: str) -> C:
+        """Create a new connection asynchronously.
+
+        This method must retry exceptions internally. If an exception is thrown
+        from this method, the database is considered to be failed."""
+        ...
+
+    async def disconnect(self, conn: C) -> None:
+        """Gracefully disconnect a connection asynchronously.
+
+        If an exception is thrown from this method, the connection is simply
+        forgotten."""
+        ...
+
+    async def reconnect(self, conn: C, db: str) -> C:
+        """Reconnects a connection to the given database. If this is not
+        possible, it is permissable to return a new connection and gracefully
+        disconnect the other connection in parallel or in the background.
+
+        This method must retry exceptions internally. If an exception is thrown
+        from this method, the database is considered to be failed."""
+        ...
+
+
+class ConnPool(ConnectionFactory[C]):
+    _connection_factory: ConnectionFactory[C]
+    _pool: edb.server._conn_pool.ConnPool
+    _loop: asyncio.AbstractEventLoop
+    _completion: asyncio.Future[bool]
+    _ready: asyncio.Future[bool]
+    _active_conns: set[C]
+    _cur_capacity: int
+    _cur_waiters: int
+
+    def __init__(self, connection_factory: ConnectionFactory[C]):
+        self._connection_factory = connection_factory
+        self._loop = asyncio.get_event_loop()
+        self._pool = None
+        self._completion = self._loop.create_future()
+        self._ready = self._loop.create_future()
+        self._active_conns = set()
+        self._cur_capacity = 0
+        self._cur_waiters = 0
+
+    def _callback(self, args0: typing.Any, args: typing.Any) -> bool:
+        """Receives the callback from the Rust connection pool.
+
+        Required to call pool._respond on the main thread with the result of
+        this callback.
+        """
+        (kind, response_id) = args0
+        if self._loop.is_closed():
+            return False
+        else:
+            self._loop.call_soon_threadsafe(
+                self._loop.create_task,
+                self._perform_async(kind, response_id, *args),
+            )
+            return True
+
+    async def _perform_async(self, kind: int,
+                             response_id: int,
+                             *args: typing.Any) -> None:
+        """Delegates the callback from Rust to the appropriate connection
+        factory method."""
+        if kind == 0:
+            self._cur_capacity += 1
+            response = await self._connection_factory.connect(*args)
+        elif kind == 1:
+            await self._connection_factory.disconnect(*args)
+            self._cur_capacity -= 1
+            response = None
+        elif kind == 2:
+            response = await self._connection_factory.reconnect(*args)
+        self._pool._respond(response_id, response)
+
+    def _thread_main(self) -> None:
+        self._loop.call_soon_threadsafe(self._ready.set_result, True)
+        self._pool.run_and_block()
+        if not self._loop.is_closed():
+            self._loop.call_soon_threadsafe(self._completion.set_result, True)
+
+    async def run(self) -> None:
+        """Creates a long-lived task that manages the connection pool. Required
+        before any connections may be acquired."""
+        if self._pool is not None:
+            raise RuntimeError(f"pool already started") from None
+
+        self._pool = edb.server._conn_pool.ConnPool(self._callback)
+        threading.Thread(target=self._thread_main, daemon=True).start()
+        try:
+            await self._completion
+        except asyncio.exceptions.CancelledError:
+            self._pool.halt()
+        self._pool = None
+
+    async def acquire(self, db: str) -> C:
+        """Acquire a connection from the database. This connection must be
+        released."""
+        await self._ready
+        future: asyncio.Future[C] = self._loop.create_future()
+        # Note that this callback is called on the internal pool's thread
+        self._cur_waiters += 1
+        try:
+            self._pool.acquire(
+                db,
+                lambda res: self._loop.call_soon_threadsafe(future.set_result, res),
+            )
+            conn = await future
+        finally:
+            self._cur_waiters -= 1
+        self._active_conns.add(conn)
+        return conn
+
+    def release(self, _db: str, conn: C, discard: bool = False) -> None:
+        """Releases a connection back into the pool, discarding or returning it
+        in the background."""
+        self._active_conns.remove(conn)
+        self._pool.release(conn, discard)
+        pass
+
+    def count_waiters(self) -> int:
+        return self._cur_waiters

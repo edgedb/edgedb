@@ -179,7 +179,7 @@ async fn run_and_block(
     mut rpc_rx: tokio::sync::mpsc::UnboundedReceiver<PoolRPC>,
 ) {
     let pool = Rc::new(Pool::<PythonConnectionFactory>::new(
-        PoolConfig::suggested_default_for(10),
+        PoolConfig::suggested_default_for(100),
         connector,
     ));
     let conns = Rc::new(RefCell::new(PythonConnectionMap::default()));

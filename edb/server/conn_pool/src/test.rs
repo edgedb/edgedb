@@ -1,5 +1,5 @@
 //! Test utilities.
-use std::{future::Future, time::Duration};
+use std::{future::Future, ops::{Range, RangeBounds}, time::Duration};
 
 use mock_instant::{thread_local::Instant, thread_local::MockClock};
 
@@ -64,4 +64,62 @@ impl Connector for BasicConnector {
             Ok(())
         }
     }
+}
+
+#[derive(smart_default::SmartDefault)]
+pub struct Spec {
+     #[default = 30]
+    pub timeout: usize,
+     #[default = 1.1]
+    pub duration: f64,
+    pub capacity: usize,
+    pub conn_cost_base: f64,
+    pub conn_cost_var: f64,
+    pub dbs: Vec<DBSpec>,
+     #[default = 0.006]
+    pub disconn_cost_base: f64,
+     #[default = 0.015]
+    pub disconn_cost_var: f64,
+    pub score: Vec<Box<dyn ScoringMethod>>
+}
+
+pub trait ScoringMethod {
+}
+
+pub struct Score {
+   pub v100: f64,
+   pub v90: f64,
+   pub v60: f64,
+   pub v0: f64,
+   pub weight: f64,
+}
+
+pub struct LatencyDistribution {
+    pub score: Score,
+    pub group: Range<usize>
+}
+
+impl ScoringMethod for LatencyDistribution {
+}
+
+impl <T: ScoringMethod + 'static> From<T> for Box<dyn ScoringMethod> {
+    fn from(value: T) -> Self {
+        Box::new(value)
+    }
+}
+
+pub struct ConnectionOverhead {
+    pub score: Score,
+}
+
+impl ScoringMethod for ConnectionOverhead {
+}
+
+pub struct DBSpec {
+    pub db: String,
+    pub start_at: f64,
+    pub end_at: f64,
+    pub qps: usize,  
+    pub query_cost_base: f64,
+    pub query_cost_var: f64,  
 }

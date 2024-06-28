@@ -19,6 +19,7 @@ tracing = "0"
 tracing-subscriber = "0"
 strum = { version = "0.26", features = ["derive"] }
 consume_on_drop = "0"
+smart-default = "0"
 
 [dependencies.tokio]
 version = "1"

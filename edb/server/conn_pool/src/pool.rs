@@ -223,9 +223,10 @@ impl<C: Connector> Pool<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::{virtual_sleep, BasicConnector};
+    use crate::{pool, test::*};
     use anyhow::{Ok, Result};
     use rstest::rstest;
+    use scopeguard::defer;
     use std::rc::Rc;
     use test_log::test;
     use tokio::task::LocalSet;
@@ -304,4 +305,175 @@ mod tests {
         );
         Ok(())
     }
+
+    async fn run(spec: Spec) -> Result<()> {
+        let start = Instant::now();
+        let real_time = std::time::Instant::now();
+        let connections = Cell::new(0_usize);
+
+        let config = PoolConfig::suggested_default_for(spec.capacity);
+        let local = LocalSet::new();
+        let mut pool = local
+        .run_until(async {
+            let pool = Pool::new(config, BasicConnector::delay());
+            let mut tasks = vec![];
+            for db_spec in spec.dbs {
+                let pool = pool.clone();
+                tasks.push(tokio::task::spawn_local(async move {
+                    let interval = 1.0 / (db_spec.qps as f64);
+                    let interval = Duration::from_secs_f64(interval);
+                    info!("db {} interval={interval:?}", db_spec.db);
+                    virtual_sleep(Duration::from_secs_f64(db_spec.start_at)).await;
+                    loop {
+                        let db = db_spec.db.clone();
+                        let pool = pool.clone();
+                        tokio::task::spawn_local(async move {
+                            let conn = pool.acquire(&db).await?;
+                            virtual_sleep(Duration::from_millis(500)).await;
+                            drop(conn);
+                            Ok(())
+                        });
+                        virtual_sleep(interval).await;
+                    }
+                }));
+            }
+            let monitor = {
+                let pool = pool.clone();
+                let monitor = tokio::task::spawn_local(async move {
+                    loop {
+                        let mut s = "".to_owned();
+                        for block in pool.metrics().blocks {
+                            s += &format!("{} ", block.total);
+                        }
+                        trace!("Blocks: {s}");
+                        virtual_sleep(Duration::from_millis(100)).await;
+                    }
+                });
+                monitor
+            };
+            
+            info!("Starting...");
+            virtual_sleep(Duration::from_secs_f64(spec.duration)).await;
+                
+            info!(
+                "Took {:?} of virtual time ({:?} real time)",
+                start.elapsed(), real_time.elapsed()
+            );
+
+            monitor.abort();
+            _ = monitor.await;
+            for task in tasks.drain(..) {
+                task.abort();
+                _ = task.await;
+            }
+            // let metrics = pool.metrics();
+            // info!("{metrics:?}");
+            Ok(pool)
+        })
+        .await?;
+        local.await;
+
+        info!("Shutting down");
+        while let Err(pool_) = Rc::try_unwrap(pool) {
+            pool = pool_;
+            virtual_sleep(Duration::from_millis(100)).await;
+        }
+
+        Ok(())
+    }
+
+    /// This is a test for Mode D, where 2 groups of blocks race for connections
+    /// in the pool with max capacity set to 6. The first group (0-5) has more
+    /// dedicated time with the pool, so it should have relatively lower latency
+    /// than the second group (6-11). But the QoS is focusing on the latency
+    /// distribution similarity, as we don't want to starve only a few blocks
+    /// because of the lack of capacity. Therefore, reconnection is a necessary
+    /// cost for QoS.
+    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
+    async fn test_connpool_1() -> Result<()> {
+        let mut dbs = vec![];
+        for i in 0..6 {
+            dbs.push(DBSpec {
+                db: format!("t{i}"),
+                start_at: 0.0,
+                end_at: 0.5,
+                qps: 50,
+                query_cost_base: 0.03,
+                query_cost_var: 0.005,
+            })
+        }
+        for i in 6..12 {
+            dbs.push(DBSpec {
+                db: format!("t{i}"),
+                start_at: 0.3,
+                end_at: 0.7,
+                qps: 50,
+                query_cost_base: 0.03,
+                query_cost_var: 0.005,
+            })
+        }
+        for i in 0..6 {
+            dbs.push(DBSpec {
+                db: format!("t{i}"),
+                start_at: 0.6,
+                end_at: 0.8,
+                qps: 50,
+                query_cost_base: 0.03,
+                query_cost_var: 0.005,
+            })
+        }
+
+        let spec = Spec {
+            timeout: 20,
+            capacity: 6,
+            conn_cost_base: 0.05,
+            conn_cost_var: 0.01,
+            score: vec![
+                LatencyDistribution {
+                    score: Score {
+                        v100: 0.0,
+                        v90: 0.25,
+                        v60: 0.5,
+                        v0: 2.0,
+                        weight: 0.18,
+                    },
+                    group: 0..6,
+                }.into(),
+                LatencyDistribution {
+                    score: Score {
+                        v100: 0.0,
+                        v90: 0.1,
+                        v60: 0.3,
+                        v0: 2.0,
+                        weight: 0.28,
+                    },
+                    group: 6..12,
+                }.into(),
+                LatencyDistribution {
+                    score: Score {
+                        v100: 0.2,
+                        v90: 0.45,
+                        v60: 0.7,
+                        v0: 2.0,
+                        weight: 0.48,
+                    },
+                    group: 0..12,
+                }.into(),
+                ConnectionOverhead {
+                    score: Score {
+                        v100: 40.0,
+                        v90: 160.0,
+                        v60: 200.0,
+                        v0: 300.0,
+                        weight: 0.06,
+                    },
+                }.into(),
+            ],
+            dbs,
+            ..Default::default()
+        };
+
+        run(spec).await
+    }
+
 }
