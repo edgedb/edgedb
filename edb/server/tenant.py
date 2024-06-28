@@ -527,6 +527,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._accept_new_tasks = False
         self._cluster.stop_watching()
         self._stop_watching_files()
+        self._server.request_frontend_stop(self)
 
     def _stop_watching_files(self):
         while self._file_watch_finalizers:
@@ -1308,6 +1309,10 @@ class Tenant(ha_base.ClusterProtocol):
             self._readiness = srvargs.ReadinessState.Default
 
         self._accepting_connections = self.is_online()
+
+    def set_readiness_state(self, state: srvargs.ReadinessState, reason: str):
+        self._readiness = state
+        self._readiness_reason = reason
 
     def reload(self):
         # In multi-tenant mode, the file paths for the following states may be
