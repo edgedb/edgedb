@@ -656,7 +656,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://github.com",
-                "/login/oauth/access_token",
+                "login/oauth/access_token",
             )
             self.mock_provider.register_route_handler(*token_request)(
                 (
@@ -671,7 +671,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            user_request = ("GET", "https://api.github.com", "/user")
+            user_request = ("GET", "https://api.github.com", "user")
             self.mock_provider.register_route_handler(*user_request)(
                 (
                     json.dumps(
@@ -831,7 +831,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://github.com",
-                "/login/oauth/access_token",
+                "login/oauth/access_token",
             )
             self.mock_provider.register_route_handler(*token_request)(
                 (
@@ -897,7 +897,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://github.com",
-                "/login/oauth/access_token",
+                "login/oauth/access_token",
             )
             self.mock_provider.register_route_handler(*token_request)(
                 (
@@ -1038,7 +1038,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://discord.com",
-                "/api/oauth2/token",
+                "api/oauth2/token",
             )
             self.mock_provider.register_route_handler(*token_request)(
                 (
@@ -1053,7 +1053,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            user_request = ("GET", "https://discord.com/api/v10", "/users/@me")
+            user_request = ("GET", "https://discord.com/api/v10", "users/@me")
             self.mock_provider.register_route_handler(*user_request)(
                 (
                     json.dumps(
@@ -1216,7 +1216,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://accounts.google.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1229,7 +1229,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             jwks_request = (
                 "GET",
                 "https://www.googleapis.com",
-                "/oauth2/v3/certs",
+                "oauth2/v3/certs",
             )
             # Generate a JWK Set
             k = jwk.JWK.generate(kty='RSA', size=4096)
@@ -1249,7 +1249,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://oauth2.googleapis.com",
-                "/token",
+                "token",
             )
             id_token_claims = {
                 "iss": "https://accounts.google.com",
@@ -1377,7 +1377,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://accounts.google.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1447,7 +1447,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://login.microsoftonline.com/common/v2.0",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1521,7 +1521,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://login.microsoftonline.com/common/v2.0",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1533,7 +1533,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             jwks_request = (
                 "GET",
                 "https://login.microsoftonline.com",
-                "/common/discovery/v2.0/keys",
+                "common/discovery/v2.0/keys",
             )
             # Generate a JWK Set
             k = jwk.JWK.generate(kty='RSA', size=4096)
@@ -1553,7 +1553,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://login.microsoftonline.com",
-                "/common/oauth2/v2.0/token",
+                "common/oauth2/v2.0/token",
             )
             id_token_claims = {
                 "iss": "https://login.microsoftonline.com/common/v2.0",
@@ -1665,7 +1665,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://appleid.apple.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1737,7 +1737,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://appleid.apple.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1749,7 +1749,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             jwks_request = (
                 "GET",
                 "https://appleid.apple.com",
-                "/auth/keys",
+                "auth/keys",
             )
             # Generate a JWK Set
             k = jwk.JWK.generate(kty='RSA', size=4096)
@@ -1769,7 +1769,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://appleid.apple.com",
-                "/auth/token",
+                "auth/token",
             )
             id_token_claims = {
                 "iss": "https://appleid.apple.com",
@@ -1881,7 +1881,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://appleid.apple.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1893,7 +1893,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             jwks_request = (
                 "GET",
                 "https://appleid.apple.com",
-                "/auth/keys",
+                "auth/keys",
             )
             # Generate a JWK Set
             k = jwk.JWK.generate(kty='RSA', size=4096)
@@ -1913,7 +1913,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://appleid.apple.com",
-                "/auth/token",
+                "auth/token",
             )
             id_token_claims = {
                 "iss": "https://appleid.apple.com",
@@ -2029,7 +2029,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://slack.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -2042,7 +2042,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             jwks_request = (
                 "GET",
                 "https://slack.com",
-                "/openid/connect/keys",
+                "openid/connect/keys",
             )
             # Generate a JWK Set
             k = jwk.JWK.generate(kty='RSA', size=4096)
@@ -2062,7 +2062,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://slack.com",
-                "/api/openid.connect.token",
+                "api/openid.connect.token",
             )
             id_token_claims = {
                 "iss": "https://slack.com",
@@ -2190,7 +2190,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://slack.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -2268,7 +2268,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://example.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
