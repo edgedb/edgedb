@@ -1533,7 +1533,7 @@ def _normalize_view_ptr_expr(
                 qlexpr.limit = shape_el.limit
 
             if (
-                (ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
+                ctx.expr_exposed
                 and ctx.implicit_limit
                 and not base_is_singleton
             ):
@@ -1656,7 +1656,7 @@ def _normalize_view_ptr_expr(
             qlexpr = astutils.ensure_ql_select(qlexpr)
 
         if (
-            (ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
+            ctx.expr_exposed
             and ctx.implicit_limit
         ):
             qlexpr = qlast.SelectQuery(result=qlexpr, implicit=True)
