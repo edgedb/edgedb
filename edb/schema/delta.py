@@ -2088,6 +2088,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         context: CommandContext,
         *,
         action: str,
+        include_self: bool=True,
         include_ancestors: bool=False,
         extra_refs: Optional[Dict[so.Object, List[str]]]=None,
         filter: Type[so.Object] | Tuple[Type[so.Object], ...] | None = None,
@@ -2104,7 +2105,9 @@ class ObjectCommand(Command, Generic[so.Object_T]):
             fixer = None
 
         scls = self.scls
-        expr_refs = s_expr.get_expr_referrers(schema, scls)
+        expr_refs: dict[so.Object, list[str]] = {}
+        if include_self:
+            expr_refs.update(s_expr.get_expr_referrers(schema, scls))
         if include_ancestors and isinstance(scls, so.InheritingObject):
             for anc in scls.get_ancestors(schema).objects(schema):
                 expr_refs.update(s_expr.get_expr_referrers(schema, anc))
@@ -3203,6 +3206,8 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         context: CommandContext,
     ) -> s_schema.Schema:
         if not context.canonical:
+            # This is rarely triggered.
+            schema = self._finalize_affected_refs(schema, context)
             self.validate_object(schema, context)
         return schema
 

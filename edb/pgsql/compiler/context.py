@@ -251,6 +251,13 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: A set of type CTEs currently being generated
     pending_type_ctes: Set[RewriteKey]
 
+    #: CTEs representing types and their inherited types
+    type_inheritance_ctes: Dict[uuid.UUID, pgast.CommonTableExpr]
+
+    # Type and type inheriance CTEs in creation order. This ensures type CTEs
+    # referring to other CTEs are in the correct order.
+    ordered_type_ctes: list[pgast.CommonTableExpr]
+
     #: The logical parent of the current query in the
     #: query hierarchy
     parent_rel: Optional[pgast.Query]
@@ -350,6 +357,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ptr_ctes = {}
             self.type_ctes = {}
             self.pending_type_ctes = set()
+            self.type_inheritance_ctes = {}
+            self.ordered_type_ctes = []
             self.dml_stmts = {}
             self.parent_rel = None
             self.pending_query = None
@@ -390,6 +399,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ptr_ctes = prevlevel.ptr_ctes
             self.type_ctes = prevlevel.type_ctes
             self.pending_type_ctes = prevlevel.pending_type_ctes
+            self.type_inheritance_ctes = prevlevel.type_inheritance_ctes
+            self.ordered_type_ctes = prevlevel.ordered_type_ctes
             self.dml_stmts = prevlevel.dml_stmts
             self.parent_rel = prevlevel.parent_rel
             self.pending_query = prevlevel.pending_query
@@ -531,6 +542,7 @@ class Environment:
         ignore_object_shapes: bool,
         singleton_mode: bool,
         expand_inhviews: bool,
+        use_type_inheritance_ctes: bool,
         explicit_top_cast: Optional[irast.TypeRef],
         query_params: List[irast.Param],
         type_rewrites: Dict[RewriteKey, irast.Set],
@@ -550,6 +562,7 @@ class Environment:
         self.ignore_object_shapes = ignore_object_shapes
         self.singleton_mode = singleton_mode
         self.expand_inhviews = expand_inhviews
+        self.use_type_inheritance_ctes = use_type_inheritance_ctes
         self.explicit_top_cast = explicit_top_cast
         self.query_params = query_params
         self.type_rewrites = type_rewrites

@@ -402,7 +402,10 @@ def type_to_typeref(
         expr_type is s_types.ExprType.Update
         or expr_type is s_types.ExprType.Delete
         or (
-            env.options.expand_inhviews
+            (
+                env.options.expand_inhviews or
+                env.options.use_type_inheritance_ctes
+            )
             and isinstance(t, s_objtypes.ObjectType)
         )
     )
