@@ -1162,8 +1162,8 @@ functionality.
         {<datetime>'2018-12-31T17:02:03Z'}
 
     Another way to construct a the :eql:type:`datetime` value is to specify it
-    in terms of its component parts: *year*, *month*, *day*, *hour*, *min*,
-    *sec*, and :ref`*zone* <ref_std_datetime_timezones>`.
+    in terms of its component parts: year, month, day, hour, min, sec, and
+    :ref:`zone <ref_std_datetime_timezones>`.
 
     .. code-block:: edgeql-repl
 
