@@ -22,7 +22,7 @@ from typing import Any
 from . import base
 
 
-class GoogleProvider(base.OpenIDProvider):
+class GoogleProvider(base.OpenIDConnectProvider):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(
             "google", "https://accounts.google.com", *args, **kwargs

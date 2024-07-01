@@ -22,12 +22,11 @@ from typing import Any
 from . import base
 
 
-class AzureProvider(base.OpenIDProvider):
+class AzureProvider(base.OpenIDConnectProvider):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(
             "azure",
             "https://login.microsoftonline.com/common/v2.0",
             *args,
-            content_type=base.ContentType.FORM_ENCODED,
             **kwargs,
         )

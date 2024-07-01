@@ -200,6 +200,28 @@ SLACK_DISCOVERY_DOCUMENT = {
     ],
 }
 
+GENERIC_OIDC_DISCOVERY_DOCUMENT = {
+    "issuer": "https://example.com",
+    "authorization_endpoint": "https://example.com/auth",
+    "token_endpoint": "https://example.com/token",
+    "userinfo_endpoint": "https://example.com/userinfo",
+    "jwks_uri": "https://example.com/jwks",
+    "scopes_supported": ["openid", "profile", "email"],
+    "response_types_supported": ["code"],
+    "response_modes_supported": ["query"],
+    "grant_types_supported": ["authorization_code"],
+    "subject_types_supported": ["public"],
+    "id_token_signing_alg_values_supported": ["RS256"],
+    "claims_supported": ["sub", "auth_time", "iss"],
+    "claims_parameter_supported": False,
+    "request_parameter_supported": False,
+    "request_uri_parameter_supported": True,
+    "token_endpoint_auth_methods_supported": [
+        "client_secret_post",
+        "client_secret_basic",
+    ],
+}
+
 
 def utcnow():
     return datetime.datetime.now(datetime.timezone.utc)
@@ -212,6 +234,7 @@ AZURE_SECRET = 'c' * 32
 APPLE_SECRET = 'c' * 32
 DISCORD_SECRET = 'd' * 32
 SLACK_SECRET = 'd' * 32
+GENERIC_OIDC_SECRET = 'e' * 32
 APP_NAME = "Test App"
 LOGO_URL = "http://example.com/logo.png"
 DARK_LOGO_URL = "http://example.com/darklogo.png"
@@ -295,6 +318,16 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         }};
 
         CONFIGURE CURRENT DATABASE
+        INSERT ext::auth::OpenIDConnectProvider {{
+            secret := '{GENERIC_OIDC_SECRET}',
+            client_id := '{uuid.uuid4()}',
+            name := 'generic_oidc',
+            display_name := 'My Generic OIDC Provider',
+            issuer_url := 'https://example.com',
+            additional_scope := 'custom_provider_scope_string',
+        }};
+
+        CONFIGURE CURRENT DATABASE
         INSERT ext::auth::EmailPasswordProviderConfig {{
             require_verification := false,
         }};
@@ -321,7 +354,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     def setUp(self):
         self.mock_provider = tb.MockHttpServer(
-            handler_type=tb.MultiHostMockHttpServerHandler)
+            handler_type=tb.MultiHostMockHttpServerHandler
+        )
         self.mock_provider.start()
         HTTP_TEST_PORT.set(self.mock_provider.get_base_url())
 
@@ -371,18 +405,23 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             headers['x-edgedb-oauth-test-server'] = test_port
         return super().http_con_send_request(*args, headers=headers, **kwargs)
 
-    async def get_builtin_provider_config_by_name(self, provider_name: str):
+    async def get_provider_config_by_name(self, fqn: str):
         return await self.con.query_single(
             """
-            SELECT assert_exists(assert_single(
+            SELECT assert_exists(
                 cfg::Config.extensions[is ext::auth::AuthConfig].providers {
                     *,
                     [is ext::auth::OAuthProviderConfig].client_id,
                     [is ext::auth::OAuthProviderConfig].additional_scope,
-                } filter .name = 'builtin::' ++ <str>$0
-            ));
+                } filter .name = <str>$0
+            );
             """,
-            provider_name,
+            fqn,
+        )
+
+    async def get_builtin_provider_config_by_name(self, provider_name: str):
+        return await self.get_provider_config_by_name(
+            f"builtin::{provider_name}"
         )
 
     async def get_auth_config_value(self, key: str):
@@ -617,7 +656,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://github.com",
-                "/login/oauth/access_token",
+                "login/oauth/access_token",
             )
             self.mock_provider.register_route_handler(*token_request)(
                 (
@@ -632,7 +671,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            user_request = ("GET", "https://api.github.com", "/user")
+            user_request = ("GET", "https://api.github.com", "user")
             self.mock_provider.register_route_handler(*user_request)(
                 (
                     json.dumps(
@@ -792,7 +831,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://github.com",
-                "/login/oauth/access_token",
+                "login/oauth/access_token",
             )
             self.mock_provider.register_route_handler(*token_request)(
                 (
@@ -858,7 +897,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://github.com",
-                "/login/oauth/access_token",
+                "login/oauth/access_token",
             )
             self.mock_provider.register_route_handler(*token_request)(
                 (
@@ -999,7 +1038,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://discord.com",
-                "/api/oauth2/token",
+                "api/oauth2/token",
             )
             self.mock_provider.register_route_handler(*token_request)(
                 (
@@ -1014,7 +1053,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            user_request = ("GET", "https://discord.com/api/v10", "/users/@me")
+            user_request = ("GET", "https://discord.com/api/v10", "users/@me")
             self.mock_provider.register_route_handler(*user_request)(
                 (
                     json.dumps(
@@ -1177,7 +1216,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://accounts.google.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1190,7 +1229,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             jwks_request = (
                 "GET",
                 "https://www.googleapis.com",
-                "/oauth2/v3/certs",
+                "oauth2/v3/certs",
             )
             # Generate a JWK Set
             k = jwk.JWK.generate(kty='RSA', size=4096)
@@ -1210,7 +1249,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://oauth2.googleapis.com",
-                "/token",
+                "token",
             )
             id_token_claims = {
                 "iss": "https://accounts.google.com",
@@ -1284,20 +1323,21 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 2)
 
             requests_for_token = self.mock_provider.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                json.loads(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0]["body"]),
                 {
-                    "grant_type": "authorization_code",
-                    "code": "abc123",
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "redirect_uri": f"{self.http_addr}/callback",
+                    "grant_type": ["authorization_code"],
+                    "code": ["abc123"],
+                    "client_id": [client_id],
+                    "client_secret": [client_secret],
+                    "redirect_uri": [f"{self.http_addr}/callback"],
                 },
             )
 
@@ -1337,7 +1377,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://accounts.google.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1381,8 +1421,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 1)
 
             pkce = await self.con.query(
@@ -1406,7 +1447,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://login.microsoftonline.com/common/v2.0",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1452,8 +1493,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 1)
 
             pkce = await self.con.query(
@@ -1479,7 +1521,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://login.microsoftonline.com/common/v2.0",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1491,7 +1533,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             jwks_request = (
                 "GET",
                 "https://login.microsoftonline.com",
-                "/common/discovery/v2.0/keys",
+                "common/discovery/v2.0/keys",
             )
             # Generate a JWK Set
             k = jwk.JWK.generate(kty='RSA', size=4096)
@@ -1511,7 +1553,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://login.microsoftonline.com",
-                "/common/oauth2/v2.0/token",
+                "common/oauth2/v2.0/token",
             )
             id_token_claims = {
                 "iss": "https://login.microsoftonline.com/common/v2.0",
@@ -1585,8 +1627,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 2)
 
             requests_for_token = self.mock_provider.requests[token_request]
@@ -1622,7 +1665,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://appleid.apple.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1666,8 +1709,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 1)
 
             pkce = await self.con.query(
@@ -1693,7 +1737,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://appleid.apple.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1705,7 +1749,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             jwks_request = (
                 "GET",
                 "https://appleid.apple.com",
-                "/auth/keys",
+                "auth/keys",
             )
             # Generate a JWK Set
             k = jwk.JWK.generate(kty='RSA', size=4096)
@@ -1725,7 +1769,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://appleid.apple.com",
-                "/auth/token",
+                "auth/token",
             )
             id_token_claims = {
                 "iss": "https://appleid.apple.com",
@@ -1804,8 +1848,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 2)
 
             requests_for_token = self.mock_provider.requests[token_request]
@@ -1836,7 +1881,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://appleid.apple.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1848,7 +1893,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             jwks_request = (
                 "GET",
                 "https://appleid.apple.com",
-                "/auth/keys",
+                "auth/keys",
             )
             # Generate a JWK Set
             k = jwk.JWK.generate(kty='RSA', size=4096)
@@ -1868,7 +1913,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://appleid.apple.com",
-                "/auth/token",
+                "auth/token",
             )
             id_token_claims = {
                 "iss": "https://appleid.apple.com",
@@ -1984,7 +2029,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://slack.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -1997,7 +2042,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             jwks_request = (
                 "GET",
                 "https://slack.com",
-                "/openid/connect/keys",
+                "openid/connect/keys",
             )
             # Generate a JWK Set
             k = jwk.JWK.generate(kty='RSA', size=4096)
@@ -2017,7 +2062,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             token_request = (
                 "POST",
                 "https://slack.com",
-                "/api/openid.connect.token",
+                "api/openid.connect.token",
             )
             id_token_claims = {
                 "iss": "https://slack.com",
@@ -2091,8 +2136,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 2)
 
             requests_for_token = self.mock_provider.requests[token_request]
@@ -2144,7 +2190,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             discovery_request = (
                 "GET",
                 "https://slack.com",
-                "/.well-known/openid-configuration",
+                ".well-known/openid-configuration",
             )
             self.mock_provider.register_route_handler(*discovery_request)(
                 (
@@ -2188,8 +2234,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
-            requests_for_discovery = (
-                self.mock_provider.requests[discovery_request])
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
             self.assertEqual(len(requests_for_discovery), 1)
 
             pkce = await self.con.query(
@@ -2200,6 +2247,242 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 challenge=challenge,
             )
             self.assertEqual(len(pkce), 1)
+
+    async def test_http_auth_ext_generic_oidc_authorize_01(self):
+        with self.http_con() as http_con:
+            provider_config = await self.get_provider_config_by_name(
+                "generic_oidc"
+            )
+            provider_name = provider_config.name
+            client_id = provider_config.client_id
+            challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(
+                        base64.urlsafe_b64encode(os.urandom(43)).rstrip(b'=')
+                    ).digest()
+                )
+                .rstrip(b'=')
+                .decode()
+            )
+
+            discovery_request = (
+                "GET",
+                "https://example.com",
+                ".well-known/openid-configuration",
+            )
+            self.mock_provider.register_route_handler(*discovery_request)(
+                (
+                    json.dumps(GENERIC_OIDC_DISCOVERY_DOCUMENT),
+                    200,
+                )
+            )
+
+            redirect_to = f"{self.http_addr}/some/path"
+            _, headers, status = self.http_con_request(
+                http_con,
+                {
+                    "provider": provider_name,
+                    "redirect_to": redirect_to,
+                    "challenge": challenge,
+                },
+                path="authorize",
+            )
+
+            self.assertEqual(status, 302)
+
+            location = headers.get("location")
+            assert location is not None
+            url = urllib.parse.urlparse(location)
+            qs = urllib.parse.parse_qs(url.query, keep_blank_values=True)
+            self.assertEqual(url.scheme, "https")
+            self.assertEqual(url.hostname, "example.com")
+            self.assertEqual(url.path, "/auth")
+            self.assertEqual(
+                qs.get("scope"),
+                ["openid profile email custom_provider_scope_string"],
+            )
+
+            state = qs.get("state")
+            assert state is not None
+
+            claims = await self.extract_jwt_claims(state[0])
+            self.assertEqual(claims.get("provider"), provider_name)
+            self.assertEqual(claims.get("iss"), self.http_addr)
+            self.assertEqual(claims.get("redirect_to"), redirect_to)
+
+            self.assertEqual(
+                qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
+            )
+            self.assertEqual(qs.get("client_id"), [client_id])
+
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
+            self.assertEqual(len(requests_for_discovery), 1)
+
+            pkce = await self.con.query(
+                """
+                select ext::auth::PKCEChallenge
+                filter .challenge = <str>$challenge
+                """,
+                challenge=challenge,
+            )
+            self.assertEqual(len(pkce), 1)
+
+    async def test_http_auth_ext_generic_oidc_callback_01(self):
+        with self.http_con() as http_con:
+            provider_config = await self.get_provider_config_by_name(
+                "generic_oidc"
+            )
+            provider_name = provider_config.name
+            client_id = provider_config.client_id
+            client_secret = GENERIC_OIDC_SECRET
+
+            now = utcnow()
+
+            discovery_request = (
+                "GET",
+                "https://example.com",
+                ".well-known/openid-configuration",
+            )
+            self.mock_provider.register_route_handler(*discovery_request)(
+                (
+                    json.dumps(GENERIC_OIDC_DISCOVERY_DOCUMENT),
+                    200,
+                    {"cache-control": "max-age=3600"},
+                )
+            )
+
+            jwks_request = (
+                "GET",
+                "https://example.com",
+                "jwks",
+            )
+            # Generate a JWK Set
+            k = jwk.JWK.generate(kty='RSA', size=4096)
+            ks = jwk.JWKSet()
+            ks.add(k)
+            jwk_set: dict[str, Any] = ks.export(
+                private_keys=False, as_dict=True
+            )
+
+            self.mock_provider.register_route_handler(*jwks_request)(
+                (
+                    json.dumps(jwk_set),
+                    200,
+                )
+            )
+
+            token_request = (
+                "POST",
+                "https://example.com",
+                "token",
+            )
+            id_token_claims = {
+                "iss": "https://example.com",
+                "sub": "1",
+                "aud": client_id,
+                "exp": (now + datetime.timedelta(minutes=5)).timestamp(),
+                "iat": now.timestamp(),
+                "email": "test@example.com",
+            }
+            id_token = jwt.JWT(header={"alg": "RS256"}, claims=id_token_claims)
+            id_token.make_signed_token(k)
+
+            self.mock_provider.register_route_handler(*token_request)(
+                (
+                    json.dumps(
+                        {
+                            "access_token": "oidc_access_token",
+                            "id_token": id_token.serialize(),
+                            "scope": "openid",
+                            "token_type": "bearer",
+                        }
+                    ),
+                    200,
+                )
+            )
+
+            challenge = (
+                base64.urlsafe_b64encode(
+                    hashlib.sha256(
+                        base64.urlsafe_b64encode(os.urandom(43)).rstrip(b'=')
+                    ).digest()
+                )
+                .rstrip(b'=')
+                .decode()
+            )
+            await self.con.query(
+                """
+                insert ext::auth::PKCEChallenge {
+                    challenge := <str>$challenge,
+                }
+                """,
+                challenge=challenge,
+            )
+
+            signing_key = await self.get_signing_key()
+
+            expires_at = now + datetime.timedelta(minutes=5)
+            state_claims = {
+                "iss": self.http_addr,
+                "provider": str(provider_name),
+                "exp": expires_at.timestamp(),
+                "redirect_to": f"{self.http_addr}/some/path",
+                "challenge": challenge,
+            }
+            state_token = self.generate_state_value(state_claims, signing_key)
+
+            data, headers, status = self.http_con_request(
+                http_con,
+                {"state": state_token, "code": "abc123"},
+                path="callback",
+            )
+
+            self.assertEqual(data, b"")
+            self.assertEqual(status, 302)
+
+            location = headers.get("location")
+            assert location is not None
+            server_url = urllib.parse.urlparse(self.http_addr)
+            url = urllib.parse.urlparse(location)
+            self.assertEqual(url.scheme, server_url.scheme)
+            self.assertEqual(url.hostname, server_url.hostname)
+            self.assertEqual(url.path, f"{server_url.path}/some/path")
+
+            requests_for_discovery = self.mock_provider.requests[
+                discovery_request
+            ]
+            self.assertEqual(len(requests_for_discovery), 2)
+
+            requests_for_token = self.mock_provider.requests[token_request]
+            self.assertEqual(len(requests_for_token), 1)
+            self.assertEqual(
+                urllib.parse.parse_qs(requests_for_token[0]["body"]),
+                {
+                    "grant_type": ["authorization_code"],
+                    "code": ["abc123"],
+                    "client_id": [client_id],
+                    "client_secret": [client_secret],
+                    "redirect_uri": [f"{self.http_addr}/callback"],
+                },
+            )
+
+            identity = await self.con.query(
+                """
+                SELECT ext::auth::Identity
+                FILTER .subject = '1'
+                AND .issuer = 'https://example.com'
+                """
+            )
+            self.assertEqual(len(identity), 1)
+
+            session_claims = await self.extract_session_claims(headers)
+            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
+            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
+            tomorrow = now + datetime.timedelta(hours=25)
+            self.assertTrue(session_claims.get("exp") > now.timestamp())
+            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
 
     async def test_http_auth_ext_local_password_register_form_01(self):
         with self.http_con() as http_con:
@@ -2409,7 +2692,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 400)
 
             # Non-matching port
-            form_data["redirect_to"] = "https://oauth.example.com:8080/app/some/path"
+            form_data["redirect_to"] = (
+                "https://oauth.example.com:8080/app/some/path"
+            )
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
             _, _, status = self.http_con_request(
@@ -2424,7 +2709,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 400)
 
             # Path doesn't match
-            form_data["redirect_to"] = "https://oauth.example.com/wrong-base/path"
+            form_data["redirect_to"] = (
+                "https://oauth.example.com/wrong-base/path"
+            )
             form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
             _, _, status = self.http_con_request(
@@ -3476,6 +3763,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertIn(APP_NAME, body_str)
             self.assertIn(LOGO_URL, body_str)
             self.assertIn(BRAND_COLOR, body_str)
+
+            # Check for OAuth buttons
+            self.assertIn("Sign in with Google", body_str)
+            self.assertIn("Sign in with GitHub", body_str)
+            self.assertIn("Sign in with My Generic OIDC Provider", body_str)
             self.assertEqual(status, 200)
 
     async def test_http_auth_ext_webauthn_register_options(self):

@@ -50,7 +50,7 @@ class HttpClient(httpx.AsyncClient):
         **kwargs: Any,
     ) -> httpx.Response:
         if self.edgedb_orig_base_url:
-            path = f'{self.edgedb_orig_base_url}/{path}'
+            path = f'{self.edgedb_orig_base_url}{path}'
         return await super().post(
             path, *args, **kwargs
         )
@@ -62,5 +62,5 @@ class HttpClient(httpx.AsyncClient):
         **kwargs: Any,
     ) -> httpx.Response:
         if self.edgedb_orig_base_url:
-            path = f'{self.edgedb_orig_base_url}/{path}'
+            path = f'{self.edgedb_orig_base_url}{path}'
         return await super().get(path, *args, **kwargs)

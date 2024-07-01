@@ -56,10 +56,8 @@ def render_signin_page(
             webauthn_provider = p
         elif p.name == 'builtin::local_magic_link':
             magic_link_provider = p
-        elif p.name.startswith('builtin::oauth_'):
-            oauth_providers.append(
-                cast(auth_config.OAuthProviderConfig, p)
-            )
+        elif p.name.startswith('builtin::oauth_') or hasattr(p, "issuer_url"):
+            oauth_providers.append(cast(auth_config.OAuthProviderConfig, p))
 
     base_email_factor_form = f"""
       <input type="hidden" name="challenge" value="{challenge}" />
@@ -68,7 +66,8 @@ def render_signin_page(
       <input id="email" name="email" type="email" value="{email or ''}" />
     """
 
-    password_input = f"""
+    password_input = (
+        f"""
         <div class="field-header">
           <label for="password">Password</label>
           <a
@@ -80,7 +79,10 @@ def render_signin_page(
           </a>
         </div>
         <input id="password" name="password" type="password" />
-    """ if password_provider else ''
+    """
+        if password_provider
+        else ''
+    )
 
     email_factor_form = render_email_factor_form(
         base_email_factor_form=base_email_factor_form,
@@ -110,7 +112,8 @@ def render_signin_page(
                 name='callback_url', value=redirect_to
             ) if magic_link_provider else ''}
         ''',
-        password_form=f"""
+        password_form=(
+            f"""
             <form
                 method="post"
                 action="../authenticate"
@@ -126,8 +129,12 @@ def render_signin_page(
                 {password_input}
                 {render.button("Sign In", id="password-signin")}
             </form>
-        """ if password_provider else None,
-        webauthn_form=f"""
+        """
+            if password_provider
+            else None
+        ),
+        webauthn_form=(
+            f"""
             <form
                 id="email-factor"
                 novalidate
@@ -139,8 +146,12 @@ def render_signin_page(
                 {base_email_factor_form}
                 {render.button("Sign In", id="webauthn-signin")}
             </form>
-        """ if webauthn_provider else None,
-        magic_link_form=f"""
+        """
+            if webauthn_provider
+            else None
+        ),
+        magic_link_form=(
+            f"""
             <form
                 method="post"
                 action="../magic-link/email"
@@ -157,12 +168,16 @@ def render_signin_page(
                 {base_email_factor_form}
                 {render.button("Email sign in link", id="magic-link-signin")}
             </form>
-        """ if magic_link_provider else None
+        """
+            if magic_link_provider
+            else None
+        ),
     )
 
     if email_factor_form:
         email_factor_form += render.bottom_note(
-            "Don't have an account?", link='Sign up', href='signup')
+            "Don't have an account?", link='Sign up', href='signup'
+        )
 
     oauth_buttons = render.oauth_buttons(
         oauth_providers=oauth_providers,
@@ -203,9 +218,9 @@ def render_email_factor_form(
     magic_link_form: Optional[str],
 ) -> Optional[str]:
     if (
-        password_form is None and
-        webauthn_form is None and
-        magic_link_form is None
+        password_form is None
+        and webauthn_form is None
+        and magic_link_form is None
     ):
         return None
 
@@ -217,28 +232,36 @@ def render_email_factor_form(
         case (None, None, _):
             return magic_link_form
 
-    if (
-        base_email_factor_form is None or
-        (webauthn_form is not None and magic_link_form is not None)
+    if base_email_factor_form is None or (
+        webauthn_form is not None and magic_link_form is not None
     ):
         tabs = [
-            ('Passkey', webauthn_form, selected_tab == 'webauthn')
-            if webauthn_form else None,
-            ('Password', password_form, selected_tab == 'password')
-            if password_form else None,
-            ('Email Link', magic_link_form, selected_tab == 'magic_link')
-            if magic_link_form else None
+            (
+                ('Passkey', webauthn_form, selected_tab == 'webauthn')
+                if webauthn_form
+                else None
+            ),
+            (
+                ('Password', password_form, selected_tab == 'password')
+                if password_form
+                else None
+            ),
+            (
+                ('Email Link', magic_link_form, selected_tab == 'magic_link')
+                if magic_link_form
+                else None
+            ),
         ]
 
         selected_tabs = [t[2] for t in tabs if t is not None]
         selected_index = (
-            selected_tabs.index(True) if True in selected_tabs else 0)
+            selected_tabs.index(True) if True in selected_tabs else 0
+        )
 
-        return (
-            render.tabs_buttons(
-                [t[0] for t in tabs if t is not None], selected_index) +
-            render.tabs_content(
-                [t[1] for t in tabs if t is not None], selected_index)
+        return render.tabs_buttons(
+            [t[0] for t in tabs if t is not None], selected_index
+        ) + render.tabs_content(
+            [t[1] for t in tabs if t is not None], selected_index
         )
 
     slider_content = [
@@ -256,7 +279,7 @@ def render_email_factor_form(
                         secondary=True, type="button")}
                 {render.button("Sign in with password", id="password-signin")}
             </div>
-        '''
+        ''',
     ]
 
     return f"""
@@ -301,10 +324,8 @@ def render_signup_page(
             webauthn_provider = p
         elif p.name == 'builtin::local_magic_link':
             magic_link_provider = p
-        elif p.name.startswith('builtin::oauth_'):
-            oauth_providers.append(
-                cast(auth_config.OAuthProviderConfig, p)
-            )
+        elif p.name.startswith('builtin::oauth_') or hasattr(p, "issuer_url"):
+            oauth_providers.append(cast(auth_config.OAuthProviderConfig, p))
 
     base_email_factor_form = f"""
       <input type="hidden" name="challenge" value="{challenge}" />
@@ -315,7 +336,8 @@ def render_signup_page(
 
     email_factor_form = render_email_factor_form(
         selected_tab=selected_tab,
-        password_form=f"""
+        password_form=(
+            f"""
             <form
                 method="post"
                 action="../register"
@@ -334,8 +356,12 @@ def render_signup_page(
                 <input id="password" name="password" type="password" />
                 {render.button("Sign Up", id="password-signup")}
             </form>
-        """ if password_provider else None,
-        webauthn_form=f"""
+        """
+            if password_provider
+            else None
+        ),
+        webauthn_form=(
+            f"""
             <form
                 id="email-factor"
                 novalidate
@@ -349,8 +375,12 @@ def render_signup_page(
                 {base_email_factor_form}
                 {render.button("Sign Up", id="webauthn-signup")}
             </form>
-        """ if webauthn_provider else None,
-        magic_link_form=f"""
+        """
+            if webauthn_provider
+            else None
+        ),
+        magic_link_form=(
+            f"""
             <form
                 method="post"
                 action="../magic-link/register"
@@ -368,21 +398,24 @@ def render_signup_page(
                 {render.button("Sign Up with Email Link",
                                id="magic-link-signup")}
             </form>
-        """ if magic_link_provider else None
+        """
+            if magic_link_provider
+            else None
+        ),
     )
 
     if email_factor_form:
         email_factor_form += render.bottom_note(
-            'Already have an account?', link='Sign in', href='signin')
+            'Already have an account?', link='Sign in', href='signin'
+        )
 
     oauth_buttons = render.oauth_buttons(
         oauth_providers=oauth_providers,
-        label_prefix=('Sign up with' if email_factor_form
-                      else 'Continue with'),
+        label_prefix=('Sign up with' if email_factor_form else 'Continue with'),
         challenge=challenge,
         redirect_to=redirect_to,
         redirect_to_on_signup=redirect_to_on_signup,
-        collapsed=email_factor_form is not None and len(oauth_providers) >= 3
+        collapsed=email_factor_form is not None and len(oauth_providers) >= 3,
     )
 
     return render.base_page(
@@ -661,6 +694,7 @@ def render_magic_link_sent_page(
             {content}
         ''',
     )
+
 
 # emails
 

@@ -22,12 +22,11 @@ from typing import Any
 from . import base
 
 
-class SlackProvider(base.OpenIDProvider):
+class SlackProvider(base.OpenIDConnectProvider):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(
             "slack",
             "https://slack.com",
             *args,
-            content_type=base.ContentType.FORM_ENCODED,
             **kwargs,
         )

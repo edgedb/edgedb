@@ -148,16 +148,21 @@ def _oauth_button(
     *,
     label_prefix: str,
 ) -> str:
-    href = '../authorize?' + urllib.parse.urlencode({
-        'provider': provider.name,
-        **params
-    })
-    img = (
-        f'''<img src="_static/icon_{provider.name[15:]}.svg"
-            alt="{provider.display_name} Icon" />'''
-        if provider.name in known_oauth_provider_names
-        else ''
+    href = '../authorize?' + urllib.parse.urlencode(
+        {'provider': provider.name, **params}
     )
+    if (
+        provider.name.startswith('builtin::')
+        and provider.name in known_oauth_provider_names
+    ):
+        img = f'''<img src="_static/icon_{provider.name[15:]}.svg"
+            alt="{provider.display_name} Icon" />'''
+    elif provider.logo_url is not None:
+        img = f'''<img src="{provider.logo_url}"
+            alt="{provider.display_name} Icon" />'''
+    else:
+        img = ''
+
     label = f'{label_prefix} {provider.display_name}'
     return f'''
         <a href={href} title="{label}">
