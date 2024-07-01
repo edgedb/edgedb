@@ -1228,12 +1228,14 @@ class RebaseInheritingObject(
         fields.update(self.EXTRA_INHERITED_FIELDS)
 
         for field in fields:
-            if field not in result:
-                result[field] = (
-                    inherit
-                    and bool(new_bases[0].get_explicit_field_value(
-                        schema, field, None))
+            if (
+                inherit
+                and field not in result
+                and bool(
+                    new_bases[0].get_explicit_field_value(schema, field, None)
                 )
+            ):
+                result[field] = True
 
         return result
 
