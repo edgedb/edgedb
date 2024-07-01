@@ -167,6 +167,7 @@ def resolve_InsertStmt(
     val_rel, val_table = compile_insert_value(
         stmt.select_stmt, stmt.ctes, expected_columns, ctx
     )
+    assert isinstance(val_rel, pgast.Query)
     value_ctes = val_rel.ctes if val_rel.ctes else []
     val_rel.ctes = None
 
@@ -408,7 +409,6 @@ def compile_insert_value(
                 value_query.values[r_index] = row.replace(args=cols)
 
     # INSERT INTO x DEFAULT VALUES
-    value_query: pgast.BaseRelation
     if not value_query:
         value_query = pgast.SelectStmt(values=[])
         # edgeql compiler will provide default values

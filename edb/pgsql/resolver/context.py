@@ -25,6 +25,7 @@ import enum
 import uuid
 
 from edb.pgsql import ast as pgast
+from edb.pgsql.compiler import aliases
 
 from edb.common import compiler
 
@@ -151,17 +152,13 @@ class ContextSwitchMode(enum.Enum):
 
 class ResolverContextLevel(compiler.ContextLevel):
     schema: s_schema.Schema
-    alias_generator: compiler.AliasGenerator
+    alias_generator: aliases.AliasGenerator
 
     # Visible names in scope
     scope: Scope
 
     # 0 for top-level statement, 1 for its CTEs/sub-relations/links
     # and so on for all subqueries.
-    subquery_depth: int
-
-    # 0 for top-level statement, 1 for its CTEs/sub-relations/links, similarly
-    # for their subqueries.
     subquery_depth: int
 
     # List of CTEs to add the top-level statement.
@@ -190,7 +187,7 @@ class ResolverContextLevel(compiler.ContextLevel):
             self.schema = schema
             self.options = options
             self.scope = Scope()
-            self.alias_generator = compiler.AliasGenerator()
+            self.alias_generator = aliases.AliasGenerator()
             self.subquery_depth = 0
             self.ctes_buffer = []
             self.inheritance_ctes = dict()

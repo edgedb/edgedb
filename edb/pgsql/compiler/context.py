@@ -49,7 +49,7 @@ from edb.common import enum as s_enum
 from edb.pgsql import ast as pgast
 from edb.pgsql import params as pgparams
 
-from . import aliases
+from . import aliases as pg_aliases
 
 if TYPE_CHECKING:
     from edb.ir import ast as irast
@@ -518,7 +518,7 @@ FullRewriteKey = Tuple[
 class Environment:
     """Static compilation environment."""
 
-    aliases: aliases.AliasGenerator
+    aliases: pg_aliases.AliasGenerator
     output_format: Optional[OutputFormat]
     named_param_prefix: Optional[tuple[str, ...]]
     ptrref_source_visibility: Dict[irast.BasePointerRef, bool]
@@ -543,7 +543,7 @@ class Environment:
     def __init__(
         self,
         *,
-        alias_generator: Optional[aliases.AliasGenerator] = None,
+        alias_generator: Optional[pg_aliases.AliasGenerator] = None,
         output_format: Optional[OutputFormat],
         named_param_prefix: Optional[tuple[str, ...]],
         expected_cardinality_one: bool,
@@ -561,7 +561,7 @@ class Environment:
         # XXX: TRAMPOLINE: THIS IS WRONG
         versioned_stdlib: bool = True,
     ) -> None:
-        self.aliases = alias_generator or aliases.AliasGenerator()
+        self.aliases = alias_generator or pg_aliases.AliasGenerator()
         self.output_format = output_format
         self.named_param_prefix = named_param_prefix
         self.ptrref_source_visibility = {}
