@@ -39,7 +39,10 @@ class Client:
         )
 
         provider_config = self._get_provider_config(provider_name)
-        provider_args = (provider_config.client_id, provider_config.secret)
+        provider_args: tuple[str, str] | tuple[str, str, str, str] = (
+            provider_config.client_id,
+            provider_config.secret,
+        )
         provider_kwargs = {
             "http_factory": http_factory,
             "additional_scope": provider_config.additional_scope,
