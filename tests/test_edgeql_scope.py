@@ -4177,3 +4177,120 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ''',
             [{"minCost": 1}, {"minCost": 1}, {"minCost": 1}, {"minCost": 2}],
         )
+
+    async def test_edgeql_scope_implicit_limit_01(self):
+        # implicit limit should interact correctly with offset
+        await self.assert_query_result(
+            r'''
+                select Card { name } order by .name offset 3
+            ''',
+            [
+                {"name": "Dwarf"},
+                {"name": "Giant eagle"},
+                {"name": "Giant turtle"},
+                {"name": "Golem"},
+            ],
+            implicit_limit=4,
+        )
+
+        await self.assert_query_result(
+            r'''
+            with W := Card
+            select W { name } order by .name offset 3;
+            ''',
+            [
+                {"name": "Dwarf"},
+                {"name": "Giant eagle"},
+                {"name": "Giant turtle"},
+                {"name": "Golem"},
+            ],
+            implicit_limit=4,
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Card { name } order by .name offset 3 limit 2
+            ''',
+            [
+                {"name": "Dwarf"},
+                {"name": "Giant eagle"},
+            ],
+            implicit_limit=4,
+        )
+
+        await self.assert_query_result(
+            r'''
+            select User { deck: {name} order by .name offset 3 }
+            filter .name = 'Carol';
+            ''',
+            [
+                {
+                    "deck": [
+                        {"name": "Giant eagle"},
+                        {"name": "Giant turtle"},
+                        {"name": "Golem"},
+                    ]
+                }
+            ],
+            implicit_limit=3,
+        )
+
+    async def test_edgeql_scope_implicit_limit_02(self):
+        # explicit limit shouldn't override implicit
+        await self.assert_query_result(
+            r'''
+            select User { deck: {name} order by .name offset 3 limit 100}
+            filter .name = 'Carol';
+            ''',
+            [
+                {
+                    "deck": [
+                        {"name": "Giant eagle"},
+                        {"name": "Giant turtle"},
+                        {"name": "Golem"},
+                    ]
+                }
+            ],
+            implicit_limit=3,
+        )
+
+        await self.assert_query_result(
+            r'''
+            select User { cards := (
+                select .deck {name} order by .name offset 3 limit 100)}
+            filter .name = 'Carol';
+            ''',
+            [
+                {
+                    "cards": [
+                        {"name": "Giant eagle"},
+                        {"name": "Giant turtle"},
+                        {"name": "Golem"},
+                    ]
+                }
+            ],
+            implicit_limit=3,
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Card { name } order by .name offset 3 limit 100
+            ''',
+            [
+                {"name": "Dwarf"},
+                {"name": "Giant eagle"},
+                {"name": "Giant turtle"},
+                {"name": "Golem"},
+            ],
+            implicit_limit=4,
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Card { name } order by .name offset 3 limit 1
+            ''',
+            [
+                {"name": "Dwarf"},
+            ],
+            implicit_limit=4,
+        )

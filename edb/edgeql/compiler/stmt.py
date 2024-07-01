@@ -127,14 +127,6 @@ def compile_SelectQuery(
             )
         )
 
-        if (
-            (ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
-            and ctx.implicit_limit
-            and expr.limit is None
-            and not ctx.inhibit_implicit_limit
-        ):
-            expr.limit = qlast.Constant.integer(ctx.implicit_limit)
-
         stmt.result = compile_result_clause(
             expr.result,
             view_scls=ctx.view_scls,
