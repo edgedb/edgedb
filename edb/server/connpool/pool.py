@@ -26,6 +26,8 @@ import collections
 import dataclasses
 import time
 
+import edb.server._conn_pool as conn_pool
+
 from . import rolavg
 
 
