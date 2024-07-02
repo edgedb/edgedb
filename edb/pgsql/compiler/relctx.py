@@ -2111,6 +2111,16 @@ def table_from_ptrref(
     return rvar
 
 
+def _prep_filter(larg: pgast.SelectStmt, rarg: pgast.SelectStmt) -> None:
+    # Set up the proper join on the source field and clear the target list
+    # of the rhs of a filter overlay.
+    assert isinstance(larg.target_list[0].val, pgast.ColumnRef)
+    assert isinstance(rarg.target_list[0].val, pgast.ColumnRef)
+    rarg.where_clause = astutils.join_condition(
+        larg.target_list[0].val, rarg.target_list[0].val)
+    rarg.target_list.clear()
+
+
 def range_for_ptrref(
     ptrref: irast.BasePointerRef, *,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
@@ -2125,8 +2135,6 @@ def range_for_ptrref(
     corresponding to a set of specialized links computed from the given
     `ptrref` taking source inheritance into account.
     """
-
-    output_cols = ('source', 'target')
 
     if ptrref.union_components:
         refs = ptrref.union_components
@@ -2144,118 +2152,37 @@ def range_for_ptrref(
     else:
         refs = {ptrref}
 
-    include_descendants = not ptrref.union_is_exhaustive
-
     assert isinstance(ptrref.out_source.name_hint, sn.QualName)
-    # expand_inhviews helps support EXPLAIN. see
-    # range_for_material_objtype for details.
-    lrefs: dict[irast.PointerRef, list[irast.PointerRef]]
-    if (
-        ctx.env.expand_inhviews
-        and include_descendants
-        and not for_mutation
+    include_descendants = (
+        not ptrref.union_is_exhaustive
 
         # HACK: This is a workaround for #4491
         and ptrref.out_source.name_hint.module not in {'sys', 'cfg'}
-    ):
-        include_descendants = False
-        lrefs = {}
-        for ref in list(refs):
-            assert isinstance(ref, irast.PointerRef), \
-                "expected regular PointerRef"
-            lref_entries: list[irast.PointerRef] = []
-            lref_entries.extend(
-                cast(Iterable[irast.PointerRef], ref.descendants())
-            )
-            lref_entries.append(ref)
-            assert isinstance(ref, irast.PointerRef)
+    )
 
-            # Try to only select from actual concrete types.
-            concrete_lrefs = [
-                ref for ref in lref_entries if not ref.out_source.is_abstract
-            ]
-            # If there aren't any concrete types, we still need to
-            # generate *something*, so just do all the abstract ones.
-            if concrete_lrefs:
-                lrefs[ref] = concrete_lrefs
-            else:
-                lrefs[ref] = lref_entries
-
-    else:
-        lrefs = {}
-        for ref in list(refs):
-            assert isinstance(ref, irast.PointerRef), \
-                "expected regular PointerRef"
-            lrefs[ref] = [ref]
-
-    def prep_filter(larg: pgast.SelectStmt, rarg: pgast.SelectStmt) -> None:
-        # Set up the proper join on the source field and clear the target list
-        # of the rhs of a filter overlay.
-        assert isinstance(larg.target_list[0].val, pgast.ColumnRef)
-        assert isinstance(rarg.target_list[0].val, pgast.ColumnRef)
-        rarg.where_clause = astutils.join_condition(
-            larg.target_list[0].val, rarg.target_list[0].val)
-        rarg.target_list.clear()
+    output_cols = ('source', 'target')
 
     set_ops = []
 
-    for orig_ptrref, src_ptrrefs in lrefs.items():
-        sub_set_ops = []
+    for orig_ptrref in refs:
+        assert isinstance(orig_ptrref, irast.PointerRef), \
+            "expected regular PointerRef"
+        src_ptrrefs, include_descendants = _expand_sub_ptrrefs(
+            orig_ptrref,
+            include_descendants=include_descendants,
+            for_mutation=for_mutation,
+            ctx=ctx,
+        )
 
-        for src_ptrref in src_ptrrefs:
-            # Most references to inline links are dispatched to a separate
-            # code path (_new_inline_pointer_rvar) by new_pointer_rvar,
-            # but when we have union pointers, some might be inline.  We
-            # always use the link table if it exists (because this range
-            # needs to contain any link properties, for one reason.)
-            ptr_info = pg_types.get_ptrref_storage_info(
-                src_ptrref, resolve_type=False, link_bias=True,
-                versioned=ctx.env.versioned_stdlib,
-            )
-            if not ptr_info:
-                assert ptrref.union_components
-
-                ptr_info = pg_types.get_ptrref_storage_info(
-                    src_ptrref, resolve_type=False, link_bias=False,
-                    versioned=ctx.env.versioned_stdlib,
-                )
-
-            cols = [
-                'source' if ptr_info.table_type == 'link' else 'id',
-                ptr_info.column_name,
-            ]
-
-            table = table_from_ptrref(
-                src_ptrref,
-                ptr_info,
-                include_descendants=include_descendants,
-                for_mutation=for_mutation,
-                ctx=ctx,
-            )
-            table.query.path_id = path_id
-
-            qry = pgast.SelectStmt()
-            qry.from_clause.append(table)
-
-            # Make sure all property references are pulled up properly
-            for colname, output_colname in zip(cols, output_cols):
-                selexpr = pgast.ColumnRef(
-                    name=[table.alias.aliasname, colname])
-                qry.target_list.append(
-                    pgast.ResTarget(val=selexpr, name=output_colname))
-
-            sub_set_ops.append((context.OverlayOp.UNION, qry))
-
-            # We need the identity var for semi_join to work and
-            # the source rvar so that linkprops can be found here.
-            if path_id:
-                target_ref = qry.target_list[1].val
-                pathctx.put_path_identity_var(qry, path_id, var=target_ref)
-                pathctx.put_path_source_rvar(qry, path_id, table)
-
-        sub_rvar = range_from_queryset(
-            sub_set_ops, ptrref.shortname,
-            prep_filter=prep_filter, path_id=path_id, ctx=ctx)
+        sub_rvar, cols = _range_for_sub_ptrrefs(
+            src_ptrrefs,
+            name=ptrref.name,
+            output_cols=output_cols,
+            include_descendants=include_descendants,
+            for_mutation=for_mutation,
+            path_id=path_id,
+            ctx=ctx,
+        )
         sub_qry = pgast.SelectStmt(
             target_list=[
                 pgast.ResTarget(
@@ -2312,7 +2239,113 @@ def range_for_ptrref(
 
     return range_from_queryset(
         set_ops, ptrref.shortname,
-        prep_filter=prep_filter, path_id=path_id, ctx=ctx)
+        prep_filter=_prep_filter, path_id=path_id, ctx=ctx)
+
+
+def _expand_sub_ptrrefs(
+    ref: irast.PointerRef,
+    *,
+    include_descendants: bool,
+    for_mutation: bool,
+    ctx: context.CompilerContextLevel,
+) -> tuple[list[irast.PointerRef], bool]:
+    # expand_inhviews helps support EXPLAIN. see
+    # range_for_material_objtype for details.
+    if (
+        ctx.env.expand_inhviews
+        and include_descendants
+        and not for_mutation
+    ):
+        include_descendants = False
+
+        lref_entries: list[irast.PointerRef] = []
+        lref_entries.extend(
+            cast(Iterable[irast.PointerRef], ref.descendants())
+        )
+        lref_entries.append(ref)
+        assert isinstance(ref, irast.PointerRef)
+
+        # Try to only select from actual concrete types.
+        concrete_lrefs = [
+            ref for ref in lref_entries if not ref.out_source.is_abstract
+        ]
+        # If there aren't any concrete types, we still need to
+        # generate *something*, so just do all the abstract ones.
+        if concrete_lrefs:
+            return concrete_lrefs, include_descendants
+        else:
+            return lref_entries, include_descendants
+
+    else:
+        return [ref], include_descendants
+
+
+def _range_for_sub_ptrrefs(
+    sub_ptrrefs: Sequence[irast.PointerRef],
+    name: sn.QualName,
+    output_cols: Iterable[str],
+    *,
+    include_descendants: bool,
+    for_mutation: bool,
+    path_id: Optional[irast.PathId],
+    ctx: context.CompilerContextLevel,
+) -> tuple[pgast.PathRangeVar, list[str]]:
+    sub_set_ops = []
+
+    for src_ptrref in sub_ptrrefs:
+        # Most references to inline links are dispatched to a separate
+        # code path (_new_inline_pointer_rvar) by new_pointer_rvar,
+        # but when we have union pointers, some might be inline.  We
+        # always use the link table if it exists (because this range
+        # needs to contain any link properties, for one reason.)
+        ptr_info = pg_types.get_ptrref_storage_info(
+            src_ptrref, resolve_type=False, link_bias=True,
+            versioned=ctx.env.versioned_stdlib,
+        )
+        if not ptr_info:
+            ptr_info = pg_types.get_ptrref_storage_info(
+                src_ptrref, resolve_type=False, link_bias=False,
+                versioned=ctx.env.versioned_stdlib,
+            )
+
+        cols = [
+            'source' if ptr_info.table_type == 'link' else 'id',
+            ptr_info.column_name,
+        ]
+
+        table = table_from_ptrref(
+            src_ptrref,
+            ptr_info,
+            include_descendants=include_descendants,
+            for_mutation=for_mutation,
+            ctx=ctx,
+        )
+        table.query.path_id = path_id
+
+        qry = pgast.SelectStmt()
+        qry.from_clause.append(table)
+
+        # Make sure all property references are pulled up properly
+        for colname, output_colname in zip(cols, output_cols):
+            selexpr = pgast.ColumnRef(
+                name=[table.alias.aliasname, colname])
+            qry.target_list.append(
+                pgast.ResTarget(val=selexpr, name=output_colname))
+
+        sub_set_ops.append((context.OverlayOp.UNION, qry))
+
+        # We need the identity var for semi_join to work and
+        # the source rvar so that linkprops can be found here.
+        if path_id:
+            target_ref = qry.target_list[1].val
+            pathctx.put_path_identity_var(qry, path_id, var=target_ref)
+            pathctx.put_path_source_rvar(qry, path_id, table)
+
+    sub_rvar = range_from_queryset(
+        sub_set_ops, name,
+        prep_filter=_prep_filter, path_id=path_id, ctx=ctx)
+
+    return sub_rvar, cols
 
 
 def range_for_pointer(
