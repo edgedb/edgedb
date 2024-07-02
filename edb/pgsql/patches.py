@@ -157,5 +157,15 @@ std::range_get_lower(r: multirange<anypoint>)
 '''),
     # === 5.4
     ('repair', ''),  # for #7375
-    ('sql-introspection', ''),  # for #7445
+    # === 5.5
+    # From #7518, but also triggers a sql introspection refresh for #7445
+    ('edgeql+schema+config', '''
+ALTER TYPE cfg::AbstractConfig {
+    CREATE PROPERTY auto_rebuild_query_cache_timeout -> std::duration {
+        CREATE ANNOTATION std::description :=
+            'Maximum time to spend recompiling cached queries on DDL.';
+        SET default := <std::duration>'60 seconds';
+    };
+}
+'''),
 ])
