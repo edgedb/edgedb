@@ -159,11 +159,8 @@ cdef class CompilationRequest:
         return self
 
     def deserialize(self, bytes data, str query_text) -> CompilationRequest:
-        cdef:
-            char version
-        version = data[0]
-        if version == 0 or version == 1:
-            self._deserialize_v0_v1(data, query_text, version)
+        if data[0] == 0:
+            self._deserialize_v0(data, query_text)
         else:
             raise errors.UnsupportedProtocolVersionError(
                 f"unsupported compile cache: version {data[0]}"
@@ -181,10 +178,10 @@ cdef class CompilationRequest:
         return self.cache_key
 
     cdef _serialize(self):
-        # Please see _deserialize_v0_v1 for the format doc
+        # Please see _deserialize_v0 for the format doc
 
         cdef:
-            char version = 1, flags
+            char version = 0, flags
             WriteBuffer out = WriteBuffer.new()
 
         out.write_byte(version)
@@ -222,10 +219,6 @@ cdef class CompilationRequest:
         out.write_bytes(type_id.bytes)
         out.write_len_prefixed_bytes(desc)
 
-        # Must set_schema_version() before serializing compilation request
-        assert self.schema_version is not None
-        out.write_bytes(self.schema_version.bytes)
-
         hash_obj = hashlib.blake2b(memoryview(out), digest_size=16)
         hash_obj.update(self.source.cache_key())
 
@@ -245,17 +238,23 @@ cdef class CompilationRequest:
         )
         hash_obj.update(serialized_comp_config)
 
+        # Must set_schema_version() before serializing compilation request
+        assert self.schema_version is not None
+        hash_obj.update(self.schema_version.bytes)
+
         cache_key_bytes = hash_obj.digest()
         self.cache_key = uuidgen.from_bytes(cache_key_bytes)
 
         out.write_len_prefixed_bytes(self.source.serialize())
         out.write_bytes(cache_key_bytes)
+        out.write_bytes(self.schema_version.bytes)
+
         self.serialized_cache = bytes(out)
 
-    cdef _deserialize_v0_v1(self, bytes data, str query_text, char version):
+    cdef _deserialize_v0(self, bytes data, str query_text):
         # Format:
         #
-        # * 1 byte of version (0 or 1)
+        # * 1 byte of version (0)
         # * 1 byte of bit flags:
         #   * json_parameters
         #   * expect_one
@@ -274,7 +273,6 @@ cdef class CompilationRequest:
         # * Session config type descriptor
         #   * 16 bytes type ID
         #   * int32-length-prefixed serialized type descriptor
-        # * In v1, the schema_version.
         # * Session config: int32-length-prefixed serialized data
         # * Serialized Source or NormalizedSource without the original query
         #   string
@@ -284,7 +282,11 @@ cdef class CompilationRequest:
         #    * Except that the serialized session config is replaced by
         #      serialized combined config (session -> database -> system)
         #      that only affects compilation.
-        #    * In v0, the schema_version.
+        #    * The schema version
+        #  * OPTIONALLY, the schema version. We wanted to bump the protocol
+        #    version to include this, but 5.x hard crashes when it reads a
+        #    persistent cache with entries it doesn't understand, so instead
+        #    we stick it on the end where it will be ignored by old versions.
 
         cdef char flags
 
@@ -292,7 +294,7 @@ cdef class CompilationRequest:
 
         buf = ReadBuffer.new_message_parser(data)
 
-        assert buf.read_byte() == version  # version
+        assert buf.read_byte() == 0  # version
 
         flags = buf.read_byte()
         self.json_parameters = flags & MASK_JSON_PARAMETERS > 0
@@ -329,9 +331,6 @@ cdef class CompilationRequest:
             )
             self._serializer = serializer
 
-        if version > 0:
-            self.schema_version = uuidgen.from_bytes(buf.read_bytes(16))
-
         data = buf.read_len_prefixed_bytes()
         if data:
             self.session_config = immutables.Map(
@@ -352,6 +351,9 @@ cdef class CompilationRequest:
             buf.read_len_prefixed_bytes(), query_text
         )
         self.cache_key = uuidgen.from_bytes(buf.read_bytes(16))
+
+        if buf._length >= 16:
+            self.schema_version = uuidgen.from_bytes(buf.read_bytes(16))
 
     def __hash__(self):
         return hash(self.get_cache_key())
