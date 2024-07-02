@@ -188,6 +188,14 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
     }
 
     all_variables.push(variables);
+    // N.B: We always serialize the tokens to produce
+    // processed_source, even when no changes have been made. This is
+    // because when Source gets serialized, it always uses a
+    // PackedEntry, which will result in it being normalized *there*,
+    // and so if we don't do it *here*, then we won't be able to hit
+    // the persistent cache in cases where we didn't reserialize the
+    // tokens.
+    // TODO: Rework the caching to avoid needing to do this.
     let processed_source = serialize_tokens(&rewritten_tokens[..]);
     Ok(Entry {
         hash: hash(&processed_source),
