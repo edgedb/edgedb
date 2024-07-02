@@ -897,7 +897,7 @@ def process_set_as_link_property_ref(
                 {spec.id for spec in rptr_specialization}
                 if rptr_specialization is not None else None
             )
-            if ctx.env.expand_inhviews and ptr_ids and rptr_specialization:
+            if ptr_ids and rptr_specialization:
                 ptr_ids.update(
                     x.id for spec in rptr_specialization
                     for x in spec.descendants()
