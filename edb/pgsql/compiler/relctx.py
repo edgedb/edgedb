@@ -2032,6 +2032,25 @@ def range_from_queryset(
             typeref=typeref,
         )
 
+    elif any(
+        (
+            target.name is not None
+            and isinstance(target.val, pgast.ColumnRef)
+            and target.name != target.val.name[-1]
+        )
+        for target in set_ops[0][1].target_list
+    ):
+        # A column name name is being changed
+        rvar = pgast.RangeSubselect(
+            subquery=set_ops[0][1],
+            lateral=lateral,
+            tag=tag,
+            alias=pgast.Alias(
+                aliasname=ctx.env.aliases.get(objname.name),
+            ),
+            typeref=typeref,
+        )
+
     else:
         # Just one class table, so return it directly
         from_rvar = set_ops[0][1].from_clause[0]
@@ -2040,36 +2059,6 @@ def range_from_queryset(
         rvar = from_rvar
 
     return rvar
-
-
-def _make_link_table_cte(
-    ptrref: irast.PointerRef,
-    relation: pgast.Relation,
-    *,
-    ctx: context.CompilerContextLevel,
-) -> pgast.Relation:
-    if (ptr_cte := ctx.ptr_ctes.get(ptrref.id)) is None:
-        ptr_select = pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(val=pgast.ColumnRef(name=[pgast.Star()])),
-            ],
-            from_clause=[pgast.RelRangeVar(relation=relation)],
-        )
-        ptr_cte = pgast.CommonTableExpr(
-            name=ctx.env.aliases.get(f'p_{ptrref.name}'),
-            query=ptr_select,
-            materialized=True,
-        )
-        ctx.ptr_ctes[ptrref.id] = ptr_cte
-
-    # We've set up the CTE to be a perfect drop in replacement for
-    # the real table (with a select *), so instead of pointing the
-    # rvar at the CTE (which would require routing path ids), just
-    # treat it like a base relation.
-    return pgast.Relation(
-        name=ptr_cte.name,
-        type_or_ptr_ref=ptrref,
-    )
 
 
 def table_from_ptrref(
@@ -2168,9 +2157,9 @@ def range_for_ptrref(
             for_mutation=for_mutation,
         )
 
-        sub_rvar, cols = _range_for_sub_ptrrefs(
+        sub_rvar = _range_for_sub_ptrrefs(
             src_ptrrefs,
-            name=ptrref.name,
+            name=orig_ptrref.shortname,
             output_cols=output_cols,
             path_id=path_id,
             ctx=ctx,
@@ -2179,11 +2168,11 @@ def range_for_ptrref(
             target_list=[
                 pgast.ResTarget(
                     val=pgast.ColumnRef(
-                        name=[colname]
+                        name=[output_colname]
                     ),
                     name=output_colname
                 )
-                for colname, output_colname in zip(cols, output_cols)
+                for output_colname in output_cols
             ],
             from_clause=[sub_rvar]
         )
@@ -2200,6 +2189,9 @@ def range_for_ptrref(
         # This only matters when we are doing expand_inhviews, and prevents
         # us from repeating the overlays many times in that case.
         if orig_ptrref in refs and not for_mutation:
+            orig_ptr_info = _get_ptrref_storage_info(orig_ptrref, ctx=ctx)
+            cols = _get_ptrref_column_names(orig_ptr_info)
+
             overlays = get_ptr_rel_overlays(
                 orig_ptrref, dml_source=dml_source, ctx=ctx)
 
@@ -2277,32 +2269,15 @@ def _range_for_sub_ptrrefs(
     *,
     path_id: Optional[irast.PathId],
     ctx: context.CompilerContextLevel,
-) -> tuple[pgast.PathRangeVar, list[str]]:
+) -> pgast.PathRangeVar:
     sub_set_ops = []
 
-    for src_ptrref in sub_ptrrefs:
-        # Most references to inline links are dispatched to a separate
-        # code path (_new_inline_pointer_rvar) by new_pointer_rvar,
-        # but when we have union pointers, some might be inline.  We
-        # always use the link table if it exists (because this range
-        # needs to contain any link properties, for one reason.)
-        ptr_info = pg_types.get_ptrref_storage_info(
-            src_ptrref, resolve_type=False, link_bias=True,
-            versioned=ctx.env.versioned_stdlib,
-        )
-        if not ptr_info:
-            ptr_info = pg_types.get_ptrref_storage_info(
-                src_ptrref, resolve_type=False, link_bias=False,
-                versioned=ctx.env.versioned_stdlib,
-            )
-
-        cols = [
-            'source' if ptr_info.table_type == 'link' else 'id',
-            ptr_info.column_name,
-        ]
+    for sub_ptrref in sub_ptrrefs:
+        ptr_info = _get_ptrref_storage_info(sub_ptrref, ctx=ctx)
+        cols = _get_ptrref_column_names(ptr_info)
 
         table = table_from_ptrref(
-            src_ptrref,
+            sub_ptrref,
             ptr_info,
             ctx=ctx,
         )
@@ -2331,7 +2306,38 @@ def _range_for_sub_ptrrefs(
         sub_set_ops, name,
         prep_filter=_prep_filter, path_id=path_id, ctx=ctx)
 
-    return sub_rvar, cols
+    return sub_rvar
+
+
+def _get_ptrref_storage_info(
+    sub_ptrref: irast.PointerRef,
+    *,
+    ctx: context.CompilerContextLevel
+) -> pg_types.PointerStorageInfo:
+    # Most references to inline links are dispatched to a separate
+    # code path (_new_inline_pointer_rvar) by new_pointer_rvar,
+    # but when we have union pointers, some might be inline.  We
+    # always use the link table if it exists (because this range
+    # needs to contain any link properties, for one reason.)
+    ptr_info = pg_types.get_ptrref_storage_info(
+        sub_ptrref, resolve_type=False, link_bias=True,
+        versioned=ctx.env.versioned_stdlib,
+    )
+    if not ptr_info:
+        ptr_info = pg_types.get_ptrref_storage_info(
+            sub_ptrref, resolve_type=False, link_bias=False,
+            versioned=ctx.env.versioned_stdlib,
+        )
+    return ptr_info
+
+
+def _get_ptrref_column_names(
+    ptr_info: pg_types.PointerStorageInfo
+) -> list[str]:
+    return [
+        'source' if ptr_info.table_type == 'link' else 'id',
+        ptr_info.column_name,
+    ]
 
 
 def range_for_pointer(
