@@ -709,6 +709,84 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
         )
 
+    async def test_server_ops_cache_recompile_01(self):
+        ckey = (
+            'edgedb_server_edgeql_query_compilations_total'
+            '{tenant="_localdev",path="compiler"}'
+        )
+        qry = 'select schema::Object { name }'
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            async with tb.start_edgedb_server(
+                data_dir=temp_dir,
+                default_auth_method=args.ServerAuthMethod.Trust,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query(qry)
+
+                    # Querying a second time should hit the cache
+                    cnt1 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    await con.query(qry)
+                    cnt2 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    self.assertEqual(cnt1, cnt2)
+
+                    await con.query('''
+                        create type X
+                    ''')
+
+                    # We should have recompiled the cache when we created
+                    # the type, so doing the query shouldn't cause another
+                    # compile!
+                    cnt1 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    await con.query(qry)
+                    cnt2 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    self.assertEqual(cnt1, cnt2)
+
+                    # Set the compilation timeout to 2ms.
+                    #
+                    # This should prevent recompilation from
+                    # succeeding. If we ever make the compiler fast
+                    # enough, we might need to change this :)
+                    #
+                    # We do 2ms instead of 1ms or something even smaller
+                    # because uvloop's timer has ms granularity, and
+                    # setting it to 2ms should typically ensure that it
+                    # manages to start the compilation.
+                    await con.execute(
+                        "configure current database "
+                        "set auto_rebuild_query_cache_timeout := "
+                        "<duration>'2ms'"
+                    )
+
+                    await con.query('''
+                        drop type X
+                    ''')
+
+                    cnt1 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    await con.query(qry)
+                    cnt2 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    self.assertEqual(cnt1 + 1, cnt2)
+
+                finally:
+                    await con.aclose()
+
+            # Now restart the server to test the cache persistence.
+            async with tb.start_edgedb_server(
+                data_dir=temp_dir,
+                default_auth_method=args.ServerAuthMethod.Trust,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    # It should hit the cache no problem.
+                    cnt1 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    await con.query(qry)
+                    cnt2 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    self.assertEqual(cnt1, cnt2)
+
+                finally:
+                    await con.aclose()
+
     async def test_server_ops_downgrade_to_cleartext(self):
         async with tb.start_edgedb_server(
             binary_endpoint_security=args.ServerEndpointSecurityMode.Optional,
