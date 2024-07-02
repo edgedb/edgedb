@@ -1120,26 +1120,44 @@ cdef class DatabaseConnectionView:
         concurrency_control = asyncio.Semaphore(compile_concurrency)
         rv = []
 
+        recompile_timeout = self.server.config_lookup(
+            "auto_rebuild_query_cache_timeout",
+            self.get_session_config(),
+            self.get_database_config(),
+            self.get_system_config(),
+        )
+
+        loop = asyncio.get_running_loop()
+        t0 = loop.time()
+        if recompile_timeout is not None:
+            stop_time = t0 + recompile_timeout.to_microseconds() / 1e6
+        else:
+            stop_time = None
+
         async def recompile_request(query_req: rpc.CompilationRequest):
             async with concurrency_control:
                 try:
+                    if stop_time is not None and loop.time() > stop_time:
+                        return
+
                     database_config = self.get_database_config()
                     system_config = self.get_compilation_system_config()
                     query_req = copy.copy(query_req)
                     query_req.set_schema_version(schema_version)
                     query_req.set_database_config(database_config)
                     query_req.set_system_config(system_config)
-                    unit_group, _, _ = await compiler_pool.compile(
-                        self.dbname,
-                        user_schema,
-                        self.get_global_schema_pickle(),
-                        self.reflection_cache,
-                        database_config,
-                        system_config,
-                        query_req.serialize(),
-                        "<unknown>",
-                        client_id=self.tenant.client_id,
-                    )
+                    async with asyncio.timeout_at(stop_time):
+                        unit_group, _, _ = await compiler_pool.compile(
+                            self.dbname,
+                            user_schema,
+                            self.get_global_schema_pickle(),
+                            self.reflection_cache,
+                            database_config,
+                            system_config,
+                            query_req.serialize(),
+                            "<unknown>",
+                            client_id=self.tenant.client_id,
+                        )
                 except Exception:
                     # ignore cache entry that cannot be recompiled
                     pass
@@ -1148,7 +1166,8 @@ cdef class DatabaseConnectionView:
 
         async with asyncio.TaskGroup() as g:
             req: rpc.CompilationRequest
-            for req, grp in self._db._eql_to_compiled.items():
+            # Reversed so that we compile more recently used first.
+            for req, grp in reversed(self._db._eql_to_compiled.items()):
                 if (
                     len(grp) == 1
                     # Only recompile queries from the *latest* version,
@@ -1156,6 +1175,7 @@ cdef class DatabaseConnectionView:
                     and req.schema_version == self.schema_version
                 ):
                     g.create_task(recompile_request(req))
+
         return rv
 
     async def apply_config_ops(self, conn, ops):
