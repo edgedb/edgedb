@@ -82,7 +82,7 @@ def with_base_test(m):
 
 def calc_percentiles(
     lats: typing.List[float]
-) -> typing.Tuple[float, float, float, float, float, float]:
+) -> typing.Tuple[float, float, float, float, float, float, int]:
     lats_len = len(lats)
     lats.sort()
     return (
@@ -91,13 +91,14 @@ def calc_percentiles(
         lats[lats_len // 2],
         lats[lats_len * 3 // 4],
         lats[min(lats_len - lats_len // 99, lats_len - 1)],
-        statistics.geometric_mean(lats)
+        statistics.geometric_mean(lats),
+        lats_len
     )
 
 
 def calc_total_percentiles(
     lats: typing.Dict[str, typing.List[float]]
-) -> typing.Tuple[float, float, float, float, float, float]:
+) -> typing.Tuple[float, float, float, float, float, float, int]:
     acc = []
     for i in lats.values():
         acc.extend(i)
@@ -488,6 +489,28 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
                 raise
         return query()
 
+    async def simulate_db(self, sim, pool, g, db):
+        await asyncio.sleep(db.start_at)
+        spq = 1.0 / db.qps
+        queries = int((db.end_at - db.start_at) * db.qps)
+        queries_per_tick = 1
+        while spq < 0.001:
+            spq *= 2.0
+            queries_per_tick *= 2
+
+        for _ in range(0, queries, queries_per_tick):
+            for _ in range(queries_per_tick):
+                dur = max(
+                    db.query_cost_base +
+                    random.triangular(
+                        -db.query_cost_var, db.query_cost_var),
+                    0.001
+                )
+                g.create_task(
+                    self.make_fake_query(sim, pool, db.db, dur)
+                )
+                await asyncio.sleep(spq)
+
     async def simulate_once(self, spec, pool_cls, *, collect_stats=False):
         sim = Simulation()
 
@@ -506,33 +529,10 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
         if hasattr(pool, '_gc_interval'):
             pool._gc_interval = 0.1 * TIME_SCALE
 
-        TICK_EVERY = 0.001
-
         started_at = time.monotonic()
         async with asyncio.TaskGroup() as g:
-            elapsed = 0
-            while elapsed < spec.duration:
-                elapsed = time.monotonic() - started_at
-
-                for db in spec.dbs:
-                    if not (db.start_at < elapsed < db.end_at):
-                        continue
-
-                    qpt = db.qps * TICK_EVERY
-                    qpt = int(random.random() <= qpt - int(qpt)) + int(qpt)
-
-                    for _ in range(qpt):
-                        dur = max(
-                            db.query_cost_base +
-                            random.triangular(
-                                -db.query_cost_var, db.query_cost_var),
-                            0.001
-                        )
-                        g.create_task(
-                            self.make_fake_query(sim, pool, db.db, dur)
-                        )
-
-                await asyncio.sleep(TICK_EVERY)
+            for db in spec.dbs:
+                g.create_task(self.simulate_db(sim, pool, g, db))
 
         self.assertEqual(sim.failed_disconnects, 0)
         self.assertEqual(sim.failed_queries, 0)
@@ -639,9 +639,13 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
         qps = 100
         getters = 0
         sim = Simulation()
+
+        connect = self.make_fake_connect(sim, 0, 0)
+        disconnect = self.make_fake_connect(sim, 0, 0)
+
         pool: SingleBlockPool = SingleBlockPool(
-            connect=self.make_fake_connect(sim, 0, 0),
-            disconnect=self.make_fake_disconnect(sim, 0, 0),
+            connect=connect,
+            disconnect=disconnect,
             max_capacity=POOL_SIZE,
         )
 
