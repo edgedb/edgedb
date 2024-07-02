@@ -194,6 +194,12 @@ ALTER TYPE cfg::AbstractConfig {
             'Recompile all cached queries on DDL if enabled.';
     };
 
+    CREATE PROPERTY auto_rebuild_query_cache_timeout -> std::duration {
+        CREATE ANNOTATION std::description :=
+            'Maximum time to spend recompiling cached queries on DDL.';
+        SET default := <std::duration>'60 seconds';
+    };
+
     CREATE PROPERTY query_cache_mode -> cfg::QueryCacheMode {
         SET default := cfg::QueryCacheMode.Default;
         CREATE ANNOTATION cfg::affects_compilation := 'true';
