@@ -352,10 +352,8 @@ cdef class CompilationRequest:
         )
         self.cache_key = uuidgen.from_bytes(buf.read_bytes(16))
 
-        try:
+        if buf._length >= 16:
             self.schema_version = uuidgen.from_bytes(buf.read_bytes(16))
-        except BufferError:
-            pass
 
     def __hash__(self):
         return hash(self.get_cache_key())
