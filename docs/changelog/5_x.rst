@@ -564,7 +564,8 @@ Bug fixes
 * Make link properties (including @source/@target) work in conflict selects.
   (:eql:gh:`#7284`)
 
-* Create key derivation function for signing each different kind of JWTs.
+* Create key derivation function for signing each different kind of JWTs in
+  the ``auth`` extension
   (:eql:gh:`#7285`)
 
   This avoids accidentally being able to use other (short-lived) JWT tokens
@@ -650,7 +651,7 @@ Bug fixes
 * Fix a race condition where older database configs can overwrite newer ones
   (:eql:gh:`#7485`)
 
-* Allow subdomains in redirects
+* Allow subdomains in redirects in the ``auth`` extension
   (:eql:gh:`#7488`)
 
 * Fix tenant shutdown in multi-tenant mode
