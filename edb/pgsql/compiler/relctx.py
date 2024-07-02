@@ -2076,13 +2076,11 @@ def table_from_ptrref(
     ptrref: irast.PointerRef,
     ptr_info: pg_types.PointerStorageInfo,
     *,
-    include_descendants: bool = True,
-    for_mutation: bool = False,
     ctx: context.CompilerContextLevel,
 ) -> pgast.RelRangeVar:
     """Return a Table corresponding to a given Link."""
 
-    aspect = 'table' if for_mutation or not include_descendants else 'inhview'
+    aspect = 'table'
     table_schema_name, table_name = common.update_aspect(
         ptr_info.table_name, aspect
     )
@@ -2093,9 +2091,6 @@ def table_from_ptrref(
         name=table_name,
         type_or_ptr_ref=ptrref,
     )
-
-    if aspect == 'inhview' and _needs_cte(ptrref.out_source):
-        relation = _make_link_table_cte(ptrref, relation, ctx=ctx)
 
     # Pseudo pointers (tuple and type intersection) have no schema id.
     sobj_id = ptrref.id if isinstance(ptrref, irast.PointerRef) else None
@@ -2167,19 +2162,16 @@ def range_for_ptrref(
     for orig_ptrref in refs:
         assert isinstance(orig_ptrref, irast.PointerRef), \
             "expected regular PointerRef"
-        src_ptrrefs, include_descendants = _expand_sub_ptrrefs(
+        src_ptrrefs = _expand_sub_ptrrefs(
             orig_ptrref,
             include_descendants=include_descendants,
             for_mutation=for_mutation,
-            ctx=ctx,
         )
 
         sub_rvar, cols = _range_for_sub_ptrrefs(
             src_ptrrefs,
             name=ptrref.name,
             output_cols=output_cols,
-            include_descendants=include_descendants,
-            for_mutation=for_mutation,
             path_id=path_id,
             ctx=ctx,
         )
@@ -2247,37 +2239,35 @@ def _expand_sub_ptrrefs(
     *,
     include_descendants: bool,
     for_mutation: bool,
-    ctx: context.CompilerContextLevel,
-) -> tuple[list[irast.PointerRef], bool]:
+) -> list[irast.PointerRef]:
     # expand_inhviews helps support EXPLAIN. see
     # range_for_material_objtype for details.
     if (
-        ctx.env.expand_inhviews
-        and include_descendants
+        include_descendants
         and not for_mutation
     ):
         include_descendants = False
 
-        lref_entries: list[irast.PointerRef] = []
-        lref_entries.extend(
+        descendants: list[irast.PointerRef] = []
+        descendants.extend(
             cast(Iterable[irast.PointerRef], ref.descendants())
         )
-        lref_entries.append(ref)
+        descendants.append(ref)
         assert isinstance(ref, irast.PointerRef)
 
         # Try to only select from actual concrete types.
-        concrete_lrefs = [
-            ref for ref in lref_entries if not ref.out_source.is_abstract
+        concrete_descendants = [
+            ref for ref in descendants if not ref.out_source.is_abstract
         ]
         # If there aren't any concrete types, we still need to
-        # generate *something*, so just do all the abstract ones.
-        if concrete_lrefs:
-            return concrete_lrefs, include_descendants
+        # generate *something*, so just do the initial one.
+        if concrete_descendants:
+            return concrete_descendants
         else:
-            return lref_entries, include_descendants
+            return [ref]
 
     else:
-        return [ref], include_descendants
+        return [ref]
 
 
 def _range_for_sub_ptrrefs(
@@ -2285,8 +2275,6 @@ def _range_for_sub_ptrrefs(
     name: sn.QualName,
     output_cols: Iterable[str],
     *,
-    include_descendants: bool,
-    for_mutation: bool,
     path_id: Optional[irast.PathId],
     ctx: context.CompilerContextLevel,
 ) -> tuple[pgast.PathRangeVar, list[str]]:
@@ -2316,8 +2304,6 @@ def _range_for_sub_ptrrefs(
         table = table_from_ptrref(
             src_ptrref,
             ptr_info,
-            include_descendants=include_descendants,
-            for_mutation=for_mutation,
             ctx=ctx,
         )
         table.query.path_id = path_id
