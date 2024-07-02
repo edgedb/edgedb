@@ -46,4 +46,4 @@ cdef class CompilationRequest:
         object cache_key
 
     cdef _serialize(self)
-    cdef _deserialize_v0_v1(self, bytes data, str query_text, char version)
+    cdef _deserialize_v0(self, bytes data, str query_text)
