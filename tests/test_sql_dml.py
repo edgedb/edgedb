@@ -59,7 +59,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
     """
     ]
 
-    async def test_sql_dml_insert0_1(self):
+    async def test_sql_dml_insert_01(self):
         # base case
         await self.scon.execute(
             '''
@@ -69,14 +69,16 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         res = await self.squery_values('SELECT title FROM "Document"')
         self.assertEqual(res, [['Meeting report (new)']])
 
-    async def test_sql_dml_insert0_2(self):
+    async def test_sql_dml_insert_02(self):
         # when columns are not specified, all columns are expected,
         # in alphabetical order:
         # id, __type__, owner, title
         with self.assertRaisesRegex(
             asyncpg.DataError,
             "cannot assign to link '__type__': it is protected",
-            position="30",
+            # TODO: positions are hard to recover since we don't even know which
+            # DML stmt this error is originating from
+            # position="30",
         ):
             await self.scon.execute(
                 '''
@@ -86,7 +88,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             res = await self.squery_values('SELECT title FROM "Document"')
             self.assertEqual(res, [['Report (new)']])
 
-    async def test_sql_dml_insert0_3(self):
+    async def test_sql_dml_insert_03(self):
         # multiple rows at once
         await self.scon.execute(
             '''
@@ -98,7 +100,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             res, tb.bag([['Report (new)'], ['Briefing (new)']])
         )
 
-    async def test_sql_dml_insert0_4(self):
+    async def test_sql_dml_insert_04(self):
         # using arbitrary query instead of VALUES
         await self.scon.execute(
             '''
@@ -112,7 +114,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         res = await self.squery_values('SELECT title FROM "Document"')
         self.assert_data_shape(res, tb.bag([['Briefing (new)']]))
 
-    async def test_sql_dml_insert0_5(self):
+    async def test_sql_dml_insert_05(self):
         # insert link
         await self.scon.execute('INSERT INTO "User" DEFAULT VALUES;')
         await self.scon.execute(
@@ -143,7 +145,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             '''
         )
 
-    async def test_sql_dml_insert0_6(self):
+    async def test_sql_dml_insert_06(self):
         # insert in a subquery: syntax error
         with self.assertRaisesRegex(
             asyncpg.PostgresSyntaxError,
@@ -158,7 +160,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
-    async def test_sql_dml_insert0_7(self):
+    async def test_sql_dml_insert_07(self):
         # insert in a CTE
         await self.scon.execute(
             '''
@@ -169,7 +171,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             '''
         )
 
-    async def test_sql_dml_insert0_8(self):
+    async def test_sql_dml_insert_08(self):
         # insert in a CTE: invalid PostgreSQL
         with self.assertRaisesRegex(
             asyncpg.FeatureNotSupportedError,
@@ -189,7 +191,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
-    async def test_sql_dml_insert0_9(self):
+    async def test_sql_dml_insert_09(self):
         # insert with a CTE
         await self.scon.execute(
             '''

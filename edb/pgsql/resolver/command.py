@@ -19,7 +19,8 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import List, Optional, Dict, Tuple, Iterable
+from typing import List, Optional, Dict, Tuple, Iterable, Mapping, Set
+import dataclasses
 
 from edb.server.pgcon import errors as pgerror
 
@@ -35,6 +36,7 @@ from edb.ir import typeutils as irtypeutils
 
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
+from edb.schema import links as s_links
 from edb.schema import name as sn
 
 
@@ -90,7 +92,7 @@ def resolve_CopyStmt(stmt: pgast.CopyStmt, *, ctx: Context) -> pgast.CopyStmt:
 
     # COPY will always be top-level, so we must extract CTEs
     query.ctes = list(ctx.ctes_buffer)
-    ctx.ctes_buffer = []
+    ctx.ctes_buffer.clear()
 
     return pgast.CopyStmt(
         relation=None,
@@ -128,26 +130,68 @@ def _pull_columns_from_table(
     return res
 
 
-@dispatch._resolve_relation.register
-def resolve_InsertStmt(
-    stmt: pgast.InsertStmt, *, include_inherited: bool, ctx: Context
-) -> Tuple[pgast.Query, context.Table]:
+def compile_dml(stmt: pgast.Base, *, ctx: Context) -> None:
+    # extract all dml stmts
+    dml_stmts_sql = collect_dml_stmts(stmt)
+    if len(dml_stmts_sql) == 0:
+        return
 
-    if ctx.subquery_depth >= 2:
-        raise errors.QueryError(
-            'WITH clause containing a data-modifying statement must be at '
-            'the top level',
-            span=stmt.span,
-            pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
-        )
+    # preprocess each SQL dml stmt into EdgeQL
+    stmts = [preprocess_insert_stmt(s, ctx=ctx) for s in dml_stmts_sql]
 
+    # merge EdgeQL stmts & compile to SQL
+    ctx.compiled_dml = compile_preprocessed_dml(stmts, ctx=ctx)
+
+
+def collect_dml_stmts(stmt: pgast.Base) -> List[pgast.InsertStmt]:
+    if not isinstance(stmt, pgast.Query):
+        return []
+
+    # DML can only be in the top-level statement or its CTEs.
+    # If it is in any of the nested CTEs, throw errors later on
+    res: List[pgast.InsertStmt] = []
+    if stmt.ctes:
+        for cte in stmt.ctes:
+            if isinstance(cte.query, pgast.InsertStmt):
+                res.append(cte.query)
+
+    if isinstance(stmt, pgast.InsertStmt):
+        res.append(stmt)
+    return res
+
+
+@dataclasses.dataclass(kw_only=True, eq=False, repr=False)
+class PreprocessedDML:
+    # the input DML node
+    input: pgast.Query
+
+    # EdgeQL equivalent to the input node
+    ql_stmt: qlast.Expr
+
+    # additional params needed during compilation of the edgeql node
+    ql_singletons: Set[irast.PathId]
+    ql_anchors: Mapping[str, irast.PathId]
+    external_rels: Mapping[
+        irast.PathId, Tuple[pgast.BaseRelation, Tuple[str, ...]]
+    ]
+
+    # list of column names of the subject type, along with pointer name
+    subject_columns: List[Tuple[str, str]]
+
+    # data needed for stitching the compiled ast into the resolver output
+    early_result: context.CompiledDML
+
+
+def preprocess_insert_stmt(
+    stmt: pgast.InsertStmt, *, ctx: Context
+) -> PreprocessedDML:
     # determine the subject object we are inserting into
     assert isinstance(stmt.relation, pgast.RelRangeVar)
     assert isinstance(stmt.relation.relation, pgast.Relation)
     _sub_rel, sub_table = pg_res_rel.resolve_relation(
-        stmt.relation.relation, include_inherited=include_inherited, ctx=ctx
+        stmt.relation.relation, include_inherited=False, ctx=ctx
     )
-    assert sub_table.schema_id
+    assert sub_table.schema_id  # TODO: raise a proper error here
     sub = ctx.schema.get_by_id(sub_table.schema_id)
     sub_name = sub.get_name(ctx.schema)
     assert isinstance(sub_name, sn.QualName)
@@ -164,70 +208,54 @@ def resolve_InsertStmt(
         ((c.name, c.span) for c in stmt.cols) if stmt.cols else None,
     )
 
-    val_rel, val_table = compile_insert_value(
-        stmt.select_stmt, stmt.ctes, expected_columns, ctx
+    # handle DEFAULT and prepare the value relation
+    value_relation, expected_columns = preprocess_insert_value(
+        stmt.select_stmt, stmt.ctes, expected_columns
     )
-    assert isinstance(val_rel, pgast.Query)
-    value_ctes = val_rel.ctes if val_rel.ctes else []
-    val_rel.ctes = None
 
-    # if we are sure that we are inserting a single row,
-    # we can skip for loops and the iterator, so we generate better SQL
-    is_single_row = isinstance(val_rel, pgast.SelectStmt) and (
-        (val_rel.values and len(val_rel.values) == 1)
-        or (
-            isinstance(val_rel.limit_count, pgast.NumericConstant)
-            and val_rel.limit_count.val == '1'
-        )
-    )
+    # if we are sure that we are inserting a single row
+    # we can skip for-loops and iterators, which produces better SQL
+    is_value_single = has_at_most_one_row(stmt.select_stmt)
 
     # prepare anchors for inserted value columns
-    source_name = '__sql_source__'
-    iterator_name = '__sql_iterator__'
-    source_id = irast.PathId.from_type(
+    value_name = ctx.alias_generator.get('ins_val')
+    iterator_name = ctx.alias_generator.get('ins_iter')
+    value_id = irast.PathId.from_type(
         ctx.schema,
         sub,
-        typename=sn.QualName('__derived__', source_name),
+        typename=sn.QualName('__derived__', value_name),
         env=None,
     )
 
-    source_ql: qlast.PathElement = (
-        qlast.IRAnchor(name=source_name)
-        if is_single_row
+    value_ql: qlast.PathElement = (
+        qlast.IRAnchor(name=value_name)
+        if is_value_single
         else qlast.ObjectRef(name=iterator_name)
     )
 
-    pre_projection: List[pgast.ResTarget] = []
-    source_outputs: Dict[Tuple[irast.PathId, str], pgast.OutputVar] = {}
+    # a phantom relation that is supposed to hold the inserted value
+    # (in the resolver, this will be replaced by the real value relation)
+    value_cte_name = ctx.alias_generator.get('ins_value')
+    value_rel = pgast.Relation(name=value_cte_name)
+    value_columns = []
     insert_shape = []
-    for expected_col, val_col in zip(expected_columns, val_table.columns):
+    for expected_col in expected_columns:
         ptr, ptr_name, is_link = get_pointer_for_column(expected_col, sub, ctx)
-
-        # prepare pre-projection of this pointer value
-        val_col_pg = pg_res_expr.resolve_column_kind(
-            val_table, val_col.kind, ctx=ctx
-        )
-        if is_link:
-            val_col_pg = pgast.TypeCast(
-                arg=val_col_pg, type_name=pgast.TypeName(name=('uuid',))
-            )
-        pre_projection.append(pgast.ResTarget(name=ptr_name, val=val_col_pg))
+        value_columns.append((expected_col, ptr))
 
         # prepare the outputs of the source CTE
-        ptr_id = get_ptr_id(source_id, ptr, ctx)
-        output_var: pgast.OutputVar = pgast.ColumnRef(
-            name=(ptr_name,), nullable=True
-        )
+        ptr_id = get_ptr_id(value_id, ptr, ctx)
+        output_var = pgast.ColumnRef(name=(ptr_name,), nullable=True)
         if is_link:
-            source_outputs[(ptr_id, 'identity')] = output_var
-            source_outputs[(ptr_id, 'value')] = output_var
+            value_rel.path_outputs[(ptr_id, 'identity')] = output_var
+            value_rel.path_outputs[(ptr_id, 'value')] = output_var
         else:
-            source_outputs[(ptr_id, 'value')] = output_var
+            value_rel.path_outputs[(ptr_id, 'value')] = output_var
 
         # prepare insert shape that will use the paths from source_outputs
         insert_shape.append(
             construct_insert_element_for_ptr(
-                source_ql,
+                value_ql,
                 ptr_name,
                 ptr,
                 is_link,
@@ -235,37 +263,11 @@ def resolve_InsertStmt(
             )
         )
 
-    # construct the CTE that produces the value to be inserted
-    # The original value query must be wrapped so we can add type casts
-    # for link ids.
-    assert isinstance(val_rel, pgast.Query)
-    source_cte = pgast.CommonTableExpr(
-        name=ctx.alias_generator.get('ins_source'),
-        query=pgast.SelectStmt(
-            from_clause=[pgast.RangeSubselect(subquery=val_rel)],
-            target_list=pre_projection,
-            path_outputs=source_outputs,
-        ),
-    )
-
     # source needs an identity column, so we need to invent one
-    source_identity = ctx.alias_generator.get('identity')
-    source_cte.query.target_list.append(
-        pgast.ResTarget(
-            name=source_identity,
-            val=pgast.FuncCall(
-                name=(
-                    'edgedb',
-                    'uuid_generate_v4',
-                ),
-                args=(),
-            ),
-        )
-    )
-    output_var = pgast.ColumnRef(name=(source_identity,))
-    source_cte.query.path_outputs[(source_id, 'identity')] = output_var
-    source_cte.query.path_outputs[(source_id, 'iterator')] = output_var
-    source_cte.query.path_outputs[(source_id, 'value')] = output_var
+    value_iterator = ctx.alias_generator.get('identity')
+    output_var = pgast.ColumnRef(name=(value_iterator,))
+    value_rel.path_outputs[(value_id, 'iterator')] = output_var
+    value_rel.path_outputs[(value_id, 'value')] = output_var
 
     # the core thing
     ql_stmt: qlast.Expr = qlast.InsertQuery(
@@ -275,14 +277,16 @@ def resolve_InsertStmt(
         ),
         shape=insert_shape,
     )
-    if not is_single_row:
+    if not is_value_single:
+        # value relation might contain multiple rows
+        # to express this in EdgeQL, we must wrap `insert` into a `for` query
         ql_stmt = qlast.ForQuery(
-            iterator=qlast.Path(steps=[qlast.IRAnchor(name=source_name)]),
+            iterator=qlast.Path(steps=[qlast.IRAnchor(name=value_name)]),
             iterator_alias=iterator_name,
             result=ql_stmt,
         )
 
-    subject_pointers: List[Tuple[str, str]] = []
+    subject_columns: List[Tuple[str, str]] = []
     if stmt.returning_list:
         # wrap into a select shape that selects all pointers
         # (because they might be be used by RETURNING clause)
@@ -297,82 +301,56 @@ def resolve_InsertStmt(
                     expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
                 )
             )
-            subject_pointers.append((column.name, ptr_name))
+            subject_columns.append((column.name, ptr_name))
 
         ql_stmt = qlast.SelectQuery(
             result=qlast.Shape(expr=ql_stmt, elements=select_shape)
         )
 
-    ir_stmt: irast.Statement
-    try:
-        # compile synthetic ql statement into SQL
-        options = qlcompiler.CompilerOptions(
-            modaliases={None: 'default'},
-            make_globals_empty=True,  # TODO: globals in SQL
-            singletons={source_id},
-            anchors={'__sql_source__': source_id},
-            allow_user_specified_id=True,  # TODO: should this be enabled?
-        )
-        ir_stmt = qlcompiler.compile_ast_to_ir(
-            ql_stmt,
-            schema=ctx.schema,
-            options=options,
-        )
-        assert isinstance(ir_stmt.expr, irast.SetE)
-        sql_result = pgcompiler.compile_ir_to_sql_tree(
-            ir_stmt,
-            external_rels={source_id: (source_cte, ('source', 'identity'))},
-            output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
-            alias_generator=ctx.alias_generator,
-        )
-    except errors.QueryError as e:
-        raise errors.QueryError(
-            msg=e.args[0],
-            span=stmt.span,
-            # not sure if this is ok, but it is better than InternalServerError,
-            # which is the default
-            pgext_code=pgerror.ERROR_DATA_EXCEPTION,
-        )
+    return PreprocessedDML(
+        input=stmt,
+        ql_stmt=ql_stmt,
+        ql_singletons={value_id},
+        ql_anchors={value_name: value_id},
+        external_rels={value_id: (value_rel, ('source', 'identity'))},
+        subject_columns=subject_columns,
+        early_result=context.CompiledDML(
+            value_cte_name=value_cte_name,
+            value_relation_input=value_relation,
+            value_columns=value_columns,
+            value_iterator_name=value_iterator,
 
-    assert isinstance(sql_result.ast, pgast.Query)
-    assert sql_result.ast.ctes
-    ctes = value_ctes + [source_cte] + sql_result.ast.ctes
-    sql_result.ast.ctes.clear()
-
-    if ctx.subquery_depth == 0:
-        # this is top-level, this SELECT must contain all CTEs
-        sql_result.ast.ctes = ctes
-    elif ctx.subquery_depth == 1:
-        # parent is top-level, add CTEs to it
-        ctx.ctes_buffer.extend(ctes)
-    else:
-        # this case is caught earlier
-        raise AssertionError()
-
-    result_table = context.Table(
-        alias=stmt.relation.alias.aliasname, columns=[]
+            # these will be populated after compilation
+            output_ctes=[],
+            output_relation_name='',
+            output_namespace={},
+        ),
     )
-    result_query = sql_result.ast
 
-    if stmt.returning_list:
-        return returning_rows(
-            stmt.returning_list,
-            subject_pointers,
-            result_query,
-            result_table,
-            ctx,
+
+def has_at_most_one_row(query: pgast.Query | None) -> bool:
+    return isinstance(query, pgast.SelectStmt) and (
+        (query.values and len(query.values) == 1)
+        or (
+            isinstance(query.limit_count, pgast.NumericConstant)
+            and query.limit_count.val == '1'
         )
-    else:
-        result_query.target_list.clear()
-        return result_query, result_table
+    )
 
 
-def compile_insert_value(
+def preprocess_insert_value(
     value_query: Optional[pgast.Query],
     value_ctes: Optional[List[pgast.CommonTableExpr]],
     expected_columns: List[context.Column],
-    ctx: context.ResolverContextLevel,
-) -> Tuple[pgast.BaseRelation, context.Table]:
+) -> Tuple[pgast.BaseRelation, List[context.Column]]:
+    # INSERT INTO x DEFAULT VALUES
+    if not value_query:
+        value_query = pgast.SelectStmt(values=[])
+        # edgeql compiler will provide default values
+        # (and complain about missing ones)
+        expected_columns = []
+        return value_query, expected_columns
+
     # VALUES (DEFAULT)
     if isinstance(value_query, pgast.SelectStmt) and value_query.values:
         # find DEFAULT keywords in VALUES
@@ -408,66 +386,278 @@ def compile_insert_value(
                 del cols[to_remove]
                 value_query.values[r_index] = row.replace(args=cols)
 
-    # INSERT INTO x DEFAULT VALUES
-    if not value_query:
-        value_query = pgast.SelectStmt(values=[])
-        # edgeql compiler will provide default values
-        # (and complain about missing ones)
-        expected_columns = []
-
     # compile these CTEs as they were defined on value relation
+    assert not value_query.ctes
     value_query.ctes = value_ctes
 
-    # compile value that is to be inserted
-    val_rel, val_table = dispatch.resolve_relation(value_query, ctx=ctx)
+    return value_query, expected_columns
 
-    if len(expected_columns) != len(val_table.columns):
-        col_names = ', '.join(c.name for c in expected_columns)
+
+def compile_preprocessed_dml(
+    stmts: List[PreprocessedDML], ctx: context.ResolverContextLevel
+) -> Mapping[pgast.Query, context.CompiledDML]:
+    # merge params
+    singletons = set()
+    anchors: Dict[str, irast.PathId] = {}
+    for stmt in stmts:
+        singletons.update(stmt.ql_singletons)
+        anchors.update(stmt.ql_anchors)
+
+    # construct the main query
+    ql_stmt_shape: List[qlast.ShapeElement] = []
+    ql_stmt_shape_names = []
+    for index, stmt in enumerate(stmts):
+        name = f'dml_{index}'
+        ql_stmt_shape_names.append(name)
+        ql_stmt_shape.append(
+            qlast.ShapeElement(
+                expr=qlast.Path(steps=[qlast.Ptr(name=name)]),
+                compexpr=stmt.ql_stmt,
+            )
+        )
+    ql_stmt = qlast.SelectQuery(
+        result=qlast.Shape(expr=None, elements=ql_stmt_shape),
+    )
+
+    ir_stmt: irast.Statement
+    try:
+        # compile synthetic ql statement into SQL
+        options = qlcompiler.CompilerOptions(
+            modaliases={None: 'default'},
+            make_globals_empty=True,  # TODO: globals in SQL
+            singletons=singletons,
+            anchors=anchors,
+            allow_user_specified_id=True,  # TODO: should this be enabled?
+        )
+        ir_stmt = qlcompiler.compile_ast_to_ir(
+            ql_stmt,
+            schema=ctx.schema,
+            options=options,
+        )
+        external_rels = _merge_and_prepare_external_rels(
+            ir_stmt, stmts, ql_stmt_shape_names
+        )
+        sql_result = pgcompiler.compile_ir_to_sql_tree(
+            ir_stmt,
+            external_rels=external_rels,
+            output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
+            alias_generator=ctx.alias_generator,
+        )
+    except errors.QueryError as e:
         raise errors.QueryError(
-            f'INSERT expected {len(expected_columns)} columns, '
-            f'but got {len(val_table.columns)} (expecting {col_names})',
-            span=value_query.span,
+            msg=e.args[0],
+            # not sure if this is ok, but it is better than InternalServerError,
+            # which is the default
+            pgext_code=pgerror.ERROR_DATA_EXCEPTION,
         )
 
-    return val_rel, val_table
+    assert isinstance(sql_result.ast, pgast.Query)
+    assert sql_result.ast.ctes
+    ctes = sql_result.ast.ctes
+
+    result = {}
+    for stmt in stmts:
+        stmt_ctes = ctes  # TODO
+        last_query = stmt_ctes[-1].query
+
+        # prepare a map from pointer name into pgast
+        ptr_map: Dict[Tuple[str, str], pgast.BaseExpr] = {}
+        for (ptr_id, aspect), output_var in last_query.path_outputs.items():
+            qual_name = ptr_id.rptr_name()
+            if not qual_name:
+                ptr_map['id', aspect] = output_var
+            else:
+                ptr_map[qual_name.name, aspect] = output_var
+        output_namespace: Dict[str, pgast.BaseExpr] = {}
+        for col_name, ptr_name in stmt.subject_columns:
+            val = ptr_map.get((ptr_name, 'serialized'), None)
+            if not val:
+                val = ptr_map.get((ptr_name, 'value'), None)
+            if not val:
+                val = ptr_map.get((ptr_name, 'identity'), None)
+            assert val, f'{ptr_name} was in shape, but not in path_namespace'
+            output_namespace[col_name] = val
+
+        result[stmt.input] = context.CompiledDML(
+            value_cte_name=stmt.early_result.value_cte_name,
+            value_relation_input=stmt.early_result.value_relation_input,
+            value_columns=stmt.early_result.value_columns,
+            value_iterator_name=stmt.early_result.value_iterator_name,
+            output_ctes=stmt_ctes,
+            output_relation_name=stmt_ctes[-1].name,
+            output_namespace=output_namespace,
+        )
+    return result
+
+
+def _merge_and_prepare_external_rels(
+    ir_stmt: irast.Statement,
+    stmts: List[PreprocessedDML],
+    stmt_names: List[str],
+) -> Dict[irast.PathId, Tuple[pgast.BaseRelation, Tuple[str, ...]]]:
+    # construct external rels
+
+    # this should be straight-forward, but because we put DML into with
+    # bindings, ql compiler will put each binding into a separate namespace.
+    # Since external_rels don't have
+
+    assert isinstance(ir_stmt.expr, irast.SetE)
+    assert isinstance(ir_stmt.expr.expr, irast.SelectStmt)
+
+    ir_shape = ir_stmt.expr.expr.result.shape
+    assert ir_shape
+    
+    # extract stmt name from the shape elements
+    shape_elements_by_name = {}
+    for b, _ in ir_shape:
+        rptr_name = b.path_id.rptr_name()
+        if not rptr_name:
+            continue
+        shape_elements_by_name[rptr_name.name] = b.expr.expr
+
+    external_rels: Dict[
+        irast.PathId, Tuple[pgast.BaseRelation, Tuple[str, ...]]
+    ] = {}
+    for stmt, name in zip(stmts, stmt_names):
+        # find the associated binding (this is real funky)
+        element = shape_elements_by_name[name]
+
+        if not isinstance(element, irast.MutatingStmt):
+            assert isinstance(element, irast.SelectStmt)
+            element = element.result.expr
+        if not isinstance(element, irast.MutatingStmt):
+            assert isinstance(element, irast.SelectStmt)
+            element = element.result.expr
+        assert isinstance(element, irast.MutatingStmt)
+        subject_path_id = element.result.path_id
+        subject_namespace = subject_path_id.namespace
+
+        # add all external rels, but add the namespace to their output's ids
+        for rel_id, (rel, aspects) in stmt.external_rels.items():
+            for (out_id, out_asp), out in list(rel.path_outputs.items()):
+                # HACK: this is a hacky hack to get the path_id used by the
+                # pointers within the DML statement's namespace
+                out_id = out_id.replace_namespace(subject_namespace)
+                out_id._prefix = out_id._get_prefix(1).replace_namespace(set())
+                rel.path_outputs[out_id, out_asp] = out
+            external_rels[rel_id] = (rel, aspects)
+    return external_rels
+
+
+@dispatch._resolve_relation.register
+def resolve_InsertStmt(
+    stmt: pgast.InsertStmt, *, include_inherited: bool, ctx: Context
+) -> Tuple[pgast.Query, context.Table]:
+    assert stmt.relation
+
+    if ctx.subquery_depth >= 2:
+        raise errors.QueryError(
+            'WITH clause containing a data-modifying statement must be at '
+            'the top level',
+            span=stmt.span,
+            pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
+        )
+
+    compiled_dml = ctx.compiled_dml[stmt]
+
+    # resolve the value relation
+    with ctx.child() as sctx:
+        # this subctx is needed so it is not deemed as top-level which would
+        # extract and attach CTEs, but not make the available to all
+        # following CTEs
+        val_rel, val_table = dispatch.resolve_relation(
+            compiled_dml.value_relation_input, ctx=sctx
+        )
+    if len(compiled_dml.value_columns) != len(val_table.columns):
+        col_names = ', '.join(c.name for c, _ in compiled_dml.value_columns)
+        raise errors.QueryError(
+            f'INSERT expected {len(compiled_dml.value_columns)} columns, '
+            f'but got {len(val_table.columns)} (expecting {col_names})',
+            span=compiled_dml.value_relation_input.span,
+        )
+
+    # wrap the value relation, to we can add type casts for link ids
+    value_target_list: List[pgast.ResTarget] = []
+    for val_col, (_, ptr) in zip(val_table.columns, compiled_dml.value_columns):
+        is_link = isinstance(ptr, s_links.Link)
+        ptr_name = ptr.get_shortname(ctx.schema).name
+
+        # prepare pre-projection of this pointer value
+        val_col_pg = pg_res_expr.resolve_column_kind(
+            val_table, val_col.kind, ctx=ctx
+        )
+        if is_link:
+            val_col_pg = pgast.TypeCast(
+                arg=val_col_pg, type_name=pgast.TypeName(name=('uuid',))
+            )
+        value_target_list.append(pgast.ResTarget(name=ptr_name, val=val_col_pg))
+
+    # source needs an identity column, so we need to invent one
+    value_target_list.append(
+        pgast.ResTarget(
+            name=compiled_dml.value_iterator_name,
+            val=pgast.FuncCall(
+                name=('edgedb', 'uuid_generate_v4'),
+                args=(),
+            ),
+        )
+    )
+
+    assert isinstance(val_rel, pgast.Query)
+    value_cte = pgast.CommonTableExpr(
+        name=compiled_dml.value_cte_name,
+        query=pgast.SelectStmt(
+            from_clause=[pgast.RangeSubselect(subquery=val_rel)],
+            target_list=value_target_list,
+        ),
+    )
+    ctx.ctes_buffer.append(value_cte)
+    ctx.ctes_buffer.extend(compiled_dml.output_ctes)
+
+    if stmt.returning_list:
+        res_query, res_table = returning_rows(
+            stmt.returning_list,
+            compiled_dml.output_relation_name,
+            compiled_dml.output_namespace,
+            stmt.relation.alias.aliasname,
+            ctx,
+        )
+    else:
+        res_query = pgast.SelectStmt()
+        res_table = context.Table()
+
+    if not res_query.ctes:
+        res_query.ctes = []
+    res_query.ctes.extend(pg_res_rel.extract_ctes_from_ctx(ctx))
+    return res_query, res_table
 
 
 def returning_rows(
     returning_list: List[pgast.ResTarget],
-    subject_pointers: List[Tuple[str, str]],
-    inserted_query: pgast.Query,
-    inserted_table: context.Table,
+    output_relation_name: str,
+    output_namespace: Mapping[str, pgast.BaseExpr],
+    subject_alias: Optional[str],
     ctx: context.ResolverContextLevel,
 ) -> Tuple[pgast.Query, context.Table]:
     # extract pointers to be used in returning columns
 
-    # compiler output of an insert produces a SELECT whose target list is
-    # [ROW(...)] that contains all pointers.
-    # This is really inconvenient to use, so I'm discarding it here.
-    # I'm not sure it will always have this form (or why it has it).
-    assert len(inserted_query.target_list) == 1
-    assert isinstance(inserted_query.target_list[0].val, pgast.ImplicitRowExpr)
-    inserted_query.target_list.clear()
-
-    # prepare a map from pointer name into pgast
-    ptr_map: Dict[Tuple[str, str], pgast.BaseExpr] = {}
-    for (ptr_id, aspect), output_var in inserted_query.path_namespace.items():
-        qual_name = ptr_id.rptr_name()
-        if not qual_name:
-            continue
-        ptr_map[qual_name.name, aspect] = output_var
-
-    for col_name, ptr_name in subject_pointers:
-        val = ptr_map.get((ptr_name, 'serialized'), None)
-        if not val:
-            val = ptr_map.get((ptr_name, 'value'), None)
-        assert val, 'ptr was in the shape, but is not in path_namespace'
-
-        inserted_query.target_list.append(
-            pgast.ResTarget(
-                name=col_name,
-                val=val,
+    # relation that provides the values of inserted pointers
+    inserted_rvar_name = ctx.alias_generator.get('ins')
+    inserted_query = pgast.SelectStmt(
+        from_clause=[
+            pgast.RelRangeVar(
+                relation=pgast.Relation(name=output_relation_name),
             )
+        ]
+    )
+    inserted_table = context.Table(
+        alias=subject_alias,
+        reference_as=inserted_rvar_name,
+    )
+
+    for col_name, val in output_namespace.items():
+        inserted_query.target_list.append(
+            pgast.ResTarget(name=col_name, val=val)
         )
         inserted_table.columns.append(
             context.Column(
@@ -479,24 +669,22 @@ def returning_rows(
     with ctx.empty() as sctx:
         sctx.scope.tables.append(inserted_table)
 
-        tmp_ctes = inserted_query.ctes
-        inserted_query.ctes = None
-        inserted_query = pgast.SelectStmt(
+        returning_query = pgast.SelectStmt(
             from_clause=[
                 pgast.RangeSubselect(
+                    alias=pgast.Alias(aliasname=inserted_rvar_name),
                     subquery=inserted_query,
                 )
             ],
             target_list=[],
         )
-        inserted_query.ctes = tmp_ctes
-        inserted_table = context.Table()
+        returning_table = context.Table()
 
         for t in returning_list:
             targets, columns = pg_res_expr.resolve_ResTarget(t, ctx=sctx)
-            inserted_query.target_list.extend(targets)
-            inserted_table.columns.extend(columns)
-    return inserted_query, inserted_table
+            returning_query.target_list.extend(targets)
+            returning_table.columns.extend(columns)
+    return returning_query, returning_table
 
 
 def construct_insert_element_for_ptr(

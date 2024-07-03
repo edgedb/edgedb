@@ -186,7 +186,7 @@ def extract_ctes_from_ctx(
         return []
 
     res = list(ctx.ctes_buffer)
-    ctx.ctes_buffer = []
+    ctx.ctes_buffer.clear()
     return res
 
 

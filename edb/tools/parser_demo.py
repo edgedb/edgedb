@@ -76,16 +76,22 @@ def main():
 
         if result.out:
             try:
-                ast = qlparser._cst_to_ast(result.out, productions).val
-            except Exception:
+                ast = qlparser._cst_to_ast(
+                    result.out, productions, source=source, filename=''
+                ).val
+            except Exception as e:
+                print(e)
                 ast = None
             if ast:
                 print('Recovered AST:')
                 if isinstance(ast, list):
                     for x in ast:
+                        assert isinstance(x, qlast.Base)
                         x.dump_edgeql()
+                        x.dump()
                 elif isinstance(ast, qlast.Base):
                     ast.dump_edgeql()
+                    ast.dump()
                 else:
                     print(ast)
 
@@ -341,5 +347,8 @@ QUERIES = [
         }
       }
     }
+    ''',
     '''
+    select { a := 1, b := false }
+    ''',
 ]

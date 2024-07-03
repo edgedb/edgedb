@@ -41,4 +41,6 @@ def resolve(
 
     _ = context.ResolverContext(initial=ctx)
 
+    command.compile_dml(query, ctx=ctx)
+
     return dispatch.resolve(query, ctx=ctx)
