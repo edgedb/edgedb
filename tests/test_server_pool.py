@@ -191,20 +191,12 @@ class LatencyDistribution(ScoreMethod):
 class ConnectionOverhead(ScoreMethod):
     # Calculate the score based on the total number of connects and disconnects
 
-    use_time_scale: bool = True
-
     def calculate(self, sim: Simulation) -> float:
-        if self.use_time_scale:
-            self.v90 = self.v100 + (self.v90 - self.v100) * TIME_SCALE
-            self.v60 = self.v100 + (self.v60 - self.v100) * TIME_SCALE
-            self.v0 = self.v100 + (self.v0 - self.v100) * TIME_SCALE
-        value = (
-            sim.stats[-1]["successful_connects"]
-            + sim.stats[-1]["successful_disconnects"]
-        )
+        total = sum(map(lambda x: len(x), sim.latencies.values()))
+        value = sim.stats[-1]["successful_disconnects"] / total
         score = self._calculate(value)
         sim.record_scoring(
-            'Num of (dis-)connects', value, score, self.weight
+            'Num of disconnects/query', value, score, self.weight
         )
         return score * self.weight
 
@@ -786,7 +778,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     v100=0.2, v90=0.45, v60=0.7, v0=2
                 ),
                 ConnectionOverhead(
-                    weight=0.06, v100=40, v90=160, v60=200, v0=300
+                    weight=0.06, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
@@ -848,7 +840,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     v100=0.55, v90=0.75, v60=1.0, v0=2
                 ),
                 ConnectionOverhead(
-                    weight=0.15, v100=500, v90=510, v60=800, v0=1500
+                    weight=0.15, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
@@ -897,7 +889,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     weight=0.85, group=range(6), v100=0, v90=0.1, v60=0.2, v0=2
                 ),
                 ConnectionOverhead(
-                    weight=0.15, v100=200, v90=250, v60=300, v0=600
+                    weight=0.15, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
@@ -930,7 +922,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     weight=0.9, group=range(6), v100=0, v90=0.1, v60=0.2, v0=2
                 ),
                 ConnectionOverhead(
-                    weight=0.1, v100=100, v90=220, v60=300, v0=500
+                    weight=0.1, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
@@ -985,7 +977,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     v100=30, v90=5, v60=2, v0=1,
                 ),
                 ConnectionOverhead(
-                    weight=0.15, v100=50, v90=100, v60=150, v0=200
+                    weight=0.15, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
                 EndingCapacity(
                     weight=0.1, v100=6, v90=5, v60=4, v0=3
@@ -1034,7 +1026,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
             conn_cost_var=0.05,
             score=[
                 ConnectionOverhead(
-                    weight=0.9, v100=6, v90=7, v60=12, v0=13
+                    weight=0.9, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
@@ -1081,7 +1073,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     v100=200, v90=100, v60=20, v0=1,
                 ),
                 ConnectionOverhead(
-                    weight=0.4, v100=14, v90=22, v60=30, v0=50
+                    weight=0.4, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
@@ -1128,8 +1120,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
             conn_cost_var=0,
             score=[
                 ConnectionOverhead(
-                    weight=1, v100=25, v90=50, v60=90, v0=200,
-                    use_time_scale=False,
+                    weight=1, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
@@ -1189,8 +1180,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     v100=0.0001, v90=0.0002, v60=0.0004, v0=0.005
                 ),
                 ConnectionOverhead(
-                    weight=0.6, v100=50, v90=90, v60=100, v0=200,
-                    use_time_scale=False,
+                    weight=0.6, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
