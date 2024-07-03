@@ -241,7 +241,7 @@ class LatencyRatio(PercentileBasedScoreMethod):
         ratio = dividend_percentile / divisor_percentile
         score = self._calculate(ratio)
         sim.record_scoring(
-            f'{self.percentile} ratio {self.divisor}/{self.divisor}',
+            f'{self.percentile} ratio {self.divisor}/{self.dividend}',
             ratio, score, self.weight
         )
         return score * self.weight
@@ -509,7 +509,7 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
                 g.create_task(
                     self.make_fake_query(sim, pool, db.db, dur)
                 )
-                await asyncio.sleep(spq)
+            await asyncio.sleep(spq)
 
     async def simulate_once(self, spec, pool_cls, *, collect_stats=False):
         sim = Simulation()
@@ -614,20 +614,11 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
     ):
         getters = 0
         TICK_EVERY = 0.001
-        started_at = time.monotonic()
         async with asyncio.TaskGroup() as g:
-            elapsed = 0
-            while elapsed < total_duration * TIME_SCALE:
-                elapsed = time.monotonic() - started_at
-
-                qpt = qps * TICK_EVERY
-                qpt = int(random.random() <= qpt - int(qpt)) + int(qpt)
-
-                for _ in range(qpt):
-                    g.create_task(
-                        self.make_fake_query(sim, pool, '', query_duration)
-                    )
-
+            db = DBSpec(db='', start_at=0, end_at=total_duration, qps=qps,
+                        query_cost_base=query_duration, query_cost_var=0)
+            task = g.create_task(self.simulate_db(sim, pool, g, db))
+            while not task.done():
                 await asyncio.sleep(TICK_EVERY)
                 getters = max(getters, pool.count_waiters())
         return getters
