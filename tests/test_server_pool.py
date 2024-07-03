@@ -234,7 +234,7 @@ class LatencyRatio(PercentileBasedScoreMethod):
         ratio = dividend_percentile / divisor_percentile
         score = self._calculate(ratio)
         sim.record_scoring(
-            f'{self.percentile} ratio {self.divisor}/{self.dividend}',
+            f'{self.percentile} ratio {self.dividend}/{self.divisor}',
             ratio, score, self.weight
         )
         return score * self.weight
