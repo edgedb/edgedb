@@ -434,7 +434,7 @@ def compile_preprocessed_dml(
             schema=ctx.schema,
             options=options,
         )
-        external_rels = _merge_and_prepare_external_rels(
+        external_rels, ir_stmts = _merge_and_prepare_external_rels(
             ir_stmt, stmts, ql_stmt_shape_names
         )
         sql_result = pgcompiler.compile_ir_to_sql_tree(
@@ -456,8 +456,20 @@ def compile_preprocessed_dml(
     ctes = sql_result.ast.ctes
 
     result = {}
-    for stmt in stmts:
-        stmt_ctes = ctes  # TODO
+    for stmt, ir_mutating_stmt in zip(stmts, ir_stmts):
+        stmt_ctes = []
+        found_it = False
+        while len(ctes) > 0:
+            cte = ctes.pop(0)
+            stmt_ctes.append(cte)
+
+            matches = cte.for_dml_stmt == ir_mutating_stmt
+            if not matches and found_it:
+                # use all matching CTEs + 1
+                break
+            if matches:
+                found_it = True
+
         last_query = stmt_ctes[-1].query
 
         # prepare a map from pointer name into pgast
@@ -494,7 +506,10 @@ def _merge_and_prepare_external_rels(
     ir_stmt: irast.Statement,
     stmts: List[PreprocessedDML],
     stmt_names: List[str],
-) -> Dict[irast.PathId, Tuple[pgast.BaseRelation, Tuple[str, ...]]]:
+) -> Tuple[
+    Dict[irast.PathId, Tuple[pgast.BaseRelation, Tuple[str, ...]]],
+    List[irast.MutatingStmt]
+]:
     # construct external rels
 
     # this should be straight-forward, but because we put DML into with
@@ -506,7 +521,7 @@ def _merge_and_prepare_external_rels(
 
     ir_shape = ir_stmt.expr.expr.result.shape
     assert ir_shape
-    
+
     # extract stmt name from the shape elements
     shape_elements_by_name = {}
     for b, _ in ir_shape:
@@ -518,6 +533,7 @@ def _merge_and_prepare_external_rels(
     external_rels: Dict[
         irast.PathId, Tuple[pgast.BaseRelation, Tuple[str, ...]]
     ] = {}
+    ir_stmts = []
     for stmt, name in zip(stmts, stmt_names):
         # find the associated binding (this is real funky)
         element = shape_elements_by_name[name]
@@ -529,6 +545,8 @@ def _merge_and_prepare_external_rels(
             assert isinstance(element, irast.SelectStmt)
             element = element.result.expr
         assert isinstance(element, irast.MutatingStmt)
+        ir_stmts.append(element)
+
         subject_path_id = element.result.path_id
         subject_namespace = subject_path_id.namespace
 
@@ -541,7 +559,7 @@ def _merge_and_prepare_external_rels(
                 out_id._prefix = out_id._get_prefix(1).replace_namespace(set())
                 rel.path_outputs[out_id, out_asp] = out
             external_rels[rel_id] = (rel, aspects)
-    return external_rels
+    return external_rels, ir_stmts
 
 
 @dispatch._resolve_relation.register
@@ -565,6 +583,10 @@ def resolve_InsertStmt(
         # this subctx is needed so it is not deemed as top-level which would
         # extract and attach CTEs, but not make the available to all
         # following CTEs
+
+        # but it is not a "real" subquery context
+        sctx.subquery_depth -= 1
+
         val_rel, val_table = dispatch.resolve_relation(
             compiled_dml.value_relation_input, ctx=sctx
         )
@@ -604,6 +626,9 @@ def resolve_InsertStmt(
     )
 
     assert isinstance(val_rel, pgast.Query)
+    if val_rel.ctes:
+        ctx.ctes_buffer.extend(val_rel.ctes)
+        val_rel.ctes = None
     value_cte = pgast.CommonTableExpr(
         name=compiled_dml.value_cte_name,
         query=pgast.SelectStmt(

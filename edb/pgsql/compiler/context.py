@@ -473,6 +473,11 @@ class CompilerContextLevel(compiler.ContextLevel):
             elif mode == ContextSwitchMode.NEWSCOPE:
                 self.path_scope = prevlevel.path_scope.new_child()
 
+    def get_current_dml_stmt(self) -> Optional[irast.MutatingLikeStmt]:
+        if len(self.dml_stmt_stack) == 0:
+            return None
+        return self.dml_stmt_stack[-1]
+
     def subrel(
         self,
     ) -> compiler.CompilerContextManager[CompilerContextLevel]:
