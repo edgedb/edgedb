@@ -189,7 +189,8 @@ class LatencyDistribution(ScoreMethod):
 
 @dataclasses.dataclass
 class ConnectionOverhead(ScoreMethod):
-    # Calculate the score based on the total number of connects and disconnects
+    # Calculate the score based on the number of disconnects required to service
+    # a query on average.
 
     def calculate(self, sim: Simulation) -> float:
         total = sum(map(lambda x: len(x), sim.latencies.values()))
@@ -1026,7 +1027,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
             conn_cost_var=0.05,
             score=[
                 ConnectionOverhead(
-                    weight=0.9, v100=0, v90=0.1, v60=0.2, v0=0.5
+                    weight=1.0, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
