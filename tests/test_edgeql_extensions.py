@@ -35,48 +35,50 @@ class TestDDLExtensions(tb.DDLTestCase):
 
         await self.assert_query_result(
             '''
-                select ltree::nlevel(
-                  <ltree::ltree><json><ltree::ltree>'foo.bar');
+                select ext::ltree::nlevel(
+                  <ext::ltree::ltree><json><ext::ltree::ltree>'foo.bar');
             ''',
             [2],
         )
         await self.assert_query_result(
             '''
-                select ltree::asdf(
-                  <ltree::ltree><json><ltree::ltree>'foo.bar');
+                select ext::ltree::asdf(
+                  <ext::ltree::ltree><json><ext::ltree::ltree>'foo.bar');
             ''',
             [3],
         )
         await self.assert_query_result(
             '''
                 select <str>(
-                  <ltree::ltree><json><ltree::ltree>'foo.bar');
+                  <ext::ltree::ltree><json><ext::ltree::ltree>'foo.bar');
             ''',
             ['foo.bar'],
         )
         await self.assert_query_result(
             '''
-                select <ltree::ltree>'foo.bar' = <ltree::ltree>'foo.baz';
+                select <ext::ltree::ltree>'foo.bar'
+                     = <ext::ltree::ltree>'foo.baz';
             ''',
             [False],
         )
         await self.assert_query_result(
             '''
-                select <ltree::ltree>'foo.bar' != <ltree::ltree>'foo.baz';
+                select <ext::ltree::ltree>'foo.bar'
+                     != <ext::ltree::ltree>'foo.baz';
             ''',
             [True],
         )
         await self.assert_query_result(
             '''
-                select <ltree::ltree><json><ltree::ltree>'foo.bar';
+                select <ext::ltree::ltree><json><ext::ltree::ltree>'foo.bar';
             ''',
             [['foo', 'bar']],
             json_only=True,
         )
 
         await self.con.execute('''
-            create type Foo { create property x -> ltree::ltree };
-            insert Foo { x := <ltree::ltree>'foo.bar.baz' };
+            create type Foo { create property x -> ext::ltree::ltree };
+            insert Foo { x := <ext::ltree::ltree>'foo.bar.baz' };
         ''')
 
         await self.assert_query_result(
@@ -96,7 +98,7 @@ class TestDDLExtensions(tb.DDLTestCase):
         # Make an extension that wraps a tiny bit of the ltree package.
         await self.con.execute('''
         create extension package ltree VERSION '1.0' {
-          set ext_module := "ltree";
+          set ext_module := "ext::ltree";
           set sql_extensions := ["ltree >=1.0,<10.0"];
 
           set sql_setup_script := $$
@@ -113,27 +115,27 @@ class TestDDLExtensions(tb.DDLTestCase):
             DROP FUNCTION edgedb.asdf(edgedb.ltree);
           $$;
 
-          create module ltree;
-          create scalar type ltree::ltree extending anyscalar {
+          create module ext::ltree;
+          create scalar type ext::ltree::ltree extending anyscalar {
             set sql_type := "ltree";
           };
-          create cast from ltree::ltree to std::str {
+          create cast from ext::ltree::ltree to std::str {
             SET volatility := 'Immutable';
             USING SQL CAST;
           };
-          create cast from std::str to ltree::ltree {
+          create cast from std::str to ext::ltree::ltree {
             SET volatility := 'Immutable';
             USING SQL CAST;
           };
 
           # Use a non-trivial json representation just to show that we can.
-          create cast from ltree::ltree to std::json {
+          create cast from ext::ltree::ltree to std::json {
             SET volatility := 'Immutable';
             USING SQL $$
               select to_jsonb(string_to_array("val"::text, '.'));
             $$
           };
-          create cast from std::json to ltree::ltree {
+          create cast from std::json to ext::ltree::ltree {
             SET volatility := 'Immutable';
             USING SQL $$
               select string_agg(edgedb.raise_on_null(
@@ -145,10 +147,11 @@ class TestDDLExtensions(tb.DDLTestCase):
                 as z(z);
             $$
           };
-          create function ltree::nlevel(v: ltree::ltree) -> std::int32 {
+          create function ext::ltree::nlevel(
+                v: ext::ltree::ltree) -> std::int32 {
             using sql function 'edgedb.nlevel';
           };
-          create function ltree::asdf(v: ltree::ltree) -> std::int32 {
+          create function ext::ltree::asdf(v: ext::ltree::ltree) -> std::int32 {
             using sql function 'edgedb.asdf';
           };
         };
@@ -366,7 +369,7 @@ class TestDDLExtensions(tb.DDLTestCase):
     async def test_edgeql_extensions_03(self):
         await self.con.execute('''
         create extension package ltree_broken VERSION '1.0' {
-          set ext_module := "ltree";
+          set ext_module := "ext::ltree";
           set sql_extensions := ["ltree >=1000.0"];
           create module ltree;
         };
@@ -387,7 +390,7 @@ class TestDDLExtensions(tb.DDLTestCase):
     async def test_edgeql_extensions_04(self):
         await self.con.execute('''
         create extension package ltree_broken VERSION '1.0' {
-          set ext_module := "ltree";
+          set ext_module := "ext::ltree";
           set sql_extensions := ["loltree >=1.0"];
           create module ltree;
         };
