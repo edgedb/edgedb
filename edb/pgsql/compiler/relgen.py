@@ -3304,21 +3304,6 @@ def _compile_call_args(
     return args
 
 
-def get_func_call_backend_name(
-        expr: irast.FunctionCall, *,
-        ctx: context.CompilerContextLevel) -> Tuple[str, ...]:
-    if expr.func_sql_function:
-        # The name might contain a "." if it's one of our
-        # metaschema helpers.
-        # XXX: VERSIONING?
-        func_name = tuple(expr.func_sql_function.split('.', 1))
-    else:
-        func_name = common.get_function_backend_name(
-            expr.func_shortname, expr.backend_name,
-            versioned=ctx.env.versioned_stdlib)
-    return func_name
-
-
 def process_set_as_func_enumerate(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -3333,7 +3318,7 @@ def process_set_as_func_enumerate(
         with newctx.new() as newctx2:
             newctx2.expr_exposed = False
             args = _compile_call_args(inner_func_set, ctx=newctx2)
-        func_name = get_func_call_backend_name(inner_func, ctx=newctx)
+        func_name = exprcomp.get_func_call_backend_name(inner_func, ctx=newctx)
 
         set_expr = _process_set_func_with_ordinality(
             ir_set=inner_func_set,
@@ -3362,7 +3347,7 @@ def process_set_as_func_expr(
         if expr.body is not None:
             set_expr = dispatch.compile(expr.body, ctx=newctx)
         else:
-            name = get_func_call_backend_name(expr, ctx=newctx)
+            name = exprcomp.get_func_call_backend_name(expr, ctx=newctx)
 
             if expr.typemod is qltypes.TypeModifier.SetOfType:
                 set_expr = _process_set_func(
@@ -3539,7 +3524,7 @@ def process_set_as_agg_expr_inner(
 
                 args.append(arg_ref)
 
-        name = get_func_call_backend_name(expr, ctx=newctx)
+        name = exprcomp.get_func_call_backend_name(expr, ctx=newctx)
 
         set_expr = pgast.FuncCall(
             name=name, args=args, agg_order=agg_sort, agg_filter=agg_filter,
