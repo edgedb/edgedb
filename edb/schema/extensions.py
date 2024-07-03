@@ -369,6 +369,17 @@ class CreateExtension(
 
         if not context.canonical:
             package = self.scls.get_package(schema)
+
+            module = package.get_ext_module(schema)
+            if module:
+                module_name = sn.UnqualName(module)
+                if module_name.get_root_module_name() != s_schema.EXT_MODULE:
+                    raise errors.SchemaError(
+                        f'built-in extension {self.classname} has invalid '
+                        f'module "{module}": '
+                        f'extension modules must begin with "ext::"'
+                    )
+
             script = package.get_script(schema)
             if script:
                 block, _ = qlparser.parse_extension_package_body_block(script)
