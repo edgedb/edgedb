@@ -2211,22 +2211,106 @@ def _range_for_component_ptrref(
         for_mutation=for_mutation,
     )
 
-    descendant_selects = _selects_for_ptrref_descendants(
-        ptrref_descendants,
-        output_cols=output_cols,
-        path_id=path_id,
-        ctx=ctx,
-    )
-    descentant_ops = [
-        (context.OverlayOp.UNION, select)
-        for select in descendant_selects
-    ]
-    component_rvar = range_from_queryset(
-        descentant_ops,
-        component_ptrref.shortname,
-        path_id=path_id,
-        ctx=ctx,
-    )
+    if (
+        not ctx.env.use_type_inheritance_ctes
+
+        # Don't use CTEs if there is no inheritance. (ie. There is only a
+        # single ptrref)
+        or len(ptrref_descendants) <= 1
+    ):
+        descendant_selects = _selects_for_ptrref_descendants(
+            ptrref_descendants,
+            output_cols=output_cols,
+            path_id=path_id,
+            ctx=ctx,
+        )
+        descentant_ops = [
+            (context.OverlayOp.UNION, select)
+            for select in descendant_selects
+        ]
+        component_rvar = range_from_queryset(
+            descentant_ops,
+            component_ptrref.shortname,
+            path_id=path_id,
+            ctx=ctx,
+        )
+
+    else:
+        component_ptrref_path_id: irast.PathId = irast.PathId.from_ptrref(
+            component_ptrref,
+        ).ptr_path()
+
+        if component_ptrref.id not in ctx.ptr_inheritance_ctes:
+            descendant_selects = _selects_for_ptrref_descendants(
+                ptrref_descendants,
+                output_cols=output_cols,
+                path_id=component_ptrref_path_id,
+                ctx=ctx,
+            )
+
+            inheritance_qry: pgast.SelectStmt = descendant_selects[0]
+            for rarg in descendant_selects[1:]:
+                inheritance_qry = pgast.SelectStmt(
+                    op='union',
+                    all=True,
+                    larg=inheritance_qry,
+                    rarg=rarg,
+                )
+
+            ptr_cte = pgast.CommonTableExpr(
+                name=ctx.env.aliases.get(f't_{component_ptrref.name}'),
+                query=inheritance_qry,
+                materialized=False,
+            )
+            ctx.ptr_inheritance_ctes[component_ptrref.id] = ptr_cte
+            ctx.ordered_type_ctes.append(ptr_cte)
+
+        else:
+            ptr_cte = ctx.ptr_inheritance_ctes[component_ptrref.id]
+
+        with ctx.subrel() as sctx:
+            cte_rvar = rvar_for_rel(
+                ptr_cte,
+                typeref=component_ptrref.out_target,
+                ctx=ctx,
+            )
+            if path_id is not None and path_id != component_ptrref_path_id:
+                pathctx.put_path_id_map(
+                    sctx.rel,
+                    path_id,
+                    component_ptrref_path_id,
+                )
+            include_rvar(
+                sctx.rel,
+                cte_rvar,
+                component_ptrref_path_id,
+                pull_namespace=False,
+                ctx=sctx,
+            )
+
+            # Ensure source and target columns are output
+            for output_colname in output_cols:
+                selexpr = pgast.ColumnRef(
+                    name=[cte_rvar.alias.aliasname, output_colname])
+                sctx.rel.target_list.append(
+                    pgast.ResTarget(val=selexpr, name=output_colname)
+                )
+
+            target_ref = sctx.rel.target_list[1].val
+            pathctx.put_path_identity_var(
+                sctx.rel, component_ptrref_path_id, var=target_ref
+            )
+            pathctx.put_path_source_rvar(
+                sctx.rel,
+                component_ptrref_path_id,
+                cte_rvar,
+            )
+
+            component_rvar = rvar_for_rel(
+                sctx.rel,
+                typeref=component_ptrref.out_target,
+                ctx=sctx
+            )
 
     # Only fire off the overlays at the end of each expanded inhview.
     # This only matters when we are doing expand_inhviews, and prevents
