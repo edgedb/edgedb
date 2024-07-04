@@ -2121,8 +2121,8 @@ def range_for_ptrref(
     """
 
     if ptrref.union_components:
-        refs = ptrref.union_components
-        if only_self and len(refs) > 1:
+        component_refs = ptrref.union_components
+        if only_self and len(component_refs) > 1:
             raise errors.InternalServerError(
                 'unexpected union link'
             )
@@ -2130,11 +2130,11 @@ def range_for_ptrref(
         # This is a little funky, but in an intersection, the pointer
         # needs to appear in *all* of the tables, so we just pick any
         # one of them.
-        refs = {next(iter((ptrref.intersection_components)))}
+        component_refs = {next(iter((ptrref.intersection_components)))}
     elif ptrref.computed_link_alias:
-        refs = {ptrref.computed_link_alias}
+        component_refs = {ptrref.computed_link_alias}
     else:
-        refs = {ptrref}
+        component_refs = {ptrref}
 
     assert isinstance(ptrref.out_source.name_hint, sn.QualName)
     include_descendants = (
@@ -2148,23 +2148,21 @@ def range_for_ptrref(
 
     set_ops = []
 
-    for orig_ptrref in refs:
-        assert isinstance(orig_ptrref, irast.PointerRef), \
+    for component_ref in component_refs:
+        assert isinstance(component_ref, irast.PointerRef), \
             "expected regular PointerRef"
-        src_ptrrefs = _expand_sub_ptrrefs(
-            orig_ptrref,
+
+        component_rvar = _range_for_component_ptrref(
+            component_ref,
+            output_cols,
+            dml_source=dml_source,
             include_descendants=include_descendants,
             for_mutation=for_mutation,
-        )
-
-        sub_rvar = _range_for_sub_ptrrefs(
-            src_ptrrefs,
-            name=orig_ptrref.shortname,
-            output_cols=output_cols,
             path_id=path_id,
             ctx=ctx,
         )
-        sub_qry = pgast.SelectStmt(
+
+        component_qry = pgast.SelectStmt(
             target_list=[
                 pgast.ResTarget(
                     val=pgast.ColumnRef(
@@ -2174,60 +2172,133 @@ def range_for_ptrref(
                 )
                 for output_colname in output_cols
             ],
-            from_clause=[sub_rvar]
+            from_clause=[component_rvar]
         )
         if path_id:
             target_ref = pgast.ColumnRef(
-                name=[sub_rvar.alias.aliasname, output_cols[1]]
+                name=[component_rvar.alias.aliasname, output_cols[1]]
             )
-            pathctx.put_path_identity_var(sub_qry, path_id, var=target_ref)
-            pathctx.put_path_source_rvar(sub_qry, path_id, sub_rvar)
+            pathctx.put_path_identity_var(
+                component_qry, path_id, var=target_ref
+            )
+            pathctx.put_path_source_rvar(
+                component_qry, path_id, component_rvar
+            )
 
-        set_ops.append((context.OverlayOp.UNION, sub_qry))
-
-        # Only fire off the overlays at the end of each expanded inhview.
-        # This only matters when we are doing expand_inhviews, and prevents
-        # us from repeating the overlays many times in that case.
-        if orig_ptrref in refs and not for_mutation:
-            orig_ptr_info = _get_ptrref_storage_info(orig_ptrref, ctx=ctx)
-            cols = _get_ptrref_column_names(orig_ptr_info)
-
-            overlays = get_ptr_rel_overlays(
-                orig_ptrref, dml_source=dml_source, ctx=ctx)
-
-            for op, cte, cte_path_id in overlays:
-                rvar = rvar_for_rel(cte, ctx=ctx)
-
-                qry = pgast.SelectStmt(
-                    target_list=[
-                        pgast.ResTarget(
-                            val=pgast.ColumnRef(
-                                name=[col]
-                            )
-                        )
-                        for col in cols
-                    ],
-                    from_clause=[rvar],
-                )
-                # Set up identity var, source rvar for reasons discussed above
-                if path_id:
-                    target_ref = pgast.ColumnRef(
-                        name=[rvar.alias.aliasname, cols[1]])
-                    pathctx.put_path_identity_var(
-                        qry, cte_path_id, var=target_ref
-                    )
-                    pathctx.put_path_source_rvar(qry, cte_path_id, rvar)
-                    pathctx.put_path_id_map(qry, path_id, cte_path_id)
-
-                set_ops.append((op, qry))
+        set_ops.append((context.OverlayOp.UNION, component_qry))
 
     return range_from_queryset(
-        set_ops, ptrref.shortname,
-        prep_filter=_prep_filter, path_id=path_id, ctx=ctx)
+        set_ops,
+        ptrref.shortname,
+        path_id=path_id,
+        ctx=ctx,
+    )
 
 
-def _expand_sub_ptrrefs(
-    ref: irast.PointerRef,
+def _range_for_component_ptrref(
+    component_ptrref: irast.PointerRef,
+    output_cols: Sequence[str],
+    *,
+    dml_source: Sequence[irast.MutatingLikeStmt],
+    include_descendants: bool,
+    for_mutation: bool,
+    path_id: Optional[irast.PathId],
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
+    ptrref_descendants = _get_ptrref_descendants(
+        component_ptrref,
+        include_descendants=include_descendants,
+        for_mutation=for_mutation,
+    )
+
+    descendant_selects = _selects_for_ptrref_descendants(
+        ptrref_descendants,
+        output_cols=output_cols,
+        path_id=path_id,
+        ctx=ctx,
+    )
+    descentant_ops = [
+        (context.OverlayOp.UNION, select)
+        for select in descendant_selects
+    ]
+    component_rvar = range_from_queryset(
+        descentant_ops,
+        component_ptrref.shortname,
+        path_id=path_id,
+        ctx=ctx,
+    )
+
+    # Only fire off the overlays at the end of each expanded inhview.
+    # This only matters when we are doing expand_inhviews, and prevents
+    # us from repeating the overlays many times in that case.
+    overlays = get_ptr_rel_overlays(
+        component_ptrref, dml_source=dml_source, ctx=ctx)
+    if overlays and not for_mutation:
+        set_ops = []
+
+        component_qry = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=pgast.ColumnRef(
+                        name=[output_colname]
+                    ),
+                    name=output_colname
+                )
+                for output_colname in output_cols
+            ],
+            from_clause=[component_rvar]
+        )
+        if path_id:
+            target_ref = pgast.ColumnRef(
+                name=[component_rvar.alias.aliasname, output_cols[1]]
+            )
+            pathctx.put_path_identity_var(
+                component_qry, path_id, var=target_ref
+            )
+            pathctx.put_path_source_rvar(
+                component_qry, path_id, component_rvar
+            )
+
+        set_ops.append((context.OverlayOp.UNION, component_qry))
+
+        orig_ptr_info = _get_ptrref_storage_info(component_ptrref, ctx=ctx)
+        cols = _get_ptrref_column_names(orig_ptr_info)
+
+        for op, cte, cte_path_id in overlays:
+            rvar = rvar_for_rel(cte, ctx=ctx)
+
+            qry = pgast.SelectStmt(
+                target_list=[
+                    pgast.ResTarget(
+                        val=pgast.ColumnRef(
+                            name=[col]
+                        )
+                    )
+                    for col in cols
+                ],
+                from_clause=[rvar],
+            )
+            # Set up identity var, source rvar for reasons discussed above
+            if path_id:
+                target_ref = pgast.ColumnRef(
+                    name=[rvar.alias.aliasname, cols[1]])
+                pathctx.put_path_identity_var(
+                    qry, cte_path_id, var=target_ref
+                )
+                pathctx.put_path_source_rvar(qry, cte_path_id, rvar)
+                pathctx.put_path_id_map(qry, path_id, cte_path_id)
+
+            set_ops.append((op, qry))
+
+        component_rvar = range_from_queryset(
+            set_ops, component_ptrref.shortname,
+            prep_filter=_prep_filter, path_id=path_id, ctx=ctx)
+
+    return component_rvar
+
+
+def _get_ptrref_descendants(
+    ptrref: irast.PointerRef,
     *,
     include_descendants: bool,
     for_mutation: bool,
@@ -2242,10 +2313,10 @@ def _expand_sub_ptrrefs(
 
         descendants: list[irast.PointerRef] = []
         descendants.extend(
-            cast(Iterable[irast.PointerRef], ref.descendants())
+            cast(Iterable[irast.PointerRef], ptrref.descendants())
         )
-        descendants.append(ref)
-        assert isinstance(ref, irast.PointerRef)
+        descendants.append(ptrref)
+        assert isinstance(ptrref, irast.PointerRef)
 
         # Try to only select from actual concrete types.
         concrete_descendants = [
@@ -2256,28 +2327,27 @@ def _expand_sub_ptrrefs(
         if concrete_descendants:
             return concrete_descendants
         else:
-            return [ref]
+            return [ptrref]
 
     else:
-        return [ref]
+        return [ptrref]
 
 
-def _range_for_sub_ptrrefs(
-    sub_ptrrefs: Sequence[irast.PointerRef],
-    name: sn.QualName,
+def _selects_for_ptrref_descendants(
+    ptrref_descendants: Sequence[irast.PointerRef],
     output_cols: Iterable[str],
     *,
     path_id: Optional[irast.PathId],
     ctx: context.CompilerContextLevel,
-) -> pgast.PathRangeVar:
-    sub_set_ops = []
+) -> list[pgast.SelectStmt]:
+    selects = []
 
-    for sub_ptrref in sub_ptrrefs:
-        ptr_info = _get_ptrref_storage_info(sub_ptrref, ctx=ctx)
+    for ptrref_descendant in ptrref_descendants:
+        ptr_info = _get_ptrref_storage_info(ptrref_descendant, ctx=ctx)
         cols = _get_ptrref_column_names(ptr_info)
 
         table = table_from_ptrref(
-            sub_ptrref,
+            ptrref_descendant,
             ptr_info,
             ctx=ctx,
         )
@@ -2293,7 +2363,7 @@ def _range_for_sub_ptrrefs(
             qry.target_list.append(
                 pgast.ResTarget(val=selexpr, name=output_colname))
 
-        sub_set_ops.append((context.OverlayOp.UNION, qry))
+        selects.append(qry)
 
         # We need the identity var for semi_join to work and
         # the source rvar so that linkprops can be found here.
@@ -2302,15 +2372,11 @@ def _range_for_sub_ptrrefs(
             pathctx.put_path_identity_var(qry, path_id, var=target_ref)
             pathctx.put_path_source_rvar(qry, path_id, table)
 
-    sub_rvar = range_from_queryset(
-        sub_set_ops, name,
-        prep_filter=_prep_filter, path_id=path_id, ctx=ctx)
-
-    return sub_rvar
+    return selects
 
 
 def _get_ptrref_storage_info(
-    sub_ptrref: irast.PointerRef,
+    ptrref: irast.PointerRef,
     *,
     ctx: context.CompilerContextLevel
 ) -> pg_types.PointerStorageInfo:
@@ -2320,12 +2386,12 @@ def _get_ptrref_storage_info(
     # always use the link table if it exists (because this range
     # needs to contain any link properties, for one reason.)
     ptr_info = pg_types.get_ptrref_storage_info(
-        sub_ptrref, resolve_type=False, link_bias=True,
+        ptrref, resolve_type=False, link_bias=True,
         versioned=ctx.env.versioned_stdlib,
     )
     if not ptr_info:
         ptr_info = pg_types.get_ptrref_storage_info(
-            sub_ptrref, resolve_type=False, link_bias=False,
+            ptrref, resolve_type=False, link_bias=False,
             versioned=ctx.env.versioned_stdlib,
         )
     return ptr_info
