@@ -246,6 +246,9 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: materialized for performance reasons.
     ptr_ctes: Dict[uuid.UUID, pgast.CommonTableExpr]
 
+    #: CTEs representing pointers and their inherited pointers
+    ptr_inheritance_ctes: Dict[uuid.UUID, pgast.CommonTableExpr]
+
     #: CTEs representing types, when rewritten based on access policy
     type_ctes: Dict[FullRewriteKey, pgast.CommonTableExpr]
 
@@ -359,6 +362,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.rel_hierarchy = {}
             self.param_ctes = {}
             self.ptr_ctes = {}
+            self.ptr_inheritance_ctes = {}
             self.type_ctes = {}
             self.pending_type_ctes = set()
             self.type_inheritance_ctes = {}
@@ -401,6 +405,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.rel_hierarchy = prevlevel.rel_hierarchy
             self.param_ctes = prevlevel.param_ctes
             self.ptr_ctes = prevlevel.ptr_ctes
+            self.ptr_inheritance_ctes = prevlevel.ptr_inheritance_ctes
             self.type_ctes = prevlevel.type_ctes
             self.pending_type_ctes = prevlevel.pending_type_ctes
             self.type_inheritance_ctes = prevlevel.type_inheritance_ctes
