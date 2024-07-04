@@ -8,10 +8,8 @@ Object Types
 analogous to SQL *tables* or ORM *models*, and consist of :ref:`properties
 <ref_datamodel_props>` and :ref:`links <ref_datamodel_links>`.
 
-Properties are used to attach primitive data to an object type. In versions
-prior to EdgeDB 3.0 they must be declared with the ``property`` keyword, but
-the keyword is not required in 3.0+ unless the property is a :ref:`computed
-property <ref_datamodel_computed>`. For the full documentation on properties,
+Properties are used to attach primitive data to an object type.
+For the full documentation on properties,
 see :ref:`Properties <ref_datamodel_props>`.
 
 .. code-block:: sdl
@@ -27,9 +25,7 @@ see :ref:`Properties <ref_datamodel_props>`.
       email: str;
     }
 
-Links are used to define relationships between object types. Prior to EdgeDB
-3.0, they must be declared with the ``link`` keyword, but the keyword is not
-required in 3.0+ unless the link is computed (e.g., backlinks). For the full
+Links are used to define relationships between object types. For the full
 documentation on links, see :ref:`Links <ref_datamodel_links>`.
 
 .. code-block:: sdl
