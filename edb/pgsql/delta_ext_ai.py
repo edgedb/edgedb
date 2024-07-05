@@ -393,7 +393,8 @@ def _pg_create_ai_embeddings(
     # so that we use an index scan and not a seq scan when
     # picking out pending embeddings.
     outdated_idx_name = common.get_index_table_backend_name(
-        index, schema, aspect="extaiselidx")
+        index, schema, aspect=common.IndexAspect("extaiselidx")
+    )
 
     ops.add_command(
         dbops.CreateIndex(
@@ -430,7 +431,10 @@ def _pg_create_ai_embeddings(
     # The main similarity (a.k.a distance) search index.
     module_name = index.get_name(schema).module
     index_name = common.get_index_backend_name(
-        index.id, module_name, catenate=False, aspect=f'{dimensions}_index'
+        index.id,
+        module_name,
+        catenate=False,
+        aspect=common.IndexAspect(f'{dimensions}_index'),
     )
 
     pg_index = dbops.Index(
@@ -627,7 +631,8 @@ def pg_rebuild_all_pending_embeddings_views(
             continue
 
         tabname = common.get_index_table_backend_name(
-            other_index, schema, aspect="extaiview")
+            other_index, schema, aspect=common.IndexAspect("extaiview")
+        )
         model_name = other_index.must_get_annotation(
             schema, sn.QualName("ext::ai", "model_name"))
         used_models[model_name].append(f"SELECT * FROM {q(*tabname)}")
@@ -734,7 +739,8 @@ def _pg_create_ai_embeddings_source_view(
 
     expr = _compile_ai_embeddings_source_view_expr(index, options, schema)
     view_name = common.get_index_table_backend_name(
-        index, schema, aspect="extaiview")
+        index, schema, aspect=common.IndexAspect("extaiview")
+    )
 
     idx_id = _get_index_root_id(schema, index)
     target_col = f"__ext_ai_{idx_id}_embedding__"
@@ -789,7 +795,8 @@ def _pg_drop_ai_embeddings_source_view(
     ))
 
     view_name = common.get_index_table_backend_name(
-        index, orig_schema, aspect="extaiview")
+        index, orig_schema, aspect=common.IndexAspect("extaiview")
+    )
     ops.add_command(dbops.DropView(view_name))
 
     return ops

@@ -143,6 +143,13 @@ class ConstraintAspect(s_enum.StrEnum):
             raise NotImplementedError
 
 
+class IndexAspect(str):
+    INDEX: IndexAspect
+
+
+IndexAspect.INDEX = IndexAspect('index')
+
+
 def quote_e_literal(string: str) -> str:
     def escape_sq(s):
         split = re.split(r"(\n|\\\\|\\')", s)
@@ -572,9 +579,15 @@ def get_constraint_raw_name(id):
     return f'{id};schemaconstr'
 
 
-def get_index_backend_name(id, module_name, catenate=True, *, aspect=None):
+def get_index_backend_name(
+    id,
+    module_name: str,
+    catenate: bool = True,
+    *,
+    aspect: Optional[IndexAspect] = None,
+):
     if aspect is None:
-        aspect = 'index'
+        aspect = IndexAspect.INDEX
     name = s_name.QualName(module=module_name, name=str(id))
     return convert_name(name, aspect, catenate)
 
@@ -583,11 +596,16 @@ def get_index_table_backend_name(
     index: s_indexes.Index,
     schema: s_schema.Schema,
     *,
-    aspect: Optional[str] = None,
+    aspect: Optional[IndexAspect] = None,
 ) -> Tuple[str, str]:
     subject = index.get_subject(schema)
     assert isinstance(subject, s_types.Type)
-    return get_backend_name(schema, subject, aspect=aspect, catenate=False)
+    return get_backend_name(
+        schema,
+        subject,
+        aspect=(str(aspect) if aspect is not None else None),
+        catenate=False,
+    )
 
 
 def get_tuple_backend_name(
@@ -707,7 +725,13 @@ def get_backend_name(
     elif isinstance(obj, s_indexes.Index):
         name = obj.get_name(schema)
         return get_index_backend_name(
-            obj.id, name.module, catenate, aspect=aspect)
+            obj.id,
+            name.module,
+            catenate,
+            aspect=(
+                IndexAspect(aspect) if aspect is not None else None
+            )
+        )
 
     elif isinstance(obj, s_types.Tuple):
         # XXX: TRAMPOLINE: VERSIONED?
