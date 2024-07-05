@@ -1690,8 +1690,9 @@ def range_for_material_objtype(
             typeref.id,
             typeref.name_hint.module,
             aspect=(
-                'table' if for_mutation or not include_descendants else
-                'inhview'
+                common.RelAspect.TABLE
+                if for_mutation or not include_descendants else
+                common.RelAspect.INHVIEW
             ),
             catenate=False,
             versioned=ctx.env.versioned_stdlib,
@@ -1995,7 +1996,11 @@ def table_from_ptrref(
 ) -> pgast.RelRangeVar:
     """Return a Table corresponding to a given Link."""
 
-    aspect = 'table' if for_mutation or not include_descendants else 'inhview'
+    aspect = (
+        common.RelAspect.TABLE
+        if for_mutation or not include_descendants else
+        common.RelAspect.INHVIEW
+    )
     table_schema_name, table_name = common.update_aspect(
         ptr_info.table_name, aspect
     )
@@ -2007,7 +2012,7 @@ def table_from_ptrref(
         type_or_ptr_ref=ptrref,
     )
 
-    if aspect == 'inhview' and _needs_cte(ptrref.out_source):
+    if aspect == common.RelAspect.INHVIEW and _needs_cte(ptrref.out_source):
         relation = _make_link_table_cte(ptrref, relation, ctx=ctx)
 
     # Pseudo pointers (tuple and type intersection) have no schema id.

@@ -4869,7 +4869,7 @@ def tabname(
     return common.get_backend_name(
         schema,
         obj,
-        aspect='table',
+        aspect=str(common.RelAspect.TABLE),
         catenate=False,
         versioned=True,
     )
@@ -4881,7 +4881,7 @@ def inhviewname(
     return common.get_backend_name(
         schema,
         obj,
-        aspect='inhview',
+        aspect=str(common.RelAspect.INHVIEW),
         catenate=False,
         versioned=True,
     )
@@ -5578,7 +5578,7 @@ def _generate_schema_alias_view(
     bn = common.get_backend_name(
         schema,
         obj,
-        aspect='inhview',
+        aspect=str(common.RelAspect.INHVIEW),
         catenate=False,
         versioned=True,
     )

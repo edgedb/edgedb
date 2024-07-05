@@ -3061,7 +3061,11 @@ class CompositeMetaCommand(MetaCommand):
         # to avoid).
         if dbops.AlterTable not in self._multicommands:
             mod, name = common.get_backend_name(
-                schema, self.scls, aspect='inhview', catenate=False)
+                schema,
+                self.scls,
+                aspect=common.RelAspect.INHVIEW,
+                catenate=False,
+            )
             self.pgops.add(dbops.Query(textwrap.dedent(f'''\
                 ALTER VIEW IF EXISTS {mod}."{name}" SET SCHEMA {mod};
             ''')))
@@ -3077,7 +3081,7 @@ class CompositeMetaCommand(MetaCommand):
     @staticmethod
     def _get_table_name(obj, schema) -> tuple[str, str]:
         is_internal_view = types.is_cfg_view(obj, schema)
-        aspect = 'dummy' if is_internal_view else None
+        aspect = str(common.RelAspect.DUMMY) if is_internal_view else None
         return common.get_backend_name(
             schema, obj, catenate=False, aspect=aspect)
 
@@ -3152,7 +3156,7 @@ class CompositeMetaCommand(MetaCommand):
         cls,
         schema: s_schema.Schema,
         obj: CompositeObject,
-        aspect: str='table',
+        aspect: common.RelAspect=common.RelAspect.TABLE,
     ) -> dbops.Command:
         versioned_name = common.get_backend_name(
             schema, obj, aspect=aspect, catenate=False
@@ -3174,7 +3178,7 @@ class CompositeMetaCommand(MetaCommand):
         cls,
         schema: s_schema.Schema,
         obj: CompositeObject,
-        aspect: str='table',
+        aspect: common.RelAspect=common.RelAspect.TABLE,
     ) -> dbops.Command:
         versioned_name = common.get_backend_name(
             schema, obj, aspect=aspect, catenate=False
@@ -3250,7 +3254,7 @@ class CompositeMetaCommand(MetaCommand):
             schema,
             obj,
             catenate=False,
-            aspect='table',
+            aspect=str(common.RelAspect.TABLE),
         )
 
         talias = qi(tabname[1])
@@ -3278,7 +3282,11 @@ class CompositeMetaCommand(MetaCommand):
         exclude_ptrs: AbstractSet[s_pointers.Pointer] = frozenset(),
     ) -> dbops.View:
         inhview_name = common.get_backend_name(
-            schema, obj, catenate=False, aspect='inhview')
+            schema,
+            obj,
+            catenate=False,
+            aspect=str(common.RelAspect.INHVIEW),
+        )
 
         ptrs: Dict[sn.UnqualName, Tuple[str, Tuple[str, ...]]] = {}
 
@@ -3463,7 +3471,9 @@ class CompositeMetaCommand(MetaCommand):
             self.alter_ancestor_inhviews(schema, context, obj)
 
         self.pgops.add(
-            self.create_type_trampoline(schema, obj, aspect='inhview')
+            self.create_type_trampoline(
+                schema, obj, aspect=common.RelAspect.INHVIEW
+            )
         )
 
     def alter_inhview(
@@ -3525,10 +3535,18 @@ class CompositeMetaCommand(MetaCommand):
         obj: CompositeObject,
         conditional: bool = False,
     ) -> None:
-        self.pgops.add(self.drop_type_trampoline(schema, obj, aspect='inhview'))
+        self.pgops.add(
+            self.drop_type_trampoline(
+                schema, obj, aspect=common.RelAspect.INHVIEW
+            )
+        )
 
         inhview_name = common.get_backend_name(
-            schema, obj, catenate=False, aspect='inhview')
+            schema,
+            obj,
+            catenate=False,
+            aspect=common.RelAspect.INHVIEW,
+        )
         conditions = []
         if conditional:
             conditions.append(dbops.ViewExists(inhview_name))
@@ -5328,7 +5346,10 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                 self.pgops.add(objtype_alter_table)
 
                 index_name = common.get_backend_name(
-                    schema, link, catenate=False, aspect='index'
+                    schema,
+                    link,
+                    catenate=False,
+                    aspect=common.RelAspect.INDEX,
                 )[1]
 
                 pg_index = dbops.Index(
@@ -6152,7 +6173,9 @@ class CreateTrampolines(MetaCommand):
             )
             self.pgops.add(
                 CompositeMetaCommand.create_type_trampoline(
-                    schema, obj, aspect='inhview',
+                    schema,
+                    obj,
+                    aspect=common.RelAspect.INHVIEW,
                 )
             )
 
@@ -6167,7 +6190,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
     def _get_link_table_union(self, schema, links, include_children) -> str:
         selects = []
-        aspect = 'inhview' if include_children else None
+        aspect = str(common.RelAspect.INHVIEW) if include_children else None
         for link in links:
             selects.append(textwrap.dedent('''\
                 (SELECT
@@ -6192,7 +6215,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
         self, schema, links, include_children
     ) -> str:
         selects = []
-        aspect = 'inhview' if include_children else None
+        aspect = str(common.RelAspect.INHVIEW) if include_children else None
         for link in links:
             link_psi = types.get_pointer_storage_info(link, schema=schema)
             link_col = link_psi.column_name
@@ -6472,7 +6495,10 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     for orphan_check_root in self.get_orphan_link_ancestors(
                             link, schema):
                         check_table = common.get_backend_name(
-                            schema, orphan_check_root, aspect='inhview')
+                            schema,
+                            orphan_check_root,
+                            aspect=common.RelAspect.INHVIEW,
+                        )
                         orphan_check += f'''\
                             AND NOT EXISTS (
                                 SELECT FROM {check_table} as q2
@@ -6662,7 +6688,10 @@ class UpdateEndpointDeleteActions(MetaCommand):
                             link, schema):
                         check_source = orphan_check_root.get_source(schema)
                         check_table = common.get_backend_name(
-                            schema, check_source, aspect='inhview')
+                            schema,
+                            check_source,
+                            aspect=common.RelAspect.INHVIEW,
+                        )
 
                         check_link_psi = types.get_pointer_storage_info(
                             orphan_check_root, schema=schema)

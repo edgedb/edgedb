@@ -358,7 +358,10 @@ def resolve_relation(
     else:
         # use base table directly
         schemaname, dbname = pgcommon.get_backend_name(
-            ctx.schema, obj, aspect='table', catenate=False
+            ctx.schema,
+            obj,
+            aspect=str(pgcommon.RelAspect.TABLE),
+            catenate=False,
         )
         relation = pgast.Relation(name=dbname, schemaname=schemaname)
 

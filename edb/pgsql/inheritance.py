@@ -115,7 +115,7 @@ def _get_select_from(
         schema,
         obj,
         catenate=False,
-        aspect='table',
+        aspect=common.RelAspect.TABLE,
     )
     # the name of the rel var of the object table within the select query
     table_rvar_name = table_name

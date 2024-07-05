@@ -1115,7 +1115,10 @@ async def create_branch(
     # have created the user tables.
     std_views = [
         pg_common.get_backend_name(
-            schema, schema.get(name), catenate=True, aspect='inhview'
+            schema,
+            schema.get(name),
+            catenate=True,
+            aspect=pg_common.RelAspect.INHVIEW,
         )
         for name in ('std::Object', 'std::BaseObject', 'cfg::ExtensionConfig')
     ]

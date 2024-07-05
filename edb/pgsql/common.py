@@ -28,6 +28,7 @@ from typing import Literal, Optional, Tuple, Union, overload
 import uuid
 
 from edb import buildmeta
+from edb.common import enum as s_enum
 from edb.common import uuidgen
 from edb.schema import casts as s_casts
 from edb.schema import constraints as s_constr
@@ -52,6 +53,26 @@ from . import keywords as pg_keywords
 # Note that this can be overridden in custom builds.
 # https://www.postgresql.org/docs/current/datatype-enum.html
 MAX_ENUM_LABEL_LENGTH = 63
+
+
+class RelAspect(s_enum.StrEnum):
+    TABLE = 'table'
+    INDEX = 'index'
+    INHVIEW = 'inhview'
+    DUMMY = 'dummy'
+
+    @staticmethod
+    def from_str(label: str) -> RelAspect:
+        if label == 'table':
+            return RelAspect.TABLE
+        elif label == 'index':
+            return RelAspect.INDEX
+        elif label == 'inhview':
+            return RelAspect.INHVIEW
+        elif label == 'dummy':
+            return RelAspect.DUMMY
+        else:
+            raise NotImplementedError
 
 
 def quote_e_literal(string: str) -> str:
@@ -267,7 +288,7 @@ def get_role_backend_name(role_name: str, *, tenant_id: str) -> str:
     return f'{tenant_id}_{role_name}'
 
 
-def update_aspect(name, aspect):
+def update_aspect(name, aspect: RelAspect):
     """Update the aspect on a non catenated name.
 
     It also needs to be from an object that uses ids for names"""
@@ -307,10 +328,10 @@ def get_scalar_backend_name(
     return convert_name(name, aspect, catenate, versioned=False)
 
 
-def get_aspect_suffix(aspect):
-    if aspect == 'table':
+def get_aspect_suffix(aspect: RelAspect):
+    if aspect == RelAspect.TABLE:
         return ''
-    elif aspect == 'inhview':
+    elif aspect == RelAspect.INHVIEW:
         return 't'
     else:
         return aspect
@@ -326,12 +347,12 @@ def get_objtype_backend_name(
     *,
     catenate: bool = True,
     versioned: bool = False,
-    aspect: Optional[str] = None,
+    aspect: Optional[RelAspect] = None,
 ):
     if aspect is None:
-        aspect = 'table'
+        aspect = RelAspect.TABLE
     if (
-        aspect not in {'table', 'inhview', 'dummy'}
+        aspect not in {RelAspect.TABLE, RelAspect.INHVIEW, RelAspect.DUMMY}
         and not re.match(
             r'(source|target)-del-(def|imm)-(inl|otl)-(f|t)', aspect)
         and not aspect.startswith("ext")
@@ -347,12 +368,22 @@ def get_objtype_backend_name(
 
 
 def get_pointer_backend_name(
-    id, module_name, *, catenate=False, aspect=None, versioned=True
+    id,
+    module_name: str,
+    *,
+    catenate: bool = False,
+    aspect: Optional[RelAspect] = None,
+    versioned: bool = True
 ):
     if aspect is None:
-        aspect = 'table'
+        aspect = RelAspect.TABLE
 
-    if aspect not in ('table', 'index', 'inhview', 'dummy'):
+    if aspect not in (
+        RelAspect.TABLE,
+        RelAspect.INDEX,
+        RelAspect.INHVIEW,
+        RelAspect.DUMMY,
+    ):
         raise ValueError(
             f'unexpected aspect for pointer backend name: {aspect!r}')
 
@@ -511,15 +542,26 @@ def get_backend_name(
     if isinstance(obj, s_objtypes.ObjectType):
         name = obj.get_name(schema)
         return get_objtype_backend_name(
-            obj.id, name.module, catenate=catenate,
-            aspect=aspect, versioned=versioned,
+            obj.id,
+            name.module,
+            catenate=catenate,
+            aspect=(
+                RelAspect.from_str(aspect) if aspect is not None else None
+            ),
+            versioned=versioned,
         )
 
     elif isinstance(obj, s_pointers.Pointer):
         name = obj.get_name(schema)
-        return get_pointer_backend_name(obj.id, name.module, catenate=catenate,
-                                        versioned=versioned,
-                                        aspect=aspect)
+        return get_pointer_backend_name(
+            obj.id,
+            name.module,
+            catenate=catenate,
+            versioned=versioned,
+            aspect=(
+                RelAspect.from_str(aspect) if aspect is not None else None
+            ),
+        )
 
     elif isinstance(obj, s_scalars.ScalarType):
         name = obj.get_name(schema)
