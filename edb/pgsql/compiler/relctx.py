@@ -1621,7 +1621,7 @@ def range_for_material_objtype(
                         materialized=is_global or force_cte,
                     )
                     ctx.type_ctes[key] = type_cte
-                    ctx.ordered_type_ctes.append(type_cte)
+                    ctx.ordered_inheritance_ctes.append(type_cte)
                     type_rel = type_cte
         else:
             type_rel = type_cte
@@ -1655,7 +1655,7 @@ def range_for_material_objtype(
             # relying on the inheritance views. This allows postgres to actually
             # give us back the alias names that we use for relations, which we
             # use to track which parts of the query are being referred to.
-            not ctx.env.use_type_inheritance_ctes
+            not ctx.env.use_inheritance_ctes
 
             # Don't use CTEs if there is no inheritance. (ie. There is only a
             # single material type)
@@ -1717,7 +1717,7 @@ def range_for_material_objtype(
                     materialized=False,
                 )
                 ctx.type_inheritance_ctes[typeref.id] = type_cte
-                ctx.ordered_type_ctes.append(type_cte)
+                ctx.ordered_inheritance_ctes.append(type_cte)
 
             else:
                 type_cte = ctx.type_inheritance_ctes[typeref.id]
@@ -2212,7 +2212,7 @@ def _range_for_component_ptrref(
     )
 
     if (
-        not ctx.env.use_type_inheritance_ctes
+        not ctx.env.use_inheritance_ctes
 
         # Don't use CTEs if there is no inheritance. (ie. There is only a
         # single ptrref)
@@ -2267,7 +2267,7 @@ def _range_for_component_ptrref(
                 materialized=False,
             )
             ctx.ptr_inheritance_ctes[component_ptrref.id] = ptr_cte
-            ctx.ordered_type_ctes.append(ptr_cte)
+            ctx.ordered_inheritance_ctes.append(ptr_cte)
 
         else:
             ptr_cte = ctx.ptr_inheritance_ctes[component_ptrref.id]
