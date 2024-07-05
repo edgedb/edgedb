@@ -104,6 +104,20 @@ class ScalarAspect(s_enum.StrEnum):
             raise NotImplementedError
 
 
+class OperatorAspect(s_enum.StrEnum):
+    OPERATOR = 'operator'
+    FUNCTION = 'function'
+
+    @staticmethod
+    def from_str(label: str) -> OperatorAspect:
+        if label == 'operator':
+            return OperatorAspect.OPERATOR
+        elif label == 'function':
+            return OperatorAspect.FUNCTION
+        else:
+            raise NotImplementedError
+
+
 def quote_e_literal(string: str) -> str:
     def escape_sq(s):
         split = re.split(r"(\n|\\\\|\\')", s)
@@ -447,14 +461,18 @@ operator_map = {
 
 
 def get_operator_backend_name(
-    name, catenate=False, *, versioned=True, aspect=None
+    name: s_name.QualName,
+    catenate: bool = False,
+    *,
+    versioned: bool = True,
+    aspect: Optional[OperatorAspect] = None,
 ):
     if aspect is None:
-        aspect = 'operator'
+        aspect = OperatorAspect.OPERATOR
 
-    if aspect == 'function':
+    if aspect == OperatorAspect.FUNCTION:
         return convert_name(name, 'f', catenate=catenate, versioned=versioned)
-    elif aspect != 'operator':
+    elif aspect != OperatorAspect.OPERATOR:
         raise ValueError(
             f'unexpected aspect for operator backend name: {aspect!r}')
 
@@ -616,7 +634,13 @@ def get_backend_name(
     elif isinstance(obj, s_opers.Operator):
         name = obj.get_shortname(schema)
         return get_operator_backend_name(
-            name, catenate, versioned=versioned, aspect=aspect)
+            name,
+            catenate,
+            versioned=versioned,
+            aspect=(
+                OperatorAspect.from_str(aspect) if aspect is not None else None
+            )
+        )
 
     elif isinstance(obj, s_casts.Cast):
         name = obj.get_name(schema)

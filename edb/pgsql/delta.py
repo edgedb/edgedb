@@ -1667,7 +1667,12 @@ class OperatorCommand(FunctionCommand):
 
     def make_operator_function(self, oper: s_opers.Operator, schema):
         name = common.get_backend_name(
-            schema, oper, catenate=False, versioned=False, aspect='function')
+            schema,
+            oper,
+            catenate=False,
+            versioned=False,
+            aspect=str(common.OperatorAspect.FUNCTION),
+        )
         return self.get_function_type(name)(
             name=name,
             args=self.compile_args(oper, schema),
