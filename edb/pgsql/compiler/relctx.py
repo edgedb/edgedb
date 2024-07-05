@@ -2061,50 +2061,6 @@ def range_from_queryset(
     return rvar
 
 
-def table_from_ptrref(
-    ptrref: irast.PointerRef,
-    ptr_info: pg_types.PointerStorageInfo,
-    *,
-    ctx: context.CompilerContextLevel,
-) -> pgast.RelRangeVar:
-    """Return a Table corresponding to a given Link."""
-
-    aspect = 'table'
-    table_schema_name, table_name = common.update_aspect(
-        ptr_info.table_name, aspect
-    )
-
-    typeref = ptrref.out_source if ptrref else None
-    relation = pgast.Relation(
-        schemaname=table_schema_name,
-        name=table_name,
-        type_or_ptr_ref=ptrref,
-    )
-
-    # Pseudo pointers (tuple and type intersection) have no schema id.
-    sobj_id = ptrref.id if isinstance(ptrref, irast.PointerRef) else None
-    rvar = pgast.RelRangeVar(
-        schema_object_id=sobj_id,
-        typeref=typeref,
-        relation=relation,
-        alias=pgast.Alias(
-            aliasname=ctx.env.aliases.get(ptrref.shortname.name)
-        )
-    )
-
-    return rvar
-
-
-def _prep_filter(larg: pgast.SelectStmt, rarg: pgast.SelectStmt) -> None:
-    # Set up the proper join on the source field and clear the target list
-    # of the rhs of a filter overlay.
-    assert isinstance(larg.target_list[0].val, pgast.ColumnRef)
-    assert isinstance(rarg.target_list[0].val, pgast.ColumnRef)
-    rarg.where_clause = astutils.join_condition(
-        larg.target_list[0].val, rarg.target_list[0].val)
-    rarg.target_list.clear()
-
-
 def range_for_ptrref(
     ptrref: irast.BasePointerRef, *,
     dml_source: Sequence[irast.MutatingLikeStmt]=(),
@@ -2385,6 +2341,16 @@ def _range_for_component_ptrref(
     return component_rvar
 
 
+def _prep_filter(larg: pgast.SelectStmt, rarg: pgast.SelectStmt) -> None:
+    # Set up the proper join on the source field and clear the target list
+    # of the rhs of a filter overlay.
+    assert isinstance(larg.target_list[0].val, pgast.ColumnRef)
+    assert isinstance(rarg.target_list[0].val, pgast.ColumnRef)
+    rarg.where_clause = astutils.join_condition(
+        larg.target_list[0].val, rarg.target_list[0].val)
+    rarg.target_list.clear()
+
+
 def _get_ptrref_descendants(
     ptrref: irast.PointerRef,
     *,
@@ -2434,7 +2400,7 @@ def _selects_for_ptrref_descendants(
         ptr_info = _get_ptrref_storage_info(ptrref_descendant, ctx=ctx)
         cols = _get_ptrref_column_names(ptr_info)
 
-        table = table_from_ptrref(
+        table = _table_from_ptrref(
             ptrref_descendant,
             ptr_info,
             ctx=ctx,
@@ -2461,6 +2427,40 @@ def _selects_for_ptrref_descendants(
             pathctx.put_path_source_rvar(qry, path_id, table)
 
     return selects
+
+
+def _table_from_ptrref(
+    ptrref: irast.PointerRef,
+    ptr_info: pg_types.PointerStorageInfo,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.RelRangeVar:
+    """Return a Table corresponding to a given Link."""
+
+    aspect = 'table'
+    table_schema_name, table_name = common.update_aspect(
+        ptr_info.table_name, aspect
+    )
+
+    typeref = ptrref.out_source if ptrref else None
+    relation = pgast.Relation(
+        schemaname=table_schema_name,
+        name=table_name,
+        type_or_ptr_ref=ptrref,
+    )
+
+    # Pseudo pointers (tuple and type intersection) have no schema id.
+    sobj_id = ptrref.id if isinstance(ptrref, irast.PointerRef) else None
+    rvar = pgast.RelRangeVar(
+        schema_object_id=sobj_id,
+        typeref=typeref,
+        relation=relation,
+        alias=pgast.Alias(
+            aliasname=ctx.env.aliases.get(ptrref.shortname.name)
+        )
+    )
+
+    return rvar
 
 
 def _get_ptrref_storage_info(
