@@ -404,7 +404,7 @@ def type_to_typeref(
         or (
             (
                 env.options.expand_inhviews or
-                env.options.use_type_inheritance_ctes
+                env.options.use_inheritance_ctes
             )
             and isinstance(t, s_objtypes.ObjectType)
         )

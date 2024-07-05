@@ -67,7 +67,7 @@ def compile_ir_to_sql_tree(
     named_param_prefix: Optional[tuple[str, ...]] = None,
     expected_cardinality_one: bool = False,
     expand_inhviews: bool = False,
-    use_type_inheritance_ctes: bool = False,
+    use_inheritance_ctes: bool = False,
     external_rvars: Optional[
         Mapping[Tuple[irast.PathId, pgce.PathAspect], pgast.PathRangeVar]
     ] = None,
@@ -129,7 +129,7 @@ def compile_ir_to_sql_tree(
             ignore_object_shapes=ignore_shapes,
             explicit_top_cast=explicit_top_cast,
             expand_inhviews=expand_inhviews,
-            use_type_inheritance_ctes=use_type_inheritance_ctes,
+            use_inheritance_ctes=use_inheritance_ctes,
             singleton_mode=singleton_mode,
             scope_tree_nodes=scope_tree_nodes,
             external_rvars=external_rvars,
