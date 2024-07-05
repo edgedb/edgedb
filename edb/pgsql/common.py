@@ -150,6 +150,10 @@ class IndexAspect(str):
 IndexAspect.INDEX = IndexAspect('index')
 
 
+class TupleAspect(str):
+    pass
+
+
 def quote_e_literal(string: str) -> str:
     def escape_sq(s):
         split = re.split(r"(\n|\\\\|\\')", s)
@@ -609,7 +613,10 @@ def get_index_table_backend_name(
 
 
 def get_tuple_backend_name(
-    id, catenate=True, *, aspect=None
+    id,
+    catenate: bool = True,
+    *,
+    aspect: Optional[TupleAspect] = None,
 ) -> Union[str, tuple[str, str]]:
 
     name = s_name.QualName(module='edgedb', name=f'{id}_t')
@@ -736,7 +743,12 @@ def get_backend_name(
     elif isinstance(obj, s_types.Tuple):
         # XXX: TRAMPOLINE: VERSIONED?
         return get_tuple_backend_name(
-            obj.id, catenate, aspect=aspect)
+            obj.id,
+            catenate,
+            aspect=(
+                TupleAspect(aspect) if aspect is not None else None
+            )
+        )
 
     else:
         raise ValueError(f'cannot determine backend name for {obj!r}')
