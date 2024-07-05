@@ -177,7 +177,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
             self._schema,
             self._constraint,
             catenate=False,
-            aspect=str(common.ConstraintAspect.TRIG_PROC),
+            aspect=common.ConstraintAspect.TRIG_PROC,
         )
 
     def get_trigger_condition(self):

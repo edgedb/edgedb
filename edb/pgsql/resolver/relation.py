@@ -360,7 +360,7 @@ def resolve_relation(
         schemaname, dbname = pgcommon.get_backend_name(
             ctx.schema,
             obj,
-            aspect=str(pgcommon.RelAspect.TABLE),
+            aspect=pgcommon.RelAspect.TABLE,
             catenate=False,
         )
         relation = pgast.Relation(name=dbname, schemaname=schemaname)

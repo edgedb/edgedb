@@ -1671,7 +1671,7 @@ class OperatorCommand(FunctionCommand):
             oper,
             catenate=False,
             versioned=False,
-            aspect=str(common.OperatorAspect.FUNCTION),
+            aspect=common.OperatorAspect.FUNCTION,
         )
         return self.get_function_type(name)(
             name=name,
@@ -1820,7 +1820,7 @@ class CastCommand(MetaCommand):
             cast,
             catenate=False,
             versioned=False,
-            aspect=str(common.CastAspect.FUNCTION),
+            aspect=common.CastAspect.FUNCTION,
         )
 
         args: Sequence[dbops.FunctionArg] = [
@@ -3111,7 +3111,7 @@ class CompositeMetaCommand(MetaCommand):
     @staticmethod
     def _get_table_name(obj, schema) -> tuple[str, str]:
         is_internal_view = types.is_cfg_view(obj, schema)
-        aspect = str(common.RelAspect.DUMMY) if is_internal_view else None
+        aspect = common.RelAspect.DUMMY if is_internal_view else None
         return common.get_backend_name(
             schema, obj, catenate=False, aspect=aspect)
 
@@ -3284,7 +3284,7 @@ class CompositeMetaCommand(MetaCommand):
             schema,
             obj,
             catenate=False,
-            aspect=str(common.RelAspect.TABLE),
+            aspect=common.RelAspect.TABLE,
         )
 
         talias = qi(tabname[1])
@@ -3315,7 +3315,7 @@ class CompositeMetaCommand(MetaCommand):
             schema,
             obj,
             catenate=False,
-            aspect=str(common.RelAspect.INHVIEW),
+            aspect=common.RelAspect.INHVIEW,
         )
 
         ptrs: Dict[sn.UnqualName, Tuple[str, Tuple[str, ...]]] = {}
@@ -6224,7 +6224,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
     def _get_link_table_union(self, schema, links, include_children) -> str:
         selects = []
-        aspect = str(common.RelAspect.INHVIEW) if include_children else None
+        aspect = common.RelAspect.INHVIEW if include_children else None
         for link in links:
             selects.append(textwrap.dedent('''\
                 (SELECT
@@ -6249,7 +6249,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
         self, schema, links, include_children
     ) -> str:
         selects = []
-        aspect = str(common.RelAspect.INHVIEW) if include_children else None
+        aspect = common.RelAspect.INHVIEW if include_children else None
         for link in links:
             link_psi = types.get_pointer_storage_info(link, schema=schema)
             link_col = link_psi.column_name

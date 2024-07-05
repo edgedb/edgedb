@@ -154,6 +154,18 @@ class TupleAspect(str):
     pass
 
 
+AnyAspect = (
+    RelAspect
+    | ScalarAspect
+    | OperatorAspect
+    | OperatorAspect
+    | CastAspect
+    | ConstraintAspect
+    | IndexAspect
+    | TupleAspect
+)
+
+
 def quote_e_literal(string: str) -> str:
     def escape_sq(s):
         split = re.split(r"(\n|\\\\|\\')", s)
@@ -605,10 +617,7 @@ def get_index_table_backend_name(
     subject = index.get_subject(schema)
     assert isinstance(subject, s_types.Type)
     return get_backend_name(
-        schema,
-        subject,
-        aspect=(str(aspect) if aspect is not None else None),
-        catenate=False,
+        schema, subject, aspect=aspect, catenate=False,
     )
 
 
@@ -630,7 +639,7 @@ def get_backend_name(
     catenate: Literal[True]=True,
     *,
     versioned: bool=True,
-    aspect: Optional[str]=None
+    aspect: Optional[AnyAspect | Literal["index"]]=None
 ) -> str:
     ...
 
@@ -642,7 +651,7 @@ def get_backend_name(
     catenate: Literal[False],
     *,
     versioned: bool=True,
-    aspect: Optional[str]=None
+    aspect: Optional[AnyAspect | Literal["index"]]=None
 ) -> tuple[str, str]:
     ...
 
@@ -652,66 +661,57 @@ def get_backend_name(
     obj: so.Object,
     catenate: bool=True,
     *,
-    aspect: Optional[str]=None,
+    aspect: Optional[AnyAspect | Literal["index"]]=None,
     versioned: bool=True,
 ) -> Union[str, tuple[str, str]]:
     name: Union[s_name.QualName, s_name.Name]
     if isinstance(obj, s_objtypes.ObjectType):
         name = obj.get_name(schema)
+        assert aspect is None or isinstance(aspect, RelAspect)
         return get_objtype_backend_name(
             obj.id,
             name.module,
             catenate=catenate,
-            aspect=(
-                RelAspect.from_str(aspect) if aspect is not None else None
-            ),
+            aspect=aspect,
             versioned=versioned,
         )
 
     elif isinstance(obj, s_pointers.Pointer):
         name = obj.get_name(schema)
+        if aspect == "index":
+            aspect = RelAspect.INDEX
+        assert aspect is None or isinstance(aspect, RelAspect)
         return get_pointer_backend_name(
             obj.id,
             name.module,
             catenate=catenate,
             versioned=versioned,
-            aspect=(
-                RelAspect.from_str(aspect) if aspect is not None else None
-            ),
+            aspect=aspect,
         )
 
     elif isinstance(obj, s_scalars.ScalarType):
         name = obj.get_name(schema)
+        assert aspect is None or isinstance(aspect, ScalarAspect)
         return get_scalar_backend_name(
             obj.id,
             name.module,
             catenate=catenate,
             versioned=versioned,
-            aspect=(
-                ScalarAspect.from_str(aspect) if aspect is not None else None
-            ),
+            aspect=aspect,
         )
 
     elif isinstance(obj, s_opers.Operator):
         name = obj.get_shortname(schema)
+        assert aspect is None or isinstance(aspect, OperatorAspect)
         return get_operator_backend_name(
-            name,
-            catenate,
-            versioned=versioned,
-            aspect=(
-                OperatorAspect.from_str(aspect) if aspect is not None else None
-            )
+            name, catenate, versioned=versioned, aspect=aspect,
         )
 
     elif isinstance(obj, s_casts.Cast):
         name = obj.get_name(schema)
+        assert aspect is None or isinstance(aspect, CastAspect)
         return get_cast_backend_name(
-            name,
-            catenate,
-            versioned=versioned,
-            aspect=(
-                CastAspect.from_str(aspect) if aspect is not None else None
-            )
+            name, catenate, versioned=versioned, aspect=aspect,
         )
 
     elif isinstance(obj, s_func.Function):
@@ -722,32 +722,27 @@ def get_backend_name(
 
     elif isinstance(obj, s_constr.Constraint):
         name = obj.get_name(schema)
+        if aspect == "index":
+            aspect = ConstraintAspect.INDEX
+        assert aspect is None or isinstance(aspect, ConstraintAspect)
         return get_constraint_backend_name(
-            obj.id, name.module, catenate, aspect=(
-                ConstraintAspect.from_str(aspect)
-                if aspect is not None else
-                None
-            ))
+            obj.id, name.module, catenate, aspect=aspect
+        )
 
     elif isinstance(obj, s_indexes.Index):
         name = obj.get_name(schema)
+        if aspect == "index":
+            aspect = IndexAspect.INDEX
+        assert aspect is None or isinstance(aspect, IndexAspect)
         return get_index_backend_name(
-            obj.id,
-            name.module,
-            catenate,
-            aspect=(
-                IndexAspect(aspect) if aspect is not None else None
-            )
+            obj.id, name.module, catenate, aspect=aspect
         )
 
     elif isinstance(obj, s_types.Tuple):
         # XXX: TRAMPOLINE: VERSIONED?
+        assert aspect is None or isinstance(aspect, TupleAspect)
         return get_tuple_backend_name(
-            obj.id,
-            catenate,
-            aspect=(
-                TupleAspect(aspect) if aspect is not None else None
-            )
+            obj.id, catenate, aspect=aspect
         )
 
     else:
