@@ -65,11 +65,11 @@ from . import astutils
 from . import clauses
 from . import context
 from . import dispatch
+from . import enums as pgce
 from . import output
 from . import pathctx
 from . import relctx
 from . import relgen
-from .enums import PathAspect
 
 
 class DMLParts(NamedTuple):
@@ -393,8 +393,8 @@ def merge_iterator(
         put_iterator_bond(iterator, select)
         relctx.include_rvar(
             select, iterator_rvar,
-            aspects=(PathAspect.VALUE, iterator.aspect) + (
-                (PathAspect.SOURCE,)
+            aspects=(pgce.PathAspect.VALUE, iterator.aspect) + (
+                (pgce.PathAspect.SOURCE,)
                 if iterator.path_id.is_objtype_path() else
                 ()
             ),
@@ -612,7 +612,7 @@ def _mk_dynamic_get_path(
         if (
             flavor != 'normal'
             or aspect not in (
-                PathAspect.VALUE, PathAspect.IDENTITY
+                pgce.PathAspect.VALUE, pgce.PathAspect.IDENTITY
             )
         ):
             return None
@@ -922,9 +922,9 @@ def process_insert_rewrites(
         cte=contents_cte,
         parent=inner_iterator,
         other_paths=(
-            (subject_path_id, PathAspect.IDENTITY),
-            (subject_path_id, PathAspect.VALUE),
-            (subject_path_id, PathAspect.SOURCE),
+            (subject_path_id, pgce.PathAspect.IDENTITY),
+            (subject_path_id, pgce.PathAspect.VALUE),
+            (subject_path_id, pgce.PathAspect.SOURCE),
         ),
     )
 
@@ -943,7 +943,7 @@ def process_insert_rewrites(
     )
 
     iterator_rvar = pathctx.get_path_rvar(
-        rew_stmt, path_id=subject_path_id, aspect=PathAspect.VALUE
+        rew_stmt, path_id=subject_path_id, aspect=pgce.PathAspect.VALUE
     )
     fallback_rvar = pgast.DynamicRangeVar(
         dynamic_get_path=_mk_dynamic_get_path(nptr_map, typeref, iterator_rvar)
@@ -983,7 +983,7 @@ def process_insert_rewrites(
             val = pathctx.get_path_var(
                 rew_stmt,
                 e.path_id,
-                aspect=PathAspect.VALUE,
+                aspect=pgce.PathAspect.VALUE,
                 env=ctx.env,
             )
             val = output.output_as_value(val, env=ctx.env)
@@ -1074,7 +1074,7 @@ def process_insert_shape(
 
         put_iterator_bond(iterator, select)
 
-    for aspect in (PathAspect.VALUE, PathAspect.IDENTITY):
+    for aspect in (pgce.PathAspect.VALUE, pgce.PathAspect.IDENTITY):
         pathctx._put_path_output_var(
             select, ir_stmt.subject.path_id, aspect=aspect,
             var=pgast.ColumnRef(name=['id']),
@@ -1523,7 +1523,7 @@ def compile_insert_else_body(
                 enclosing_cte_iterator else None)
             aspect = (
                 enclosing_cte_iterator.aspect if enclosing_cte_iterator
-                else PathAspect.IDENTITY
+                else pgce.PathAspect.IDENTITY
             )
             relctx.anti_join(ictx.rel, subrel, iter_path_id,
                              aspect=aspect, ctx=ctx)
@@ -1863,7 +1863,7 @@ def process_update_rewrites(
         parent=iterator,
         # __old__
         other_paths=(
-            ((old_path_id, PathAspect.IDENTITY),)
+            ((old_path_id, pgce.PathAspect.IDENTITY),)
         ),
     )
 
@@ -1891,8 +1891,8 @@ def process_update_rewrites(
 
         # pull in table_relation for __old__
         table_rel.path_outputs[
-            (old_path_id, PathAspect.VALUE)
-        ] = table_rel.path_outputs[(subject_path_id, PathAspect.VALUE)]
+            (old_path_id, pgce.PathAspect.VALUE)
+        ] = table_rel.path_outputs[(subject_path_id, pgce.PathAspect.VALUE)]
         relctx.include_rvar(
             rewrites_stmt, table_relation, old_path_id, ctx=ctx
         )
@@ -1960,7 +1960,7 @@ def process_update_rewrites(
                 val = pathctx.get_path_var(
                     rewrites_stmt,
                     e.path_id,
-                    aspect=PathAspect.VALUE,
+                    aspect=pgce.PathAspect.VALUE,
                     env=ctx.env,
                 )
                 updval = pgast.ResTarget(
@@ -2094,13 +2094,13 @@ def process_update_shape(
                 pathctx.put_path_var(
                     rel,
                     element.path_id,
-                    aspect=PathAspect.VALUE,
+                    aspect=pgce.PathAspect.VALUE,
                     var=val,
                 )
                 pathctx._put_path_output_var(
                     rel,
                     element.path_id,
-                    aspect=PathAspect.VALUE,
+                    aspect=pgce.PathAspect.VALUE,
                     var=pgast.ColumnRef(name=[ptr_info.column_name]),
                 )
 
@@ -3055,7 +3055,7 @@ def process_link_values(
         # XXX: This is dodgy. Do we need to do the dynamic rvar thing?
         # XXX: And can we make defaults work?
         pathctx._put_path_output_var(
-            row_query, col_path_id, aspect=PathAspect.VALUE,
+            row_query, col_path_id, aspect=pgce.PathAspect.VALUE,
             var=pgast.ColumnRef(name=[col]),
         )
 
@@ -3243,7 +3243,7 @@ def compile_trigger(
                 # iterator cte, and so will get included whenever
                 # merged
                 other_paths=(
-                    ((old_path, PathAspect.IDENTITY),)
+                    ((old_path, pgce.PathAspect.IDENTITY),)
                     if old_path else
                     ()
                 ),
@@ -3256,14 +3256,14 @@ def compile_trigger(
             # new_path is just the contents_cte
             tctx.external_rels[new_path] = (
                 contents_cte,
-                (PathAspect.VALUE, PathAspect.SOURCE)
+                (pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE)
             )
             if old_path:
                 # old_path is *also* the contents_cte, but without a source
                 # aspect, so we need to include the real database back in.
                 tctx.external_rels[old_path] = (
                     contents_cte,
-                    (PathAspect.VALUE, PathAspect.IDENTITY,)
+                    (pgce.PathAspect.VALUE, pgce.PathAspect.IDENTITY,)
                 )
 
         # This is somewhat subtle: we merge *every* DML into

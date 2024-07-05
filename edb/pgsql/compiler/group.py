@@ -31,11 +31,11 @@ from . import astutils
 from . import clauses
 from . import context
 from . import dispatch
+from . import enums as pgce
 from . import output
 from . import pathctx
 from . import relctx
 from . import relgen
-from .enums import PathAspect
 
 
 def compile_grouping_atom(
@@ -100,7 +100,7 @@ def _compile_grouping_value(
         pathctx.get_path_var(
             grouprel,
             alias_set.path_id,
-            aspect=PathAspect.VALUE,
+            aspect=pgce.PathAspect.VALUE,
             env=ctx.env,
         )
         for alias_set, _ in using.values()
@@ -164,7 +164,7 @@ def _compile_grouping_binding(
         ctx.rel,
         stmt.grouping_binding.path_id,
         _compile_grouping_value(stmt, used_args=used_args, ctx=ctx),
-        aspect=PathAspect.VALUE,
+        aspect=pgce.PathAspect.VALUE,
     )
 
 
@@ -244,7 +244,7 @@ def _compile_group(
                 assert irutils.is_set_instance(group_use, irast.FunctionCall)
                 relgen.process_set_as_agg_expr_inner(
                     group_use,
-                    aspect=PathAspect.VALUE,
+                    aspect=pgce.PathAspect.VALUE,
                     wrapper=None,
                     for_group_by=True,
                     ctx=hoistctx,
@@ -287,7 +287,7 @@ def _compile_group(
                     grouprel,
                     stmt.group_binding.path_id,
                     mat_qry,
-                    aspect=PathAspect.VALUE,
+                    aspect=pgce.PathAspect.VALUE,
                     flavor='packed',
                 )
 
@@ -311,7 +311,7 @@ def _compile_group(
             uvar = pathctx.get_path_var(
                 grouprel,
                 using_val.path_id,
-                aspect=PathAspect.VALUE,
+                aspect=pgce.PathAspect.VALUE,
                 env=ctx.env,
             )
             if isinstance(uvar, pgast.TupleVarBase):
@@ -320,20 +320,20 @@ def _compile_group(
                     grouprel,
                     using_val.path_id,
                     uvar,
-                    aspect=PathAspect.VALUE,
+                    aspect=pgce.PathAspect.VALUE,
                     force=True,
                 )
 
             uout = pathctx.get_path_output(
                 grouprel,
                 using_val.path_id,
-                aspect=PathAspect.VALUE,
+                aspect=pgce.PathAspect.VALUE,
                 env=ctx.env,
             )
             pathctx._put_path_output_var(
                 grouprel,
                 using_val.path_id,
-                PathAspect.SERIALIZED,
+                pgce.PathAspect.SERIALIZED,
                 uout,
             )
 
@@ -346,7 +346,7 @@ def _compile_group(
         relctx.include_rvar(
             query, group_rvar, path_id=stmt.group_binding.path_id,
             flavor='packed', update_mask=False, pull_namespace=False,
-            aspects=(PathAspect.VALUE,),
+            aspects=(pgce.PathAspect.VALUE,),
             ctx=ctx)
     else:
         # Not include_rvar because we don't actually provide the path id!
@@ -364,7 +364,7 @@ def _compile_group(
                 query,
                 group_use.path_id,
                 group_rvar,
-                aspect=PathAspect.VALUE,
+                aspect=pgce.PathAspect.VALUE,
             )
 
     vol_ref = None

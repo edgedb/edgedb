@@ -30,6 +30,9 @@ from edb.edgeql import ast as qlast
 from edb.ir import ast as irast
 
 if typing.TYPE_CHECKING:
+    # PathAspect is imported without qualifiers here because otherwise in
+    # base.AST._collect_direct_fields, typing.get_type_hints will not correctly
+    # locate the type.
     from .compiler.enums import PathAspect
 
 
@@ -197,7 +200,8 @@ class EdgeQLPathInfo(Base):
 
     # Map of col refs corresponding to paths.
     path_namespace: typing.Dict[
-        typing.Tuple[irast.PathId, PathAspect], BaseExpr
+        typing.Tuple[irast.PathId, PathAspect],
+        BaseExpr,
     ] = ast.field(factory=dict)
 
     # Same, but for packed.
@@ -1106,9 +1110,11 @@ class IteratorCTE(ImmutableBase):
 
     @property
     def aspect(self) -> PathAspect:
-        from .compiler.enums import PathAspect
+        from .compiler import enums as pgce
         return (
-            PathAspect.ITERATOR if self.iterator_bond else PathAspect.IDENTITY
+            pgce.PathAspect.ITERATOR
+            if self.iterator_bond else
+            pgce.PathAspect.IDENTITY
         )
 
 

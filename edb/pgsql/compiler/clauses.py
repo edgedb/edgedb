@@ -34,11 +34,11 @@ from edb.pgsql import types as pg_types
 from . import astutils
 from . import context
 from . import dispatch
+from . import enums as pgce
 from . import output
 from . import pathctx
 from . import relctx
 from . import relgen
-from .enums import PathAspect
 
 
 def get_volatility_ref(
@@ -49,13 +49,13 @@ def get_volatility_ref(
     """Produce an appropriate volatility_ref from a path_id."""
 
     ref: Optional[pgast.BaseExpr] = relctx.maybe_get_path_var(
-        stmt, path_id, aspect=PathAspect.ITERATOR, ctx=ctx)
+        stmt, path_id, aspect=pgce.PathAspect.ITERATOR, ctx=ctx)
     if not ref:
         ref = relctx.maybe_get_path_var(
-            stmt, path_id, aspect=PathAspect.IDENTITY, ctx=ctx)
+            stmt, path_id, aspect=pgce.PathAspect.IDENTITY, ctx=ctx)
     if not ref:
         rvar = relctx.maybe_get_path_rvar(
-            stmt, path_id, aspect=PathAspect.VALUE, ctx=ctx)
+            stmt, path_id, aspect=pgce.PathAspect.VALUE, ctx=ctx)
         if (
             rvar
             and isinstance(rvar.query, pgast.ReturningQuery)
@@ -79,7 +79,7 @@ def get_volatility_ref(
             ref = pgast.ColumnRef(name=[rvar.alias.aliasname, name])
         else:
             ref = relctx.maybe_get_path_var(
-                stmt, path_id, aspect=PathAspect.VALUE, ctx=ctx)
+                stmt, path_id, aspect=pgce.PathAspect.VALUE, ctx=ctx)
 
     return ref
 
@@ -188,7 +188,7 @@ def compile_iterator_expr(
         iterator_rvar = relctx.get_path_rvar(
             query,
             iterator_expr.path_id,
-            aspect=PathAspect.VALUE,
+            aspect=pgce.PathAspect.VALUE,
             ctx=ctx,
         )
         iterator_query = iterator_rvar.query
@@ -235,7 +235,7 @@ def compile_iterator_expr(
                 query,
                 iterator_expr.path_id,
                 iterator_rvar,
-                aspect=PathAspect.ITERATOR,
+                aspect=pgce.PathAspect.ITERATOR,
             )
 
     return iterator_rvar

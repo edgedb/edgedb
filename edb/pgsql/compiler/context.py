@@ -53,7 +53,7 @@ from . import aliases
 
 if TYPE_CHECKING:
     from edb.ir import ast as irast
-    from .enums import PathAspect
+    from . import enums as pgce
 
 
 class ContextSwitchMode(enum.Enum):
@@ -316,7 +316,7 @@ class CompilerContextLevel(compiler.ContextLevel):
         irast.PathId,
         Tuple[
             pgast.BaseRelation | pgast.CommonTableExpr,
-            Tuple[PathAspect, ...]
+            Tuple[pgce.PathAspect, ...]
         ]
     ]
 
@@ -518,7 +518,7 @@ class Environment:
     type_rewrites: Dict[RewriteKey, irast.Set]
     scope_tree_nodes: Dict[int, irast.ScopeTreeNode]
     external_rvars: Mapping[
-        Tuple[irast.PathId, PathAspect], pgast.PathRangeVar
+        Tuple[irast.PathId, pgce.PathAspect], pgast.PathRangeVar
     ]
     materialized_views: Dict[uuid.UUID, irast.Set]
     backend_runtime_params: pgparams.BackendRuntimeParams
@@ -542,7 +542,7 @@ class Environment:
         type_rewrites: Dict[RewriteKey, irast.Set],
         scope_tree_nodes: Dict[int, irast.ScopeTreeNode],
         external_rvars: Optional[
-            Mapping[Tuple[irast.PathId, PathAspect], pgast.PathRangeVar]
+            Mapping[Tuple[irast.PathId, pgce.PathAspect], pgast.PathRangeVar]
         ] = None,
         backend_runtime_params: pgparams.BackendRuntimeParams,
         # XXX: TRAMPOLINE: THIS IS WRONG

@@ -43,7 +43,7 @@ from . import pathctx
 from .context import OutputFormat as OutputFormat # NOQA
 
 if TYPE_CHECKING:
-    from .enums import PathAspect
+    import enums as pgce
 
 
 @dataclass(kw_only=True, slots=True, repr=False, eq=False, frozen=True)
@@ -68,14 +68,14 @@ def compile_ir_to_sql_tree(
     expected_cardinality_one: bool = False,
     expand_inhviews: bool = False,
     external_rvars: Optional[
-        Mapping[Tuple[irast.PathId, PathAspect], pgast.PathRangeVar]
+        Mapping[Tuple[irast.PathId, pgce.PathAspect], pgast.PathRangeVar]
     ] = None,
     external_rels: Optional[
         Mapping[
             irast.PathId,
             Tuple[
                 pgast.BaseRelation | pgast.CommonTableExpr,
-                Tuple[PathAspect, ...]
+                Tuple[pgce.PathAspect, ...]
             ],
         ]
     ] = None,
@@ -193,7 +193,7 @@ def new_external_rvar(
     *,
     rel_name: Tuple[str, ...],
     path_id: irast.PathId,
-    outputs: Mapping[Tuple[irast.PathId, Tuple[PathAspect, ...]], str],
+    outputs: Mapping[Tuple[irast.PathId, Tuple[pgce.PathAspect, ...]], str],
 ) -> pgast.RelRangeVar:
     """Construct a ``RangeVar`` instance given a relation name and a path id.
 
@@ -233,7 +233,7 @@ def new_external_rvar_as_subquery(
     *,
     rel_name: tuple[str, ...],
     path_id: irast.PathId,
-    aspects: tuple[PathAspect, ...],
+    aspects: tuple[pgce.PathAspect, ...],
 ) -> pgast.SelectStmt:
     rvar = new_external_rvar(
         rel_name=rel_name,

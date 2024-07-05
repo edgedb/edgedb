@@ -40,12 +40,12 @@ from . import astutils
 from . import config
 from . import context
 from . import dispatch
+from . import enums as pgce
 from . import expr as expr_compiler  # NOQA
 from . import output
 from . import pathctx
 from . import relgen
 from . import shapecomp
-from .enums import PathAspect
 
 
 @dispatch.compile.register(irast.Set)
@@ -797,7 +797,7 @@ def _compile_set(
                 ctx.rel,
                 element.path_id,
                 element.val,
-                aspect=PathAspect.VALUE,
+                aspect=pgce.PathAspect.VALUE,
             )
 
 
@@ -888,7 +888,7 @@ def compile_Pointer(
     # in trigger functions).
     rvar_name = []
     if src := ctx.env.external_rvars.get(
-        (source.path_id, PathAspect.SOURCE)
+        (source.path_id, pgce.PathAspect.SOURCE)
     ):
         rvar_name = [src.alias.aliasname]
 

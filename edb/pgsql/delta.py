@@ -104,7 +104,7 @@ from .common import quote_literal as ql
 from .common import quote_ident as qi
 from .common import quote_type as qt
 from .common import versioned_schema as V
-from .compiler.enums import PathAspect
+from .compiler import enums as pgce
 from . import compiler
 from . import codegen
 from . import schemamech
@@ -4957,34 +4957,34 @@ class PointerMetaCommand(
             external_rels[src_path_id] = compiler.new_external_rel(
                 rel_name=(source_alias,),
                 path_id=src_path_id,
-            ), (PathAspect.VALUE, PathAspect.SOURCE)
+            ), (pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE)
         else:
             if ptr_table:
                 rvar = compiler.new_external_rvar(
                     rel_name=(source_alias,),
                     path_id=ptr_path_id,
                     outputs={
-                        (src_path_id, (PathAspect.IDENTITY,)): 'source',
+                        (src_path_id, (pgce.PathAspect.IDENTITY,)): 'source',
                     },
                 )
-                external_rvars[ptr_path_id, PathAspect.SOURCE] = rvar
-                external_rvars[ptr_path_id, PathAspect.VALUE] = rvar
-                external_rvars[src_path_id, PathAspect.IDENTITY] = rvar
-                external_rvars[tgt_path_id, PathAspect.IDENTITY] = rvar
+                external_rvars[ptr_path_id, pgce.PathAspect.SOURCE] = rvar
+                external_rvars[ptr_path_id, pgce.PathAspect.VALUE] = rvar
+                external_rvars[src_path_id, pgce.PathAspect.IDENTITY] = rvar
+                external_rvars[tgt_path_id, pgce.PathAspect.IDENTITY] = rvar
                 if local_table_only and not is_lprop:
-                    external_rvars[src_path_id, PathAspect.SOURCE] = rvar
-                    external_rvars[src_path_id, PathAspect.VALUE] = rvar
+                    external_rvars[src_path_id, pgce.PathAspect.SOURCE] = rvar
+                    external_rvars[src_path_id, pgce.PathAspect.VALUE] = rvar
                 elif is_lprop:
-                    external_rvars[tgt_path_id, PathAspect.VALUE] = rvar
+                    external_rvars[tgt_path_id, pgce.PathAspect.VALUE] = rvar
             else:
                 src_rvar = compiler.new_external_rvar(
                     rel_name=(source_alias,),
                     path_id=src_path_id,
                     outputs={},
                 )
-                external_rvars[src_path_id, PathAspect.IDENTITY] = src_rvar
-                external_rvars[src_path_id, PathAspect.VALUE] = src_rvar
-                external_rvars[src_path_id, PathAspect.SOURCE] = src_rvar
+                external_rvars[src_path_id, pgce.PathAspect.IDENTITY] = src_rvar
+                external_rvars[src_path_id, pgce.PathAspect.VALUE] = src_rvar
+                external_rvars[src_path_id, pgce.PathAspect.SOURCE] = src_rvar
 
         # Wrap the expression into a select with iterator, so DML and
         # volatile expressions are executed once for each object.
@@ -5071,7 +5071,7 @@ class PointerMetaCommand(
             pathctx.get_path_output(
                 sql_tree,
                 src_path_id,
-                aspect=PathAspect.IDENTITY,
+                aspect=pgce.PathAspect.IDENTITY,
                 env=sql_res.env,
             )
 

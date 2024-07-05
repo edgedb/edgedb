@@ -59,9 +59,9 @@ from edb.pgsql import types as pg_types
 from . import astutils
 from . import context
 from . import dispatch
+from . import enums as pgce
 from . import output
 from . import pathctx
-from .enums import PathAspect
 
 
 def init_toplevel_query(
@@ -89,7 +89,7 @@ def _pull_path_namespace(
         source_qs = [squery]
 
     for source_q in source_qs:
-        s_paths: Set[Tuple[irast.PathId, PathAspect]] = set()
+        s_paths: Set[Tuple[irast.PathId, pgce.PathAspect]] = set()
         if flavor == 'normal':
             if hasattr(source_q, 'path_outputs'):
                 s_paths.update(source_q.path_outputs)
@@ -180,7 +180,7 @@ def find_rvar(
     rvar = maybe_get_path_rvar(
         source_stmt,
         path_id=path_id,
-        aspect=PathAspect.VALUE,
+        aspect=pgce.PathAspect.VALUE,
         flavor=flavor,
         ctx=ctx,
     )
@@ -189,14 +189,14 @@ def find_rvar(
             stmt,
             path_id,
             rvar,
-            aspect=PathAspect.VALUE,
+            aspect=pgce.PathAspect.VALUE,
             flavor=flavor,
         )
 
         src_rvar = maybe_get_path_rvar(
             source_stmt,
             path_id=path_id,
-            aspect=PathAspect.SOURCE,
+            aspect=pgce.PathAspect.SOURCE,
             flavor=flavor,
             ctx=ctx
         )
@@ -206,7 +206,7 @@ def find_rvar(
                 stmt,
                 path_id,
                 src_rvar,
-                aspect=PathAspect.SOURCE,
+                aspect=pgce.PathAspect.SOURCE,
                 flavor=flavor,
             )
 
@@ -222,8 +222,8 @@ def include_rvar(
     update_mask: bool=True,
     flavor: str='normal',
     aspects: Optional[
-        Tuple[PathAspect, ...]
-        | AbstractSet[PathAspect]
+        Tuple[pgce.PathAspect, ...]
+        | AbstractSet[pgce.PathAspect]
     ]=None,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
@@ -248,17 +248,17 @@ def include_rvar(
         Compiler context.
     """
     if aspects is None:
-        aspects = (PathAspect.VALUE,)
+        aspects = (pgce.PathAspect.VALUE,)
         if path_id.is_objtype_path():
             if isinstance(rvar, pgast.RangeSubselect):
                 if pathctx.has_path_aspect(
                     rvar.query,
                     path_id,
-                    aspect=PathAspect.SOURCE,
+                    aspect=pgce.PathAspect.SOURCE,
                 ):
-                    aspects += (PathAspect.SOURCE,)
+                    aspects += (pgce.PathAspect.SOURCE,)
             else:
-                aspects += (PathAspect.SOURCE,)
+                aspects += (pgce.PathAspect.SOURCE,)
 
     return include_specific_rvar(
         stmt, rvar=rvar, path_id=path_id,
@@ -278,7 +278,7 @@ def include_specific_rvar(
     pull_namespace: bool=True,
     update_mask: bool=True,
     flavor: str='normal',
-    aspects: Iterable[PathAspect]=(PathAspect.VALUE,),
+    aspects: Iterable[pgce.PathAspect]=(pgce.PathAspect.VALUE,),
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
     """Make the *aspect* of *path_id* visible in *stmt* as *rvar*.
@@ -363,7 +363,7 @@ def _maybe_get_path_rvar(
     path_id: irast.PathId,
     *,
     flavor: str='normal',
-    aspect: PathAspect,
+    aspect: pgce.PathAspect,
     ctx: context.CompilerContextLevel,
 ) -> Optional[Tuple[pgast.PathRangeVar, irast.PathId]]:
     rvar = ctx.env.external_rvars.get((path_id, aspect))
@@ -392,7 +392,7 @@ def _get_path_rvar(
     path_id: irast.PathId,
     *,
     flavor: str='normal',
-    aspect: PathAspect,
+    aspect: pgce.PathAspect,
     ctx: context.CompilerContextLevel,
 ) -> Tuple[pgast.PathRangeVar, irast.PathId]:
     result = _maybe_get_path_rvar(
@@ -408,7 +408,7 @@ def get_path_rvar(
     path_id: irast.PathId,
     *,
     flavor: str='normal',
-    aspect: PathAspect,
+    aspect: pgce.PathAspect,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
     return _get_path_rvar(
@@ -419,7 +419,7 @@ def get_path_var(
     stmt: pgast.Query,
     path_id: irast.PathId,
     *,
-    aspect: PathAspect,
+    aspect: pgce.PathAspect,
     ctx: context.CompilerContextLevel,
 ) -> pgast.BaseExpr:
     var = pathctx.maybe_get_path_var(
@@ -437,7 +437,7 @@ def maybe_get_path_rvar(
     path_id: irast.PathId,
     *,
     flavor: str='normal',
-    aspect: PathAspect,
+    aspect: pgce.PathAspect,
     ctx: context.CompilerContextLevel,
 ) -> Optional[pgast.PathRangeVar]:
     result = _maybe_get_path_rvar(stmt, path_id,
@@ -449,7 +449,7 @@ def maybe_get_path_var(
     stmt: pgast.Query,
     path_id: irast.PathId,
     *,
-    aspect: PathAspect,
+    aspect: pgce.PathAspect,
     ctx: context.CompilerContextLevel,
 ) -> Optional[pgast.BaseExpr]:
     result = _maybe_get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
@@ -524,22 +524,22 @@ def deep_copy_primitive_rvar_path_var(
     if isinstance(rvar, pgast.RangeSubselect):
         for component in astutils.each_query_in_set(rvar.query):
             rref = pathctx.get_path_var(
-                component, orig_id, aspect=PathAspect.IDENTITY, env=env
+                component, orig_id, aspect=pgce.PathAspect.IDENTITY, env=env
             )
             pathctx.put_path_var(
                 component,
                 new_id,
                 rref,
-                aspect=PathAspect.IDENTITY,
+                aspect=pgce.PathAspect.IDENTITY,
             )
     else:
         rref = pathctx.get_path_output(
-            rvar.query, orig_id, aspect=PathAspect.IDENTITY, env=env
+            rvar.query, orig_id, aspect=pgce.PathAspect.IDENTITY, env=env
         )
         pathctx.put_rvar_path_output(
             rvar,
             new_id,
-            aspect=PathAspect.IDENTITY,
+            aspect=pgce.PathAspect.IDENTITY,
             var=rref,
         )
 
@@ -720,19 +720,19 @@ def _new_mapped_pointer_rvar(
     ptr_rvar.query.path_id = ptr_pid
     pathctx.put_rvar_path_bond(ptr_rvar, src_pid)
     pathctx.put_rvar_path_output(
-        ptr_rvar, src_pid, aspect=PathAspect.IDENTITY, var=near_ref
+        ptr_rvar, src_pid, aspect=pgce.PathAspect.IDENTITY, var=near_ref
     )
     pathctx.put_rvar_path_output(
-        ptr_rvar, src_pid, aspect=PathAspect.VALUE, var=near_ref
+        ptr_rvar, src_pid, aspect=pgce.PathAspect.VALUE, var=near_ref
     )
     pathctx.put_rvar_path_output(
-        ptr_rvar, tgt_pid, aspect=PathAspect.VALUE, var=far_ref
+        ptr_rvar, tgt_pid, aspect=pgce.PathAspect.VALUE, var=far_ref
     )
 
     if tgt_pid.is_objtype_path():
         pathctx.put_rvar_path_bond(ptr_rvar, tgt_pid)
         pathctx.put_rvar_path_output(
-            ptr_rvar, tgt_pid, aspect=PathAspect.IDENTITY, var=far_ref
+            ptr_rvar, tgt_pid, aspect=pgce.PathAspect.IDENTITY, var=far_ref
         )
 
     return ptr_rvar
@@ -835,7 +835,7 @@ def create_iterator_identity_for_path(
         path_id,
         id_expr,
         force=True,
-        aspect=PathAspect.ITERATOR,
+        aspect=pgce.PathAspect.ITERATOR,
     )
     pathctx.put_path_bond(stmt, path_id, iterator=True)
 
@@ -1038,7 +1038,7 @@ def unpack_rvar(
     ref = pathctx.get_rvar_path_var(
         packed_rvar,
         path_id,
-        aspect=PathAspect.VALUE,
+        aspect=pgce.PathAspect.VALUE,
         flavor='packed',
         env=ctx.env,
     )
@@ -1257,7 +1257,7 @@ def unpack_var(
         stmt,
         rvar,
         path_id=path_id,
-        aspects=(PathAspect.VALUE,),
+        aspects=(pgce.PathAspect.VALUE,),
         ctx=ctx,
     )
 
@@ -1265,7 +1265,7 @@ def unpack_var(
         el_id = el.path_id
         cur_ref = el.ref or pgast.ColumnRef(name=[el.colname])
 
-        for aspect in (PathAspect.VALUE, PathAspect.SERIALIZED):
+        for aspect in (pgce.PathAspect.VALUE, pgce.PathAspect.SERIALIZED):
             pathctx.put_path_var(qry, el_id, cur_ref, aspect=aspect)
 
         if not el.packed:
@@ -1273,20 +1273,20 @@ def unpack_var(
                 stmt,
                 el_id,
                 rvar,
-                aspect=PathAspect.VALUE,
+                aspect=pgce.PathAspect.VALUE,
             )
 
             pathctx.put_path_rvar(
                 ctx.rel,
                 el_id,
                 rvar,
-                aspect=PathAspect.VALUE,
+                aspect=pgce.PathAspect.VALUE,
             )
         else:
             cref = pathctx.get_path_output(
                 qry,
                 el_id,
-                aspect=PathAspect.VALUE,
+                aspect=pgce.PathAspect.VALUE,
                 env=ctx.env,
             )
             cref = cref.replace(is_packed_multi=el.multi)
@@ -1298,7 +1298,7 @@ def unpack_var(
                 el_id,
                 rvar,
                 flavor='packed',
-                aspect=PathAspect.VALUE,
+                aspect=pgce.PathAspect.VALUE,
             )
 
     # When we're producing an exposed shape, we need to rewrite the
@@ -1314,9 +1314,9 @@ def unpack_var(
 
         rewrite_aspects = []
         if ctx.expr_exposed and not is_tuple:
-            rewrite_aspects.append(PathAspect.SERIALIZED)
+            rewrite_aspects.append(pgce.PathAspect.SERIALIZED)
         if is_tuple:
-            rewrite_aspects.append(PathAspect.VALUE)
+            rewrite_aspects.append(pgce.PathAspect.VALUE)
 
         # Reserialize links if we are producing final output
         if (
@@ -1331,7 +1331,7 @@ def unpack_var(
                     qry,
                     tel.path_id,
                     reqry,
-                    aspect=PathAspect.SERIALIZED,
+                    aspect=pgce.PathAspect.SERIALIZED,
                     force=True,
                 )
 
@@ -1339,7 +1339,7 @@ def unpack_var(
             tv = pathctx.fix_tuple(qry, view_tvar, aspect=aspect, env=ctx.env)
             sval = (
                 output.output_as_value(tv, env=ctx.env)
-                if aspect == PathAspect.VALUE else
+                if aspect == pgce.PathAspect.VALUE else
                 output.serialize_expr(tv, path_id=path_id, env=ctx.env)
             )
             pathctx.put_path_var(
@@ -1422,9 +1422,9 @@ def _plain_join(
     for path_id, iterator_var in right_rvar.query.path_bonds:
         lref = None
         aspect = (
-            PathAspect.ITERATOR
+            pgce.PathAspect.ITERATOR
             if iterator_var else
-            PathAspect.IDENTITY
+            pgce.PathAspect.IDENTITY
         )
 
         lref = maybe_get_path_var(
@@ -1433,7 +1433,7 @@ def _plain_join(
             lref = maybe_get_path_var(
                 query,
                 path_id,
-                aspect=PathAspect.VALUE,
+                aspect=pgce.PathAspect.VALUE,
                 ctx=ctx,
             )
         if lref is None:
@@ -1477,9 +1477,9 @@ def _lateral_union_join(
 
         for path_id, iterator_var in right_rvar.query.path_bonds:
             aspect = (
-                PathAspect.ITERATOR
+                pgce.PathAspect.ITERATOR
                 if iterator_var else
-                PathAspect.IDENTITY
+                pgce.PathAspect.IDENTITY
             )
             lref = maybe_get_path_var(
                 query, path_id, aspect=aspect, ctx=ctx)
@@ -1487,7 +1487,7 @@ def _lateral_union_join(
                 lref = maybe_get_path_var(
                     query,
                     path_id,
-                    aspect=PathAspect.VALUE,
+                    aspect=pgce.PathAspect.VALUE,
                     ctx=ctx,
                 )
             if lref is None:
@@ -1714,7 +1714,7 @@ def range_for_material_objtype(
 
     overlays = get_type_rel_overlays(typeref, dml_source=dml_source, ctx=ctx)
     external_rvar = ctx.env.external_rvars.get(
-        (path_id, PathAspect.SOURCE)
+        (path_id, pgce.PathAspect.SOURCE)
     )
     if external_rvar is not None:
         if overlays:
@@ -1883,7 +1883,7 @@ def wrap_set_op_query(
 def anti_join(
     lhs: pgast.SelectStmt, rhs: pgast.SelectStmt,
     path_id: Optional[irast.PathId], *,
-    aspect: PathAspect=PathAspect.IDENTITY,
+    aspect: pgce.PathAspect=pgce.PathAspect.IDENTITY,
     ctx: context.CompilerContextLevel,
 ) -> None:
     """Filter elements out of the LHS that appear on the RHS"""
@@ -2238,7 +2238,7 @@ def range_for_pointer(
 
     path_id = ir_set.path_id.ptr_path()
     external_rvar = ctx.env.external_rvars.get(
-        (path_id, PathAspect.SOURCE)
+        (path_id, pgce.PathAspect.SOURCE)
     )
     if external_rvar is not None:
         return external_rvar
