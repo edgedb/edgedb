@@ -32,6 +32,7 @@ from . import astutils
 from . import clauses
 from . import context
 from . import dispatch
+from . import enums as pgce
 from . import group
 from . import dml
 from . import output
@@ -80,7 +81,7 @@ def compile_SelectStmt(
                     clauses.setup_iterator_volatility(last_iterator, ctx=ictx)
                     iterator_rvar = clauses.compile_iterator_expr(
                         query, iterator_set, is_dml=False, ctx=ictx)
-                for aspect in {'identity', 'value'}:
+                for aspect in {pgce.PathAspect.IDENTITY, pgce.PathAspect.VALUE}:
                     pathctx.put_path_rvar(
                         query,
                         path_id=iterator_set.path_id,

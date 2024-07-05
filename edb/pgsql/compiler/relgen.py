@@ -63,6 +63,7 @@ from . import astutils
 from . import context
 from . import dispatch
 from . import dml
+from . import enums as pgce
 from . import expr as exprcomp
 from . import output
 from . import pathctx
@@ -72,10 +73,12 @@ from . import relctx
 class SetRVar:
     __slots__ = ('rvar', 'path_id', 'aspects')
 
-    def __init__(self,
-                 rvar: pgast.PathRangeVar,
-                 path_id: irast.PathId,
-                 aspects: Iterable[str]=('value',)) -> None:
+    def __init__(
+        self,
+        rvar: pgast.PathRangeVar,
+        path_id: irast.PathId,
+        aspects: Iterable[pgce.PathAspect]=(pgce.PathAspect.VALUE,),
+    ) -> None:
         self.aspects = aspects
         self.path_id = path_id
         self.rvar = rvar
@@ -92,7 +95,7 @@ class SetRVars:
 def new_simple_set_rvar(
     ir_set: irast.Set,
     rvar: pgast.PathRangeVar,
-    aspects: Iterable[str],
+    aspects: Iterable[pgce.PathAspect],
 ) -> SetRVars:
     srvar = SetRVar(rvar=rvar, path_id=ir_set.path_id, aspects=aspects)
     return SetRVars(main=srvar, new=[srvar])
@@ -102,9 +105,9 @@ def new_source_set_rvar(
     ir_set: irast.Set,
     rvar: pgast.PathRangeVar,
 ) -> SetRVars:
-    aspects = ['value']
+    aspects = [pgce.PathAspect.VALUE]
     if ir_set.path_id.is_objtype_path():
-        aspects.append('source')
+        aspects.append(pgce.PathAspect.SOURCE)
 
     return new_simple_set_rvar(ir_set, rvar, aspects)
 
@@ -113,7 +116,7 @@ def new_stmt_set_rvar(
     ir_set: irast.Set,
     stmt: pgast.Query,
     *,
-    aspects: Optional[Iterable[str]]=None,
+    aspects: Optional[Iterable[pgce.PathAspect]]=None,
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
     rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
@@ -451,18 +454,22 @@ def ensure_source_rvar(
     """
 
     rvar = relctx.maybe_get_path_rvar(
-        stmt, ir_set.path_id, aspect='source', ctx=ctx)
+        stmt, ir_set.path_id, aspect=pgce.PathAspect.SOURCE, ctx=ctx)
     if rvar is None:
         get_set_rvar(ir_set, ctx=ctx)
 
     rvar = relctx.maybe_get_path_rvar(
-        stmt, ir_set.path_id, aspect='source', ctx=ctx)
+        stmt, ir_set.path_id, aspect=pgce.PathAspect.SOURCE, ctx=ctx)
     if rvar is None:
         scope_stmt = relctx.maybe_get_scope_stmt(ir_set.path_id, ctx=ctx)
         if scope_stmt is None:
             scope_stmt = ctx.rel
         rvar = relctx.maybe_get_path_rvar(
-            scope_stmt, ir_set.path_id, aspect='source', ctx=ctx)
+            scope_stmt,
+            ir_set.path_id,
+            aspect=pgce.PathAspect.SOURCE,
+            ctx=ctx,
+        )
         if rvar is None:
             if irtyputils.is_free_object(ir_set.path_id.target):
                 # Free objects don't have a real source, and
@@ -470,10 +477,16 @@ def ensure_source_rvar(
                 # the ids don't match, so instead we call the existing
                 # value rvar a source.
                 rvar = relctx.get_path_rvar(
-                    scope_stmt, ir_set.path_id, aspect='value', ctx=ctx)
+                    scope_stmt,
+                    ir_set.path_id,
+                    aspect=pgce.PathAspect.VALUE,
+                    ctx=ctx,
+                )
             else:
                 rvar = _get_source_rvar(ir_set, scope_stmt, ctx=ctx)
-            pathctx.put_path_rvar(stmt, ir_set.path_id, rvar, aspect='source')
+            pathctx.put_path_rvar(
+                stmt, ir_set.path_id, rvar, aspect=pgce.PathAspect.SOURCE,
+            )
 
     return rvar
 
@@ -821,10 +834,14 @@ def process_set_as_link_property_ref(
         src_rvar = get_set_rvar(ir_source, ctx=ctx)
 
         val = pathctx.get_rvar_path_var(
-            src_rvar, ir_source.path_id, aspect='value', env=ctx.env)
+            src_rvar,
+            ir_source.path_id,
+            aspect=pgce.PathAspect.VALUE,
+            env=ctx.env,
+        )
 
         pathctx.put_rvar_path_output(
-            src_rvar, ir_set.path_id, aspect='value', var=val
+            src_rvar, ir_set.path_id, aspect=pgce.PathAspect.VALUE, var=val
         )
 
         return SetRVars(
@@ -849,7 +866,7 @@ def process_set_as_link_property_ref(
             ir_source.path_id, ctx=ctx
         ) or ctx.rel
         link_rvar = pathctx.maybe_get_path_rvar(
-            source_scope_stmt, link_path_id, aspect='source'
+            source_scope_stmt, link_path_id, aspect=pgce.PathAspect.SOURCE
         )
 
         if link_rvar is None:
@@ -864,7 +881,11 @@ def process_set_as_link_property_ref(
             var = pathctx.get_rvar_path_identity_var(
                 link_rvar, link_prefix.path_id, env=ctx.env)
             pathctx.put_rvar_path_output(
-                link_rvar, link_path_id.tgt_path(), 'identity', var)
+                link_rvar,
+                link_path_id.tgt_path(),
+                pgce.PathAspect.IDENTITY,
+                var,
+            )
 
         if astutils.is_set_op_query(link_rvar.query):
             # If we have an rptr_specialization, then this is a link
@@ -908,7 +929,10 @@ def process_set_as_link_property_ref(
                 )
 
         rvars.append(SetRVar(
-            link_rvar, link_path_id, aspects=['value', 'source']))
+            link_rvar,
+            link_path_id,
+            aspects=[pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE],
+        ))
 
     return SetRVars(main=SetRVar(link_rvar, ir_set.path_id), new=rvars)
 
@@ -989,7 +1013,7 @@ def process_set_as_path_type_intersection(
             pathctx.put_path_id_map(
                 source_rvar.query, ir_set.path_id, ir_source.path_id)
 
-        for aspect in ('source', 'value'):
+        for aspect in (pgce.PathAspect.SOURCE, pgce.PathAspect.VALUE):
             pathctx.put_path_rvar(
                 stmt,
                 ir_source.path_id,
@@ -1005,7 +1029,11 @@ def process_set_as_path_type_intersection(
             )
 
     return new_stmt_set_rvar(
-        ir_set, stmt, aspects=['value', 'source'], ctx=ctx)
+        ir_set,
+        stmt,
+        aspects=[pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE],
+        ctx=ctx,
+    )
 
 
 def _source_path_needs_semi_join(
@@ -1121,8 +1149,11 @@ def process_set_as_path(
             if not ir_source.path_id.is_type_intersection_path():
                 src_rvar = ensure_source_rvar(ir_source, stmt, ctx=srcctx)
             set_rvar = relctx.semi_join(stmt, ir_set, src_rvar, ctx=srcctx)
-            rvars.append(SetRVar(set_rvar, ir_set.path_id,
-                                 ['value', 'source']))
+            rvars.append(SetRVar(
+                set_rvar,
+                ir_set.path_id,
+                [pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE]
+            ))
 
     elif is_id_ref_to_inline_source:
         assert source_rptr is not None
@@ -1162,7 +1193,7 @@ def process_set_as_path(
         main_rvar = SetRVar(
             ensure_source_rvar(ir_source, stmt, ctx=ctx),
             path_id=ir_set.path_id,
-            aspects=['value']
+            aspects=[pgce.PathAspect.VALUE]
         )
 
     elif is_inline_primitive_ref:
@@ -1173,14 +1204,14 @@ def process_set_as_path(
         main_rvar = SetRVar(
             ensure_source_rvar(ir_source, stmt, ctx=ctx),
             path_id=ir_set.path_id,
-            aspects=['value']
+            aspects=[pgce.PathAspect.VALUE]
         )
         rvars = [main_rvar]
 
     elif not semi_join:
         # Link range.
         if is_inline_ref:
-            aspects = ['value']
+            aspects = [pgce.PathAspect.VALUE]
             # If this is a link that is stored inline, make sure
             # the source aspect is actually accessible (not just value).
             src_rvar = ensure_source_rvar(ir_source, stmt, ctx=ctx)
@@ -1190,10 +1221,12 @@ def process_set_as_path(
             # in our return. This can come up with __old__ in triggers.
             if source_is_visible:
                 rvars.append(SetRVar(
-                    src_rvar, path_id=ir_source.path_id, aspects=['source']
+                    src_rvar,
+                    path_id=ir_source.path_id,
+                    aspects=[pgce.PathAspect.SOURCE]
                 ))
         else:
-            aspects = ['value', 'source']
+            aspects = [pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE]
             src_rvar = get_set_rvar(ir_source, ctx=ctx)
 
         map_rvar = SetRVar(
@@ -1211,7 +1244,7 @@ def process_set_as_path(
             main_rvar = SetRVar(
                 target_rvar,
                 path_id=ir_set.path_id,
-                aspects=['value', 'source']
+                aspects=[pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE]
             )
 
             rvars.append(main_rvar)
@@ -1219,7 +1252,7 @@ def process_set_as_path(
             main_rvar = SetRVar(
                 map_rvar.rvar,
                 path_id=ir_set.path_id,
-                aspects=['value'],
+                aspects=[pgce.PathAspect.VALUE],
             )
             rvars.append(main_rvar)
 
@@ -1234,9 +1267,9 @@ def process_set_as_path(
                 aspects=srvar.aspects, ctx=ctx)
 
         if is_primitive_ref:
-            aspects = ['value']
+            aspects = [pgce.PathAspect.VALUE]
         else:
-            aspects = ['value', 'source']
+            aspects = [pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE]
 
         main_rvar = SetRVar(
             relctx.new_rel_rvar(ir_set, stmt, ctx=ctx),
@@ -1261,7 +1294,7 @@ def _new_subquery_stmt_set_rvar(
     if ir_set.path_id.is_tuple_path():
         # If we are wrapping a tuple expression, make sure not to
         # over-represent it in terms of the exposed aspects.
-        aspects -= {'serialized'}
+        aspects -= {pgce.PathAspect.SERIALIZED}
 
     return new_stmt_set_rvar(
         ir_set, stmt, aspects=aspects, ctx=ctx)
@@ -1298,7 +1331,7 @@ def _lookup_set_rvar_in_source(
             path_id,
             src_rvar.subquery.view_path_id_map,
         ),
-        aspect='value',
+        aspect=pgce.PathAspect.VALUE,
         flavor='packed',
         env=ctx.env,
     ):
@@ -1395,8 +1428,12 @@ def process_set_as_subquery(
                 path_id = ir_source.path_id
                 newctx.volatility_ref += (
                     lambda _stmt, xctx: relctx.maybe_get_path_var(
-                        stmt, path_id=path_id, aspect='identity',
-                        ctx=xctx),)
+                        stmt,
+                        path_id=path_id,
+                        aspect=pgce.PathAspect.IDENTITY,
+                        ctx=xctx,
+                    ),
+                )
 
             if is_objtype_path and not source_is_visible:
                 # Non-scalar computable semi-join.
@@ -1437,10 +1474,19 @@ def process_set_as_subquery(
                 # semi-join, unfortunately: we need to extract data
                 # out from stmt, which we can't do with a semi-join.
                 value_var = pathctx.get_rvar_path_var(
-                    new_rvar, outer_id, aspect='value', env=ctx.env)
+                    new_rvar,
+                    outer_id,
+                    aspect=pgce.PathAspect.VALUE,
+                    env=ctx.env,
+                )
                 stmt.distinct_clause = (
                     pathctx.get_rvar_output_var_as_col_list(
-                        subrvar, value_var, aspect='value', env=ctx.env))
+                        subrvar,
+                        value_var,
+                        aspect=pgce.PathAspect.VALUE,
+                        env=ctx.env,
+                    )
+                )
 
             return _new_subquery_stmt_set_rvar(ir_set, stmt, ctx=newctx)
 
@@ -1487,12 +1533,16 @@ def process_set_as_subquery(
     # If the inner set also exposes a pointer path source, we need to
     # also expose a pointer path source. See tests like
     # test_edgeql_select_linkprop_rebind_01
-    if pathctx.maybe_get_path_rvar(stmt, inner_id.ptr_path(), aspect='source'):
+    if pathctx.maybe_get_path_rvar(
+        stmt,
+        inner_id.ptr_path(),
+        aspect=pgce.PathAspect.SOURCE,
+    ):
         rvars.new.append(
             SetRVar(
                 rvars.main.rvar,
                 outer_id.ptr_path(),
-                aspects=('source',),
+                aspects=(pgce.PathAspect.SOURCE,),
             )
         )
 
@@ -1671,10 +1721,18 @@ def process_set_as_distinct(
     relctx.include_rvar(stmt, subrvar, ir_set.path_id, ctx=ctx)
 
     value_var = pathctx.get_rvar_path_var(
-        subrvar, ir_set.path_id, aspect='value', env=ctx.env)
+        subrvar,
+        ir_set.path_id,
+        aspect=pgce.PathAspect.VALUE,
+        env=ctx.env,
+    )
 
     stmt.distinct_clause = pathctx.get_rvar_output_var_as_col_list(
-        subrvar, value_var, aspect='value', env=ctx.env)
+        subrvar,
+        value_var,
+        aspect=pgce.PathAspect.VALUE,
+        env=ctx.env,
+    )
     # If there aren't any columns, we are doing DISTINCT on empty
     # tuples. All empty tuples are equivalent, so we can just compile
     # this by adding a LIMIT 1.
@@ -1702,8 +1760,11 @@ def process_set_as_ifelse(
         newctx.expr_exposed = False
         dispatch.visit(condition, ctx=newctx)
         condref = relctx.get_path_var(
-            stmt, path_id=condition.path_id,
-            aspect='value', ctx=newctx)
+            stmt,
+            path_id=condition.path_id,
+            aspect=pgce.PathAspect.VALUE,
+            ctx=newctx,
+        )
 
     if (if_expr_card.is_single() and else_expr_card.is_single()
             and irtyputils.is_scalar(expr.typeref)):
@@ -1850,7 +1911,10 @@ def process_set_as_coalesce(
             # so it shouldn't ever produce zero rows.
             lhs_rvar = get_set_rvar(left_ir, ctx=newctx)
             lvar = pathctx.get_rvar_path_var(
-                lhs_rvar, left_ir.path_id, aspect='value', env=ctx.env
+                lhs_rvar,
+                left_ir.path_id,
+                aspect=pgce.PathAspect.VALUE,
+                env=ctx.env,
             )
             lval = output.output_as_value(lvar, env=ctx.env)
 
@@ -1991,10 +2055,18 @@ def process_set_as_tuple(
                 )
 
             var = pathctx.maybe_get_path_var(
-                stmt, element.val.path_id,
-                aspect='serialized', env=subctx.env)
+                stmt,
+                element.val.path_id,
+                aspect=pgce.PathAspect.SERIALIZED,
+                env=subctx.env,
+            )
             if var is not None:
-                pathctx.put_path_var(stmt, path_id, var, aspect='serialized')
+                pathctx.put_path_var(
+                    stmt,
+                    path_id,
+                    var,
+                    aspect=pgce.PathAspect.SERIALIZED,
+                )
 
         set_expr = pgast.TupleVarBase(
             elements=elements,
@@ -2019,7 +2091,10 @@ def process_set_as_tuple(
         pathctx.get_path_serialized_output(stmt, ir_set.path_id, env=ctx.env)
 
     return new_stmt_set_rvar(
-        ir_set, stmt, aspects=['value', 'source'], ctx=ctx
+        ir_set,
+        stmt,
+        aspects=[pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE],
+        ctx=ctx,
     )
 
 
@@ -2055,7 +2130,11 @@ def process_set_as_tuple_indirection(
         rvar = get_set_rvar(tuple_set, ctx=subctx)
 
         source_rvar = relctx.maybe_get_path_rvar(
-            stmt, tuple_set.path_id, aspect='source', ctx=subctx)
+            stmt,
+            tuple_set.path_id,
+            aspect=pgce.PathAspect.SOURCE,
+            ctx=subctx,
+        )
 
         if source_rvar is None:
             # Lack of visible tuple source means we are
@@ -2072,12 +2151,19 @@ def process_set_as_tuple_indirection(
             )
 
             pathctx.put_path_var_if_not_exists(
-                stmt, ir_set.path_id, set_expr, aspect='value'
+                stmt,
+                ir_set.path_id,
+                set_expr,
+                aspect=pgce.PathAspect.VALUE,
             )
 
             rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=subctx)
 
-    return new_simple_set_rvar(ir_set, rvar, aspects=('value',))
+    return new_simple_set_rvar(
+        ir_set,
+        rvar,
+        aspects=(pgce.PathAspect.VALUE,),
+    )
 
 
 @register_get_rvar(irast.TypeCast)
@@ -2296,7 +2382,7 @@ def process_set_as_singleton_assertion(
         )
 
         pathctx.put_path_var_if_not_exists(
-            newctx.rel, ir_set.path_id, arg_val, aspect='value'
+            newctx.rel, ir_set.path_id, arg_val, aspect=pgce.PathAspect.VALUE
         )
 
         pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg_set.path_id)
@@ -2376,7 +2462,10 @@ def process_set_as_existence_assertion(
             force=True,
         )
         other_aspect = (
-            'identity' if ir_set.path_id.is_objtype_path() else 'serialized')
+            pgce.PathAspect.IDENTITY
+            if ir_set.path_id.is_objtype_path() else
+            pgce.PathAspect.SERIALIZED
+        )
         pathctx.put_path_var(
             newctx.rel,
             ir_arg_set.path_id,
@@ -2391,10 +2480,19 @@ def process_set_as_existence_assertion(
     # needed, which will trigger it.
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(
-        stmt, func_rvar, ir_set.path_id, aspects=('value',), ctx=ctx
+        stmt,
+        func_rvar,
+        ir_set.path_id,
+        aspects=(pgce.PathAspect.VALUE,),
+        ctx=ctx,
     )
 
-    return new_stmt_set_rvar(ir_set, stmt, aspects=('value',), ctx=ctx)
+    return new_stmt_set_rvar(
+        ir_set,
+        stmt,
+        aspects=(pgce.PathAspect.VALUE,),
+        ctx=ctx,
+    )
 
 
 @_special_case('std::assert_distinct')
@@ -2442,7 +2540,11 @@ def process_set_as_multiplicity_assertion(
         with newctx.subrel() as subctx:
             dispatch.visit(ir_arg_set, ctx=subctx)
             arg_ref = pathctx.get_path_output(
-                subctx.rel, ir_arg_set.path_id, aspect='value', env=subctx.env)
+                subctx.rel,
+                ir_arg_set.path_id,
+                aspect=pgce.PathAspect.VALUE,
+                env=subctx.env,
+            )
             arg_val = output.output_as_value(arg_ref, env=newctx.env)
             sub_rvar = relctx.new_rel_rvar(ir_arg_set, subctx.rel, ctx=subctx)
 
@@ -2527,7 +2629,7 @@ def process_set_as_multiplicity_assertion(
             newctx.rel,
             ir_set.path_id,
             check_expr,
-            aspect='value',
+            aspect=pgce.PathAspect.VALUE,
         )
 
         if newctx.rel.sort_clause is None:
@@ -2623,22 +2725,28 @@ def process_set_as_simple_enumerate(
             )
 
         var = pathctx.maybe_get_path_var(
-            newctx.rel, ir_arg.path_id,
-            aspect='serialized', env=newctx.env)
+            newctx.rel,
+            ir_arg.path_id,
+            aspect=pgce.PathAspect.SERIALIZED,
+            env=newctx.env,
+        )
         if var is not None:
             pathctx.put_path_var(
                 newctx.rel,
                 set_expr.elements[1].path_id,
                 var,
-                aspect='serialized',
+                aspect=pgce.PathAspect.SERIALIZED,
             )
 
         pathctx.put_path_var_if_not_exists(
-            newctx.rel, ir_set.path_id, set_expr, aspect='value'
+            newctx.rel,
+            ir_set.path_id,
+            set_expr,
+            aspect=pgce.PathAspect.VALUE,
         )
 
     aspects = pathctx.list_path_aspects(newctx.rel, ir_arg.path_id) | {
-        'source'
+        pgce.PathAspect.SOURCE
     }
 
     pathctx.put_path_id_map(newctx.rel, expr.tuple_path_ids[1], ir_arg.path_id)
@@ -3057,10 +3165,17 @@ def _process_set_func_with_ordinality(
         exprcomp._compile_shape(ir_set, ir_set.shape, ctx=ctx)
 
     var = pathctx.maybe_get_path_var(
-        ctx.rel, ir_set.path_id, aspect='serialized', env=ctx.env)
+        ctx.rel,
+        ir_set.path_id,
+        aspect=pgce.PathAspect.SERIALIZED,
+        env=ctx.env,
+    )
     if var is not None:
         pathctx.put_path_var(
-            ctx.rel, set_expr.elements[1].path_id, var, aspect='serialized'
+            ctx.rel,
+            set_expr.elements[1].path_id,
+            var,
+            aspect=pgce.PathAspect.SERIALIZED,
         )
 
     return set_expr
@@ -3157,10 +3272,13 @@ def _compile_func_epilogue(
         relctx.apply_volatility_ref(func_rel, ctx=ctx)
 
     pathctx.put_path_var_if_not_exists(
-        func_rel, ir_set.path_id, set_expr, aspect='value'
+        func_rel,
+        ir_set.path_id,
+        set_expr,
+        aspect=pgce.PathAspect.VALUE,
     )
 
-    aspects: Tuple[str, ...] = ('value',)
+    aspects: Tuple[pgce.PathAspect, ...] = (pgce.PathAspect.VALUE,)
 
     func_rvar = relctx.new_rel_rvar(ir_set, func_rel, ctx=ctx)
     relctx.include_rvar(
@@ -3179,7 +3297,7 @@ def _compile_func_epilogue(
         # TupleVar as opposed to an opaque record datum, so
         # we can access the elements directly without using
         # `tuple_getattr()`.
-        aspects += ('source',)
+        aspects += (pgce.PathAspect.SOURCE,)
 
     return new_stmt_set_rvar(ir_set, ctx.rel, aspects=aspects, ctx=ctx)
 
@@ -3281,7 +3399,7 @@ def _compile_call_args(
             type_ref = relctx.get_path_var(
                 ctx.rel,
                 ir_arg.expr_type_path_id,
-                aspect='identity',
+                aspect=pgce.PathAspect.IDENTITY,
                 ctx=ctx,
             )
             args.append(type_ref)
@@ -3394,7 +3512,7 @@ def process_set_as_func_expr(
 def process_set_as_agg_expr_inner(
     ir_set: irast.SetE[irast.FunctionCall],
     *,
-    aspect: str,
+    aspect: pgce.PathAspect,
     wrapper: Optional[pgast.SelectStmt],
     for_group_by: bool = False,
     ctx: context.CompilerContextLevel,
@@ -3416,7 +3534,9 @@ def process_set_as_agg_expr_inner(
             # check if the aggregate accepts a single argument
             # of "any" to determine serialized input safety.
             serialization_safe = (
-                expr.func_polymorphic and aspect == 'serialized')
+                expr.func_polymorphic
+                and aspect == pgce.PathAspect.SERIALIZED
+            )
 
             if not serialization_safe:
                 argctx.expr_exposed = False
@@ -3431,7 +3551,7 @@ def process_set_as_agg_expr_inner(
                     arg_ref = set_as_subquery(
                         ir_arg, as_value=True, ctx=argctx)
                     arg_ref.nullable = False
-                elif aspect == 'serialized':
+                elif aspect == pgce.PathAspect.SERIALIZED:
                     dispatch.visit(ir_arg, ctx=argctx)
 
                     arg_ref = pathctx.get_path_serialized_or_value_var(
@@ -3499,7 +3619,7 @@ def process_set_as_agg_expr_inner(
                         qrvar = pathctx.get_path_rvar(
                             ctx.rel,
                             ir_arg.path_id,
-                            aspect='value',
+                            aspect=pgce.PathAspect.VALUE,
                         )
                         query = qrvar.query
                         assert isinstance(query, pgast.SelectStmt)
@@ -3586,7 +3706,7 @@ def process_set_as_agg_expr_inner(
         iv_ir = expr.func_initial_value.expr
         assert iv_ir is not None
 
-        if serialization_safe and aspect == 'serialized':
+        if serialization_safe and aspect == pgce.PathAspect.SERIALIZED:
             # Serialization has changed the output type.
             with ctx.new() as ivctx:
                 iv = dispatch.compile(iv_ir, ctx=ivctx)
@@ -3626,9 +3746,9 @@ def process_set_as_agg_expr_inner(
     # Cheat a little bit: as discussed above, pretend the serialized
     # value is also really a value. Eta-expansion should ensure this
     # only happens when we don't really need the value again.
-    if aspect == 'serialized':
+    if aspect == pgce.PathAspect.SERIALIZED:
         pathctx.put_path_var_if_not_exists(
-            stmt, ir_set.path_id, set_expr, aspect='value'
+            stmt, ir_set.path_id, set_expr, aspect=pgce.PathAspect.VALUE
         )
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
@@ -3661,7 +3781,11 @@ def process_set_as_agg_expr(
     cctx = ctx.subrel() if wrapper else ctx.new()
     with cctx as xctx:
         xctx.expr_exposed = serialized
-        aspect = 'serialized' if serialized else 'value'
+        aspect = (
+            pgce.PathAspect.SERIALIZED
+            if serialized else
+            pgce.PathAspect.VALUE
+        )
         process_set_as_agg_expr_inner(
             ir_set, aspect=aspect, wrapper=wrapper, ctx=xctx
         )
@@ -3856,7 +3980,7 @@ def process_encoded_param(
         )
         relctx.include_rvar(
             sctx.rel, cte_rvar, decoder.path_id, pull_namespace=False,
-            aspects=('value',), ctx=sctx,
+            aspects=(pgce.PathAspect.VALUE,), ctx=sctx,
         )
         pathctx.get_path_value_output(sctx.rel, decoder.path_id, env=ctx.env)
         if not param.required:
@@ -3955,7 +4079,7 @@ def _ext_ai_search_inner_pgvector(
     embedding = relctx.get_path_var(
         newctx.rel,
         embedding_id,
-        aspect='value',
+        aspect=pgce.PathAspect.VALUE,
         ctx=newctx,
     )
 
@@ -4033,7 +4157,10 @@ def _process_set_as_object_search(
             )
 
             pathctx.put_path_var(
-                inner_ctx.rel, out_score_id, score_pg, aspect='value'
+                inner_ctx.rel,
+                out_score_id,
+                score_pg,
+                aspect=pgce.PathAspect.VALUE,
             )
 
             if where_clause is not None:
@@ -4043,14 +4170,24 @@ def _process_set_as_object_search(
 
             in_rvar = relctx.new_rel_rvar(ir_set, inner_ctx.rel, ctx=newctx)
             relctx.include_rvar(
-                newctx.rel, in_rvar, out_score_id, aspects={'value'}, ctx=newctx
+                newctx.rel,
+                in_rvar,
+                out_score_id,
+                aspects={pgce.PathAspect.VALUE},
+                ctx=newctx,
             )
 
         obj_id_pg_ref = pathctx.get_rvar_path_var(
-            obj_rvar, obj_id, aspect='value', env=newctx.env
+            obj_rvar,
+            obj_id,
+            aspect=pgce.PathAspect.VALUE,
+            env=newctx.env,
         )
         score_pg_ref = pathctx.get_path_var(
-            newctx.rel, out_score_id, aspect='value', env=newctx.env
+            newctx.rel,
+            out_score_id,
+            aspect=pgce.PathAspect.VALUE,
+            env=newctx.env,
         )
 
         tuple_expr = pgast.TupleVar(
@@ -4071,30 +4208,41 @@ def _process_set_as_object_search(
         )
 
         pathctx.put_path_var(
-            newctx.rel, ir_set.path_id, tuple_expr, aspect='value'
+            newctx.rel,
+            ir_set.path_id,
+            tuple_expr,
+            aspect=pgce.PathAspect.VALUE,
         )
 
         var = pathctx.maybe_get_path_var(
-            newctx.rel, obj_id, aspect='serialized', env=newctx.env
+            newctx.rel,
+            obj_id,
+            aspect=pgce.PathAspect.SERIALIZED,
+            env=newctx.env,
         )
         if var is not None:
             pathctx.put_path_var(
                 newctx.rel,
                 out_obj_id,
                 var,
-                aspect='serialized',
+                aspect=pgce.PathAspect.SERIALIZED,
             )
 
     pathctx.put_path_id_map(newctx.rel, out_obj_id, obj_id)
 
-    aspects = {'value', 'source'}
+    aspects = {pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE}
 
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(
         ctx.rel, func_rvar, ir_set.path_id, aspects=aspects, ctx=ctx
     )
 
-    pathctx.put_path_rvar(ctx.rel, out_obj_id, func_rvar, aspect='source')
+    pathctx.put_path_rvar(
+        ctx.rel,
+        out_obj_id,
+        func_rvar,
+        aspect=pgce.PathAspect.SOURCE,
+    )
 
     return new_stmt_set_rvar(ir_set, ctx.rel, aspects=aspects, ctx=ctx)
 
@@ -4120,7 +4268,7 @@ def _fts_search_inner_pg(
     fts_document = relctx.get_path_var(
         newctx.rel,
         fts_document_id,
-        aspect='value',
+        aspect=pgce.PathAspect.VALUE,
         ctx=newctx,
     )
 
@@ -4134,7 +4282,10 @@ def _fts_search_inner_pg(
     )
     parsed_query_id = create_subrel_for_expr(parsed_query, ctx=inner_ctx)
     parsed_query = pathctx.get_path_var(
-        inner_ctx.rel, parsed_query_id, aspect='value', env=ctx.env
+        inner_ctx.rel,
+        parsed_query_id,
+        aspect=pgce.PathAspect.VALUE,
+        env=ctx.env,
     )
 
     weights = _fts_prepare_weights(weights, ctx=inner_ctx)
@@ -4181,7 +4332,10 @@ def _fts_prepare_weights(
     # so it can be referenced mutiple times
     weights_id = create_subrel_for_expr(weights, ctx=ctx)
     weights = pathctx.get_path_var(
-        ctx.rel, weights_id, aspect='value', env=ctx.env
+        ctx.rel,
+        weights_id,
+        aspect=pgce.PathAspect.VALUE,
+        env=ctx.env,
     )
 
     # return array of first 4 values, reversed
@@ -4219,7 +4373,7 @@ def _fts_search_inner_zombo(
     ctid = relctx.get_path_var(
         newctx.rel,
         ctid_id,
-        aspect='value',
+        aspect=pgce.PathAspect.VALUE,
         ctx=newctx,
     )
 
@@ -4245,12 +4399,21 @@ def create_subrel_for_expr(
     with ctx.subrel() as newctx:
 
         # register the expression
-        pathctx.put_path_var(newctx.rel, expr_id, expr, aspect='value')
+        pathctx.put_path_var(
+            newctx.rel,
+            expr_id,
+            expr,
+            aspect=pgce.PathAspect.VALUE,
+        )
 
         # include the subrel in the parent
         new_rvar = relctx.rvar_for_rel(newctx.rel, ctx=ctx)
         relctx.include_rvar(
-            ctx.rel, new_rvar, expr_id, aspects=('value',), ctx=ctx
+            ctx.rel,
+            new_rvar,
+            expr_id,
+            aspects=(pgce.PathAspect.VALUE,),
+            ctx=ctx,
         )
 
     return expr_id

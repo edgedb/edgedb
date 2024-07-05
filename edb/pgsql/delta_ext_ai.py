@@ -108,6 +108,7 @@ from .common import qname as q
 from .common import quote_literal as ql
 from .common import quote_ident as qi
 from .compiler import astutils
+from .compiler import enums as pgce
 
 
 ai_index_base_name = sn.QualName("ext::ai", "index")
@@ -230,7 +231,11 @@ def _compile_ai_embeddings_source_view_expr(
 
     idx_id = _get_index_root_id(schema, index)
     table_name = common.get_index_table_backend_name(index, schema)
-    aspects = ("identity", "value", "source")
+    aspects = (
+        pgce.PathAspect.IDENTITY,
+        pgce.PathAspect.VALUE,
+        pgce.PathAspect.SOURCE
+    )
     qry = compiler.new_external_rvar_as_subquery(
         rel_name=table_name,
         path_id=subject_id,

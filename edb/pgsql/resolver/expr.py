@@ -28,6 +28,7 @@ from edb import errors
 from edb.pgsql import ast as pgast
 from edb.pgsql import common
 from edb.pgsql import compiler as pgcompiler
+from edb.pgsql.compiler import enums as pgce
 
 from edb.schema import types as s_types
 
@@ -148,7 +149,7 @@ def resolve_column_kind(
             sql_tree = pgcompiler.compile_ir_to_sql_tree(
                 compiled.irast,
                 external_rvars={
-                    (source_id, 'source'): pgast.RelRangeVar(
+                    (source_id, pgce.PathAspect.SOURCE): pgast.RelRangeVar(
                         alias=pgast.Alias(
                             aliasname=table.reference_as,
                         ),

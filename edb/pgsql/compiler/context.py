@@ -53,6 +53,7 @@ from . import aliases
 
 if TYPE_CHECKING:
     from edb.ir import ast as irast
+    from . import enums as pgce
 
 
 class ContextSwitchMode(enum.Enum):
@@ -313,7 +314,10 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: Mapping from path ids to "external" rels given by a particular relation
     external_rels: Mapping[
         irast.PathId,
-        Tuple[pgast.BaseRelation | pgast.CommonTableExpr, Tuple[str, ...]]
+        Tuple[
+            pgast.BaseRelation | pgast.CommonTableExpr,
+            Tuple[pgce.PathAspect, ...]
+        ]
     ]
 
     #: The CTE and some metadata of any enclosing iterator-like
@@ -513,7 +517,9 @@ class Environment:
     query_params: List[irast.Param]
     type_rewrites: Dict[RewriteKey, irast.Set]
     scope_tree_nodes: Dict[int, irast.ScopeTreeNode]
-    external_rvars: Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
+    external_rvars: Mapping[
+        Tuple[irast.PathId, pgce.PathAspect], pgast.PathRangeVar
+    ]
     materialized_views: Dict[uuid.UUID, irast.Set]
     backend_runtime_params: pgparams.BackendRuntimeParams
     versioned_stdlib: bool
@@ -536,7 +542,7 @@ class Environment:
         type_rewrites: Dict[RewriteKey, irast.Set],
         scope_tree_nodes: Dict[int, irast.ScopeTreeNode],
         external_rvars: Optional[
-            Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
+            Mapping[Tuple[irast.PathId, pgce.PathAspect], pgast.PathRangeVar]
         ] = None,
         backend_runtime_params: pgparams.BackendRuntimeParams,
         # XXX: TRAMPOLINE: THIS IS WRONG
