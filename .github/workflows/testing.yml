@@ -276,7 +276,7 @@ jobs:
         path: artifacts/ubuntu-jammy
 
   build-ubuntu-jammy-aarch64:
-    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
+    runs-on: ubuntu-latest
     needs: prep
 
 
@@ -297,6 +297,52 @@ jobs:
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
+
+  build-ubuntu-noble-x86_64:
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
+    needs: prep
+
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-noble@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "testing"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "noble"
+        EXTRA_OPTIMIZATIONS: "true"
+        BUILD_IS_RELEASE: "true"
+        METAPKG_GIT_CACHE: disabled
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: builds-ubuntu-noble-x86_64
+        path: artifacts/ubuntu-noble
+
+  build-ubuntu-noble-aarch64:
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
+    needs: prep
+
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-noble@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "testing"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "noble"
+        EXTRA_OPTIMIZATIONS: "true"
+        BUILD_IS_RELEASE: "true"
+        METAPKG_GIT_CACHE: disabled
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: builds-ubuntu-noble-aarch64
+        path: artifacts/ubuntu-noble
 
   build-centos-8-x86_64:
     runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
@@ -835,7 +881,7 @@ jobs:
 
   test-ubuntu-jammy-aarch64:
     needs: [build-ubuntu-jammy-aarch64]
-    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v4
@@ -849,6 +895,48 @@ jobs:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
+        PKG_PLATFORM_LIBC: ""
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 1
+
+  test-ubuntu-noble-x86_64:
+    needs: [build-ubuntu-noble-x86_64]
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-ubuntu-noble-x86_64
+        path: artifacts/ubuntu-noble
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-noble@master
+      env:
+        PKG_SUBDIST: "testing"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "noble"
+        PKG_PLATFORM_LIBC: ""
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 0
+
+  test-ubuntu-noble-aarch64:
+    needs: [build-ubuntu-noble-aarch64]
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-ubuntu-noble-aarch64
+        path: artifacts/ubuntu-noble
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-noble@master
+      env:
+        PKG_SUBDIST: "testing"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "noble"
         PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
@@ -1088,6 +1176,8 @@ jobs:
     - test-ubuntu-focal-aarch64
     - test-ubuntu-jammy-x86_64
     - test-ubuntu-jammy-aarch64
+    - test-ubuntu-noble-x86_64
+    - test-ubuntu-noble-aarch64
     - test-centos-8-x86_64
     - test-centos-8-aarch64
     - test-rockylinux-9-x86_64
@@ -1696,7 +1786,7 @@ jobs:
 
   check-published-ubuntu-jammy-aarch64:
     needs: [publish-ubuntu-jammy-aarch64]
-    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1718,6 +1808,110 @@ jobs:
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-ubuntu-noble-x86_64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-ubuntu-noble-x86_64
+        path: artifacts/ubuntu-noble
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "noble"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-ubuntu-noble-x86_64:
+    needs: [publish-ubuntu-noble-x86_64]
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-ubuntu-noble-x86_64
+        path: artifacts/ubuntu-noble
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-noble
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-noble@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "noble"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
+
+  publish-ubuntu-noble-aarch64:
+    needs: [collect]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-ubuntu-noble-aarch64
+        path: artifacts/ubuntu-noble
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "noble"
+        PKG_PLATFORM_LIBC: ""
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-ubuntu-noble-aarch64:
+    needs: [publish-ubuntu-noble-aarch64]
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-ubuntu-noble-aarch64
+        path: artifacts/ubuntu-noble
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-noble
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-noble@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PKG_SUBDIST: "testing"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "noble"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
@@ -2339,6 +2533,14 @@ jobs:
       - test-ubuntu-jammy-aarch64
       - publish-ubuntu-jammy-aarch64
       - check-published-ubuntu-jammy-aarch64
+      - build-ubuntu-noble-x86_64
+      - test-ubuntu-noble-x86_64
+      - publish-ubuntu-noble-x86_64
+      - check-published-ubuntu-noble-x86_64
+      - build-ubuntu-noble-aarch64
+      - test-ubuntu-noble-aarch64
+      - publish-ubuntu-noble-aarch64
+      - check-published-ubuntu-noble-aarch64
       - build-centos-8-x86_64
       - test-centos-8-x86_64
       - publish-centos-8-x86_64
