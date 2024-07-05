@@ -293,9 +293,11 @@ def edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
 
 
 def convert_name(
-    name: s_name.QualName, suffix='', catenate=True,
+    name: s_name.QualName,
+    suffix: str = '',
+    catenate: bool = True,
     *,
-    versioned=True,
+    versioned: bool = True,
 ):
     schema = get_module_backend_name(name.get_module_name())
     if suffix:
@@ -369,7 +371,12 @@ def get_scalar_backend_name(
             name, catenate, versioned=versioned, aspect=CastAspect.FUNCTION
         )
 
-    return convert_name(name, aspect, catenate, versioned=False)
+    return convert_name(
+        name,
+        str(aspect) if aspect is not None else '',
+        catenate,
+        versioned=False
+    )
 
 
 def get_aspect_suffix(aspect: RelAspect):
@@ -531,7 +538,11 @@ def get_constraint_backend_name(
         aspect = None
         sname = get_constraint_raw_name(id)
     name = s_name.QualName(module=module_name, name=sname)
-    return convert_name(name, aspect, catenate)
+    return convert_name(
+        name,
+        str(aspect) if aspect is not None else '',
+        catenate,
+    )
 
 
 def get_constraint_raw_name(id):
@@ -548,7 +559,11 @@ def get_index_backend_name(
     if aspect is None:
         aspect = IndexAspect.INDEX
     name = s_name.QualName(module=module_name, name=str(id))
-    return convert_name(name, aspect, catenate)
+    return convert_name(
+        name,
+        str(aspect) if aspect is not None else '',
+        catenate,
+    )
 
 
 def get_index_table_backend_name(
@@ -572,7 +587,11 @@ def get_tuple_backend_name(
 ) -> Union[str, tuple[str, str]]:
 
     name = s_name.QualName(module='edgedb', name=f'{id}_t')
-    return convert_name(name, aspect, catenate)
+    return convert_name(
+        name,
+        str(aspect) if aspect is not None else '',
+        catenate,
+    )
 
 
 @overload
