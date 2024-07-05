@@ -927,6 +927,21 @@ def process_set_as_link_property_ref(
                         ),
                     ),
                 )
+        elif isinstance(link_rvar.query, pgast.SelectStmt):
+            # When processing link properties into a CTE, map the current link
+            # path id into the form used by the CTE.
+
+            for from_rvar in link_rvar.query.from_clause:
+                if (
+                    isinstance(from_rvar, pgast.RelRangeVar)
+                    and isinstance(from_rvar.relation, pgast.CommonTableExpr)
+                    and from_rvar.relation.query.path_id is not None
+                ):
+                    pathctx.put_path_id_map(
+                        link_rvar.query,
+                        link_path_id,
+                        from_rvar.relation.query.path_id
+                    )
 
         rvars.append(SetRVar(
             link_rvar,

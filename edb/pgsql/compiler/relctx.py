@@ -2257,6 +2257,10 @@ def _range_for_component_ptrref(
                     rarg=rarg,
                 )
 
+            # Add the path to the CTE's query. This allows for the proper
+            # path mapping ot occur when processing link properties
+            inheritance_qry.path_id = component_ptrref_path_id
+
             ptr_cte = pgast.CommonTableExpr(
                 name=ctx.env.aliases.get(f't_{component_ptrref.name}'),
                 query=inheritance_qry,
