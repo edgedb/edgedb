@@ -30,25 +30,29 @@
 <% if tgt.family == "debian" %>
         idx_file=<< tgt.platform_version >>.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing << tgt.name >>'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing << tgt.name >>'
+            val=false
+          fi
         fi
 <% elif tgt.family == "redhat" %>
         idx_file=el<< tgt.platform_version >>.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing << tgt.name >>'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing << tgt.name >>'
+            val=false
+          fi
         fi
 <% elif tgt.family == "generic" %>
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-unknown-linux-<< "{}".format(tgt.platform_libc) if tgt.platform_libc else "gnu" >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-unknown-linux-<< "{}".format(tgt.platform_libc) if tgt.platform_libc else "gnu" >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter" || true)
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing << tgt.name >>'
           val=false
@@ -59,13 +63,13 @@
 <% for tgt in targets.macos %>
         val=true
 <% if tgt.platform == "macos" %>
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter" || true)
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing << tgt.platform >>-<< tgt.platform_version >>'
           val=false
         fi
 <% elif tgt.platform == "win" %>
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-pc-windows-msvc.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-pc-windows-msvc.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter" || true)
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing << tgt.platform >>-<< tgt.platform_version >>'
           val=false
