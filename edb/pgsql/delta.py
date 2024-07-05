@@ -2316,7 +2316,11 @@ class CreateScalarType(ScalarTypeMetaCommand,
 
             if cls.is_sequence(schema, scalar):
                 seq_name = common.get_backend_name(
-                    schema, scalar, catenate=False, aspect='sequence')
+                    schema,
+                    scalar,
+                    catenate=False,
+                    aspect=common.ScalarAspect.SEQUENCE,
+                )
                 ops.add_command(dbops.CreateSequence(name=seq_name))
 
             domain = dbops.Domain(name=new_domain_name, base=base)
@@ -2357,7 +2361,10 @@ class CreateScalarType(ScalarTypeMetaCommand,
         # needed for casting within indexes/constraints.
         # (Postgres casts are only stable)
         cast_func_name = common.get_backend_name(
-            schema, scalar, catenate=False, aspect="enum-cast-from-str"
+            schema,
+            scalar,
+            catenate=False,
+            aspect=common.ScalarAspect.ENUM_CAST_FROM_STR,
         )
         cast_func = fcls(
             name=cast_func_name,
@@ -2371,7 +2378,10 @@ class CreateScalarType(ScalarTypeMetaCommand,
 
         # Simialry, uncast from enum to str
         uncast_func_name = common.get_backend_name(
-            schema, scalar, catenate=False, aspect="enum-cast-into-str"
+            schema,
+            scalar,
+            catenate=False,
+            aspect=common.ScalarAspect.ENUM_CAST_INTO_STR,
         )
         uncast_func = fcls(
             name=uncast_func_name,
@@ -2883,7 +2893,10 @@ class DeleteScalarType(ScalarTypeMetaCommand,
             cond = dbops.EnumExists(old_enum_name)
 
             cast_func_name = common.get_backend_name(
-                orig_schema, scalar, False, aspect="enum-cast-from-str"
+                orig_schema,
+                scalar,
+                False,
+                aspect=common.ScalarAspect.ENUM_CAST_FROM_STR,
             )
             cast_func = dbops.DropFunction(
                 name=cast_func_name,
@@ -2893,7 +2906,10 @@ class DeleteScalarType(ScalarTypeMetaCommand,
             ops.add_command(cast_func)
 
             uncast_func_name = common.get_backend_name(
-                orig_schema, scalar, False, aspect="enum-cast-into-str"
+                orig_schema,
+                scalar,
+                False,
+                aspect=common.ScalarAspect.ENUM_CAST_INTO_STR,
             )
             uncast_func = dbops.DropFunction(
                 name=uncast_func_name,
@@ -2935,7 +2951,11 @@ class DeleteScalarType(ScalarTypeMetaCommand,
 
         if self.is_sequence(orig_schema, scalar):
             seq_name = common.get_backend_name(
-                orig_schema, scalar, catenate=False, aspect='sequence')
+                orig_schema,
+                scalar,
+                catenate=False,
+                aspect=common.ScalarAspect.SEQUENCE,
+            )
             self.pgops.add(dbops.DropSequence(name=seq_name))
 
         return schema
@@ -4218,7 +4238,11 @@ class PointerMetaCommand(
             #       using std::nextval().
             seq_name = common.quote_literal(
                 common.get_backend_name(
-                    schema, ptr.get_target(schema), aspect='sequence'))
+                    schema,
+                    ptr.get_target(schema),
+                    aspect=common.ScalarAspect.SEQUENCE,
+                )
+            )
             default_value = f'nextval({seq_name}::regclass)'
 
         return default_value

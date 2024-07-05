@@ -75,6 +75,35 @@ class RelAspect(s_enum.StrEnum):
             raise NotImplementedError
 
 
+class ScalarAspect(s_enum.StrEnum):
+    DOMAIN = 'domain'
+    SEQUENCE = 'sequence'
+    ENUM = 'enum'
+    ENUM_CAST_INTO_STR = 'enum-cast-into-str'
+    ENUM_CAST_FROM_STR = 'enum-cast-from-str'
+    SOURCE_DEL_IMM_OTL_F = 'source-del-imm-otl-f'
+    SOURCE_DEL_IMM_OTL_T = 'source-del-imm-otl-t'
+
+    @staticmethod
+    def from_str(label: str) -> ScalarAspect:
+        if label == 'domain':
+            return ScalarAspect.DOMAIN
+        elif label == 'sequence':
+            return ScalarAspect.SEQUENCE
+        elif label == 'enum':
+            return ScalarAspect.ENUM
+        elif label == 'enum-cast-into-str':
+            return ScalarAspect.ENUM_CAST_INTO_STR
+        elif label == 'enum-cast-from-str':
+            return ScalarAspect.ENUM_CAST_FROM_STR
+        elif label == 'source-del-imm-otl-f':
+            return ScalarAspect.SOURCE_DEL_IMM_OTL_F
+        elif label == 'source-del-imm-otl-t':
+            return ScalarAspect.SOURCE_DEL_IMM_OTL_T
+        else:
+            raise NotImplementedError
+
+
 def quote_e_literal(string: str) -> str:
     def escape_sq(s):
         split = re.split(r"(\n|\\\\|\\')", s)
@@ -301,18 +330,23 @@ def update_aspect(name, aspect: RelAspect):
 
 
 def get_scalar_backend_name(
-    id, module_name, catenate=True, *, versioned=True, aspect=None
+    id,
+    module_name: str,
+    catenate: bool = True,
+    *,
+    versioned: bool = True,
+    aspect: Optional[ScalarAspect] = None
 ):
     if aspect is None:
-        aspect = 'domain'
+        aspect = ScalarAspect.DOMAIN
     if aspect not in (
-        "domain",
-        "sequence",
-        "enum",
-        "enum-cast-into-str",
-        "enum-cast-from-str",
-        "source-del-imm-otl-f",
-        "source-del-imm-otl-t",
+        ScalarAspect.DOMAIN,
+        ScalarAspect.SEQUENCE,
+        ScalarAspect.ENUM,
+        ScalarAspect.ENUM_CAST_INTO_STR,
+        ScalarAspect.ENUM_CAST_FROM_STR,
+        ScalarAspect.SOURCE_DEL_IMM_OTL_F,
+        ScalarAspect.SOURCE_DEL_IMM_OTL_T,
     ):
         raise ValueError(
             f'unexpected aspect for scalar backend name: {aspect!r}')
@@ -320,7 +354,11 @@ def get_scalar_backend_name(
 
     # XXX: TRAMPOLINE: VERSIONING???
     if aspect.startswith("enum-cast-"):
-        suffix = "_into_str" if aspect == "enum-cast-into-str" else "_from_str"
+        suffix = (
+            "_into_str"
+            if aspect == ScalarAspect.ENUM_CAST_INTO_STR
+            else "_from_str"
+        )
         name = s_name.QualName(name.module, name.name + suffix)
         return get_cast_backend_name(
             name, catenate, versioned=versioned, aspect="function")
@@ -565,9 +603,15 @@ def get_backend_name(
 
     elif isinstance(obj, s_scalars.ScalarType):
         name = obj.get_name(schema)
-        return get_scalar_backend_name(obj.id, name.module, catenate=catenate,
-                                       versioned=versioned,
-                                       aspect=aspect)
+        return get_scalar_backend_name(
+            obj.id,
+            name.module,
+            catenate=catenate,
+            versioned=versioned,
+            aspect=(
+                ScalarAspect.from_str(aspect) if aspect is not None else None
+            ),
+        )
 
     elif isinstance(obj, s_opers.Operator):
         name = obj.get_shortname(schema)
