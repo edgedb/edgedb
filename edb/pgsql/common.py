@@ -61,19 +61,6 @@ class RelAspect(s_enum.StrEnum):
     INHVIEW = 'inhview'
     DUMMY = 'dummy'
 
-    @staticmethod
-    def from_str(label: str) -> RelAspect:
-        if label == 'table':
-            return RelAspect.TABLE
-        elif label == 'index':
-            return RelAspect.INDEX
-        elif label == 'inhview':
-            return RelAspect.INHVIEW
-        elif label == 'dummy':
-            return RelAspect.DUMMY
-        else:
-            raise NotImplementedError
-
 
 class ScalarAspect(s_enum.StrEnum):
     DOMAIN = 'domain'
@@ -84,63 +71,19 @@ class ScalarAspect(s_enum.StrEnum):
     SOURCE_DEL_IMM_OTL_F = 'source-del-imm-otl-f'
     SOURCE_DEL_IMM_OTL_T = 'source-del-imm-otl-t'
 
-    @staticmethod
-    def from_str(label: str) -> ScalarAspect:
-        if label == 'domain':
-            return ScalarAspect.DOMAIN
-        elif label == 'sequence':
-            return ScalarAspect.SEQUENCE
-        elif label == 'enum':
-            return ScalarAspect.ENUM
-        elif label == 'enum-cast-into-str':
-            return ScalarAspect.ENUM_CAST_INTO_STR
-        elif label == 'enum-cast-from-str':
-            return ScalarAspect.ENUM_CAST_FROM_STR
-        elif label == 'source-del-imm-otl-f':
-            return ScalarAspect.SOURCE_DEL_IMM_OTL_F
-        elif label == 'source-del-imm-otl-t':
-            return ScalarAspect.SOURCE_DEL_IMM_OTL_T
-        else:
-            raise NotImplementedError
-
 
 class OperatorAspect(s_enum.StrEnum):
     OPERATOR = 'operator'
     FUNCTION = 'function'
 
-    @staticmethod
-    def from_str(label: str) -> OperatorAspect:
-        if label == 'operator':
-            return OperatorAspect.OPERATOR
-        elif label == 'function':
-            return OperatorAspect.FUNCTION
-        else:
-            raise NotImplementedError
-
 
 class CastAspect(s_enum.StrEnum):
     FUNCTION = 'function'
-
-    @staticmethod
-    def from_str(label: str) -> CastAspect:
-        if label == 'function':
-            return CastAspect.FUNCTION
-        else:
-            raise NotImplementedError
 
 
 class ConstraintAspect(s_enum.StrEnum):
     TRIG_PROC = 'trigproc'
     INDEX = 'index'
-
-    @staticmethod
-    def from_str(label: str) -> ConstraintAspect:
-        if label == 'trigproc':
-            return ConstraintAspect.TRIG_PROC
-        elif label == 'index':
-            return ConstraintAspect.INDEX
-        else:
-            raise NotImplementedError
 
 
 class IndexAspect(str):
