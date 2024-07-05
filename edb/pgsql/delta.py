@@ -1816,7 +1816,12 @@ class DeleteOperator(OperatorCommand, adapts=s_opers.DeleteOperator):
 class CastCommand(MetaCommand):
     def make_cast_function(self, cast: s_casts.Cast, schema):
         name = common.get_backend_name(
-            schema, cast, catenate=False, versioned=False, aspect='function')
+            schema,
+            cast,
+            catenate=False,
+            versioned=False,
+            aspect=str(common.CastAspect.FUNCTION),
+        )
 
         args: Sequence[dbops.FunctionArg] = [
             (

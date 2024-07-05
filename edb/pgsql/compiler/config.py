@@ -685,7 +685,7 @@ def _compile_config_value(
         val = pgast.FuncCall(
             name=common.get_cast_backend_name(
                 cast_name,
-                aspect='function',
+                aspect=common.CastAspect.FUNCTION,
                 versioned=ctx.env.versioned_stdlib,
             ),
             args=[val],

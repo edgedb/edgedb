@@ -229,7 +229,8 @@ def compile_TypeCast(
         assert expr.cast_name
 
         func_name = common.get_cast_backend_name(
-            expr.cast_name, aspect="function",
+            expr.cast_name,
+            aspect=common.CastAspect.FUNCTION,
             versioned=ctx.env.versioned_stdlib,
         )
 

@@ -608,7 +608,9 @@ def serialize_expr_to_json(
         )
         val = pgast.FuncCall(
             name=common.get_cast_backend_name(
-                cast_name, aspect='function', versioned=env.versioned_stdlib
+                cast_name,
+                aspect=common.CastAspect.FUNCTION,
+                versioned=env.versioned_stdlib,
             ),
             args=[expr], null_safe=True, ser_safe=True)
         if env.output_format in _JSON_FORMATS:

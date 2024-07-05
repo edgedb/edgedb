@@ -118,6 +118,17 @@ class OperatorAspect(s_enum.StrEnum):
             raise NotImplementedError
 
 
+class CastAspect(s_enum.StrEnum):
+    FUNCTION = 'function'
+
+    @staticmethod
+    def from_str(label: str) -> CastAspect:
+        if label == 'function':
+            return CastAspect.FUNCTION
+        else:
+            raise NotImplementedError
+
+
 def quote_e_literal(string: str) -> str:
     def escape_sq(s):
         split = re.split(r"(\n|\\\\|\\')", s)
@@ -375,7 +386,8 @@ def get_scalar_backend_name(
         )
         name = s_name.QualName(name.module, name.name + suffix)
         return get_cast_backend_name(
-            name, catenate, versioned=versioned, aspect="function")
+            name, catenate, versioned=versioned, aspect=CastAspect.FUNCTION
+        )
 
     return convert_name(name, aspect, catenate, versioned=False)
 
@@ -495,9 +507,13 @@ def get_operator_backend_name(
 
 
 def get_cast_backend_name(
-    fullname: s_name.QualName, catenate=False, *, versioned=True, aspect=None
+    fullname: s_name.QualName,
+    catenate: bool = False,
+    *,
+    versioned: bool = True,
+    aspect: Optional[CastAspect] = None
 ):
-    if aspect == "function":
+    if aspect == CastAspect.FUNCTION:
         return convert_name(
             fullname, "f", catenate=catenate, versioned=versioned)
     else:
@@ -645,7 +661,13 @@ def get_backend_name(
     elif isinstance(obj, s_casts.Cast):
         name = obj.get_name(schema)
         return get_cast_backend_name(
-            name, catenate, versioned=versioned, aspect=aspect)
+            name,
+            catenate,
+            versioned=versioned,
+            aspect=(
+                CastAspect.from_str(aspect) if aspect is not None else None
+            )
+        )
 
     elif isinstance(obj, s_func.Function):
         name = obj.get_shortname(schema)
