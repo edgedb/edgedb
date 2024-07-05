@@ -129,6 +129,20 @@ class CastAspect(s_enum.StrEnum):
             raise NotImplementedError
 
 
+class ConstraintAspect(s_enum.StrEnum):
+    TRIG_PROC = 'trigproc'
+    INDEX = 'index'
+
+    @staticmethod
+    def from_str(label: str) -> ConstraintAspect:
+        if label == 'trigproc':
+            return ConstraintAspect.TRIG_PROC
+        elif label == 'index':
+            return ConstraintAspect.INDEX
+        else:
+            raise NotImplementedError
+
+
 def quote_e_literal(string: str) -> str:
     def escape_sq(s):
         split = re.split(r"(\n|\\\\|\\')", s)
@@ -535,13 +549,19 @@ def get_function_backend_name(
         return schema, func_name
 
 
-def get_constraint_backend_name(id, module_name, catenate=True, *, aspect=None):
-    if aspect not in ('trigproc', 'index'):
+def get_constraint_backend_name(
+    id,
+    module_name: str,
+    catenate: bool = True,
+    *,
+    aspect: Optional[ConstraintAspect] = None,
+):
+    if aspect not in (ConstraintAspect.TRIG_PROC, ConstraintAspect.INDEX):
         raise ValueError(
             f'unexpected aspect for constraint backend name: {aspect!r}')
 
     sname = str(id)
-    if aspect == 'index':
+    if aspect == ConstraintAspect.INDEX:
         aspect = None
         sname = get_constraint_raw_name(id)
     name = s_name.QualName(module=module_name, name=sname)
@@ -678,7 +698,11 @@ def get_backend_name(
     elif isinstance(obj, s_constr.Constraint):
         name = obj.get_name(schema)
         return get_constraint_backend_name(
-            obj.id, name.module, catenate, aspect=aspect)
+            obj.id, name.module, catenate, aspect=(
+                ConstraintAspect.from_str(aspect)
+                if aspect is not None else
+                None
+            ))
 
     elif isinstance(obj, s_indexes.Index):
         name = obj.get_name(schema)

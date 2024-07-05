@@ -174,7 +174,11 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
 
     def get_trigger_procname(self):
         return common.get_backend_name(
-            self._schema, self._constraint, catenate=False, aspect='trigproc')
+            self._schema,
+            self._constraint,
+            catenate=False,
+            aspect=str(common.ConstraintAspect.TRIG_PROC),
+        )
 
     def get_trigger_condition(self):
         chunks = []
