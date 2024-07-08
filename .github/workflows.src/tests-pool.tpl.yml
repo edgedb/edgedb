@@ -33,6 +33,10 @@ jobs:
         path: pool-simulation
         token: ${{ secrets.GITHUB_CI_BOT_TOKEN }}
 
+    - name: Make output directory
+      run: |
+        mkdir -p pool-simulation/reports
+
     <%- call build() -%>
     - name: Compute cache keys
       run: |

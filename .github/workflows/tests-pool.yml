@@ -30,6 +30,10 @@ jobs:
         repository: edgedb/edgedb-pool-simulation
         path: pool-simulation
         token: ${{ secrets.GITHUB_CI_BOT_TOKEN }}
+
+    - name: Make output directory
+      run: |
+        mkdir -p pool-simulation/reports
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
