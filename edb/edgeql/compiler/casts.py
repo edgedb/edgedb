@@ -835,7 +835,7 @@ def _cast_range(
         )
 
         if el_type.contains_json(subctx.env.schema):
-            subctx.inhibit_implicit_limit = True
+            subctx.implicit_limit = 0
 
         return dispatch.compile(cast, ctx=subctx)
 
@@ -904,7 +904,7 @@ def _cast_multirange(
         )
 
         if el_type.contains_json(subctx.env.schema):
-            subctx.inhibit_implicit_limit = True
+            subctx.implicit_limit = 0
 
         return dispatch.compile(cast, ctx=subctx)
 
@@ -1158,7 +1158,7 @@ def _cast_array(
             correlated_query = qlast.SelectQuery(result=correlated_elements)
 
             if el_type.contains_json(subctx.env.schema):
-                subctx.inhibit_implicit_limit = True
+                subctx.implicit_limit = 0
 
             array_ir = dispatch.compile(correlated_query, ctx=subctx)
             assert isinstance(array_ir, irast.Set)
