@@ -532,6 +532,12 @@ class SQLQueryUnit:
     command_tag: bytes = b""
     """If frontend_only is True, only issue CommandComplete with this tag."""
 
+    command_complete_tag: Optional[str] = None
+    """When set, CommandComplete for this query will be overridden.
+    This is useful when original SQL had a top-level DML statement, which should
+    return the number of modified rows in the result, but query sent to Postgres
+    has a top-level SELECT, which will not return a tag CommandComplete."""
+
 
 @dataclasses.dataclass
 class ParsedDatabase:

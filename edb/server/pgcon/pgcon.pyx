@@ -2087,7 +2087,23 @@ cdef class PGConnection:
                                 )
                             self.prep_stmts[be_stmt_name] = dbver
 
-                    if not action.is_injected():
+                    if (
+                        not action.is_injected()
+                        and mtype == b'C'
+                        and action.query_unit.command_complete_tag
+                    ):
+                        tag = action.query_unit.command_complete_tag
+
+                        msg_buf = WriteBuffer.new_message(mtype)
+                        msg_buf.write_bytes(bytes(tag, "utf-8"))
+                        if tag == 'INSERT':
+                            msg_buf.write_bytes(bytes(" 0 ", "utf-8"))  # oid
+                            # TODO
+                            msg_buf.write_bytes(bytes("42", "utf-8"))  # rows
+                        msg_buf.write_byte(0)  # string terminator
+                        buf.write_buffer(msg_buf.end_message())
+
+                    elif not action.is_injected():
                         msg_buf = WriteBuffer.new_message(mtype)
                         msg_buf.write_bytes(data)
                         buf.write_buffer(msg_buf.end_message())
