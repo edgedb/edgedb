@@ -19,7 +19,7 @@
 
 import json
 
-from typing import cast, Any, Type
+from typing import cast, Any
 from edb.server.protocol import execute
 
 from . import github, google, azure, apple, discord, slack
@@ -48,34 +48,46 @@ class Client:
             "additional_scope": provider_config.additional_scope,
         }
 
-        provider_class: Type[base.BaseProvider]
         match (provider_name, provider_config.issuer_url):
             case ("builtin::oauth_github", _):
-                provider_class = github.GitHubProvider
+                self.provider = github.GitHubProvider(
+                    *provider_args,
+                    **provider_kwargs,
+                )
             case ("builtin::oauth_google", _):
-                provider_class = google.GoogleProvider
+                self.provider = google.GoogleProvider(
+                    *provider_args,
+                    **provider_kwargs,
+                )
             case ("builtin::oauth_azure", _):
-                provider_class = azure.AzureProvider
+                self.provider = azure.AzureProvider(
+                    *provider_args,
+                    **provider_kwargs,
+                )
             case ("builtin::oauth_apple", _):
-                provider_class = apple.AppleProvider
+                self.provider = apple.AppleProvider(
+                    *provider_args,
+                    **provider_kwargs,
+                )
             case ("builtin::oauth_discord", _):
-                provider_class = discord.DiscordProvider
+                self.provider = discord.DiscordProvider(
+                    *provider_args,
+                    **provider_kwargs,
+                )
             case ("builtin::oauth_slack", _):
-                provider_class = slack.SlackProvider
+                self.provider = slack.SlackProvider(
+                    *provider_args,
+                    **provider_kwargs,
+                )
             case (provider_name, str(issuer_url)):
-                provider_args = (
+                self.provider = base.OpenIDConnectProvider(
                     provider_name,
                     issuer_url,
                     *provider_args,
+                    **provider_kwargs,
                 )
-                provider_class = base.OpenIDConnectProvider
             case _:
                 raise errors.InvalidData(f"Invalid provider: {provider_name}")
-
-        self.provider = provider_class(
-            *provider_args,
-            **provider_kwargs,  # type: ignore[arg-type]
-        )
 
     async def get_authorize_url(self, state: str, redirect_uri: str) -> str:
         return await self.provider.get_code_url(
