@@ -26,6 +26,12 @@ jobs:
     runs-on: ubuntu-latest
     concurrency: pool-test
     steps:
+    <%- call build() -%>
+    - name: Compute cache keys
+      run: |
+        << calc_cache_key()|indent >>
+    <%- endcall %>
+
     - uses: actions/checkout@v4
       if: startsWith(github.ref, 'refs/heads')
       with:
@@ -33,22 +39,13 @@ jobs:
         path: pool-simulation
         token: ${{ secrets.GITHUB_CI_BOT_TOKEN }}
 
-    - name: Make output directory
-      run: |
-        mkdir -p pool-simulation/reports
-
-    <%- call build() -%>
-    - name: Compute cache keys
-      run: |
-        << calc_cache_key()|indent >>
-    <%- endcall %>
-
     - name: Run the pool simulation test
       env:
         PYTHONPATH: .
         SIMULATION_CI: yes
         TIME_SCALE: 10
       run: |
+        mkdir -p pool-simulation/reports
         python tests/test_server_pool.py
 
     - uses: EndBug/add-and-commit@v7.0.0
