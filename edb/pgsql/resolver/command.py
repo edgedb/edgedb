@@ -682,7 +682,18 @@ def resolve_InsertStmt(
             ctx,
         )
     else:
-        res_query = pgast.SelectStmt()
+        res_query = pgast.SelectStmt(
+            # this FROM clause is needed to serve correct number of rows
+            # (with zero columns) which are counted by the server IO process and
+            # reported in CommandComplete tag as modified rows.
+            from_clause=[
+                pgast.RelRangeVar(
+                    relation=pgast.Relation(
+                        name=compiled_dml.output_relation_name
+                    )
+                )
+            ]
+        )
         res_table = context.Table()
 
     if not res_query.ctes:

@@ -407,3 +407,13 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 SELECT 1
                 '''
             )
+
+    async def test_sql_dml_insert_20(self):
+        # CommandComplete tag (inserted rows)
+
+        res = await self.scon.execute(
+            '''
+            INSERT INTO "Document" (title) VALUES ('Report'), ('Briefing');
+            '''
+        )
+        self.assertEqual(res, 'INSERT 0 2')
