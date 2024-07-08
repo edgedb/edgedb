@@ -1609,10 +1609,10 @@ def range_for_material_objtype(
                     sctx.rel_overlays = context.RelOverlays()
 
                 dispatch.visit(rewrite, ctx=sctx)
-                # If we are expanding inhviews, we also expand type
+                # If we are explaining, we also expand type
                 # rewrites, so don't populate type_ctes. The normal
                 # case is to stick it in a CTE and cache that, though.
-                if ctx.env.expand_inhviews and not is_global:
+                if ctx.env.is_explain and not is_global:
                     type_rel = sctx.rel
                 else:
                     type_cte = pgast.CommonTableExpr(
@@ -1652,9 +1652,9 @@ def range_for_material_objtype(
         if (
             # When we are compiling a query for EXPLAIN, expand out type
             # references to an explicit union of all the types, rather than
-            # relying on the inheritance views. This allows postgres to actually
-            # give us back the alias names that we use for relations, which we
-            # use to track which parts of the query are being referred to.
+            # using a CTE. This allows postgres to actually give us back the
+            # alias names that we use for relations, which we use to track which
+            # parts of the query are being referred to.
             not ctx.env.use_inheritance_ctes
 
             # Don't use CTEs if there is no inheritance. (ie. There is only a
@@ -2214,7 +2214,7 @@ def _range_for_component_ptrref(
                 )
 
             # Add the path to the CTE's query. This allows for the proper
-            # path mapping ot occur when processing link properties
+            # path mapping to occur when processing link properties
             inheritance_qry.path_id = component_ptrref_path_id
 
             ptr_cte = pgast.CommonTableExpr(
@@ -2272,9 +2272,7 @@ def _range_for_component_ptrref(
                 ctx=sctx
             )
 
-    # Only fire off the overlays at the end of each expanded inhview.
-    # This only matters when we are doing expand_inhviews, and prevents
-    # us from repeating the overlays many times in that case.
+    # Add overlays at the end of each expanded inheritance.
     overlays = get_ptr_rel_overlays(
         component_ptrref, dml_source=dml_source, ctx=ctx)
     if overlays and not for_mutation:
@@ -2357,8 +2355,8 @@ def _get_ptrref_descendants(
     include_descendants: bool,
     for_mutation: bool,
 ) -> list[irast.PointerRef]:
-    # expand_inhviews helps support EXPLAIN. see
-    # range_for_material_objtype for details.
+    # When doing EXPLAIN, don't use CTEs. See range_for_material_objtype for
+    # details.
     if (
         include_descendants
         and not for_mutation

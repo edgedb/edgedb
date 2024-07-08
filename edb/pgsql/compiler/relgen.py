@@ -243,7 +243,7 @@ def get_set_rvar(
         rvars = _get_expr_set_rvar(ir_set.expr, ir_set, ctx=subctx)
         relctx.update_scope_masks(ir_set, rvars.main.rvar, ctx=subctx)
 
-        if ctx.env.expand_inhviews:
+        if ctx.env.is_explain:
             for srvar in rvars.new:
                 if not srvar.rvar.ir_origins:
                     srvar.rvar.ir_origins = []

@@ -552,7 +552,7 @@ class Environment:
         expected_cardinality_one: bool,
         ignore_object_shapes: bool,
         singleton_mode: bool,
-        expand_inhviews: bool,
+        is_explain: bool,
         use_inheritance_ctes: bool,
         explicit_top_cast: Optional[irast.TypeRef],
         query_params: List[irast.Param],
@@ -572,7 +572,7 @@ class Environment:
         self.expected_cardinality_one = expected_cardinality_one
         self.ignore_object_shapes = ignore_object_shapes
         self.singleton_mode = singleton_mode
-        self.expand_inhviews = expand_inhviews
+        self.is_explain = is_explain
         self.use_inheritance_ctes = use_inheritance_ctes
         self.explicit_top_cast = explicit_top_cast
         self.query_params = query_params
