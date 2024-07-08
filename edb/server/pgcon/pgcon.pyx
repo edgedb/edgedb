@@ -1679,6 +1679,8 @@ cdef class PGConnection:
             WriteBuffer buf, msg_buf
             PGMessage action
             bint be_parse
+            int32_t messages_redirected
+            int32_t row_count
 
         buf = WriteBuffer.new()
         state = None
@@ -1984,6 +1986,7 @@ cdef class PGConnection:
                         buf.write_buffer(msg_buf.end_message())
                 continue
 
+            row_count = 0
             while True:
                 if not self.buffer.take_message():
                     if buf.len() > 0:
@@ -2097,9 +2100,19 @@ cdef class PGConnection:
                         msg_buf = WriteBuffer.new_message(mtype)
                         msg_buf.write_bytes(bytes(tag, "utf-8"))
                         if tag == 'INSERT':
-                            msg_buf.write_bytes(bytes(" 0 ", "utf-8"))  # oid
-                            # TODO
-                            msg_buf.write_bytes(bytes("42", "utf-8"))  # rows
+                            # oid
+                            msg_buf.write_bytes(bytes(" 0 ", "utf-8"))
+
+                            # rows
+                            # This should return the number of modified rows by
+                            # the top-level query, but we are returning the
+                            # count of rows in the response. These two will
+                            # always match because our compiled DML with always
+                            # have a top-level SELECT with same number of rows
+                            # as the DML stmt somewhere in the the CTEs.
+                            msg_buf.write_bytes(
+                                bytes(str(row_count), "utf-8")
+                            )
                         msg_buf.write_byte(0)  # string terminator
                         buf.write_buffer(msg_buf.end_message())
 
@@ -2158,7 +2171,13 @@ cdef class PGConnection:
                     if not action.is_injected():
                         if self.debug:
                             self.debug_print('REDIRECT OTHER MSG', mtype)
-                        self.buffer.redirect_messages(buf, mtype, 0)
+                        messages_redirected = self.buffer.redirect_messages(
+                            buf, mtype, 0
+                        )
+
+                        # DataRow
+                        if mtype == b'D':
+                            row_count += messages_redirected
                     else:
                         logger.warning(
                             f"discarding unexpected backend message: "
