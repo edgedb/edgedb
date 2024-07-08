@@ -19,7 +19,7 @@
 
 import json
 
-from typing import cast, Any, Type
+from typing import cast, Any
 from edb.server.protocol import execute
 
 from . import github, google, azure, apple, discord, slack
@@ -39,33 +39,55 @@ class Client:
         )
 
         provider_config = self._get_provider_config(provider_name)
-        provider_args = (provider_config.client_id, provider_config.secret)
+        provider_args: tuple[str, str] | tuple[str, str, str, str] = (
+            provider_config.client_id,
+            provider_config.secret,
+        )
         provider_kwargs = {
             "http_factory": http_factory,
             "additional_scope": provider_config.additional_scope,
         }
 
-        provider_class: Type[base.BaseProvider]
-        match provider_name:
-            case "builtin::oauth_github":
-                provider_class = github.GitHubProvider
-            case "builtin::oauth_google":
-                provider_class = google.GoogleProvider
-            case "builtin::oauth_azure":
-                provider_class = azure.AzureProvider
-            case "builtin::oauth_apple":
-                provider_class = apple.AppleProvider
-            case "builtin::oauth_discord":
-                provider_class = discord.DiscordProvider
-            case "builtin::oauth_slack":
-                provider_class = slack.SlackProvider
+        match (provider_name, provider_config.issuer_url):
+            case ("builtin::oauth_github", _):
+                self.provider = github.GitHubProvider(
+                    *provider_args,
+                    **provider_kwargs,
+                )
+            case ("builtin::oauth_google", _):
+                self.provider = google.GoogleProvider(
+                    *provider_args,
+                    **provider_kwargs,
+                )
+            case ("builtin::oauth_azure", _):
+                self.provider = azure.AzureProvider(
+                    *provider_args,
+                    **provider_kwargs,
+                )
+            case ("builtin::oauth_apple", _):
+                self.provider = apple.AppleProvider(
+                    *provider_args,
+                    **provider_kwargs,
+                )
+            case ("builtin::oauth_discord", _):
+                self.provider = discord.DiscordProvider(
+                    *provider_args,
+                    **provider_kwargs,
+                )
+            case ("builtin::oauth_slack", _):
+                self.provider = slack.SlackProvider(
+                    *provider_args,
+                    **provider_kwargs,
+                )
+            case (provider_name, str(issuer_url)):
+                self.provider = base.OpenIDConnectProvider(
+                    provider_name,
+                    issuer_url,
+                    *provider_args,
+                    **provider_kwargs,
+                )
             case _:
                 raise errors.InvalidData(f"Invalid provider: {provider_name}")
-
-        self.provider = provider_class(
-            *provider_args,
-            **provider_kwargs,  # type: ignore[arg-type]
-        )
 
     async def get_authorize_url(self, state: str, redirect_uri: str) -> str:
         return await self.provider.get_code_url(
@@ -121,7 +143,7 @@ select {
 
         return (
             data.Identity(**result_json[0]['identity']),
-            result_json[0]['new']
+            result_json[0]['new'],
         )
 
     def _get_provider_config(
@@ -139,6 +161,8 @@ select {
                     client_id=cfg.client_id,
                     secret=cfg.secret,
                     additional_scope=cfg.additional_scope,
+                    issuer_url=getattr(cfg, 'issuer_url', None),
+                    logo_url=getattr(cfg, 'logo_url', None),
                 )
 
         raise errors.MissingConfiguration(
