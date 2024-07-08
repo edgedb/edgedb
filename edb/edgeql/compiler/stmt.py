@@ -1319,24 +1319,6 @@ def compile_result_clause(
             # `SELECT foo := expr` is equivalent to
             # `WITH foo := expr SELECT foo`
             rexpr = astutils.ensure_ql_select(result)
-            if (
-                sctx.implicit_limit
-                and rexpr.limit is None
-                and not sctx.inhibit_implicit_limit
-            ):
-                # Inline alias is special: it's both "exposed",
-                # but also subject for further processing, so
-                # make sure we don't mangle it with an implicit
-                # limit.
-                rexpr.limit = qlast.TypeCast(
-                    expr=qlast.Set(elements=[]),
-                    type=qlast.TypeName(
-                        maintype=qlast.ObjectRef(
-                            module='__std__',
-                            name='int64',
-                        )
-                    )
-                )
 
             stmtctx.declare_view(
                 rexpr,
