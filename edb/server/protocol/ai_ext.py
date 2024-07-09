@@ -491,8 +491,8 @@ class EmbeddingsParams(rs.Params[EmbeddingsData]):
 
     entries: list[tuple[bytes, ...]]
 
-    def cost(self) -> int:
-        return 1
+    def costs(self) -> dict[str, int]:
+        return {'requests': 1}
 
     def create_request(self) -> EmbeddingsRequest:
         return EmbeddingsRequest(self)
@@ -916,41 +916,51 @@ async def _generate_openai_embeddings(
 
     return EmbeddingsResult(
         data=(error if error else EmbeddingsData(result.content)),
-        request_limits=_read_openai_limits(result),
+        limits=_read_openai_limits(result),
     )
+
+
+def _read_openai_header_field(
+    result: Any,
+    field_names: list[str],
+) -> Optional[int]:
+    # Return the value of the first requested field available
+    try:
+        for field_name in field_names:
+            if field_name in result.headers:
+                header_value = result.headers[field_name]
+                return int(header_value) if header_value is not None else None
+
+    except (ValueError, TypeError):
+        pass
+
+    return None
 
 
 def _read_openai_limits(
     result: Any,
-) -> rs.Limits:
-    try:
-        header = (
-            result.headers['x-ratelimit-limit-project-requests']
-            if 'x-ratelimit-limit-project-requests' in result.headers else
-            result.headers['x-ratelimit-limit-requests']
-            if 'x-ratelimit-limit-requests' in result.headers else
-            None
-        )
-        request_limit = int(header) if header is not None else None
-    except Exception:
-        request_limit = None
-
-    try:
-        header = (
-            result.headers['x-ratelimit-remaining-project-requests']
-            if 'x-ratelimit-remaining-project-requests' in result.headers else
-            result.headers['x-ratelimit-remaining-requests']
-            if 'x-ratelimit-remaining-requests' in result.headers else
-            None
-        )
-        request_remaining = int(header) if header is not None else None
-    except Exception:
-        request_remaining = None
-
-    return rs.Limits(
-        total=request_limit,
-        remaining=request_remaining
+) -> dict[str, rs.Limits]:
+    request_limit = _read_openai_header_field(
+        result,
+        [
+            'x-ratelimit-limit-project-requests',
+            'x-ratelimit-limit-requests',
+        ],
     )
+    request_remaining = _read_openai_header_field(
+        result,
+        [
+            'x-ratelimit-remaining-project-requests',
+            'x-ratelimit-remaining-requests',
+        ],
+    )
+
+    return {
+        'requests': rs.Limits(
+            total=request_limit,
+            remaining=request_remaining
+        ),
+    }
 
 
 async def _start_chat(

@@ -156,7 +156,10 @@ class Scheduler(abc.ABC, Generic[_T]):
             request_params = None
 
         error_count = 0
-        deferred_cost = 0
+        deferred_costs: dict[str, int] = {
+            limit_name: 0
+            for limit_name in self.service.limits
+        }
         success_count = 0
 
         if request_params is None:
@@ -177,18 +180,18 @@ class Scheduler(abc.ABC, Generic[_T]):
 
             # Cache limits for next time
             if execution_report.updated_limits is not None:
-                if self.service.request_limits is not None:
-                    self.service.request_limits.update_total(
-                        execution_report.updated_limits
-                    )
-                    self.service.request_limits.delay_factor = (
-                        execution_report.updated_limits.delay_factor
-                    )
+                for limit_name, service_limit in self.service.limits.items():
+                    if limit_name not in execution_report.updated_limits:
+                        continue
 
-                else:
-                    self.service.request_limits = (
-                        execution_report.updated_limits
-                    )
+                    updated_limit = execution_report.updated_limits[limit_name]
+
+                    if service_limit is not None:
+                        service_limit.update_total(updated_limit)
+                        service_limit.delay_factor = updated_limit.delay_factor
+
+                    else:
+                        self.service.limits[limit_name] = updated_limit
 
             # Update counts
             error_count = (
@@ -196,12 +199,12 @@ class Scheduler(abc.ABC, Generic[_T]):
                 + execution_report.unknown_error_count
             )
 
-            deferred_cost = execution_report.deferred_cost
+            deferred_costs = execution_report.deferred_costs
             success_count = execution_report.success_count
 
         # Update when this service should be processed again
         self.timer = self.service.next_delay(
-            success_count, deferred_cost, error_count, context.naptime
+            success_count, deferred_costs, error_count, context.naptime
         )
 
         return True
@@ -227,10 +230,10 @@ class ExecutionReport:
     success_count: int = 0
     unknown_error_count: int = 0
     known_error_messages: list[str] = field(default_factory=list)
-    deferred_cost: int = 0
+    deferred_costs: dict[str, int] = field(default_factory=dict)
 
-    # Some requests may report an update to the service's request limits.
-    updated_limits: Optional[Limits] = None
+    # Some requests may report an update to the service's rate limits.
+    updated_limits: dict[str, Limits] = field(default_factory=dict)
 
 
 @dataclass
@@ -238,7 +241,9 @@ class Service:
     """Information on how to access to a given service."""
 
     # Information about the service's rate limits
-    request_limits: Optional[Limits] = None
+    # Even if no Limit is available, the presence of a key indicates that a
+    # limit is used at least sometimes.
+    limits: dict[str, Optional[Limits]] = field(default_factory=dict)
 
     # The maximum number of times to retry requests
     max_retry_count: Final[int] = 4
@@ -252,27 +257,39 @@ class Service:
     def next_delay(
         self,
         success_count: int,
-        deferred_cost: int,
+        deferred_costs: dict[str, int],
         error_count: int,
         naptime: float
     ) -> Timer:
         """When should the service should be processed again."""
 
-        if self.request_limits is not None:
-            base_delay = self.request_limits.base_delay(
-                deferred_cost, guess=self.guess_delay,
-            )
-            if base_delay is None:
-                delay = None
+        if self.limits is not None:
+            # Find the limit with the largest delay
+            limit_delays: dict[str, Optional[float]] = {}
+            for limit_names, service_limit in self.limits.items():
+                if service_limit is None:
+                    # If no information is available, assume no limits
+                    limit_delays[limit_names] = None
 
-            else:
-                # If delay_factor is very high, it may take quite a long time
-                # for it to return to 1. A maximum delay prevents this service
-                # from never getting checked.
-                delay = min(
-                    base_delay * self.request_limits.delay_factor,
-                    self.delay_max,
-                )
+                else:
+                    base_delay = service_limit.base_delay(
+                        deferred_costs[limit_names],
+                        guess=self.guess_delay,
+                    )
+                    if base_delay is None:
+                        limit_delays[limit_names] = None
+
+                    else:
+                        # If delay_factor is very high, it may take quite a long
+                        # time for it to return to 1. A maximum delay prevents
+                        # this service from never getting checked.
+                        limit_delays[limit_names] = (
+                            min(
+                                base_delay * service_limit.delay_factor,
+                                self.delay_max,
+                            )
+                        )
+            delay = _get_maximum_delay(limit_delays)
 
         else:
             # We have absolutely no information about the delay, assume naptime.
@@ -284,7 +301,10 @@ class Service:
             delay = max(delay, naptime) if delay is not None else naptime
             urgent = False
 
-        elif deferred_cost > 0:
+        elif any(
+            deferred_cost > 0
+            for deferred_cost in deferred_costs.values()
+        ):
             # There is some deferred work, apply the delay and run immediately.
             urgent = True
 
@@ -347,7 +367,7 @@ class Limits:
         """Update total based on the latest information.
 
         The total will change rarely. Always take the latest value if
-        # it exists
+        it exists
         """
         if latest.total is not None:
             self.total = latest.total
@@ -408,8 +428,10 @@ class Params(abc.ABC, Generic[_T]):
     """
 
     @abc.abstractmethod
-    def cost(self) -> int:
-        """Expected cost to execute the request."""
+    def costs(self) -> dict[str, int]:
+        """Expected cost to execute the request.
+
+        Keys must match service rate limits."""
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -425,7 +447,8 @@ class Result(abc.ABC, Generic[_T]):
     data: _T | Error
 
     # Some services can return request limits along with their usual results.
-    request_limits: Optional[Limits] = None
+    # Keys should be a subset of service limits.
+    limits: dict[str, Limits] = field(default_factory=dict)
 
     async def finalize(self) -> None:
         """An optional finalize to be run sequentially."""
@@ -451,14 +474,17 @@ async def execute_no_sleep(
     """Attempt to execute as many requests as possible without sleeping."""
     report = ExecutionReport()
 
-    # Set up request limits
-    if service.request_limits is None:
-        # If no other information is available, for the first attempt assume
-        # there is no limit.
-        request_limits = Limits(total='unlimited')
-
-    else:
-        request_limits = copy.copy(service.request_limits)
+    # Set up limits
+    execute_limits: dict[str, Limits] = {
+        limit_name: (
+            # If no other information is available, for the first attempt assume
+            # there is no limit.
+            Limits(total='unlimited')
+            if service_limit is None else
+            copy.copy(service_limit)
+        )
+        for limit_name, service_limit in service.limits.items()
+    }
 
     # If any requests fail and can be retried, retry them up to a maximum number
     # of times.
@@ -466,14 +492,11 @@ async def execute_no_sleep(
     pending_request_indexes: list[int] = list(range(len(params)))
 
     while pending_request_indexes and retry_count < service.max_retry_count:
-        pending_cost = sum(
-            params[i].cost()
-            for i in pending_request_indexes
+        # Find the highest delay required by any of the service's limits
+        limit_base_delays = _get_limit_base_delays(
+            params, execute_limits, pending_request_indexes, service.guess_delay
         )
-
-        base_delay = request_limits.base_delay(
-            pending_cost, guess=service.guess_delay,
-        )
+        base_delay = _get_maximum_delay(limit_base_delays)
 
         active_request_indexes: list[int]
         inactive_request_indexes: list[int]
@@ -499,8 +522,6 @@ async def execute_no_sleep(
         # Check results
         retry_request_indexes: list[int] = []
 
-        request_limits.remaining = None
-
         for request_index in active_request_indexes:
             if request_index not in results:
                 report.unknown_error_count += 1
@@ -521,43 +542,75 @@ async def execute_no_sleep(
 
             await result.finalize()
 
-            if result.request_limits is not None:
-                request_limits.update_total(result.request_limits)
-                request_limits.update_remaining(result.request_limits)
+            if result.limits is not None:
+                for limit_name, execute_limit in execute_limits.items():
+                    if limit_name not in result.limits:
+                        continue
+                    result_limit = result.limits[limit_name]
+                    execute_limit.update_total(result_limit)
+                    execute_limit.update_remaining(result_limit)
 
         retry_count += 1
         pending_request_indexes = (
             retry_request_indexes + inactive_request_indexes
         )
 
-    # Note how many retries were left
-    report.deferred_cost = sum(
-        params[i].cost()
-        for i in pending_request_indexes
+    # Determine which limits require additional delays
+    limit_base_delays = _get_limit_base_delays(
+        params, execute_limits, pending_request_indexes, service.guess_delay
     )
+    delayed_limits = {
+        limit_name
+        for limit_name in service.limits.keys()
+        if limit_base_delays[limit_name] is not None
+    }
+    if len(delayed_limits) == 0:
+        # If requests were deferred, but no limit appears to be the cause, delay
+        # them all just in case.
+        delayed_limits = set(service.limits.keys())
 
-    if report.deferred_cost != 0:
-        # If there are deferred requests, gradually increase the delay factor
-        request_limits.delay_factor *= (
-            1 + random.random() if service.jitter else 2
+    # Update deferred costs and any resulting limits.
+    report.deferred_costs = {
+        limit_name: 0
+        for limit_name in service.limits
+    }
+    for limit_name in service.limits.keys():
+        report.deferred_costs[limit_name] = sum(
+            params[i].costs()[limit_name]
+            for i in pending_request_indexes
         )
 
-    elif (
-        len(report.known_error_messages) == 0
-        and report.unknown_error_count == 0
-    ):
-        # If there are no errors, gradually decrease the delay factor over time.
-        request_limits.delay_factor = max(
-            0.95 * request_limits.delay_factor,
-            1,
-        )
+        if (
+            report.deferred_costs[limit_name] != 0
+
+            # If the limit was not a cause of delays, don't increase the delay
+            # factor.
+            and limit_name in delayed_limits
+        ):
+            # If there are deferred requests, gradually increase the delay
+            # factor
+            execute_limits[limit_name].delay_factor *= (
+                1 + random.random() if service.jitter else 2
+            )
+
+        elif (
+            len(report.known_error_messages) == 0
+            and report.unknown_error_count == 0
+        ):
+            # If there are no errors, gradually decrease the delay factor over
+            # time.
+            execute_limits[limit_name].delay_factor = max(
+                0.95 * execute_limits[limit_name].delay_factor,
+                1,
+            )
 
     # We don't know when the service will be called again, so just clear the
-    # remaining value
-    request_limits.remaining = None
+    # remaining values
+    for execute_limit in execute_limits.values():
+        execute_limit.remaining = None
 
-    # Return the updated request limits limits
-    report.updated_limits = request_limits
+    # Return the updated request limits
+    report.updated_limits = execute_limits
 
     return report
 
@@ -584,3 +637,36 @@ async def _execute_specified(
             results[request_index] = result
 
     return results
+
+
+def _get_limit_base_delays(
+    params: Sequence[Params[_T]],
+    limits: dict[str, Limits],
+    request_indexes: Sequence[int],
+    guess_delay: float,
+) -> dict[str, Optional[float]]:
+    base_delays = {}
+    for limit_name, limit in limits.items():
+        pending_limit_cost = sum(
+            params[request_index].costs()[limit_name]
+            for request_index in request_indexes
+        )
+
+        base_delays[limit_name] = (limit.base_delay(
+            pending_limit_cost, guess=guess_delay,
+        ))
+
+    return base_delays
+
+
+def _get_maximum_delay(
+    delays: dict[str, Optional[float]]
+) -> Optional[float]:
+    result: Optional[float] = None
+    for delay in delays.values():
+        if result is None:
+            result = delay
+        elif delay is not None:
+            result = max(result, delay)
+
+    return result
