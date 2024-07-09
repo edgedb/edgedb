@@ -1647,7 +1647,6 @@ class DumpCompatTestCase(
 class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
 
     BASE_TEST_CLASS = True
-    ISOLATED_METHODS = False
     STABLE_DUMP = True
     TRANSACTION_ISOLATION = False
     PARALLELISM_GRANULARITY = 'suite'
@@ -1752,7 +1751,6 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
 class StablePGDumpTestCase(BaseQueryTestCase):
 
     BASE_TEST_CLASS = True
-    ISOLATED_METHODS = False
     TRANSACTION_ISOLATION = False
 
     def run_pg_dump(self, *args, input: Optional[str] = None) -> None:

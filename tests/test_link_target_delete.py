@@ -1336,7 +1336,6 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 class TestLinkTargetDeleteMigrations(stb.DDLTestCase):
 
     SCHEMA = pathlib.Path(__file__).parent / 'schemas' / 'link_tgt_del.esdl'
-    ISOLATED_METHODS = False
 
     async def test_link_on_target_delete_migration_01(self):
         async with self._run_and_rollback():
