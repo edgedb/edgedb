@@ -4658,6 +4658,7 @@ async def bootstrap(
 ) -> None:
     cmds = [
         dbops.CreateSchema(name='edgedb'),
+        dbops.CreateSchema(name='edgedbt'),
         dbops.CreateSchema(name='edgedbpub'),
         dbops.CreateSchema(name='edgedbstd'),
         dbops.CreateSchema(name='edgedbsql'),
@@ -5984,7 +5985,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             ctid
         FROM pg_namespace
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
-                          'edgedb', 'edgedbstd', 'edgedb_VER', 'edgedbstd_VER')
+                          'edgedb', 'edgedbstd', 'edgedbt',
+                          'edgedb_VER', 'edgedbstd_VER')
         UNION ALL
 
         -- virtual schemas
@@ -6037,7 +6039,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE
             nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
                         'edgedb', 'edgedbstd', 'edgedb_VER', 'edgedbstd_VER',
-                        'edgedbpub')
+                        'edgedbpub', 'edgedbt')
         """.format(
                 ",".join(
                     f"pt.{col}"
