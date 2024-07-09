@@ -2180,12 +2180,12 @@ def _range_for_component_ptrref(
             path_id=path_id,
             ctx=ctx,
         )
-        descentant_ops = [
+        descendant_ops = [
             (context.OverlayOp.UNION, select)
             for select in descendant_selects
         ]
         component_rvar = range_from_queryset(
-            descentant_ops,
+            descendant_ops,
             component_ptrref.shortname,
             path_id=path_id,
             ctx=ctx,
