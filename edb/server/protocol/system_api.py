@@ -40,21 +40,27 @@ async def handle_request(
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
     path_parts: list[str],
-    server: edbserver.Server,
+    server: edbserver.BaseServer,
     tenant: edbtenant.Tenant,
+    is_tenant_host: bool,
 ) -> None:
     try:
         if tenant is None:
             try:
                 tenant = server.get_default_tenant()
             except Exception:
-                # Multi-tenant server doesn't have default tenant,
-                # only check server status instead
+                # Multi-tenant server doesn't have default tenant
                 pass
-        if path_parts == ['status', 'ready'] and request.method == b'GET':
+        if tenant is None and not is_tenant_host:
+            _response(
+                response,
+                http.HTTPStatus.NOT_FOUND,
+                b'"No such tenant configured"',
+                True,
+            )
+        elif path_parts == ['status', 'ready'] and request.method == b'GET':
             if tenant is None:
-                # TODO(fantix): test the compiler pool
-                _response_ok(response, b"OK")
+                await handle_compiler_query(server, response)
             else:
                 await tenant.create_task(
                     handle_readiness_query(request, response, tenant),
@@ -62,19 +68,19 @@ async def handle_request(
                 )
         elif path_parts == ['status', 'alive'] and request.method == b'GET':
             if tenant is None:
-                # TODO(fantix): test the compiler pool
-                _response_ok(response, b"OK")
+                await handle_compiler_query(server, response)
             else:
                 await tenant.create_task(
                     handle_liveness_query(request, response, tenant),
                     interruptable=False,
                 )
         else:
-            response.body = b'Unknown path'
-            response.status = http.HTTPStatus.NOT_FOUND
-            response.close_connection = True
-
-        return
+            _response(
+                response,
+                http.HTTPStatus.NOT_FOUND,
+                b'"Unknown path"',
+                True,
+            )
     except errors.BackendUnavailableError as ex:
         _response_error(
             response, http.HTTPStatus.SERVICE_UNAVAILABLE, str(ex), type(ex)
@@ -108,16 +114,23 @@ def _response_error(
         'type': str(ex_type.__name__),
         'code': ex_type.get_code(),
     }
+    _response(response, status, json.dumps({'error': err_dct}).encode(), True)
 
-    response.body = json.dumps({'error': err_dct}).encode()
+
+def _response(
+    response: protocol.HttpResponse,
+    status: http.HTTPStatus,
+    message: bytes,
+    close_connection: bool,
+) -> None:
+    response.body = message
     response.status = status
-    response.close_connection = True
+    response.content_type = b'application/json'
+    response.close_connection = close_connection
 
 
 def _response_ok(response: protocol.HttpResponse, message: bytes) -> None:
-    response.status = http.HTTPStatus.OK
-    response.content_type = b'application/json'
-    response.body = message
+    _response(response, http.HTTPStatus.OK, message, False)
 
 
 async def _ping(tenant: edbtenant.Tenant) -> bytes:
@@ -136,6 +149,26 @@ async def _ping(tenant: edbtenant.Tenant) -> bytes:
         cached_globally=True,
         use_metrics=False,
     )
+
+
+async def handle_compiler_query(
+    server: edbserver.BaseServer,
+    response: protocol.HttpResponse,
+) -> None:
+    try:
+        # This is just testing if the RPC to the compiler is healthy
+        await server.get_compiler_pool().make_compilation_config_serializer()
+    except Exception as ex:
+        if debug.flags.server:
+            markup.dump(ex)
+        _response_error(
+            response,
+            http.HTTPStatus.INTERNAL_SERVER_ERROR,
+            str(ex),
+            errors.InternalServerError,
+        )
+    else:
+        _response_ok(response, b'"OK"')
 
 
 async def handle_liveness_query(

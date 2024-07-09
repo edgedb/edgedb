@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Tuple, Mapping, Dict, List
+from typing import Optional, Tuple, Mapping, Dict, List, TYPE_CHECKING
 from dataclasses import dataclass
 
 from edb import errors
@@ -41,6 +41,9 @@ from . import dml
 from . import pathctx
 
 from .context import OutputFormat as OutputFormat # NOQA
+
+if TYPE_CHECKING:
+    import enums as pgce
 
 
 @dataclass(kw_only=True, slots=True, repr=False, eq=False, frozen=True)
@@ -65,12 +68,15 @@ def compile_ir_to_sql_tree(
     expected_cardinality_one: bool = False,
     expand_inhviews: bool = False,
     external_rvars: Optional[
-        Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
+        Mapping[Tuple[irast.PathId, pgce.PathAspect], pgast.PathRangeVar]
     ] = None,
     external_rels: Optional[
         Mapping[
             irast.PathId,
-            Tuple[pgast.BaseRelation | pgast.CommonTableExpr, Tuple[str, ...]],
+            Tuple[
+                pgast.BaseRelation | pgast.CommonTableExpr,
+                Tuple[pgce.PathAspect, ...]
+            ],
         ]
     ] = None,
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
@@ -187,7 +193,7 @@ def new_external_rvar(
     *,
     rel_name: Tuple[str, ...],
     path_id: irast.PathId,
-    outputs: Mapping[Tuple[irast.PathId, Tuple[str, ...]], str],
+    outputs: Mapping[Tuple[irast.PathId, Tuple[pgce.PathAspect, ...]], str],
 ) -> pgast.RelRangeVar:
     """Construct a ``RangeVar`` instance given a relation name and a path id.
 
@@ -227,7 +233,7 @@ def new_external_rvar_as_subquery(
     *,
     rel_name: tuple[str, ...],
     path_id: irast.PathId,
-    aspects: tuple[str, ...],
+    aspects: tuple[pgce.PathAspect, ...],
 ) -> pgast.SelectStmt:
     rvar = new_external_rvar(
         rel_name=rel_name,

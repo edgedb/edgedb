@@ -68,6 +68,7 @@ cdef class HttpProtocol:
         object binary_endpoint_security
         object http_endpoint_security
         object tenant
+        bint is_tenant_host
         object connection_made_at
 
         HttpRequest current_request

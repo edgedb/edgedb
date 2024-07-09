@@ -939,7 +939,6 @@ def finalize_args(
                 and ctx.implicit_limit
                 and isinstance(arg_val.expr, irast.SelectStmt)
                 and arg_val.expr.limit is None
-                and not ctx.inhibit_implicit_limit
             ):
                 arg_val.expr.limit = dispatch.compile(
                     qlast.Constant.integer(ctx.implicit_limit),

@@ -29,6 +29,12 @@ from edb.common import typeutils
 from edb.edgeql import ast as qlast
 from edb.ir import ast as irast
 
+if typing.TYPE_CHECKING:
+    # PathAspect is imported without qualifiers here because otherwise in
+    # base.AST._collect_direct_fields, typing.get_type_hints will not correctly
+    # locate the type.
+    from .compiler.enums import PathAspect
+
 
 # The structure of the nodes mostly follows that of Postgres'
 # parsenodes.h and primnodes.h, but only with fields that are
@@ -169,18 +175,18 @@ class EdgeQLPathInfo(Base):
 
     # Map of res target names corresponding to paths.
     path_outputs: typing.Dict[
-        typing.Tuple[irast.PathId, str], OutputVar
+        typing.Tuple[irast.PathId, PathAspect], OutputVar
     ] = ast.field(factory=dict)
 
     # Map of res target names corresponding to materialized paths.
     packed_path_outputs: typing.Optional[typing.Dict[
-        typing.Tuple[irast.PathId, str],
+        typing.Tuple[irast.PathId, PathAspect],
         OutputVar,
     ]] = None
 
     def get_path_outputs(
         self, flavor: str
-    ) -> typing.Dict[typing.Tuple[irast.PathId, str], OutputVar]:
+    ) -> typing.Dict[typing.Tuple[irast.PathId, PathAspect], OutputVar]:
         if flavor == 'packed':
             if self.packed_path_outputs is None:
                 self.packed_path_outputs = {}
@@ -194,12 +200,13 @@ class EdgeQLPathInfo(Base):
 
     # Map of col refs corresponding to paths.
     path_namespace: typing.Dict[
-        typing.Tuple[irast.PathId, str], BaseExpr
+        typing.Tuple[irast.PathId, PathAspect],
+        BaseExpr,
     ] = ast.field(factory=dict)
 
     # Same, but for packed.
     packed_path_namespace: typing.Optional[typing.Dict[
-        typing.Tuple[irast.PathId, str],
+        typing.Tuple[irast.PathId, PathAspect],
         BaseExpr,
     ]] = None
 
@@ -569,11 +576,11 @@ class Query(ReturningQuery):
     ] = ast.field(factory=dict)
     # Map of RangeVars corresponding to paths.
     path_rvar_map: typing.Dict[
-        typing.Tuple[irast.PathId, str], PathRangeVar
+        typing.Tuple[irast.PathId, PathAspect], PathRangeVar
     ] = ast.field(factory=dict)
     # Map of materialized RangeVars corresponding to paths.
     path_packed_rvar_map: typing.Optional[typing.Dict[
-        typing.Tuple[irast.PathId, str],
+        typing.Tuple[irast.PathId, PathAspect],
         PathRangeVar,
     ]] = None
 
@@ -583,7 +590,7 @@ class Query(ReturningQuery):
 
     def get_rvar_map(
         self, flavor: str
-    ) -> typing.Dict[typing.Tuple[irast.PathId, str], PathRangeVar]:
+    ) -> typing.Dict[typing.Tuple[irast.PathId, PathAspect], PathRangeVar]:
         if flavor == 'packed':
             if self.path_packed_rvar_map is None:
                 self.path_packed_rvar_map = {}
@@ -596,7 +603,7 @@ class Query(ReturningQuery):
     def maybe_get_rvar_map(
         self, flavor: str
     ) -> typing.Optional[
-        typing.Dict[typing.Tuple[irast.PathId, str], PathRangeVar]
+        typing.Dict[typing.Tuple[irast.PathId, PathAspect], PathRangeVar]
     ]:
         if flavor == 'packed':
             return self.path_packed_rvar_map
@@ -1098,12 +1105,17 @@ class IteratorCTE(ImmutableBase):
 
     # A list of other paths to *also* register the iterator rvar as
     # providing when it is merged into a statement.
-    other_paths: tuple[tuple[irast.PathId, str], ...] = ()
+    other_paths: tuple[tuple[irast.PathId, PathAspect], ...] = ()
     iterator_bond: bool = False
 
     @property
-    def aspect(self) -> str:
-        return 'iterator' if self.iterator_bond else 'identity'
+    def aspect(self) -> PathAspect:
+        from .compiler import enums as pgce
+        return (
+            pgce.PathAspect.ITERATOR
+            if self.iterator_bond else
+            pgce.PathAspect.IDENTITY
+        )
 
 
 class Statement(Base):

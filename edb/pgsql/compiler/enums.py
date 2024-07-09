@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2024-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,16 +17,12 @@
 #
 
 
-from typing import Any
-
-from . import base
+from edb.common import enum as s_enum
 
 
-class SlackProvider(base.OpenIDConnectProvider):
-    def __init__(self, *args: Any, **kwargs: Any):
-        super().__init__(
-            "slack",
-            "https://slack.com",
-            *args,
-            **kwargs,
-        )
+class PathAspect(s_enum.StrEnum):
+    IDENTITY = 'identity'
+    VALUE = 'value'
+    SOURCE = 'source'
+    SERIALIZED = 'serialized'
+    ITERATOR = 'iterator'

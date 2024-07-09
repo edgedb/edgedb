@@ -697,13 +697,21 @@ def _call_system_api(
         con.close()
 
 
+def parse_metrics(metrics: str) -> dict[str, float]:
+    res = {}
+    for line in metrics.splitlines():
+        if line.startswith('#') or ' ' not in line:
+            continue
+        key, _, val = line.partition(' ')
+        res[key] = float(val)
+    return res
+
+
 def _extract_background_errors(metrics: str) -> str | None:
     non_zero = []
 
-    for line in metrics.splitlines():
-        if line.startswith('edgedb_server_background_errors_total'):
-            label, _, total = line.rpartition(' ')
-            total = float(total)
+    for label, total in parse_metrics(metrics).items():
+        if label.startswith('edgedb_server_background_errors_total'):
             if total:
                 non_zero.append(
                     f'non-zero {label!r} metric: {total}'

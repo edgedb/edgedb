@@ -564,7 +564,8 @@ Bug fixes
 * Make link properties (including @source/@target) work in conflict selects.
   (:eql:gh:`#7284`)
 
-* Create key derivation function for signing each different kind of JWTs.
+* Create key derivation function for signing each different kind of JWTs in
+  the ``auth`` extension
   (:eql:gh:`#7285`)
 
   This avoids accidentally being able to use other (short-lived) JWT tokens
@@ -600,3 +601,80 @@ Bug fixes
 
 * Fix an issue with collection types that affected some migrations.
   (:eql:gh:`#7375`)
+
+5.5
+===
+
+* Fix recompilation slowdowns after several migrations
+  (:eql:gh:`#7099`)
+
+* Fix dumps of types that have both AI and FTS indexes
+  (:eql:gh:`#7405`)
+
+* Fix single-tenant metrics not to filter by tenant
+  (:eql:gh:`#7385`)
+
+* Fix rewrite expressions using ``__specified__`` sometimes
+  generating InvalidReferenceError.
+  (:eql:gh:`#7392`)
+
+* Raise error when using query params in schema.
+  (:eql:gh:`#7400`)
+
+* Add expression to index friendly name.
+  (:eql:gh:`#7401`)
+
+* Treat target and link properties as different when expanding splats.
+  (:eql:gh:`#7402`)
+
+* Remove redundant primary key constraint on 'id'.
+  (:eql:gh:`#7418`)
+
+* workflows: Use an explicit label when selecting runners for builds
+  (:eql:gh:`#7416`)
+
+* Log errors raised when handling ext::ai HTTP requests
+  (:eql:gh:`#7436`)
+
+* ai: Properly forward non-successful responses from non-streaming chat
+  (:eql:gh:`#7440`)
+
+* Fix ai::to_context duplication
+  (:eql:gh:`#7464`)
+
+* Support configuring more arguments with env vars
+  (:eql:gh:`#7470`)
+
+* Use SQL's ``ON CONFLICT`` to implement ``UNLESS CONFLICT`` more often
+  (:eql:gh:`#7472`)
+
+* Fix a race condition where older database configs can overwrite newer ones
+  (:eql:gh:`#7485`)
+
+* Allow subdomains in redirects in the ``auth`` extension
+  (:eql:gh:`#7488`)
+
+* Fix tenant shutdown in multi-tenant mode
+  (:eql:gh:`#7495`)
+
+* Fix migration creation when adding a new base class with certain constraints
+  (:eql:gh:`#7508`)
+
+* Fix ``pg_dump`` of an empty schema using the SQL adapter
+  (:eql:gh:`#7445`)
+
+* Fix SQL adapter ``COPY`` command
+  (:eql:gh:`#7446`)
+
+* Fix interaction of implicit limit with explicit OFFSET
+  (:eql:gh:`#7509`)
+
+* Make persistent query cache work for queries that have no constant
+  literals in them
+  (:eql:gh:`#7237`)
+
+* Unbreak cache recompilation after a restart
+  (:eql:gh:`#7515`, :eql:gh:`#7520`)
+
+* Add a auto_rebuild_query_cache_timeout config
+  (:eql:gh:`#7518`)

@@ -40,6 +40,7 @@ from . import astutils
 from . import config
 from . import context
 from . import dispatch
+from . import enums as pgce
 from . import expr as expr_compiler  # NOQA
 from . import output
 from . import pathctx
@@ -497,12 +498,19 @@ def compile_operator(
 
     else:
         if expr.sql_function:
-            sql_func = expr.sql_function[0]
-            func_name = tuple(sql_func.split('.', 1))
-            if len(expr.sql_function) > 1:
+            sql_func, *cast_types = expr.sql_function
+
+            func_name = common.maybe_versioned_name(
+                tuple(sql_func.split('.', 1)),
+                versioned=(
+                    ctx.env.versioned_stdlib
+                    and expr.func_shortname.get_root_module_name().name != 'ext'
+                ),
+            )
+
+            if cast_types:
                 # Explicit operand types given in FROM SQL FUNCTION
-                lexpr, rexpr = _cast_operands(
-                    lexpr, rexpr, expr.sql_function[1:])
+                lexpr, rexpr = _cast_operands(lexpr, rexpr, cast_types)
         else:
             func_name = common.get_operator_backend_name(
                 expr.func_shortname, aspect='function',
@@ -541,7 +549,7 @@ def compile_operator(
 def _cast_operands(
     lexpr: Optional[pgast.BaseExpr],
     rexpr: Optional[pgast.BaseExpr],
-    sql_types: Tuple[str, ...],
+    sql_types: Sequence[str],
 ) -> Tuple[Optional[pgast.BaseExpr], Optional[pgast.BaseExpr]]:
 
     if lexpr is not None:
@@ -582,6 +590,27 @@ def _cast_operands(
             )
 
     return lexpr, rexpr
+
+
+def get_func_call_backend_name(
+    expr: irast.FunctionCall, *,
+    ctx: context.CompilerContextLevel
+) -> Tuple[str, ...]:
+    if expr.func_sql_function:
+        # The name might contain a "." if it's one of our
+        # metaschema helpers.
+        func_name = common.maybe_versioned_name(
+            tuple(expr.func_sql_function.split('.', 1)),
+            versioned=(
+                ctx.env.versioned_stdlib
+                and expr.func_shortname.get_root_module_name().name != 'ext'
+            ),
+        )
+    else:
+        func_name = common.get_function_backend_name(
+            expr.func_shortname, expr.backend_name,
+            versioned=ctx.env.versioned_stdlib)
+    return func_name
 
 
 @dispatch.compile.register(irast.TypeCheckOp)
@@ -717,7 +746,7 @@ def compile_FunctionCall(
 
         args.append(pgast.VariadicArgument(expr=var))
 
-    name = relgen.get_func_call_backend_name(expr, ctx=ctx)
+    name = get_func_call_backend_name(expr, ctx=ctx)
 
     result: pgast.BaseExpr = pgast.FuncCall(name=name, args=args)
 
@@ -765,7 +794,10 @@ def _compile_set(
         shape_tuple = shapecomp.compile_shape(ir_set, ir_set.shape, ctx=ctx)
         for element in shape_tuple.elements:
             pathctx.put_path_var_if_not_exists(
-                ctx.rel, element.path_id, element.val, aspect='value'
+                ctx.rel,
+                element.path_id,
+                element.val,
+                aspect=pgce.PathAspect.VALUE,
             )
 
 
@@ -855,7 +887,9 @@ def compile_Pointer(
     # will be only one in scope), but sometimes we do (for example NEW
     # in trigger functions).
     rvar_name = []
-    if src := ctx.env.external_rvars.get((source.path_id, 'source')):
+    if src := ctx.env.external_rvars.get(
+        (source.path_id, pgce.PathAspect.SOURCE)
+    ):
         rvar_name = [src.alias.aliasname]
 
     # compile column name

@@ -6102,6 +6102,39 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             ]
         )
 
+    def test_schema_migrations_equivalence_constr_rebase_01(self):
+        self._assert_migration_equivalence(
+            [
+            r"""
+            abstract type Foo;
+
+            type Bar {
+              required property baz -> str {
+                constraint max_len_value(280);
+              }
+            }
+            """,
+            r"""
+            abstract type Foo;
+
+            type Bar extending Foo {
+              required property baz -> str {
+                constraint max_len_value(280);
+              }
+            }
+            """,
+            r"""
+            abstract type Foo;
+
+            type Bar {
+              required property baz -> str {
+                constraint max_len_value(280);
+              }
+            }
+            """,
+            ]
+        )
+
     def test_schema_migrations_equivalence_compound_01(self):
         # Check that union types can be referenced in computables
         # Bug #2002.

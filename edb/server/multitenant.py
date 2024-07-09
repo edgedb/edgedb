@@ -117,7 +117,9 @@ class MultiTenantServer(server.BaseServer):
         return self._sys_config
 
     def _sni_callback(self, sslobj, server_name, _sslctx):
-        if tenant := self._tenants.get(server_name):
+        if server_name is None:
+            self._tenants_by_sslobj[sslobj] = edbtenant.host_tenant
+        elif tenant := self._tenants.get(server_name):
             self._tenants_by_sslobj[sslobj] = tenant
 
     def get_default_tenant(self) -> edbtenant.Tenant:
@@ -273,9 +275,22 @@ class MultiTenantServer(server.BaseServer):
 
     async def _destroy_tenant(self, tenant: edbtenant.Tenant):
         try:
+            if tenant.is_online():
+                tenant.set_readiness_state(
+                    srvargs.ReadinessState.Offline, "tenant is removed"
+                )
             tenant.stop_accepting_connections()
             tenant.stop()
-            await tenant.wait_stopped()
+            try:
+                await asyncio.wait_for(
+                    tenant.wait_stopped(),
+                    defines.MULTITENANT_TENANT_DESTROY_TIMEOUT,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Tenant removal is taking too long; "
+                    "brutally shutdown the tenant now"
+                )
             assert isinstance(
                 self._compiler_pool, compiler_pool.MultiTenantPool
             )

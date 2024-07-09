@@ -40,6 +40,7 @@ from edb.graphql import extension as graphql_ext
 
 from edb.server import args as srvargs
 from edb.server import config, metrics as srv_metrics
+from edb.server import tenant as edbtenant
 from edb.server.protocol cimport binary
 from edb.server.protocol import binary
 from edb.server.protocol import pg_ext
@@ -124,6 +125,7 @@ cdef class HttpProtocol:
         self.respond_hsts = False  # redirect non-TLS HTTP clients to TLS URL
 
         self.is_tls = False
+        self.is_tenant_host = False
 
     def connection_made(self, transport):
         self.connection_made_at = time.monotonic()
@@ -414,7 +416,11 @@ cdef class HttpProtocol:
             self.transport, self, self.sslctx, server_side=True
         )
         sslobj = self.transport.get_extra_info('ssl_object')
-        self.tenant = self.server.retrieve_tenant(sslobj)
+        tenant = self.server.retrieve_tenant(sslobj)
+        if tenant is edbtenant.host_tenant:
+            tenant = None
+            self.is_tenant_host = True
+        self.tenant = tenant
         if self.tenant is not None:
             current_tenant.set(self.get_tenant_label())
         if sslobj.selected_alpn_protocol() == 'edgedb-binary':
@@ -720,6 +726,7 @@ cdef class HttpProtocol:
                 path_parts[1:],
                 self.server,
                 self.tenant,
+                self.is_tenant_host,
             )
         elif path_parts == ['metrics'] and request.method == b'GET':
             if not await self._authenticate_for_default_conn_transport(

@@ -527,6 +527,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._accept_new_tasks = False
         self._cluster.stop_watching()
         self._stop_watching_files()
+        self._server.request_frontend_stop(self)
 
     def _stop_watching_files(self):
         while self._file_watch_finalizers:
@@ -1309,6 +1310,10 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._accepting_connections = self.is_online()
 
+    def set_readiness_state(self, state: srvargs.ReadinessState, reason: str):
+        self._readiness = state
+        self._readiness_reason = reason
+
     def reload(self):
         # In multi-tenant mode, the file paths for the following states may be
         # unset in a reload, while it's impossible in a regular server.
@@ -1739,3 +1744,7 @@ class Tenant(ha_base.ClusterProtocol):
     def iter_dbs(self) -> Iterator[dbview.Database]:
         if self._dbindex is not None:
             yield from self._dbindex.iter_dbs()
+
+
+# sentinel Tenant object to indicate an empty SNI
+host_tenant = Tenant.__new__(Tenant)

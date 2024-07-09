@@ -65,6 +65,7 @@ from . import astutils
 from . import clauses
 from . import context
 from . import dispatch
+from . import enums as pgce
 from . import output
 from . import pathctx
 from . import relctx
@@ -392,8 +393,10 @@ def merge_iterator(
         put_iterator_bond(iterator, select)
         relctx.include_rvar(
             select, iterator_rvar,
-            aspects=('value', iterator.aspect) + (
-                ('source',) if iterator.path_id.is_objtype_path() else ()
+            aspects=(pgce.PathAspect.VALUE, iterator.aspect) + (
+                (pgce.PathAspect.SOURCE,)
+                if iterator.path_id.is_objtype_path() else
+                ()
             ),
             path_id=iterator.path_id,
             overwrite_path_rvar=True,
@@ -606,7 +609,12 @@ def _mk_dynamic_get_path(
         flavor: str,
         aspect: str, env: context.Environment
     ) -> Optional[pgast.BaseExpr | pgast.PathRangeVar]:
-        if flavor != 'normal' or aspect not in ('value', 'identity'):
+        if (
+            flavor != 'normal'
+            or aspect not in (
+                pgce.PathAspect.VALUE, pgce.PathAspect.IDENTITY
+            )
+        ):
             return None
         if rptr := path_id.rptr():
             if ret := ptr_map.get(rptr.real_material_ptr.name):
@@ -914,9 +922,9 @@ def process_insert_rewrites(
         cte=contents_cte,
         parent=inner_iterator,
         other_paths=(
-            (subject_path_id, 'identity'),
-            (subject_path_id, 'value'),
-            (subject_path_id, 'source'),
+            (subject_path_id, pgce.PathAspect.IDENTITY),
+            (subject_path_id, pgce.PathAspect.VALUE),
+            (subject_path_id, pgce.PathAspect.SOURCE),
         ),
     )
 
@@ -935,7 +943,7 @@ def process_insert_rewrites(
     )
 
     iterator_rvar = pathctx.get_path_rvar(
-        rew_stmt, path_id=subject_path_id, aspect='value'
+        rew_stmt, path_id=subject_path_id, aspect=pgce.PathAspect.VALUE
     )
     fallback_rvar = pgast.DynamicRangeVar(
         dynamic_get_path=_mk_dynamic_get_path(nptr_map, typeref, iterator_rvar)
@@ -973,7 +981,10 @@ def process_insert_rewrites(
             ptrref, resolve_type=True, link_bias=False)
         if ptr_info.table_type == 'ObjectType':
             val = pathctx.get_path_var(
-                rew_stmt, e.path_id, aspect='value', env=ctx.env
+                rew_stmt,
+                e.path_id,
+                aspect=pgce.PathAspect.VALUE,
+                env=ctx.env,
             )
             val = output.output_as_value(val, env=ctx.env)
             rew_stmt.target_list.append(pgast.ResTarget(
@@ -1063,7 +1074,7 @@ def process_insert_shape(
 
         put_iterator_bond(iterator, select)
 
-    for aspect in ('value', 'identity'):
+    for aspect in (pgce.PathAspect.VALUE, pgce.PathAspect.IDENTITY):
         pathctx._put_path_output_var(
             select, ir_stmt.subject.path_id, aspect=aspect,
             var=pgast.ColumnRef(name=['id']),
@@ -1512,7 +1523,7 @@ def compile_insert_else_body(
                 enclosing_cte_iterator else None)
             aspect = (
                 enclosing_cte_iterator.aspect if enclosing_cte_iterator
-                else 'identity'
+                else pgce.PathAspect.IDENTITY
             )
             relctx.anti_join(ictx.rel, subrel, iter_path_id,
                              aspect=aspect, ctx=ctx)
@@ -1852,7 +1863,7 @@ def process_update_rewrites(
         parent=iterator,
         # __old__
         other_paths=(
-            ((old_path_id, 'identity'),)
+            ((old_path_id, pgce.PathAspect.IDENTITY),)
         ),
     )
 
@@ -1880,8 +1891,8 @@ def process_update_rewrites(
 
         # pull in table_relation for __old__
         table_rel.path_outputs[
-            (old_path_id, "value")
-        ] = table_rel.path_outputs[(subject_path_id, "value")]
+            (old_path_id, pgce.PathAspect.VALUE)
+        ] = table_rel.path_outputs[(subject_path_id, pgce.PathAspect.VALUE)]
         relctx.include_rvar(
             rewrites_stmt, table_relation, old_path_id, ctx=ctx
         )
@@ -1947,7 +1958,10 @@ def process_update_rewrites(
                 actual_ptrref, resolve_type=True, link_bias=False)
             if ptr_info.table_type == 'ObjectType':
                 val = pathctx.get_path_var(
-                    rewrites_stmt, e.path_id, aspect='value', env=ctx.env
+                    rewrites_stmt,
+                    e.path_id,
+                    aspect=pgce.PathAspect.VALUE,
+                    env=ctx.env,
                 )
                 updval = pgast.ResTarget(
                     name=ptr_info.column_name, val=val)
@@ -2078,11 +2092,15 @@ def process_update_shape(
                 # XXX: Maybe this suggests a rework of the
                 # DynamicRangeVar mechanism would be a good idea.
                 pathctx.put_path_var(
-                    rel, element.path_id, aspect='value',
+                    rel,
+                    element.path_id,
+                    aspect=pgce.PathAspect.VALUE,
                     var=val,
                 )
                 pathctx._put_path_output_var(
-                    rel, element.path_id, aspect='value',
+                    rel,
+                    element.path_id,
+                    aspect=pgce.PathAspect.VALUE,
                     var=pgast.ColumnRef(name=[ptr_info.column_name]),
                 )
 
@@ -3037,7 +3055,7 @@ def process_link_values(
         # XXX: This is dodgy. Do we need to do the dynamic rvar thing?
         # XXX: And can we make defaults work?
         pathctx._put_path_output_var(
-            row_query, col_path_id, aspect='value',
+            row_query, col_path_id, aspect=pgce.PathAspect.VALUE,
             var=pgast.ColumnRef(name=[col]),
         )
 
@@ -3225,7 +3243,9 @@ def compile_trigger(
                 # iterator cte, and so will get included whenever
                 # merged
                 other_paths=(
-                    ((old_path, 'identity'),) if old_path else ()
+                    ((old_path, pgce.PathAspect.IDENTITY),)
+                    if old_path else
+                    ()
                 ),
             )
             merge_iterator(tctx.enclosing_cte_iterator, tctx.rel, ctx=ctx)
@@ -3235,12 +3255,16 @@ def compile_trigger(
             tctx.external_rels = dict(tctx.external_rels)
             # new_path is just the contents_cte
             tctx.external_rels[new_path] = (
-                contents_cte, ('value', 'source'))
+                contents_cte,
+                (pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE)
+            )
             if old_path:
                 # old_path is *also* the contents_cte, but without a source
                 # aspect, so we need to include the real database back in.
                 tctx.external_rels[old_path] = (
-                    contents_cte, ('value', 'identity',))
+                    contents_cte,
+                    (pgce.PathAspect.VALUE, pgce.PathAspect.IDENTITY,)
+                )
 
         # This is somewhat subtle: we merge *every* DML into
         # the "None" overlay, so that all the new database state shows

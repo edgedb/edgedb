@@ -40,6 +40,7 @@ from edb.common.log import current_tenant
 from edb.pgsql.parser import exceptions as parser_errors
 from edb.server import args as srvargs
 from edb.server import defines, metrics
+from edb.server import tenant as edbtenant
 from edb.server.compiler import dbstate
 from edb.server.pgcon import errors as pgerror
 from edb.server.pgcon.pgcon cimport PGAction, PGMessage
@@ -491,9 +492,12 @@ cdef class PgConnection(frontend.FrontendConnection):
                         self.sslctx,
                         server_side=True,
                     )
-                    self.tenant = self.server.retrieve_tenant(
+                    tenant = self.server.retrieve_tenant(
                         self._transport.get_extra_info("ssl_object")
                     )
+                    if tenant is edbtenant.host_tenant:
+                        tenant = None
+                    self.tenant = tenant
                     if self.tenant is not None:
                         current_tenant.set(self.tenant.get_instance_name())
                     self.is_tls = True
