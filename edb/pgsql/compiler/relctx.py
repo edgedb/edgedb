@@ -1546,15 +1546,11 @@ def range_for_material_objtype(
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
 
-    env = ctx.env
-
     if not is_global:
         typeref = typeref.real_material_type
 
     if not is_global and not path_id.is_objtype_path():
         raise ValueError('cannot create root rvar for non-object path')
-
-    relation: Union[pgast.Relation, pgast.CommonTableExpr]
 
     assert isinstance(typeref.name_hint, sn.QualName)
 
@@ -1630,7 +1626,7 @@ def range_for_material_objtype(
             cte_rvar = rvar_for_rel(
                 type_rel,
                 typeref=typeref,
-                alias=env.aliases.get('t'),
+                alias=ctx.env.aliases.get('t'),
                 ctx=ctx,
             )
             pathctx.put_path_id_map(sctx.rel, path_id, rewrite.path_id)
@@ -1641,14 +1637,17 @@ def range_for_material_objtype(
             rvar = rvar_for_rel(
                 sctx.rel, lateral=lateral, typeref=typeref, ctx=sctx)
 
-    elif (
-        include_descendants
-        and not for_mutation
-        and typeref.children is not None
+    else:
+        typeref_descendants = _get_typeref_descendants(
+            typeref,
+            include_descendants=(
+                include_descendants
 
-        # HACK: This is a workaround for #4491
-        and typeref.name_hint.module not in {'cfg', 'sys'}
-    ):
+                # HACK: This is a workaround for #4491
+                and typeref.name_hint.module not in {'cfg', 'sys'}
+            ),
+            for_mutation=for_mutation,
+        )
         if (
             # When we are compiling a query for EXPLAIN, expand out type
             # references to an explicit union of all the types, rather than
@@ -1659,14 +1658,14 @@ def range_for_material_objtype(
 
             # Don't use CTEs if there is no inheritance. (ie. There is only a
             # single material type)
-            or len(typeref.children) == 0
+            or len(typeref_descendants) <= 1
         ):
-            inheritance_selects = _selects_for_typeref_inheritance(
-                typeref,
+            inheritance_selects = _selects_for_typeref_descendants(
+                typeref_descendants,
                 path_id,
-                lateral=lateral,
-                ignore_rewrites=ignore_rewrites,
-                ctx=ctx
+                for_mutation=for_mutation,
+                include_descendants=include_descendants,
+                ctx=ctx,
             )
             ops = [
                 (context.OverlayOp.UNION, select)
@@ -1694,12 +1693,12 @@ def range_for_material_objtype(
             )
 
             if typeref.id not in ctx.type_inheritance_ctes:
-                inheritance_selects = _selects_for_typeref_inheritance(
-                    typeref,
+                inheritance_selects = _selects_for_typeref_descendants(
+                    typeref_descendants,
                     typeref_path,
-                    lateral=lateral,
-                    ignore_rewrites=ignore_rewrites,
-                    ctx=ctx
+                    for_mutation=False,
+                    include_descendants=False,
+                    ctx=ctx,
                 )
 
                 type_qry: pgast.SelectStmt = inheritance_selects[0]
@@ -1740,34 +1739,6 @@ def range_for_material_objtype(
                 rvar = rvar_for_rel(
                     sctx.rel, lateral=lateral, typeref=typeref, ctx=sctx)
 
-    else:
-        assert not typeref.is_view, "attempting to generate range from view"
-        table_schema_name, table_name = common.get_objtype_backend_name(
-            typeref.id,
-            typeref.name_hint.module,
-            aspect=(
-                'table' if for_mutation or not include_descendants else
-                'inhview'
-            ),
-            catenate=False,
-            versioned=ctx.env.versioned_stdlib,
-        )
-
-        relation = pgast.Relation(
-            schemaname=table_schema_name,
-            name=table_name,
-            path_id=path_id,
-            type_or_ptr_ref=typeref,
-        )
-
-        rvar = pgast.RelRangeVar(
-            relation=relation,
-            typeref=typeref,
-            alias=pgast.Alias(
-                aliasname=env.aliases.get(typeref.name_hint.name)
-            )
-        )
-
     overlays = get_type_rel_overlays(typeref, dml_source=dml_source, ctx=ctx)
     external_rvar = ctx.env.external_rvars.get(
         (path_id, pgce.PathAspect.SOURCE)
@@ -1805,7 +1776,7 @@ def range_for_material_objtype(
             qry_rvar = pgast.RangeSubselect(
                 subquery=qry,
                 alias=pgast.Alias(
-                    aliasname=env.aliases.get(hint=cte.name or '')
+                    aliasname=ctx.env.aliases.get(hint=cte.name or '')
                 )
             )
 
@@ -1835,25 +1806,48 @@ def range_for_material_objtype(
     return rvar
 
 
-def _selects_for_typeref_inheritance(
+def _get_typeref_descendants(
     typeref: irast.TypeRef,
+    *,
+    include_descendants: bool,
+    for_mutation: bool,
+) -> list[irast.TypeRef]:
+    if (
+        include_descendants
+        and not for_mutation
+    ):
+        descendants = [typeref, *irtyputils.get_typeref_descendants(typeref)]
+
+        # Try to only select from actual concrete types.
+        concrete_descendants = [
+            subref for subref in descendants if not subref.is_abstract
+        ]
+        # If there aren't any concrete types, we still need to
+        # generate *something*, so just do the initial one.
+        if concrete_descendants:
+            return concrete_descendants
+        else:
+            return [typeref]
+
+    else:
+        return [typeref]
+
+
+def _selects_for_typeref_descendants(
+    typeref_descendants: Sequence[irast.TypeRef],
     path_id: irast.PathId,
     *,
-    lateral: bool=False,
-    ignore_rewrites: bool=False,
+    for_mutation: bool,
+    include_descendants: bool,
     ctx: context.CompilerContextLevel,
 ) -> list[pgast.SelectStmt]:
     selects = []
-    typerefs = [typeref, *irtyputils.get_typeref_descendants(typeref)]
-    all_abstract = all(subref.is_abstract for subref in typerefs)
-    for subref in typerefs:
-        if subref.is_abstract and not all_abstract:
-            continue
-        rvar = range_for_material_objtype(
-            subref, path_id, lateral=lateral,
-            include_descendants=False,
-            include_overlays=False,
-            ignore_rewrites=ignore_rewrites,  # XXX: Is this right?
+    for subref in typeref_descendants:
+        rvar = _table_from_typeref(
+            subref,
+            path_id,
+            for_mutation=for_mutation,
+            include_descendants=include_descendants,
             ctx=ctx,
         )
         qry = pgast.SelectStmt(from_clause=[rvar])
@@ -1864,6 +1858,50 @@ def _selects_for_typeref_inheritance(
         selects.append(qry)
 
     return selects
+
+
+def _table_from_typeref(
+    typeref: irast.TypeRef,
+    path_id: irast.PathId,
+    *,
+    for_mutation: bool,
+    include_descendants: bool,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
+    assert isinstance(typeref.name_hint, sn.QualName)
+    assert not typeref.is_view, "attempting to generate range from view"
+
+    aspect = 'table'
+
+    if (
+        include_descendants
+        and not for_mutation
+        and typeref.name_hint.module in {'cfg', 'sys', 'schema'}
+    ):
+        aspect = 'inhview'
+
+    table_schema_name, table_name = common.get_objtype_backend_name(
+        typeref.id,
+        typeref.name_hint.module,
+        aspect=aspect,
+        catenate=False,
+        versioned=ctx.env.versioned_stdlib,
+    )
+
+    relation = pgast.Relation(
+        schemaname=table_schema_name,
+        name=table_name,
+        path_id=path_id,
+        type_or_ptr_ref=typeref,
+    )
+
+    return pgast.RelRangeVar(
+        relation=relation,
+        typeref=typeref,
+        alias=pgast.Alias(
+            aliasname=ctx.env.aliases.get(typeref.name_hint.name)
+        )
+    )
 
 
 def range_for_typeref(
