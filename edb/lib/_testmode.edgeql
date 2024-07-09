@@ -345,8 +345,8 @@ std::_datetime_range_buckets(
     SET volatility := 'Stable';
     USING SQL $$
     SELECT
-        lo::edgedb.timestamptz_t,
-        hi::edgedb.timestamptz_t
+        lo::edgedbt.timestamptz_t,
+        hi::edgedbt.timestamptz_t
     FROM
         (SELECT
             series AS lo,

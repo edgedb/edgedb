@@ -239,7 +239,7 @@ std::range_unpack(
 {
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT d::edgedb.timestamptz_t
+        SELECT d::edgedbt.timestamptz_t
         FROM
             generate_series(
                 (
@@ -256,7 +256,7 @@ std::range_unpack(
                 step::interval
             ) AS d
         WHERE
-            upper_inc(val) OR d::edgedb.timestamptz_t < upper(val)
+            upper_inc(val) OR d::edgedbt.timestamptz_t < upper(val)
     $$;
 };
 

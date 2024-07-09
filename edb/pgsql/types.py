@@ -48,25 +48,25 @@ base_type_name_map = {
     s_obj.get_known_type_id('std::int32'): ('int4',),
     s_obj.get_known_type_id('std::int16'): ('int2',),
     s_obj.get_known_type_id('std::decimal'): ('numeric',),
-    s_obj.get_known_type_id('std::bigint'): ('edgedb', 'bigint_t'),
+    s_obj.get_known_type_id('std::bigint'): ('edgedbt', 'bigint_t'),
     s_obj.get_known_type_id('std::bool'): ('bool',),
     s_obj.get_known_type_id('std::float64'): ('float8',),
     s_obj.get_known_type_id('std::float32'): ('float4',),
     s_obj.get_known_type_id('std::uuid'): ('uuid',),
-    s_obj.get_known_type_id('std::datetime'): ('edgedb', 'timestamptz_t'),
-    s_obj.get_known_type_id('std::duration'): ('edgedb', 'duration_t',),
+    s_obj.get_known_type_id('std::datetime'): ('edgedbt', 'timestamptz_t'),
+    s_obj.get_known_type_id('std::duration'): ('edgedbt', 'duration_t',),
     s_obj.get_known_type_id('std::bytes'): ('bytea',),
     s_obj.get_known_type_id('std::json'): ('jsonb',),
 
-    s_obj.get_known_type_id('cal::local_datetime'): ('edgedb', 'timestamp_t'),
-    s_obj.get_known_type_id('cal::local_date'): ('edgedb', 'date_t'),
+    s_obj.get_known_type_id('cal::local_datetime'): ('edgedbt', 'timestamp_t'),
+    s_obj.get_known_type_id('cal::local_date'): ('edgedbt', 'date_t'),
     s_obj.get_known_type_id('cal::local_time'): ('time',),
     s_obj.get_known_type_id('cal::relative_duration'):
-        ('edgedb', 'relative_duration_t'),
+        ('edgedbt', 'relative_duration_t'),
     s_obj.get_known_type_id('cal::date_duration'):
-        ('edgedb', 'date_duration_t'),
+        ('edgedbt', 'date_duration_t'),
 
-    s_obj.get_known_type_id('cfg::memory'): ('edgedb', 'memory_t'),
+    s_obj.get_known_type_id('cfg::memory'): ('edgedbt', 'memory_t'),
 }
 
 type_to_range_name_map = {
@@ -75,15 +75,15 @@ type_to_range_name_map = {
     ('numeric',): ('numrange',),
     ('float4',): ('edgedb', 'float32_range_t'),
     ('float8',): ('edgedb', 'float64_range_t'),
-    ('edgedb', 'timestamptz_t'): ('edgedb', 'datetime_range_t'),
-    ('edgedb', 'timestamp_t'): ('edgedb', 'local_datetime_range_t'),
+    ('edgedbt', 'timestamptz_t'): ('edgedb', 'datetime_range_t'),
+    ('edgedbt', 'timestamp_t'): ('edgedb', 'local_datetime_range_t'),
     # cal::local_date uses the built-in daterange instead of a custom
-    # one that actually uses edgedb.date_t as its subtype. This is
+    # one that actually uses edgedbt.date_t as its subtype. This is
     # because cal::local_date is discrete, and its range type should
     # get canonicalized. Defining a canonicalization function for a
     # custom range is a big hassle, and daterange already has the
     # correct canonicalization function
-    ('edgedb', 'date_t'): ('daterange',),
+    ('edgedbt', 'date_t'): ('daterange',),
 }
 
 # Construct a multirange map based on type_to_range_name_map by replacing
@@ -103,7 +103,7 @@ base_type_name_map_r = {
     'character': sn.QualName('std', 'str'),
     'text': sn.QualName('std', 'str'),
     'numeric': sn.QualName('std', 'decimal'),
-    'edgedb.bigint_t': sn.QualName('std', 'bigint'),
+    'edgedbt.bigint_t': sn.QualName('std', 'bigint'),
     'bigint_t': sn.QualName('std', 'bigint'),
     'int4': sn.QualName('std', 'int32'),
     'integer': sn.QualName('std', 'int32'),
@@ -119,28 +119,28 @@ base_type_name_map_r = {
     'float4': sn.QualName('std', 'float32'),
     'uuid': sn.QualName('std', 'uuid'),
     'timestamp with time zone': sn.QualName('std', 'datetime'),
-    'edgedb.timestamptz_t': sn.QualName('std', 'datetime'),
+    'edgedbt.timestamptz_t': sn.QualName('std', 'datetime'),
     'timestamptz_t': sn.QualName('std', 'datetime'),
     'timestamptz': sn.QualName('std', 'datetime'),
     'duration_t': sn.QualName('std', 'duration'),
-    'edgedb.duration_t': sn.QualName('std', 'duration'),
+    'edgedbt.duration_t': sn.QualName('std', 'duration'),
     'interval': sn.QualName('std', 'duration'),
     'bytea': sn.QualName('std', 'bytes'),
     'jsonb': sn.QualName('std', 'json'),
 
     'timestamp': sn.QualName('cal', 'local_datetime'),
     'timestamp_t': sn.QualName('cal', 'local_datetime'),
-    'edgedb.timestamp_t': sn.QualName('cal', 'local_datetime'),
+    'edgedbt.timestamp_t': sn.QualName('cal', 'local_datetime'),
     'date': sn.QualName('cal', 'local_date'),
     'date_t': sn.QualName('cal', 'local_date'),
-    'edgedb.date_t': sn.QualName('cal', 'local_date'),
+    'edgedbt.date_t': sn.QualName('cal', 'local_date'),
     'time': sn.QualName('cal', 'local_time'),
     'relative_duration_t': sn.QualName('cal', 'relative_duration'),
-    'edgedb.relative_duration_t': sn.QualName('cal', 'relative_duration'),
+    'edgedbt.relative_duration_t': sn.QualName('cal', 'relative_duration'),
     'date_duration_t': sn.QualName('cal', 'date_duration'),
-    'edgedb.date_duration_t': sn.QualName('cal', 'date_duration'),
+    'edgedbt.date_duration_t': sn.QualName('cal', 'date_duration'),
 
-    'edgedb.memory_t': sn.QualName('cfg', 'memory'),
+    'edgedbt.memory_t': sn.QualName('cfg', 'memory'),
     'memory_t': sn.QualName('cfg', 'memory'),
 }
 

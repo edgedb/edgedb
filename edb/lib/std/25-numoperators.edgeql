@@ -2166,7 +2166,7 @@ std::`//` (n: std::bigint, d: std::bigint) -> std::bigint
     USING SQL $$
         SELECT floor(
             1.0::numeric * "n"::numeric / "d"::numeric
-        )::edgedb.bigint_t;
+        )::edgedbt.bigint_t;
     $$;
 };
 
@@ -2297,7 +2297,7 @@ std::`%` (n: std::bigint, d: std::bigint) -> std::bigint
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'%(numeric,numeric)';
     USING SQL $$
-        SELECT (((n % d) + d) % d)::edgedb.bigint_t;
+        SELECT (((n % d) + d) % d)::edgedbt.bigint_t;
     $$;
 };
 
@@ -2508,7 +2508,7 @@ CREATE CAST FROM std::decimal TO std::float32 {
 
 CREATE CAST FROM std::decimal TO std::bigint {
     SET volatility := 'Immutable';
-    USING SQL 'SELECT round($1)::edgedb.bigint_t';
+    USING SQL 'SELECT round($1)::edgedbt.bigint_t';
 };
 
 
@@ -2532,7 +2532,7 @@ CREATE CAST FROM std::float32 TO std::int64 {
 
 CREATE CAST FROM std::float32 TO std::bigint {
     SET volatility := 'Immutable';
-    USING SQL 'SELECT round($1)::edgedb.bigint_t';
+    USING SQL 'SELECT round($1)::edgedbt.bigint_t';
 };
 
 
@@ -2580,7 +2580,7 @@ CREATE CAST FROM std::float64 TO std::int64 {
 
 CREATE CAST FROM std::float64 TO std::bigint {
     SET volatility := 'Immutable';
-    USING SQL 'SELECT round($1)::edgedb.bigint_t';
+    USING SQL 'SELECT round($1)::edgedbt.bigint_t';
 };
 
 
