@@ -24,11 +24,13 @@ except ImportError:
     async_solipsism = None  # type: ignore
 
 
-@unittest.skipIf(async_solipsism is None, 'async_solipsism is missing')
 def with_fake_event_loop(f):
     # async_solpsism creates an event loop with, among other things,
     # a totally fake clock which starts at 0.
     def new(*args, **kwargs):
+        if not async_solipsism:
+            raise unittest.SkipTest('async_solipsism is missing')
+
         loop = async_solipsism.EventLoop()
         try:
             loop.run_until_complete(f(*args, **kwargs))
