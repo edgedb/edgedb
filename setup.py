@@ -25,6 +25,7 @@ import platform
 import shutil
 import subprocess
 import textwrap
+import tomllib
 
 import setuptools
 from setuptools import extension as setuptools_extension
@@ -562,14 +563,16 @@ class ci_helper(setuptools.Command):
             print(binascii.hexlify(bootstrap_hash).decode())
 
         elif self.type == 'rust':
-            rust_hash = hash_dirs([
-                (pkg_dir / 'edgeql-parser', '.rs'),
-                (pkg_dir / 'graphql-rewrite', '.rs'),
-            ], extra_files=[
-                pkg_dir / 'edgeql-parser/Cargo.toml',
-                pkg_dir / 'edgeql-parser/edgeql-parser-python/Cargo.toml',
-                pkg_dir / 'graphql-rewrite/Cargo.toml',
-            ])
+            dirs = []
+            # Read the list of Rust projects from Cargo.toml
+            with open(pkg_dir.parent / 'Cargo.toml', 'rb') as f:
+                root = tomllib.load(f)
+                for member in root['workspace']['members']:
+                    dirs.append(pkg_dir.parent / member)
+            rust_hash = hash_dirs(
+                [(dir, '.rs') for dir in dirs],
+                extra_files=[dir / 'Cargo.toml' for dir in dirs] +
+                  [pkg_dir.parent / 'Cargo.lock'])
             print(binascii.hexlify(rust_hash).decode())
 
         elif self.type == 'ext':

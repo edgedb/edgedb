@@ -1,4 +1,29 @@
-<% macro init() -%>
+name: Pool Simulation Test
+
+on:
+  push:
+    branches:
+      - master
+      - pool-test
+    paths:
+      - 'edb/server/connpool/**'
+      - 'edb/server/conn_pool/**'
+      - 'tests/test_server_pool.py'
+      - '.github/workflows/tests-pool.yml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'edb/server/connpool/**'
+      - 'edb/server/conn_pool/**'
+      - 'tests/test_server_pool.py'
+      - '.github/workflows/tests-pool.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    concurrency: pool-test
+    steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
@@ -32,11 +57,6 @@
         path: ~/.cache/uv
         key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
 
-<%- endmacro %>
-
-<% macro build() %>
-    << init() >>
-
     - name: Cached requirements.txt
       uses: actions/cache@v4
       id: requirements-cache
@@ -57,7 +77,23 @@
         python -c "import sys; print(sys.prefix)"
         python -m pip install uv~=0.1.0 && uv pip install -U -r requirements.txt
 
-    << caller() >>
+    - name: Compute cache keys
+      run: |
+        mkdir -p .tmp
+        python setup.py -q ci_helper --type cli > .tmp/edgedbcli_git_rev.txt
+        python setup.py -q ci_helper --type rust >.tmp/rust_cache_key.txt
+        python setup.py -q ci_helper --type ext >.tmp/ext_cache_key.txt
+        python setup.py -q ci_helper --type parsers >.tmp/parsers_cache_key.txt
+        python setup.py -q ci_helper --type postgres >.tmp/postgres_git_rev.txt
+        python setup.py -q ci_helper --type libpg_query >.tmp/libpg_query_git_rev.txt
+        echo 'f8cd94309eaccbfba5dea7835b88c78377608a37' >.tmp/stolon_git_rev.txt
+        python setup.py -q ci_helper --type bootstrap >.tmp/bootstrap_cache_key.txt
+        echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
+        echo LIBPG_QUERY_GIT_REV=$(cat .tmp/libpg_query_git_rev.txt) >> $GITHUB_ENV
+        echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
+        echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
+        echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
     - name: Upload shared artifacts
       uses: actions/upload-artifact@v4
@@ -303,147 +339,28 @@
       if: steps.bootstrap-cache.outputs.cache-hit != 'true'
       run: |
         edb server --bootstrap-only
-<%- endmacro %>
 
-<% macro calc_cache_key() -%>
-    mkdir -p .tmp
-    python setup.py -q ci_helper --type cli > .tmp/edgedbcli_git_rev.txt
-    python setup.py -q ci_helper --type rust >.tmp/rust_cache_key.txt
-    python setup.py -q ci_helper --type ext >.tmp/ext_cache_key.txt
-    python setup.py -q ci_helper --type parsers >.tmp/parsers_cache_key.txt
-    python setup.py -q ci_helper --type postgres >.tmp/postgres_git_rev.txt
-    python setup.py -q ci_helper --type libpg_query >.tmp/libpg_query_git_rev.txt
-    echo 'f8cd94309eaccbfba5dea7835b88c78377608a37' >.tmp/stolon_git_rev.txt
-    python setup.py -q ci_helper --type bootstrap >.tmp/bootstrap_cache_key.txt
-    echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
-    echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
-    echo LIBPG_QUERY_GIT_REV=$(cat .tmp/libpg_query_git_rev.txt) >> $GITHUB_ENV
-    echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
-    echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
-    echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
-<%- endmacro %>
-
-<% macro install_python_requirements() %>
-    - name: Download requirements.txt
-      uses: actions/cache@v4
-      with:
-        path: requirements.txt
-        key: edb-requirements-${{ hashFiles('pyproject.toml') }}
-
-    - name: Install Python dependencies
-      run: python -m pip install uv~=0.1.0 && uv pip install -U -r requirements.txt
-<%- endmacro %>
-
-<% macro restore_cache() %>
-    << init() >>
-    << install_python_requirements() >>
-
-    # Restore the artifacts and environment variables
-
-    - name: Download shared artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: shared-artifacts
-        path: .tmp
-
-    - name: Set environment variables
-      run: |
-        echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
-        echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
-        echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
-        echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
-        echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
-
-    # Restore build cache
-
-    - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v4
-      id: cli-cache
-      with:
-        path: build/cli
-        key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
-
-    - name: Restore cached Rust extensions
-      uses: actions/cache@v4
-      id: rust-cache
-      with:
-        path: build/rust_extensions
-        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
-
-    - name: Restore cached Cython extensions
-      uses: actions/cache@v4
-      id: ext-cache
-      with:
-        path: build/extensions
-        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
-
-    - name: Restore compiled parsers cache
-      uses: actions/cache@v4
-      id: parsers-cache
-      with:
-        path: build/lib
-        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
-
-    - name: Restore cached PostgreSQL build
-      uses: actions/cache@v4
-      id: postgres-cache
-      with:
-        path: build/postgres/install
-        key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
-
-    - name: Restore cached Stolon build
-      uses: actions/cache@v4
-      id: stolon-cache
-      with:
-        path: build/stolon/bin
-        key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
-
-    - name: Restore bootstrap cache
-      uses: actions/cache@v4
-      id: bootstrap-cache
-      with:
-        path: build/cache
-        key: edb-bootstrap-v2-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
-
-    - name: Stop if we cannot retrieve the cache
-      if: |
-        steps.cli-cache.outputs.cache-hit != 'true' ||
-        steps.rust-cache.outputs.cache-hit != 'true' ||
-        steps.ext-cache.outputs.cache-hit != 'true' ||
-        steps.parsers-cache.outputs.cache-hit != 'true' ||
-        steps.postgres-cache.outputs.cache-hit != 'true' ||
-        steps.stolon-cache.outputs.cache-hit != 'true' ||
-        steps.bootstrap-cache.outputs.cache-hit != 'true'
-      run: |
-        echo ::error::Cannot retrieve build cache.
-        exit 1
-
-    - name: Restore cache into the source tree
-      run: |
-        cp -v build/cli/bin/edgedb edb/cli/edgedb
-        rsync -av ./build/rust_extensions/edb/ ./edb/
-        rsync -av ./build/extensions/edb/ ./edb/
-        rsync -av ./build/lib/edb/ ./edb/
-        cp build/postgres/install/stamp build/postgres/
-
-    - name: Install edgedb-server
-      env:
-        BUILD_EXT_MODE: skip
-      run: |
-        # --no-build-isolation because we have explicitly installed all deps
-        # and don't want them to be reinstalled in an "isolated env".
-        pip install --no-build-isolation --no-deps -e .[test,docs]
-<%- endmacro %>
-
-<% macro setup_terraform() -%>
     - uses: actions/checkout@v4
+      if: startsWith(github.ref, 'refs/heads')
       with:
-        fetch-depth: 0
-        submodules: false
+        repository: edgedb/edgedb-pool-simulation
+        path: pool-simulation
+        token: ${{ secrets.GITHUB_CI_BOT_TOKEN }}
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@633666f66e0061ca3b725c73b2ec20cd13a8fdd1  # v2.0.3
+    - name: Run the pool simulation test
+      env:
+        PYTHONPATH: .
+        SIMULATION_CI: yes
+        TIME_SCALE: 10
+      run: |
+        mkdir -p pool-simulation/reports
+        python tests/test_server_pool.py
 
-    - name: Initialize Terraform
-      run: terraform init
-<%- endmacro %>
+    - uses: EndBug/add-and-commit@v7.0.0
+      if: ${{ always() }}
+      continue-on-error: true
+      with:
+        branch: main
+        cwd: pool-simulation
+        author_name: github-actions
+        author_email: 41898282+github-actions[bot]@users.noreply.github.com
