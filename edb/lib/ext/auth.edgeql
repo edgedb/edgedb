@@ -135,6 +135,95 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
     };
 
+    create abstract type ext::auth::Event extending std::BaseObject {
+        create required property timestamp: std::datetime {
+            set default := std::datetime_current();
+            set readonly := true;
+        };
+    };
+
+    create abstract type ext::auth::IdentityEvent extending ext::auth::Event {
+        create required link identity: ext::auth::Identity {
+            on target delete delete source;
+        };
+    };
+
+    create type ext::auth::IdentityCreated
+        extending ext::auth::IdentityEvent {
+        create annotation std::description :=
+            "An identity has been created.";
+    };
+
+    create type ext::auth::IdentityDeleted
+        extending ext::auth::IdentityEvent {
+        create annotation std::description :=
+            "An identity has been deleted.";
+    };
+
+    create type ext::auth::IdentityAuthenticated
+        extending ext::auth::IdentityEvent {
+        create annotation std::description :=
+            "An identity has been successfully authenticated.";
+    };
+
+    create abstract type ext::auth::EmailFactorTokenEvent
+        extending ext::auth::Event {
+        create required link email_factor: ext::auth::EmailFactor {
+            on target delete delete source;
+        };
+        create required property token: std::str;
+    };
+
+    create type ext::auth::EmailFactorCreated
+        extending ext::auth::EmailFactorTokenEvent {
+        create annotation std::description :=
+            "An email factor has been created.";
+    };
+
+    create type ext::auth::EmailVerified
+        extending ext::auth::EmailFactorTokenEvent {
+        create annotation std::description :=
+            "An email factor has been verified.";
+    };
+
+    create type ext::auth::MagicLinkRequested
+        extending ext::auth::EmailFactorTokenEvent {
+        create annotation std::description :=
+            "A magic link has been requested.";
+    };
+
+    create type ext::auth::PasswordResetRequested
+        extending ext::auth::EmailFactorTokenEvent {
+        create annotation std::description :=
+            "A password reset has been requested.";
+    };
+
+    create abstract type ext::auth::SMTPEvent extending ext::auth::Event {
+        create required property email: std::str;
+        create required property smtp_response: std::str {
+            create annotation std::description :=
+                "The response body from the SMTP server.";
+        };
+    };
+
+    create type ext::auth::SMTPRequestSent
+        extending ext::auth::SMTPEvent {
+        create annotation std::description :=
+            "An SMTP request has been sent.";
+    };
+
+    create type ext::auth::SMTPRequestSucceeded
+        extending ext::auth::SMTPEvent {
+        create annotation std::description :=
+            "An SMTP request has succeeded.";
+    };
+
+    create type ext::auth::SMTPRequestFailed
+        extending ext::auth::SMTPEvent {
+        create annotation std::description :=
+            "An SMTP request has failed.";
+    };
+
     create abstract type ext::auth::ProviderConfig
         extending cfg::ConfigObject {
         create required property name: std::str {
@@ -418,6 +507,12 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 to a trusted domain controlled by the application. URLs are \
                 matched based on checking if the candidate redirect URL is \
                 a match or a subdirectory of any of these allowed URLs";
+        };
+
+        create property event_log_retention_period -> std::duration {
+            create annotation std::description :=
+                "The period of time to retain ext::auth::Event logs.";
+            set default := <std::duration>'168 hours';
         };
     };
 
