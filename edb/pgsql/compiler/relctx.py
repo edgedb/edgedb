@@ -1638,6 +1638,7 @@ def range_for_material_objtype(
                 sctx.rel, lateral=lateral, typeref=typeref, ctx=sctx)
 
     else:
+        assert not typeref.is_view, "attempting to generate range from view"
         typeref_descendants = _get_typeref_descendants(
             typeref,
             include_descendants=(
@@ -1869,7 +1870,6 @@ def _table_from_typeref(
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
     assert isinstance(typeref.name_hint, sn.QualName)
-    assert not typeref.is_view, "attempting to generate range from view"
 
     aspect = 'table'
 
