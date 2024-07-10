@@ -6165,9 +6165,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
         self.link_ops = []
         self.changed_targets = set()
 
-    def _get_link_table_union(self, schema, links, include_children) -> str:
+    def _get_link_table_union(self, schema, links) -> str:
         selects = []
-        aspect = 'inhview' if include_children else None
         for link in links:
             selects.append(textwrap.dedent('''\
                 (SELECT
@@ -6182,17 +6181,15 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 table=common.get_backend_name(
                     schema,
                     link,
-                    aspect=aspect,
                 ),
             ))
 
         return '(' + '\nUNION ALL\n    '.join(selects) + ') as q'
 
     def _get_inline_link_table_union(
-        self, schema, links, include_children
+        self, schema, links
     ) -> str:
         selects = []
-        aspect = 'inhview' if include_children else None
         for link in links:
             link_psi = types.get_pointer_storage_info(link, schema=schema)
             link_col = link_psi.column_name
@@ -6209,7 +6206,6 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 table=common.get_backend_name(
                     schema,
                     link.get_source(schema),
-                    aspect=aspect,
                 ),
             ))
 
@@ -6331,11 +6327,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         for action, links in groups:
             if action is DA.Restrict or action is DA.DeferredRestrict:
-                # Inherited link targets with restrict actions are
-                # elided by apply() to enable us to use inhviews here
-                # when looking for live references.
-                tables = self._get_link_table_union(
-                    schema, links, include_children=True)
+                tables = self._get_link_table_union(schema, links)
 
                 text = textwrap.dedent('''\
                     SELECT
@@ -6436,8 +6428,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     sources[link.get_source(schema)].append(link)
 
                 for source, source_links in sources.items():
-                    tables = self._get_link_table_union(
-                        schema, source_links, include_children=False)
+                    tables = self._get_link_table_union(schema, source_links)
 
                     text = textwrap.dedent('''\
                         DELETE FROM
@@ -6468,11 +6459,19 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     # If the link is DELETE TARGET IF ORPHAN, build
                     # filters to ignore any objects that aren't
                     # orphans (wrt to this link).
+                    roots = {
+                        x
+                        for root in self.get_orphan_link_ancestors(link, schema)
+                        for x in [root, *root.descendants(schema)]
+                    }
+
                     orphan_check = ''
-                    for orphan_check_root in self.get_orphan_link_ancestors(
-                            link, schema):
+                    for orphan_check_root in roots:
+                        if not types.has_table(orphan_check_root, schema):
+                            continue
                         check_table = common.get_backend_name(
-                            schema, orphan_check_root, aspect='inhview')
+                            schema, orphan_check_root
+                        )
                         orphan_check += f'''\
                             AND NOT EXISTS (
                                 SELECT FROM {check_table} as q2
@@ -6553,11 +6552,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         for action, links in groups:
             if action is DA.Restrict or action is DA.DeferredRestrict:
-                # Inherited link targets with restrict actions are
-                # elided by apply() to enable us to use inhviews here
-                # when looking for live references.
-                tables = self._get_inline_link_table_union(
-                    schema, links, include_children=True)
+                tables = self._get_inline_link_table_union(schema, links)
 
                 text = textwrap.dedent('''\
                     SELECT
@@ -6624,7 +6619,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                 for source, source_links in sources.items():
                     tables = self._get_inline_link_table_union(
-                        schema, source_links, include_children=False)
+                        schema, source_links)
 
                     text = textwrap.dedent('''\
                         DELETE FROM
@@ -6657,12 +6652,20 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                     # If the link is DELETE TARGET IF ORPHAN, filter out
                     # any objects that aren't orphans (wrt to this link).
+                    roots = {
+                        x
+                        for root in self.get_orphan_link_ancestors(link, schema)
+                        for x in [root, *root.descendants(schema)]
+                    }
+
                     orphan_check = ''
-                    for orphan_check_root in self.get_orphan_link_ancestors(
-                            link, schema):
+                    for orphan_check_root in roots:
                         check_source = orphan_check_root.get_source(schema)
+                        if not types.has_table(check_source, schema):
+                            continue
                         check_table = common.get_backend_name(
-                            schema, check_source, aspect='inhview')
+                            schema, check_source
+                        )
 
                         check_link_psi = types.get_pointer_storage_info(
                             orphan_check_root, schema=schema)
@@ -6735,6 +6738,11 @@ class UpdateEndpointDeleteActions(MetaCommand):
         )
 
         for link_op, link, orig_schema, eff_schema in self.link_ops:
+            # Skip __type__ triggers, since __type__ isn't real and
+            # also would be a huge pain to update each time if it was.
+            if link.get_shortname(eff_schema).name == '__type__':
+                continue
+
             if (
                 isinstance(link_op, (DeleteProperty, DeleteLink))
                 or (
@@ -6753,23 +6761,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             if not eff_schema.has_object(link.id):
                 continue
 
-            # If our link has a restrict policy, we don't need to update
-            # the target on changes to inherited links.
-            # Most importantly, this optimization lets us avoid updating
-            # the triggers for every schema::Type subtype every time a
-            # new object type is created containing a __type__ link.
-            action = (
-                link.get_on_target_delete(eff_schema)
-                if isinstance(link, s_links.Link) else None)
-            target_is_affected = not (
-                (action is DA.Restrict or action is DA.DeferredRestrict)
-                and (
-                    link.field_is_inherited(eff_schema, 'on_target_delete')
-                    or link.get_explicit_field_value(
-                        eff_schema, 'on_target_delete', None) is None
-                )
-                and link.get_implicit_bases(eff_schema)
-            ) and isinstance(link, s_links.Link)
+            target_is_affected = isinstance(link, s_links.Link)
 
             if link.is_non_concrete(eff_schema) or (
                 link.is_pure_computable(eff_schema)
@@ -6857,6 +6849,11 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 if link.is_pure_computable(schema):
                     continue
 
+                # Skip __type__ triggers, since __type__ isn't real and
+                # also would be a huge pain to update each time if it was.
+                if link.get_shortname(schema).name == '__type__':
+                    continue
+
                 source = link.get_source(schema)
                 if (
                     not source.is_material_object_type(schema)
@@ -6872,21 +6869,6 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     affected_sources.add(target)
 
                 action = link.get_on_target_delete(schema)
-                # Enforcing link deletion policies on targets are
-                # handled by looking at the inheritance views, when
-                # restrict is the policy.
-                # If the policy is allow or delete source, we need to
-                # actually process this for each link.
-                if (
-                    (action is DA.Restrict or action is DA.DeferredRestrict)
-                    and (
-                        link.field_is_inherited(schema, 'on_target_delete')
-                        or link.get_explicit_field_value(
-                            schema, 'on_target_delete', None) is None
-                    )
-                    and link.get_implicit_bases(schema)
-                ):
-                    continue
 
                 ptr_stor_info = types.get_pointer_storage_info(
                     link, schema=schema)
