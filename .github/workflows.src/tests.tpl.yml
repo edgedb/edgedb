@@ -92,6 +92,7 @@ jobs:
     - name: Test
       env:
         SHARD: ${{ matrix.shard }}
+        EDGEDB_TEST_REPEATS: 1
       run: |
         mkdir -p .results/
         cp .tmp/time_stats.csv .results/running_times_${SHARD}.csv
@@ -118,6 +119,7 @@ jobs:
     - name: Generate complete list of tests for verification
       env:
         SHARD: ${{ matrix.shard }}
+        EDGEDB_TEST_REPEATS: 1
       run: |
         edb test --list > .tmp/all_tests.txt
 
