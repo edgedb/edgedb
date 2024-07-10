@@ -264,11 +264,11 @@ class BigintDomain(dbops.Domain):
     """
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', 'bigint_t'),
+            name=('edgedbt', 'bigint_t'),
             base='numeric',
             constraints=(
                 dbops.DomainCheckConstraint(
-                    domain_name=('edgedb', 'bigint_t'),
+                    domain_name=('edgedbt', 'bigint_t'),
                     expr=("scale(VALUE) = 0 AND VALUE != 'NaN'"),
                 ),
             ),
@@ -278,7 +278,7 @@ class BigintDomain(dbops.Domain):
 class ConfigMemoryDomain(dbops.Domain):
     """Represents the cfg::memory type. Stores number of bytes.
 
-    Defined just as edgedb.bigint_t:
+    Defined just as edgedbt.bigint_t:
 
     * numeric is used to ensure we can comfortably represent huge amounts
       of data beyond petabytes;
@@ -286,11 +286,11 @@ class ConfigMemoryDomain(dbops.Domain):
     """
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', 'memory_t'),
+            name=('edgedbt', 'memory_t'),
             base='int8',
             constraints=(
                 dbops.DomainCheckConstraint(
-                    domain_name=('edgedb', 'memory_t'),
+                    domain_name=('edgedbt', 'memory_t'),
                     expr=("VALUE >= 0"),
                 ),
             ),
@@ -306,11 +306,11 @@ class TimestampTzDomain(dbops.Domain):
     """
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', 'timestamptz_t'),
+            name=('edgedbt', 'timestamptz_t'),
             base='timestamptz',
             constraints=(
                 dbops.DomainCheckConstraint(
-                    domain_name=('edgedb', 'timestamptz_t'),
+                    domain_name=('edgedbt', 'timestamptz_t'),
                     expr=("EXTRACT(years from VALUE) BETWEEN 1 AND 9999"),
                 ),
             ),
@@ -326,11 +326,11 @@ class TimestampDomain(dbops.Domain):
     """
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', 'timestamp_t'),
+            name=('edgedbt', 'timestamp_t'),
             base='timestamp',
             constraints=(
                 dbops.DomainCheckConstraint(
-                    domain_name=('edgedb', 'timestamp_t'),
+                    domain_name=('edgedbt', 'timestamp_t'),
                     expr=("EXTRACT(years from VALUE) BETWEEN 1 AND 9999"),
                 ),
             ),
@@ -346,11 +346,11 @@ class DateDomain(dbops.Domain):
     """
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', 'date_t'),
+            name=('edgedbt', 'date_t'),
             base='date',
             constraints=(
                 dbops.DomainCheckConstraint(
-                    domain_name=('edgedb', 'date_t'),
+                    domain_name=('edgedbt', 'date_t'),
                     expr=("EXTRACT(years from VALUE) BETWEEN 1 AND 9999"),
                 ),
             ),
@@ -360,11 +360,11 @@ class DateDomain(dbops.Domain):
 class DurationDomain(dbops.Domain):
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', 'duration_t'),
+            name=('edgedbt', 'duration_t'),
             base='interval',
             constraints=(
                 dbops.DomainCheckConstraint(
-                    domain_name=('edgedb', 'duration_t'),
+                    domain_name=('edgedbt', 'duration_t'),
                     expr=r'''
                         EXTRACT(months from VALUE) = 0 AND
                         EXTRACT(years from VALUE) = 0 AND
@@ -378,11 +378,11 @@ class DurationDomain(dbops.Domain):
 class RelativeDurationDomain(dbops.Domain):
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', 'relative_duration_t'),
+            name=('edgedbt', 'relative_duration_t'),
             base='interval',
             constraints=(
                 dbops.DomainCheckConstraint(
-                    domain_name=('edgedb', 'relative_duration_t'),
+                    domain_name=('edgedbt', 'relative_duration_t'),
                     expr="true",
                 ),
             ),
@@ -392,11 +392,11 @@ class RelativeDurationDomain(dbops.Domain):
 class DateDurationDomain(dbops.Domain):
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', 'date_duration_t'),
+            name=('edgedbt', 'date_duration_t'),
             base='interval',
             constraints=(
                 dbops.DomainCheckConstraint(
-                    domain_name=('edgedb', 'date_duration_t'),
+                    domain_name=('edgedbt', 'date_duration_t'),
                     expr=r'''
                         EXTRACT(hour from VALUE) = 0 AND
                         EXTRACT(minute from VALUE) = 0 AND
@@ -427,16 +427,16 @@ class Float64Range(dbops.Range):
 class DatetimeRange(dbops.Range):
     def __init__(self) -> None:
         super().__init__(
-            name=types.type_to_range_name_map[('edgedb', 'timestamptz_t')],
-            subtype=('edgedb', 'timestamptz_t'),
+            name=types.type_to_range_name_map[('edgedbt', 'timestamptz_t')],
+            subtype=('edgedbt', 'timestamptz_t'),
         )
 
 
 class LocalDatetimeRange(dbops.Range):
     def __init__(self) -> None:
         super().__init__(
-            name=types.type_to_range_name_map[('edgedb', 'timestamp_t')],
-            subtype=('edgedb', 'timestamp_t'),
+            name=types.type_to_range_name_map[('edgedbt', 'timestamp_t')],
+            subtype=('edgedbt', 'timestamp_t'),
         )
 
 
@@ -660,7 +660,7 @@ class StrToConfigMemoryFunction(trampoline.VersionedFunction):
                                 )
                             )
                     END
-            END)::edgedb.memory_t
+            END)::edgedbt.memory_t
         FROM LATERAL (
             SELECT regexp_match(
                 "val", '^(\d+)([[:alpha:]]+)$') AS v
@@ -673,7 +673,7 @@ class StrToConfigMemoryFunction(trampoline.VersionedFunction):
             args=[
                 ('val', ('text',)),
             ],
-            returns=('edgedb', 'memory_t'),
+            returns=('edgedbt', 'memory_t'),
             strict=True,
             volatility='immutable',
             language='sql',
@@ -722,7 +722,7 @@ class ConfigMemoryToStrFunction(trampoline.VersionedFunction):
         super().__init__(
             name=('edgedb', 'cfg_memory_to_str'),
             args=[
-                ('val', ('edgedb', 'memory_t')),
+                ('val', ('edgedbt', 'memory_t')),
             ],
             returns=('text',),
             volatility='immutable',
@@ -878,7 +878,7 @@ class StrToBigint(trampoline.VersionedFunction):
     """Parse bigint from text."""
 
     # The plpgsql execption handling nonsense is actually just so that
-    # we can produce an exception that mentions edgedb.bigint_t
+    # we can produce an exception that mentions edgedbt.bigint_t
     # instead of numeric, and thus produce the right user-facing
     # exception. As a nice side effect it is like twice as fast
     # as the previous code too.
@@ -894,13 +894,13 @@ class StrToBigint(trampoline.VersionedFunction):
             END;
 
             IF scale(v) = 0 THEN
-                RETURN v::edgedb.bigint_t;
+                RETURN v::edgedbt.bigint_t;
             ELSE
                 EXECUTE edgedb_VER.raise(
                     NULL::numeric,
                     'invalid_text_representation',
                     msg => (
-                        'invalid input syntax for type edgedb.bigint_t: '
+                        'invalid input syntax for type edgedbt.bigint_t: '
                         || quote_literal(val)
                     )
                 );
@@ -912,7 +912,7 @@ class StrToBigint(trampoline.VersionedFunction):
         super().__init__(
             name=('edgedb', 'str_to_bigint'),
             args=[('val', ('text',))],
-            returns=('edgedb', 'bigint_t'),
+            returns=('edgedbt', 'bigint_t'),
             language='plpgsql',
             volatility='immutable',
             strict=True,
@@ -2285,7 +2285,7 @@ class DatetimeInFunction(trampoline.VersionedFunction):
                 )
             THEN
                 edgedb_VER.raise(
-                    NULL::edgedb.timestamptz_t,
+                    NULL::edgedbt.timestamptz_t,
                     'invalid_datetime_format',
                     msg => (
                         'invalid input syntax for type timestamptz: '
@@ -2299,7 +2299,7 @@ class DatetimeInFunction(trampoline.VersionedFunction):
                     )
                 )
             ELSE
-                val::edgedb.timestamptz_t
+                val::edgedbt.timestamptz_t
             END;
     '''
 
@@ -2307,7 +2307,7 @@ class DatetimeInFunction(trampoline.VersionedFunction):
         super().__init__(
             name=('edgedb', 'datetime_in'),
             args=[('val', ('text',))],
-            returns=('edgedb', 'timestamptz_t'),
+            returns=('edgedbt', 'timestamptz_t'),
             # Same volatility as raise() (stable)
             volatility='stable',
             text=self.text)
@@ -2323,7 +2323,7 @@ class DurationInFunction(trampoline.VersionedFunction):
                 EXTRACT(DAY FROM v.column1) != 0
             THEN
                 edgedb_VER.raise(
-                    NULL::edgedb.duration_t,
+                    NULL::edgedbt.duration_t,
                     'invalid_datetime_format',
                     msg => (
                         'invalid input syntax for type std::duration: '
@@ -2334,7 +2334,7 @@ class DurationInFunction(trampoline.VersionedFunction):
                         || 'for std::duration."}'
                     )
                 )
-            ELSE v.column1::edgedb.duration_t
+            ELSE v.column1::edgedbt.duration_t
             END
         FROM
             (VALUES (
@@ -2346,7 +2346,7 @@ class DurationInFunction(trampoline.VersionedFunction):
         super().__init__(
             name=('edgedb', 'duration_in'),
             args=[('val', ('text',))],
-            returns=('edgedb', 'duration_t'),
+            returns=('edgedbt', 'duration_t'),
             volatility='immutable',
             text=self.text,
         )
@@ -2365,7 +2365,7 @@ class DateDurationInFunction(trampoline.VersionedFunction):
                 EXTRACT(SECOND FROM v.column1) != 0
             THEN
                 edgedb_VER.raise(
-                    NULL::edgedb.date_duration_t,
+                    NULL::edgedbt.date_duration_t,
                     'invalid_datetime_format',
                     msg => (
                         'invalid input syntax for type cal::date_duration: '
@@ -2376,7 +2376,7 @@ class DateDurationInFunction(trampoline.VersionedFunction):
                         || 'for cal::date_duration."}'
                     )
                 )
-            ELSE v.column1::edgedb.date_duration_t
+            ELSE v.column1::edgedbt.date_duration_t
             END
         FROM
             (VALUES (
@@ -2388,7 +2388,7 @@ class DateDurationInFunction(trampoline.VersionedFunction):
         super().__init__(
             name=('edgedb', 'date_duration_in'),
             args=[('val', ('text',))],
-            returns=('edgedb', 'date_duration_t'),
+            returns=('edgedbt', 'date_duration_t'),
             volatility='immutable',
             text=self.text,
         )
@@ -2408,7 +2408,7 @@ class LocalDatetimeInFunction(trampoline.VersionedFunction):
                 )
             THEN
                 edgedb_VER.raise(
-                    NULL::edgedb.timestamp_t,
+                    NULL::edgedbt.timestamp_t,
                     'invalid_datetime_format',
                     msg => (
                         'invalid input syntax for type timestamp: '
@@ -2422,7 +2422,7 @@ class LocalDatetimeInFunction(trampoline.VersionedFunction):
                     )
                 )
             ELSE
-                val::edgedb.timestamp_t
+                val::edgedbt.timestamp_t
             END;
     '''
 
@@ -2430,7 +2430,7 @@ class LocalDatetimeInFunction(trampoline.VersionedFunction):
         super().__init__(
             name=('edgedb', 'local_datetime_in'),
             args=[('val', ('text',))],
-            returns=('edgedb', 'timestamp_t'),
+            returns=('edgedbt', 'timestamp_t'),
             volatility='immutable',
             text=self.text)
 
@@ -2447,7 +2447,7 @@ class LocalDateInFunction(trampoline.VersionedFunction):
                 )
             THEN
                 edgedb_VER.raise(
-                    NULL::edgedb.date_t,
+                    NULL::edgedbt.date_t,
                     'invalid_datetime_format',
                     msg => (
                         'invalid input syntax for type date: '
@@ -2461,7 +2461,7 @@ class LocalDateInFunction(trampoline.VersionedFunction):
                     )
                 )
             ELSE
-                val::edgedb.date_t
+                val::edgedbt.date_t
             END;
     '''
 
@@ -2469,7 +2469,7 @@ class LocalDateInFunction(trampoline.VersionedFunction):
         super().__init__(
             name=('edgedb', 'local_date_in'),
             args=[('val', ('text',))],
-            returns=('edgedb', 'date_t'),
+            returns=('edgedbt', 'date_t'),
             volatility='immutable',
             text=self.text)
 
@@ -2576,7 +2576,7 @@ class ToTimestampTZCheck(trampoline.VersionedFunction):
                     DETAIL = '';
             END IF;
 
-            RETURN result::edgedb.timestamptz_t;
+            RETURN result::edgedbt.timestamptz_t;
         END;
     '''
 
@@ -2585,7 +2585,7 @@ class ToTimestampTZCheck(trampoline.VersionedFunction):
             name=('edgedb', '_to_timestamptz_check'),
             args=[('val', ('text',)), ('fmt', ('text',)),
                   ('hastz', ('bool',))],
-            returns=('edgedb', 'timestamptz_t'),
+            returns=('edgedbt', 'timestamptz_t'),
             # We're relying on changing settings, so it's volatile.
             volatility='volatile',
             language='plpgsql',
@@ -2606,7 +2606,7 @@ class ToDatetimeFunction(trampoline.VersionedFunction):
                 )
             THEN
                 edgedb_VER.raise(
-                    NULL::edgedb.timestamptz_t,
+                    NULL::edgedbt.timestamptz_t,
                     'invalid_datetime_format',
                     msg => (
                         'missing required time zone in format: '
@@ -2626,7 +2626,7 @@ class ToDatetimeFunction(trampoline.VersionedFunction):
         super().__init__(
             name=('edgedb', 'to_datetime'),
             args=[('val', ('text',)), ('fmt', ('text',))],
-            returns=('edgedb', 'timestamptz_t'),
+            returns=('edgedbt', 'timestamptz_t'),
             # Same as _to_timestamptz_check.
             volatility='volatile',
             text=self.text)
@@ -2645,7 +2645,7 @@ class ToLocalDatetimeFunction(trampoline.VersionedFunction):
                 )
             THEN
                 edgedb_VER.raise(
-                    NULL::edgedb.timestamp_t,
+                    NULL::edgedbt.timestamp_t,
                     'invalid_datetime_format',
                     msg => (
                         'unexpected time zone in format: '
@@ -2654,7 +2654,7 @@ class ToLocalDatetimeFunction(trampoline.VersionedFunction):
                 )
             ELSE
                 edgedb_VER._to_timestamptz_check(val, fmt, false)
-                    ::edgedb.timestamp_t
+                    ::edgedbt.timestamp_t
             END;
     '''
 
@@ -2662,7 +2662,7 @@ class ToLocalDatetimeFunction(trampoline.VersionedFunction):
         super().__init__(
             name=('edgedb', 'to_local_datetime'),
             args=[('val', ('text',)), ('fmt', ('text',))],
-            returns=('edgedb', 'timestamp_t'),
+            returns=('edgedbt', 'timestamp_t'),
             # Same as _to_timestamptz_check.
             volatility='volatile',
             text=self.text)
@@ -4148,7 +4148,7 @@ class GetPgTypeForEdgeDBTypeFunction(trampoline.VersionedFunction):
                         -- For ranges, we need to do the lookup based on
                         -- our internal map of elem names to range names,
                         -- because we use the builtin daterange as the range
-                        -- for edgedb.date_t.
+                        -- for edgedbt.date_t.
                         AND rng.rngtypid = (
                             SELECT
                                 rn::regtype::oid
@@ -4173,7 +4173,7 @@ class GetPgTypeForEdgeDBTypeFunction(trampoline.VersionedFunction):
                         -- For multiranges, we need to do the lookup based on
                         -- our internal map of elem names to range names,
                         -- because we use the builtin daterange as the range
-                        -- for edgedb.date_t.
+                        -- for edgedbt.date_t.
                         AND rng.rngmultitypid = (
                             SELECT
                                 rn::regtype::oid
@@ -4658,6 +4658,7 @@ async def bootstrap(
 ) -> None:
     cmds = [
         dbops.CreateSchema(name='edgedb'),
+        dbops.CreateSchema(name='edgedbt'),
         dbops.CreateSchema(name='edgedbpub'),
         dbops.CreateSchema(name='edgedbstd'),
         dbops.CreateSchema(name='edgedbsql'),
@@ -5984,7 +5985,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             ctid
         FROM pg_namespace
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
-                          'edgedb', 'edgedbstd', 'edgedb_VER', 'edgedbstd_VER')
+                          'edgedb', 'edgedbstd', 'edgedbt',
+                          'edgedb_VER', 'edgedbstd_VER')
         UNION ALL
 
         -- virtual schemas
@@ -6037,7 +6039,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE
             nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
                         'edgedb', 'edgedbstd', 'edgedb_VER', 'edgedbstd_VER',
-                        'edgedbpub')
+                        'edgedbpub', 'edgedbt')
         """.format(
                 ",".join(
                     f"pt.{col}"
