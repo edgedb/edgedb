@@ -55,15 +55,6 @@ class BaseHttpExtensionTest(server.QueryTestCase):
         return f'/branch/{dbname}/{extpath}'
 
     @classmethod
-    def tearDownClass(cls):
-        # This isn't really necessary but helps test extension dropping
-        for extname in reversed(cls.EXTENSIONS):
-            cls.loop.run_until_complete(
-                cls.con.execute(f'DROP EXTENSION {extname};')
-            )
-        super().tearDownClass()
-
-    @classmethod
     async def _wait_for_db_config(
         cls, config_key, *, server=None, instance_config=False, value=None
     ):
