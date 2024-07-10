@@ -184,6 +184,7 @@ class TestCaseMeta(type(unittest.TestCase)):
             if is_repeat and not getattr(self, 'TRANSACTION_ISOLATION', False):
                 raise unittest.SkipTest()
 
+            self.is_repeat = is_repeat
             while True:
                 try:
                     # There might be unobvious serializability
@@ -249,6 +250,7 @@ class TestCaseMeta(type(unittest.TestCase)):
 
 
 class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
+    is_repeat: bool = False
 
     @classmethod
     def setUpClass(cls):
