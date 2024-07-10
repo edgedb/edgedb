@@ -104,6 +104,7 @@ from .common import quote_literal as ql
 from .common import quote_ident as qi
 from .common import quote_type as qt
 from .common import versioned_schema as V
+from .compiler import enums as pgce
 from . import compiler
 from . import codegen
 from . import schemamech
@@ -1235,6 +1236,7 @@ class FunctionCommand(MetaCommand):
                 schema, func.get_return_type(schema), cache=None),
             output_format=compiler.OutputFormat.NATIVE,
             named_param_prefix=self.get_pgname(func, schema)[-1:],
+            versioned_stdlib=context.stdmode,
         )
 
         return codegen.generate_source(sql_res.ast)
@@ -2963,6 +2965,11 @@ class CompositeMetaCommand(MetaCommand):
         self.inhview_updates = set()
         self.post_inhview_update_commands = []
 
+    def schedule_trampoline(self, obj, schema, context):
+        create_trampolines = context.get(
+            sd.DeltaRootContext).op.create_trampolines
+        create_trampolines.table_targets.append(obj)
+
     def _get_multicommand(
         self,
         context,
@@ -3139,6 +3146,49 @@ class CompositeMetaCommand(MetaCommand):
             source = pointer = None
 
         return source, pointer
+
+    @classmethod
+    def create_type_trampoline(
+        cls,
+        schema: s_schema.Schema,
+        obj: CompositeObject,
+        aspect: str='table',
+    ) -> dbops.Command:
+        versioned_name = common.get_backend_name(
+            schema, obj, aspect=aspect, catenate=False
+        )
+        trampolined_name = common.get_backend_name(
+            schema, obj, aspect=aspect, catenate=False, versioned=False
+        )
+        if versioned_name != trampolined_name:
+            query = f'''
+                SELECT * FROM {q(*versioned_name)}
+            '''
+            view = dbops.View(name=trampolined_name, query=query)
+            return dbops.CreateView(view, or_replace=True)
+        else:
+            return dbops.CommandGroup()
+
+    @classmethod
+    def drop_type_trampoline(
+        cls,
+        schema: s_schema.Schema,
+        obj: CompositeObject,
+        aspect: str='table',
+    ) -> dbops.Command:
+        versioned_name = common.get_backend_name(
+            schema, obj, aspect=aspect, catenate=False
+        )
+        trampolined_name = common.get_backend_name(
+            schema, obj, aspect=aspect, catenate=False, versioned=False
+        )
+        if versioned_name != trampolined_name:
+            return dbops.DropView(
+                trampolined_name,
+                conditions=[dbops.ViewExists(trampolined_name)],
+            )
+        else:
+            return dbops.CommandGroup()
 
     @classmethod
     def _get_select_from(
@@ -3412,6 +3462,10 @@ class CompositeMetaCommand(MetaCommand):
         if alter_ancestors:
             self.alter_ancestor_inhviews(schema, context, obj)
 
+        self.pgops.add(
+            self.create_type_trampoline(schema, obj, aspect='inhview')
+        )
+
     def alter_inhview(
         self,
         schema: s_schema.Schema,
@@ -3471,6 +3525,8 @@ class CompositeMetaCommand(MetaCommand):
         obj: CompositeObject,
         conditional: bool = False,
     ) -> None:
+        self.pgops.add(self.drop_type_trampoline(schema, obj, aspect='inhview'))
+
         inhview_name = common.get_backend_name(
             schema, obj, catenate=False, aspect='inhview')
         conditions = []
@@ -3935,6 +3991,7 @@ class CreateObjectType(
             self.pgops.add(self.update_search_indexes)
 
         self.schedule_endpoint_delete_action_update(self.scls, schema, context)
+        self.schedule_trampoline(self.scls, schema, context)
 
         self._fixup_configs(schema, context)
 
@@ -4900,34 +4957,34 @@ class PointerMetaCommand(
             external_rels[src_path_id] = compiler.new_external_rel(
                 rel_name=(source_alias,),
                 path_id=src_path_id,
-            ), ('value', 'source')
+            ), (pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE)
         else:
             if ptr_table:
                 rvar = compiler.new_external_rvar(
                     rel_name=(source_alias,),
                     path_id=ptr_path_id,
                     outputs={
-                        (src_path_id, ('identity',)): 'source',
+                        (src_path_id, (pgce.PathAspect.IDENTITY,)): 'source',
                     },
                 )
-                external_rvars[ptr_path_id, 'source'] = rvar
-                external_rvars[ptr_path_id, 'value'] = rvar
-                external_rvars[src_path_id, 'identity'] = rvar
-                external_rvars[tgt_path_id, 'identity'] = rvar
+                external_rvars[ptr_path_id, pgce.PathAspect.SOURCE] = rvar
+                external_rvars[ptr_path_id, pgce.PathAspect.VALUE] = rvar
+                external_rvars[src_path_id, pgce.PathAspect.IDENTITY] = rvar
+                external_rvars[tgt_path_id, pgce.PathAspect.IDENTITY] = rvar
                 if local_table_only and not is_lprop:
-                    external_rvars[src_path_id, 'source'] = rvar
-                    external_rvars[src_path_id, 'value'] = rvar
+                    external_rvars[src_path_id, pgce.PathAspect.SOURCE] = rvar
+                    external_rvars[src_path_id, pgce.PathAspect.VALUE] = rvar
                 elif is_lprop:
-                    external_rvars[tgt_path_id, 'value'] = rvar
+                    external_rvars[tgt_path_id, pgce.PathAspect.VALUE] = rvar
             else:
                 src_rvar = compiler.new_external_rvar(
                     rel_name=(source_alias,),
                     path_id=src_path_id,
                     outputs={},
                 )
-                external_rvars[src_path_id, 'identity'] = src_rvar
-                external_rvars[src_path_id, 'value'] = src_rvar
-                external_rvars[src_path_id, 'source'] = src_rvar
+                external_rvars[src_path_id, pgce.PathAspect.IDENTITY] = src_rvar
+                external_rvars[src_path_id, pgce.PathAspect.VALUE] = src_rvar
+                external_rvars[src_path_id, pgce.PathAspect.SOURCE] = src_rvar
 
         # Wrap the expression into a select with iterator, so DML and
         # volatile expressions are executed once for each object.
@@ -5012,7 +5069,10 @@ class PointerMetaCommand(
 
             from edb.pgsql.compiler import pathctx
             pathctx.get_path_output(
-                sql_tree, src_path_id, aspect='identity', env=sql_res.env
+                sql_tree,
+                src_path_id,
+                aspect=pgce.PathAspect.IDENTITY,
+                env=sql_res.env,
             )
 
         ctes = list(sql_tree.ctes or [])
@@ -5402,6 +5462,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
     def _create_finalize(self, schema, context):
         schema = super()._create_finalize(schema, context)
         self.apply_scheduled_inhview_updates(schema, context)
+        self.schedule_trampoline(self.scls, schema, context)
         return schema
 
 
@@ -5867,6 +5928,7 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
         self.table_name = self._get_table_name(prop, schema)
 
         self._create_property(prop, src, schema, orig_schema, context)
+        self.schedule_trampoline(self.scls, schema, context)
 
         return schema
 
@@ -6064,6 +6126,35 @@ class DeleteProperty(PropertyMetaCommand, adapts=s_props.DeleteProperty):
             assert isinstance(source, s_sources.Source)
             self._delete_property(
                 prop, source, source_op, schema, orig_schema, context)
+
+        return schema
+
+
+class CreateTrampolines(MetaCommand):
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.table_targets: list[s_objtypes.ObjectType | s_pointers.Pointer] = (
+            []
+        )
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        for obj in self.table_targets:
+            if not (schema.has_object(obj.id) and types.has_table(obj, schema)):
+                continue
+            self.pgops.add(
+                CompositeMetaCommand.create_type_trampoline(
+                    schema, obj
+                )
+            )
+            self.pgops.add(
+                CompositeMetaCommand.create_type_trampoline(
+                    schema, obj, aspect='inhview',
+                )
+            )
 
         return schema
 
@@ -7587,11 +7678,15 @@ class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         self.update_endpoint_delete_actions = UpdateEndpointDeleteActions()
+        self.create_trampolines = CreateTrampolines()
 
         schema = super().apply(schema, context)
 
         self.update_endpoint_delete_actions.apply(schema, context)
         self.pgops.add(self.update_endpoint_delete_actions)
+
+        self.create_trampolines.apply(schema, context)
+        self.pgops.add(self.create_trampolines)
 
         return schema
 

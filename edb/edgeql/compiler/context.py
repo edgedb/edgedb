@@ -529,9 +529,6 @@ class ContextLevel(compiler.ContextLevel):
     implicit_limit: int
     """Implicit LIMIT clause in SELECT statements."""
 
-    inhibit_implicit_limit: bool
-    """Whether implicit limit injection should be inhibited."""
-
     special_computables_in_mutation_shape: FrozenSet[str]
     """A set of "special" computable pointers allowed in mutation shape."""
 
@@ -622,7 +619,6 @@ class ContextLevel(compiler.ContextLevel):
             self.implicit_tid_in_shapes = False
             self.implicit_tname_in_shapes = False
             self.implicit_limit = 0
-            self.inhibit_implicit_limit = False
             self.special_computables_in_mutation_shape = frozenset()
             self.empty_result_type_hint = None
             self.defining_view = None
@@ -667,7 +663,6 @@ class ContextLevel(compiler.ContextLevel):
             self.implicit_tid_in_shapes = prevlevel.implicit_tid_in_shapes
             self.implicit_tname_in_shapes = prevlevel.implicit_tname_in_shapes
             self.implicit_limit = prevlevel.implicit_limit
-            self.inhibit_implicit_limit = prevlevel.inhibit_implicit_limit
             self.special_computables_in_mutation_shape = \
                 prevlevel.special_computables_in_mutation_shape
             self.empty_result_type_hint = prevlevel.empty_result_type_hint

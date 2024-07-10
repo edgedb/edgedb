@@ -65,6 +65,7 @@ from . import astutils
 from . import clauses
 from . import context
 from . import dispatch
+from . import enums as pgce
 from . import output
 from . import pathctx
 from . import relctx
@@ -392,8 +393,10 @@ def merge_iterator(
         put_iterator_bond(iterator, select)
         relctx.include_rvar(
             select, iterator_rvar,
-            aspects=('value', iterator.aspect) + (
-                ('source',) if iterator.path_id.is_objtype_path() else ()
+            aspects=(pgce.PathAspect.VALUE, iterator.aspect) + (
+                (pgce.PathAspect.SOURCE,)
+                if iterator.path_id.is_objtype_path() else
+                ()
             ),
             path_id=iterator.path_id,
             overwrite_path_rvar=True,
@@ -436,7 +439,7 @@ def fini_dml_stmt(
         assert len(parts.dml_ctes) == 1
         cte = next(iter(parts.dml_ctes.values()))[0]
         relctx.add_type_rel_overlay(
-            ir_stmt.subject.typeref, 'union', cte,
+            ir_stmt.subject.typeref, context.OverlayOp.UNION, cte,
             dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
     elif isinstance(ir_stmt, irast.UpdateStmt):
         base_typeref = ir_stmt.subject.typeref.real_material_type
@@ -461,11 +464,11 @@ def fini_dml_stmt(
             # First, filter out objects that have been updated, then union them
             # back in. (If we just did union, we'd see the old values also.)
             relctx.add_type_rel_overlay(
-                typeref, 'filter', cte,
+                typeref, context.OverlayOp.FILTER, cte,
                 stop_ref=stop_ref,
                 dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
             relctx.add_type_rel_overlay(
-                typeref, 'union', cte,
+                typeref, context.OverlayOp.UNION, cte,
                 stop_ref=stop_ref,
                 dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
 
@@ -482,7 +485,7 @@ def fini_dml_stmt(
                 stop_ref = base_typeref
 
             relctx.add_type_rel_overlay(
-                typeref, 'except', cte,
+                typeref, context.OverlayOp.EXCEPT, cte,
                 stop_ref=stop_ref,
                 dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
 
@@ -606,7 +609,12 @@ def _mk_dynamic_get_path(
         flavor: str,
         aspect: str, env: context.Environment
     ) -> Optional[pgast.BaseExpr | pgast.PathRangeVar]:
-        if flavor != 'normal' or aspect not in ('value', 'identity'):
+        if (
+            flavor != 'normal'
+            or aspect not in (
+                pgce.PathAspect.VALUE, pgce.PathAspect.IDENTITY
+            )
+        ):
             return None
         if rptr := path_id.rptr():
             if ret := ptr_map.get(rptr.real_material_ptr.name):
@@ -914,9 +922,9 @@ def process_insert_rewrites(
         cte=contents_cte,
         parent=inner_iterator,
         other_paths=(
-            (subject_path_id, 'identity'),
-            (subject_path_id, 'value'),
-            (subject_path_id, 'source'),
+            (subject_path_id, pgce.PathAspect.IDENTITY),
+            (subject_path_id, pgce.PathAspect.VALUE),
+            (subject_path_id, pgce.PathAspect.SOURCE),
         ),
     )
 
@@ -935,7 +943,7 @@ def process_insert_rewrites(
     )
 
     iterator_rvar = pathctx.get_path_rvar(
-        rew_stmt, path_id=subject_path_id, aspect='value'
+        rew_stmt, path_id=subject_path_id, aspect=pgce.PathAspect.VALUE
     )
     fallback_rvar = pgast.DynamicRangeVar(
         dynamic_get_path=_mk_dynamic_get_path(nptr_map, typeref, iterator_rvar)
@@ -973,7 +981,10 @@ def process_insert_rewrites(
             ptrref, resolve_type=True, link_bias=False)
         if ptr_info.table_type == 'ObjectType':
             val = pathctx.get_path_var(
-                rew_stmt, e.path_id, aspect='value', env=ctx.env
+                rew_stmt,
+                e.path_id,
+                aspect=pgce.PathAspect.VALUE,
+                env=ctx.env,
             )
             val = output.output_as_value(val, env=ctx.env)
             rew_stmt.target_list.append(pgast.ResTarget(
@@ -1063,7 +1074,7 @@ def process_insert_shape(
 
         put_iterator_bond(iterator, select)
 
-    for aspect in ('value', 'identity'):
+    for aspect in (pgce.PathAspect.VALUE, pgce.PathAspect.IDENTITY):
         pathctx._put_path_output_var(
             select, ir_stmt.subject.path_id, aspect=aspect,
             var=pgast.ColumnRef(name=['id']),
@@ -1512,7 +1523,7 @@ def compile_insert_else_body(
                 enclosing_cte_iterator else None)
             aspect = (
                 enclosing_cte_iterator.aspect if enclosing_cte_iterator
-                else 'identity'
+                else pgce.PathAspect.IDENTITY
             )
             relctx.anti_join(ictx.rel, subrel, iter_path_id,
                              aspect=aspect, ctx=ctx)
@@ -1549,10 +1560,17 @@ def compile_insert_else_body_failure_check(
     overlays_map = ctx.rel_overlays.type.get(None, immu.Map())
     for k, overlays in overlays_map.items():
         # Strip out filters, which we don't care about in this context
-        overlays = tuple([(k, r, p) for k, r, p in overlays if k != 'filter'])
+        overlays = tuple([
+            (k, r, p)
+            for k, r, p in overlays
+            if k != context.OverlayOp.FILTER
+        ])
         # Drop the initial set
-        if overlays and overlays[0][0] == 'union':
-            overlays = (('replace', *overlays[0][1:]), *overlays[1:])
+        if overlays and overlays[0][0] == context.OverlayOp.UNION:
+            overlays = (
+                (context.OverlayOp.REPLACE, *overlays[0][1:]),
+                *overlays[1:]
+            )
         overlays_map = overlays_map.set(k, overlays)
 
     ctx.rel_overlays.type = ctx.rel_overlays.type.set(None, overlays_map)
@@ -1845,7 +1863,7 @@ def process_update_rewrites(
         parent=iterator,
         # __old__
         other_paths=(
-            ((old_path_id, 'identity'),)
+            ((old_path_id, pgce.PathAspect.IDENTITY),)
         ),
     )
 
@@ -1873,8 +1891,8 @@ def process_update_rewrites(
 
         # pull in table_relation for __old__
         table_rel.path_outputs[
-            (old_path_id, "value")
-        ] = table_rel.path_outputs[(subject_path_id, "value")]
+            (old_path_id, pgce.PathAspect.VALUE)
+        ] = table_rel.path_outputs[(subject_path_id, pgce.PathAspect.VALUE)]
         relctx.include_rvar(
             rewrites_stmt, table_relation, old_path_id, ctx=ctx
         )
@@ -1940,7 +1958,10 @@ def process_update_rewrites(
                 actual_ptrref, resolve_type=True, link_bias=False)
             if ptr_info.table_type == 'ObjectType':
                 val = pathctx.get_path_var(
-                    rewrites_stmt, e.path_id, aspect='value', env=ctx.env
+                    rewrites_stmt,
+                    e.path_id,
+                    aspect=pgce.PathAspect.VALUE,
+                    env=ctx.env,
                 )
                 updval = pgast.ResTarget(
                     name=ptr_info.column_name, val=val)
@@ -2071,11 +2092,15 @@ def process_update_shape(
                 # XXX: Maybe this suggests a rework of the
                 # DynamicRangeVar mechanism would be a good idea.
                 pathctx.put_path_var(
-                    rel, element.path_id, aspect='value',
+                    rel,
+                    element.path_id,
+                    aspect=pgce.PathAspect.VALUE,
                     var=val,
                 )
                 pathctx._put_path_output_var(
-                    rel, element.path_id, aspect='value',
+                    rel,
+                    element.path_id,
+                    aspect=pgce.PathAspect.VALUE,
                     var=pgast.ColumnRef(name=[ptr_info.column_name]),
                 )
 
@@ -2606,8 +2631,13 @@ def process_link_update(
         # context to ensure that references to the link in the result
         # of this DML statement yield the expected results.
         relctx.add_ptr_rel_overlay(
-            mptrref, 'except', delcte, path_id=path_id.ptr_path(),
-            dml_stmts=ctx.dml_stmt_stack, ctx=ctx)
+            mptrref,
+            context.OverlayOp.EXCEPT,
+            delcte,
+            path_id=path_id.ptr_path(),
+            dml_stmts=ctx.dml_stmt_stack,
+            ctx=ctx
+        )
         toplevel.append_cte(delcte)
     else:
         delqry = None
@@ -2645,8 +2675,12 @@ def process_link_update(
                 # to work without it
                 subctx.rel_overlays = subctx.rel_overlays.copy()
                 relctx.add_ptr_rel_overlay(
-                    ptrref, 'except', delcte, path_id=path_id.ptr_path(),
-                    ctx=subctx)
+                    ptrref,
+                    context.OverlayOp.EXCEPT,
+                    delcte,
+                    path_id=path_id.ptr_path(),
+                    ctx=subctx
+                )
 
                 check_cte, _ = process_link_values(
                     ir_stmt=ir_stmt,
@@ -2790,14 +2824,22 @@ def process_link_update(
             # based filter to filter out links that were already present
             # and have been re-added.
             relctx.add_ptr_rel_overlay(
-                mptrref, 'filter', overlay_cte, dml_stmts=ctx.dml_stmt_stack,
+                mptrref,
+                context.OverlayOp.FILTER,
+                overlay_cte,
+                dml_stmts=ctx.dml_stmt_stack,
                 path_id=path_id.ptr_path(),
-                ctx=octx)
+                ctx=octx
+            )
 
         relctx.add_ptr_rel_overlay(
-            mptrref, 'union', overlay_cte, dml_stmts=ctx.dml_stmt_stack,
+            mptrref,
+            context.OverlayOp.UNION,
+            overlay_cte,
+            dml_stmts=ctx.dml_stmt_stack,
             path_id=path_id.ptr_path(),
-            ctx=octx)
+            ctx=octx
+        )
 
     if policy_ctx:
         policy_ctx.rel_overlays = policy_ctx.rel_overlays.copy()
@@ -3013,7 +3055,7 @@ def process_link_values(
         # XXX: This is dodgy. Do we need to do the dynamic rvar thing?
         # XXX: And can we make defaults work?
         pathctx._put_path_output_var(
-            row_query, col_path_id, aspect='value',
+            row_query, col_path_id, aspect=pgce.PathAspect.VALUE,
             var=pgast.ColumnRef(name=[col]),
         )
 
@@ -3138,16 +3180,20 @@ def compile_trigger(
             overlays.extend(ov)
 
     # Handle deletions by turning except into union
-    # Drop 'filter', which is included by update but doesn't help us here
+    # Drop FILTER, which is included by update but doesn't help us here
     overlays = [
-        ('union', *x[1:]) if x[0] == 'except' else x
+        (
+            (context.OverlayOp.UNION, *x[1:])
+            if x[0] == context.OverlayOp.EXCEPT
+            else x
+        )
         for x in overlays
-        if x[0] != 'filter'
+        if x[0] != context.OverlayOp.FILTER
     ]
-    # Replace an initial union with 'replace', since we *don't* want whatever
+    # Replace an initial union with REPLACE, since we *don't* want whatever
     # already existed
-    assert overlays and overlays[0][0] == 'union'
-    overlays[0] = ('replace', *overlays[0][1:])
+    assert overlays and overlays[0][0] == context.OverlayOp.UNION
+    overlays[0] = (context.OverlayOp.REPLACE, *overlays[0][1:])
 
     # Produce a CTE containing all of the affected objects for this trigger
     with ctx.newrel() as ictx:
@@ -3197,7 +3243,9 @@ def compile_trigger(
                 # iterator cte, and so will get included whenever
                 # merged
                 other_paths=(
-                    ((old_path, 'identity'),) if old_path else ()
+                    ((old_path, pgce.PathAspect.IDENTITY),)
+                    if old_path else
+                    ()
                 ),
             )
             merge_iterator(tctx.enclosing_cte_iterator, tctx.rel, ctx=ctx)
@@ -3207,12 +3255,16 @@ def compile_trigger(
             tctx.external_rels = dict(tctx.external_rels)
             # new_path is just the contents_cte
             tctx.external_rels[new_path] = (
-                contents_cte, ('value', 'source'))
+                contents_cte,
+                (pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE)
+            )
             if old_path:
                 # old_path is *also* the contents_cte, but without a source
                 # aspect, so we need to include the real database back in.
                 tctx.external_rels[old_path] = (
-                    contents_cte, ('value', 'identity',))
+                    contents_cte,
+                    (pgce.PathAspect.VALUE, pgce.PathAspect.IDENTITY,)
+                )
 
         # This is somewhat subtle: we merge *every* DML into
         # the "None" overlay, so that all the new database state shows

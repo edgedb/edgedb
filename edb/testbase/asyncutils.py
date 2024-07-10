@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,12 +16,23 @@
 # limitations under the License.
 #
 
+import unittest
 
-from __future__ import annotations
+try:
+    import async_solipsism
+except ImportError:
+    async_solipsism = None  # type: ignore
 
-from . import protocol
 
-HttpProtocol = protocol.HttpProtocol
+@unittest.skipIf(async_solipsism is None, 'async_solipsism is missing')
+def with_fake_event_loop(f):
+    # async_solpsism creates an event loop with, among other things,
+    # a totally fake clock which starts at 0.
+    def new(*args, **kwargs):
+        loop = async_solipsism.EventLoop()
+        try:
+            loop.run_until_complete(f(*args, **kwargs))
+        finally:
+            loop.close()
 
-
-__all__ = ('HttpProtocol',)
+    return new

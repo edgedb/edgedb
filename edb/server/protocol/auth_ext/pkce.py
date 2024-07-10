@@ -49,7 +49,7 @@ class PKCEChallenge:
     identity_id: str | None
 
 
-async def create(db, challenge: str):
+async def create(db: edbtenant.dbview.Database, challenge: str) -> None:
     await execute.parse_execute_json(
         db,
         """
@@ -65,7 +65,11 @@ async def create(db, challenge: str):
     )
 
 
-async def link_identity_challenge(db, identity_id: str, challenge: str) -> str:
+async def link_identity_challenge(
+    db: edbtenant.dbview.Database,
+    identity_id: str,
+    challenge: str,
+) -> str:
     r = await execute.parse_execute_json(
         db,
         """
@@ -83,12 +87,15 @@ async def link_identity_challenge(db, identity_id: str, challenge: str) -> str:
     result_json = json.loads(r.decode())
     assert len(result_json) == 1
 
-    return result_json[0]["id"]
+    return typing.cast(str, result_json[0]["id"])
 
 
 async def add_provider_tokens(
-    db, id: str, auth_token: str | None, refresh_token: str | None
-):
+    db: edbtenant.dbview.Database,
+    id: str,
+    auth_token: str | None,
+    refresh_token: str | None,
+) -> str:
     r = await execute.parse_execute_json(
         db,
         """
@@ -110,10 +117,10 @@ async def add_provider_tokens(
     result_json = json.loads(r.decode())
     assert len(result_json) == 1
 
-    return result_json[0]["id"]
+    return typing.cast(str, result_json[0]["id"])
 
 
-async def get_by_id(db, id: str) -> PKCEChallenge:
+async def get_by_id(db: edbtenant.dbview.Database, id: str) -> PKCEChallenge:
     r = await execute.parse_execute_json(
         db,
         """
@@ -137,7 +144,7 @@ async def get_by_id(db, id: str) -> PKCEChallenge:
     return PKCEChallenge(**result_json[0])
 
 
-async def delete(db, id: str) -> None:
+async def delete(db: edbtenant.dbview.Database, id: str) -> None:
     r = await execute.parse_execute_json(
         db,
         """
@@ -151,7 +158,7 @@ async def delete(db, id: str) -> None:
     assert len(result_json) == 1
 
 
-async def _gc(tenant: edbtenant.Tenant):
+async def _gc(tenant: edbtenant.Tenant) -> None:
     try:
         async with asyncio.TaskGroup() as g:
             for db in tenant.iter_dbs():
@@ -176,7 +183,7 @@ async def _gc(tenant: edbtenant.Tenant):
         )
 
 
-async def gc(server: edbserver.BaseServer):
+async def gc(server: edbserver.BaseServer) -> None:
     while True:
         try:
             tasks = [

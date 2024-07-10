@@ -67,6 +67,7 @@ class TestExtAI(tb.BaseHttpExtensionTest):
     @classmethod
     def tearDownClass(cls):
         cls.mock_server.stop()
+        super().tearDownClass()
 
     @classmethod
     def get_setup_script(cls):

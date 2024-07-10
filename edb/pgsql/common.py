@@ -192,6 +192,12 @@ def versioned_name(
         return s
 
 
+def maybe_versioned_name(
+    s: tuple[str, ...], *, versioned: bool,
+) -> tuple[str, ...]:
+    return versioned_name(s) if versioned else s
+
+
 @functools.lru_cache()
 def _edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
     # Note: PostgreSQL doesn't have a sha1 implementation as a

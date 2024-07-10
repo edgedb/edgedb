@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+from typing import Type, TYPE_CHECKING
 import http
 
 from edb import errors
@@ -26,12 +28,16 @@ from edb.server import server
 from edb.common import debug
 from edb.common import markup
 
+if TYPE_CHECKING:
+    from edb.server import tenant as edbtenant
+    from edb.server.protocol import protocol
+
 
 async def handle_request(
-    request,
-    response,
-    tenant,
-):
+    request: protocol.HttpRequest,
+    response: protocol.HttpResponse,
+    tenant: edbtenant.Tenant,
+) -> None:
     try:
         if tenant is None or isinstance(tenant.server, server.Server):
             output = metrics.registry.generate()
@@ -56,7 +62,12 @@ async def handle_request(
         )
 
 
-def _response_error(response, status, message, ex_type):
+def _response_error(
+    response: protocol.HttpResponse,
+    status: http.HTTPStatus,
+    message: str,
+    ex_type: Type[errors.EdgeDBError],
+) -> None:
     response.body = (
         f'Unexpected error in /metrics.\n\n'
         f'{ex_type.__name__}: {message}'

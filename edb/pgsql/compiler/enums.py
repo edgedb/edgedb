@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,11 +17,12 @@
 #
 
 
-from __future__ import annotations
-
-from . import protocol
-
-HttpProtocol = protocol.HttpProtocol
+from edb.common import enum as s_enum
 
 
-__all__ = ('HttpProtocol',)
+class PathAspect(s_enum.StrEnum):
+    IDENTITY = 'identity'
+    VALUE = 'value'
+    SOURCE = 'source'
+    SERIALIZED = 'serialized'
+    ITERATOR = 'iterator'

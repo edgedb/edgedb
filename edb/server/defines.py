@@ -89,3 +89,7 @@ _TLS_CERT_RELOAD_EXP_INTERVAL = 0.1
 
 PGEXT_POSTGRES_VERSION = "13.9"
 PGEXT_POSTGRES_VERSION_NUM = 130009
+
+# The time in seconds the EdgeDB server will wait for a tenant to be gracefully
+# shutdown when removed from a multi-tenant host.
+MULTITENANT_TENANT_DESTROY_TIMEOUT = 30

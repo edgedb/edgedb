@@ -82,7 +82,7 @@ def with_base_test(m):
 
 def calc_percentiles(
     lats: typing.List[float]
-) -> typing.Tuple[float, float, float, float, float, float]:
+) -> typing.Tuple[float, float, float, float, float, float, int]:
     lats_len = len(lats)
     lats.sort()
     return (
@@ -91,13 +91,14 @@ def calc_percentiles(
         lats[lats_len // 2],
         lats[lats_len * 3 // 4],
         lats[min(lats_len - lats_len // 99, lats_len - 1)],
-        statistics.geometric_mean(lats)
+        statistics.geometric_mean(lats),
+        lats_len
     )
 
 
 def calc_total_percentiles(
     lats: typing.Dict[str, typing.List[float]]
-) -> typing.Tuple[float, float, float, float, float, float]:
+) -> typing.Tuple[float, float, float, float, float, float, int]:
     acc = []
     for i in lats.values():
         acc.extend(i)
@@ -188,22 +189,15 @@ class LatencyDistribution(ScoreMethod):
 
 @dataclasses.dataclass
 class ConnectionOverhead(ScoreMethod):
-    # Calculate the score based on the total number of connects and disconnects
-
-    use_time_scale: bool = True
+    # Calculate the score based on the number of disconnects required to service
+    # a query on average.
 
     def calculate(self, sim: Simulation) -> float:
-        if self.use_time_scale:
-            self.v90 = self.v100 + (self.v90 - self.v100) * TIME_SCALE
-            self.v60 = self.v100 + (self.v60 - self.v100) * TIME_SCALE
-            self.v0 = self.v100 + (self.v0 - self.v100) * TIME_SCALE
-        value = (
-            sim.stats[-1]["successful_connects"]
-            + sim.stats[-1]["successful_disconnects"]
-        )
+        total = sum(map(lambda x: len(x), sim.latencies.values()))
+        value = sim.stats[-1]["successful_disconnects"] / total
         score = self._calculate(value)
         sim.record_scoring(
-            'Num of (dis-)connects', value, score, self.weight
+            'Num of disconnects/query', value, score, self.weight
         )
         return score * self.weight
 
@@ -240,7 +234,7 @@ class LatencyRatio(PercentileBasedScoreMethod):
         ratio = dividend_percentile / divisor_percentile
         score = self._calculate(ratio)
         sim.record_scoring(
-            f'{self.percentile} ratio {self.divisor}/{self.divisor}',
+            f'{self.percentile} ratio {self.dividend}/{self.divisor}',
             ratio, score, self.weight
         )
         return score * self.weight
@@ -488,6 +482,28 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
                 raise
         return query()
 
+    async def simulate_db(self, sim, pool, g, db):
+        await asyncio.sleep(db.start_at)
+        spq = 1.0 / db.qps
+        queries = int((db.end_at - db.start_at) * db.qps)
+        queries_per_tick = 1
+        while spq < 0.001:
+            spq *= 2.0
+            queries_per_tick *= 2
+
+        for _ in range(0, queries, queries_per_tick):
+            for _ in range(queries_per_tick):
+                dur = max(
+                    db.query_cost_base +
+                    random.triangular(
+                        -db.query_cost_var, db.query_cost_var),
+                    0.001
+                )
+                g.create_task(
+                    self.make_fake_query(sim, pool, db.db, dur)
+                )
+            await asyncio.sleep(spq)
+
     async def simulate_once(self, spec, pool_cls, *, collect_stats=False):
         sim = Simulation()
 
@@ -506,33 +522,10 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
         if hasattr(pool, '_gc_interval'):
             pool._gc_interval = 0.1 * TIME_SCALE
 
-        TICK_EVERY = 0.001
-
         started_at = time.monotonic()
         async with asyncio.TaskGroup() as g:
-            elapsed = 0
-            while elapsed < spec.duration:
-                elapsed = time.monotonic() - started_at
-
-                for db in spec.dbs:
-                    if not (db.start_at < elapsed < db.end_at):
-                        continue
-
-                    qpt = db.qps * TICK_EVERY
-                    qpt = int(random.random() <= qpt - int(qpt)) + int(qpt)
-
-                    for _ in range(qpt):
-                        dur = max(
-                            db.query_cost_base +
-                            random.triangular(
-                                -db.query_cost_var, db.query_cost_var),
-                            0.001
-                        )
-                        g.create_task(
-                            self.make_fake_query(sim, pool, db.db, dur)
-                        )
-
-                await asyncio.sleep(TICK_EVERY)
+            for db in spec.dbs:
+                g.create_task(self.simulate_db(sim, pool, g, db))
 
         self.assertEqual(sim.failed_disconnects, 0)
         self.assertEqual(sim.failed_queries, 0)
@@ -614,20 +607,11 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
     ):
         getters = 0
         TICK_EVERY = 0.001
-        started_at = time.monotonic()
         async with asyncio.TaskGroup() as g:
-            elapsed = 0
-            while elapsed < total_duration * TIME_SCALE:
-                elapsed = time.monotonic() - started_at
-
-                qpt = qps * TICK_EVERY
-                qpt = int(random.random() <= qpt - int(qpt)) + int(qpt)
-
-                for _ in range(qpt):
-                    g.create_task(
-                        self.make_fake_query(sim, pool, '', query_duration)
-                    )
-
+            db = DBSpec(db='', start_at=0, end_at=total_duration, qps=qps,
+                        query_cost_base=query_duration, query_cost_var=0)
+            task = g.create_task(self.simulate_db(sim, pool, g, db))
+            while not task.done():
                 await asyncio.sleep(TICK_EVERY)
                 getters = max(getters, pool.count_waiters())
         return getters
@@ -639,9 +623,13 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
         qps = 100
         getters = 0
         sim = Simulation()
+
+        connect = self.make_fake_connect(sim, 0, 0)
+        disconnect = self.make_fake_connect(sim, 0, 0)
+
         pool: SingleBlockPool = SingleBlockPool(
-            connect=self.make_fake_connect(sim, 0, 0),
-            disconnect=self.make_fake_disconnect(sim, 0, 0),
+            connect=connect,
+            disconnect=disconnect,
             max_capacity=POOL_SIZE,
         )
 
@@ -791,7 +779,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     v100=0.2, v90=0.45, v60=0.7, v0=2
                 ),
                 ConnectionOverhead(
-                    weight=0.06, v100=40, v90=160, v60=200, v0=300
+                    weight=0.06, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
@@ -853,7 +841,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     v100=0.55, v90=0.75, v60=1.0, v0=2
                 ),
                 ConnectionOverhead(
-                    weight=0.15, v100=500, v90=510, v60=800, v0=1500
+                    weight=0.15, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
@@ -902,7 +890,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     weight=0.85, group=range(6), v100=0, v90=0.1, v60=0.2, v0=2
                 ),
                 ConnectionOverhead(
-                    weight=0.15, v100=200, v90=250, v60=300, v0=600
+                    weight=0.15, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
@@ -935,7 +923,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     weight=0.9, group=range(6), v100=0, v90=0.1, v60=0.2, v0=2
                 ),
                 ConnectionOverhead(
-                    weight=0.1, v100=100, v90=220, v60=300, v0=500
+                    weight=0.1, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
@@ -990,7 +978,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     v100=30, v90=5, v60=2, v0=1,
                 ),
                 ConnectionOverhead(
-                    weight=0.15, v100=50, v90=100, v60=150, v0=200
+                    weight=0.15, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
                 EndingCapacity(
                     weight=0.1, v100=6, v90=5, v60=4, v0=3
@@ -1039,7 +1027,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
             conn_cost_var=0.05,
             score=[
                 ConnectionOverhead(
-                    weight=0.9, v100=6, v90=7, v60=12, v0=13
+                    weight=1.0, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
@@ -1086,7 +1074,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     v100=200, v90=100, v60=20, v0=1,
                 ),
                 ConnectionOverhead(
-                    weight=0.4, v100=14, v90=22, v60=30, v0=50
+                    weight=0.4, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
@@ -1133,8 +1121,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
             conn_cost_var=0,
             score=[
                 ConnectionOverhead(
-                    weight=1, v100=25, v90=50, v60=90, v0=200,
-                    use_time_scale=False,
+                    weight=1, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[
@@ -1194,8 +1181,7 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     v100=0.0001, v90=0.0002, v60=0.0004, v0=0.005
                 ),
                 ConnectionOverhead(
-                    weight=0.6, v100=50, v90=90, v60=100, v0=200,
-                    use_time_scale=False,
+                    weight=0.6, v100=0, v90=0.1, v60=0.2, v0=0.5
                 ),
             ],
             dbs=[

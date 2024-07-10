@@ -710,13 +710,21 @@ def _call_system_api(
         con.close()
 
 
+def parse_metrics(metrics: str) -> dict[str, float]:
+    res = {}
+    for line in metrics.splitlines():
+        if line.startswith('#') or ' ' not in line:
+            continue
+        key, _, val = line.partition(' ')
+        res[key] = float(val)
+    return res
+
+
 def _extract_background_errors(metrics: str) -> str | None:
     non_zero = []
 
-    for line in metrics.splitlines():
-        if line.startswith('edgedb_server_background_errors_total'):
-            label, _, total = line.rpartition(' ')
-            total = float(total)
+    for label, total in parse_metrics(metrics).items():
+        if label.startswith('edgedb_server_background_errors_total'):
             if total:
                 non_zero.append(
                     f'non-zero {label!r} metric: {total}'
@@ -1652,7 +1660,6 @@ class DumpCompatTestCase(
 class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
 
     BASE_TEST_CLASS = True
-    ISOLATED_METHODS = False
     STABLE_DUMP = True
     TRANSACTION_ISOLATION = False
     PARALLELISM_GRANULARITY = 'suite'
@@ -1757,7 +1764,6 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
 class StablePGDumpTestCase(BaseQueryTestCase):
 
     BASE_TEST_CLASS = True
-    ISOLATED_METHODS = False
     TRANSACTION_ISOLATION = False
 
     def run_pg_dump(self, *args, input: Optional[str] = None) -> None:

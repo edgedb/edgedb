@@ -131,6 +131,29 @@ EdgeDB stores and outputs timezone-aware values in UTC format.
     be inconsistent. As such, dates outside this range are not reliably
     portable.
 
+.. _ref_std_datetime_timezones:
+
+Timezones
+---------
+
+For timezone string literals, you may specify timezones in one of two ways:
+
+* IANA (Olson) timezone database name (e.g. ``America/New_York``)
+
+* A time zone abbreviation (e.g. ``EDT`` for Eastern Daylight Time)
+
+See the `relevant section from the PostgreSQL documentation
+<https://www.postgresql.org/docs/current/datetime-timezones.html#TIMEZONE-TABLES>`_
+for more detail about how time zones affect the behavior of date/time
+functionality.
+
+.. note::
+
+  The IANA timezone database is maintained by Paul Eggert for the IANA. You can
+  find a `GitHub repository with the latest timezone data here
+  <https://github.com/eggert/tz>`_, and the `list of timezone names here
+  <https://github.com/eggert/tz/blob/master/zone1970.tab>`_.
+
 
 ----------
 
@@ -1103,7 +1126,7 @@ EdgeDB stores and outputs timezone-aware values in UTC format.
                   std::to_datetime(local: cal::local_datetime, zone: str) \
                     -> datetime
                   std::to_datetime(year: int64, month: int64, day: int64, \
-                    hour: int64, min: int64, sec: float64, timezone: str) \
+                    hour: int64, min: int64, sec: float64, zone: str) \
                     -> datetime
                   std::to_datetime(epochseconds: decimal) -> datetime
                   std::to_datetime(epochseconds: float64) -> datetime
@@ -1138,9 +1161,9 @@ EdgeDB stores and outputs timezone-aware values in UTC format.
         ...   <cal::local_datetime>'2019-01-01T01:02:03', 'HKT');
         {<datetime>'2018-12-31T17:02:03Z'}
 
-    Another way to construct a the :eql:type:`datetime` value
-    is to specify it in terms of its component parts: *year*, *month*,
-    *day*, *hour*, *min*, *sec*, and *timezone*.
+    Another way to construct a the :eql:type:`datetime` value is to specify it
+    in terms of its component parts: year, month, day, hour, min, sec, and
+    :ref:`zone <ref_std_datetime_timezones>`.
 
     .. code-block:: edgeql-repl
 
@@ -1190,14 +1213,18 @@ EdgeDB stores and outputs timezone-aware values in UTC format.
         ...     2018, 5, 7, 15, 1, 22.306916);
         {<cal::local_datetime>'2018-05-07T15:01:22.306916'}
 
-    A timezone-aware :eql:type:`datetime` type can be converted
-    to local datetime in the specified timezone:
+    A timezone-aware :eql:type:`datetime` type can be converted to local
+    datetime in the specified :ref:`timezone <ref_std_datetime_timezones>`:
 
     .. code-block:: edgeql-repl
 
         db> select cal::to_local_datetime(
         ...   <datetime>'2018-12-31T22:00:00+08',
-        ...   'US/Central');
+        ...   'America/Chicago');
+        {<cal::local_datetime>'2018-12-31T08:00:00'}
+        db> select cal::to_local_datetime(
+        ...   <datetime>'2018-12-31T22:00:00+08',
+        ...   'CST');
         {<cal::local_datetime>'2018-12-31T08:00:00'}
 
 
@@ -1232,14 +1259,14 @@ EdgeDB stores and outputs timezone-aware values in UTC format.
         db> select cal::to_local_date(2018, 5, 7);
         {<cal::local_date>'2018-05-07'}
 
-    A timezone-aware :eql:type:`datetime` type can be converted
-    to local date in the specified timezone:
+    A timezone-aware :eql:type:`datetime` type can be converted to local date
+    in the specified :ref:`timezone <ref_std_datetime_timezones>`:
 
     .. code-block:: edgeql-repl
 
         db> select cal::to_local_date(
         ...   <datetime>'2018-12-31T22:00:00+08',
-        ...   'US/Central');
+        ...   'America/Chicago');
         {<cal::local_date>'2019-01-01'}
 
 
@@ -1274,14 +1301,14 @@ EdgeDB stores and outputs timezone-aware values in UTC format.
         db> select cal::to_local_time(15, 1, 22.306916);
         {<cal::local_time>'15:01:22.306916'}
 
-    A timezone-aware :eql:type:`datetime` type can be converted
-    to local date in the specified timezone:
+    A timezone-aware :eql:type:`datetime` type can be converted to local date
+    in the specified :ref:`timezone <ref_std_datetime_timezones>`:
 
     .. code-block:: edgeql-repl
 
         db> select cal::to_local_time(
         ...   <datetime>'2018-12-31T22:00:00+08',
-        ...   'US/Pacific');
+        ...   'America/Los_Angeles');
         {<cal::local_time>'06:00:00'}
 
 

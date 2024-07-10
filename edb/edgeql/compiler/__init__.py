@@ -275,6 +275,10 @@ def compile_ast_to_ir(
 
     ctx = stmtctx_mod.init_context(schema=schema, options=options)
 
+    if isinstance(tree, qlast.Expr) and ctx.implicit_limit:
+        tree = qlast.SelectQuery(result=tree, implicit=True)
+        tree.limit = qlast.Constant.integer(ctx.implicit_limit)
+
     if not script_info:
         script_info = stmtctx_mod.preprocess_script([tree], ctx=ctx)
 

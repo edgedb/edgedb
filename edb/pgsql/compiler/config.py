@@ -582,7 +582,7 @@ def _rewrite_config_insert(
 
     relctx.add_type_rel_overlay(
         ir_set.typeref,
-        'replace',
+        context.OverlayOp.REPLACE,
         overwrite_query,
         path_id=ir_set.path_id,
         ctx=ctx,
@@ -683,7 +683,11 @@ def _compile_config_value(
         cast_name = s_casts.get_cast_fullname_from_names(
             sn.QualName('std', 'bytes'), sn.QualName('std', 'json'))
         val = pgast.FuncCall(
-            name=common.get_cast_backend_name(cast_name, aspect='function'),
+            name=common.get_cast_backend_name(
+                cast_name,
+                aspect='function',
+                versioned=ctx.env.versioned_stdlib,
+            ),
             args=[val],
         )
 

@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+from typing import Type, TYPE_CHECKING
 import http
 import json
 
@@ -26,8 +28,17 @@ from edb.common import markup
 
 from . import scram
 
+if TYPE_CHECKING:
+    from edb.server import tenant as edbtenant
+    from edb.server.protocol import protocol
 
-async def handle_request(request, response, path_parts, tenant):
+
+async def handle_request(
+    request: protocol.HttpRequest,
+    response: protocol.HttpResponse,
+    path_parts: list[str],
+    tenant: edbtenant.Tenant,
+) -> None:
     try:
         if path_parts == ["token"]:
             if not request.authorization:
@@ -68,7 +79,12 @@ async def handle_request(request, response, path_parts, tenant):
         )
 
 
-def _response_error(response, status, message, ex_type):
+def _response_error(
+    response: protocol.HttpResponse,
+    status: http.HTTPStatus,
+    message: str,
+    ex_type: Type[errors.EdgeDBError],
+) -> None:
     err_dct = {
         "message": message,
         "type": str(ex_type.__name__),

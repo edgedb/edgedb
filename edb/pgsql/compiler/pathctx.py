@@ -24,8 +24,6 @@ from __future__ import annotations
 
 from typing import Optional, Tuple, Sequence, Dict, List, Set, TypeGuard
 
-from edb.common import enum as s_enum
-
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
@@ -37,42 +35,35 @@ from edb.pgsql import types as pg_types
 
 from . import astutils
 from . import context
+from . import enums as pgce
 from . import output
-
-
-class PathAspect(s_enum.StrEnum):
-    IDENTITY = 'identity'
-    VALUE = 'value'
-    SOURCE = 'source'
-    SERIALIZED = 'serialized'
-    ITERATOR = 'iterator'
 
 
 # A mapping of more specific aspect -> less specific aspect for objects
 OBJECT_ASPECT_SPECIFICITY_MAP = {
-    PathAspect.IDENTITY: PathAspect.VALUE,
-    PathAspect.VALUE: PathAspect.SOURCE,
-    PathAspect.SERIALIZED: PathAspect.SOURCE,
+    pgce.PathAspect.IDENTITY: pgce.PathAspect.VALUE,
+    pgce.PathAspect.VALUE: pgce.PathAspect.SOURCE,
+    pgce.PathAspect.SERIALIZED: pgce.PathAspect.SOURCE,
 }
 
 # A mapping of more specific aspect -> less specific aspect for primitives
 PRIMITIVE_ASPECT_SPECIFICITY_MAP = {
-    PathAspect.SERIALIZED: PathAspect.VALUE,
+    pgce.PathAspect.SERIALIZED: pgce.PathAspect.VALUE,
 }
 
 
 def get_less_specific_aspect(
     path_id: irast.PathId,
-    aspect: str,
-) -> Optional[str]:
+    aspect: pgce.PathAspect,
+) -> Optional[pgce.PathAspect]:
     if path_id.is_objtype_path():
         mapping = OBJECT_ASPECT_SPECIFICITY_MAP
     else:
         mapping = PRIMITIVE_ASPECT_SPECIFICITY_MAP
 
-    less_specific_aspect = mapping.get(PathAspect(aspect))
+    less_specific_aspect = mapping.get(pgce.PathAspect(aspect))
     if less_specific_aspect is not None:
-        return str(less_specific_aspect)
+        return less_specific_aspect
     else:
         return None
 
@@ -123,9 +114,13 @@ def put_path_id_map(
 
 
 def get_path_var(
-        rel: pgast.Query, path_id: irast.PathId, *,
-        flavor: str='normal',
-        aspect: str, env: context.Environment) -> pgast.BaseExpr:
+    rel: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    flavor: str='normal',
+    aspect: pgce.PathAspect,
+    env: context.Environment,
+) -> pgast.BaseExpr:
     """
     Return a value expression for a given *path_id* in a given *rel*.
 
@@ -297,7 +292,7 @@ def _find_rel_rvar(
     path_id: irast.PathId,
     src_path_id: irast.PathId,
     *,
-    aspect: str,
+    aspect: pgce.PathAspect,
     flavor: str,
 ) -> Tuple[str, Optional[pgast.PathRangeVar], Optional[pgast.BaseExpr]]:
     """Rummage around rel looking for an appropriate rvar for path_id.
@@ -320,13 +315,13 @@ def _find_rel_rvar(
         if flavor == 'packed':
             src_aspect = aspect
         elif src_path_id.is_objtype_path():
-            src_aspect = 'source'
+            src_aspect = pgce.PathAspect.SOURCE
         else:
             src_aspect = aspect
 
         if src_path_id.is_tuple_path():
-            if src_aspect == 'identity':
-                src_aspect = 'value'
+            if src_aspect == pgce.PathAspect.IDENTITY:
+                src_aspect = pgce.PathAspect.VALUE
 
             if var := _find_in_output_tuple(rel, path_id, src_aspect):
                 return src_aspect, None, var
@@ -344,10 +339,14 @@ def _find_rel_rvar(
 
         if (
             rel_rvar is None
-            and src_aspect != 'source'
+            and src_aspect != pgce.PathAspect.SOURCE
             and path_id != src_path_id
         ):
-            rel_rvar = maybe_get_path_rvar(rel, src_path_id, aspect='source')
+            rel_rvar = maybe_get_path_rvar(
+                rel,
+                src_path_id,
+                aspect=pgce.PathAspect.SOURCE
+            )
 
     if rel_rvar is None and alt_aspect is not None and flavor == 'normal':
         # There is no source range var for the requested aspect,
@@ -361,11 +360,15 @@ def _find_rel_rvar(
 
 
 def _get_path_var_in_setop(
-    rel: pgast.Query, path_id: irast.PathId, *,
-    aspect: str, flavor: str, env: context.Environment,
+    rel: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    aspect: pgce.PathAspect,
+    flavor: str,
+    env: context.Environment,
 ) -> pgast.BaseExpr:
     test_vals = []
-    if aspect in ('value', 'serialized'):
+    if aspect in (pgce.PathAspect.VALUE, pgce.PathAspect.SERIALIZED):
         test_vals = [
             maybe_get_path_var(q, env=env, path_id=path_id, aspect=aspect)
             for q in astutils.each_query_in_set(rel)
@@ -431,7 +434,8 @@ def _get_path_var_in_setop(
     # fails, because we create a backup volatility ref---but it is
     # *not* OK for it to succeed and produce NULL in some cases.
     if all_null or (
-        aspect == 'identity' and optional and not path_id.is_objtype_path()
+        aspect == pgce.PathAspect.IDENTITY
+        and optional and not path_id.is_objtype_path()
     ):
         # If *none* of the subqueries had it, we have to remove them all
         # before erroring, lest a future call see them and decide
@@ -490,7 +494,7 @@ def _find_rvar_in_intersection_by_typeref(
 
 
 def _find_in_output_tuple(
-    rel: pgast.Query, path_id: irast.PathId, aspect: str
+    rel: pgast.Query, path_id: irast.PathId, aspect: pgce.PathAspect
 ) -> Optional[pgast.BaseExpr]:
     """Try indirecting a source tuple already present as an output.
 
@@ -535,19 +539,26 @@ def _find_in_output_tuple(
 
 
 def get_path_identity_var(
-        rel: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> pgast.BaseExpr:
-    return get_path_var(rel, path_id, aspect='identity', env=env)
+    rel: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    env: context.Environment,
+) -> pgast.BaseExpr:
+    return get_path_var(rel, path_id, aspect=pgce.PathAspect.IDENTITY, env=env)
 
 
 def get_path_value_var(
-        rel: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> pgast.BaseExpr:
-    return get_path_var(rel, path_id, aspect='value', env=env)
+    rel: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    env: context.Environment,
+) -> pgast.BaseExpr:
+    return get_path_var(rel, path_id, aspect=pgce.PathAspect.VALUE, env=env)
 
 
 def is_relation_rvar(
-        rvar: pgast.BaseRangeVar) -> bool:
+    rvar: pgast.BaseRangeVar,
+) -> bool:
     return (
         isinstance(rvar, pgast.RelRangeVar) and
         is_terminal_relation(rvar.query)
@@ -561,14 +572,19 @@ def is_terminal_relation(
 
 
 def is_values_relation(
-        rel: pgast.BaseRelation) -> bool:
+    rel: pgast.BaseRelation,
+) -> bool:
     return bool(getattr(rel, 'values', None))
 
 
 def maybe_get_path_var(
-        rel: pgast.Query, path_id: irast.PathId, *, aspect: str,
-        flavor: str='normal',
-        env: context.Environment) -> Optional[pgast.BaseExpr]:
+    rel: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    aspect: pgce.PathAspect,
+    flavor: str='normal',
+    env: context.Environment,
+) -> Optional[pgast.BaseExpr]:
     try:
         return get_path_var(
             rel, path_id, aspect=aspect, flavor=flavor, env=env)
@@ -577,31 +593,43 @@ def maybe_get_path_var(
 
 
 def maybe_get_path_identity_var(
-        rel: pgast.Query,
-        path_id: irast.PathId, *,
-        env: context.Environment) -> Optional[pgast.BaseExpr]:
+    rel: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    env: context.Environment,
+) -> Optional[pgast.BaseExpr]:
     try:
-        return get_path_var(rel, path_id, aspect='identity', env=env)
+        return get_path_var(
+            rel, path_id, aspect=pgce.PathAspect.IDENTITY, env=env
+        )
     except LookupError:
         return None
 
 
 def maybe_get_path_value_var(
-        rel: pgast.Query,
-        path_id: irast.PathId, *,
-        env: context.Environment) -> Optional[pgast.BaseExpr]:
+    rel: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    env: context.Environment,
+) -> Optional[pgast.BaseExpr]:
     try:
-        return get_path_var(rel, path_id, aspect='value', env=env)
+        return get_path_var(
+            rel, path_id, aspect=pgce.PathAspect.VALUE, env=env
+        )
     except LookupError:
         return None
 
 
 def maybe_get_path_serialized_var(
-        rel: pgast.Query,
-        path_id: irast.PathId, *,
-        env: context.Environment) -> Optional[pgast.BaseExpr]:
+    rel: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    env: context.Environment,
+) -> Optional[pgast.BaseExpr]:
     try:
-        return get_path_var(rel, path_id, aspect='serialized', env=env)
+        return get_path_var(
+            rel, path_id, aspect=pgce.PathAspect.SERIALIZED, env=env
+        )
     except LookupError:
         return None
 
@@ -611,7 +639,7 @@ def put_path_var(
     path_id: irast.PathId,
     var: pgast.BaseExpr,
     *,
-    aspect: str,
+    aspect: pgce.PathAspect,
     flavor: str = 'normal',
     force: bool = False,
 ) -> None:
@@ -634,7 +662,7 @@ def put_path_var_if_not_exists(
     var: pgast.BaseExpr,
     *,
     flavor: str = 'normal',
-    aspect: str,
+    aspect: pgce.PathAspect,
 ) -> None:
     try:
         put_path_var(rel, path_id, var, aspect=aspect, flavor=flavor)
@@ -649,7 +677,9 @@ def put_path_identity_var(
     *,
     force: bool = False,
 ) -> None:
-    put_path_var(rel, path_id, var, aspect='identity', force=force)
+    put_path_var(
+        rel, path_id, var, aspect=pgce.PathAspect.IDENTITY, force=force
+    )
 
 
 def put_path_value_var(
@@ -659,7 +689,9 @@ def put_path_value_var(
     *,
     force: bool = False,
 ) -> None:
-    put_path_var(rel, path_id, var, aspect='value', force=force)
+    put_path_var(
+        rel, path_id, var, aspect=pgce.PathAspect.VALUE, force=force
+    )
 
 
 def put_path_serialized_var(
@@ -669,7 +701,9 @@ def put_path_serialized_var(
     *,
     force: bool = False,
 ) -> None:
-    put_path_var(rel, path_id, var, aspect='serialized', force=force)
+    put_path_var(
+        rel, path_id, var, aspect=pgce.PathAspect.SERIALIZED, force=force
+    )
 
 
 def put_path_value_var_if_not_exists(
@@ -680,7 +714,9 @@ def put_path_value_var_if_not_exists(
     force: bool = False,
 ) -> None:
     try:
-        put_path_var(rel, path_id, var, aspect='value', force=force)
+        put_path_var(
+            rel, path_id, var, aspect=pgce.PathAspect.VALUE, force=force
+        )
     except KeyError:
         pass
 
@@ -693,7 +729,13 @@ def put_path_serialized_var_if_not_exists(
     force: bool = False,
 ) -> None:
     try:
-        put_path_var(rel, path_id, var, aspect='serialized', force=force)
+        put_path_var(
+            rel,
+            path_id,
+            var,
+            aspect=pgce.PathAspect.SERIALIZED,
+            force=force,
+        )
     except KeyError:
         pass
 
@@ -715,8 +757,11 @@ def put_rvar_path_bond(
 
 
 def get_path_output_alias(
-        path_id: irast.PathId, aspect: str, *,
-        env: context.Environment) -> str:
+    path_id: irast.PathId,
+    aspect: pgce.PathAspect,
+    *,
+    env: context.Environment,
+) -> str:
     rptr = path_id.rptr()
     if rptr is not None:
         alias_base = rptr.shortname.name
@@ -730,9 +775,13 @@ def get_path_output_alias(
 
 
 def get_rvar_path_var(
-        rvar: pgast.PathRangeVar, path_id: irast.PathId, aspect: str, *,
-        flavor: str='normal',
-        env: context.Environment) -> pgast.OutputVar:
+    rvar: pgast.PathRangeVar,
+    path_id: irast.PathId,
+    aspect: pgce.PathAspect,
+    *,
+    flavor: str='normal',
+    env: context.Environment,
+) -> pgast.OutputVar:
     """Return ColumnRef for a given *path_id* in a given *range var*."""
     outvar = get_path_output(
         rvar.query, path_id, aspect=aspect, flavor=flavor, env=env)
@@ -742,16 +791,20 @@ def get_rvar_path_var(
 def put_rvar_path_output(
     rvar: pgast.PathRangeVar,
     path_id: irast.PathId,
-    aspect: str,
+    aspect: pgce.PathAspect,
     var: pgast.OutputVar,
 ) -> None:
     _put_path_output_var(rvar.query, path_id, aspect, var)
 
 
 def maybe_get_rvar_path_var(
-        rvar: pgast.PathRangeVar, path_id: irast.PathId, *,
-        aspect: str, flavor: str='normal',
-        env: context.Environment) -> Optional[pgast.OutputVar]:
+    rvar: pgast.PathRangeVar,
+    path_id: irast.PathId,
+    *,
+    aspect: pgce.PathAspect,
+    flavor: str='normal',
+    env: context.Environment,
+) -> Optional[pgast.OutputVar]:
     try:
         return get_rvar_path_var(
             rvar, path_id, aspect=aspect, flavor=flavor, env=env)
@@ -760,20 +813,34 @@ def maybe_get_rvar_path_var(
 
 
 def get_rvar_path_identity_var(
-        rvar: pgast.PathRangeVar, path_id: irast.PathId, *,
-        env: context.Environment) -> pgast.OutputVar:
-    return get_rvar_path_var(rvar, path_id, aspect='identity', env=env)
+    rvar: pgast.PathRangeVar,
+    path_id: irast.PathId,
+    *,
+    env: context.Environment,
+) -> pgast.OutputVar:
+    return get_rvar_path_var(
+        rvar, path_id, aspect=pgce.PathAspect.IDENTITY, env=env
+    )
 
 
 def get_rvar_path_value_var(
-        rvar: pgast.PathRangeVar, path_id: irast.PathId, *,
-        env: context.Environment) -> pgast.OutputVar:
-    return get_rvar_path_var(rvar, path_id, aspect='value', env=env)
+    rvar: pgast.PathRangeVar,
+    path_id: irast.PathId,
+    *,
+    env: context.Environment,
+) -> pgast.OutputVar:
+    return get_rvar_path_var(
+        rvar, path_id, aspect=pgce.PathAspect.VALUE, env=env
+    )
 
 
 def get_rvar_output_var_as_col_list(
-        rvar: pgast.PathRangeVar, outvar: pgast.OutputVar, aspect: str, *,
-        env: context.Environment) -> List[pgast.OutputVar]:
+    rvar: pgast.PathRangeVar,
+    outvar: pgast.OutputVar,
+    aspect: pgce.PathAspect,
+    *,
+    env: context.Environment,
+) -> List[pgast.OutputVar]:
 
     cols: List[pgast.OutputVar]
 
@@ -795,7 +862,7 @@ def put_path_rvar(
     rvar: pgast.PathRangeVar,
     *,
     flavor: str = 'normal',
-    aspect: str,
+    aspect: pgce.PathAspect,
 ) -> None:
     assert isinstance(path_id, irast.PathId)
     stmt.get_rvar_map(flavor)[path_id, aspect] = rvar
@@ -808,7 +875,9 @@ def put_path_value_rvar(
     *,
     flavor: str = 'normal',
 ) -> None:
-    put_path_rvar(stmt, path_id, rvar, aspect='value', flavor=flavor)
+    put_path_rvar(
+        stmt, path_id, rvar, aspect=pgce.PathAspect.VALUE, flavor=flavor
+    )
 
 
 def put_path_source_rvar(
@@ -818,7 +887,9 @@ def put_path_source_rvar(
     *,
     flavor: str = 'normal',
 ) -> None:
-    put_path_rvar(stmt, path_id, rvar, aspect='source', flavor=flavor)
+    put_path_rvar(
+        stmt, path_id, rvar, aspect=pgce.PathAspect.SOURCE, flavor=flavor
+    )
 
 
 def has_rvar(stmt: pgast.Query, rvar: pgast.PathRangeVar) -> bool:
@@ -834,7 +905,7 @@ def put_path_rvar_if_not_exists(
     rvar: pgast.PathRangeVar,
     *,
     flavor: str = 'normal',
-    aspect: str,
+    aspect: pgce.PathAspect,
 ) -> None:
     if (path_id, aspect) not in stmt.get_rvar_map(flavor):
         put_path_rvar(stmt, path_id, rvar, aspect=aspect, flavor=flavor)
@@ -845,7 +916,7 @@ def get_path_rvar(
     path_id: irast.PathId,
     *,
     flavor: str = 'normal',
-    aspect: str,
+    aspect: pgce.PathAspect,
 ) -> pgast.PathRangeVar:
     rvar = maybe_get_path_rvar(stmt, path_id, aspect=aspect, flavor=flavor)
     if rvar is None:
@@ -858,7 +929,7 @@ def maybe_get_path_rvar(
     stmt: pgast.Query,
     path_id: irast.PathId,
     *,
-    aspect: str,
+    aspect: pgce.PathAspect,
     flavor: str = 'normal',
 ) -> Optional[pgast.PathRangeVar]:
     rvar = None
@@ -866,14 +937,17 @@ def maybe_get_path_rvar(
     if path_rvar_map is not None:
         if path_rvar_map:
             rvar = path_rvar_map.get((path_id, aspect))
-        if rvar is None and aspect == 'identity':
-            rvar = path_rvar_map.get((path_id, 'value'))
+        if rvar is None and aspect == pgce.PathAspect.IDENTITY:
+            rvar = path_rvar_map.get((path_id, pgce.PathAspect.VALUE))
     return rvar
 
 
 def _has_path_aspect(
-        stmt: pgast.Query, path_id: irast.PathId, *,
-        aspect: str) -> bool:
+    stmt: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    aspect: pgce.PathAspect,
+) -> bool:
     key = path_id, aspect
     return (
         key in stmt.path_rvar_map
@@ -883,20 +957,25 @@ def _has_path_aspect(
 
 
 def has_path_aspect(
-    stmt: pgast.Query, path_id: irast.PathId, *, aspect: str
+    stmt: pgast.Query, path_id: irast.PathId, *, aspect: pgce.PathAspect
 ) -> bool:
     path_id = map_path_id(path_id, stmt.view_path_id_map)
     return _has_path_aspect(stmt, path_id, aspect=aspect)
 
 
-ASPECTS = ('value', 'identity', 'source', 'serialized')
-
-
-def list_path_aspects(stmt: pgast.Query, path_id: irast.PathId) -> Set[str]:
+def list_path_aspects(
+    stmt: pgast.Query, path_id: irast.PathId
+) -> Set[pgce.PathAspect]:
+    path_aspects = (
+        pgce.PathAspect.VALUE,
+        pgce.PathAspect.IDENTITY,
+        pgce.PathAspect.SOURCE,
+        pgce.PathAspect.SERIALIZED,
+    )
 
     path_id = map_path_id(path_id, stmt.view_path_id_map)
     return {
-        aspect for aspect in ASPECTS
+        aspect for aspect in path_aspects
         if _has_path_aspect(stmt, path_id, aspect=aspect)
     }
 
@@ -904,7 +983,7 @@ def list_path_aspects(stmt: pgast.Query, path_id: irast.PathId) -> Set[str]:
 def maybe_get_path_value_rvar(
     stmt: pgast.Query, path_id: irast.PathId
 ) -> Optional[pgast.BaseRangeVar]:
-    return maybe_get_path_rvar(stmt, path_id, aspect='value')
+    return maybe_get_path_rvar(stmt, path_id, aspect=pgce.PathAspect.VALUE)
 
 
 def _same_expr(expr1: pgast.BaseExpr, expr2: pgast.BaseExpr) -> bool:
@@ -916,8 +995,11 @@ def _same_expr(expr1: pgast.BaseExpr, expr2: pgast.BaseExpr) -> bool:
 
 
 def put_path_packed_output(
-        rel: pgast.EdgeQLPathInfo, path_id: irast.PathId,
-        val: pgast.OutputVar, aspect: str='value') -> None:
+    rel: pgast.EdgeQLPathInfo,
+    path_id: irast.PathId,
+    val: pgast.OutputVar,
+    aspect: pgce.PathAspect=pgce.PathAspect.VALUE,
+) -> None:
     if rel.packed_path_outputs is None:
         rel.packed_path_outputs = {}
     rel.packed_path_outputs[path_id, aspect] = val
@@ -926,7 +1008,7 @@ def put_path_packed_output(
 def _put_path_output_var(
     rel: pgast.BaseRelation,
     path_id: irast.PathId,
-    aspect: str,
+    aspect: pgce.PathAspect,
     var: pgast.OutputVar,
     *,
     flavor: str = 'normal',
@@ -938,9 +1020,12 @@ def _put_path_output_var(
 
 
 def _get_rel_object_id_output(
-        rel: pgast.BaseRelation, path_id: irast.PathId, *,
-        aspect: str,
-        env: context.Environment) -> pgast.OutputVar:
+    rel: pgast.BaseRelation,
+    path_id: irast.PathId,
+    *,
+    aspect: pgce.PathAspect,
+    env: context.Environment,
+) -> pgast.OutputVar:
 
     var = rel.path_outputs.get((path_id, aspect))
     if var is not None:
@@ -968,16 +1053,19 @@ def _get_rel_object_id_output(
 
 
 def _get_rel_path_output(
-        rel: pgast.Relation | pgast.NullRelation, path_id: irast.PathId, *,
-        aspect: str,
-        flavor: str,
-        env: context.Environment) -> pgast.OutputVar:
+    rel: pgast.Relation | pgast.NullRelation,
+    path_id: irast.PathId,
+    *,
+    aspect: pgce.PathAspect,
+    flavor: str,
+    env: context.Environment,
+) -> pgast.OutputVar:
 
     if path_id.is_objtype_path():
-        if aspect == 'identity':
-            aspect = 'value'
+        if aspect == pgce.PathAspect.IDENTITY:
+            aspect = pgce.PathAspect.VALUE
 
-        if aspect != 'value':
+        if aspect != pgce.PathAspect.VALUE:
             raise LookupError(
                 f'invalid request for non-scalar path {path_id} {aspect}')
 
@@ -989,12 +1077,12 @@ def _get_rel_path_output(
             return _get_rel_object_id_output(
                 rel, path_id, aspect=aspect, env=env)
     else:
-        if aspect == 'identity':
+        if aspect == pgce.PathAspect.IDENTITY:
             raise LookupError(
                 f'invalid request for scalar path {path_id} {aspect}')
 
-        elif aspect == 'serialized':
-            aspect = 'value'
+        elif aspect == pgce.PathAspect.SERIALIZED:
+            aspect = pgce.PathAspect.VALUE
 
     var = rel.path_outputs.get((path_id, aspect))
     if var is not None:
@@ -1121,11 +1209,15 @@ def find_path_output(
 
 
 def get_path_output(
-        rel: pgast.BaseRelation, path_id: irast.PathId, *,
-        aspect: str, allow_nullable: bool=True,
-        disable_output_fusion: bool=False,
-        flavor: str='normal',
-        env: context.Environment) -> pgast.OutputVar:
+    rel: pgast.BaseRelation,
+    path_id: irast.PathId,
+    *,
+    aspect: pgce.PathAspect,
+    allow_nullable: bool=True,
+    disable_output_fusion: bool=False,
+    flavor: str='normal',
+    env: context.Environment
+) -> pgast.OutputVar:
 
     if isinstance(rel, pgast.Query) and flavor == 'normal':
         path_id = map_path_id(path_id, rel.view_path_id_map)
@@ -1138,11 +1230,15 @@ def get_path_output(
 
 
 def _get_path_output(
-        rel: pgast.BaseRelation, path_id: irast.PathId, *,
-        aspect: str, allow_nullable: bool=True,
-        disable_output_fusion: bool=False,
-        flavor: str,
-        env: context.Environment) -> pgast.OutputVar:
+    rel: pgast.BaseRelation,
+    path_id: irast.PathId,
+    *,
+    aspect: pgce.PathAspect,
+    allow_nullable: bool=True,
+    disable_output_fusion: bool=False,
+    flavor: str,
+    env: context.Environment,
+) -> pgast.OutputVar:
 
     if flavor == 'packed':
         result = (rel.packed_path_outputs.get((path_id, aspect))
@@ -1172,10 +1268,13 @@ def _get_path_output(
         # apply this in the cases that process_set_as_path does this
         # optimization, which means not for multi props. We also always
         # allow it for free objects.)
-        id_output = maybe_get_path_output(rel, src_path_id,
-                                          aspect='value',
-                                          allow_nullable=allow_nullable,
-                                          env=env)
+        id_output = maybe_get_path_output(
+            rel,
+            src_path_id,
+            aspect=pgce.PathAspect.VALUE,
+            allow_nullable=allow_nullable,
+            env=env
+        )
         if id_output is not None:
             _put_path_output_var(rel, path_id, aspect, id_output)
             return id_output
@@ -1185,7 +1284,7 @@ def _get_path_output(
             rel, path_id, aspect=aspect, flavor=flavor, env=env)
 
     assert isinstance(rel, pgast.Query)
-    if is_values_relation(rel) and aspect != 'identity':
+    if is_values_relation(rel) and aspect != pgce.PathAspect.IDENTITY:
         # The VALUES() construct seems to always expose its
         # value as "column1".
         alias = 'column1'
@@ -1284,10 +1383,10 @@ def _get_path_output(
     if (path_id.is_objtype_path()
             and not isinstance(result, pgast.TupleVarBase)):
         equiv_aspect = None
-        if aspect == 'identity':
-            equiv_aspect = 'value'
-        elif aspect == 'value':
-            equiv_aspect = 'identity'
+        if aspect == pgce.PathAspect.IDENTITY:
+            equiv_aspect = pgce.PathAspect.VALUE
+        elif aspect == pgce.PathAspect.VALUE:
+            equiv_aspect = pgce.PathAspect.IDENTITY
 
         if (equiv_aspect is not None
                 and (path_id, equiv_aspect) not in rel.path_outputs):
@@ -1299,11 +1398,15 @@ def _get_path_output(
 
 
 def maybe_get_path_output(
-        rel: pgast.BaseRelation, path_id: irast.PathId, *,
-        aspect: str, allow_nullable: bool=True,
-        disable_output_fusion: bool=False,
-        flavor: str='normal',
-        env: context.Environment) -> Optional[pgast.OutputVar]:
+    rel: pgast.BaseRelation,
+    path_id: irast.PathId,
+    *,
+    aspect: pgce.PathAspect,
+    allow_nullable: bool=True,
+    disable_output_fusion: bool=False,
+    flavor: str='normal',
+    env: context.Environment,
+) -> Optional[pgast.OutputVar]:
     try:
         return get_path_output(rel, path_id=path_id, aspect=aspect,
                                allow_nullable=allow_nullable,
@@ -1314,15 +1417,25 @@ def maybe_get_path_output(
 
 
 def get_path_identity_output(
-        rel: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> pgast.OutputVar:
-    return get_path_output(rel, path_id, aspect='identity', env=env)
+    rel: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    env: context.Environment,
+) -> pgast.OutputVar:
+    return get_path_output(
+        rel, path_id, aspect=pgce.PathAspect.IDENTITY, env=env
+    )
 
 
 def get_path_value_output(
-        rel: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> pgast.OutputVar:
-    return get_path_output(rel, path_id, aspect='value', env=env)
+    rel: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    env: context.Environment,
+) -> pgast.OutputVar:
+    return get_path_output(
+        rel, path_id, aspect=pgce.PathAspect.VALUE, env=env
+    )
 
 
 def get_path_serialized_or_value_var(
@@ -1336,9 +1449,12 @@ def get_path_serialized_or_value_var(
 
 
 def fix_tuple(
-        rel: pgast.Query, ref: pgast.BaseExpr, *,
-        aspect: str,
-        env: context.Environment) -> pgast.BaseExpr:
+    rel: pgast.Query,
+    ref: pgast.BaseExpr,
+    *,
+    aspect: pgce.PathAspect,
+    env: context.Environment,
+) -> pgast.BaseExpr:
 
     if (
         isinstance(ref, pgast.TupleVarBase)
@@ -1364,12 +1480,15 @@ def fix_tuple(
 
 
 def get_path_serialized_output(
-        rel: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> pgast.OutputVar:
+    rel: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    env: context.Environment,
+) -> pgast.OutputVar:
     # Serialized output is a special case, we don't
     # want this behaviour to be recursive, so it
     # must be kept outside of get_path_output() generic.
-    aspect = 'serialized'
+    aspect = pgce.PathAspect.SERIALIZED
 
     path_id = map_path_id(path_id, rel.view_path_id_map)
     result = rel.path_outputs.get((path_id, aspect))
@@ -1412,11 +1531,14 @@ def get_path_serialized_output(
 
 
 def get_path_output_or_null(
-        rel: pgast.Query, path_id: irast.PathId, *,
-        disable_output_fusion: bool=False,
-        flavor: str='normal',
-        aspect: str, env: context.Environment) -> \
-        Tuple[pgast.OutputVar, bool]:
+    rel: pgast.Query,
+    path_id: irast.PathId,
+    *,
+    disable_output_fusion: bool=False,
+    flavor: str='normal',
+    aspect: pgce.PathAspect,
+    env: context.Environment,
+) -> Tuple[pgast.OutputVar, bool]:
 
     path_id = map_path_id(path_id, rel.view_path_id_map)
 
