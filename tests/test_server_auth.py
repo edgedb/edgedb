@@ -381,7 +381,6 @@ class TestServerAuth(tb.ConnectedTestCase):
         async with tb.start_edgedb_server(
             jws_key_file=pathlib.Path(jwk_file),
             default_auth_method=args.ServerAuthMethod.JWT,
-            extra_args=["--instance-name=localtest"],
         ) as sd:
             base_sk = secretkey.generate_secret_key(jwk)
             conn = await sd.connect(secret_key=base_sk)
@@ -607,7 +606,6 @@ class TestServerAuth(tb.ConnectedTestCase):
                     args.ServerAuthMethod.JWT,
                 ],
             }),
-            extra_args=["--instance-name=localtest"],
         ) as sd:
             base_sk = secretkey.generate_secret_key(jwk)
             conn = await sd.connect(secret_key=base_sk)
