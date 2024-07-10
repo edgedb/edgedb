@@ -2376,6 +2376,9 @@ class _EdgeDBServer:
             cmd += ['--jwt-revocation-list-file',
                     self.jwt_revocation_list_file]
 
+        if not self.multitenant_config:
+            cmd += ['--instance-name=localtest']
+
         if self.extra_args:
             cmd.extend(self.extra_args)
 
