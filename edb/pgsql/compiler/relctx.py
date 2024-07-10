@@ -1566,7 +1566,7 @@ def range_for_material_objtype(
             (rewrite := ctx.env.type_rewrites.get(rw_key)) is not None
             or force_cte
         )
-        and rw_key not in ctx.pending_type_ctes
+        and rw_key not in ctx.pending_type_rewrite_ctes
         and not for_mutation
     ):
         if not rewrite:
@@ -1592,9 +1592,9 @@ def range_for_material_objtype(
             include_overlays = False
 
         type_rel: pgast.BaseRelation | pgast.CommonTableExpr
-        if (type_cte := ctx.type_ctes.get(key)) is None:
+        if (type_cte := ctx.type_rewrite_ctes.get(key)) is None:
             with ctx.newrel() as sctx:
-                sctx.pending_type_ctes.add(rw_key)
+                sctx.pending_type_rewrite_ctes.add(rw_key)
                 sctx.pending_query = sctx.rel
                 # Normally we want to compile type rewrites without
                 # polluting them with any sort of overlays, but when
@@ -1616,8 +1616,8 @@ def range_for_material_objtype(
                         query=sctx.rel,
                         materialized=is_global or force_cte,
                     )
-                    ctx.type_ctes[key] = type_cte
-                    ctx.ordered_inheritance_ctes.append(type_cte)
+                    ctx.type_rewrite_ctes[key] = type_cte
+                    ctx.ordered_type_ctes.append(type_cte)
                     type_rel = type_cte
         else:
             type_rel = type_cte
@@ -1716,7 +1716,7 @@ def range_for_material_objtype(
                     materialized=False,
                 )
                 ctx.type_inheritance_ctes[typeref.id] = type_cte
-                ctx.ordered_inheritance_ctes.append(type_cte)
+                ctx.ordered_type_ctes.append(type_cte)
 
             else:
                 type_cte = ctx.type_inheritance_ctes[typeref.id]
@@ -2261,7 +2261,6 @@ def _range_for_component_ptrref(
                 materialized=False,
             )
             ctx.ptr_inheritance_ctes[component_ptrref.id] = ptr_cte
-            ctx.ordered_inheritance_ctes.append(ptr_cte)
 
         else:
             ptr_cte = ctx.ptr_inheritance_ctes[component_ptrref.id]
