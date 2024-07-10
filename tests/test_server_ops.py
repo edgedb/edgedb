@@ -712,7 +712,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
     async def test_server_ops_cache_recompile_01(self):
         ckey = (
             'edgedb_server_edgeql_query_compilations_total'
-            '{tenant="_localdev",path="compiler"}'
+            '{tenant="localtest",path="compiler"}'
         )
         qry = 'select schema::Object { name }'
 
