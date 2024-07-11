@@ -29,6 +29,7 @@ from typing import (
     TYPE_CHECKING,
 )
 
+import abc
 import asyncio
 import contextlib
 import contextvars
@@ -39,6 +40,10 @@ import logging
 
 import httpx
 import httpx_sse
+
+import tiktoken
+from mistral_common.tokens.tokenizers import mistral as mistral_tokenizer
+
 
 from edb import errors
 from edb.common import asyncutil
@@ -106,6 +111,80 @@ class BadRequestError(AIExtError):
 class ApiStyle(s_enum.StrEnum):
     OpenAI = 'OpenAI'
     Anthropic = 'Anthropic'
+
+
+class Tokenizer(abc.ABC):
+
+    @abc.abstractmethod
+    def encode(self, text: str) -> list[int]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def decode(self, tokens: list[int]) -> str:
+        raise NotImplementedError
+
+    def shorten_to_token_length(self, text: str, token_length: int) -> str:
+        encoded = self.encode(text)
+        if len(encoded) > token_length:
+            encoded = encoded[:token_length]
+        return self.decode(encoded)
+
+
+class OpenAITokenizer(Tokenizer):
+
+    _instances: dict[str, OpenAITokenizer] = {}
+
+    encoding: Any
+
+    @classmethod
+    def for_model(cls, model_name: str) -> OpenAITokenizer:
+        if model_name in cls._instances:
+            return cls._instances[model_name]
+
+        tokenizer = OpenAITokenizer()
+        tokenizer.encoding = tiktoken.encoding_for_model(model_name)
+        cls._instances[model_name] = tokenizer
+
+        return tokenizer
+
+    def encode(self, text: str) -> list[int]:
+        return cast(list[int], self.encoding.encode(text))
+
+    def decode(self, tokens: list[int]) -> str:
+        return cast(str, self.encoding.decode(tokens))
+
+
+class MistralTokenizer(Tokenizer):
+
+    _instances: dict[str, MistralTokenizer] = {}
+
+    tokenizer: Any
+
+    @classmethod
+    def for_model(cls, model_name: str) -> MistralTokenizer:
+        if model_name in cls._instances:
+            return cls._instances[model_name]
+
+        assert model_name == 'mistral-embed'
+
+        tokenizer = MistralTokenizer()
+        tokenizer.tokenizer = mistral_tokenizer.MistralTokenizer.v1()
+        cls._instances[model_name] = tokenizer
+
+        return tokenizer
+
+    def encode(self, text: str) -> list[int]:
+        # V1 tokenizer wraps input text with [INST] [/INST].
+        # While these count towards the overal token limit, how special tokens
+        # are applied to embedding requests is not documented. For now, directly
+        # pass the text into the inner tokenizer.
+        tokenized = self.tokenizer.instruct_tokenizer.tokenizer.encode(
+            text, bos=False, eos=False
+        )
+        return cast(list[int], tokenized.tokens)
+
+    def decode(self, tokens: list[int]) -> str:
+        return cast(str, self.tokenizer.decode(tokens))
 
 
 @dataclass
@@ -373,10 +452,10 @@ class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
             )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class EmbeddingsParams(rs.Params[EmbeddingsData]):
     pgconn: pgcon.PGConnection
-    provider: Any
+    provider: ProviderConfig
     model_name: str
     inputs: list[str]
     shortening: Optional[int]
@@ -460,6 +539,27 @@ async def _generate_embeddings_params(
         logger.error(f"{task_name}: {e}")
         return None
 
+    model_tokenizers: dict[str, Tokenizer] = {}
+    if provider_name == 'builtin::openai':
+        model_tokenizers = {
+            model_name: OpenAITokenizer.for_model(model_name)
+            for model_name in provider_models
+        }
+    elif provider_name == 'builtin::mistral':
+        model_tokenizers = {
+            model_name: MistralTokenizer.for_model(model_name)
+            for model_name in provider_models
+        }
+
+    model_max_input_tokens: dict[str, int] = {
+        model_name: await _get_model_max_input_tokens(
+            db,
+            base_model_type="ext::ai::EmbeddingModel",
+            model_name=model_name,
+        )
+        for model_name in provider_models
+    }
+
     model_entries: dict[str, list[tuple[bytes, ...]]] = {}
 
     for model_name in provider_models:
@@ -517,13 +617,21 @@ async def _generate_embeddings_params(
             else:
                 shortening = None
             part = list(part_iter)
+            inputs = [entry[1].decode("utf-8") for entry in part]
+            if model_name in model_tokenizers:
+                truncated = [
+                    model_tokenizers[model_name].shorten_to_token_length(
+                        input, model_max_input_tokens[model_name]
+                    )
+                    for input in inputs
+                ]
             embeddings_params.append(EmbeddingsParams(
-                pgconn,
-                provider_cfg,
-                model_name,
-                [entry[1].decode("utf-8") for entry in part],
-                shortening,
-                part,
+                pgconn=pgconn,
+                provider=provider_cfg,
+                model_name=model_name,
+                inputs=inputs,
+                shortening=shortening,
+                entries=part,
             ))
 
     return embeddings_params
@@ -1470,6 +1578,50 @@ async def _get_model_provider(
         raise InternalError("multiple models defined as requested model")
 
     return cast(str, models[0]["provider"])
+
+
+async def _get_model_max_input_tokens(
+    db: dbview.Database,
+    base_model_type: str,
+    model_name: str,
+) -> int:
+    models = await _edgeql_query_json(
+        db=db,
+        query="""
+        WITH
+            Parent := (
+                SELECT
+                    schema::ObjectType
+                FILTER
+                    .name = <str>$base_model_type
+            ),
+            Models := Parent.<ancestors[IS schema::ObjectType],
+        SELECT
+            Models {
+                max_input_tokens := (
+                    SELECT
+                        (.annotations@value, .annotations.name)
+                    FILTER
+                        .1 = "ext::ai::embedding_model_max_input_tokens"
+                    LIMIT
+                        1
+                ).0,
+            }
+        FILTER
+            .annotations.name = "ext::ai::model_name"
+            AND .annotations@value = <str>$model_name
+        """,
+        variables={
+            "base_model_type": base_model_type,
+            "model_name": model_name,
+        },
+    )
+    if len(models) == 0:
+        raise BadRequestError("invalid model name")
+    elif len(models) > 1:
+        raise InternalError("multiple models defined as requested model")
+
+    return int(models[0]["max_input_tokens"])
 
 
 async def _generate_embeddings_for_type(
