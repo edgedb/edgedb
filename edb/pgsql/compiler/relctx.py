@@ -1641,12 +1641,7 @@ def range_for_material_objtype(
         assert not typeref.is_view, "attempting to generate range from view"
         typeref_descendants = _get_typeref_descendants(
             typeref,
-            include_descendants=(
-                include_descendants
-
-                # HACK: This is a workaround for #4491
-                and typeref.name_hint.module not in {'cfg', 'sys'}
-            ),
+            include_descendants=include_descendants,
             for_mutation=for_mutation,
         )
         if (
@@ -2131,12 +2126,7 @@ def range_for_ptrref(
         component_refs = {ptrref}
 
     assert isinstance(ptrref.out_source.name_hint, sn.QualName)
-    include_descendants = (
-        not ptrref.union_is_exhaustive
-
-        # HACK: This is a workaround for #4491
-        and ptrref.out_source.name_hint.module not in {'sys', 'cfg'}
-    )
+    include_descendants = not ptrref.union_is_exhaustive
 
     output_cols = ('source', 'target')
 
