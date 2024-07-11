@@ -2,18 +2,27 @@
 
 .. _ref_sql_support:
 
-===========
-SQL support
-===========
+=======================
+SQL interface of EdgeDB
+=======================
 
 .. edb:youtube-embed:: 0KdY2MPb2oc
 
 Connecting
 ==========
 
-EdgeDB supports running read-only SQL queries via the Postgres protocol to
-enable connecting EdgeDB to existing BI and analytics solutions. Any
-Postgres-compatible client can connect to your EdgeDB database by using the
+EdgeDB server supports PostgreSQL connection interface. It implements PostgreSQL
+wire protocol as well as SQL query language.
+
+As of EdgeDB 6.0, it also supports a subset of Data Modification Language,
+namely INSERT, DELETE and UPDATE statements.
+
+It does not, however, support PostgreSQL Data Definition Language
+(e.g. ``CREATE TABLE``). This means that it is not possible to use SQL
+connections to EdgeDB to modify its schema. Instead, the schema should be
+managed using migrations and EdgeQL commands.
+
+Any Postgres-compatible client can connect to your EdgeDB database by using the
 same port that is used for the EdgeDB protocol and the
 :versionreplace:`database;5.0:branch` name, username, and password you already
 use for your database.
@@ -254,3 +263,96 @@ Tested SQL tools
    https://www.postgresql.org/docs/current/runtime-config-replication.html
 .. _XMIN Replication:
    https://www.postgresql.org/docs/15/ddl-system-columns.html
+
+
+Example: gradual transition from ORMs to EdgeDB
+===============================================
+
+When a project is using Object-Relational Mappings (e.g. SQLAlchemy, Django,
+Hibernate ORM, TypeORM) and is considering the migration to EdgeDB, it might
+want to execute the transition gradually, as opposed to a total rewrite of the
+project.
+
+In this case, the project can start the transition by migrating the ORM models
+to EdgeDB Schema Definition Language.
+
+For example, such Hibernate ORM model in Java: 
+
+.. code-block:: java
+
+    @Entity
+    class Movie {
+        @Id
+        @GeneratedValue(strategy = GenerationType.UUID)
+        UUID id;
+        
+        private String title;
+
+        @NotNull
+        private Integer releaseYear;
+
+        ... getters and setters ...
+    }
+
+... would be translated to the following EdgeDB SDL:
+
+.. code-block:: sdl
+
+    type Movie {
+        title: str;
+
+        required releaseYear: int32;
+    }
+
+A new EdgeDB instance can now be created and migrated to the translated schema.
+At this stage, EdgeDB will allow SQL connections to write into the ``"Movie"``
+table, just as it would have been created with the following DDL command:
+
+.. code-block:: sql
+
+    CREATE TABLE "Movie" (
+        id UUID PRIMARY KEY DEFAULT (...),
+        __type__ UUID NOT NULL DEFAULT (...),
+        title TEXT,
+        releaseYear INTEGER NOT NULL
+    );
+
+When translating the old ORM model to EdgeDB SDL, one should aim to make the
+SQL schema of EdgeDB as similar to the SQL schema that the ORM expects.
+
+When this is complete, any query that used to work with the old, plain
+PostgreSQL, should now also work with the EdgeDB. For example, we can execute
+the following query:
+
+.. code-block:: sql
+
+    INSERT INTO "Movie" (title, releaseYear)
+    VALUES ("Madagascar", 2012)
+    RETURNING id, title, releaseYear
+
+As the last step, we can export the data from our old database into an ``.sql``
+file and then import it into EdgeDB:
+
+.. code-block:: bash
+
+    $ pg_dump {your PostgreSLQ connection params} \
+        --data-only --inserts --no-owner --no-privileges \
+        > dump.sql
+
+    $ psql {your EdgeDB connection params} --file dump.sql
+
+Now, the ORM can be pointed to EdgeDB instead of the old PostgreSQL database,
+which has been fully replaced.
+
+Arguably, the development of new features with the ORM is now more complex for
+the duration of the transition, since the developer has to modify two model
+definitions: the ORM and the EdgeDB schema.
+
+But it allows any new models to use EdgeDB schema, EdgeQL and code generators
+for the client language of choice. The ORM-based code can now also be gradually
+rewritten to use EdgeQL, one model at the time.
+
+.. TODO:
+.. - old primary keys that are not uuid,
+.. - old properties that are named id, __type__, source or target,
+.. - renaming properties in the transition. 
