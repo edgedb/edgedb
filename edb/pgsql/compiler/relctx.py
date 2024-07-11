@@ -1650,7 +1650,7 @@ def range_for_material_objtype(
             # using a CTE. This allows postgres to actually give us back the
             # alias names that we use for relations, which we use to track which
             # parts of the query are being referred to.
-            not ctx.env.use_inheritance_ctes
+            ctx.env.is_explain
 
             # Don't use CTEs if there is no inheritance. (ie. There is only a
             # single material type)
@@ -2173,7 +2173,9 @@ def _range_for_component_ptrref(
     )
 
     if (
-        not ctx.env.use_inheritance_ctes
+        # When we are compiling a query for EXPLAIN, expand out pointer
+        # references in place. See range_for_material_objtype for more details.
+        ctx.env.is_explain
 
         # Don't use CTEs if there is no inheritance. (ie. There is only a
         # single ptrref)

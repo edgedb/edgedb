@@ -1701,9 +1701,6 @@ def _get_compile_options(
         allow_user_specified_id=_get_config_val(
             ctx, 'allow_user_specified_id') or ctx.schema_reflection_mode,
         is_explain=is_explain,
-        use_inheritance_ctes=(
-            not is_explain
-        ),
         testmode=_get_config_val(ctx, '__internal_testmode'),
         schema_reflection_mode=(
             ctx.schema_reflection_mode
@@ -1889,7 +1886,6 @@ def _compile_ql_query(
         output_format=_convert_format(ctx.output_format),
         backend_runtime_params=ctx.backend_runtime_params,
         is_explain=options.is_explain,
-        use_inheritance_ctes=options.use_inheritance_ctes,
         detach_params=(use_persistent_cache
                        and cache_mode is config.QueryCacheMode.PgFunc),
         versioned_stdlib=True,

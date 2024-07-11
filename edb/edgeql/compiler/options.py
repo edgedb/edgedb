@@ -82,11 +82,6 @@ class GlobalCompilerOptions:
     #: the query plan.
     is_explain: bool = False
 
-    #: Should type inheritance be expanded using CTEs.
-    #: When not explaining CTEs can be used to provide access to a type and its
-    #: descendents.
-    use_inheritance_ctes: bool = True
-
     #: The name that can be used in a "DML is disallowed in ..."
     #: error. When this is not None, any DML should cause an error.
     in_ddl_context_name: Optional[str] = None

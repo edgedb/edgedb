@@ -401,13 +401,7 @@ def type_to_typeref(
     include_children = (
         expr_type is s_types.ExprType.Update
         or expr_type is s_types.ExprType.Delete
-        or (
-            (
-                env.options.is_explain or
-                env.options.use_inheritance_ctes
-            )
-            and isinstance(t, s_objtypes.ObjectType)
-        )
+        or isinstance(t, s_objtypes.ObjectType)
     )
     include_ancestors = (
         expr_type is s_types.ExprType.Insert
