@@ -856,7 +856,7 @@ class Tenant(ha_base.ClusterProtocol):
         )
 
         rloop = retryloop.RetryLoop(
-            timeout=10.0,
+            timeout=30.0,
             ignore=errors.ExecutionError,
         )
 
