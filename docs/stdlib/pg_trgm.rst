@@ -79,7 +79,7 @@ the following functions:
 
 In addition to the functions this extension has two indexes that speed up
 queries that involve similarity searches: ``ext::pg_trgm::gin`` and
-``ext::pg_tgrm::gist``.
+``ext::pg_trgm::gist``.
 
 
 .. _ref_ext_pgtrgm_config:
