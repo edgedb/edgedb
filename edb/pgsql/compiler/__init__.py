@@ -156,9 +156,15 @@ def compile_ir_to_sql_tree(
         qtree = dispatch.compile(ir_expr, ctx=ctx)
         dml.compile_triggers(triggers, qtree, ctx=ctx)
 
-        if isinstance(ir_expr, irast.Set) and not singleton_mode:
-            assert isinstance(qtree, pgast.Query)
-            clauses.fini_toplevel(qtree, ctx)
+        if not singleton_mode:
+            if isinstance(ir_expr, irast.Set):
+                assert isinstance(qtree, pgast.Query)
+                clauses.fini_toplevel(qtree, ctx)
+
+            elif isinstance(qtree, pgast.Query):
+                # Other types of expressions may compile to queries which may
+                # use inheritance CTEs. Ensure they are added here.
+                clauses.insert_ctes(qtree, ctx)
 
         if detach_params:
             detached_params_idx = {
