@@ -1703,8 +1703,6 @@ def _get_compile_options(
         is_explain=is_explain,
         use_inheritance_ctes=(
             not is_explain
-            and not ctx.bootstrap_mode
-            and not ctx.schema_reflection_mode
         ),
         testmode=_get_config_val(ctx, '__internal_testmode'),
         schema_reflection_mode=(
