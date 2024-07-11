@@ -257,8 +257,6 @@ class PathId:
         which case it is used instead.
 
         Args:
-            schema:
-                A schema instance where the type *t* is defined.
             typeref:
                 The descriptor of a type of the variable being defined.
             namespace:
@@ -276,6 +274,28 @@ class PathId:
             typename = typeref.id
         pid._norm_path = (typename,)
         pid._namespace = frozenset(namespace)
+        return pid
+
+    @classmethod
+    def from_ptrref(
+        cls,
+        ptrref: irast.PointerRef,
+        *,
+        namespace: AbstractSet[Namespace] = frozenset(),
+    ) -> PathId:
+        """Return a ``PathId`` instance for a given :class:`ir.ast.PointerRef`
+
+        Args:
+            ptrref:
+                The descriptor of a ptr of the variable being defined.
+            namespace:
+                Optional namespace in which the variable is defined.
+
+        Returns:
+            A ``PathId`` instance of type described by *ptrref*.
+        """
+        pid = cls.from_typeref(ptrref.out_source, namespace=namespace)
+        pid = pid.extend(ptrref=ptrref)
         return pid
 
     @classmethod

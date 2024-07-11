@@ -1700,11 +1700,7 @@ def _get_compile_options(
             ctx, 'apply_access_policies'),
         allow_user_specified_id=_get_config_val(
             ctx, 'allow_user_specified_id') or ctx.schema_reflection_mode,
-        expand_inhviews=(
-            debug.flags.edgeql_expand_inhviews
-            and not ctx.bootstrap_mode
-            and not ctx.schema_reflection_mode
-        ) or is_explain,
+        is_explain=is_explain,
         testmode=_get_config_val(ctx, '__internal_testmode'),
         schema_reflection_mode=(
             ctx.schema_reflection_mode
@@ -1889,7 +1885,7 @@ def _compile_ql_query(
         expected_cardinality_one=ctx.expected_cardinality_one,
         output_format=_convert_format(ctx.output_format),
         backend_runtime_params=ctx.backend_runtime_params,
-        expand_inhviews=options.expand_inhviews,
+        is_explain=options.is_explain,
         detach_params=(use_persistent_cache
                        and cache_mode is config.QueryCacheMode.PgFunc),
         versioned_stdlib=True,

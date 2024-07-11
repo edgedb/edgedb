@@ -242,15 +242,21 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: CTEs representing decoded parameters
     param_ctes: Dict[str, pgast.CommonTableExpr]
 
-    #: CTEs representing pointer tables that we need to force to be
-    #: materialized for performance reasons.
-    ptr_ctes: Dict[uuid.UUID, pgast.CommonTableExpr]
+    #: CTEs representing pointers and their inherited pointers
+    ptr_inheritance_ctes: Dict[uuid.UUID, pgast.CommonTableExpr]
 
     #: CTEs representing types, when rewritten based on access policy
-    type_ctes: Dict[FullRewriteKey, pgast.CommonTableExpr]
+    type_rewrite_ctes: Dict[FullRewriteKey, pgast.CommonTableExpr]
 
     #: A set of type CTEs currently being generated
-    pending_type_ctes: Set[RewriteKey]
+    pending_type_rewrite_ctes: Set[RewriteKey]
+
+    #: CTEs representing types and their inherited types
+    type_inheritance_ctes: Dict[uuid.UUID, pgast.CommonTableExpr]
+
+    # Type and type inheriance CTEs in creation order. This ensures type CTEs
+    # referring to other CTEs are in the correct order.
+    ordered_type_ctes: list[pgast.CommonTableExpr]
 
     #: The logical parent of the current query in the
     #: query hierarchy
@@ -351,9 +357,11 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.rel = NO_STMT
             self.rel_hierarchy = {}
             self.param_ctes = {}
-            self.ptr_ctes = {}
-            self.type_ctes = {}
-            self.pending_type_ctes = set()
+            self.ptr_inheritance_ctes = {}
+            self.type_rewrite_ctes = {}
+            self.pending_type_rewrite_ctes = set()
+            self.type_inheritance_ctes = {}
+            self.ordered_type_ctes = []
             self.dml_stmts = {}
             self.parent_rel = None
             self.pending_query = None
@@ -391,9 +399,11 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.rel = prevlevel.rel
             self.rel_hierarchy = prevlevel.rel_hierarchy
             self.param_ctes = prevlevel.param_ctes
-            self.ptr_ctes = prevlevel.ptr_ctes
-            self.type_ctes = prevlevel.type_ctes
-            self.pending_type_ctes = prevlevel.pending_type_ctes
+            self.ptr_inheritance_ctes = prevlevel.ptr_inheritance_ctes
+            self.type_rewrite_ctes = prevlevel.type_rewrite_ctes
+            self.pending_type_rewrite_ctes = prevlevel.pending_type_rewrite_ctes
+            self.type_inheritance_ctes = prevlevel.type_inheritance_ctes
+            self.ordered_type_ctes = prevlevel.ordered_type_ctes
             self.dml_stmts = prevlevel.dml_stmts
             self.parent_rel = prevlevel.parent_rel
             self.pending_query = prevlevel.pending_query
@@ -456,7 +466,9 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.disable_semi_join = frozenset()
                 self.force_optional = frozenset()
                 self.intersection_narrowing = {}
-                self.pending_type_ctes = set(prevlevel.pending_type_ctes)
+                self.pending_type_rewrite_ctes = set(
+                    prevlevel.pending_type_rewrite_ctes
+                )
 
             elif mode == ContextSwitchMode.NEWSCOPE:
                 self.path_scope = prevlevel.path_scope.new_child()
@@ -536,7 +548,7 @@ class Environment:
         expected_cardinality_one: bool,
         ignore_object_shapes: bool,
         singleton_mode: bool,
-        expand_inhviews: bool,
+        is_explain: bool,
         explicit_top_cast: Optional[irast.TypeRef],
         query_params: List[irast.Param],
         type_rewrites: Dict[RewriteKey, irast.Set],
@@ -555,7 +567,7 @@ class Environment:
         self.expected_cardinality_one = expected_cardinality_one
         self.ignore_object_shapes = ignore_object_shapes
         self.singleton_mode = singleton_mode
-        self.expand_inhviews = expand_inhviews
+        self.is_explain = is_explain
         self.explicit_top_cast = explicit_top_cast
         self.query_params = query_params
         self.type_rewrites = type_rewrites

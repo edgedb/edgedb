@@ -1546,15 +1546,11 @@ def range_for_material_objtype(
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
 
-    env = ctx.env
-
     if not is_global:
         typeref = typeref.real_material_type
 
     if not is_global and not path_id.is_objtype_path():
         raise ValueError('cannot create root rvar for non-object path')
-
-    relation: Union[pgast.Relation, pgast.CommonTableExpr]
 
     assert isinstance(typeref.name_hint, sn.QualName)
 
@@ -1570,7 +1566,7 @@ def range_for_material_objtype(
             (rewrite := ctx.env.type_rewrites.get(rw_key)) is not None
             or force_cte
         )
-        and rw_key not in ctx.pending_type_ctes
+        and rw_key not in ctx.pending_type_rewrite_ctes
         and not for_mutation
     ):
         if not rewrite:
@@ -1596,9 +1592,9 @@ def range_for_material_objtype(
             include_overlays = False
 
         type_rel: pgast.BaseRelation | pgast.CommonTableExpr
-        if (type_cte := ctx.type_ctes.get(key)) is None:
+        if (type_cte := ctx.type_rewrite_ctes.get(key)) is None:
             with ctx.newrel() as sctx:
-                sctx.pending_type_ctes.add(rw_key)
+                sctx.pending_type_rewrite_ctes.add(rw_key)
                 sctx.pending_query = sctx.rel
                 # Normally we want to compile type rewrites without
                 # polluting them with any sort of overlays, but when
@@ -1609,10 +1605,10 @@ def range_for_material_objtype(
                     sctx.rel_overlays = context.RelOverlays()
 
                 dispatch.visit(rewrite, ctx=sctx)
-                # If we are expanding inhviews, we also expand type
+                # If we are explaining, we also expand type
                 # rewrites, so don't populate type_ctes. The normal
                 # case is to stick it in a CTE and cache that, though.
-                if ctx.env.expand_inhviews and not is_global:
+                if ctx.env.is_explain and not is_global:
                     type_rel = sctx.rel
                 else:
                     type_cte = pgast.CommonTableExpr(
@@ -1620,7 +1616,8 @@ def range_for_material_objtype(
                         query=sctx.rel,
                         materialized=is_global or force_cte,
                     )
-                    ctx.type_ctes[key] = type_cte
+                    ctx.type_rewrite_ctes[key] = type_cte
+                    ctx.ordered_type_ctes.append(type_cte)
                     type_rel = type_cte
         else:
             type_rel = type_cte
@@ -1629,7 +1626,7 @@ def range_for_material_objtype(
             cte_rvar = rvar_for_rel(
                 type_rel,
                 typeref=typeref,
-                alias=env.aliases.get('t'),
+                alias=ctx.env.aliases.get('t'),
                 ctx=ctx,
             )
             pathctx.put_path_id_map(sctx.rel, path_id, rewrite.path_id)
@@ -1640,77 +1637,95 @@ def range_for_material_objtype(
             rvar = rvar_for_rel(
                 sctx.rel, lateral=lateral, typeref=typeref, ctx=sctx)
 
-    # When we are compiling a query for EXPLAIN, expand out type references
-    # to an explicit union of all the types, rather than relying on the
-    # inheritance views. This allows postgres to actually give us back the
-    # alias names that we use for relations, which we use to track which
-    # parts of the query are being referred to.
-    elif (
-        ctx.env.expand_inhviews
-        and include_descendants
-        and not for_mutation
-        and typeref.children is not None
-
-        # HACK: This is a workaround for #4491
-        and typeref.name_hint.module not in {'cfg', 'sys'}
-    ):
-        ops = []
-        typerefs = [typeref, *irtyputils.get_typeref_descendants(typeref)]
-        all_abstract = all(subref.is_abstract for subref in typerefs)
-        for subref in typerefs:
-            if subref.is_abstract and not all_abstract:
-                continue
-            rvar = range_for_material_objtype(
-                subref, path_id, lateral=lateral,
-                include_descendants=False,
-                include_overlays=False,
-                ignore_rewrites=ignore_rewrites,  # XXX: Is this right?
-                ctx=ctx,
-            )
-            qry = pgast.SelectStmt(from_clause=[rvar])
-            sub_path_id = path_id
-            pathctx.put_path_value_rvar(qry, sub_path_id, rvar)
-            pathctx.put_path_source_rvar(qry, sub_path_id, rvar)
-
-            ops.append((context.OverlayOp.UNION, qry))
-
-        rvar = range_from_queryset(
-            ops,
-            typeref.name_hint,
-            lateral=lateral,
-            path_id=path_id,
-            typeref=typeref,
-            tag='expanded-inhview',
-            ctx=ctx,
-        )
-
     else:
         assert not typeref.is_view, "attempting to generate range from view"
-        table_schema_name, table_name = common.get_objtype_backend_name(
-            typeref.id,
-            typeref.name_hint.module,
-            aspect=(
-                'table' if for_mutation or not include_descendants else
-                'inhview'
-            ),
-            catenate=False,
-            versioned=ctx.env.versioned_stdlib,
+        typeref_descendants = _get_typeref_descendants(
+            typeref,
+            include_descendants=include_descendants,
+            for_mutation=for_mutation,
         )
+        if (
+            # When we are compiling a query for EXPLAIN, expand out type
+            # references to an explicit union of all the types, rather than
+            # using a CTE. This allows postgres to actually give us back the
+            # alias names that we use for relations, which we use to track which
+            # parts of the query are being referred to.
+            ctx.env.is_explain
 
-        relation = pgast.Relation(
-            schemaname=table_schema_name,
-            name=table_name,
-            path_id=path_id,
-            type_or_ptr_ref=typeref,
-        )
-
-        rvar = pgast.RelRangeVar(
-            relation=relation,
-            typeref=typeref,
-            alias=pgast.Alias(
-                aliasname=env.aliases.get(typeref.name_hint.name)
+            # Don't use CTEs if there is no inheritance. (ie. There is only a
+            # single material type)
+            or len(typeref_descendants) <= 1
+        ):
+            inheritance_selects = _selects_for_typeref_descendants(
+                typeref_descendants, path_id, ctx=ctx,
             )
-        )
+            ops = [
+                (context.OverlayOp.UNION, select)
+                for select in inheritance_selects
+            ]
+
+            rvar = range_from_queryset(
+                ops,
+                typeref.name_hint,
+                lateral=lateral,
+                path_id=path_id,
+                typeref=typeref,
+                tag='expanded-inhview',
+                ctx=ctx,
+            )
+
+        else:
+            typeref_path: irast.PathId = irast.PathId.from_typeref(
+                typeref,
+                # If there are backlinks and the path revisits a type, a
+                # semi-join is produced. This ensures that the rvar produced
+                # does not have a duplicate path var.
+                # For example: (select A.b.<b[is A])
+                namespace=frozenset({'typeref'})
+            )
+
+            if typeref.id not in ctx.type_inheritance_ctes:
+                inheritance_selects = _selects_for_typeref_descendants(
+                    typeref_descendants, typeref_path, ctx=ctx,
+                )
+
+                type_qry: pgast.SelectStmt = inheritance_selects[0]
+                for rarg in inheritance_selects[1:]:
+                    type_qry = pgast.SelectStmt(
+                        op='union',
+                        all=True,
+                        larg=type_qry,
+                        rarg=rarg,
+                    )
+
+                type_cte = pgast.CommonTableExpr(
+                    name=ctx.env.aliases.get(f't_{typeref.name_hint}'),
+                    query=type_qry,
+                    materialized=False,
+                )
+                ctx.type_inheritance_ctes[typeref.id] = type_cte
+                ctx.ordered_type_ctes.append(type_cte)
+
+            else:
+                type_cte = ctx.type_inheritance_ctes[typeref.id]
+
+            with ctx.subrel() as sctx:
+                cte_rvar = rvar_for_rel(
+                    type_cte,
+                    typeref=typeref,
+                    ctx=ctx,
+                )
+                if path_id != typeref_path:
+                    pathctx.put_path_id_map(sctx.rel, path_id, typeref_path)
+                include_rvar(
+                    sctx.rel,
+                    cte_rvar,
+                    typeref_path,
+                    pull_namespace=False,
+                    ctx=sctx,
+                )
+                rvar = rvar_for_rel(
+                    sctx.rel, lateral=lateral, typeref=typeref, ctx=sctx)
 
     overlays = get_type_rel_overlays(typeref, dml_source=dml_source, ctx=ctx)
     external_rvar = ctx.env.external_rvars.get(
@@ -1749,7 +1764,7 @@ def range_for_material_objtype(
             qry_rvar = pgast.RangeSubselect(
                 subquery=qry,
                 alias=pgast.Alias(
-                    aliasname=env.aliases.get(hint=cte.name or '')
+                    aliasname=ctx.env.aliases.get(hint=cte.name or '')
                 )
             )
 
@@ -1777,6 +1792,104 @@ def range_for_material_objtype(
         )
 
     return rvar
+
+
+def _get_typeref_descendants(
+    typeref: irast.TypeRef,
+    *,
+    include_descendants: bool,
+    for_mutation: bool,
+) -> list[irast.TypeRef]:
+    if (
+        include_descendants
+        and not for_mutation
+    ):
+        descendants = [
+            typeref,
+            *(
+                descendant
+                for descendant in irtyputils.get_typeref_descendants(typeref)
+
+                # XXX: Exclude sys/cfg tables from non sys/cfg inheritance CTEs.
+                # This probably isn't *really* what we want to do, but until we
+                # figure that out, do *something* so that DDL isn't
+                # excruciatingly slow because of the cost of explicit id
+                # checks. See #5168.
+                if (
+                    not descendant.is_cfg_view
+                    or typeref.is_cfg_view
+                )
+            )
+        ]
+
+        # Try to only select from actual concrete types.
+        concrete_descendants = [
+            subref for subref in descendants if not subref.is_abstract
+        ]
+        # If there aren't any concrete types, we still need to
+        # generate *something*, so just do the initial one.
+        if concrete_descendants:
+            return concrete_descendants
+        else:
+            return [typeref]
+
+    else:
+        return [typeref]
+
+
+def _selects_for_typeref_descendants(
+    typeref_descendants: Sequence[irast.TypeRef],
+    path_id: irast.PathId,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> list[pgast.SelectStmt]:
+    selects = []
+    for subref in typeref_descendants:
+        rvar = _table_from_typeref(
+            subref, path_id, ctx=ctx,
+        )
+        qry = pgast.SelectStmt(from_clause=[rvar])
+        sub_path_id = path_id
+        pathctx.put_path_value_rvar(qry, sub_path_id, rvar)
+        pathctx.put_path_source_rvar(qry, sub_path_id, rvar)
+
+        selects.append(qry)
+
+    return selects
+
+
+def _table_from_typeref(
+    typeref: irast.TypeRef,
+    path_id: irast.PathId,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
+    assert isinstance(typeref.name_hint, sn.QualName)
+
+    aspect = 'table'
+
+    table_schema_name, table_name = common.get_objtype_backend_name(
+        typeref.id,
+        typeref.name_hint.module,
+        aspect=aspect,
+        catenate=False,
+        versioned=ctx.env.versioned_stdlib,
+    )
+
+    relation = pgast.Relation(
+        schemaname=table_schema_name,
+        name=table_name,
+        path_id=path_id,
+        type_or_ptr_ref=typeref,
+    )
+
+    return pgast.RelRangeVar(
+        relation=relation,
+        typeref=typeref,
+        alias=pgast.Alias(
+            aliasname=ctx.env.aliases.get(typeref.name_hint.name)
+        )
+    )
 
 
 def range_for_typeref(
@@ -1945,81 +2058,31 @@ def range_from_queryset(
             typeref=typeref,
         )
 
+    elif any(
+        (
+            target.name is not None
+            and isinstance(target.val, pgast.ColumnRef)
+            and target.name != target.val.name[-1]
+        )
+        for target in set_ops[0][1].target_list
+    ):
+        # A column name name is being changed
+        rvar = pgast.RangeSubselect(
+            subquery=set_ops[0][1],
+            lateral=lateral,
+            tag=tag,
+            alias=pgast.Alias(
+                aliasname=ctx.env.aliases.get(objname.name),
+            ),
+            typeref=typeref,
+        )
+
     else:
         # Just one class table, so return it directly
         from_rvar = set_ops[0][1].from_clause[0]
         assert isinstance(from_rvar, pgast.PathRangeVar)
         from_rvar = from_rvar.replace(typeref=typeref)
         rvar = from_rvar
-
-    return rvar
-
-
-def _make_link_table_cte(
-    ptrref: irast.PointerRef,
-    relation: pgast.Relation,
-    *,
-    ctx: context.CompilerContextLevel,
-) -> pgast.Relation:
-    if (ptr_cte := ctx.ptr_ctes.get(ptrref.id)) is None:
-        ptr_select = pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(val=pgast.ColumnRef(name=[pgast.Star()])),
-            ],
-            from_clause=[pgast.RelRangeVar(relation=relation)],
-        )
-        ptr_cte = pgast.CommonTableExpr(
-            name=ctx.env.aliases.get(f'p_{ptrref.name}'),
-            query=ptr_select,
-            materialized=True,
-        )
-        ctx.ptr_ctes[ptrref.id] = ptr_cte
-
-    # We've set up the CTE to be a perfect drop in replacement for
-    # the real table (with a select *), so instead of pointing the
-    # rvar at the CTE (which would require routing path ids), just
-    # treat it like a base relation.
-    return pgast.Relation(
-        name=ptr_cte.name,
-        type_or_ptr_ref=ptrref,
-    )
-
-
-def table_from_ptrref(
-    ptrref: irast.PointerRef,
-    ptr_info: pg_types.PointerStorageInfo,
-    *,
-    include_descendants: bool = True,
-    for_mutation: bool = False,
-    ctx: context.CompilerContextLevel,
-) -> pgast.RelRangeVar:
-    """Return a Table corresponding to a given Link."""
-
-    aspect = 'table' if for_mutation or not include_descendants else 'inhview'
-    table_schema_name, table_name = common.update_aspect(
-        ptr_info.table_name, aspect
-    )
-
-    typeref = ptrref.out_source if ptrref else None
-    relation = pgast.Relation(
-        schemaname=table_schema_name,
-        name=table_name,
-        type_or_ptr_ref=ptrref,
-    )
-
-    if aspect == 'inhview' and _needs_cte(ptrref.out_source):
-        relation = _make_link_table_cte(ptrref, relation, ctx=ctx)
-
-    # Pseudo pointers (tuple and type intersection) have no schema id.
-    sobj_id = ptrref.id if isinstance(ptrref, irast.PointerRef) else None
-    rvar = pgast.RelRangeVar(
-        schema_object_id=sobj_id,
-        typeref=typeref,
-        relation=relation,
-        alias=pgast.Alias(
-            aliasname=ctx.env.aliases.get(ptrref.shortname.name)
-        )
-    )
 
     return rvar
 
@@ -2039,11 +2102,9 @@ def range_for_ptrref(
     `ptrref` taking source inheritance into account.
     """
 
-    output_cols = ('source', 'target')
-
     if ptrref.union_components:
-        refs = ptrref.union_components
-        if only_self and len(refs) > 1:
+        component_refs = ptrref.union_components
+        if only_self and len(component_refs) > 1:
             raise errors.InternalServerError(
                 'unexpected union link'
             )
@@ -2051,181 +2112,406 @@ def range_for_ptrref(
         # This is a little funky, but in an intersection, the pointer
         # needs to appear in *all* of the tables, so we just pick any
         # one of them.
-        refs = {next(iter((ptrref.intersection_components)))}
+        component_refs = {next(iter((ptrref.intersection_components)))}
     elif ptrref.computed_link_alias:
-        refs = {ptrref.computed_link_alias}
+        component_refs = {ptrref.computed_link_alias}
     else:
-        refs = {ptrref}
-
-    include_descendants = not ptrref.union_is_exhaustive
+        component_refs = {ptrref}
 
     assert isinstance(ptrref.out_source.name_hint, sn.QualName)
-    # expand_inhviews helps support EXPLAIN. see
-    # range_for_material_objtype for details.
-    lrefs: dict[irast.PointerRef, list[irast.PointerRef]]
-    if (
-        ctx.env.expand_inhviews
-        and include_descendants
-        and not for_mutation
+    include_descendants = not ptrref.union_is_exhaustive
 
-        # HACK: This is a workaround for #4491
-        and ptrref.out_source.name_hint.module not in {'sys', 'cfg'}
-    ):
-        include_descendants = False
-        lrefs = {}
-        for ref in list(refs):
-            assert isinstance(ref, irast.PointerRef), \
-                "expected regular PointerRef"
-            lref_entries: list[irast.PointerRef] = []
-            lref_entries.extend(
-                cast(Iterable[irast.PointerRef], ref.descendants())
-            )
-            lref_entries.append(ref)
-            assert isinstance(ref, irast.PointerRef)
-
-            # Try to only select from actual concrete types.
-            concrete_lrefs = [
-                ref for ref in lref_entries if not ref.out_source.is_abstract
-            ]
-            # If there aren't any concrete types, we still need to
-            # generate *something*, so just do all the abstract ones.
-            if concrete_lrefs:
-                lrefs[ref] = concrete_lrefs
-            else:
-                lrefs[ref] = lref_entries
-
-    else:
-        lrefs = {}
-        for ref in list(refs):
-            assert isinstance(ref, irast.PointerRef), \
-                "expected regular PointerRef"
-            lrefs[ref] = [ref]
-
-    def prep_filter(larg: pgast.SelectStmt, rarg: pgast.SelectStmt) -> None:
-        # Set up the proper join on the source field and clear the target list
-        # of the rhs of a filter overlay.
-        assert isinstance(larg.target_list[0].val, pgast.ColumnRef)
-        assert isinstance(rarg.target_list[0].val, pgast.ColumnRef)
-        rarg.where_clause = astutils.join_condition(
-            larg.target_list[0].val, rarg.target_list[0].val)
-        rarg.target_list.clear()
+    output_cols = ('source', 'target')
 
     set_ops = []
 
-    for orig_ptrref, src_ptrrefs in lrefs.items():
-        sub_set_ops = []
+    for component_ref in component_refs:
+        assert isinstance(component_ref, irast.PointerRef), \
+            "expected regular PointerRef"
 
-        for src_ptrref in src_ptrrefs:
-            # Most references to inline links are dispatched to a separate
-            # code path (_new_inline_pointer_rvar) by new_pointer_rvar,
-            # but when we have union pointers, some might be inline.  We
-            # always use the link table if it exists (because this range
-            # needs to contain any link properties, for one reason.)
-            ptr_info = pg_types.get_ptrref_storage_info(
-                src_ptrref, resolve_type=False, link_bias=True,
-                versioned=ctx.env.versioned_stdlib,
-            )
-            if not ptr_info:
-                assert ptrref.union_components
+        component_rvar = _range_for_component_ptrref(
+            component_ref,
+            output_cols,
+            dml_source=dml_source,
+            include_descendants=include_descendants,
+            for_mutation=for_mutation,
+            path_id=path_id,
+            ctx=ctx,
+        )
 
-                ptr_info = pg_types.get_ptrref_storage_info(
-                    src_ptrref, resolve_type=False, link_bias=False,
-                    versioned=ctx.env.versioned_stdlib,
-                )
-
-            cols = [
-                'source' if ptr_info.table_type == 'link' else 'id',
-                ptr_info.column_name,
-            ]
-
-            table = table_from_ptrref(
-                src_ptrref,
-                ptr_info,
-                include_descendants=include_descendants,
-                for_mutation=for_mutation,
-                ctx=ctx,
-            )
-            table.query.path_id = path_id
-
-            qry = pgast.SelectStmt()
-            qry.from_clause.append(table)
-
-            # Make sure all property references are pulled up properly
-            for colname, output_colname in zip(cols, output_cols):
-                selexpr = pgast.ColumnRef(
-                    name=[table.alias.aliasname, colname])
-                qry.target_list.append(
-                    pgast.ResTarget(val=selexpr, name=output_colname))
-
-            sub_set_ops.append((context.OverlayOp.UNION, qry))
-
-            # We need the identity var for semi_join to work and
-            # the source rvar so that linkprops can be found here.
-            if path_id:
-                target_ref = qry.target_list[1].val
-                pathctx.put_path_identity_var(qry, path_id, var=target_ref)
-                pathctx.put_path_source_rvar(qry, path_id, table)
-
-        sub_rvar = range_from_queryset(
-            sub_set_ops, ptrref.shortname,
-            prep_filter=prep_filter, path_id=path_id, ctx=ctx)
-        sub_qry = pgast.SelectStmt(
+        component_qry = pgast.SelectStmt(
             target_list=[
                 pgast.ResTarget(
                     val=pgast.ColumnRef(
-                        name=[colname]
+                        name=[output_colname]
                     ),
                     name=output_colname
                 )
-                for colname, output_colname in zip(cols, output_cols)
+                for output_colname in output_cols
             ],
-            from_clause=[sub_rvar]
+            from_clause=[component_rvar]
         )
         if path_id:
             target_ref = pgast.ColumnRef(
-                name=[sub_rvar.alias.aliasname, output_cols[1]]
+                name=[component_rvar.alias.aliasname, output_cols[1]]
             )
-            pathctx.put_path_identity_var(sub_qry, path_id, var=target_ref)
-            pathctx.put_path_source_rvar(sub_qry, path_id, sub_rvar)
+            pathctx.put_path_identity_var(
+                component_qry, path_id, var=target_ref
+            )
+            pathctx.put_path_source_rvar(
+                component_qry, path_id, component_rvar
+            )
 
-        set_ops.append((context.OverlayOp.UNION, sub_qry))
-
-        # Only fire off the overlays at the end of each expanded inhview.
-        # This only matters when we are doing expand_inhviews, and prevents
-        # us from repeating the overlays many times in that case.
-        if orig_ptrref in refs and not for_mutation:
-            overlays = get_ptr_rel_overlays(
-                orig_ptrref, dml_source=dml_source, ctx=ctx)
-
-            for op, cte, cte_path_id in overlays:
-                rvar = rvar_for_rel(cte, ctx=ctx)
-
-                qry = pgast.SelectStmt(
-                    target_list=[
-                        pgast.ResTarget(
-                            val=pgast.ColumnRef(
-                                name=[col]
-                            )
-                        )
-                        for col in cols
-                    ],
-                    from_clause=[rvar],
-                )
-                # Set up identity var, source rvar for reasons discussed above
-                if path_id:
-                    target_ref = pgast.ColumnRef(
-                        name=[rvar.alias.aliasname, cols[1]])
-                    pathctx.put_path_identity_var(
-                        qry, cte_path_id, var=target_ref
-                    )
-                    pathctx.put_path_source_rvar(qry, cte_path_id, rvar)
-                    pathctx.put_path_id_map(qry, path_id, cte_path_id)
-
-                set_ops.append((op, qry))
+        set_ops.append((context.OverlayOp.UNION, component_qry))
 
     return range_from_queryset(
-        set_ops, ptrref.shortname,
-        prep_filter=prep_filter, path_id=path_id, ctx=ctx)
+        set_ops,
+        ptrref.shortname,
+        path_id=path_id,
+        ctx=ctx,
+    )
+
+
+def _range_for_component_ptrref(
+    component_ptrref: irast.PointerRef,
+    output_cols: Sequence[str],
+    *,
+    dml_source: Sequence[irast.MutatingLikeStmt],
+    include_descendants: bool,
+    for_mutation: bool,
+    path_id: Optional[irast.PathId],
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
+    ptrref_descendants = _get_ptrref_descendants(
+        component_ptrref,
+        include_descendants=include_descendants,
+        for_mutation=for_mutation,
+    )
+
+    if (
+        # When we are compiling a query for EXPLAIN, expand out pointer
+        # references in place. See range_for_material_objtype for more details.
+        ctx.env.is_explain
+
+        # Don't use CTEs if there is no inheritance. (ie. There is only a
+        # single ptrref)
+        or len(ptrref_descendants) <= 1
+    ):
+        descendant_selects = _selects_for_ptrref_descendants(
+            ptrref_descendants,
+            output_cols=output_cols,
+            path_id=path_id,
+            ctx=ctx,
+        )
+        descendant_ops = [
+            (context.OverlayOp.UNION, select)
+            for select in descendant_selects
+        ]
+        component_rvar = range_from_queryset(
+            descendant_ops,
+            component_ptrref.shortname,
+            path_id=path_id,
+            ctx=ctx,
+        )
+
+    else:
+        component_ptrref_path_id: irast.PathId = irast.PathId.from_ptrref(
+            component_ptrref,
+        ).ptr_path()
+
+        if component_ptrref.id not in ctx.ptr_inheritance_ctes:
+            descendant_selects = _selects_for_ptrref_descendants(
+                ptrref_descendants,
+                output_cols=output_cols,
+                path_id=component_ptrref_path_id,
+                ctx=ctx,
+            )
+
+            inheritance_qry: pgast.SelectStmt = descendant_selects[0]
+            for rarg in descendant_selects[1:]:
+                inheritance_qry = pgast.SelectStmt(
+                    op='union',
+                    all=True,
+                    larg=inheritance_qry,
+                    rarg=rarg,
+                )
+
+            # Add the path to the CTE's query. This allows for the proper
+            # path mapping to occur when processing link properties
+            inheritance_qry.path_id = component_ptrref_path_id
+
+            ptr_cte = pgast.CommonTableExpr(
+                name=ctx.env.aliases.get(f't_{component_ptrref.name}'),
+                query=inheritance_qry,
+                materialized=False,
+            )
+            ctx.ptr_inheritance_ctes[component_ptrref.id] = ptr_cte
+
+        else:
+            ptr_cte = ctx.ptr_inheritance_ctes[component_ptrref.id]
+
+        with ctx.subrel() as sctx:
+            cte_rvar = rvar_for_rel(
+                ptr_cte,
+                typeref=component_ptrref.out_target,
+                ctx=ctx,
+            )
+            if path_id is not None and path_id != component_ptrref_path_id:
+                pathctx.put_path_id_map(
+                    sctx.rel,
+                    path_id,
+                    component_ptrref_path_id,
+                )
+            include_rvar(
+                sctx.rel,
+                cte_rvar,
+                component_ptrref_path_id,
+                pull_namespace=False,
+                ctx=sctx,
+            )
+
+            # Ensure source and target columns are output
+            for output_colname in output_cols:
+                selexpr = pgast.ColumnRef(
+                    name=[cte_rvar.alias.aliasname, output_colname])
+                sctx.rel.target_list.append(
+                    pgast.ResTarget(val=selexpr, name=output_colname)
+                )
+
+            target_ref = sctx.rel.target_list[1].val
+            pathctx.put_path_identity_var(
+                sctx.rel, component_ptrref_path_id, var=target_ref
+            )
+            pathctx.put_path_source_rvar(
+                sctx.rel,
+                component_ptrref_path_id,
+                cte_rvar,
+            )
+
+            component_rvar = rvar_for_rel(
+                sctx.rel,
+                typeref=component_ptrref.out_target,
+                ctx=sctx
+            )
+
+    # Add overlays at the end of each expanded inheritance.
+    overlays = get_ptr_rel_overlays(
+        component_ptrref, dml_source=dml_source, ctx=ctx)
+    if overlays and not for_mutation:
+        set_ops = []
+
+        component_qry = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=pgast.ColumnRef(
+                        name=[output_colname]
+                    ),
+                    name=output_colname
+                )
+                for output_colname in output_cols
+            ],
+            from_clause=[component_rvar]
+        )
+        if path_id:
+            target_ref = pgast.ColumnRef(
+                name=[component_rvar.alias.aliasname, output_cols[1]]
+            )
+            pathctx.put_path_identity_var(
+                component_qry, path_id, var=target_ref
+            )
+            pathctx.put_path_source_rvar(
+                component_qry, path_id, component_rvar
+            )
+
+        set_ops.append((context.OverlayOp.UNION, component_qry))
+
+        orig_ptr_info = _get_ptrref_storage_info(component_ptrref, ctx=ctx)
+        cols = _get_ptrref_column_names(orig_ptr_info)
+
+        for op, cte, cte_path_id in overlays:
+            rvar = rvar_for_rel(cte, ctx=ctx)
+
+            qry = pgast.SelectStmt(
+                target_list=[
+                    pgast.ResTarget(
+                        val=pgast.ColumnRef(
+                            name=[col]
+                        )
+                    )
+                    for col in cols
+                ],
+                from_clause=[rvar],
+            )
+            # Set up identity var, source rvar for reasons discussed above
+            if path_id:
+                target_ref = pgast.ColumnRef(
+                    name=[rvar.alias.aliasname, cols[1]])
+                pathctx.put_path_identity_var(
+                    qry, cte_path_id, var=target_ref
+                )
+                pathctx.put_path_source_rvar(qry, cte_path_id, rvar)
+                pathctx.put_path_id_map(qry, path_id, cte_path_id)
+
+            set_ops.append((op, qry))
+
+        component_rvar = range_from_queryset(
+            set_ops, component_ptrref.shortname,
+            prep_filter=_prep_filter, path_id=path_id, ctx=ctx)
+
+    return component_rvar
+
+
+def _prep_filter(larg: pgast.SelectStmt, rarg: pgast.SelectStmt) -> None:
+    # Set up the proper join on the source field and clear the target list
+    # of the rhs of a filter overlay.
+    assert isinstance(larg.target_list[0].val, pgast.ColumnRef)
+    assert isinstance(rarg.target_list[0].val, pgast.ColumnRef)
+    rarg.where_clause = astutils.join_condition(
+        larg.target_list[0].val, rarg.target_list[0].val)
+    rarg.target_list.clear()
+
+
+def _get_ptrref_descendants(
+    ptrref: irast.PointerRef,
+    *,
+    include_descendants: bool,
+    for_mutation: bool,
+) -> list[irast.PointerRef]:
+    # When doing EXPLAIN, don't use CTEs. See range_for_material_objtype for
+    # details.
+    if (
+        include_descendants
+        and not for_mutation
+    ):
+        include_descendants = False
+
+        descendants: list[irast.PointerRef] = []
+        descendants.extend(
+            cast(Iterable[irast.PointerRef], ptrref.descendants())
+        )
+        descendants.append(ptrref)
+        assert isinstance(ptrref, irast.PointerRef)
+
+        # Try to only select from actual concrete types.
+        concrete_descendants = [
+            ref for ref in descendants if not ref.out_source.is_abstract
+        ]
+        # If there aren't any concrete types, we still need to
+        # generate *something*, so just do the initial one.
+        if concrete_descendants:
+            return concrete_descendants
+        else:
+            return [ptrref]
+
+    else:
+        return [ptrref]
+
+
+def _selects_for_ptrref_descendants(
+    ptrref_descendants: Sequence[irast.PointerRef],
+    output_cols: Iterable[str],
+    *,
+    path_id: Optional[irast.PathId],
+    ctx: context.CompilerContextLevel,
+) -> list[pgast.SelectStmt]:
+    selects = []
+
+    for ptrref_descendant in ptrref_descendants:
+        ptr_info = _get_ptrref_storage_info(ptrref_descendant, ctx=ctx)
+        cols = _get_ptrref_column_names(ptr_info)
+
+        table = _table_from_ptrref(
+            ptrref_descendant,
+            ptr_info,
+            ctx=ctx,
+        )
+        table.query.path_id = path_id
+
+        qry = pgast.SelectStmt()
+        qry.from_clause.append(table)
+
+        # Make sure all property references are pulled up properly
+        for colname, output_colname in zip(cols, output_cols):
+            selexpr = pgast.ColumnRef(
+                name=[table.alias.aliasname, colname])
+            qry.target_list.append(
+                pgast.ResTarget(val=selexpr, name=output_colname))
+
+        selects.append(qry)
+
+        # We need the identity var for semi_join to work and
+        # the source rvar so that linkprops can be found here.
+        if path_id:
+            target_ref = qry.target_list[1].val
+            pathctx.put_path_identity_var(qry, path_id, var=target_ref)
+            pathctx.put_path_source_rvar(qry, path_id, table)
+
+    return selects
+
+
+def _table_from_ptrref(
+    ptrref: irast.PointerRef,
+    ptr_info: pg_types.PointerStorageInfo,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.RelRangeVar:
+    """Return a Table corresponding to a given Link."""
+
+    aspect = 'table'
+    table_schema_name, table_name = common.update_aspect(
+        ptr_info.table_name, aspect
+    )
+
+    typeref = ptrref.out_source if ptrref else None
+    relation = pgast.Relation(
+        schemaname=table_schema_name,
+        name=table_name,
+        type_or_ptr_ref=ptrref,
+    )
+
+    # Pseudo pointers (tuple and type intersection) have no schema id.
+    sobj_id = ptrref.id if isinstance(ptrref, irast.PointerRef) else None
+    rvar = pgast.RelRangeVar(
+        schema_object_id=sobj_id,
+        typeref=typeref,
+        relation=relation,
+        alias=pgast.Alias(
+            aliasname=ctx.env.aliases.get(ptrref.shortname.name)
+        )
+    )
+
+    return rvar
+
+
+def _get_ptrref_storage_info(
+    ptrref: irast.PointerRef,
+    *,
+    ctx: context.CompilerContextLevel
+) -> pg_types.PointerStorageInfo:
+    # Most references to inline links are dispatched to a separate
+    # code path (_new_inline_pointer_rvar) by new_pointer_rvar,
+    # but when we have union pointers, some might be inline.  We
+    # always use the link table if it exists (because this range
+    # needs to contain any link properties, for one reason.)
+    ptr_info = pg_types.get_ptrref_storage_info(
+        ptrref, resolve_type=False, link_bias=True,
+        versioned=ctx.env.versioned_stdlib,
+    )
+    if not ptr_info:
+        ptr_info = pg_types.get_ptrref_storage_info(
+            ptrref, resolve_type=False, link_bias=False,
+            versioned=ctx.env.versioned_stdlib,
+        )
+    return ptr_info
+
+
+def _get_ptrref_column_names(
+    ptr_info: pg_types.PointerStorageInfo
+) -> list[str]:
+    return [
+        'source' if ptr_info.table_type == 'link' else 'id',
+        ptr_info.column_name,
+    ]
 
 
 def range_for_pointer(

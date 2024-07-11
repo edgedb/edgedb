@@ -409,19 +409,25 @@ def scan_check_ctes(
     ))
 
 
+def insert_ctes(
+    stmt: pgast.Query, ctx: context.CompilerContextLevel
+) -> None:
+    if stmt.ctes is None:
+        stmt.ctes = []
+    stmt.ctes[:0] = [
+        *ctx.param_ctes.values(),
+        *ctx.ptr_inheritance_ctes.values(),
+        *ctx.ordered_type_ctes,
+    ]
+
+
 def fini_toplevel(
         stmt: pgast.Query, ctx: context.CompilerContextLevel) -> None:
 
     scan_check_ctes(stmt, ctx.env.check_ctes, ctx=ctx)
 
-    # Type rewrites go first.
-    if stmt.ctes is None:
-        stmt.ctes = []
-    stmt.ctes[:0] = [
-        *ctx.param_ctes.values(),
-        *ctx.ptr_ctes.values(),
-        *ctx.type_ctes.values(),
-    ]
+    # Type rewrites and inheritance CTEs go first.
+    insert_ctes(stmt, ctx)
 
     if ctx.env.named_param_prefix is None:
         # Adding unused parameters into a CTE
