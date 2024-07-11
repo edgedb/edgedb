@@ -1804,7 +1804,23 @@ def _get_typeref_descendants(
         include_descendants
         and not for_mutation
     ):
-        descendants = [typeref, *irtyputils.get_typeref_descendants(typeref)]
+        descendants = [
+            typeref,
+            *(
+                descendant
+                for descendant in irtyputils.get_typeref_descendants(typeref)
+
+                # XXX: Exclude sys/cfg tables from non sys/cfg inheritance CTEs.
+                # This probably isn't *really* what we want to do, but until we
+                # figure that out, do *something* so that DDL isn't
+                # excruciatingly slow because of the cost of explicit id
+                # checks. See #5168.
+                if (
+                    not descendant.is_cfg_view
+                    or typeref.is_cfg_view
+                )
+            )
+        ]
 
         # Try to only select from actual concrete types.
         concrete_descendants = [

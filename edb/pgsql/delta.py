@@ -241,7 +241,7 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         assert isinstance(ctx.op, CompositeMetaCommand)
 
         src = ptr.get_source(schema)
-        if src and types.is_cfg_view(src, schema):
+        if src and irtyputils.is_cfg_view(src, schema):
             assert isinstance(src, s_sources.Source)
             self.pgops.add(
                 CompositeMetaCommand._refresh_fake_cfg_view_cmd(
@@ -2000,7 +2000,7 @@ class ConstraintCommand(MetaCommand):
         ):
             return False
 
-        if types.is_cfg_view(subject, schema):
+        if irtyputils.is_cfg_view(subject, schema):
             return False
 
         match subject:
@@ -3089,7 +3089,7 @@ class CompositeMetaCommand(MetaCommand):
 
     @staticmethod
     def _get_table_name(obj, schema) -> tuple[str, str]:
-        is_internal_view = types.is_cfg_view(obj, schema)
+        is_internal_view = irtyputils.is_cfg_view(obj, schema)
         aspect = 'dummy' if is_internal_view else None
         return common.get_backend_name(
             schema, obj, catenate=False, aspect=aspect)
@@ -3214,7 +3214,7 @@ class CompositeMetaCommand(MetaCommand):
         cols = []
 
         special_cols = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
-        if not types.is_cfg_view(obj, schema):
+        if not irtyputils.is_cfg_view(obj, schema):
             cols.extend([(col, col, True) for col in special_cols])
         else:
             cols.extend([('NULL', col, False) for col in special_cols])
@@ -3342,8 +3342,8 @@ class CompositeMetaCommand(MetaCommand):
             # excruciatingly slow because of the cost of explicit id
             # checks. See #5168.
             and (
-                not types.is_cfg_view(child, schema)
-                or types.is_cfg_view(obj, schema)
+                not irtyputils.is_cfg_view(child, schema)
+                or irtyputils.is_cfg_view(obj, schema)
             )
         ]
 
@@ -3381,7 +3381,7 @@ class CompositeMetaCommand(MetaCommand):
         context: sd.CommandContext,
         obj: CompositeObject,
     ) -> None:
-        if types.is_cfg_view(obj, schema):
+        if irtyputils.is_cfg_view(obj, schema):
             self._refresh_fake_cfg_view(obj, schema, context)
 
         bases = set(obj.get_bases(schema).objects(schema))
@@ -3460,7 +3460,7 @@ class CompositeMetaCommand(MetaCommand):
     ) -> None:
         assert types.has_table(obj, schema)
 
-        if types.is_cfg_view(obj, schema):
+        if irtyputils.is_cfg_view(obj, schema):
             self._refresh_fake_cfg_view(obj, schema, context)
 
         inhview = self.get_inhview(schema, obj, exclude_ptrs=exclude_ptrs)
@@ -3490,7 +3490,7 @@ class CompositeMetaCommand(MetaCommand):
     ) -> None:
         assert types.has_table(obj, schema)
 
-        if types.is_cfg_view(obj, schema):
+        if irtyputils.is_cfg_view(obj, schema):
             self._refresh_fake_cfg_view(obj, schema, context)
 
         inhview = self.get_inhview(
@@ -3944,8 +3944,8 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand, CompositeMetaCommand):
         # configs, since those need to be created after the standard
         # schema is in place.
         if not (
-            types.is_cfg_view(scls, eff_schema)
-            and scls.get_name(eff_schema).module not in types.VIEW_MODULES
+            irtyputils.is_cfg_view(scls, eff_schema)
+            and scls.get_name(eff_schema).module not in irtyputils.VIEW_MODULES
         ):
             return
 
@@ -5837,7 +5837,7 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
                 (default := prop.get_default(schema))
                 and not prop.is_pure_computable(schema)
                 and not fills_required
-                and not types.is_cfg_view(src.scls, schema)  # sigh
+                and not irtyputils.is_cfg_view(src.scls, schema)  # sigh
                 # link properties use SQL defaults and shouldn't need
                 # us to do it explicitly (which is good, since
                 # _alter_pointer_optionality doesn't currently work on
@@ -6241,7 +6241,10 @@ class UpdateEndpointDeleteActions(MetaCommand):
             x for obj in objs for x in obj.descendants(schema)}
         return {
             obj for obj in objs
-            if not obj.is_view(schema) and not types.is_cfg_view(obj, schema)
+            if (
+                not obj.is_view(schema)
+                and not irtyputils.is_cfg_view(obj, schema)
+            )
         }
 
     def get_orphan_link_ancestors(self, link, schema):
@@ -6798,7 +6801,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
             if (
                 not isinstance(source, s_objtypes.ObjectType)
-                or types.is_cfg_view(source, eff_schema)
+                or irtyputils.is_cfg_view(source, eff_schema)
             ):
                 continue
 
@@ -6847,7 +6850,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
         delete_target_targets = set()
 
         for target in all_affected_targets:
-            if types.is_cfg_view(target, schema):
+            if irtyputils.is_cfg_view(target, schema):
                 continue
 
             deferred_links = []
@@ -6876,7 +6879,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 source = link.get_source(schema)
                 if (
                     not source.is_material_object_type(schema)
-                    or types.is_cfg_view(source, schema)
+                    or irtyputils.is_cfg_view(source, schema)
                 ):
                     continue
 

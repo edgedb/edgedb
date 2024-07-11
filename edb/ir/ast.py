@@ -173,6 +173,8 @@ class TypeRef(ImmutableBase):
     is_scalar: bool = False
     # True, if this describes a view
     is_view: bool = False
+    # True, if this describes a cfg view
+    is_cfg_view: bool = False
     # True, if this describes an abstract type
     is_abstract: bool = False
     # True, if the collection type is persisted in the schema
