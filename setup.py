@@ -25,7 +25,6 @@ import platform
 import shutil
 import subprocess
 import textwrap
-import tomllib
 
 import setuptools
 from setuptools import extension as setuptools_extension
@@ -564,6 +563,12 @@ class ci_helper(setuptools.Command):
 
         elif self.type == 'rust':
             dirs = []
+            # HACK: For annoying reasons, metapkg invokes setup.py
+            # with an ancient version of Python, and that doesn't have
+            # tomllib.  It doesn't invoke *this* code path, though, so
+            # import it here.
+            import tomllib
+
             # Read the list of Rust projects from Cargo.toml
             with open(pkg_dir.parent / 'Cargo.toml', 'rb') as f:
                 root = tomllib.load(f)
