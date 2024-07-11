@@ -4320,7 +4320,7 @@ class PointerMetaCommand(
         source_rel_alias = f'source_{uuidgen.uuid1mc()}'
 
         if self.conv_expr is not None:
-            (conv_expr_ctes, _) = self._compile_conversion_expr(
+            (conv_expr_ctes, _, _) = self._compile_conversion_expr(
                 ptr,
                 self.conv_expr,
                 source_rel_alias,
@@ -4540,7 +4540,7 @@ class PointerMetaCommand(
 
             source_rel_alias = f'source_{uuidgen.uuid1mc()}'
 
-            (conv_expr_ctes, _) = self._compile_conversion_expr(
+            (conv_expr_ctes, _, _) = self._compile_conversion_expr(
                 ptr,
                 fill_expr,
                 source_rel_alias,
@@ -4694,16 +4694,19 @@ class PointerMetaCommand(
         # supports arbitrary queries, but requires a temporary column,
         # which is populated with the transition query and then used as the
         # source for the SQL USING clause.
-        (cast_expr_sql, expr_is_nullable) = self._compile_conversion_expr(
-            pointer,
-            cast_expr,
-            source_rel_alias,
-            schema=schema,
-            orig_schema=orig_schema,
-            context=context,
-            check_non_null=is_required and not is_multi,
-            produce_ctes=False,
+        (cast_expr_ctes, cast_expr_sql, expr_is_nullable) = (
+            self._compile_conversion_expr(
+                pointer,
+                cast_expr,
+                source_rel_alias,
+                schema=schema,
+                orig_schema=orig_schema,
+                context=context,
+                check_non_null=is_required and not is_multi,
+                produce_ctes=False,
+            )
         )
+        assert cast_expr_sql is not None
         need_temp_col = (
             (is_multi and expr_is_nullable) or changing_col_type
         )
@@ -4737,7 +4740,9 @@ class PointerMetaCommand(
             self.pgops.add(alter_table)
             target_col = temp_column.name
 
+        update_with = f'WITH {cast_expr_ctes}' if cast_expr_ctes else ''
         update_qry = f'''
+            {update_with}
             UPDATE {tab} AS {qi(source_rel_alias)}
             SET {qi(target_col)} = ({cast_expr_sql})
         '''
@@ -4857,7 +4862,8 @@ class PointerMetaCommand(
         produce_ctes: bool = True,
         allow_globals: bool=False,
     ) -> Tuple[
-        str,  # SQL
+        str,  # CTE SQL
+        Optional[str],  # Query SQL
         bool,  # is_nullable
     ]:
         """
@@ -5156,17 +5162,14 @@ class PointerMetaCommand(
             # compile to SQL
             ctes_sql = codegen.generate_ctes_source(ctes)
 
-            return (ctes_sql, nullable)
+            return (ctes_sql, None, nullable)
 
         else:
-            # There should be no CTEs when prodoce_ctes==False, since this will
-            # will happen only when changing type (cast_expr), which cannot
-            # contain DML.
-            assert len(ctes) == 0
-
+            # keep CTEs and select separate
+            ctes_sql = codegen.generate_ctes_source(ctes)
             select_sql = codegen.generate_source(sql_tree)
 
-            return (select_sql, nullable)
+            return (ctes_sql, select_sql, nullable)
 
     def schedule_endpoint_delete_action_update(
         self, link, orig_schema, schema, context
