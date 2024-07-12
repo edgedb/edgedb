@@ -3132,11 +3132,23 @@ class TestServerProtoDDL(tb.DDLTestCase):
             self.assertEqual(result, 'Z')
 
         finally:
-            await self.con.execute('''
-                DROP SCALAR TYPE tid_prop_091;
-                DROP SCALAR TYPE tid_prop_092;
-                DROP SCALAR TYPE tid_prop_093;
-            ''')
+            # HACK: this retry is added to temporarily avoid an unresolved
+            # issue in https://github.com/edgedb/edgedb/pull/7422/commits/
+            # d1b2c4d22ee1cd38fe0bb81bc708e6910e33a6b4 that, when the func
+            # cache creation is done in parallel with the drop of the scalar
+            # types below which are used in those function parameter types,
+            # the eviction added in the commit above is not triggered because
+            # the dropping transaction can't see the function as a dependency
+            # in `pg_depend` yet.
+            async for tr in self.try_until_succeeds(
+                ignore=edgedb.InternalServerError, timeout=30
+            ):
+                async with tr:
+                    await self.con.execute('''
+                        DROP SCALAR TYPE tid_prop_091;
+                        DROP SCALAR TYPE tid_prop_092;
+                        DROP SCALAR TYPE tid_prop_093;
+                    ''')
 
     async def test_server_proto_fetch_limit_01(self):
         try:
