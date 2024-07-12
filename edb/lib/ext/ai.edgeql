@@ -359,6 +359,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             = ext::ai::IndexType.HNSW,
         named only index_parameters: tuple<m: int64, ef_construction: int64>
             = (m := 32, ef_construction := 100),
+        named only truncate_to_max: bool = False,
     ) {
         create annotation std::description :=
             "Semantic similarity index.";

@@ -181,7 +181,7 @@ class MistralTokenizer(Tokenizer):
         tokenized = self.tokenizer.instruct_tokenizer.tokenizer.encode(
             text, bos=False, eos=False
         )
-        return cast(list[int], tokenized.tokens)
+        return cast(list[int], tokenized)
 
     def decode(self, tokens: list[int]) -> str:
         return cast(str, self.tokenizer.decode(tokens))
@@ -579,7 +579,8 @@ async def _generate_embeddings_params(
                         "text",
                         "target_rel",
                         "target_attr",
-                        "target_dims_shortening"
+                        "target_dims_shortening",
+                        "truncate_to_max"
                     FROM
                         edgedbext."ai_pending_embeddings_{model_name}"
                     LIMIT
@@ -618,18 +619,26 @@ async def _generate_embeddings_params(
                 shortening = None
             part = list(part_iter)
             inputs = [entry[1].decode("utf-8") for entry in part]
+
             if model_name in model_tokenizers:
+                truncate_to_maxes: list[bool] = [
+                    bool.from_bytes(entry[5])
+                    for entry in part
+                ]
                 truncated = [
                     model_tokenizers[model_name].shorten_to_token_length(
                         input, model_max_input_tokens[model_name]
                     )
                     for input in inputs
                 ]
+            else:
+                truncated = inputs
+
             embeddings_params.append(EmbeddingsParams(
                 pgconn=pgconn,
                 provider=provider_cfg,
                 model_name=model_name,
-                inputs=inputs,
+                inputs=truncated,
                 shortening=shortening,
                 entries=part,
             ))
