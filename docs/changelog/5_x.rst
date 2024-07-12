@@ -666,6 +666,9 @@ Bug fixes
 * Fix SQL adapter ``COPY`` command
   (:eql:gh:`#7446`)
 
+5.6
+===
+
 * Fix interaction of implicit limit with explicit OFFSET
   (:eql:gh:`#7509`)
 
@@ -676,5 +679,7 @@ Bug fixes
 * Unbreak cache recompilation after a restart
   (:eql:gh:`#7515`, :eql:gh:`#7520`)
 
-* Add a auto_rebuild_query_cache_timeout config
+* Add a ``auto_rebuild_query_cache_timeout`` config setting that controls
+  how long the server will spend recompiling cached queries after a migration.
+  The default is one minute.
   (:eql:gh:`#7518`)
