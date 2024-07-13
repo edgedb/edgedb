@@ -67,6 +67,7 @@ from edb.server import config
 from edb.server import compiler_pool
 from edb.server import daemon
 from edb.server import defines
+from edb.server import instdata
 from edb.server import protocol
 from edb.server import tenant as edbtenant
 from edb.server.protocol import binary  # type: ignore
@@ -663,14 +664,10 @@ class BaseServer:
 
     async def get_patch_count(self, conn: pgcon.PGConnection) -> int:
         """Get the number of applied patches."""
-        num_patches_b = await conn.sql_fetch_val(
-            b'''
-                SELECT json::json from edgedbinstdata.instdata
-                WHERE key = 'num_patches';
-            ''',
-        )
-        num_patches = json.loads(num_patches_b) if num_patches_b else 0
-        return num_patches
+        num_patches = await instdata.get_instdata(
+            conn, 'num_patches', 'json')
+        res: int = json.loads(num_patches) if num_patches else 0
+        return res
 
     async def _on_system_config_add(self, setting_name, value):
         # CONFIGURE INSTANCE INSERT ConfigObject;
@@ -1272,10 +1269,8 @@ class Server(BaseServer):
         # instead recompiled it, and it created new objects, those
         # objects might have a different id in the std schema and
         # in the actual user db.
-        result = await conn.sql_fetch_val(f'''\
-            SELECT bin FROM edgedbinstdata.instdata
-            WHERE key = 'patch_log_{idx}';
-        '''.encode('utf-8'))
+        result = await instdata.get_instdata(
+            conn, f'patch_log_{idx}', 'bin')
         if result:
             return pickle.loads(result)
         else:
@@ -1511,26 +1506,26 @@ class Server(BaseServer):
             patch_count = await self.get_patch_count(syscon)
             version_key = pg_patches.get_version_key(patch_count)
 
-            result = await syscon.sql_fetch_val(f'''\
-                SELECT json::json FROM edgedbinstdata.instdata
-                WHERE key = 'sysqueries{version_key}';
-            '''.encode('utf-8'))
+            result = await instdata.get_instdata(
+                syscon, f'sysqueries{version_key}', 'json')
             queries = json.loads(result)
             self._sys_queries = immutables.Map(
                 {k: q.encode() for k, q in queries.items()})
 
-            self._report_config_typedesc[(1, 0)] = await syscon.sql_fetch_val(
-                f'''
-                    SELECT bin FROM edgedbinstdata.instdata
-                    WHERE key = 'report_configs_typedesc_1_0{version_key}';
-                '''.encode('utf-8'),
+            self._report_config_typedesc[(1, 0)] = (
+                await instdata.get_instdata(
+                    syscon,
+                    f'report_configs_typedesc_1_0{version_key}',
+                    'bin',
+                )
             )
 
-            self._report_config_typedesc[(2, 0)] = await syscon.sql_fetch_val(
-                f'''
-                    SELECT bin FROM edgedbinstdata.instdata
-                    WHERE key = 'report_configs_typedesc_2_0{version_key}';
-                '''.encode('utf-8'),
+            self._report_config_typedesc[(2, 0)] = (
+                await instdata.get_instdata(
+                    syscon,
+                    f'report_configs_typedesc_2_0{version_key}',
+                    'bin',
+                )
             )
 
     def _reload_stmt_cache_size(self):

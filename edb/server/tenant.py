@@ -57,6 +57,7 @@ from . import config
 from . import connpool
 from . import dbview
 from . import defines
+from . import instdata
 from . import metrics
 from . import pgcon
 from . import compiler as edbcompiler
@@ -358,12 +359,8 @@ class Tenant(ha_base.ClusterProtocol):
     async def init(self) -> None:
         logger.debug("starting database introspection")
         async with self.use_sys_pgcon() as syscon:
-            result = await syscon.sql_fetch_val(
-                b"""\
-                    SELECT json::json FROM edgedbinstdata.instdata
-                    WHERE key = 'instancedata';
-                """
-            )
+            result = await instdata.get_instdata(
+                syscon, 'instancedata', 'json')
             self._instance_data = immutables.Map(json.loads(result))
             await self._fetch_roles(syscon)
             if self._server.get_compiler_pool() is None:
@@ -378,12 +375,8 @@ class Tenant(ha_base.ClusterProtocol):
                 data = await self._server.introspect_global_schema_json(syscon)
                 compiler_pool = self._server.get_compiler_pool()
 
-            default_database = await syscon.sql_fetch_val(
-                b"""\
-                    SELECT text::text FROM edgedbinstdata.instdata
-                    WHERE key = 'default_branch';
-                """
-            )
+            default_database = await instdata.get_instdata(
+                syscon, 'default_branch', 'text')
             if default_database:
                 self.default_database = default_database.decode('utf-8')
 
