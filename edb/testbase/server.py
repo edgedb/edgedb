@@ -1652,12 +1652,13 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
     PARALLELISM_GRANULARITY = 'suite'
 
     async def check_dump_restore_single_db(self, check_method):
-        with tempfile.NamedTemporaryFile() as f:
+        with tempfile.TemporaryDirectory() as f:
+            fname = os.path.join(f, 'dump')
             dbname = edgedb_defines.EDGEDB_SUPERUSER_DB
-            await asyncio.to_thread(self.run_cli, '-d', dbname, 'dump', f.name)
+            await asyncio.to_thread(self.run_cli, '-d', dbname, 'dump', fname)
             await self.tearDownSingleDB()
             await asyncio.to_thread(
-                self.run_cli, '-d', dbname, 'restore', f.name
+                self.run_cli, '-d', dbname, 'restore', fname
             )
 
         # Cycle the connection to avoid state mismatches
@@ -1673,15 +1674,16 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
         src_dbname = self.get_database_name()
         tgt_dbname = f'{src_dbname}_restored'
         q_tgt_dbname = qlquote.quote_ident(tgt_dbname)
-        with tempfile.NamedTemporaryFile() as f:
+        with tempfile.TemporaryDirectory() as f:
+            fname = os.path.join(f, 'dump')
             await asyncio.to_thread(
-                self.run_cli, '-d', src_dbname, 'dump', f.name
+                self.run_cli, '-d', src_dbname, 'dump', fname
             )
 
             await self.con.execute(f'CREATE DATABASE {q_tgt_dbname}')
             try:
                 await asyncio.to_thread(
-                    self.run_cli, '-d', tgt_dbname, 'restore', f.name
+                    self.run_cli, '-d', tgt_dbname, 'restore', fname
                 )
                 con2 = await self.connect(database=tgt_dbname)
             except Exception:

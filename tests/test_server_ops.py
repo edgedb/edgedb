@@ -1249,9 +1249,10 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
         try:
             # Dump and restore should trigger a re-introspection in sd2
-            with tempfile.NamedTemporaryFile() as f:
+            with tempfile.TemporaryDirectory() as f:
+                fname = os.path.join(f, 'dump')
                 await asyncio.to_thread(
-                    self.run_cli_on_connection, conn_args, "dump", f.name
+                    self.run_cli_on_connection, conn_args, "dump", fname
                 )
                 await asyncio.to_thread(
                     self.run_cli_on_connection,
@@ -1259,7 +1260,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     "-d",
                     "restore_signal",
                     "restore",
-                    f.name
+                    fname
                 )
 
             # The re-introspection has a delay, but should eventually happen
