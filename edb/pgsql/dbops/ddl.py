@@ -143,15 +143,17 @@ class GetSingleDBMetadata(base.Command):
         self.dbname = dbname
 
     def code(self, block: base.PLBlock) -> str:
+        from .. import trampoline
+
         key = f'{self.dbname}metadata'
-        return textwrap.dedent(f'''\
+        return textwrap.dedent(trampoline.fixup_query(f'''\
             SELECT
                 json
             FROM
-                edgedbinstdata.instdata
+                edgedbinstdata_VER.instdata
             WHERE
                 key = {ql(key)}
-        ''')
+        '''))
 
 
 class PutMetadata(DDLOperation):
@@ -210,15 +212,17 @@ class SetMetadata(PutMetadata):
 
 class SetSingleDBMetadata(PutSingleDBMetadata):
     def code(self, block: base.PLBlock) -> str:
+        from .. import trampoline
+
         metadata = ql(json.dumps(self.metadata))
-        return textwrap.dedent(f'''\
+        return textwrap.dedent(trampoline.fixup_query(f'''\
             UPDATE
-                edgedbinstdata.instdata
+                edgedbinstdata_VER.instdata
             SET
                 json = {metadata}
             WHERE
                 key = {ql(self.key)};
-        ''')
+        '''))
 
 
 class UpdateMetadata(PutMetadata):
@@ -253,6 +257,8 @@ class UpdateMetadata(PutMetadata):
 
 class UpdateSingleDBMetadata(PutSingleDBMetadata):
     def code(self, block: base.PLBlock) -> str:
+        from .. import trampoline
+
         metadata_qry = GetSingleDBMetadata(self.dbname).code(block)
         json_v = block.declare_var('jsonb')
         meta_v = block.declare_var('jsonb')
@@ -260,14 +266,14 @@ class UpdateSingleDBMetadata(PutSingleDBMetadata):
         upd_metadata = ql(json.dumps(self.metadata))
         block.add_command(f'{meta_v} := {upd_metadata}::jsonb')
 
-        return textwrap.dedent(f'''\
+        return textwrap.dedent(trampoline.fixup_query(f'''\
             UPDATE
-                edgedbinstdata.instdata
+                edgedbinstdata_VER.instdata
             SET
                 json = {json_v} || {meta_v}
             WHERE
                 key = {ql(self.key)}
-        ''')
+        '''))
 
 
 class UpdateMetadataSectionMixin:
@@ -328,15 +334,17 @@ class UpdateSingleDBMetadataSection(
         return GetSingleDBMetadata(self.dbname)
 
     def code(self, block: base.PLBlock) -> str:
+        from .. import trampoline
+
         json_v, meta_v = self._merge(block)
-        return textwrap.dedent(f'''\
+        return textwrap.dedent(trampoline.fixup_query(f'''\
             UPDATE
-                edgedbinstdata.instdata
+                edgedbinstdata_VER.instdata
             SET
                 json = {json_v} || {meta_v}
             WHERE
                 key = {ql(self.key)}
-        ''')
+        '''))
 
 
 class CreateObject(SchemaObjectOperation):
