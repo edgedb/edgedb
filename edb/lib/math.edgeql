@@ -402,3 +402,83 @@ std::math::var_pop(vals: SET OF std::float64) -> OPTIONAL std::float64
     SET error_on_null_result := 'invalid input to var_pop(): not ' ++
                                 'enough elements in input set';
 };
+
+
+CREATE FUNCTION
+math::acos(x: std::float64) -> std::float64
+{
+    CREATE ANNOTATION std::description :=
+        'Return the inverse cosine of the input value.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'acos';
+};
+
+
+CREATE FUNCTION
+math::asin(x: std::float64) -> std::float64
+{
+    CREATE ANNOTATION std::description :=
+        'Return the inverse sine of the input value.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'asin';
+};
+
+
+CREATE FUNCTION
+math::atan(x: std::float64) -> std::float64
+{
+    CREATE ANNOTATION std::description :=
+        'Return the inverse tangent of the input value.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'atan';
+};
+
+
+CREATE FUNCTION
+math::atan2(y: std::float64, x: std::float64) -> std::float64
+{
+    CREATE ANNOTATION std::description :=
+        'Return the inverse tangent of y/x of the input value.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'atan2';
+};
+
+
+CREATE FUNCTION
+math::cos(x: std::float64) -> std::float64
+{
+    CREATE ANNOTATION std::description :=
+        'Return the cosine of the input value.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'cos';
+};
+
+
+CREATE FUNCTION
+math::cot(x: std::float64) -> std::float64
+{
+    CREATE ANNOTATION std::description :=
+        'Return the cotangent of the input value.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'cot';
+};
+
+
+CREATE FUNCTION
+math::sin(x: std::float64) -> std::float64
+{
+    CREATE ANNOTATION std::description :=
+        'Return the sine of the input value.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'sin';
+};
+
+
+CREATE FUNCTION
+math::tan(x: std::float64) -> std::float64
+{
+    CREATE ANNOTATION std::description :=
+        'Return the tangent of the input value.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'tan';
+};
