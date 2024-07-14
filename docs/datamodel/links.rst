@@ -730,8 +730,8 @@ property allows us to modify the link property of the existing link.
             },
             for actor in actors union (
               select Person {
-                @character_name := character.0
-              } filter .name = character.1
+                @character_name := actor.0
+              } filter .name = actor.1
             )
           ))
         };
