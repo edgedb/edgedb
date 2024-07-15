@@ -2123,8 +2123,8 @@ cdef class PGConnection:
                             self.debug_print("sent backend message: 'Z'")
                         self.write_sync(be_buf)
                         self.write(be_buf)
-                    else:
-                        break
+
+                    # don't break, because we want to also consume ReadyForQuery
 
                 elif mtype == b'Z':  # ReadyForQuery
                     ignore_till_sync = False
@@ -2136,7 +2136,7 @@ cdef class PGConnection:
 
                     fe_conn.write(buf)
                     fe_conn.flush()
-                    return True, True
+                    return rv, True
 
                 else:
                     if not action.is_injected():
