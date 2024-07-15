@@ -22,6 +22,8 @@ from typing import Tuple, Optional
 from edb.pgsql import ast as pgast
 from edb.schema import schema as s_schema
 
+from edb.server.compiler import dbstate
+
 from . import dispatch
 from . import context
 from . import expr  # NOQA
@@ -35,7 +37,7 @@ def resolve(
     query: pgast.Base,
     schema: s_schema.Schema,
     options: context.Options,
-) -> Tuple[pgast.Base, Optional[str]]:
+) -> Tuple[pgast.Base, Optional[dbstate.CommandCompleteTag]]:
     ctx = context.ResolverContextLevel(
         None, context.ContextSwitchMode.EMPTY, schema=schema, options=options
     )
@@ -58,6 +60,12 @@ def resolve(
     # override that tag.
     command_complete_tag = None
     if isinstance(query, pgast.InsertStmt):
-        command_complete_tag = 'INSERT'
+        if query.returning_list:
+            # resolved SQL will return a result, we count those rows
+            command_complete_tag = dbstate.TagCountMessages(prefix='INSERT 0 ')
+        else:
+            # resolved SQL will contain an injected COUNT clause
+            # we instruct io process to unpack that
+            command_complete_tag = dbstate.TagUnpackRow(prefix='INSERT 0 ')
 
     return (resolved, command_complete_tag)

@@ -558,7 +558,7 @@ class Compiler:
 
         def translate_query(
             stmt: pgast.Base
-        ) -> Tuple[pg_codegen.SQLSource, Optional[str]]:
+        ) -> Tuple[pg_codegen.SQLSource, Optional[dbstate.CommandCompleteTag]]:
             args = {}
             try:
                 search_path = tx_state.get("search_path")
@@ -572,14 +572,14 @@ class Compiler:
                 current_query=query_str,
                 **args
             )
-            resolved, dml_tag = pg_resolver.resolve(
+            resolved, complete_tag = pg_resolver.resolve(
                 stmt, schema, options
             )
             return (
                 pg_codegen.generate(
                     resolved, with_translation_data=True
                 ),
-                dml_tag,
+                complete_tag,
             )
 
         def compute_stmt_name(text: str) -> str:
@@ -725,7 +725,7 @@ class Compiler:
                 )
             elif isinstance(stmt, pgast.PrepareStmt):
                 # Translate the underlying query.
-                stmt_source, stmt_dml_tag = translate_query(stmt.query)
+                stmt_source, complete_tag = translate_query(stmt.query)
                 if stmt.argtypes:
                     param_types = []
                     for pt in stmt.argtypes:
@@ -754,7 +754,7 @@ class Compiler:
                         translation_data=stmt_source.translation_data,
                     ),
                     command_tag=b"PREPARE",
-                    command_complete_tag=stmt_dml_tag,
+                    command_complete_tag=complete_tag,
                 )
             elif isinstance(stmt, pgast.ExecuteStmt):
                 orig_name = stmt.name
@@ -800,11 +800,11 @@ class Compiler:
                 # just ignore
                 unit = unit_ctor(query="DO $$ BEGIN END $$;")
             else:
-                source, stmt_dml_tag = translate_query(stmt)
+                source, complete_tag = translate_query(stmt)
                 unit = unit_ctor(
                     query=source.text,
                     translation_data=source.translation_data,
-                    command_complete_tag=stmt_dml_tag,
+                    command_complete_tag=complete_tag,
                 )
 
             if debug.flags.sql_output:
