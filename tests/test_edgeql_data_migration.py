@@ -12442,6 +12442,7 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
             {
                 annotation ext::ai::model_name := "text-embedding-test";
                 annotation ext::ai::model_provider := "custom::test";
+                annotation ext::ai::embedding_model_max_batch_tokens := "16384";
                 annotation ext::ai::embedding_model_max_output_dimensions
                   := "10";
                 annotation ext::ai::embedding_model_supports_shortening
@@ -12484,6 +12485,8 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
                     annotation ext::ai::model_provider := "custom::test";
                     annotation ext::ai::embedding_model_max_input_tokens
                       := "8191";
+                    annotation ext::ai::embedding_model_max_batch_tokens
+                      := "16384";
                     annotation ext::ai::embedding_model_max_output_dimensions
                       := "10";
                     annotation ext::ai::embedding_model_supports_shortening
@@ -12510,6 +12513,8 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
                     annotation ext::ai::model_provider := "custom::test";
                     annotation ext::ai::embedding_model_max_input_tokens
                       := "8191";
+                    annotation ext::ai::embedding_model_max_batch_tokens
+                      := "16384";
                     annotation ext::ai::embedding_model_max_output_dimensions
                       := "20";
                     annotation ext::ai::embedding_model_supports_shortening
@@ -12544,6 +12549,8 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
                     annotation ext::ai::model_provider := "custom::test";
                     annotation ext::ai::embedding_model_max_input_tokens
                       := "8191";
+                    annotation ext::ai::embedding_model_max_batch_tokens
+                      := "16384";
                     annotation ext::ai::embedding_model_max_output_dimensions
                       := "10";
                     annotation ext::ai::embedding_model_supports_shortening
@@ -12570,6 +12577,8 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
                     annotation ext::ai::model_provider := "custom::test";
                     annotation ext::ai::embedding_model_max_input_tokens
                       := "8191";
+                    annotation ext::ai::embedding_model_max_batch_tokens
+                      := "16384";
                     annotation ext::ai::embedding_model_max_output_dimensions
                       := "10";
                     annotation ext::ai::embedding_model_supports_shortening
@@ -12607,6 +12616,8 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
                     annotation ext::ai::model_provider := "custom::test";
                     annotation ext::ai::embedding_model_max_input_tokens
                       := "8191";
+                    annotation ext::ai::embedding_model_max_batch_tokens
+                      := "16384";
                     annotation ext::ai::embedding_model_max_output_dimensions
                       := "10";
                     annotation ext::ai::embedding_model_supports_shortening

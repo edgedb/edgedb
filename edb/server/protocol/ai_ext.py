@@ -574,10 +574,21 @@ async def _generate_embeddings_params(
         }
 
     model_max_input_tokens: dict[str, int] = {
-        model_name: await _get_model_max_input_tokens(
+        model_name: await _get_model_annotation_as_int(
             db,
             base_model_type="ext::ai::EmbeddingModel",
             model_name=model_name,
+            annotation_name="ext::ai::embedding_model_max_input_tokens",
+        )
+        for model_name in provider_models
+    }
+
+    model_max_batch_tokens: dict[str, int] = {
+        model_name: await _get_model_annotation_as_int(
+            db,
+            base_model_type="ext::ai::EmbeddingModel",
+            model_name=model_name,
+            annotation_name="ext::ai::embedding_model_max_batch_tokens",
         )
         for model_name in provider_models
     }
@@ -1614,10 +1625,11 @@ async def _get_model_provider(
     return cast(str, models[0]["provider"])
 
 
-async def _get_model_max_input_tokens(
+async def _get_model_annotation_as_int(
     db: dbview.Database,
     base_model_type: str,
     model_name: str,
+    annotation_name: str,
 ) -> int:
     models = await _edgeql_query_json(
         db=db,
@@ -1632,11 +1644,11 @@ async def _get_model_max_input_tokens(
             Models := Parent.<ancestors[IS schema::ObjectType],
         SELECT
             Models {
-                max_input_tokens := (
+                value := (
                     SELECT
                         (.annotations@value, .annotations.name)
                     FILTER
-                        .1 = "ext::ai::embedding_model_max_input_tokens"
+                        .1 = <str>$annotation_name
                     LIMIT
                         1
                 ).0,
@@ -1648,6 +1660,7 @@ async def _get_model_max_input_tokens(
         variables={
             "base_model_type": base_model_type,
             "model_name": model_name,
+            "annotation_name": annotation_name,
         },
     )
     if len(models) == 0:
@@ -1655,7 +1668,7 @@ async def _get_model_max_input_tokens(
     elif len(models) > 1:
         raise InternalError("multiple models defined as requested model")
 
-    return int(models[0]["max_input_tokens"])
+    return int(models[0]["value"])
 
 
 async def _generate_embeddings_for_type(
