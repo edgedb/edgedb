@@ -58,7 +58,7 @@ def resolve(
     # the CommandComplete message that describes the number of modified rows.
     # Since our resolved SQL does not have a top-level DML stmt, we need to
     # override that tag.
-    command_complete_tag = None
+    command_complete_tag: Optional[dbstate.CommandCompleteTag] = None
     if isinstance(query, pgast.InsertStmt):
         if query.returning_list:
             # resolved SQL will return a result, we count those rows
