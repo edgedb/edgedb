@@ -117,13 +117,21 @@ class Tokenizer(abc.ABC):
 
     @abc.abstractmethod
     def encode(self, text: str) -> list[int]:
+        """Encode text into tokens."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def encode_padding(self) -> int:
+        """How many special characters are added to encodings?"""
         raise NotImplementedError
 
     @abc.abstractmethod
     def decode(self, tokens: list[int]) -> str:
+        """Decode tokens into text."""
         raise NotImplementedError
 
     def shorten_to_token_length(self, text: str, token_length: int) -> str:
+        """Truncate text to a maximum token length."""
         encoded = self.encode(text)
         if len(encoded) > token_length:
             encoded = encoded[:token_length]
@@ -150,6 +158,9 @@ class OpenAITokenizer(Tokenizer):
     def encode(self, text: str) -> list[int]:
         return cast(list[int], self.encoding.encode(text))
 
+    def encode_padding(self) -> int:
+        return 0
+
     def decode(self, tokens: list[int]) -> str:
         return cast(str, self.encoding.decode(tokens))
 
@@ -174,7 +185,8 @@ class MistralTokenizer(Tokenizer):
         return tokenizer
 
     def encode(self, text: str) -> list[int]:
-        # V1 tokenizer wraps input text with [INST] [/INST].
+        # V1 tokenizer wraps input text with control tokens [INST] [/INST].
+        #
         # While these count towards the overal token limit, how special tokens
         # are applied to embedding requests is not documented. For now, directly
         # pass the text into the inner tokenizer.
@@ -182,6 +194,16 @@ class MistralTokenizer(Tokenizer):
             text, bos=False, eos=False
         )
         return cast(list[int], tokenized)
+
+    def encode_padding(self) -> int:
+        # V1 tokenizer wraps input text with control tokens [INST] [/INST].
+        #
+        # This is only 2 tokens, and testing shows that mistral-embed does add
+        # two tokens to embeddings inputs. However, this is not documented, so
+        # add some extra leeway in case things change.
+        #
+        # Note, other models may use significantly more control tokens.
+        return 16
 
     def decode(self, tokens: list[int]) -> str:
         return cast(str, self.tokenizer.decode(tokens))
@@ -618,27 +640,30 @@ async def _generate_embeddings_params(
             else:
                 shortening = None
             part = list(part_iter)
-            inputs = [entry[1].decode("utf-8") for entry in part]
 
-            if model_name in model_tokenizers:
-                truncate_to_maxes: list[bool] = [
-                    bool.from_bytes(entry[5])
-                    for entry in part
-                ]
-                truncated = [
-                    model_tokenizers[model_name].shorten_to_token_length(
-                        input, model_max_input_tokens[model_name]
+            inputs: list[str] = []
+            for entry in part:
+                input = entry[1].decode("utf-8")
+                truncate_to_max = bool.from_bytes(entry[5])
+
+                if truncate_to_max and model_name in model_tokenizers:
+                    tokenizer = model_tokenizers[model_name]
+                    truncate_length = (
+                        model_max_input_tokens[model_name]
+                        - tokenizer.encode_padding()
                     )
-                    for input in inputs
-                ]
-            else:
-                truncated = inputs
+
+                    input = tokenizer.shorten_to_token_length(
+                        input, truncate_length
+                    )
+
+                inputs.append(input)
 
             embeddings_params.append(EmbeddingsParams(
                 pgconn=pgconn,
                 provider=provider_cfg,
                 model_name=model_name,
-                inputs=truncated,
+                inputs=inputs,
                 shortening=shortening,
                 entries=part,
             ))
