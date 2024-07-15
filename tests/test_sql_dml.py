@@ -61,11 +61,15 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
           create property line: str;
         };
 
-        create type Hello {
-          create property world: str;
+        create type Base {
+          create property prop: str {
+            create constraint exclusive;
+          }
+        };
 
+        create type Child extending Base {
           create trigger log_insert_each after insert for each do (
-            insert Log { line := 'inserted each ' ++ __new__.world }
+            insert Log { line := 'inserted each ' ++ __new__.prop }
           );
           create trigger log_insert_all after insert for all do (
             insert Log { line := 'inserted all' }
@@ -231,11 +235,25 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             '''
         )
         res = await self.squery_values('SELECT title FROM "Document"')
-        self.assertEqual(
+        self.assert_data_shape(
             res, tb.bag([['Report (new)'], ['Report (new) - copy (new)']])
         )
 
     async def test_sql_dml_insert_11(self):
+        await self.scon.execute(
+            '''
+            WITH a AS (
+                INSERT INTO "Document" (title) VALUES ('Report')
+            )
+            INSERT INTO "Document" (title) VALUES ('Briefing')
+            '''
+        )
+        res = await self.squery_values('SELECT title FROM "Document"')
+        self.assert_data_shape(
+            res, tb.bag([['Report (new)'], ['Briefing (new)']])
+        )
+
+    async def test_sql_dml_insert_12(self):
         # returning
         await self.scon.execute('INSERT INTO "User" DEFAULT VALUES;')
         res = await self.scon.fetch(
@@ -249,7 +267,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         first = res[0]
         self.assertEqual(first[2], 'meeting report (new)')
 
-    async def test_sql_dml_insert_12(self):
+    async def test_sql_dml_insert_13(self):
         # returning sublink
         await self.scon.execute('INSERT INTO "User" DEFAULT VALUES;')
         await self.scon.execute(
@@ -286,7 +304,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         )
 
     @test.skip('bug 7471 closes connection')
-    async def test_sql_dml_insert_13(self):
+    async def test_sql_dml_insert_14(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             'invalid input syntax for type uuid',
@@ -300,7 +318,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             )
 
     @test.skip('bug 7471 closes connection')
-    async def test_sql_dml_insert_14(self):
+    async def test_sql_dml_insert_15(self):
         with self.assertRaisesRegex(
             asyncpg.exceptions.CardinalityViolationError,
             "'default::User' with id '[0-9a-f-]+' does not exist",
@@ -314,7 +332,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             )
 
     @test.skip('bug 7471 closes connection')
-    async def test_sql_dml_insert_15(self):
+    async def test_sql_dml_insert_16(self):
         with self.assertRaisesRegex(
             asyncpg.exceptions.CannotCoerceError,
             'cannot cast type boolean to uuid',
@@ -326,7 +344,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
-    async def test_sql_dml_insert_16(self):
+    async def test_sql_dml_insert_17(self):
         # default values
 
         await self.scon.execute(
@@ -354,12 +372,12 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
-    async def test_sql_dml_insert_17(self):
+    async def test_sql_dml_insert_18(self):
         res = await self.scon.fetch(
             '''
             WITH
-                a as (INSERT INTO "Hello" (world) VALUES ('a')),
-                b as (INSERT INTO "Hello" (world) VALUES ('b_0'), ('b_1'))
+                a as (INSERT INTO "Child" (prop) VALUES ('a')),
+                b as (INSERT INTO "Child" (prop) VALUES ('b_0'), ('b_1'))
             SELECT line FROM "Log" ORDER BY line;
             '''
         )
@@ -377,3 +395,20 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 ["inserted each b_1"],
             ],
         )
+
+    @test.skip('bug 7471 closes connection')
+    async def test_sql_dml_insert_19(self):
+        # exclusive on base, then insert into base and child
+        with self.assertRaisesRegex(
+            asyncpg.ExclusionViolationError,
+            'duplicate key value violates unique constraint '
+            '"[0-9a-f-]+;schemaconstr"',
+        ):
+            await self.scon.execute(
+                '''
+                WITH
+                    a as (INSERT INTO "Base" (prop) VALUES ('a')),
+                    b as (INSERT INTO "Child" (prop) VALUES ('a'))
+                SELECT 1
+                '''
+            )

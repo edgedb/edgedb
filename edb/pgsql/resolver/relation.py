@@ -49,11 +49,20 @@ Context = context.ResolverContextLevel
 def resolve_SelectStmt(
     stmt: pgast.SelectStmt, *, include_inherited: bool, ctx: Context
 ) -> Tuple[pgast.SelectStmt, context.Table]:
+    # CTEs
+    ctes: List[pgast.CommonTableExpr] = []
+    if stmt.ctes:
+        for cte in stmt.ctes:
+            cte, tab = range_var.resolve_CommonTableExpr(cte, ctx=ctx)
+            ctes.extend(extract_ctes_from_ctx(ctx))
+            ctes.append(cte)
+            ctx.scope.ctes.append(tab)
+
     # VALUES
     if stmt.values:
         values = dispatch.resolve_list(stmt.values, ctx=ctx)
         relation = pgast.SelectStmt(
-            values=values, ctes=extract_ctes_from_ctx(ctx)
+            values=values, ctes=ctes + extract_ctes_from_ctx(ctx)
         )
 
         first_val = values[0]
@@ -93,18 +102,9 @@ def resolve_SelectStmt(
             rarg=cast(pgast.Query, rarg),
             op=stmt.op,
             all=stmt.all,
-            ctes=extract_ctes_from_ctx(ctx),
+            ctes=ctes + extract_ctes_from_ctx(ctx),
         )
         return (relation, ltable)
-
-    # CTEs
-    ctes: List[pgast.CommonTableExpr] = []
-    if stmt.ctes:
-        for cte in stmt.ctes:
-            cte, tab = range_var.resolve_CommonTableExpr(cte, ctx=ctx)
-            ctes.extend(extract_ctes_from_ctx(ctx))
-            ctes.append(cte)
-            ctx.scope.ctes.append(tab)
 
     # FROM
     from_clause: List[pgast.BaseRangeVar] = []
