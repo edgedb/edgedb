@@ -1,6 +1,11 @@
 //! Test utilities.
 use std::{
-    borrow::Cow, cell::RefCell, collections::HashMap, future::Future, ops::Range, rc::Rc,
+    borrow::Cow,
+    cell::{Cell, RefCell},
+    collections::{BTreeMap, HashMap},
+    future::Future,
+    ops::Range,
+    rc::Rc,
     time::Duration,
 };
 
@@ -180,10 +185,71 @@ pub struct Spec {
     pub score: Vec<Score>,
 }
 
+#[derive(derive_more::Debug)]
 pub struct Scored {
     pub description: String,
+    #[debug(skip)]
     pub detailed_calculation: Box<dyn Fn(usize) -> String>,
     pub raw_value: f64,
+}
+
+#[derive(Debug)]
+pub struct WeightedScored {
+    pub weight: f64,
+    pub score: f64,
+    pub scored: Scored,
+}
+
+#[derive(Debug)]
+pub struct QoS {
+    pub scores: Vec<WeightedScored>,
+    pub qos: f64,
+}
+
+#[derive(Default, derive_more::Deref, derive_more::DerefMut, derive_more::IntoIterator)]
+pub struct SuiteQoS(#[into_iterator(owned, ref, ref_mut)] BTreeMap<Cow<'static, str>, QoS>);
+
+impl std::fmt::Debug for SuiteQoS {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("SuiteQos");
+        for (name, qos) in self {
+            s.field(name, &format!("QoS = {:.02}", qos.qos));
+        }
+        s.field("qos", &self.qos());
+        s.field("qos_rms", &self.qos_rms_error());
+        s.finish()
+    }
+}
+
+impl SuiteQoS {
+    pub fn qos(&self) -> f64 {
+        let mut total = 0.0;
+        for qos in self.values() {
+            total += qos.qos;
+        }
+        total /= self.len() as f64;
+        if !total.is_normal() || total < 0.0 {
+            0.0
+        } else {
+            total
+        }
+    }
+
+    /// Return the root-mean-square error QoS. The error between the QoS and 100
+    /// is squared, averaged, and we subtract that from 100 for a final score.
+    pub fn qos_rms_error(&self) -> f64 {
+        let mut total = 0.0;
+        for qos in self.values() {
+            total += (100.0 - qos.qos).powf(2.0);
+        }
+        total /= self.len() as f64;
+        total = 100.0 - total.sqrt();
+        if !total.is_normal() || total < 0.0 {
+            0.0
+        } else {
+            total
+        }
+    }
 }
 
 pub trait ScoringMethod {
@@ -212,6 +278,10 @@ impl Score {
     }
 
     pub fn calculate(&self, value: f64) -> f64 {
+        if value.is_nan() || value.is_infinite() {
+            return 0.0;
+        }
+
         let intervals = [
             (self.v100, self.v90, 90.0, 10.0),
             (self.v90, self.v60, 60.0, 30.0),
@@ -248,6 +318,8 @@ impl ScoringMethod for LatencyDistribution {
     fn score(&self, latencies: &Latencies, _metrics: &PoolMetrics, _config: &PoolConfig) -> Scored {
         let dbs = self.group.clone().map(|t| format!("t{t}")).collect_vec();
         let mut data = latencies.data.borrow_mut();
+        let fail = Cell::new(false);
+
         // Calculates the average CV (coefficient of variation) of the given
         // distributions. The result is a float ranging from zero indicating how
         // different the given distributions are, where zero means no
@@ -259,7 +331,11 @@ impl ScoringMethod for LatencyDistribution {
                 let decile = Data::new(
                     dbs.iter()
                         .map(|db| {
-                            let mut data = Data::new(data.get_mut(db).expect(db).as_mut_slice());
+                            let Some(data) = data.get_mut(db) else {
+                                fail.set(true);
+                                return 0.0;
+                            };
+                            let mut data = Data::new(data.as_mut_slice());
                             // This is equivalent to Python's statistics.quartile(n=10)
                             data.percentile(n * 10)
                         })
@@ -323,7 +399,10 @@ impl ScoringMethod for LatencyRatio {
         let divisor = dbs
             .iter()
             .map(|db| {
-                let mut data = Data::new(data.get_mut(db).expect(db).as_mut_slice());
+                let Some(data) = data.get_mut(db) else {
+                    return f64::NAN;
+                };
+                let mut data = Data::new(data.as_mut_slice());
                 data.percentile(self.percentile as _)
             })
             .mean();
@@ -331,7 +410,10 @@ impl ScoringMethod for LatencyRatio {
         let dividend = dbs
             .iter()
             .map(|db| {
-                let mut data = Data::new(data.get_mut(db).expect(db).as_mut_slice());
+                let Some(data) = data.get_mut(db) else {
+                    return f64::NAN;
+                };
+                let mut data = Data::new(data.as_mut_slice());
                 data.percentile(self.percentile as _)
             })
             .mean();
@@ -375,7 +457,10 @@ impl ScoringMethod for AbsoluteLatency {
         let raw_value = dbs
             .iter()
             .map(|db| {
-                let mut data = Data::new(data.get_mut(db).expect(db).as_mut_slice());
+                let Some(data) = data.get_mut(db) else {
+                    return f64::NAN;
+                };
+                let mut data = Data::new(data.as_mut_slice());
                 data.percentile(self.percentile as _)
             })
             .mean();

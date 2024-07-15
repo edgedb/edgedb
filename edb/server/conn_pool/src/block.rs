@@ -153,7 +153,11 @@ impl<C: Connector, D: Default> Block<C, D> {
                 conn_metrics.insert(conn.variant())
             }
             conn_metrics.set_value(MetricVariant::Waiting, self.state.waiters.lock.get());
-            assert_eq!(self.metrics().summary().value, conn_metrics.summary().value);
+            assert_eq!(
+                self.metrics().summary().value,
+                conn_metrics.summary().value,
+                "Connection metrics are incorrect. Left: actual, right: expected"
+            );
         }
     }
 
@@ -223,9 +227,12 @@ impl<C: Connector, D: Default> Block<C, D> {
 
     /// Awaits a connection from this block.
     fn queue(self: Rc<Self>) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
-        if let Some(conn) = self.try_acquire_used() {
-            trace!("Got a connection");
-            return Either::Left(ready(Ok(self.conn(conn))));
+        // If someone else is waiting, we have to queue, even if there's a connection
+        if self.state.waiters.len() == 0 {
+            if let Some(conn) = self.try_acquire_used() {
+                trace!("Got a connection");
+                return Either::Left(ready(Ok(self.conn(conn))));
+            }
         }
         // Update the metrics now before we actually queue
         self.state.waiters.lock();

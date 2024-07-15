@@ -12,6 +12,9 @@ mod time {
     pub use tokio::time::Instant;
 }
 
+#[cfg(feature = "optimizer")]
+pub use algo::knobs;
+
 // Public interface
 
 pub use conn::Connector;

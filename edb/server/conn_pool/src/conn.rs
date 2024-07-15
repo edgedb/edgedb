@@ -134,6 +134,7 @@ impl<C: Connector> Conn<C> {
         self.transition(|inner| match inner {
             ConnInner::Idle(_t, conn, ..) | ConnInner::Active(_t, conn, ..) => {
                 from.inc_all_time(MetricVariant::Disconnecting);
+                from.inc_all_time(MetricVariant::Closed);
                 to.insert(MetricVariant::Connecting);
                 let f = connector.reconnect(conn, db).boxed_local();
                 ConnInner::Connecting(Instant::now(), f)
@@ -146,6 +147,7 @@ impl<C: Connector> Conn<C> {
         self.transition(|inner| match inner {
             ConnInner::Active(t, conn) => {
                 metrics.inc_all_time(MetricVariant::Disconnecting);
+                metrics.inc_all_time(MetricVariant::Closed);
                 metrics.transition(
                     MetricVariant::Active,
                     MetricVariant::Connecting,
@@ -165,9 +167,10 @@ impl<C: Connector> Conn<C> {
         to: MetricVariant,
     ) -> Poll<ConnResult<()>> {
         let mut lock = self.inner.borrow_mut();
-        match &mut *lock {
-            ConnInner::Idle(..) => Poll::Ready(Ok(())),
-            ConnInner::Connecting(t, f) => Poll::Ready(match ready!(f.poll_unpin(cx)) {
+
+        let res = match &mut *lock {
+            ConnInner::Idle(..) => Ok(()),
+            ConnInner::Connecting(t, f) => match ready!(f.poll_unpin(cx)) {
                 Ok(c) => {
                     debug_assert!(to == MetricVariant::Active || to == MetricVariant::Idle);
                     metrics.transition(MetricVariant::Connecting, to, t.elapsed());
@@ -187,8 +190,8 @@ impl<C: Connector> Conn<C> {
                     *lock = ConnInner::Failed;
                     Err(err)
                 }
-            }),
-            ConnInner::Disconnecting(t, f) => Poll::Ready(match ready!(f.poll_unpin(cx)) {
+            },
+            ConnInner::Disconnecting(t, f) => match ready!(f.poll_unpin(cx)) {
                 Ok(_) => {
                     debug_assert_eq!(to, MetricVariant::Closed);
                     metrics.transition(MetricVariant::Disconnecting, to, t.elapsed());
@@ -204,10 +207,11 @@ impl<C: Connector> Conn<C> {
                     *lock = ConnInner::Failed;
                     Err(err)
                 }
-            }),
-            ConnInner::Failed => Poll::Ready(Err(ConnError::Other("Failed".into()))),
+            },
+            ConnInner::Failed => Err(ConnError::Other("Failed".into())),
             _ => unreachable!(),
-        }
+        };
+        Poll::Ready(res)
     }
 
     pub fn try_lock(&self, metrics: &MetricsAccum) -> bool {
@@ -240,6 +244,13 @@ impl<C: Connector> Conn<C> {
     }
 }
 
+/// Connection state diagram:
+///
+/// ```text
+///                      v-------------+
+/// S -> Connecting -> Idle -> Active -+
+///                 -> Failed          +-> Disconnecting -> Closed
+/// ```
 enum ConnInner<C: Connector> {
     /// Connecting connections hold a spot in the pool as they count towards quotas
     Connecting(Instant, Pin<Box<dyn Future<Output = ConnResult<C::Conn>>>>),
@@ -253,7 +264,8 @@ enum ConnInner<C: Connector> {
     Failed,
     /// The connection is in a closed state.
     Closed,
-    /// Transitioning between states.
+    /// Transitioning between states. Used internally, never escapes an internal
+    /// function.
     Transition,
 }
 

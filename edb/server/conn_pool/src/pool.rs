@@ -5,7 +5,7 @@ use crate::{
     },
     block::{Blocks, Name},
     conn::{ConnError, ConnHandle, ConnResult, Connector},
-    metrics::PoolMetrics,
+    metrics::{MetricVariant, PoolMetrics},
 };
 use consume_on_drop::{Consume, ConsumeOnDrop};
 use derive_more::Debug;
@@ -134,7 +134,9 @@ impl<C: Connector> Pool<C> {
             drain: Default::default(),
         })
     }
+}
 
+impl<C: Connector> Pool<C> {
     /// Runs the required async task that takes care of quota management, garbage collection,
     /// and other important async tasks. This should happen only if something has changed in
     /// the pool.
@@ -282,9 +284,29 @@ impl<C: Connector> Pool<C> {
     /// the shutdown operation.
     pub async fn shutdown(mut self: Rc<Self>) {
         self.drain.shutdown();
-        while let Err(pool_) = Rc::try_unwrap(self) {
-            self = pool_;
+        let pool = loop {
+            match Rc::try_unwrap(self) {
+                Ok(pool) => break pool,
+                Err(pool) => self = pool,
+            };
             tokio::time::sleep(Duration::from_millis(10)).await;
+        };
+        while !pool.idle() {
+            pool.run_once();
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        if cfg!(debug_assertions) {
+            let all_time = &pool.metrics().all_time;
+            assert_eq!(
+                all_time[MetricVariant::Connecting],
+                all_time[MetricVariant::Disconnecting],
+                "Connecting != Disconnecting"
+            );
+            assert_eq!(
+                all_time[MetricVariant::Disconnecting],
+                all_time[MetricVariant::Closed],
+                "Disconnecting != Closed"
+            );
         }
     }
 }
@@ -373,9 +395,9 @@ mod tests {
 
     use test_log::test;
     use tokio::task::LocalSet;
-    use tracing::{info, trace};
+    use tracing::{error, info, trace};
 
-    #[test(tokio::test)]
+    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
     async fn test_pool_basic() -> Result<()> {
         LocalSet::new()
             .run_until(async {
@@ -476,17 +498,17 @@ mod tests {
             ..Default::default()
         };
 
-        run(spec).await
+        run(spec).await.map(drop)
     }
 
-    async fn run(spec: Spec) -> Result<()> {
+    async fn run(spec: Spec) -> Result<QoS> {
         let local = LocalSet::new();
-        local.run_until(run_local(spec)).await?;
+        let res = local.run_until(run_local(spec)).await?;
         local.await;
-        Ok(())
+        Ok(res)
     }
 
-    async fn run_local(spec: Spec) -> std::result::Result<(), anyhow::Error> {
+    async fn run_local(spec: Spec) -> std::result::Result<QoS, anyhow::Error> {
         let start = Instant::now();
         let real_time = std::time::Instant::now();
         let config = PoolConfig::suggested_default_for(spec.capacity);
@@ -545,7 +567,7 @@ mod tests {
                 }
                 tokio::time::timeout(Duration::from_secs(120), local)
                     .await
-                    .unwrap_or_else(move |_| panic!("*[{i:-2}] DBSpec {i} for {db} timed out"));
+                    .unwrap_or_else(move |_| error!("*[{i:-2}] DBSpec {i} for {db} timed out"));
                 let end_time = now.elapsed().as_secs_f64();
                 info!("-[{i:-2}] Finished db t{} at {}qps. Load generated from {}..{}, processed from {}..{}",
                         db_spec.db, db_spec.qps, db_spec.start_at, db_spec.end_at, start_time, end_time);
@@ -599,8 +621,10 @@ mod tests {
 
         let metrics = pool.metrics();
         let mut qos = 0.0;
+        let mut scores = vec![];
         for score in spec.score {
             let scored = score.method.score(&latencies, &metrics, &pool.config);
+
             let score_component = score.calculate(scored.raw_value);
             info!(
                 "[QoS: {}] {} = {:.2} -> {:.2} (weight {:.2})",
@@ -613,6 +637,11 @@ mod tests {
                 (scored.detailed_calculation)(3),
                 scored.raw_value
             );
+            scores.push(WeightedScored {
+                scored,
+                weight: score.weight,
+                score: score_component,
+            });
             qos += score_component * score.weight;
         }
         info!("[QoS: {}] Score = {qos:0.02}", spec.name);
@@ -620,11 +649,10 @@ mod tests {
         info!("Shutting down...");
         pool.shutdown().await;
 
-        Ok(())
+        Ok(QoS { scores, qos })
     }
 
-    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
-    async fn test_connpool_1() -> Result<()> {
+    fn test_connpool_1() -> Spec {
         let mut dbs = vec![];
         for i in 0..6 {
             dbs.push(DBSpec {
@@ -654,7 +682,7 @@ mod tests {
             })
         }
 
-        let spec = Spec {
+        Spec {
             name: "test_connpool_1".into(),
             desc: r#"
                 This is a test for Mode D, where 2 groups of blocks race for connections
@@ -687,13 +715,10 @@ mod tests {
             ],
             dbs,
             ..Default::default()
-        };
-
-        run(spec).await
+        }
     }
 
-    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
-    async fn test_connpool_2() -> Result<()> {
+    fn test_connpool_2() -> Spec {
         let mut dbs = vec![];
         for i in 0..6 {
             dbs.push(DBSpec {
@@ -723,7 +748,7 @@ mod tests {
             })
         }
 
-        let spec = Spec {
+        Spec {
             name: "test_connpool_2".into(),
             desc: r#"
                 In this test, we have 6x1500qps connections that simulate fast
@@ -755,13 +780,10 @@ mod tests {
             ],
             dbs,
             ..Default::default()
-        };
-
-        run(spec).await
+        }
     }
 
-    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
-    async fn test_connpool_3() -> Result<()> {
+    fn test_connpool_3() -> Spec {
         let mut dbs = vec![];
         for i in 0..6 {
             dbs.push(DBSpec {
@@ -773,7 +795,7 @@ mod tests {
             })
         }
 
-        let spec = Spec {
+        Spec {
             name: "test_connpool_3".into(),
             desc: r#"
                 This test simply starts 6 same crazy requesters for 6 databases to
@@ -791,13 +813,10 @@ mod tests {
             ],
             dbs,
             ..Default::default()
-        };
-
-        run(spec).await
+        }
     }
 
-    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
-    async fn test_connpool_4() -> Result<()> {
+    fn test_connpool_4() -> Spec {
         let mut dbs = vec![];
         for i in 0..6 {
             dbs.push(DBSpec {
@@ -809,7 +828,7 @@ mod tests {
             })
         }
 
-        let spec = Spec {
+        Spec {
             name: "test_connpool_4".into(),
             desc: r#"
                 Similar to test 3, this test also has 6 requesters for 6 databases,
@@ -829,13 +848,10 @@ mod tests {
             ],
             dbs,
             ..Default::default()
-        };
-
-        run(spec).await
+        }
     }
 
-    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
-    async fn test_connpool_5() -> Result<()> {
+    fn test_connpool_5() -> Spec {
         let mut dbs = vec![];
 
         for i in 0..6 {
@@ -866,7 +882,7 @@ mod tests {
             });
         }
 
-        let spec = Spec {
+        Spec {
             name: "test_connpool_5".into(),
             desc: r#"
                 This is a mixed test with pool max capacity set to 6. Requests in
@@ -911,13 +927,10 @@ mod tests {
             ],
             dbs,
             ..Default::default()
-        };
-
-        run(spec).await
+        }
     }
 
-    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
-    async fn test_connpool_6() -> Result<()> {
+    fn test_connpool_6() -> Spec {
         let mut dbs = vec![];
 
         for i in 0..6 {
@@ -930,7 +943,7 @@ mod tests {
             });
         }
 
-        let spec = Spec {
+        Spec {
             name: "test_connpool_6".into(),
             desc: r#"
                 This is a simple test for Mode A. In this case, we don't want to
@@ -941,14 +954,11 @@ mod tests {
             score: vec![Score::new(1.0, [0.5, 0.2, 0.1, 0.0], ConnectionOverhead {})],
             dbs,
             ..Default::default()
-        };
-
-        run(spec).await
+        }
     }
 
-    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
-    async fn test_connpool_7() -> Result<()> {
-        let spec = Spec {
+    fn test_connpool_7() -> Spec {
+        Spec {
             name: "test_connpool_7".into(),
             desc: r#"
                 The point of this test is to have one connection "t1" that
@@ -1006,15 +1016,13 @@ mod tests {
                 },
             ],
             ..Default::default()
-        };
-
-        run(spec).await
+        }
     }
 
-    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
-    async fn test_connpool_8() -> Result<()> {
+    fn test_connpool_8() -> Spec {
         let base_load = 200;
-        let spec = Spec {
+
+        Spec {
             name: "test_connpool_8".into(),
             desc: r#"
                 This test spec is to check the pool connection reusability with a
@@ -1049,15 +1057,13 @@ mod tests {
                 },
             ],
             ..Default::default()
-        };
-
-        run(spec).await
+        }
     }
 
-    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
-    async fn test_connpool_9() -> Result<()> {
+    fn test_connpool_9() -> Spec {
         let full_qps = 20000;
-        let spec = Spec {
+
+        Spec {
             name: "test_connpool_9".into(),
             desc: r#"
                 This test spec is to check the pool performance with low traffic
@@ -1137,14 +1143,13 @@ mod tests {
                 },
             ],
             ..Default::default()
-        };
-        run(spec).await
+        }
     }
 
-    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
-    async fn test_connpool_10() -> Result<()> {
+    fn test_connpool_10() -> Spec {
         let full_qps = 2000;
-        let spec = Spec {
+
+        Spec {
             name: "test_connpool_10".into(),
             desc: r#"
                 This test spec is to check the pool garbage collection feature.
@@ -1178,7 +1183,199 @@ mod tests {
                 },
             ],
             ..Default::default()
-        };
-        run(spec).await
+        }
     }
+
+    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
+    async fn run_spec_tests() -> Result<()> {
+        spec_tests().await?;
+        Ok(())
+    }
+
+    async fn spec_tests() -> Result<SuiteQoS> {
+        let mut results = SuiteQoS::default();
+        for spec in SPEC_FUNCTIONS {
+            let spec = spec();
+            let name = spec.name.clone();
+            let res = run(spec).await?;
+            results.insert(name, res);
+        }
+        for (name, QoS { qos, .. }) in &results {
+            info!("QoS[{name}] = [{qos:.02}]");
+        }
+        info!(
+            "QoS = [{:.02}] (rms={:.02})",
+            results.qos(),
+            results.qos_rms_error()
+        );
+        Ok(results)
+    }
+
+    /// Runs the specs `count` times, returning the median run.
+    #[allow(unused)]
+    fn run_specs_tests_in_runtime(count: usize) -> Result<SuiteQoS> {
+        let mut runs = vec![];
+        for _ in 0..count {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .build()
+                .unwrap();
+            let _guard = runtime.enter();
+            tokio::time::pause();
+            let qos = runtime.block_on(spec_tests())?;
+            runs.push(qos);
+        }
+        runs.sort_by_cached_key(|run| (run.qos_rms_error() * 1_000_000.0) as usize);
+        let ret = runs.drain(count / 2..).next().unwrap();
+        Ok(ret)
+    }
+
+    #[test]
+    #[cfg(feature = "optimizer")]
+    fn optimizer() {
+        use crate::knobs::*;
+        use std::sync::atomic::AtomicIsize;
+
+        use genetic_algorithm::strategy::evolve::prelude::*;
+        use lru::LruCache;
+        use rand::Rng;
+
+        // the search goal to optimize towards (maximize or minimize)
+        #[derive(Clone, std::fmt::Debug, smart_default::SmartDefault)]
+        pub struct Optimizer {
+            #[default(std::sync::Arc::new(AtomicIsize::new(isize::MIN)))]
+            best: std::sync::Arc<AtomicIsize>,
+            #[default(LruCache::new(1_000_000.try_into().unwrap()))]
+            lru: LruCache<[usize; ALL_KNOB_COUNT], isize>,
+        }
+
+        impl Fitness for Optimizer {
+            type Genotype = ContinuousGenotype;
+            fn calculate_for_chromosome(
+                &mut self,
+                chromosome: &Chromosome<Self::Genotype>,
+            ) -> Option<FitnessValue> {
+                let mut knobs: [usize; ALL_KNOB_COUNT] = Default::default();
+                for (knob, gene) in knobs.iter_mut().zip(&chromosome.genes) {
+                    *knob = *gene as _;
+                }
+                if let Some(res) = self.lru.get(&knobs) {
+                    return Some(*res);
+                }
+
+                for (i, knob) in crate::knobs::ALL_KNOBS.iter().enumerate() {
+                    if knob.set(knobs[i]).is_err() {
+                        return None;
+                    };
+                }
+                let qos = run_specs_tests_in_runtime(5).ok()?;
+                let score = qos.qos_rms_error();
+                let qos_i = (score * 1_000_000.0) as isize;
+                if qos_i > self.best.load(std::sync::atomic::Ordering::SeqCst) {
+                    eprintln!(
+                        "*** New best: {score:.02} {:?} {:?}",
+                        crate::knobs::ALL_KNOBS,
+                        qos
+                    );
+                    self.best.store(qos_i, std::sync::atomic::Ordering::SeqCst);
+                }
+                self.lru.push(knobs, qos_i);
+
+                Some(qos_i)
+            }
+        }
+
+        let mut seeds: Vec<Vec<isize>> = vec![];
+
+        // The current state
+        seeds.push(
+            crate::knobs::ALL_KNOBS
+                .iter()
+                .map(|k| k.get() as _)
+                .collect(),
+        );
+
+        // A constant value for all knobs
+        for i in 0..100 {
+            seeds.push([i].repeat(crate::knobs::ALL_KNOBS.len()));
+        }
+
+        // Some randomness
+        for _ in 0..100 {
+            seeds.push(
+                (0..crate::knobs::ALL_KNOBS.len())
+                    .map(|_| rand::thread_rng().gen_range(0..1000))
+                    .collect(),
+            );
+        }
+
+        let mut f32_seeds = vec![];
+        for mut seed in seeds {
+            for (i, knob) in crate::knobs::ALL_KNOBS.iter().enumerate() {
+                let mut value = seed[i] as _;
+                if knob.set(value).is_err() {
+                    knob.clamp(&mut value);
+                    seed[i] = value as _;
+                };
+            }
+            f32_seeds.push(seed.into_iter().map(|n| n as _).collect());
+        }
+
+        let genotype = ContinuousGenotype::builder()
+            .with_genes_size(crate::knobs::ALL_KNOBS.len())
+            .with_allele_range(0.0..1000.0)
+            .with_allele_neighbour_ranges(vec![-50.0..50.0, -5.0..5.0])
+            .with_seed_genes_list(f32_seeds)
+            .build()
+            .unwrap();
+
+        let mut rng = rand::thread_rng(); // a randomness provider implementing Trait rand::Rng
+        let evolve = Evolve::builder()
+            .with_multithreading(true)
+            .with_genotype(genotype)
+            .with_target_population_size(1000)
+            .with_target_fitness_score(100 * 1_000_000)
+            .with_max_stale_generations(1000)
+            .with_fitness(Optimizer::default())
+            .with_crossover(CrossoverUniform::new(true))
+            .with_mutate(MutateOnce::new(0.5))
+            .with_compete(CompeteTournament::new(200))
+            .with_extension(ExtensionMassInvasion::new(0.6, 0.6))
+            .call(&mut rng)
+            .unwrap();
+        println!("{}", evolve);
+    }
+
+    macro_rules! run_spec {
+        ($($spec:ident),* $(,)?) => {
+            const SPEC_FUNCTIONS: [fn() -> Spec; [$( $spec ),*].len()] = [
+                $(
+                    $spec,
+                )*
+            ];
+
+            mod spec {
+                use super::*;
+                $(
+                    #[super::test(tokio::test(flavor = "current_thread", start_paused = true))]
+                    async fn $spec() -> Result<()> {
+                        run(super::$spec()).await.map(drop)
+                    }
+                )*
+            }
+        };
+    }
+
+    run_spec!(
+        test_connpool_1,
+        test_connpool_2,
+        test_connpool_3,
+        test_connpool_4,
+        test_connpool_5,
+        test_connpool_6,
+        test_connpool_7,
+        test_connpool_8,
+        test_connpool_9,
+        test_connpool_10,
+    );
 }

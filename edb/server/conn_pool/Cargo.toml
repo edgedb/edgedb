@@ -8,6 +8,7 @@ edition = "2021"
 
 [features]
 python_extension = ["pyo3/extension-module"]
+optimizer = []
 
 [dependencies]
 futures = "0"
@@ -36,6 +37,8 @@ anyhow = "1"
 rstest = "0"
 rand = "0"
 statrs = "0"
+genetic_algorithm = "0"
+lru = "0"
 
 [dev-dependencies.tokio]
 version = "1"

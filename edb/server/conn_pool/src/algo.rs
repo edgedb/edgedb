@@ -1,8 +1,5 @@
 use scopeguard::defer;
-use std::{
-    cell::{Cell, RefCell},
-    num::NonZeroUsize,
-};
+use std::cell::{Cell, RefCell};
 use tracing::trace;
 
 use crate::{
@@ -10,49 +7,186 @@ use crate::{
     metrics::{MetricVariant, RollingAverageU32},
 };
 
-/// The maximum number of connections to create during a rebalance.
-const MAX_REBALANCE_CREATE: usize = 5;
-/// The maximum number of excess connections (> target) we'll keep around during
-/// a rebalance if there is still some demand.
-const MAX_EXCESS_IDLE_CONNECTIONS: usize = 2;
-/// The minimum amount of time we'll consider for an active connection.
-const MIN_ACTIVE_TIME: usize = 1;
-
-/// The weight we apply to waiting connections.
-const DEMAND_WEIGHT_WAITING: usize = 1;
-/// The weight we apply to active connections.
-const DEMAND_WEIGHT_ACTIVE: usize = 1;
 /// The historical length of data we'll maintain for demand.
-const DEMAND_HISTORY_LENGTH: usize = 4;
-/// The minimum non-zero demand. This makes the demand calculations less noisy
-/// when we are competing at lower levels of demand, allowing for more
-/// reproducable results.
-const DEMAND_MINIMUM: usize = 16;
+const DEMAND_HISTORY_LENGTH: usize = 16;
 
-/// The maximum-minimum connection count we'll allocate to connections if there
-/// is more capacity than backends.
-const MAXIMUM_SHARED_TARGET: usize = 1;
-/// The boost we apply to our own apparent hunger when releasing a connection.
-/// This prevents excessive swapping when hunger is similar across various
-/// backends.
-const SELF_HUNGER_BOOST_FOR_RELEASE: usize = 10;
+#[cfg(not(feature = "optimizer"))]
+#[derive(Clone, Copy, derive_more::From)]
+pub struct Knob<T: Copy>(&'static str, T);
 
-/// The weight we apply to the difference between the target and required
-/// connections when determining overfullness.
-const HUNGER_DIFF_WEIGHT: usize = 100;
-/// The weight we apply to waiters when determining hunger.
-const HUNGER_WAITER_WEIGHT: usize = 1;
-/// The weight we apply to the oldest waiter's age in milliseconds (as a divisor).
-const HUNGER_AGE_DIVISOR_WEIGHT: usize = 10;
+#[cfg(not(feature = "optimizer"))]
+impl<T: Copy> Knob<T> {
+    pub const fn new(name: &'static str, value: T) -> Self {
+        Self(name, value)
+    }
 
-/// The weight we apply to the difference between the target and required
-/// connections when determining overfullness.
-const OVERFULL_DIFF_WEIGHT: usize = 100;
-/// The weight we apply to idle connections when determining overfullness.
-const OVERFULL_IDLE_WEIGHT: usize = 1;
-/// This is divided by the youngest connection metric to penalize switching from
-/// a backend which has changed recently.
-const OVERFULL_CHANGE_WEIGHT_DIVIDEND: usize = 1000;
+    pub fn get(&self) -> T {
+        self.1
+    }
+}
+
+#[cfg(feature = "optimizer")]
+pub struct Knob<T: Copy + 'static>(
+    &'static str,
+    &'static std::thread::LocalKey<std::cell::RefCell<T>>,
+    Option<std::ops::RangeInclusive<T>>,
+);
+
+impl<T: Copy + PartialOrd<T> + std::fmt::Display + std::fmt::Debug> std::fmt::Debug for Knob<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{}={:?}", self.0, self.get()))
+    }
+}
+
+#[cfg(feature = "optimizer")]
+impl<T: Copy + PartialOrd<T> + std::fmt::Display + std::fmt::Debug> Knob<T> {
+    pub const fn new(
+        name: &'static str,
+        value: &'static std::thread::LocalKey<std::cell::RefCell<T>>,
+        bounds: &[std::ops::RangeInclusive<T>],
+    ) -> Self {
+        let copy = if !bounds.is_empty() {
+            Some(*bounds[0].start()..=*bounds[0].end())
+        } else {
+            None
+        };
+        Self(name, value, copy)
+    }
+
+    pub fn name(&self) -> &'static str {
+        self.0
+    }
+
+    pub fn get(&self) -> T {
+        self.1.with_borrow(|t| *t)
+    }
+
+    pub fn set(&self, value: T) -> Result<(), String> {
+        if let Some(range) = &self.2 {
+            if range.contains(&value) {
+                self.1.with_borrow_mut(|t| *t = value);
+                Ok(())
+            } else {
+                Err(format!("{value} is out of range of {range:?}"))
+            }
+        } else {
+            self.1.with_borrow_mut(|t| *t = value);
+            Ok(())
+        }
+    }
+
+    pub fn clamp(&self, value: &mut T) {
+        if let Some(range) = &self.2 {
+            if !range.contains(value) {
+                if *value < *range.start() {
+                    *value = *range.start()
+                } else {
+                    *value = *range.end()
+                }
+            }
+        }
+    }
+}
+
+macro_rules! constants {
+    ($(
+        $( #[doc=$doc:literal] )*
+        $( #[range $range:tt] )?
+        const $name:ident: $type:ty = $value:literal;
+    )*) => {
+        #[cfg(feature="optimizer")]
+        pub mod knobs {
+            pub use super::Knob;
+            mod locals {
+                $(
+                    thread_local! {
+                        pub static $name: std::cell::RefCell<$type> = std::cell::RefCell::new($value);
+                    }
+                )*
+            }
+
+            $(
+                $( #[doc=$doc] )*
+                pub static $name: Knob<$type> = Knob::new(stringify!($name), &locals::$name, &[$($range)?]);
+            )*
+
+            pub const ALL_KNOB_COUNT: usize = [$(stringify!($name)),*].len();
+            pub static ALL_KNOBS: [&Knob<usize>; ALL_KNOB_COUNT] = [
+                $(&$name),*
+            ];
+        }
+        #[cfg(not(feature="optimizer"))]
+        pub mod knobs {
+            pub use super::Knob;
+            $(
+                $( #[doc=$doc] )*
+                pub const $name: Knob<$type> = Knob::new(stringify!($name), $value);
+            )*
+        }
+        pub use knobs::*;
+    };
+}
+
+// Note: these constants are tuned via the generic algorithm optimizer.
+constants! {
+    /// The maximum number of connections to create or destroy during a rebalance.
+    #[range(0..=10)]
+    const MAX_REBALANCE_OPS: usize = 5;
+    /// The minimum headroom in a block between its current total and its target
+    /// for us to pre-create connections for it.
+    #[range(0..=10)]
+    const MIN_REBALANCE_HEADROOM_TO_CREATE: usize = 2;
+    /// The maximum number of excess connections (> target) we'll keep around during
+    /// a rebalance if there is still some demand.
+    #[range(0..=10)]
+    const MAX_REBALANCE_EXCESS_IDLE_CONNECTIONS: usize = 2;
+
+    /// The minimum amount of time we'll consider for an active connection.
+    #[range(1..=100)]
+    const MIN_TIME: usize = 1;
+
+    /// The weight we apply to waiting connections.
+    const DEMAND_WEIGHT_WAITING: usize = 3;
+    /// The weight we apply to active connections.
+    const DEMAND_WEIGHT_ACTIVE: usize = 3;
+    /// The minimum non-zero demand. This makes the demand calculations less noisy
+    /// when we are competing at lower levels of demand, allowing for more
+    /// reproducable results.
+    #[range(1..=256)]
+    const DEMAND_MINIMUM: usize = 168;
+
+    /// The maximum-minimum connection count we'll allocate to connections if there
+    /// is more capacity than backends.
+    const MAXIMUM_SHARED_TARGET: usize = 1;
+    /// The boost we apply to our own apparent hunger when releasing a connection.
+    /// This prevents excessive swapping when hunger is similar across various
+    /// backends.
+    const SELF_HUNGER_BOOST_FOR_RELEASE: usize = 16;
+
+    /// The weight we apply to the difference between the target and required
+    /// connections when determining overfullness.
+    const HUNGER_DIFF_WEIGHT: usize = 2;
+    /// The weight we apply to waiters when determining hunger.
+    const HUNGER_WAITER_WEIGHT: usize = 1;
+    const HUNGER_WAITER_ACTIVE_WEIGHT: usize = 0;
+    const HUNGER_ACTIVE_WEIGHT_DIVIDEND: usize = 634;
+    /// The weight we apply to the oldest waiter's age in milliseconds (as a divisor).
+    #[range(1..=1000)]
+    const HUNGER_AGE_DIVISOR_WEIGHT: usize = 674;
+
+    /// The weight we apply to the difference between the target and required
+    /// connections when determining overfullness.
+    const OVERFULL_DIFF_WEIGHT: usize = 2;
+    /// The weight we apply to idle connections when determining overfullness.
+    const OVERFULL_IDLE_WEIGHT: usize = 10;
+    /// This is divided by the youngest connection metric to penalize switching from
+    /// a backend which has changed recently.
+    const OVERFULL_CHANGE_WEIGHT_DIVIDEND: usize = 469;
+    /// The weight we apply to waiters when determining overfullness.
+    const OVERFULL_WAITER_WEIGHT: usize = 71;
+    const OVERFULL_WAITER_ACTIVE_WEIGHT: usize = 130;
+    const OVERFULL_ACTIVE_WEIGHT_DIVIDEND: usize = 2;
+}
 
 /// Determines the rebalance plan based on the current pool state.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -152,28 +286,29 @@ pub trait PoolAlgorithmDataBlock: PoolAlgorithmDataMetrics {
     ///
     /// Returns an `Option<NonZeroUsize>` containing the hunger score if the current state is below the target
     /// and there are waiting elements; otherwise, returns `None`.
-    fn hunger_score(&self, will_release: bool) -> Option<NonZeroUsize> {
+    fn hunger_score(&self, will_release: bool) -> Option<isize> {
         let waiting = self.count(MetricVariant::Waiting);
         let connecting = self.count(MetricVariant::Connecting);
         let waiters = waiting.saturating_sub(connecting);
         let current = self.total() - if will_release { 1 } else { 0 };
         let target = self.target();
+        let active_ms = self.avg_ms(MetricVariant::Active).max(MIN_TIME.get());
 
         // Waiters become more hungry as they age
-        let age_score = self.oldest_ms(MetricVariant::Waiting) / HUNGER_AGE_DIVISOR_WEIGHT;
-        let base_score = age_score + waiters * HUNGER_WAITER_WEIGHT;
+        let age_score =
+            self.oldest_ms(MetricVariant::Waiting) / HUNGER_AGE_DIVISOR_WEIGHT.get().max(1);
+        let waiter_score = waiters * HUNGER_WAITER_WEIGHT.get()
+            + (waiters * HUNGER_WAITER_ACTIVE_WEIGHT.get() / active_ms)
+            + (HUNGER_ACTIVE_WEIGHT_DIVIDEND.get() / active_ms);
+        let base_score = age_score + waiter_score;
 
         // If we have more connections than our target, we are not hungry. We
         // may still be hungry if current <= target if we have waiters, however.
-        if current > target {
+        if current > target || (target == current && waiters < 1) {
             None
-        } else if target > current {
-            let diff = target - current;
-            (base_score + diff * HUNGER_DIFF_WEIGHT).try_into().ok()
-        } else if waiters > 0 {
-            base_score.try_into().ok()
         } else {
-            None
+            let diff = target - current;
+            Some((base_score + diff * HUNGER_DIFF_WEIGHT.get()) as _)
         }
     }
 
@@ -192,23 +327,57 @@ pub trait PoolAlgorithmDataBlock: PoolAlgorithmDataMetrics {
     ///
     /// Returns an `Option<NonZeroUsize>` containing the overfull score if the current state is overfull
     /// and there are idle elements; otherwise, returns `None`.
-    fn overfull_score(&self, will_release: bool) -> Option<NonZeroUsize> {
+    fn overfull_score(&self, will_release: bool) -> Option<isize> {
         let idle = self.count(MetricVariant::Idle) + if will_release { 1 } else { 0 };
         let current = self.total();
         let target = self.target();
-        let youngest_ms = self.youngest_ms().max(1);
+        let connecting = self.count(MetricVariant::Connecting);
+        let waiting = self.count(MetricVariant::Waiting);
+        let waiters = waiting.saturating_sub(connecting);
+        let active_ms = self.avg_ms(MetricVariant::Active).max(MIN_TIME.get());
+        let connecting_ms = self.avg_ms(MetricVariant::Connecting).max(MIN_TIME.get());
+        let youngest_ms = self.youngest_ms().max(MIN_TIME.get());
+        let waiter_score = (waiters * OVERFULL_WAITER_WEIGHT.get()
+            + (waiters * OVERFULL_WAITER_ACTIVE_WEIGHT.get() / active_ms)
+            + (OVERFULL_ACTIVE_WEIGHT_DIVIDEND.get() / active_ms))
+            as isize;
+
         // If we have no idle connections, or we don't have enough connections we're not overfull.
         if target >= current || idle == 0 {
             None
         } else {
-            let base_score =
-                idle * OVERFULL_IDLE_WEIGHT + OVERFULL_CHANGE_WEIGHT_DIVIDEND / youngest_ms;
+            let youngest_ratio = (youngest_ms / connecting_ms).max(1);
+            let idle_score = (idle * OVERFULL_IDLE_WEIGHT.get()) as isize;
+            let youngest_score = (OVERFULL_CHANGE_WEIGHT_DIVIDEND.get() / youngest_ratio) as isize;
+            let base_score = idle_score + youngest_score - waiter_score;
             if current > target {
                 let diff = current - target;
-                (diff * OVERFULL_DIFF_WEIGHT + base_score).try_into().ok()
+                let diff_score = (diff * OVERFULL_DIFF_WEIGHT.get()) as isize;
+                Some(diff_score + base_score)
             } else {
-                base_score.try_into().ok()
+                Some(base_score)
             }
+        }
+    }
+
+    /// We calculate demand based on the estimated connection active time
+    /// multiplied by the active + waiting counts. This gives us an
+    /// estimated database time statistic we can use for relative
+    /// weighting.
+    fn demand_score(&self) -> usize {
+        let active = self.max(MetricVariant::Active);
+        let active_ms = self.avg_ms(MetricVariant::Active).max(MIN_TIME.get());
+        let waiting = self.max(MetricVariant::Waiting);
+        let idle = active == 0 && waiting == 0;
+
+        if idle {
+            0
+        } else {
+            let waiting_score = waiting * DEMAND_WEIGHT_WAITING.get();
+            let active_score = active * DEMAND_WEIGHT_ACTIVE.get();
+            // Note that we clamp to DEMAND_MINIMUM to ensure the average is non-zero
+            (active_ms * (waiting_score + active_score))
+                .max(DEMAND_MINIMUM.get() * DEMAND_HISTORY_LENGTH)
         }
     }
 }
@@ -261,7 +430,7 @@ impl PoolConstraints {
                 s += &format!("{name}={demand_avg} ",);
             }
 
-            total_demand += demand_avg;
+            total_demand += demand_avg as usize;
             if demand_avg > 0 {
                 total_target += 1;
             } else {
@@ -282,37 +451,20 @@ impl PoolConstraints {
         defer!(it.reset_max());
 
         // First, compute the overall request load and number of backend targets
-        let mut total_demand = 0;
+        let mut total_demand = 0_usize;
         let mut total_target = 0;
         let mut s = "".to_owned();
 
         it.with_all(|name, data| {
-            // We calculate demand based on the estimated connection active time
-            // multiplied by the active + waiting counts. This gives us an
-            // estimated database time statistic we can use for relative
-            // weighting.
-            let active = data.max(MetricVariant::Active);
-            let active_ms = data.avg_ms(MetricVariant::Active).max(MIN_ACTIVE_TIME);
-            let waiting = data.max(MetricVariant::Waiting);
-            let idle = active == 0 && waiting == 0;
-            let demand = if idle {
-                0
-            } else {
-                // Note that we clamp to DEMAND_MINIMUM to ensure the average is non-zero
-                (active_ms * (waiting * DEMAND_WEIGHT_WAITING + active * DEMAND_WEIGHT_ACTIVE))
-                    .max(DEMAND_MINIMUM)
-            };
+            let demand = data.demand_score();
             data.insert_demand(demand as _);
             let demand_avg = data.demand();
 
             if tracing::enabled!(tracing::Level::TRACE) {
-                s += &format!(
-                    "{name}={demand_avg}/{demand} (a={},w={},t={}ms) ",
-                    active, waiting, active_ms
-                );
+                s += &format!("{name}={demand_avg}/{demand}",);
             }
 
-            total_demand += demand_avg;
+            total_demand += demand_avg as usize;
             if demand_avg > 0 {
                 total_target += 1;
             } else {
@@ -328,7 +480,12 @@ impl PoolConstraints {
     }
 
     /// Allocate the calculated demand to target quotas.
-    fn allocate_demand(&self, it: &impl VisitPoolAlgoData, total_target: usize, total_demand: u32) {
+    fn allocate_demand(
+        &self,
+        it: &impl VisitPoolAlgoData,
+        total_target: usize,
+        total_demand: usize,
+    ) {
         // Empty pool, no math
         if total_target == 0 || total_demand == 0 {
             return;
@@ -337,25 +494,31 @@ impl PoolConstraints {
         let mut allocated = 0;
         // This is the minimum number of connections we'll allocate to any particular
         // backend regardless of demand if there are less backends than the capacity.
-        let min = (self.max / total_target).min(MAXIMUM_SHARED_TARGET);
+        let min = (self.max / total_target).min(MAXIMUM_SHARED_TARGET.get());
         // The remaining capacity after we allocated the `min` value above.
         let capacity = self.max - min * total_target;
 
-        it.with_all(|_name, data| {
-            let demand = data.demand();
-            if demand == 0 {
-                return;
-            }
+        if min == 0 {
+            it.with_all(|_name, data| {
+                data.set_target(0);
+            });
+        } else {
+            it.with_all(|_name, data| {
+                let demand = data.demand();
+                if demand == 0 {
+                    return;
+                }
 
-            // Give everyone what they requested, plus a share of the spare
-            // capacity. If there is leftover spare capacity, that capacity
-            // may float between whoever needs it the most.
-            let target =
-                (demand as f32 * capacity as f32 / total_demand as f32).floor() as usize + min;
+                // Give everyone what they requested, plus a share of the spare
+                // capacity. If there is leftover spare capacity, that capacity
+                // may float between whoever needs it the most.
+                let target =
+                    (demand as f32 * capacity as f32 / total_demand as f32).floor() as usize + min;
 
-            data.set_target(target);
-            allocated += target;
-        });
+                data.set_target(target);
+                allocated += target;
+            });
+        }
 
         debug_assert!(
             allocated <= self.max,
@@ -377,17 +540,23 @@ impl PoolConstraints {
             let mut changes = vec![];
             let mut made_changes = false;
 
-            for i in 0..MAX_REBALANCE_CREATE {
+            for i in 0..MAX_REBALANCE_OPS.get() {
                 it.with_all(|name, block| {
-                    if block.target() > block.total() && current_pool_size < max_pool_size {
-                        // If we are allocated more connections than we currently have,
-                        // we'll try to grab some more.
+                    // If there's room in the block, and room in the pool, and
+                    // the block is bumping up against its current headroom, we'll grab
+                    // another one.
+                    if block.target() > block.total()
+                        && current_pool_size < max_pool_size
+                        && (block.max(MetricVariant::Active) + block.max(MetricVariant::Waiting))
+                            > (block.total() + i)
+                                .saturating_sub(MIN_REBALANCE_HEADROOM_TO_CREATE.get())
+                    {
                         changes.push(RebalanceOp::Create(name.clone()));
                         current_pool_size += 1;
                         made_changes = true;
                     } else if block.total() > block.target()
                         && block.count(MetricVariant::Idle) > i
-                        && (i > MAX_EXCESS_IDLE_CONNECTIONS || block.demand() == 0)
+                        && (i > MAX_REBALANCE_EXCESS_IDLE_CONNECTIONS.get() || block.demand() == 0)
                     {
                         // If we're holding on to too many connections, we'll
                         // release some of them. If there is still some demand
@@ -410,6 +579,7 @@ impl PoolConstraints {
         // waiters, we want to transfer from the most overloaded block.
         let mut overloaded = vec![];
         let mut hungriest = vec![];
+        let mut idle = vec![];
 
         let mut s1 = "".to_owned();
         let mut s2 = "".to_owned();
@@ -424,7 +594,11 @@ impl PoolConstraints {
                 if tracing::enabled!(tracing::Level::TRACE) {
                     s2 += &format!("{name}={value} ");
                 }
-                overloaded.push((value, name.clone()))
+                if block.demand() == 0 {
+                    idle.push(name.clone());
+                } else {
+                    overloaded.push((value, name.clone()))
+                }
             }
         });
 
@@ -437,21 +611,24 @@ impl PoolConstraints {
 
         let mut tasks = vec![];
 
-        // TODO: rebalance more than one?
-        loop {
+        for _ in 0..MAX_REBALANCE_OPS.get() {
             let Some((_, to)) = hungriest.pop() else {
                 // TODO: close more than one?
-                if let Some((_, from)) = overloaded.pop() {
-                    tasks.push(RebalanceOp::Close(from.clone()));
+                if let Some(idle) = idle.pop() {
+                    tasks.push(RebalanceOp::Close(idle.clone()));
                 }
                 break;
             };
 
-            let Some((_, from)) = overloaded.pop() else {
+            // Prefer rebalancing from idle connections, otherwise take from
+            // overloaded ones.
+            if let Some(from) = idle.pop() {
+                tasks.push(RebalanceOp::Transfer { to, from });
+            } else if let Some((_, from)) = overloaded.pop() {
+                tasks.push(RebalanceOp::Transfer { to, from });
+            } else {
                 break;
-            };
-
-            tasks.push(RebalanceOp::Transfer { to, from });
+            }
         }
 
         tasks
@@ -461,7 +638,7 @@ impl PoolConstraints {
     pub fn plan_acquire(&self, db: &str, it: &impl VisitPoolAlgoData) -> AcquireOp {
         // If the block is new, we need to perform an initial adjustment to
         // ensure this block gets some capacity.
-        if it.ensure_block(db, DEMAND_MINIMUM) {
+        if it.ensure_block(db, DEMAND_MINIMUM.get() * DEMAND_HISTORY_LENGTH) {
             self.recalculate_shares(it);
         }
 
@@ -479,11 +656,10 @@ impl PoolConstraints {
         let block_has_room = current_block_size < target_block_size || target_block_size == 0;
         trace!("Acquiring {db}: {current_pool_size}/{max_pool_size} {current_block_size}/{target_block_size}");
         if pool_is_full && block_has_room {
-            let mut max = 0;
+            let mut max = isize::MIN;
             let mut which = None;
             it.with_all(|name, block| {
                 if let Some(overfullness) = block.overfull_score(false) {
-                    let overfullness: usize = overfullness.into();
                     if overfullness > max {
                         which = Some(name.clone());
                         max = overfullness;
@@ -525,22 +701,21 @@ impl PoolConstraints {
         // We only want to consider a release elsewhere if this block is overfull
         if let Some(Some(overfull)) = it.with(db, |block| block.overfull_score(true)) {
             trace!("Block {db} is overfull ({overfull}), trying to release");
-            let mut max = 0;
+            let mut max = isize::MIN;
             let mut which = None;
             let mut s = "".to_owned();
             it.with_all(|name, block| {
                 let is_self = &**name == db;
-                if let Some(hunger) = block.hunger_score(is_self) {
-                    let mut hunger: usize = hunger.into();
+                if let Some(mut hunger) = block.hunger_score(is_self) {
                     // Penalize switching by boosting the current database's relative hunger here
                     if is_self {
-                        hunger += SELF_HUNGER_BOOST_FOR_RELEASE;
+                        hunger += SELF_HUNGER_BOOST_FOR_RELEASE.get() as isize;
                     }
 
                     if tracing::enabled!(tracing::Level::TRACE) {
                         s += &format!("{name}={hunger} ");
                     }
-                    // If this current block has equal hunger to the hungriest, it takes priority
+
                     if hunger > max {
                         which = if is_self { None } else { Some(name.clone()) };
                         max = hunger;
