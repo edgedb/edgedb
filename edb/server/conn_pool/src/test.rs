@@ -36,20 +36,13 @@ impl BasicConnector {
     }
 }
 
-/// Perform a virtual async sleep that advances all of the virtual clocks (`mock_instant` and `tokio`).
-pub async fn virtual_sleep(duration: Duration) {
-    // Perform the mock sleep, assumes that the tokio time is paused which will
-    // auto-advance the paused clock.
-    tokio::time::sleep(duration).await;
-}
-
 impl Connector for BasicConnector {
     type Conn = ();
     fn connect(&self, _db: &str) -> impl Future<Output = ConnResult<Self::Conn>> + 'static {
         let delay = self.delay.clone();
         async move {
             if let Some(f) = delay {
-                virtual_sleep(f(false)).await;
+                tokio::time::sleep(f(false)).await;
             }
             Ok(())
         }
@@ -62,8 +55,8 @@ impl Connector for BasicConnector {
         let delay = self.delay.clone();
         async move {
             if let Some(f) = delay {
-                virtual_sleep(f(true)).await;
-                virtual_sleep(f(false)).await;
+                tokio::time::sleep(f(true)).await;
+                tokio::time::sleep(f(false)).await;
             }
             Ok(conn)
         }
@@ -72,7 +65,7 @@ impl Connector for BasicConnector {
         let delay = self.delay.clone();
         async move {
             if let Some(f) = delay {
-                virtual_sleep(f(true)).await;
+                tokio::time::sleep(f(true)).await;
             }
             Ok(())
         }

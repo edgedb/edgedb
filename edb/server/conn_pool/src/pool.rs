@@ -537,7 +537,7 @@ mod tests {
             let local = async move {
                 let now = Instant::now();
                 let count = ((db_spec.end_at - db_spec.start_at) * (db_spec.qps as f64)) as usize;
-                virtual_sleep(Duration::from_secs_f64(db_spec.start_at)).await;
+                tokio::time::sleep(Duration::from_secs_f64(db_spec.start_at)).await;
                 info!(
                     "+[{i:-2}] Starting db {db} at {}qps (approx {}q·s/s from {}..{})...",
                     db_spec.qps,
@@ -555,12 +555,12 @@ mod tests {
                     let duration = db_spec.query_cost.random_duration();
                     let db = db.clone();
                     local.spawn_local(async move {
-                        virtual_sleep(Duration::from_secs_f64(i as f64 * interval)).await;
+                        tokio::time::sleep(Duration::from_secs_f64(i as f64 * interval)).await;
                         let now = Instant::now();
                         let conn = pool.acquire(&db).await?;
                         let latency = now.elapsed();
                         latencies.mark(&db, latency.as_secs_f64());
-                        virtual_sleep(duration).await;
+                        tokio::time::sleep(duration).await;
                         drop(conn);
                         Ok(())
                     });
@@ -595,13 +595,13 @@ mod tests {
                         );
                         orig = s;
                     }
-                    virtual_sleep(Duration::from_millis(10)).await;
+                    tokio::time::sleep(Duration::from_millis(10)).await;
                 }
             })
         };
 
         info!("Starting...");
-        virtual_sleep(Duration::from_secs_f64(spec.duration)).await;
+        tokio::time::sleep(Duration::from_secs_f64(spec.duration)).await;
 
         for task in tasks {
             _ = task.await;
