@@ -130,17 +130,21 @@ def _pull_columns_from_table(
     return res
 
 
-def compile_dml(stmt: pgast.Base, *, ctx: Context) -> None:
+def compile_dml(
+    stmt: pgast.Base, *, ctx: Context
+) -> List[pgast.CommonTableExpr]:
     # extract all dml stmts
     dml_stmts_sql = _collect_dml_stmts(stmt)
     if len(dml_stmts_sql) == 0:
-        return
+        return []
 
     # preprocess each SQL dml stmt into EdgeQL
     stmts = [_preprocess_insert_stmt(s, ctx=ctx) for s in dml_stmts_sql]
 
     # merge EdgeQL stmts & compile to SQL
-    ctx.compiled_dml = _compile_preprocessed_dml(stmts, ctx=ctx)
+    ctx.compiled_dml, ctes = _compile_preprocessed_dml(stmts, ctx=ctx)
+
+    return ctes
 
 
 def _collect_dml_stmts(stmt: pgast.Base) -> List[pgast.InsertStmt]:
@@ -400,7 +404,10 @@ def _preprocess_insert_value(
 
 def _compile_preprocessed_dml(
     stmts: List[PreprocessedDML], ctx: context.ResolverContextLevel
-) -> Mapping[pgast.Query, context.CompiledDML]:
+) -> Tuple[
+    Mapping[pgast.Query, context.CompiledDML],
+    List[pgast.CommonTableExpr],
+]:
     """
     Compiles *all* DML statements in the query.
 
@@ -514,7 +521,11 @@ def _compile_preprocessed_dml(
             output_relation_name=stmt_ctes[-1].name,
             output_namespace=output_namespace,
         )
-    return result
+
+    # return remaining CTEs to be included at the end of the top-level query
+    # (they probably to triggers)
+
+    return result, ctes
 
 
 def _merge_and_prepare_external_rels(

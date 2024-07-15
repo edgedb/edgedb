@@ -186,7 +186,7 @@ class ResolverContextLevel(compiler.ContextLevel):
     subquery_depth: int
 
     # List of CTEs to add the top-level statement.
-    # This is currently only used by DML compilation to ensure that all DML is
+    # This is used, for example, by DML compilation to ensure that all DML is
     # in the top-level WITH binding.
     ctes_buffer: List[pgast.CommonTableExpr]
 

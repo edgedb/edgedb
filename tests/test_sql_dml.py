@@ -56,6 +56,21 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             create property can_edit: bool;
           };
         };
+
+        create type Log {
+          create property line: str;
+        };
+
+        create type Hello {
+          create property world: str;
+
+          create trigger log_insert_each after insert for each do (
+            insert Log { line := 'inserted each ' ++ __new__.world }
+          );
+          create trigger log_insert_all after insert for all do (
+            insert Log { line := 'inserted all' }
+          );
+        };
     """
     ]
 
@@ -338,3 +353,27 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 INSERT INTO "Document" (title) VALUES ('Report'), (DEFAULT);
                 '''
             )
+
+    async def test_sql_dml_insert_17(self):
+        res = await self.scon.fetch(
+            '''
+            WITH
+                a as (INSERT INTO "Hello" (world) VALUES ('a')),
+                b as (INSERT INTO "Hello" (world) VALUES ('b_0'), ('b_1'))
+            SELECT line FROM "Log" ORDER BY line;
+            '''
+        )
+        # changes to the database are not visible in the same query
+        self.assert_shape(res, 0, 0)
+
+        # so we need to re-select
+        res = await self.squery_values('SELECT line FROM "Log" ORDER BY line;')
+        self.assertEqual(
+            res,
+            [
+                ["inserted all"],
+                ["inserted each a"],
+                ["inserted each b_0"],
+                ["inserted each b_1"],
+            ],
+        )
