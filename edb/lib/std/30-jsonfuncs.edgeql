@@ -566,7 +566,7 @@ CREATE CAST FROM std::decimal TO std::json {
 CREATE CAST FROM std::json TO std::bool  {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'boolean', detail => detail)::bool;
+    SELECT edgedb_VER.jsonb_extract_scalar(val, 'boolean', detail => detail)::bool;
     $$;
 };
 
@@ -574,7 +574,7 @@ CREATE CAST FROM std::json TO std::bool  {
 CREATE CAST FROM std::json TO std::uuid {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'string', detail => detail)::uuid;
+    SELECT edgedb_VER.jsonb_extract_scalar(val, 'string', detail => detail)::uuid;
     $$;
 };
 

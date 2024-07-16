@@ -321,7 +321,7 @@ def generate_structure(
                 SELECT
                     coalesce(jsonb_object_agg(cfg.name, cfg), '{}'::jsonb)
                 FROM
-                    edgedb._read_sys_config(
+                    edgedb_VER._read_sys_config(
                         sources::edgedb._sys_config_source_t[],
                         max_source::edgedb._sys_config_source_t
                     ) AS cfg
