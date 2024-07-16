@@ -22,7 +22,7 @@ def get_inheritance_view(
     ] = frozenset(),
     exclude_ptrs: AbstractSet[s_pointers.Pointer] = frozenset(),
 ) -> pgast.SelectStmt:
-    ptrs: Dict[sn.UnqualName, Tuple[str, Tuple[str, ...]]] = {}
+    ptrs: Dict[sn.UnqualName, Tuple[list[str], Tuple[str, ...]]] = {}
 
     if isinstance(obj, s_sources.Source):
         pointers = list(obj.get_pointers(schema).items(schema))
@@ -44,22 +44,26 @@ def get_inheritance_view(
                 or ptr_stor_info.table_type == 'ObjectType'
             ):
                 ptrs[ptrname] = (
-                    ptr_stor_info.column_name,
+                    [ptr_stor_info.column_name],
                     ptr_stor_info.column_type,
                 )
 
+                shortname = ptr.get_shortname(schema).name
+                if shortname != ptr_stor_info.column_name:
+                    ptrs[ptrname][0].append(common.quote_ident(shortname))
+
         for name, alias, type in obj.get_addon_columns(schema):
-            ptrs[sn.UnqualName(name)] = (alias, type)
+            ptrs[sn.UnqualName(name)] = ([alias], type)
 
     else:
         # MULTI PROPERTY
-        ptrs[sn.UnqualName('source')] = ('source', ('uuid',))
+        ptrs[sn.UnqualName('source')] = (['source'], ('uuid',))
         lp_info = types.get_pointer_storage_info(
             obj,
             link_bias=True,
             schema=schema,
         )
-        ptrs[sn.UnqualName('target')] = ('target', lp_info.column_type)
+        ptrs[sn.UnqualName('target')] = (['target'], lp_info.column_type)
 
     descendants = [
         child
@@ -85,7 +89,7 @@ def get_inheritance_view(
         and sn.UnqualName('source') not in ptrs
         and obj.is_non_concrete(schema)
     ):
-        ptrs[sn.UnqualName('source')] = ('source', ('uuid',))
+        ptrs[sn.UnqualName('source')] = (['source'], ('uuid',))
 
     components = []
     components.append(_get_select_from(schema, obj, ptrs))
@@ -111,7 +115,7 @@ def _union_all(components: Iterator[pgast.SelectStmt]) -> pgast.SelectStmt:
 def _get_select_from(
     schema: s_schema.Schema,
     obj: s_sources.Source | s_pointers.Pointer,
-    ptr_names: Dict[sn.UnqualName, Tuple[str, Tuple[str, ...]]],
+    ptr_names: Dict[sn.UnqualName, Tuple[list[str], Tuple[str, ...]]],
 ) -> Optional[pgast.SelectStmt]:
     schema_name, table_name = common.get_backend_name(
         schema,
@@ -136,7 +140,7 @@ def _get_select_from(
     if isinstance(obj, s_sources.Source):
         ptrs = dict(obj.get_pointers(schema).items(schema))
 
-        for ptr_name, (alias, pg_type) in ptr_names.items():
+        for ptr_name, (aliases, pg_type) in ptr_names.items():
             ptr = ptrs.get(ptr_name)
 
             if ptr_name == sn.UnqualName('__type__'):
@@ -176,16 +180,20 @@ def _get_select_from(
             else:
                 return None
 
-            target_list.append(pgast.ResTarget(name=alias, val=val))
+            for alias in aliases:
+                target_list.append(pgast.ResTarget(name=alias, val=val))
 
     else:
-        for ptr_name, (alias, _) in ptr_names.items():
-            target_list.append(
-                pgast.ResTarget(
-                    name=alias,
-                    val=pgast.ColumnRef(name=(table_rvar_name, str(ptr_name))),
+        for ptr_name, (aliases, _) in ptr_names.items():
+            for alias in aliases:
+                target_list.append(
+                    pgast.ResTarget(
+                        name=alias,
+                        val=pgast.ColumnRef(
+                            name=(table_rvar_name, str(ptr_name)),
+                        ),
+                    )
                 )
-            )
 
     return pgast.SelectStmt(
         from_clause=[

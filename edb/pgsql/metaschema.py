@@ -67,13 +67,14 @@ from edb.server import pgcon  # HM.
 
 from .resolver import sql_introspection
 
+from . import codegen
 from . import common
 from . import compiler
 from . import dbops
-from . import types
+from . import inheritance
 from . import params
-from . import codegen
 from . import trampoline
+from . import types
 
 q = common.qname
 qi = common.quote_ident
@@ -5564,52 +5565,22 @@ def _generate_schema_alias_views(
 
 def _generate_schema_alias_view(
     schema: s_schema.Schema,
-    obj: s_sources.Source,
+    obj: s_sources.Source | s_pointers.Pointer,
 ) -> dbops.View:
 
-    bn = common.get_backend_name(
-        schema,
-        obj,
-        aspect='inhview',
-        catenate=False,
-        versioned=True,
-    )
-
-    targets = []
-
-    if isinstance(obj, s_links.Link):
-        expected_tt = "link"
-    else:
-        expected_tt = "ObjectType"
-
-    for ptr in obj.get_pointers(schema).objects(schema):
-        if ptr.is_pure_computable(schema):
-            continue
-        psi = types.get_pointer_storage_info(ptr, schema=schema)
-        if psi.table_type == expected_tt:
-            ptr_name = ptr.get_shortname(schema).name
-            col_name = psi.column_name
-            if col_name == '__type__':
-                val = f'{ql(str(obj.id))}::uuid'
-            else:
-                val = f'{qi(col_name)}'
-
-            if col_name != ptr_name:
-                targets.append(f'{val} AS {qi(ptr_name)}')
-            targets.append(f'{val} AS {qi(col_name)}')
-
     name = _schema_alias_view_name(schema, obj)
+    select = inheritance.get_inheritance_view(schema, obj)
 
     return trampoline.VersionedView(
         name=name,
-        query=(f'SELECT {", ".join(targets)} FROM {q(*bn)}')
+        query=codegen.generate_source(select),
     )
 
 
 def _schema_alias_view_name(
     schema: s_schema.Schema,
-    obj: s_sources.Source,
-):
+    obj: s_sources.Source | s_pointers.Pointer,
+) -> tuple[str, str]:
     module = obj.get_name(schema).module
     prefix = module.capitalize()
 
