@@ -222,7 +222,13 @@ class TestProtocol(ProtocolTestCase):
 
     async def test_proto_state(self):
         await self.con.connect()
+        try:
+            await self._test_proto_state()
+        finally:
+            await self.con.execute('DROP GLOBAL state_desc_1')
+            await self.con.execute('DROP GLOBAL state_desc_2')
 
+    async def _test_proto_state(self):
         # Create initial state schema
         await self._execute('CREATE GLOBAL state_desc_1 -> int32')
         sdd1 = await self.con.recv_match(protocol.StateDataDescription)
@@ -359,6 +365,7 @@ class TestProtocol(ProtocolTestCase):
             protocol.ReadyForCommand,
             transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
         )
+        await self.con.execute('DROP GLOBAL state_desc_in_script')
 
     async def test_proto_desc_id_cardinality(self):
         await self.con.connect()
@@ -371,6 +378,13 @@ class TestProtocol(ProtocolTestCase):
             status='CREATE TYPE'
         )
         await self.con.recv_match(protocol.ReadyForCommand)
+
+        try:
+            await self._test_proto_desc_id_cardinality()
+        finally:
+            await self.con.execute('DROP TYPE CardTest')
+
+    async def _test_proto_desc_id_cardinality(self):
 
         await self._execute('SELECT CardTest { prop }', data=True)
         cdd1 = await self.con.recv_match(protocol.CommandDataDescription)
@@ -442,17 +456,20 @@ class TestProtocol(ProtocolTestCase):
         )
         await self.con.recv_match(protocol.ReadyForCommand)
 
-        await self._parse("SELECT ParseCardTest")
-        await self.con.recv_match(
-            protocol.CommandDataDescription,
-            result_cardinality=compiler.Cardinality.MANY,
-        )
+        try:
+            await self._parse("SELECT ParseCardTest")
+            await self.con.recv_match(
+                protocol.CommandDataDescription,
+                result_cardinality=compiler.Cardinality.MANY,
+            )
 
-        await self._parse("SELECT ParseCardTest LIMIT 1")
-        await self.con.recv_match(
-            protocol.CommandDataDescription,
-            result_cardinality=compiler.Cardinality.AT_MOST_ONE,
-        )
+            await self._parse("SELECT ParseCardTest LIMIT 1")
+            await self.con.recv_match(
+                protocol.CommandDataDescription,
+                result_cardinality=compiler.Cardinality.AT_MOST_ONE,
+            )
+        finally:
+            await self.con.execute("DROP TYPE ParseCardTest")
 
     async def test_proto_state_concurrent_alter(self):
         con2 = await protocol.protocol.new_connection(
@@ -509,6 +526,7 @@ class TestProtocol(ProtocolTestCase):
 
         finally:
             await con2.aclose()
+            await self.con.execute("DROP GLOBAL state_desc_3")
 
     async def _parse_execute(self, query, args):
         output_format = protocol.OutputFormat.BINARY
@@ -693,6 +711,15 @@ class TestProtocol(ProtocolTestCase):
         )
         await self.con.recv_match(protocol.ReadyForCommand)
 
+        try:
+            await self._test_proto_state_change_in_tx()
+        finally:
+            await self.con.execute('ROLLBACK')
+            await self.con.execute(
+                'DROP TYPE TestStateChangeInTx::StateChangeInTx')
+            await self.con.execute('DROP MODULE TestStateChangeInTx')
+
+    async def _test_proto_state_change_in_tx(self):
         # Collect states
         await self._execute('''
             SET MODULE TestStateChangeInTx
