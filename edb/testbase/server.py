@@ -176,11 +176,15 @@ class TestCaseMeta(type(unittest.TestCase)):
             yield methname, meth
 
     @classmethod
-    def wrap(mcls, meth):
+    def wrap(mcls, meth, is_repeat=False):
         @functools.wraps(meth)
         def wrapper(self, *args, __meth__=meth, **kwargs):
             try_no = 1
 
+            if is_repeat and not getattr(self, 'TRANSACTION_ISOLATION', False):
+                raise unittest.SkipTest()
+
+            self.is_repeat = is_repeat
             while True:
                 try:
                     # There might be unobvious serializability
@@ -216,6 +220,16 @@ class TestCaseMeta(type(unittest.TestCase)):
     def add_method(mcls, methname, ns, meth):
         ns[methname] = mcls.wrap(meth)
 
+        # If EDGEDB_TEST_REPEATS is set, duplicate all the tests.
+        # This is valuable because it should exercise the function
+        # cache.
+        if (
+            os.environ.get('EDGEDB_TEST_REPEATS', None)
+            and methname.startswith('test_')
+        ):
+            new = methname.replace('test_', 'test_zREPEAT_', 1)
+            ns[new] = mcls.wrap(meth, is_repeat=True)
+
     def __new__(mcls, name, bases, ns):
         for methname, meth in mcls._iter_methods(bases, ns.copy()):
             if methname in ns:
@@ -236,6 +250,7 @@ class TestCaseMeta(type(unittest.TestCase)):
 
 
 class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
+    is_repeat: bool = False
 
     @classmethod
     def setUpClass(cls):
