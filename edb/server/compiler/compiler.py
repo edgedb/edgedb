@@ -1996,7 +1996,15 @@ def _build_cache_function(
     return_type: tuple[str, ...] = ("unknown",)
     match ctx.output_format:
         case enums.OutputFormat.NONE:
-            return_type = ("void",)
+            # CONFIGURE commands are never cached; other queries are actually
+            # wrapped with a count() call in top_output_as_value(), so set the
+            # return_type to reflect that fact. This was set to `void`, leading
+            # to issues that certain exceptions are not raised as expected when
+            # wrapped with a function returning (setof) void - reproducible
+            # with test_edgeql_casts_json_12() and EDGEDB_TEST_REPEATS=1.
+            return_type = ("int",)
+            if ir.stype.is_object_type() or ir.stype.is_tuple(ir.schema):
+                returns_record = True
 
         case enums.OutputFormat.BINARY:
             if ir.stype.is_object_type():
@@ -2006,6 +2014,8 @@ def _build_cache_function(
                 return_type = pg_types.pg_type_from_ir_typeref(
                     ir.expr.typeref.base_type or ir.expr.typeref
                 )
+                if ir.stype.is_tuple(ir.schema):
+                    returns_record = True
 
         case enums.OutputFormat.JSON:
             return_type = ("json",)
