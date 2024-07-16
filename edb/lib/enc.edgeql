@@ -69,7 +69,7 @@ std::enc::base64_encode(
                     '-_'
                 )
             ELSE
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::text,
                     'invalid_parameter_value',
                     msg => (
@@ -103,7 +103,7 @@ std::enc::base64_decode(
                 pg_catalog.decode("data", 'base64')
             WHEN "alphabet" = 'standard' AND NOT "padding" THEN
                 pg_catalog.decode(
-                    edgedb.pad_base64_string("data"),
+                    edgedb_VER.pad_base64_string("data"),
                     'base64'
                 )
             WHEN "alphabet" = 'urlsafe' AND "padding" THEN
@@ -113,13 +113,13 @@ std::enc::base64_decode(
                 )
             WHEN "alphabet" = 'urlsafe' AND NOT "padding" THEN
                 pg_catalog.decode(
-                    edgedb.pad_base64_string(
+                    edgedb_VER.pad_base64_string(
                         pg_catalog.translate("data", '-_', '+/')
                     ),
                     'base64'
                 )
             ELSE
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::bytea,
                     'invalid_parameter_value',
                     msg => (

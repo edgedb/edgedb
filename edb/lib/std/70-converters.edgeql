@@ -42,13 +42,13 @@ std::to_str(dt: std::datetime, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             trim(to_json("dt")::text, '"')
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::text,
                 'invalid_parameter_value',
                 msg => 'to_str(): "fmt" argument must be a non-empty string'
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_char("dt", "fmt"),
                 'invalid_parameter_value',
                 msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
@@ -70,13 +70,13 @@ std::to_str(td: std::duration, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             trim(to_json("td")::text, '"')
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::text,
                 'invalid_parameter_value',
                 msg => 'to_str(): "fmt" argument must be a non-empty string'
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_char("td", "fmt"),
                 'invalid_parameter_value',
                 msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
@@ -103,13 +103,13 @@ std::to_str(i: std::int64, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             "i"::text
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::text,
                 'invalid_parameter_value',
                 msg => 'to_str(): "fmt" argument must be a non-empty string'
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_char("i", "fmt"),
                 'invalid_parameter_value',
                 msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
@@ -131,13 +131,13 @@ std::to_str(f: std::float64, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             "f"::text
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::text,
                 'invalid_parameter_value',
                 msg => 'to_str(): "fmt" argument must be a non-empty string'
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_char("f", "fmt"),
                 'invalid_parameter_value',
                 msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
@@ -159,13 +159,13 @@ std::to_str(d: std::bigint, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             "d"::text
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::text,
                 'invalid_parameter_value',
                 msg => 'to_str(): "fmt" argument must be a non-empty string'
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_char("d", "fmt"),
                 'invalid_parameter_value',
                 'to_str(): format ''' || "fmt" || ''' is invalid'
@@ -187,13 +187,13 @@ std::to_str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             "d"::text
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::text,
                 'invalid_parameter_value',
                 msg => 'to_str(): "fmt" argument must be a non-empty string'
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_char("d", "fmt"),
                 'invalid_parameter_value',
                 msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
@@ -235,13 +235,13 @@ std::to_str(json: std::json, fmt: OPTIONAL str={}) -> std::str
         WHEN "fmt" = 'pretty' THEN
             jsonb_pretty("json")
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::text,
                 'invalid_parameter_value',
                 msg => 'to_str(): "fmt" argument must be a non-empty string'
             )
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::text,
                 'invalid_parameter_value',
                 msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
@@ -379,9 +379,9 @@ std::to_datetime(s: std::str, fmt: OPTIONAL str={}) -> std::datetime
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            edgedb.datetime_in("s")
+            edgedb_VER.datetime_in("s")
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::edgedbt.timestamptz_t,
                 'invalid_parameter_value',
                 msg => (
@@ -389,8 +389,8 @@ std::to_datetime(s: std::str, fmt: OPTIONAL str={}) -> std::datetime
                 )
             )
         ELSE
-            edgedb.raise_on_null(
-                edgedb.to_datetime("s", "fmt"),
+            edgedb_VER.raise_on_null(
+                edgedb_VER.to_datetime("s", "fmt"),
                 'invalid_parameter_value',
                 msg => 'to_datetime(): format ''' || "fmt" || ''' is invalid'
             )
@@ -485,9 +485,9 @@ std::to_bigint(s: std::str, fmt: OPTIONAL str={}) -> std::bigint
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            edgedb.str_to_bigint("s")
+            edgedb_VER.str_to_bigint("s")
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::edgedbt.bigint_t,
                 'invalid_parameter_value',
                 msg => (
@@ -495,7 +495,7 @@ std::to_bigint(s: std::str, fmt: OPTIONAL str={}) -> std::bigint
                 )
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_number("s", "fmt")::edgedbt.bigint_t,
                 'invalid_parameter_value',
                 msg => 'to_bigint(): format ''' || "fmt" || ''' is invalid'
@@ -514,9 +514,9 @@ std::to_decimal(s: std::str, fmt: OPTIONAL str={}) -> std::decimal
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            edgedb.str_to_decimal("s")
+            edgedb_VER.str_to_decimal("s")
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::numeric,
                 'invalid_parameter_value',
                 msg => (
@@ -524,7 +524,7 @@ std::to_decimal(s: std::str, fmt: OPTIONAL str={}) -> std::decimal
                 )
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_number("s", "fmt")::numeric,
                 'invalid_parameter_value',
                 msg => 'to_decimal(): format ''' || "fmt" || ''' is invalid'
@@ -545,15 +545,15 @@ std::to_int64(s: std::str, fmt: OPTIONAL str={}) -> std::int64
         CASE WHEN "fmt" IS NULL THEN
             -- Must use the noninline version to prevent
             -- the overeager function inliner from crashing
-            edgedb.str_to_int64_noinline("s")
+            edgedb_VER.str_to_int64_noinline("s")
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::bigint,
                 'invalid_parameter_value',
                 msg => 'to_int64(): "fmt" argument must be a non-empty string'
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_number("s", "fmt")::bigint,
                 'invalid_parameter_value',
                 msg => 'to_int64(): format ''' || "fmt" || ''' is invalid'
@@ -593,7 +593,7 @@ std::to_int64(val: std::bytes, endian: std::Endian) -> std::int64
                 )
             )::bit(64)::int8
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 0::int8,
                 'invalid_parameter_value',
                 msg => (
@@ -615,15 +615,15 @@ std::to_int32(s: std::str, fmt: OPTIONAL str={}) -> std::int32
         CASE WHEN "fmt" IS NULL THEN
             -- Must use the noninline version to prevent
             -- the overeager function inliner from crashing
-            edgedb.str_to_int32_noinline("s")
+            edgedb_VER.str_to_int32_noinline("s")
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::int,
                 'invalid_parameter_value',
                 msg => 'to_int32(): "fmt" argument must be a non-empty string'
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_number("s", "fmt")::int,
                 'invalid_parameter_value',
                 msg => 'to_int32(): format ''' || "fmt" || ''' is invalid'
@@ -659,7 +659,7 @@ std::to_int32(val: std::bytes, endian: std::Endian) -> std::int32
                 )
             )::bit(32)::int4
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 0::int4,
                 'invalid_parameter_value',
                 msg => (
@@ -681,15 +681,15 @@ std::to_int16(s: std::str, fmt: OPTIONAL str={}) -> std::int16
         CASE WHEN "fmt" IS NULL THEN
             -- Must use the noninline version to prevent
             -- the overeager function inliner from crashing
-            edgedb.str_to_int16_noinline("s")
+            edgedb_VER.str_to_int16_noinline("s")
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::smallint,
                 'invalid_parameter_value',
                 msg => 'to_int16(): "fmt" argument must be a non-empty string'
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_number("s", "fmt")::smallint,
                 'invalid_parameter_value',
                 msg => 'to_int16(): format ''' || "fmt" || ''' is invalid'
@@ -735,7 +735,7 @@ std::to_int16(val: std::bytes, endian: std::Endian) -> std::int16
                 )>>16
             )::int2
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 0::int2,
                 'invalid_parameter_value',
                 msg => (
@@ -755,9 +755,9 @@ std::to_float64(s: std::str, fmt: OPTIONAL str={}) -> std::float64
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            edgedb.str_to_float64_noinline("s")
+            edgedb_VER.str_to_float64_noinline("s")
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::float8,
                 'invalid_parameter_value',
                 msg => (
@@ -765,7 +765,7 @@ std::to_float64(s: std::str, fmt: OPTIONAL str={}) -> std::float64
                 )
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_number("s", "fmt")::float8,
                 'invalid_parameter_value',
                 msg => 'to_float64(): format ''' || "fmt" || ''' is invalid'
@@ -784,9 +784,9 @@ std::to_float32(s: std::str, fmt: OPTIONAL str={}) -> std::float32
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            edgedb.str_to_float32_noinline("s")
+            edgedb_VER.str_to_float32_noinline("s")
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::float4,
                 'invalid_parameter_value',
                 msg => (
@@ -794,7 +794,7 @@ std::to_float32(s: std::str, fmt: OPTIONAL str={}) -> std::float32
                 )
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_number("s", "fmt")::float4,
                 'invalid_parameter_value',
                 msg => 'to_float32(): format ''' || "fmt" || ''' is invalid'
@@ -816,7 +816,7 @@ std::to_uuid(val: std::bytes) -> std::uuid
         CASE WHEN (length(val) = 16) THEN
             ENCODE(val, 'hex')::uuid
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::uuid,
                 'invalid_parameter_value',
                 msg => (

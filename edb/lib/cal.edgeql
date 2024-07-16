@@ -45,9 +45,9 @@ cal::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            edgedb.local_datetime_in("s")
+            edgedb_VER.local_datetime_in("s")
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::edgedbt.timestamp_t,
                 'invalid_parameter_value',
                 msg => (
@@ -56,8 +56,8 @@ cal::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
                 )
             )
         ELSE
-            edgedb.raise_on_null(
-                edgedb.to_local_datetime("s", "fmt"),
+            edgedb_VER.raise_on_null(
+                edgedb_VER.to_local_datetime("s", "fmt"),
                 'invalid_parameter_value',
                 msg => (
                     'to_local_datetime(): '
@@ -109,9 +109,9 @@ cal::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> cal::local_date
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            edgedb.local_date_in("s")
+            edgedb_VER.local_date_in("s")
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::edgedbt.date_t,
                 'invalid_parameter_value',
                 msg => (
@@ -120,8 +120,8 @@ cal::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> cal::local_date
                 )
             )
         ELSE
-            edgedb.raise_on_null(
-                edgedb.to_local_datetime("s", "fmt")::edgedbt.date_t,
+            edgedb_VER.raise_on_null(
+                edgedb_VER.to_local_datetime("s", "fmt")::edgedbt.date_t,
                 'invalid_parameter_value',
                 msg => (
                     'to_local_date(): format ''' || "fmt" || ''' is invalid'
@@ -166,9 +166,9 @@ cal::to_local_time(s: std::str, fmt: OPTIONAL str={}) -> cal::local_time
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            edgedb.local_time_in("s")
+            edgedb_VER.local_time_in("s")
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::time,
                 'invalid_parameter_value',
                 msg => (
@@ -177,8 +177,8 @@ cal::to_local_time(s: std::str, fmt: OPTIONAL str={}) -> cal::local_time
                 )
             )
         ELSE
-            edgedb.raise_on_null(
-                edgedb.to_local_datetime("s", "fmt")::time,
+            edgedb_VER.raise_on_null(
+                edgedb_VER.to_local_datetime("s", "fmt")::time,
                 'invalid_parameter_value',
                 msg => (
                     'to_local_time(): '
@@ -215,7 +215,7 @@ cal::to_local_time(hour: std::int64, min: std::int64, sec: std::float64)
     SELECT
         CASE WHEN date_part('hour', x.t) = 24
         THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::time,
                 'invalid_datetime_format',
                 msg => (
@@ -296,7 +296,7 @@ cal::time_get(dt: cal::local_time, el: std::str) -> std::float64
         WHEN "el" = 'midnightseconds'
         THEN date_part('epoch', "dt")
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::float,
                 'invalid_datetime_format',
                 msg => (
@@ -325,7 +325,7 @@ cal::date_get(dt: cal::local_date, el: std::str) -> std::float64
             'month', 'quarter', 'week', 'year')
         THEN date_part("el", "dt")
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::float,
                 'invalid_datetime_format',
                 msg => (
@@ -1343,8 +1343,8 @@ CREATE CAST FROM cal::date_duration TO std::json {
 CREATE CAST FROM std::json TO cal::local_datetime {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.local_datetime_in(
-        edgedb.jsonb_extract_scalar(val, 'string', detail => detail)
+    SELECT edgedb_VER.local_datetime_in(
+        edgedb_VER.jsonb_extract_scalar(val, 'string', detail => detail)
     );
     $$;
 };
@@ -1353,8 +1353,8 @@ CREATE CAST FROM std::json TO cal::local_datetime {
 CREATE CAST FROM std::json TO cal::local_date {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.local_date_in(
-        edgedb.jsonb_extract_scalar(val, 'string', detail => detail)
+    SELECT edgedb_VER.local_date_in(
+        edgedb_VER.jsonb_extract_scalar(val, 'string', detail => detail)
     );
     $$;
 };
@@ -1363,8 +1363,8 @@ CREATE CAST FROM std::json TO cal::local_date {
 CREATE CAST FROM std::json TO cal::local_time {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.local_time_in(
-        edgedb.jsonb_extract_scalar(val, 'string', detail => detail)
+    SELECT edgedb_VER.local_time_in(
+        edgedb_VER.jsonb_extract_scalar(val, 'string', detail => detail)
     );
     $$;
 };
@@ -1373,7 +1373,7 @@ CREATE CAST FROM std::json TO cal::local_time {
 CREATE CAST FROM std::json TO cal::relative_duration {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.jsonb_extract_scalar(
+    SELECT edgedb_VER.jsonb_extract_scalar(
         val, 'string', detail => detail
     )::interval::edgedbt.relative_duration_t;
     $$;
@@ -1383,8 +1383,8 @@ CREATE CAST FROM std::json TO cal::relative_duration {
 CREATE CAST FROM std::json TO cal::date_duration {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT edgedb.date_duration_in(
-        edgedb.jsonb_extract_scalar(val, 'string', detail => detail)
+    SELECT edgedb_VER.date_duration_in(
+        edgedb_VER.jsonb_extract_scalar(val, 'string', detail => detail)
     );
     $$;
 };
@@ -1439,7 +1439,7 @@ std::datetime_get(dt: cal::local_datetime, el: std::str) -> std::float64
         WHEN "el" = 'epochseconds'
         THEN date_part('epoch', "dt")
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::float,
                 'invalid_datetime_format',
                 msg => (
@@ -1472,7 +1472,7 @@ std::duration_get(dt: cal::date_duration, el: std::str) -> std::float64
         WHEN "el" = 'totalseconds'
         THEN date_part('epoch', "dt")
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::float,
                 'invalid_datetime_format',
                 msg => (
@@ -1505,7 +1505,7 @@ std::duration_get(dt: cal::relative_duration, el: std::str) -> std::float64
         WHEN "el" = 'totalseconds'
         THEN date_part('epoch', "dt")
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::float,
                 'invalid_datetime_format',
                 msg => (
@@ -1540,7 +1540,7 @@ std::duration_truncate(
         WHEN "unit" = 'quarters'
         THEN date_trunc('quarter', "dt")::edgedbt.relative_duration_t
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::edgedbt.relative_duration_t,
                 'invalid_datetime_format',
                 msg => (
@@ -1575,7 +1575,7 @@ std::duration_truncate(
         WHEN "unit" = 'quarters'
         THEN date_trunc('quarter', "dt")::edgedbt.relative_duration_t
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::edgedbt.relative_duration_t,
                 'invalid_datetime_format',
                 msg => (
@@ -1604,13 +1604,13 @@ std::to_str(dt: cal::local_datetime, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             trim(to_json("dt")::text, '"')
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::text,
                 'invalid_parameter_value',
                 msg => 'to_str(): "fmt" argument must be a non-empty string'
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_char("dt", "fmt"),
                 'invalid_parameter_value',
                 msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
@@ -1632,13 +1632,13 @@ std::to_str(d: cal::local_date, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             "d"::text
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::text,
                 'invalid_parameter_value',
                 msg => 'to_str(): "fmt" argument must be a non-empty string'
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_char("d", "fmt"),
                 'invalid_parameter_value',
                 msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
@@ -1666,13 +1666,13 @@ std::to_str(nt: cal::local_time, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             "nt"::text
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::text,
                 'invalid_parameter_value',
                 msg => 'to_str(): "fmt" argument must be a non-empty string'
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_char(date_trunc('day', localtimestamp) + "nt", "fmt"),
                 'invalid_parameter_value',
                 msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
@@ -1694,13 +1694,13 @@ std::to_str(rd: cal::relative_duration, fmt: OPTIONAL str={}) -> std::str
         CASE WHEN "fmt" IS NULL THEN
             "rd"::text
         WHEN "fmt" = '' THEN
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::text,
                 'invalid_parameter_value',
                 msg => 'to_str(): "fmt" argument must be a non-empty string'
             )
         ELSE
-            edgedb.raise_on_null(
+            edgedb_VER.raise_on_null(
                 to_char("rd", "fmt"),
                 'invalid_parameter_value',
                 msg => 'to_str(): format ''' || "fmt" || ''' is invalid'
@@ -2000,7 +2000,7 @@ std::range_unpack(
         FROM
             generate_series(
                 (
-                    edgedb.range_lower_validate(val) + (
+                    edgedb_VER.range_lower_validate(val) + (
                         CASE WHEN lower_inc(val)
                             THEN '0'::interval
                             ELSE step
@@ -2008,7 +2008,7 @@ std::range_unpack(
                     )
                 )::timestamptz,
                 (
-                    edgedb.range_upper_validate(val)
+                    edgedb_VER.range_upper_validate(val)
                 )::timestamptz,
                 step::interval
             ) AS d
@@ -2028,7 +2028,7 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    edgedb.range_lower_validate(val) + (
+                    edgedb_VER.range_lower_validate(val) + (
                         CASE WHEN lower_inc(val)
                             THEN '0'::interval
                             ELSE 'P1D'::interval
@@ -2036,7 +2036,7 @@ std::range_unpack(
                     )
                 )::timestamp,
                 (
-                    edgedb.range_upper_validate(val) - (
+                    edgedb_VER.range_upper_validate(val) - (
                         CASE WHEN upper_inc(val)
                             THEN '0'::interval
                             ELSE 'P1D'::interval
@@ -2060,7 +2060,7 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    edgedb.range_lower_validate(val) + (
+                    edgedb_VER.range_lower_validate(val) + (
                         CASE WHEN lower_inc(val)
                             THEN '0'::interval
                             ELSE 'P1D'::interval
@@ -2068,7 +2068,7 @@ std::range_unpack(
                     )
                 )::timestamp,
                 (
-                    edgedb.range_upper_validate(val) - (
+                    edgedb_VER.range_upper_validate(val) - (
                         CASE WHEN upper_inc(val)
                             THEN '0'::interval
                             ELSE 'P1D'::interval
