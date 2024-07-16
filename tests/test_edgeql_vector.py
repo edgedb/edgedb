@@ -861,3 +861,22 @@ class TestEdgeQLVector(tb.QueryTestCase):
             'select <int64>_current_setting("hnsw.ef_search")',
             [40],
         )
+
+
+class TestEdgeQLVectorExtension(tb.QueryTestCase):
+    BACKEND_SUPERUSER = True
+    TRANSACTION_ISOLATION = False
+
+    async def test_edgeql_vector_drop_extension_with_func_cache(self):
+        await self.con.execute("create extension pgvector")
+        try:
+            # Run many times to wait for the func cache creation
+            for _i in range(64):
+                await self.con.query(
+                    '''
+                        select <ext::pgvector::vector>[4.2];
+                    '''
+                )
+        finally:
+            # this should drop the cache function of the query above as well
+            await self.con.execute("drop extension pgvector")
