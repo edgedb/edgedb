@@ -467,17 +467,17 @@ class AlterGlobalSchemaVersion(
         if not backend_params.has_create_database:
             key = f'{edbdef.EDGEDB_TEMPLATE_DB}metadata'
             lock = dbops.Query(
-                f'''
+                trampoline.fixup_query(f'''
                 SELECT
                     json
                 FROM
-                    edgedbinstdata.instdata
+                    edgedbinstdata_VER.instdata
                 WHERE
                     key = {ql(key)}
                 FOR UPDATE
                 INTO _dummy_text
             '''
-            )
+            ))
         elif backend_params.has_superuser_access:
             # Only superusers are generally allowed to make an UPDATE
             # lock on shared catalogs.
@@ -3958,14 +3958,14 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand, CompositeMetaCommand):
             validate=False,
         )
         spec_json = config.spec_to_json(new_local_spec)
-        self.pgops.add(dbops.Query(textwrap.dedent(f'''\
+        self.pgops.add(dbops.Query(textwrap.dedent(trampoline.fixup_query(f'''\
             UPDATE
-                edgedbinstdata.instdata
+                edgedbinstdata_VER.instdata
             SET
                 json = {ql(spec_json)}
             WHERE
                 key = 'configspec_ext';
-        ''')))
+        '''))))
 
         for sub in self.get_subcommands(type=s_pointers.DeletePointer):
             if types.has_table(sub.scls, orig_schema):

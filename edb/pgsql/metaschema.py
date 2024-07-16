@@ -1067,7 +1067,7 @@ class GetBackendCapabilitiesFunction(trampoline.VersionedFunction):
         SELECT
             (json ->> 'capabilities')::bigint
         FROM
-            edgedbinstdata.instdata
+            edgedbinstdata_VER.instdata
         WHERE
             key = 'backend_instance_params'
     '''
@@ -1089,7 +1089,7 @@ class GetBackendTenantIDFunction(trampoline.VersionedFunction):
         SELECT
             (json ->> 'tenant_id')::text
         FROM
-            edgedbinstdata.instdata
+            edgedbinstdata_VER.instdata
         WHERE
             key = 'backend_instance_params'
     '''
@@ -1341,7 +1341,7 @@ class GetDatabaseMetadataFunction(trampoline.VersionedFunction):
                     (SELECT
                         json
                      FROM
-                        edgedbinstdata.instdata
+                        edgedbinstdata_VER.instdata
                      WHERE
                         key = "dbname" || 'metadata'
                     ),
@@ -3369,7 +3369,7 @@ class SysConfigFullFunction(trampoline.VersionedFunction):
                 (s.value->>'typemod') AS typemod,
                 (s.value->>'backend_setting') AS backend_setting
             FROM
-                edgedbinstdata.instdata as id,
+                edgedbinstdata_VER.instdata as id,
             LATERAL jsonb_each(id.json) AS s
             WHERE id.key LIKE 'configspec%'
         ),
@@ -3931,7 +3931,7 @@ class ApplySessionConfigFunction(trampoline.VersionedFunction):
                 false
             )
             FROM
-                edgedbinstdata.instdata as id,
+                edgedbinstdata_VER.instdata as id,
             LATERAL jsonb_each(id.json) AS s(key, val)
             WHERE id.key = 'configspec_ext' AND s.key = "name"
         '''
@@ -5392,7 +5392,7 @@ def _generate_single_role_views(schema: s_schema.Schema) -> List[dbops.View]:
         SELECT
             {format_fields(schema, Role, view_query_fields)}
         FROM
-            edgedbinstdata.instdata
+            edgedbinstdata_VER.instdata
         WHERE
             key = 'single_role_metadata'
             AND json->>'tenant_id' = edgedb_VER.get_backend_tenant_id()
@@ -5438,7 +5438,7 @@ def _generate_single_role_views(schema: s_schema.Schema) -> List[dbops.View]:
         SELECT
             {format_fields(schema, annos, annos_link_fields)}
         FROM
-            edgedbinstdata.instdata
+            edgedbinstdata_VER.instdata
             CROSS JOIN LATERAL
                 ROWS FROM (
                     jsonb_array_elements(json->'annotations')
@@ -5458,7 +5458,7 @@ def _generate_single_role_views(schema: s_schema.Schema) -> List[dbops.View]:
         SELECT
             {format_fields(schema, int_annos, int_annos_link_fields)}
         FROM
-            edgedbinstdata.instdata
+            edgedbinstdata_VER.instdata
             CROSS JOIN LATERAL
                 ROWS FROM (
                     jsonb_array_elements(json->'annotations__internal')
