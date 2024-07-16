@@ -148,7 +148,7 @@ constants! {
     /// The weight we apply to waiting connections.
     const DEMAND_WEIGHT_WAITING: usize = 3;
     /// The weight we apply to active connections.
-    const DEMAND_WEIGHT_ACTIVE: usize = 3;
+    const DEMAND_WEIGHT_ACTIVE: usize = 277;
     /// The minimum non-zero demand. This makes the demand calculations less noisy
     /// when we are competing at lower levels of demand, allowing for more
     /// reproducable results.
@@ -158,34 +158,34 @@ constants! {
     /// The maximum-minimum connection count we'll allocate to connections if there
     /// is more capacity than backends.
     const MAXIMUM_SHARED_TARGET: usize = 1;
+
     /// The boost we apply to our own apparent hunger when releasing a connection.
     /// This prevents excessive swapping when hunger is similar across various
     /// backends.
-    const SELF_HUNGER_BOOST_FOR_RELEASE: usize = 16;
-
+    const SELF_HUNGER_BOOST_FOR_RELEASE: usize = 160;
     /// The weight we apply to the difference between the target and required
     /// connections when determining overfullness.
-    const HUNGER_DIFF_WEIGHT: usize = 2;
+    const HUNGER_DIFF_WEIGHT: usize = 20;
     /// The weight we apply to waiters when determining hunger.
-    const HUNGER_WAITER_WEIGHT: usize = 1;
+    const HUNGER_WAITER_WEIGHT: usize = 0;
     const HUNGER_WAITER_ACTIVE_WEIGHT: usize = 0;
-    const HUNGER_ACTIVE_WEIGHT_DIVIDEND: usize = 634;
+    const HUNGER_ACTIVE_WEIGHT_DIVIDEND: usize = 9650;
     /// The weight we apply to the oldest waiter's age in milliseconds (as a divisor).
-    #[range(1..=1000)]
-    const HUNGER_AGE_DIVISOR_WEIGHT: usize = 674;
+    #[range(1..=2000)]
+    const HUNGER_AGE_DIVISOR_WEIGHT: usize = 1360;
 
     /// The weight we apply to the difference between the target and required
     /// connections when determining overfullness.
-    const OVERFULL_DIFF_WEIGHT: usize = 2;
+    const OVERFULL_DIFF_WEIGHT: usize = 20;
     /// The weight we apply to idle connections when determining overfullness.
-    const OVERFULL_IDLE_WEIGHT: usize = 10;
+    const OVERFULL_IDLE_WEIGHT: usize = 100;
     /// This is divided by the youngest connection metric to penalize switching from
     /// a backend which has changed recently.
-    const OVERFULL_CHANGE_WEIGHT_DIVIDEND: usize = 469;
+    const OVERFULL_CHANGE_WEIGHT_DIVIDEND: usize = 4690;
     /// The weight we apply to waiters when determining overfullness.
-    const OVERFULL_WAITER_WEIGHT: usize = 71;
-    const OVERFULL_WAITER_ACTIVE_WEIGHT: usize = 130;
-    const OVERFULL_ACTIVE_WEIGHT_DIVIDEND: usize = 2;
+    const OVERFULL_WAITER_WEIGHT: usize = 4460;
+    const OVERFULL_WAITER_ACTIVE_WEIGHT: usize = 1300;
+    const OVERFULL_ACTIVE_WEIGHT_DIVIDEND: usize = 6620;
 }
 
 /// Determines the rebalance plan based on the current pool state.
@@ -337,19 +337,26 @@ pub trait PoolAlgorithmDataBlock: PoolAlgorithmDataMetrics {
         let active_ms = self.avg_ms(MetricVariant::Active).max(MIN_TIME.get());
         let connecting_ms = self.avg_ms(MetricVariant::Connecting).max(MIN_TIME.get());
         let youngest_ms = self.youngest_ms().max(MIN_TIME.get());
-        let waiter_score = (waiters * OVERFULL_WAITER_WEIGHT.get()
-            + (waiters * OVERFULL_WAITER_ACTIVE_WEIGHT.get() / active_ms)
-            + (OVERFULL_ACTIVE_WEIGHT_DIVIDEND.get() / active_ms))
-            as isize;
 
         // If we have no idle connections, or we don't have enough connections we're not overfull.
         if target >= current || idle == 0 {
             None
         } else {
-            let youngest_ratio = (youngest_ms / connecting_ms).max(1);
+            // The more idle connections we have, the more overfull this block is.
             let idle_score = (idle * OVERFULL_IDLE_WEIGHT.get()) as isize;
-            let youngest_score = (OVERFULL_CHANGE_WEIGHT_DIVIDEND.get() / youngest_ratio) as isize;
-            let base_score = idle_score + youngest_score - waiter_score;
+            // We take the ratio of youngest/connecting and divide
+            // `OVERFULL_CHANGE_WEIGHT_DIVIDEND` by that to give an overfullness
+            // "negative" penalty to blocks that have newly acquired a connection.
+            let youngest_score =
+                ((OVERFULL_CHANGE_WEIGHT_DIVIDEND.get() * connecting_ms) / youngest_ms) as isize;
+            // The number of waiters and the amount of time we expect to spend
+            // active on these waiters also acts as a "negative" penalty.
+            let waiter_score = (waiters * OVERFULL_WAITER_WEIGHT.get()
+                + (waiters * OVERFULL_WAITER_ACTIVE_WEIGHT.get() / active_ms)
+                + (OVERFULL_ACTIVE_WEIGHT_DIVIDEND.get() / active_ms))
+                as isize;
+
+            let base_score = idle_score - youngest_score - waiter_score;
             if current > target {
                 let diff = current - target;
                 let diff_score = (diff * OVERFULL_DIFF_WEIGHT.get()) as isize;

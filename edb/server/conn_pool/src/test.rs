@@ -178,6 +178,15 @@ pub struct Spec {
     pub score: Vec<Score>,
 }
 
+impl Spec {
+    pub fn scale(&mut self, time_scale: f64) {
+        self.duration *= time_scale;
+        for db in &mut self.dbs {
+            db.scale(time_scale);
+        }
+    }
+}
+
 #[derive(derive_more::Debug)]
 pub struct Scored {
     pub description: String,
@@ -473,6 +482,13 @@ pub struct DBSpec {
     pub end_at: f64,
     pub qps: usize,
     pub query_cost: Triangle,
+}
+
+impl DBSpec {
+    pub fn scale(&mut self, time_scale: f64) {
+        self.start_at *= time_scale;
+        self.end_at *= time_scale;
+    }
 }
 
 #[derive(Default, derive_more::Debug, Clone, Copy)]

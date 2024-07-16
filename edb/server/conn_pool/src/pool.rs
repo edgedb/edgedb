@@ -1188,14 +1188,17 @@ mod tests {
 
     #[test(tokio::test(flavor = "current_thread", start_paused = true))]
     async fn run_spec_tests() -> Result<()> {
-        spec_tests().await?;
+        spec_tests(None).await?;
         Ok(())
     }
 
-    async fn spec_tests() -> Result<SuiteQoS> {
+    async fn spec_tests(scale: Option<f64>) -> Result<SuiteQoS> {
         let mut results = SuiteQoS::default();
         for spec in SPEC_FUNCTIONS {
-            let spec = spec();
+            let mut spec = spec();
+            if let Some(scale) = scale {
+                spec.scale(scale);
+            }
             let name = spec.name.clone();
             let res = run(spec).await?;
             results.insert(name, res);
@@ -1213,7 +1216,7 @@ mod tests {
 
     /// Runs the specs `count` times, returning the median run.
     #[allow(unused)]
-    fn run_specs_tests_in_runtime(count: usize) -> Result<SuiteQoS> {
+    fn run_specs_tests_in_runtime(count: usize, scale: Option<f64>) -> Result<SuiteQoS> {
         let mut runs = vec![];
         for _ in 0..count {
             let runtime = tokio::runtime::Builder::new_current_thread()
@@ -1222,7 +1225,7 @@ mod tests {
                 .unwrap();
             let _guard = runtime.enter();
             tokio::time::pause();
-            let qos = runtime.block_on(spec_tests())?;
+            let qos = runtime.block_on(spec_tests(scale))?;
             runs.push(qos);
         }
         runs.sort_by_cached_key(|run| (run.qos_rms_error() * 1_000_000.0) as usize);
@@ -1245,8 +1248,10 @@ mod tests {
         pub struct Optimizer {
             #[default(std::sync::Arc::new(AtomicIsize::new(isize::MIN)))]
             best: std::sync::Arc<AtomicIsize>,
-            #[default(LruCache::new(1_000_000.try_into().unwrap()))]
+            #[default(LruCache::new(100_000_000.try_into().unwrap()))]
             lru: LruCache<[usize; ALL_KNOB_COUNT], isize>,
+            #[default(std::time::Instant::now())]
+            now: std::time::Instant,
         }
 
         impl Fitness for Optimizer {
@@ -1268,15 +1273,27 @@ mod tests {
                         return None;
                     };
                 }
-                let qos = run_specs_tests_in_runtime(5).ok()?;
-                let score = qos.qos_rms_error();
+
+                let real = rand::thread_rng().gen_range(0..1000) < 200;
+                let weights = if real {
+                    [(1.0, 5, None), (0.5, 1, Some(10.0))]
+                } else {
+                    [(1.0, 5, None), (0.5, 1, None)]
+                };
+                let outputs =
+                    weights.map(|(_, count, scale)| run_specs_tests_in_runtime(count, scale));
+                let mut score = 0.0;
+                for ((weight, ..), output) in weights.iter().zip(&outputs) {
+                    score += weight * output.as_ref().ok()?.qos_rms_error();
+                }
                 let qos_i = (score * 1_000_000.0) as isize;
-                if qos_i > self.best.load(std::sync::atomic::Ordering::SeqCst) {
-                    eprintln!(
-                        "*** New best: {score:.02} {:?} {:?}",
-                        crate::knobs::ALL_KNOBS,
-                        qos
-                    );
+                if real && qos_i > self.best.load(std::sync::atomic::Ordering::SeqCst) {
+                    eprintln!("{:?} New best: {score:.02} {knobs:?}", self.now.elapsed());
+                    eprintln!("{:?}", crate::knobs::ALL_KNOBS);
+                    for (weight, output) in weights.iter().zip(outputs) {
+                        eprintln!("{weight:?}: {:?}", output.ok()?);
+                    }
+                    eprintln!("*****************************");
                     self.best.store(qos_i, std::sync::atomic::Ordering::SeqCst);
                 }
                 self.lru.push(knobs, qos_i);
