@@ -382,7 +382,7 @@ std::to_datetime(s: std::str, fmt: OPTIONAL str={}) -> std::datetime
             edgedb.datetime_in("s")
         WHEN "fmt" = '' THEN
             edgedb.raise(
-                NULL::edgedb.timestamptz_t,
+                NULL::edgedbt.timestamptz_t,
                 'invalid_parameter_value',
                 msg => (
                     'to_datetime(): "fmt" argument must be a non-empty string'
@@ -412,7 +412,7 @@ std::to_datetime(year: std::int64, month: std::int64, day: std::int64,
     SELECT make_timestamptz(
         "year"::int, "month"::int, "day"::int,
         "hour"::int, "min"::int, "sec", "timezone"
-    )::edgedb.timestamptz_t
+    )::edgedbt.timestamptz_t
     $$;
 };
 
@@ -423,7 +423,7 @@ std::to_datetime(epochseconds: std::float64) -> std::datetime
     CREATE ANNOTATION std::description := 'Create a `datetime` value.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT to_timestamp("epochseconds")::edgedb.timestamptz_t
+    SELECT to_timestamp("epochseconds")::edgedbt.timestamptz_t
     $$;
 };
 
@@ -434,7 +434,7 @@ std::to_datetime(epochseconds: std::int64) -> std::datetime
     CREATE ANNOTATION std::description := 'Create a `datetime` value.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT to_timestamp("epochseconds")::edgedb.timestamptz_t
+    SELECT to_timestamp("epochseconds")::edgedbt.timestamptz_t
     $$;
 };
 
@@ -445,7 +445,7 @@ std::to_datetime(epochseconds: std::decimal) -> std::datetime
     CREATE ANNOTATION std::description := 'Create a `datetime` value.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT to_timestamp("epochseconds")::edgedb.timestamptz_t
+    SELECT to_timestamp("epochseconds")::edgedbt.timestamptz_t
     $$;
 };
 
@@ -472,7 +472,7 @@ std::to_duration(
             "seconds"
         ) +
         (microseconds::text || ' microseconds')::interval
-    )::edgedb.duration_t
+    )::edgedbt.duration_t
     $$;
 };
 
@@ -488,7 +488,7 @@ std::to_bigint(s: std::str, fmt: OPTIONAL str={}) -> std::bigint
             edgedb.str_to_bigint("s")
         WHEN "fmt" = '' THEN
             edgedb.raise(
-                NULL::edgedb.bigint_t,
+                NULL::edgedbt.bigint_t,
                 'invalid_parameter_value',
                 msg => (
                     'to_bigint(): "fmt" argument must be a non-empty string'
@@ -496,7 +496,7 @@ std::to_bigint(s: std::str, fmt: OPTIONAL str={}) -> std::bigint
             )
         ELSE
             edgedb.raise_on_null(
-                to_number("s", "fmt")::edgedb.bigint_t,
+                to_number("s", "fmt")::edgedbt.bigint_t,
                 'invalid_parameter_value',
                 msg => 'to_bigint(): format ''' || "fmt" || ''' is invalid'
             )

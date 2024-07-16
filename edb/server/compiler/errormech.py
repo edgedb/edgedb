@@ -117,7 +117,7 @@ constraint_res = {
     'id': re.compile(r'^.*"(?:\w+)_data_pkey".*$'),
     'link_target_del': re.compile(r'^.*link target policy$'),
     'scalar': re.compile(
-        r'^value for domain (\w+) violates check constraint "(.+)"'
+        r'^value for domain ([\w\.]+) violates check constraint "(.+)"'
     ),
 }
 

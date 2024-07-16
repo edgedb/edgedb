@@ -1,3 +1,5 @@
+<% from "tests.inc.yml" import build, calc_cache_key -%>
+
 name: Pool Simulation Test
 
 on:
@@ -7,26 +9,28 @@ on:
       - pool-test
     paths:
       - 'edb/server/connpool/**'
+      - 'edb/server/conn_pool/**'
       - 'tests/test_server_pool.py'
-      - '.github/workflows/test-pool.yml'
+      - '.github/workflows/tests-pool.yml'
   pull_request:
     branches:
       - master
     paths:
       - 'edb/server/connpool/**'
+      - 'edb/server/conn_pool/**'
       - 'tests/test_server_pool.py'
-      - '.github/workflows/test-pool.yml'
+      - '.github/workflows/tests-pool.yml'
 
 jobs:
   test:
     runs-on: ubuntu-latest
     concurrency: pool-test
-
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        submodules: false
+    <%- call build() -%>
+    - name: Compute cache keys
+      run: |
+        << calc_cache_key()|indent >>
+    <%- endcall %>
 
     - uses: actions/checkout@v4
       if: startsWith(github.ref, 'refs/heads')
@@ -35,31 +39,13 @@ jobs:
         path: pool-simulation
         token: ${{ secrets.GITHUB_CI_BOT_TOKEN }}
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12.2'
-
-    - name: Generate requirements.txt
-      run: |
-        echo 'uvloop==0.19.0' > requirements.txt
-        mkdir -p pool-simulation/reports
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.1
-      id: venv-cache
-
-    - name: Install Python dependencies
-      if: steps.venv-cache.outputs.cache-hit != 'true'
-      run: |
-        pip install -r requirements.txt
-
     - name: Run the pool simulation test
       env:
         PYTHONPATH: .
         SIMULATION_CI: yes
         TIME_SCALE: 10
       run: |
+        mkdir -p pool-simulation/reports
         python tests/test_server_pool.py
 
     - uses: EndBug/add-and-commit@v7.0.0

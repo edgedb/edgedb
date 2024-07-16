@@ -48,7 +48,7 @@ cal::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
             edgedb.local_datetime_in("s")
         WHEN "fmt" = '' THEN
             edgedb.raise(
-                NULL::edgedb.timestamp_t,
+                NULL::edgedbt.timestamp_t,
                 'invalid_parameter_value',
                 msg => (
                     'to_local_datetime(): '
@@ -82,7 +82,7 @@ cal::to_local_datetime(year: std::int64, month: std::int64, day: std::int64,
     SELECT make_timestamp(
         "year"::int, "month"::int, "day"::int,
         "hour"::int, "min"::int, "sec"
-    )::edgedb.timestamp_t
+    )::edgedbt.timestamp_t
     $$;
 };
 
@@ -96,7 +96,7 @@ cal::to_local_datetime(dt: std::datetime, zone: std::str)
     # The version of timezone with these arguments is IMMUTABLE.
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT timezone("zone", "dt")::edgedb.timestamp_t;
+    SELECT timezone("zone", "dt")::edgedbt.timestamp_t;
     $$;
 };
 
@@ -112,7 +112,7 @@ cal::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> cal::local_date
             edgedb.local_date_in("s")
         WHEN "fmt" = '' THEN
             edgedb.raise(
-                NULL::edgedb.date_t,
+                NULL::edgedbt.date_t,
                 'invalid_parameter_value',
                 msg => (
                     'to_local_date(): '
@@ -121,7 +121,7 @@ cal::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> cal::local_date
             )
         ELSE
             edgedb.raise_on_null(
-                edgedb.to_local_datetime("s", "fmt")::edgedb.date_t,
+                edgedb.to_local_datetime("s", "fmt")::edgedbt.date_t,
                 'invalid_parameter_value',
                 msg => (
                     'to_local_date(): format ''' || "fmt" || ''' is invalid'
@@ -141,7 +141,7 @@ cal::to_local_date(dt: std::datetime, zone: std::str)
     # The version of timezone with these arguments is IMMUTABLE.
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT timezone("zone", "dt")::edgedb.date_t;
+    SELECT timezone("zone", "dt")::edgedbt.date_t;
     $$;
 };
 
@@ -153,7 +153,7 @@ cal::to_local_date(year: std::int64, month: std::int64, day: std::int64)
     CREATE ANNOTATION std::description := 'Create a `cal::local_date` value.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT make_date("year"::int, "month"::int, "day"::int)::edgedb.date_t
+    SELECT make_date("year"::int, "month"::int, "day"::int)::edgedbt.date_t
     $$;
 };
 
@@ -258,7 +258,7 @@ cal::to_relative_duration(
             "seconds"
         ) +
         (microseconds::text || ' microseconds')::interval
-    )::edgedb.relative_duration_t
+    )::edgedbt.relative_duration_t
     $$;
 };
 
@@ -278,7 +278,7 @@ cal::to_date_duration(
         "months"::int,
         0,
         "days"::int
-    )::edgedb.date_duration_t
+    )::edgedbt.date_duration_t
     $$;
 };
 
@@ -392,7 +392,7 @@ std::`+` (l: std::datetime, r: cal::relative_duration) -> std::datetime {
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
-        SELECT ("l" + "r")::edgedb.timestamptz_t
+        SELECT ("l" + "r")::edgedbt.timestamptz_t
     $$
 };
 
@@ -407,7 +407,7 @@ std::`+` (l: cal::relative_duration, r: std::datetime) -> std::datetime {
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
-        SELECT ("l" + "r")::edgedb.timestamptz_t
+        SELECT ("l" + "r")::edgedbt.timestamptz_t
     $$
 };
 
@@ -421,7 +421,7 @@ std::`-` (l: std::datetime, r: cal::relative_duration) -> std::datetime {
     # should affect this.
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT ("l" - "r")::edgedb.timestamptz_t
+        SELECT ("l" - "r")::edgedbt.timestamptz_t
     $$
 };
 
@@ -525,7 +525,7 @@ std::`+` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
-        SELECT ("l" + "r")::edgedb.timestamp_t
+        SELECT ("l" + "r")::edgedbt.timestamp_t
     $$;
 };
 
@@ -538,7 +538,7 @@ std::`+` (l: std::duration, r: cal::local_datetime) -> cal::local_datetime {
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
-        SELECT ("l" + "r")::edgedb.timestamp_t
+        SELECT ("l" + "r")::edgedbt.timestamp_t
     $$;
 };
 
@@ -550,7 +550,7 @@ std::`-` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
         'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT ("l" - "r")::edgedb.timestamp_t
+        SELECT ("l" - "r")::edgedbt.timestamp_t
     $$;
 };
 
@@ -563,7 +563,7 @@ std::`+` (l: cal::local_datetime, r: cal::relative_duration) -> cal::local_datet
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
-        SELECT ("l" + "r")::edgedb.timestamp_t
+        SELECT ("l" + "r")::edgedbt.timestamp_t
     $$;
 };
 
@@ -576,7 +576,7 @@ std::`+` (l: cal::relative_duration, r: cal::local_datetime) -> cal::local_datet
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
-        SELECT ("l" + "r")::edgedb.timestamp_t
+        SELECT ("l" + "r")::edgedbt.timestamp_t
     $$;
 };
 
@@ -588,7 +588,7 @@ std::`-` (l: cal::local_datetime, r: cal::relative_duration) -> cal::local_datet
         'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT ("l" - "r")::edgedb.timestamp_t
+        SELECT ("l" - "r")::edgedbt.timestamp_t
     $$;
 };
 
@@ -704,7 +704,7 @@ std::`+` (l: cal::local_date, r: std::duration) -> cal::local_datetime
     SET commutator := 'std::+';
     SET force_return_cast := true;
     USING SQL $$
-        SELECT ("l" + "r")::edgedb.timestamp_t
+        SELECT ("l" + "r")::edgedbt.timestamp_t
     $$;
 };
 
@@ -719,7 +719,7 @@ std::`+` (l: std::duration, r: cal::local_date) -> cal::local_datetime
     SET commutator := 'std::+';
     SET force_return_cast := true;
     USING SQL $$
-        SELECT ("l" + "r")::edgedb.timestamp_t
+        SELECT ("l" + "r")::edgedbt.timestamp_t
     $$;
 };
 
@@ -733,7 +733,7 @@ std::`-` (l: cal::local_date, r: std::duration) -> cal::local_datetime
     SET volatility := 'Immutable';
     SET force_return_cast := true;
     USING SQL $$
-        SELECT ("l" - "r")::edgedb.timestamp_t
+        SELECT ("l" - "r")::edgedbt.timestamp_t
     $$;
 };
 
@@ -748,7 +748,7 @@ std::`+` (l: cal::local_date, r: cal::relative_duration) -> cal::local_datetime
     SET commutator := 'std::+';
     SET force_return_cast := true;
     USING SQL $$
-        SELECT ("l" + "r")::edgedb.timestamp_t
+        SELECT ("l" + "r")::edgedbt.timestamp_t
     $$;
 };
 
@@ -763,7 +763,7 @@ std::`+` (l: cal::relative_duration, r: cal::local_date) -> cal::local_datetime
     SET commutator := 'std::+';
     SET force_return_cast := true;
     USING SQL $$
-        SELECT ("l" + "r")::edgedb.timestamp_t
+        SELECT ("l" + "r")::edgedbt.timestamp_t
     $$;
 };
 
@@ -777,7 +777,7 @@ std::`-` (l: cal::local_date, r: cal::relative_duration) -> cal::local_datetime
     SET volatility := 'Immutable';
     SET force_return_cast := true;
     USING SQL $$
-        SELECT ("l" - "r")::edgedb.timestamp_t
+        SELECT ("l" - "r")::edgedbt.timestamp_t
     $$;
 };
 
@@ -792,7 +792,7 @@ std::`+` (l: cal::local_date, r: cal::date_duration) -> cal::local_date
     SET commutator := 'std::+';
     SET force_return_cast := true;
     USING SQL $$
-        SELECT ("l" + "r")::edgedb.date_t
+        SELECT ("l" + "r")::edgedbt.date_t
     $$;
 };
 
@@ -807,7 +807,7 @@ std::`+` (l: cal::date_duration, r: cal::local_date) -> cal::local_date
     SET commutator := 'std::+';
     SET force_return_cast := true;
     USING SQL $$
-        SELECT ("l" + "r")::edgedb.date_t
+        SELECT ("l" + "r")::edgedbt.date_t
     $$;
 };
 
@@ -821,7 +821,7 @@ std::`-` (l: cal::local_date, r: cal::date_duration) -> cal::local_date
     SET volatility := 'Immutable';
     SET force_return_cast := true;
     USING SQL $$
-        SELECT ("l" - "r")::edgedb.date_t
+        SELECT ("l" - "r")::edgedbt.date_t
     $$;
 };
 
@@ -834,7 +834,7 @@ std::`-` (l: cal::local_date, r: cal::local_date) -> cal::date_duration
     SET volatility := 'Immutable';
     SET force_return_cast := true;
     USING SQL $$
-        SELECT make_interval(0, 0, 0, "l" - "r")::edgedb.date_duration_t
+        SELECT make_interval(0, 0, 0, "l" - "r")::edgedbt.date_duration_t
     $$;
 };
 
@@ -1105,7 +1105,7 @@ std::`+` (l: cal::relative_duration, r: cal::relative_duration) -> cal::relative
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
-    SELECT ("l"::interval + "r"::interval)::edgedb.relative_duration_t;
+    SELECT ("l"::interval + "r"::interval)::edgedbt.relative_duration_t;
     $$;
 };
 
@@ -1117,7 +1117,7 @@ std::`-` (l: cal::relative_duration, r: cal::relative_duration) -> cal::relative
         'Time interval subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT ("l"::interval - "r"::interval)::edgedb.relative_duration_t;
+    SELECT ("l"::interval - "r"::interval)::edgedbt.relative_duration_t;
     $$;
 };
 
@@ -1130,7 +1130,7 @@ std::`+` (l: cal::date_duration, r: cal::date_duration) -> cal::date_duration {
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
-    SELECT ("l" + "r")::edgedb.date_duration_t;
+    SELECT ("l" + "r")::edgedbt.date_duration_t;
     $$;
 };
 
@@ -1142,7 +1142,7 @@ std::`-` (l: cal::date_duration, r: cal::date_duration) -> cal::date_duration {
         'Time interval subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT ("l" - "r")::edgedb.date_duration_t;
+    SELECT ("l" - "r")::edgedbt.date_duration_t;
     $$;
 };
 
@@ -1155,7 +1155,7 @@ std::`+` (l: std::duration, r: cal::relative_duration) -> cal::relative_duration
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
-    SELECT ("l"::interval + "r"::interval)::edgedb.relative_duration_t;
+    SELECT ("l"::interval + "r"::interval)::edgedbt.relative_duration_t;
     $$;
 };
 
@@ -1168,7 +1168,7 @@ std::`+` (l: cal::relative_duration, r: std::duration) -> cal::relative_duration
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
-    SELECT ("l"::interval + "r"::interval)::edgedb.relative_duration_t;
+    SELECT ("l"::interval + "r"::interval)::edgedbt.relative_duration_t;
     $$;
 };
 
@@ -1180,7 +1180,7 @@ std::`-` (l: std::duration, r: cal::relative_duration) -> cal::relative_duration
         'Time interval subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT ("l"::interval - "r"::interval)::edgedb.relative_duration_t;
+    SELECT ("l"::interval - "r"::interval)::edgedbt.relative_duration_t;
     $$;
 };
 
@@ -1192,7 +1192,7 @@ std::`-` (l: cal::relative_duration, r: std::duration) -> cal::relative_duration
         'Time interval subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT ("l"::interval - "r"::interval)::edgedb.relative_duration_t;
+    SELECT ("l"::interval - "r"::interval)::edgedbt.relative_duration_t;
     $$;
 };
 
@@ -1204,7 +1204,7 @@ std::`-` (v: cal::relative_duration) -> cal::relative_duration {
         'Time interval negation.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT (-"v"::interval)::edgedb.relative_duration_t;
+    SELECT (-"v"::interval)::edgedbt.relative_duration_t;
     $$;
 };
 
@@ -1253,7 +1253,7 @@ CREATE CAST FROM std::str TO cal::local_time {
 CREATE CAST FROM std::str TO cal::relative_duration {
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT val::edgedb.relative_duration_t;
+    SELECT val::edgedbt.relative_duration_t;
     $$;
 };
 
@@ -1375,7 +1375,7 @@ CREATE CAST FROM std::json TO cal::relative_duration {
     USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(
         val, 'string', detail => detail
-    )::interval::edgedb.relative_duration_t;
+    )::interval::edgedbt.relative_duration_t;
     $$;
 };
 
@@ -1536,12 +1536,12 @@ std::duration_truncate(
     USING SQL $$
     SELECT CASE WHEN "unit" IN (
             'days', 'weeks', 'months', 'years', 'decades', 'centuries')
-        THEN date_trunc("unit", "dt")::edgedb.relative_duration_t
+        THEN date_trunc("unit", "dt")::edgedbt.relative_duration_t
         WHEN "unit" = 'quarters'
-        THEN date_trunc('quarter', "dt")::edgedb.relative_duration_t
+        THEN date_trunc('quarter', "dt")::edgedbt.relative_duration_t
         ELSE
             edgedb.raise(
-                NULL::edgedb.relative_duration_t,
+                NULL::edgedbt.relative_duration_t,
                 'invalid_datetime_format',
                 msg => (
                     'invalid unit for std::duration_truncate: '
@@ -1571,12 +1571,12 @@ std::duration_truncate(
             'microseconds', 'milliseconds', 'seconds',
             'minutes', 'hours', 'days', 'weeks', 'months',
             'years', 'decades', 'centuries')
-        THEN date_trunc("unit", "dt")::edgedb.relative_duration_t
+        THEN date_trunc("unit", "dt")::edgedbt.relative_duration_t
         WHEN "unit" = 'quarters'
-        THEN date_trunc('quarter', "dt")::edgedb.relative_duration_t
+        THEN date_trunc('quarter', "dt")::edgedbt.relative_duration_t
         ELSE
             edgedb.raise(
-                NULL::edgedb.relative_duration_t,
+                NULL::edgedbt.relative_duration_t,
                 'invalid_datetime_format',
                 msg => (
                     'invalid unit for std::duration_truncate: '
@@ -1719,7 +1719,7 @@ std::to_datetime(local: cal::local_datetime, zone: std::str)
     # The version of timezone with these arguments is IMMUTABLE.
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT timezone("zone", "local")::edgedb.timestamptz_t;
+    SELECT timezone("zone", "local")::edgedbt.timestamptz_t;
     $$;
 };
 
@@ -1996,7 +1996,7 @@ std::range_unpack(
 {
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT d::edgedb.timestamp_t
+        SELECT d::edgedbt.timestamp_t
         FROM
             generate_series(
                 (
@@ -2013,7 +2013,7 @@ std::range_unpack(
                 step::interval
             ) AS d
         WHERE
-            upper_inc(val) OR d::edgedb.timestamp_t < upper(val)
+            upper_inc(val) OR d::edgedbt.timestamp_t < upper(val)
     $$;
 };
 
@@ -2044,7 +2044,7 @@ std::range_unpack(
                     )
                 )::timestamp,
                 'P1D'::interval
-            )::edgedb.date_t
+            )::edgedbt.date_t
     $$;
 };
 
@@ -2076,11 +2076,11 @@ std::range_unpack(
                     )
                 )::timestamp,
                 step::interval
-            )::edgedb.date_t
+            )::edgedbt.date_t
     $$;
 };
 
-# Need to cast edgedb.date_t to date in order for the @> operator to work.
+# Need to cast edgedbt.date_t to date in order for the @> operator to work.
 CREATE FUNCTION std::contains(
     haystack: range<cal::local_date>,
     needle: cal::local_date

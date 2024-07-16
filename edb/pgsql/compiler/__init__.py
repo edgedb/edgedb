@@ -66,7 +66,7 @@ def compile_ir_to_sql_tree(
     singleton_mode: bool = False,
     named_param_prefix: Optional[tuple[str, ...]] = None,
     expected_cardinality_one: bool = False,
-    expand_inhviews: bool = False,
+    is_explain: bool = False,
     external_rvars: Optional[
         Mapping[Tuple[irast.PathId, pgce.PathAspect], pgast.PathRangeVar]
     ] = None,
@@ -127,7 +127,7 @@ def compile_ir_to_sql_tree(
             type_rewrites=type_rewrites,
             ignore_object_shapes=ignore_shapes,
             explicit_top_cast=explicit_top_cast,
-            expand_inhviews=expand_inhviews,
+            is_explain=is_explain,
             singleton_mode=singleton_mode,
             scope_tree_nodes=scope_tree_nodes,
             external_rvars=external_rvars,
@@ -156,9 +156,15 @@ def compile_ir_to_sql_tree(
         qtree = dispatch.compile(ir_expr, ctx=ctx)
         dml.compile_triggers(triggers, qtree, ctx=ctx)
 
-        if isinstance(ir_expr, irast.Set) and not singleton_mode:
-            assert isinstance(qtree, pgast.Query)
-            clauses.fini_toplevel(qtree, ctx)
+        if not singleton_mode:
+            if isinstance(ir_expr, irast.Set):
+                assert isinstance(qtree, pgast.Query)
+                clauses.fini_toplevel(qtree, ctx)
+
+            elif isinstance(qtree, pgast.Query):
+                # Other types of expressions may compile to queries which may
+                # use inheritance CTEs. Ensure they are added here.
+                clauses.insert_ctes(qtree, ctx)
 
         if detach_params:
             detached_params_idx = {

@@ -7,6 +7,8 @@ from edb.schema import pointers as s_pointers
 from edb.schema import sources as s_sources
 from edb.schema import schema as s_schema
 
+from edb.ir import typeutils as irtyputils
+
 from . import ast as pgast
 from . import types
 from . import common
@@ -69,8 +71,8 @@ def get_inheritance_view(
         # excruciatingly slow because of the cost of explicit id
         # checks. See #5168.
         and (
-            not types.is_cfg_view(child, schema)
-            or types.is_cfg_view(obj, schema)
+            not irtyputils.is_cfg_view(child, schema)
+            or irtyputils.is_cfg_view(obj, schema)
         )
     ]
 
@@ -125,7 +127,7 @@ def _get_select_from(
     system_cols = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
     for sys_col_name in system_cols:
         val: pgast.BaseExpr
-        if not types.is_cfg_view(obj, schema):
+        if not irtyputils.is_cfg_view(obj, schema):
             val = pgast.ColumnRef(name=(table_rvar_name, sys_col_name))
         else:
             val = pgast.NullConstant()

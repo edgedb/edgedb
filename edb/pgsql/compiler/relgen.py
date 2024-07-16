@@ -243,7 +243,7 @@ def get_set_rvar(
         rvars = _get_expr_set_rvar(ir_set.expr, ir_set, ctx=subctx)
         relctx.update_scope_masks(ir_set, rvars.main.rvar, ctx=subctx)
 
-        if ctx.env.expand_inhviews:
+        if ctx.env.is_explain:
             for srvar in rvars.new:
                 if not srvar.rvar.ir_origins:
                     srvar.rvar.ir_origins = []
@@ -897,7 +897,7 @@ def process_set_as_link_property_ref(
                 {spec.id for spec in rptr_specialization}
                 if rptr_specialization is not None else None
             )
-            if ctx.env.expand_inhviews and ptr_ids and rptr_specialization:
+            if ptr_ids and rptr_specialization:
                 ptr_ids.update(
                     x.id for spec in rptr_specialization
                     for x in spec.descendants()
@@ -927,6 +927,21 @@ def process_set_as_link_property_ref(
                         ),
                     ),
                 )
+        elif isinstance(link_rvar.query, pgast.SelectStmt):
+            # When processing link properties into a CTE, map the current link
+            # path id into the form used by the CTE.
+
+            for from_rvar in link_rvar.query.from_clause:
+                if (
+                    isinstance(from_rvar, pgast.RelRangeVar)
+                    and isinstance(from_rvar.relation, pgast.CommonTableExpr)
+                    and from_rvar.relation.query.path_id is not None
+                ):
+                    pathctx.put_path_id_map(
+                        link_rvar.query,
+                        link_path_id,
+                        from_rvar.relation.query.path_id
+                    )
 
         rvars.append(SetRVar(
             link_rvar,

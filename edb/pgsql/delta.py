@@ -241,7 +241,7 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         assert isinstance(ctx.op, CompositeMetaCommand)
 
         src = ptr.get_source(schema)
-        if src and types.is_cfg_view(src, schema):
+        if src and irtyputils.is_cfg_view(src, schema):
             assert isinstance(src, s_sources.Source)
             self.pgops.add(
                 CompositeMetaCommand._refresh_fake_cfg_view_cmd(
@@ -467,17 +467,17 @@ class AlterGlobalSchemaVersion(
         if not backend_params.has_create_database:
             key = f'{edbdef.EDGEDB_TEMPLATE_DB}metadata'
             lock = dbops.Query(
-                f'''
+                trampoline.fixup_query(f'''
                 SELECT
                     json
                 FROM
-                    edgedbinstdata.instdata
+                    edgedbinstdata_VER.instdata
                 WHERE
                     key = {ql(key)}
                 FOR UPDATE
                 INTO _dummy_text
             '''
-            )
+            ))
         elif backend_params.has_superuser_access:
             # Only superusers are generally allowed to make an UPDATE
             # lock on shared catalogs.
@@ -1169,6 +1169,19 @@ class FunctionCommand(MetaCommand):
     ) -> s_expr.CompiledExpression:
         if isinstance(body, s_expr.CompiledExpression):
             return body
+
+        # HACK: When an object type selected by a function (via
+        # inheritance) is dropped, the function gets
+        # recompiled. Unfortunately, 'caused' subcommands run *before*
+        # the object is actually deleted, and so we would ordinarily
+        # still try to select from the deleted object. To avoid
+        # needing to add *another* type of subcommand, we work around
+        # this by temporarily stripping all objects that are about to
+        # be deleted from the schema.
+        for ctx in context.stack:
+            if isinstance(ctx.op, s_objtypes.DeleteObjectType):
+                schema = schema.delete(ctx.op.scls)
+
         return s_funcs.compile_function(
             schema,
             context,
@@ -1987,7 +2000,7 @@ class ConstraintCommand(MetaCommand):
         ):
             return False
 
-        if types.is_cfg_view(subject, schema):
+        if irtyputils.is_cfg_view(subject, schema):
             return False
 
         match subject:
@@ -3076,7 +3089,7 @@ class CompositeMetaCommand(MetaCommand):
 
     @staticmethod
     def _get_table_name(obj, schema) -> tuple[str, str]:
-        is_internal_view = types.is_cfg_view(obj, schema)
+        is_internal_view = irtyputils.is_cfg_view(obj, schema)
         aspect = 'dummy' if is_internal_view else None
         return common.get_backend_name(
             schema, obj, catenate=False, aspect=aspect)
@@ -3201,7 +3214,7 @@ class CompositeMetaCommand(MetaCommand):
         cols = []
 
         special_cols = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
-        if not types.is_cfg_view(obj, schema):
+        if not irtyputils.is_cfg_view(obj, schema):
             cols.extend([(col, col, True) for col in special_cols])
         else:
             cols.extend([('NULL', col, False) for col in special_cols])
@@ -3329,8 +3342,8 @@ class CompositeMetaCommand(MetaCommand):
             # excruciatingly slow because of the cost of explicit id
             # checks. See #5168.
             and (
-                not types.is_cfg_view(child, schema)
-                or types.is_cfg_view(obj, schema)
+                not irtyputils.is_cfg_view(child, schema)
+                or irtyputils.is_cfg_view(obj, schema)
             )
         ]
 
@@ -3368,7 +3381,7 @@ class CompositeMetaCommand(MetaCommand):
         context: sd.CommandContext,
         obj: CompositeObject,
     ) -> None:
-        if types.is_cfg_view(obj, schema):
+        if irtyputils.is_cfg_view(obj, schema):
             self._refresh_fake_cfg_view(obj, schema, context)
 
         bases = set(obj.get_bases(schema).objects(schema))
@@ -3447,7 +3460,7 @@ class CompositeMetaCommand(MetaCommand):
     ) -> None:
         assert types.has_table(obj, schema)
 
-        if types.is_cfg_view(obj, schema):
+        if irtyputils.is_cfg_view(obj, schema):
             self._refresh_fake_cfg_view(obj, schema, context)
 
         inhview = self.get_inhview(schema, obj, exclude_ptrs=exclude_ptrs)
@@ -3477,7 +3490,7 @@ class CompositeMetaCommand(MetaCommand):
     ) -> None:
         assert types.has_table(obj, schema)
 
-        if types.is_cfg_view(obj, schema):
+        if irtyputils.is_cfg_view(obj, schema):
             self._refresh_fake_cfg_view(obj, schema, context)
 
         inhview = self.get_inhview(
@@ -3931,8 +3944,8 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand, CompositeMetaCommand):
         # configs, since those need to be created after the standard
         # schema is in place.
         if not (
-            types.is_cfg_view(scls, eff_schema)
-            and scls.get_name(eff_schema).module not in types.VIEW_MODULES
+            irtyputils.is_cfg_view(scls, eff_schema)
+            and scls.get_name(eff_schema).module not in irtyputils.VIEW_MODULES
         ):
             return
 
@@ -3945,14 +3958,14 @@ class ObjectTypeMetaCommand(AliasCapableMetaCommand, CompositeMetaCommand):
             validate=False,
         )
         spec_json = config.spec_to_json(new_local_spec)
-        self.pgops.add(dbops.Query(textwrap.dedent(f'''\
+        self.pgops.add(dbops.Query(textwrap.dedent(trampoline.fixup_query(f'''\
             UPDATE
-                edgedbinstdata.instdata
+                edgedbinstdata_VER.instdata
             SET
                 json = {ql(spec_json)}
             WHERE
                 key = 'configspec_ext';
-        ''')))
+        '''))))
 
         for sub in self.get_subcommands(type=s_pointers.DeletePointer):
             if types.has_table(sub.scls, orig_schema):
@@ -4307,7 +4320,7 @@ class PointerMetaCommand(
         source_rel_alias = f'source_{uuidgen.uuid1mc()}'
 
         if self.conv_expr is not None:
-            (conv_expr_ctes, _) = self._compile_conversion_expr(
+            (conv_expr_ctes, _, _) = self._compile_conversion_expr(
                 ptr,
                 self.conv_expr,
                 source_rel_alias,
@@ -4527,7 +4540,7 @@ class PointerMetaCommand(
 
             source_rel_alias = f'source_{uuidgen.uuid1mc()}'
 
-            (conv_expr_ctes, _) = self._compile_conversion_expr(
+            (conv_expr_ctes, _, _) = self._compile_conversion_expr(
                 ptr,
                 fill_expr,
                 source_rel_alias,
@@ -4681,16 +4694,19 @@ class PointerMetaCommand(
         # supports arbitrary queries, but requires a temporary column,
         # which is populated with the transition query and then used as the
         # source for the SQL USING clause.
-        (cast_expr_sql, expr_is_nullable) = self._compile_conversion_expr(
-            pointer,
-            cast_expr,
-            source_rel_alias,
-            schema=schema,
-            orig_schema=orig_schema,
-            context=context,
-            check_non_null=is_required and not is_multi,
-            produce_ctes=False,
+        (cast_expr_ctes, cast_expr_sql, expr_is_nullable) = (
+            self._compile_conversion_expr(
+                pointer,
+                cast_expr,
+                source_rel_alias,
+                schema=schema,
+                orig_schema=orig_schema,
+                context=context,
+                check_non_null=is_required and not is_multi,
+                produce_ctes=False,
+            )
         )
+        assert cast_expr_sql is not None
         need_temp_col = (
             (is_multi and expr_is_nullable) or changing_col_type
         )
@@ -4724,7 +4740,9 @@ class PointerMetaCommand(
             self.pgops.add(alter_table)
             target_col = temp_column.name
 
+        update_with = f'WITH {cast_expr_ctes}' if cast_expr_ctes else ''
         update_qry = f'''
+            {update_with}
             UPDATE {tab} AS {qi(source_rel_alias)}
             SET {qi(target_col)} = ({cast_expr_sql})
         '''
@@ -4844,7 +4862,8 @@ class PointerMetaCommand(
         produce_ctes: bool = True,
         allow_globals: bool=False,
     ) -> Tuple[
-        str,  # SQL
+        str,  # CTE SQL
+        Optional[str],  # Query SQL
         bool,  # is_nullable
     ]:
         """
@@ -5143,17 +5162,14 @@ class PointerMetaCommand(
             # compile to SQL
             ctes_sql = codegen.generate_ctes_source(ctes)
 
-            return (ctes_sql, nullable)
+            return (ctes_sql, None, nullable)
 
         else:
-            # There should be no CTEs when prodoce_ctes==False, since this will
-            # will happen only when changing type (cast_expr), which cannot
-            # contain DML.
-            assert len(ctes) == 0
-
+            # keep CTEs and select separate
+            ctes_sql = codegen.generate_ctes_source(ctes)
             select_sql = codegen.generate_source(sql_tree)
 
-            return (select_sql, nullable)
+            return (ctes_sql, select_sql, nullable)
 
     def schedule_endpoint_delete_action_update(
         self, link, orig_schema, schema, context
@@ -5821,7 +5837,7 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
                 (default := prop.get_default(schema))
                 and not prop.is_pure_computable(schema)
                 and not fills_required
-                and not types.is_cfg_view(src.scls, schema)  # sigh
+                and not irtyputils.is_cfg_view(src.scls, schema)  # sigh
                 # link properties use SQL defaults and shouldn't need
                 # us to do it explicitly (which is good, since
                 # _alter_pointer_optionality doesn't currently work on
@@ -6165,9 +6181,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
         self.link_ops = []
         self.changed_targets = set()
 
-    def _get_link_table_union(self, schema, links, include_children) -> str:
+    def _get_link_table_union(self, schema, links) -> str:
         selects = []
-        aspect = 'inhview' if include_children else None
         for link in links:
             selects.append(textwrap.dedent('''\
                 (SELECT
@@ -6182,17 +6197,15 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 table=common.get_backend_name(
                     schema,
                     link,
-                    aspect=aspect,
                 ),
             ))
 
         return '(' + '\nUNION ALL\n    '.join(selects) + ') as q'
 
     def _get_inline_link_table_union(
-        self, schema, links, include_children
+        self, schema, links
     ) -> str:
         selects = []
-        aspect = 'inhview' if include_children else None
         for link in links:
             link_psi = types.get_pointer_storage_info(link, schema=schema)
             link_col = link_psi.column_name
@@ -6209,7 +6222,6 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 table=common.get_backend_name(
                     schema,
                     link.get_source(schema),
-                    aspect=aspect,
                 ),
             ))
 
@@ -6225,7 +6237,10 @@ class UpdateEndpointDeleteActions(MetaCommand):
             x for obj in objs for x in obj.descendants(schema)}
         return {
             obj for obj in objs
-            if not obj.is_view(schema) and not types.is_cfg_view(obj, schema)
+            if (
+                not obj.is_view(schema)
+                and not irtyputils.is_cfg_view(obj, schema)
+            )
         }
 
     def get_orphan_link_ancestors(self, link, schema):
@@ -6331,11 +6346,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         for action, links in groups:
             if action is DA.Restrict or action is DA.DeferredRestrict:
-                # Inherited link targets with restrict actions are
-                # elided by apply() to enable us to use inhviews here
-                # when looking for live references.
-                tables = self._get_link_table_union(
-                    schema, links, include_children=True)
+                tables = self._get_link_table_union(schema, links)
 
                 text = textwrap.dedent('''\
                     SELECT
@@ -6436,8 +6447,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     sources[link.get_source(schema)].append(link)
 
                 for source, source_links in sources.items():
-                    tables = self._get_link_table_union(
-                        schema, source_links, include_children=False)
+                    tables = self._get_link_table_union(schema, source_links)
 
                     text = textwrap.dedent('''\
                         DELETE FROM
@@ -6468,11 +6478,19 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     # If the link is DELETE TARGET IF ORPHAN, build
                     # filters to ignore any objects that aren't
                     # orphans (wrt to this link).
+                    roots = {
+                        x
+                        for root in self.get_orphan_link_ancestors(link, schema)
+                        for x in [root, *root.descendants(schema)]
+                    }
+
                     orphan_check = ''
-                    for orphan_check_root in self.get_orphan_link_ancestors(
-                            link, schema):
+                    for orphan_check_root in roots:
+                        if not types.has_table(orphan_check_root, schema):
+                            continue
                         check_table = common.get_backend_name(
-                            schema, orphan_check_root, aspect='inhview')
+                            schema, orphan_check_root
+                        )
                         orphan_check += f'''\
                             AND NOT EXISTS (
                                 SELECT FROM {check_table} as q2
@@ -6553,11 +6571,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         for action, links in groups:
             if action is DA.Restrict or action is DA.DeferredRestrict:
-                # Inherited link targets with restrict actions are
-                # elided by apply() to enable us to use inhviews here
-                # when looking for live references.
-                tables = self._get_inline_link_table_union(
-                    schema, links, include_children=True)
+                tables = self._get_inline_link_table_union(schema, links)
 
                 text = textwrap.dedent('''\
                     SELECT
@@ -6624,7 +6638,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                 for source, source_links in sources.items():
                     tables = self._get_inline_link_table_union(
-                        schema, source_links, include_children=False)
+                        schema, source_links)
 
                     text = textwrap.dedent('''\
                         DELETE FROM
@@ -6657,12 +6671,20 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                     # If the link is DELETE TARGET IF ORPHAN, filter out
                     # any objects that aren't orphans (wrt to this link).
+                    roots = {
+                        x
+                        for root in self.get_orphan_link_ancestors(link, schema)
+                        for x in [root, *root.descendants(schema)]
+                    }
+
                     orphan_check = ''
-                    for orphan_check_root in self.get_orphan_link_ancestors(
-                            link, schema):
+                    for orphan_check_root in roots:
                         check_source = orphan_check_root.get_source(schema)
+                        if not types.has_table(check_source, schema):
+                            continue
                         check_table = common.get_backend_name(
-                            schema, check_source, aspect='inhview')
+                            schema, check_source
+                        )
 
                         check_link_psi = types.get_pointer_storage_info(
                             orphan_check_root, schema=schema)
@@ -6735,6 +6757,11 @@ class UpdateEndpointDeleteActions(MetaCommand):
         )
 
         for link_op, link, orig_schema, eff_schema in self.link_ops:
+            # Skip __type__ triggers, since __type__ isn't real and
+            # also would be a huge pain to update each time if it was.
+            if link.get_shortname(eff_schema).name == '__type__':
+                continue
+
             if (
                 isinstance(link_op, (DeleteProperty, DeleteLink))
                 or (
@@ -6753,23 +6780,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             if not eff_schema.has_object(link.id):
                 continue
 
-            # If our link has a restrict policy, we don't need to update
-            # the target on changes to inherited links.
-            # Most importantly, this optimization lets us avoid updating
-            # the triggers for every schema::Type subtype every time a
-            # new object type is created containing a __type__ link.
-            action = (
-                link.get_on_target_delete(eff_schema)
-                if isinstance(link, s_links.Link) else None)
-            target_is_affected = not (
-                (action is DA.Restrict or action is DA.DeferredRestrict)
-                and (
-                    link.field_is_inherited(eff_schema, 'on_target_delete')
-                    or link.get_explicit_field_value(
-                        eff_schema, 'on_target_delete', None) is None
-                )
-                and link.get_implicit_bases(eff_schema)
-            ) and isinstance(link, s_links.Link)
+            target_is_affected = isinstance(link, s_links.Link)
 
             if link.is_non_concrete(eff_schema) or (
                 link.is_pure_computable(eff_schema)
@@ -6782,7 +6793,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
             if (
                 not isinstance(source, s_objtypes.ObjectType)
-                or types.is_cfg_view(source, eff_schema)
+                or irtyputils.is_cfg_view(source, eff_schema)
             ):
                 continue
 
@@ -6831,7 +6842,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
         delete_target_targets = set()
 
         for target in all_affected_targets:
-            if types.is_cfg_view(target, schema):
+            if irtyputils.is_cfg_view(target, schema):
                 continue
 
             deferred_links = []
@@ -6857,10 +6868,15 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 if link.is_pure_computable(schema):
                     continue
 
+                # Skip __type__ triggers, since __type__ isn't real and
+                # also would be a huge pain to update each time if it was.
+                if link.get_shortname(schema).name == '__type__':
+                    continue
+
                 source = link.get_source(schema)
                 if (
                     not source.is_material_object_type(schema)
-                    or types.is_cfg_view(source, schema)
+                    or irtyputils.is_cfg_view(source, schema)
                 ):
                     continue
 
@@ -6872,21 +6888,6 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     affected_sources.add(target)
 
                 action = link.get_on_target_delete(schema)
-                # Enforcing link deletion policies on targets are
-                # handled by looking at the inheritance views, when
-                # restrict is the policy.
-                # If the policy is allow or delete source, we need to
-                # actually process this for each link.
-                if (
-                    (action is DA.Restrict or action is DA.DeferredRestrict)
-                    and (
-                        link.field_is_inherited(schema, 'on_target_delete')
-                        or link.get_explicit_field_value(
-                            schema, 'on_target_delete', None) is None
-                    )
-                    and link.get_implicit_bases(schema)
-                ):
-                    continue
 
                 ptr_stor_info = types.get_pointer_storage_info(
                     link, schema=schema)

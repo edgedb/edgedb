@@ -121,9 +121,9 @@ jobs:
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
         restore-keys: |
-          edb-rust-v3-
+          edb-rust-v4-
 
     - name: Handle cached Cython extensions
       uses: actions/cache@v4
@@ -422,7 +422,7 @@ jobs:
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
       uses: actions/cache@v4

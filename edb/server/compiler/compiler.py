@@ -50,8 +50,9 @@ from edb import errors
 
 from edb.common.typeutils import not_none
 
-from edb.server import defines
 from edb.server import config
+from edb.server import defines
+from edb.server import instdata
 
 from edb import edgeql
 from edb.common import debug
@@ -319,12 +320,8 @@ def new_compiler_context(
 
 async def get_patch_count(backend_conn: metaschema.PGConnection) -> int:
     """Get the number of applied patches."""
-    num_patches = await backend_conn.sql_fetch_val(
-        b'''
-            SELECT json::json from edgedbinstdata.instdata
-            WHERE key = 'num_patches';
-        ''',
-    )
+    num_patches = await instdata.get_instdata(
+        backend_conn, 'num_patches', 'json')
     res: int = json.loads(num_patches) if num_patches else 0
     return res
 
@@ -337,13 +334,7 @@ async def load_std_and_reflection_schema(
 
     # stdschema and reflschema are combined in one pickle to preserve sharing.
     key = f"std_and_reflection_schema{vkey}"
-    data = await backend_conn.sql_fetch_val(
-        b"""
-        SELECT bin FROM edgedbinstdata.instdata
-        WHERE key = $1
-        """,
-        args=[key.encode("utf-8")],
-    )
+    data = await instdata.get_instdata(backend_conn, key, 'bin')
     try:
         std_schema: s_schema.FlatSchema
         refl_schema: s_schema.FlatSchema
@@ -363,13 +354,9 @@ async def load_schema_intro_query(
     kind: str,
 ) -> str:
     kind += pg_patches.get_version_key(patches)
-    return (await backend_conn.sql_fetch_val(
-        b"""
-        SELECT text FROM edgedbinstdata.instdata
-        WHERE key = $1::text;
-        """,
-        args=[kind.encode("utf-8")],
-    )).decode('utf-8')
+    return (
+        await instdata.get_instdata(backend_conn, kind, 'text')
+    ).decode('utf-8')
 
 
 async def load_schema_class_layout(
@@ -377,13 +364,7 @@ async def load_schema_class_layout(
     patches: int,
 ) -> s_refl.SchemaClassLayout:
     key = f'classlayout{pg_patches.get_version_key(patches)}'
-    data = await backend_conn.sql_fetch_val(
-        b"""
-        SELECT bin FROM edgedbinstdata.instdata
-        WHERE key = $1::text;
-        """,
-        args=[key.encode("utf-8")],
-    )
+    data = await instdata.get_instdata(backend_conn, key, 'bin')
     try:
         return cast(s_refl.SchemaClassLayout, pickle.loads(data))
     except Exception as e:
@@ -1700,11 +1681,7 @@ def _get_compile_options(
             ctx, 'apply_access_policies'),
         allow_user_specified_id=_get_config_val(
             ctx, 'allow_user_specified_id') or ctx.schema_reflection_mode,
-        expand_inhviews=(
-            debug.flags.edgeql_expand_inhviews
-            and not ctx.bootstrap_mode
-            and not ctx.schema_reflection_mode
-        ) or is_explain,
+        is_explain=is_explain,
         testmode=_get_config_val(ctx, '__internal_testmode'),
         schema_reflection_mode=(
             ctx.schema_reflection_mode
@@ -1889,7 +1866,7 @@ def _compile_ql_query(
         expected_cardinality_one=ctx.expected_cardinality_one,
         output_format=_convert_format(ctx.output_format),
         backend_runtime_params=ctx.backend_runtime_params,
-        expand_inhviews=options.expand_inhviews,
+        is_explain=options.is_explain,
         detach_params=(use_persistent_cache
                        and cache_mode is config.QueryCacheMode.PgFunc),
         versioned_stdlib=True,

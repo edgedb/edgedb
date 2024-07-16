@@ -77,10 +77,10 @@ class GlobalCompilerOptions:
     #: definitions.
     func_params: Optional[s_func.ParameterLikeList] = None
 
-    #: Should the backend compiler expand out inheritance views instead of
-    #: using them. This is needed by EXPLAIN to maintain alias names in
+    #: Should the backend compiler expand inheritance CTEs in place.
+    #: This is needed by EXPLAIN to maintain alias names in
     #: the query plan.
-    expand_inhviews: bool = False
+    is_explain: bool = False
 
     #: The name that can be used in a "DML is disallowed in ..."
     #: error. When this is not None, any DML should cause an error.
