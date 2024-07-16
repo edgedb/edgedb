@@ -856,7 +856,6 @@ cdef class PgConnection(frontend.FrontendConnection):
                         self,
                         self.database.dbver,
                         dbv,
-                        send_sync_on_error=True,
                     )
                 except Exception as ex:
                     self.write_error(ex)
