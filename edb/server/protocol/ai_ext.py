@@ -670,6 +670,23 @@ async def _generate_embeddings_params(
 
                 inputs.append(input)
 
+            if model_name in model_tokenizers:
+                # Trim the inputs so that they fit into the batch size
+                batches = _batch_embeddings_inputs(
+                    tokenizer, inputs, model_max_batch_tokens[model_name]
+                )
+                if batches:
+                    # The request scheduler is not designed to handle multiple
+                    # batches for a single provider. Just take the first one,
+                    # and the rest can be processed next time. If the limits are
+                    # not exceeded, this will happen "immediately".
+                    inputs = batches[0]
+                else:
+                    inputs = []
+
+            if not inputs:
+                continue
+
             embeddings_params.append(EmbeddingsParams(
                 pgconn=pgconn,
                 provider=provider_cfg,
@@ -680,6 +697,66 @@ async def _generate_embeddings_params(
             ))
 
     return embeddings_params
+
+
+def _batch_embeddings_inputs(
+    tokenizer: Tokenizer,
+    inputs: list[str],
+    max_batch_tokens: int,
+) -> list[list[str]]:
+    """Create batches of embeddings inputs."""
+
+    # Get token counts
+    input_token_counts = [
+        len(tokenizer.encode(input))
+        for input in inputs
+    ]
+
+    # Get indexes of inputs, sorted from shortest to longest by token count
+    unbatched_input_indexes = list(range(len(inputs)))
+    unbatched_input_indexes.sort(
+        key=lambda index: input_token_counts[index],
+        reverse=False,
+    )
+
+    def unbatched_input(unbatched_index: int) -> str:
+        return inputs[unbatched_input_indexes[unbatched_index]]
+
+    def unbatched_token_count(unbatched_index: int) -> int:
+        return input_token_counts[unbatched_input_indexes[unbatched_index]]
+
+    # Remove any inputs that are larger than the maximum
+    while (
+        unbatched_input_indexes
+        and unbatched_token_count(-1) > max_batch_tokens
+    ):
+        unbatched_input_indexes.pop()
+
+    batches: list[list[str]] = []
+    while unbatched_input_indexes:
+        # Start with the largest available input
+        batch = [unbatched_input(-1)]
+        batch_token_count = unbatched_token_count(-1)
+        unbatched_input_indexes.pop()
+
+        if batch_token_count < max_batch_tokens:
+            # Then add the smallest available input as long as long as the
+            # max batch token count isn't exceeded
+            unbatched_index = 0
+            while unbatched_index < len(unbatched_input_indexes):
+                if (
+                    batch_token_count + unbatched_token_count(unbatched_index)
+                    <= max_batch_tokens
+                ):
+                    batch.append(unbatched_input(unbatched_index))
+                    batch_token_count += unbatched_token_count(unbatched_index)
+                    unbatched_input_indexes.pop(unbatched_index)
+                else:
+                    unbatched_index += 1
+
+        batches.append(batch)
+
+    return batches
 
 
 async def _update_embeddings_in_db(
