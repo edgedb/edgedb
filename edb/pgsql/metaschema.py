@@ -67,13 +67,14 @@ from edb.server import pgcon  # HM.
 
 from .resolver import sql_introspection
 
+from . import codegen
 from . import common
 from . import compiler
 from . import dbops
-from . import types
+from . import inheritance
 from . import params
-from . import codegen
 from . import trampoline
+from . import types
 
 q = common.qname
 qi = common.quote_ident
@@ -2774,9 +2775,13 @@ class DescribeRolesAsDDLFunction(trampoline.VersionedFunction):
 
     def __init__(self, schema: s_schema.Schema) -> None:
         role_obj = schema.get("sys::Role", type=s_objtypes.ObjectType)
-        roles = inhviewname(schema, role_obj)
+        roles = _schema_alias_view_name(schema, role_obj)
+        roles = (common.maybe_versioned_schema(roles[0]), roles[1])
+
         member_of = role_obj.getptr(schema, s_name.UnqualName('member_of'))
-        members = inhviewname(schema, member_of)
+        members = _schema_alias_view_name(schema, member_of)
+        members = (common.maybe_versioned_schema(members[0]), members[1])
+
         name_col = ptr_col_name(schema, role_obj, 'name')
         pass_col = ptr_col_name(schema, role_obj, 'password')
         qi_superuser = qlquote.quote_ident(defines.EDGEDB_SUPERUSER)
@@ -4876,18 +4881,6 @@ def tabname(
     )
 
 
-def inhviewname(
-    schema: s_schema.Schema, obj: s_obj.QualifiedObject
-) -> Tuple[str, str]:
-    return common.get_backend_name(
-        schema,
-        obj,
-        aspect='inhview',
-        catenate=False,
-        versioned=True,
-    )
-
-
 def ptr_col_name(
     schema: s_schema.Schema,
     obj: s_sources.Source,
@@ -5572,41 +5565,23 @@ def _generate_schema_alias_views(
 
 def _generate_schema_alias_view(
     schema: s_schema.Schema,
-    obj: s_sources.Source,
+    obj: s_sources.Source | s_pointers.Pointer,
 ) -> dbops.View:
 
-    module = obj.get_name(schema).module
-    bn = common.get_backend_name(
-        schema,
-        obj,
-        aspect='inhview',
-        catenate=False,
-        versioned=True,
+    name = _schema_alias_view_name(schema, obj)
+    select = inheritance.get_inheritance_view(schema, obj)
+
+    return trampoline.VersionedView(
+        name=name,
+        query=codegen.generate_source(select),
     )
 
-    targets = []
 
-    if isinstance(obj, s_links.Link):
-        expected_tt = "link"
-    else:
-        expected_tt = "ObjectType"
-
-    for ptr in obj.get_pointers(schema).objects(schema):
-        if ptr.is_pure_computable(schema):
-            continue
-        psi = types.get_pointer_storage_info(ptr, schema=schema)
-        if psi.table_type == expected_tt:
-            ptr_name = ptr.get_shortname(schema).name
-            col_name = psi.column_name
-            if col_name == '__type__':
-                val = f'{ql(str(obj.id))}::uuid'
-            else:
-                val = f'{qi(col_name)}'
-
-            if col_name != ptr_name:
-                targets.append(f'{val} AS {qi(ptr_name)}')
-            targets.append(f'{val} AS {qi(col_name)}')
-
+def _schema_alias_view_name(
+    schema: s_schema.Schema,
+    obj: s_sources.Source | s_pointers.Pointer,
+) -> tuple[str, str]:
+    module = obj.get_name(schema).module
     prefix = module.capitalize()
 
     if isinstance(obj, s_links.Link):
@@ -5618,10 +5593,7 @@ def _generate_schema_alias_view(
     else:
         name = f'_{prefix}{obj.get_name(schema).name}'
 
-    return trampoline.VersionedView(
-        name=('edgedb', name),
-        query=(f'SELECT {", ".join(targets)} FROM {q(*bn)}')
-    )
+    return ('edgedb', name)
 
 
 def _generate_sql_information_schema() -> List[dbops.Command]:
@@ -7055,6 +7027,15 @@ def get_support_views(
 
     sys_alias_views = _generate_schema_alias_views(
         schema, s_name.UnqualName('sys'))
+
+    # Include sys::Role::member_of to support DescribeRolesAsDDLFunction
+    SysRole = schema.get(
+        'sys::Role', type=s_objtypes.ObjectType)
+    SysRole__member_of = SysRole.getptr(
+        schema, s_name.UnqualName('member_of'))
+    sys_alias_views.append(
+        _generate_schema_alias_view(schema, SysRole__member_of))
+
     for alias_view in sys_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
