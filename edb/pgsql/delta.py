@@ -361,7 +361,7 @@ class AlterSchemaVersion(
         check = dbops.Query(
             f'''
                 SELECT
-                    edgedb.raise_on_not_null(
+                    edgedb_VER.raise_on_not_null(
                         (SELECT NULLIF(
                             (SELECT
                                 version::text
@@ -503,7 +503,7 @@ class AlterGlobalSchemaVersion(
             # This is racy, but is unfortunately the best we can do.
             lock = dbops.Query(f'''
                 SELECT
-                    edgedb.raise_on_not_null(
+                    edgedb_VER.raise_on_not_null(
                         (
                             SELECT 'locked'
                             FROM pg_catalog.pg_locks
@@ -536,7 +536,7 @@ class AlterGlobalSchemaVersion(
         check = dbops.Query(
             f'''
                 SELECT
-                    edgedb.raise_on_not_null(
+                    edgedb_VER.raise_on_not_null(
                         (SELECT NULLIF(
                             (SELECT
                                 version::text
@@ -1293,7 +1293,7 @@ class FunctionCommand(MetaCommand):
         impl_ids = ', '.join(f'{ql(str(t.id))}::uuid' for t in cases)
         branches = list(cases.values())
 
-        # N.B: edgedb.raise and coalesce are used below instead of
+        # N.B: edgedb_VER.raise and coalesce are used below instead of
         #      raise_on_null, because the latter somehow results in a
         #      significantly more complex query plan.
         matching_impl = f"""
@@ -1413,7 +1413,7 @@ class FunctionCommand(MetaCommand):
 
         check = dbops.Query(text=f'''
             PERFORM
-                edgedb.raise_on_not_null(
+                edgedb_VER.raise_on_not_null(
                     NULLIF(
                         pg_typeof(NULL::{qt(rtype)}),
                         {f_test}
@@ -1470,7 +1470,7 @@ class FunctionCommand(MetaCommand):
 
         check = dbops.Query(text=f'''
             PERFORM
-                edgedb.raise_on_null(
+                edgedb_VER.raise_on_null(
                     NULLIF(
                         false,
                         {f_test}
@@ -1491,9 +1491,16 @@ class FunctionCommand(MetaCommand):
     def get_dummy_func_call(
         self,
         cobj: s_funcs.CallableObject,
-        sql_func: str,
+        sql_func: Sequence[str],
         schema: s_schema.Schema,
     ) -> str:
+        name = common.maybe_versioned_name(
+            tuple(sql_func),
+            versioned=(
+                cobj.get_name(schema).get_root_module_name().name != 'ext'
+            ),
+        )
+
         args = []
         func_params = cobj.get_params(schema)
         for param in func_params.get_in_canonical_order(schema):
@@ -1501,7 +1508,7 @@ class FunctionCommand(MetaCommand):
             pg_at = self.get_pgtype(cobj, param_type, schema)
             args.append(f'NULL::{qt(pg_at)}')
 
-        return f'{sql_func}({", ".join(args)})'
+        return f'{q(*name)}({", ".join(args)})'
 
     def make_op(
         self,
@@ -1526,7 +1533,8 @@ class FunctionCommand(MetaCommand):
             else:
                 # Function backed directly by an SQL function.
                 # Check the consistency of the return type.
-                dexpr = self.get_dummy_func_call(func, sql_func, schema)
+                dexpr = self.get_dummy_func_call(
+                    func, sql_func.split('.'), schema)
                 return (
                     self.sql_rval_consistency_check(func, dexpr, schema),
                     self.sql_strict_consistency_check(func, sql_func, schema),
@@ -1771,7 +1779,7 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
 
             if not params.has_polymorphic(schema):
                 cexpr = self.get_dummy_func_call(
-                    oper, q(*oper_func.name), schema)
+                    oper, oper_func.name, schema)
                 check = self.sql_rval_consistency_check(oper, cexpr, schema)
                 self.pgops.add(check)
 
@@ -2884,7 +2892,7 @@ class DeleteScalarType(ScalarTypeMetaCommand,
                     WHERE
                         p.proname LIKE '__qh_%'
                 LOOP
-                    PERFORM edgedb."_evict_query_cache"(qc.key);
+                    PERFORM edgedb_VER."_evict_query_cache"(qc.key);
                 END LOOP;
             END $$;
         ''')
@@ -4124,7 +4132,7 @@ class AlterObjectType(ObjectTypeMetaCommand, adapts=s_objtypes.AlterObjectType):
         vn = self.scls.get_verbosename(schema)
         check_qry = textwrap.dedent(f'''\
             SELECT
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::text,
                     'cardinality_violation',
                     msg => {common.quote_literal(
@@ -4195,6 +4203,14 @@ class PointerMetaCommand(
 
     def get_pointer_default(self, ptr, schema, context):
         if ptr.is_pure_computable(schema):
+            return None
+
+        # Skip id, because it shouldn't ever matter for performance
+        # and because it wants to use the trampoline function, which
+        # might not exist yet.
+        if ptr.is_id_pointer(schema):
+            return None
+        if context.stdmode:
             return None
 
         # We only *need* to use postgres defaults for link properties
@@ -4575,7 +4591,7 @@ class PointerMetaCommand(
                 if is_required:
                     check_qry = textwrap.dedent(f'''\
                         SELECT
-                            edgedb.raise(
+                            edgedb_VER.raise(
                                 NULL::text,
                                 'not_null_violation',
                                 msg => 'missing value for required property',
@@ -4762,7 +4778,7 @@ class PointerMetaCommand(
                         DELETE FROM {tab} WHERE {col} IS NULL RETURNING source
                     )
                     SELECT
-                        edgedb.raise(
+                        edgedb_VER.raise(
                             NULL::text,
                             'not_null_violation',
                             msg => 'missing value for required property',
@@ -6348,7 +6364,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             if action is DA.Restrict or action is DA.DeferredRestrict:
                 tables = self._get_link_table_union(schema, links)
 
-                text = textwrap.dedent('''\
+                text = textwrap.dedent(trampoline.fixup_query('''\
                     SELECT
                         q.__sobj_id__, q.source, q.target
                         INTO link_type_id, srcid, tgtid
@@ -6360,11 +6376,12 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                     IF FOUND THEN
                         SELECT
-                            edgedb.shortname_from_fullname(link.name),
-                            edgedb._get_schema_object_name(link.{far_endpoint})
+                            edgedb_VER.shortname_from_fullname(link.name),
+                            edgedb_VER._get_schema_object_name(
+                                link.{far_endpoint})
                             INTO linkname, endname
                         FROM
-                            edgedb._schema_links AS link
+                            edgedb_VER._schema_links AS link
                         WHERE
                             link.id = link_type_id;
                         RAISE foreign_key_violation
@@ -6377,7 +6394,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                                     || linkname || ' of ' || endname || ' ('
                                     || srcid || ').';
                     END IF;
-                ''').format(
+                ''')).format(
                     tables=tables,
                     id='id',
                     tgtname=target.get_displayname(schema),
@@ -6573,7 +6590,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             if action is DA.Restrict or action is DA.DeferredRestrict:
                 tables = self._get_inline_link_table_union(schema, links)
 
-                text = textwrap.dedent('''\
+                text = textwrap.dedent(trampoline.fixup_query('''\
                     SELECT
                         q.__sobj_id__, q.source, q.target
                         INTO link_type_id, srcid, tgtid
@@ -6585,11 +6602,12 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                     IF FOUND THEN
                         SELECT
-                            edgedb.shortname_from_fullname(link.name),
-                            edgedb._get_schema_object_name(link.{far_endpoint})
+                            edgedb_VER.shortname_from_fullname(link.name),
+                            edgedb_VER._get_schema_object_name(
+                                link.{far_endpoint})
                             INTO linkname, endname
                         FROM
-                            edgedb._schema_links AS link
+                            edgedb_VER._schema_links AS link
                         WHERE
                             link.id = link_type_id;
                         RAISE foreign_key_violation
@@ -6602,7 +6620,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                                     || linkname || ' of ' || endname || ' ('
                                     || srcid || ').';
                     END IF;
-                ''').format(
+                ''')).format(
                     tables=tables,
                     id='id',
                     tgtname=target.get_displayname(schema),
@@ -7099,7 +7117,7 @@ class DatabaseMixin:
                 dbops.Query(
                     f'''
                     SELECT
-                        edgedb.raise(
+                        edgedb_VER.raise(
                             NULL::uuid,
                             msg => 'operation is not supported by the backend',
                             exc => 'feature_not_supported'
@@ -7206,7 +7224,7 @@ class RoleMixin:
                 dbops.Query(
                     f'''
                     SELECT
-                        edgedb.raise(
+                        edgedb_VER.raise(
                             NULL::uuid,
                             msg => 'operation is not supported by the backend',
                             exc => 'feature_not_supported'
@@ -7545,7 +7563,7 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
                from pg_available_extension_versions
                where name = {ql(ext)}
             )
-            select edgedb.raise_on_null(
+            select edgedb_VER.raise_on_null(
               (
                  select v.version from v
                  where {cond}
