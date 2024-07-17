@@ -946,8 +946,10 @@ cdef class PGConnection:
         if state is not None and start == 0:
             self._build_apply_state_req(state, out)
 
-        for query_unit, bind_data in zip(
-                query_unit_group.units[start:end], bind_datas):
+        # Build the parse_array first, closing statements if needed before
+        # actually executing any command that may fail, in order to ensure
+        # self.prep_stmts is always in sync with the actual open statements
+        for query_unit in query_unit_group.units[start:end]:
             if query_unit.system_config:
                 raise RuntimeError(
                     "CONFIGURE INSTANCE command is not allowed in scripts"
@@ -963,13 +965,21 @@ cdef class PGConnection:
                 if stmt_name not in parsed and self.before_prepare(
                     stmt_name, dbver, out
                 ):
+                    parse_array[idx] = True
+                    parsed.add(stmt_name)
+            idx += 1
+        idx = start
+
+        for query_unit, bind_data in zip(
+            query_unit_group.units[start:end], bind_datas):
+            stmt_name = query_unit.sql_hash
+            if stmt_name:
+                if parse_array[idx]:
                     buf = WriteBuffer.new_message(b'P')
                     buf.write_bytestring(stmt_name)
                     buf.write_bytestring(query_unit.sql[0])
                     buf.write_int16(0)
                     out.write_buffer(buf.end_message())
-                    parse_array[idx] = True
-                    parsed.add(stmt_name)
                     metrics.query_size.observe(
                         len(query_unit.sql[0]),
                         self.get_tenant_label(),

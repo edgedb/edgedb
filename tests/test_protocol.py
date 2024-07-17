@@ -754,6 +754,62 @@ class TestProtocol(ProtocolTestCase):
         )
         await self.con.recv_match(protocol.ReadyForCommand)
 
+    async def test_proto_discard_prepared_statement_in_script(self):
+        await self.con.connect()
+
+        try:
+            await self._test_proto_discard_prepared_statement_in_script()
+        finally:
+            await self.con.execute("drop type DiscardStmtInScript")
+
+    async def _test_proto_discard_prepared_statement_in_script(self):
+        # Context: we don't want to jump around cache function calls
+        await self._execute(
+            "configure session set query_cache_mode"
+            " := <cfg::QueryCacheMode>'InMemory'"
+        )
+        state = await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # First, run a query that is known to use a prepared statement
+        await self._execute("select 42", cc=state)
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # Then, bump dbver by modifying the schema to invalidate the statement
+        await self.con.execute("create type DiscardStmtInScript")
+
+        # Now here comes the key. We execute a script that is meant to fail at
+        # the first command. The second command, `select 42` again, is never
+        # executed living in an aborted transaction, but we didn't know that
+        # before executing the first command; we sent messages of both commands
+        # altogether. Because dbver is bumped, we need to rebuild the prepared
+        # statement for `select 42`, involving a `CLOSE` message followed by a
+        # `PARSE` message. The problem was, `CLOSE` was placed *after* the
+        # `EXECUTE` message of the first command so `CLOSE` was simply skipped
+        # because the first command failed; but we still removed the prepared
+        # statement from the in-memory registry of PGConnection, leading to an
+        # inconsistency of memory state.
+        await self._execute('select 1/0; select 42', cc=state)
+        await self.con.recv_match(
+            protocol.ErrorResponse,
+            message='division by zero'
+        )
+        await self.con.recv_match(
+            protocol.ReadyForCommand,
+            transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
+        )
+
+        # With such inconsistency, the next `select 42` was failing trying to
+        # create its prepared statement, because the memory registry showed we
+        # didn't have a prepared statement for `select 42`, but it was actually
+        # not closed in the PG session due the issue mentioned above.
+        await self._execute("select 42", cc=state)
+        try:
+            await self.con.recv_match(protocol.CommandComplete)
+        finally:
+            await self.con.recv_match(protocol.ReadyForCommand)
+
 
 class TestServerCancellation(tb.TestCase):
     @contextlib.asynccontextmanager
