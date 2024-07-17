@@ -1176,7 +1176,7 @@ def compile_policy_check(
 
         def raise_if(a: pgast.BaseExpr, msg: pgast.BaseExpr) -> pgast.BaseExpr:
             return pgast.FuncCall(
-                name=('edgedb', 'raise_on_null'),
+                name=astutils.edgedb_func('raise_on_null', ctx=ctx),
                 args=[
                     pgast.FuncCall(
                         name=('nullif',),
@@ -1578,7 +1578,7 @@ def compile_insert_else_body_failure_check(
     assert on_conflict.constraint
     cid = common.get_constraint_raw_name(on_conflict.constraint.id)
     maybe_raise = pgast.FuncCall(
-        name=('edgedb', 'raise'),
+        name=astutils.edgedb_func('raise', ctx=ctx),
         args=[
             pgast.TypeCast(
                 arg=pgast.NullConstant(),
@@ -2211,13 +2211,13 @@ def check_update_type(
     # also the (dynamic) type of the argument, so that we can produce
     # a good error message.
     check_result = pgast.FuncCall(
-        name=('edgedb', 'issubclass'),
+        name=astutils.edgedb_func('issubclass', ctx=ctx),
         args=[typ, typeref_val],
     )
     maybe_null = pgast.CaseExpr(
         args=[pgast.CaseWhen(expr=check_result, result=rval)])
     maybe_raise = pgast.FuncCall(
-        name=('edgedb', 'raise_on_null'),
+        name=astutils.edgedb_func('raise_on_null', ctx=ctx),
         args=[
             maybe_null,
             pgast.StringConstant(val='wrong_object_type'),
@@ -3015,7 +3015,7 @@ def process_link_values(
 
     if ptr_is_multi_required and enforce_cardinality:
         target_ref = pgast.FuncCall(
-            name=('edgedb', 'raise_on_null'),
+            name=astutils.edgedb_func('raise_on_null', ctx=ctx),
             args=[
                 target_ref,
                 pgast.StringConstant(val='not_null_violation'),
