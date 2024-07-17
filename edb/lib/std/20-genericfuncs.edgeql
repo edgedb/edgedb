@@ -86,7 +86,7 @@ std::assert(
     SET volatility := 'Stable';
     USING SQL $$
     SELECT (
-        edgedb.raise_on_null(
+        edgedb_VER.raise_on_null(
             nullif("input", false),
             'cardinality_violation',
             "constraint" => 'std::assert',

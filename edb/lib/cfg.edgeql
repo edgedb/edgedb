@@ -309,7 +309,7 @@ cfg::get_config_json(
             '{}'::jsonb
         )
     FROM
-        edgedb._read_sys_config(
+        edgedb_VER._read_sys_config(
             sources::edgedb._sys_config_source_t[],
             max_source::edgedb._sys_config_source_t
         ) AS cfg
@@ -353,8 +353,8 @@ CREATE CAST FROM cfg::memory TO std::str {
 CREATE CAST FROM std::json TO cfg::memory {
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT edgedb.str_to_cfg_memory(
-            edgedb.jsonb_extract_scalar(val, 'string', detail => detail)
+        SELECT edgedb_VER.str_to_cfg_memory(
+            edgedb_VER.jsonb_extract_scalar(val, 'string', detail => detail)
         )
     $$;
 };
@@ -363,7 +363,7 @@ CREATE CAST FROM std::json TO cfg::memory {
 CREATE CAST FROM cfg::memory TO std::json {
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT to_jsonb(edgedb.cfg_memory_to_str(val))
+        SELECT to_jsonb(edgedb_VER.cfg_memory_to_str(val))
     $$;
 };
 

@@ -89,7 +89,7 @@ std::array_get(
     USING SQL $$
     SELECT COALESCE(
         "array"[
-            edgedb._normalize_array_index(
+            edgedb_VER._normalize_array_index(
                 "idx"::int, array_upper("array", 1))
         ],
         "default"

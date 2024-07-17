@@ -75,11 +75,11 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    edgedb.range_lower_validate(val) +
+                    edgedb_VER.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE 1 END)
                 )::int8,
                 (
-                    edgedb.range_upper_validate(val) -
+                    edgedb_VER.range_upper_validate(val) -
                     (CASE WHEN upper_inc(val) THEN 0 ELSE 1 END)
                 )::int8
             )::int4
@@ -98,11 +98,11 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    edgedb.range_lower_validate(val) +
+                    edgedb_VER.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE 1 END)
                 )::int8,
                 (
-                    edgedb.range_upper_validate(val) -
+                    edgedb_VER.range_upper_validate(val) -
                     (CASE WHEN upper_inc(val) THEN 0 ELSE 1 END)
                 )::int8,
                 step::int8
@@ -121,11 +121,11 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    edgedb.range_lower_validate(val) +
+                    edgedb_VER.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE 1 END)
                 )::int8,
                 (
-                    edgedb.range_upper_validate(val) -
+                    edgedb_VER.range_upper_validate(val) -
                     (CASE WHEN upper_inc(val) THEN 0 ELSE 1 END)
                 )::int8
             )
@@ -144,11 +144,11 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    edgedb.range_lower_validate(val) +
+                    edgedb_VER.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE 1 END)
                 )::int8,
                 (
-                    edgedb.range_upper_validate(val) -
+                    edgedb_VER.range_upper_validate(val) -
                     (CASE WHEN upper_inc(val) THEN 0 ELSE 1 END)
                 )::int8,
                 step
@@ -169,11 +169,11 @@ std::range_unpack(
         FROM
             generate_series(
                 (
-                    edgedb.range_lower_validate(val) +
+                    edgedb_VER.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE step END)
                 )::numeric,
                 (
-                    edgedb.range_upper_validate(val)
+                    edgedb_VER.range_upper_validate(val)
                 )::numeric,
                 step::numeric
             ) AS num
@@ -195,11 +195,11 @@ std::range_unpack(
         FROM
             generate_series(
                 (
-                    edgedb.range_lower_validate(val) +
+                    edgedb_VER.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE step END)
                 )::numeric,
                 (
-                    edgedb.range_upper_validate(val)
+                    edgedb_VER.range_upper_validate(val)
                 )::numeric,
                 step::numeric
             ) AS num
@@ -220,9 +220,9 @@ std::range_unpack(
         SELECT num
         FROM
             generate_series(
-                edgedb.range_lower_validate(val) +
+                edgedb_VER.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE step END),
-                edgedb.range_upper_validate(val),
+                edgedb_VER.range_upper_validate(val),
                 step
             ) AS num
         WHERE
@@ -243,7 +243,7 @@ std::range_unpack(
         FROM
             generate_series(
                 (
-                    edgedb.range_lower_validate(val) + (
+                    edgedb_VER.range_lower_validate(val) + (
                         CASE WHEN lower_inc(val)
                             THEN '0'::interval
                             ELSE step
@@ -251,7 +251,7 @@ std::range_unpack(
                     )
                 )::timestamptz,
                 (
-                    edgedb.range_upper_validate(val)
+                    edgedb_VER.range_upper_validate(val)
                 )::timestamptz,
                 step::interval
             ) AS d
