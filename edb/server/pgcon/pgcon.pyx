@@ -1646,7 +1646,6 @@ cdef class PGConnection:
         fe_conn: frontend.AbstractFrontendConnection,
         dbver: int,
         dbv: pg_ext.ConnectionView,
-        send_sync_on_error: bool = False,
     ) -> tuple[bool, bool]:
         self.before_command()
         try:
@@ -1663,7 +1662,6 @@ cdef class PGConnection:
                     fe_conn,
                     dbver,
                     dbv,
-                    send_sync_on_error=send_sync_on_error,
                 )
             finally:
                 if not dbv.in_tx():
@@ -1846,7 +1844,6 @@ cdef class PGConnection:
         fe_conn: frontend.AbstractFrontendConnection,
         dbver: int,
         dbv: pg_ext.ConnectionView,
-        send_sync_on_error: bool,
     ) -> tuple[bool, bool]:
         cdef:
             WriteBuffer buf, msg_buf
@@ -2119,7 +2116,7 @@ cdef class PGConnection:
                 elif mtype == b'E':  # ErrorResponse
                     rv = False
                     if self.debug:
-                        self.debug_print('ERROR RESPONSE MSG', send_sync_on_error)
+                        self.debug_print('ERROR RESPONSE MSG')
                     fe_conn.on_error(action.query_unit)
                     dbv.on_error()
                     self._rewrite_sql_error_response(action, buf)
@@ -2127,14 +2124,7 @@ cdef class PGConnection:
                     fe_conn.flush()
                     buf = WriteBuffer.new()
                     ignore_till_sync = True
-                    if send_sync_on_error:
-                        be_buf = WriteBuffer.new()
-                        if self.debug:
-                            self.debug_print("sent backend message: 'Z'")
-                        self.write_sync(be_buf)
-                        self.write(be_buf)
-                    else:
-                        break
+                    break
 
                 elif mtype == b'Z':  # ReadyForQuery
                     ignore_till_sync = False
