@@ -2063,8 +2063,9 @@ cdef class PGConnection:
                     ):
                         # when unpacking a DataRow, we need to know if it is in
                         # in binary or text mode.
-                        # Here we also assume that there will be a single column
-                        # in the DataRow.
+                        # Here we assume that there will be a single column in
+                        # the DataRow, so last byte will be the format code of
+                        # that col.
                         is_binary_format = data[-1] == 1
 
                         if is_binary_format:
@@ -2095,14 +2096,16 @@ cdef class PGConnection:
                         dbstate.TagUnpackRow,
                     )
                 ):
+                    data = self.buffer.consume_message()
+
                     # when unpacking a DataRow, we need to know if it is in
                     # in binary or text mode.
-                    # Here we also assume that there will be a single column
-                    # in the DataRow.
-                    is_binary_format = int.from_bytes(data[-2:0], "big") == 1
-                    
+                    # Here we assume that there will be a single column in the
+                    # DataRow, so last byte will be the format code of that col.
+                    is_binary_format = data[-1] == 1
+
                     # tell the frontend connection that there is NoData
-                    # because we intercept and unpack the DataRow. 
+                    # because we intercept and unpack the DataRow.
                     msg_buf = WriteBuffer.new_message(b'n')
                     buf.write_buffer(msg_buf.end_message())
 
@@ -2158,7 +2161,7 @@ cdef class PGConnection:
                         msg_buf = WriteBuffer.new_message(mtype)
                         if isinstance(tag, dbstate.TagPlain):
                             msg_buf.write_str(tag.tag, "utf-8")
-                        
+
                         elif isinstance(tag, (dbstate.TagCountMessages, dbstate.TagUnpackRow)):
                             msg_buf.write_bytes(bytes(tag.prefix, "utf-8"))
 
