@@ -328,18 +328,28 @@ class ParallelTestSuite(unittest.TestSuite):
             status_queue.get()
 
         with pool:
-            ar = pool.map_async(_run_test, iter(self.tests), chunksize=1)
-
-            while True:
-                try:
-                    ar.get(timeout=0.1)
-                except multiprocessing.TimeoutError:
-                    if self.stop_requested:
-                        break
-                    else:
-                        continue
-                else:
+            for is_repeat in (False, True):
+                if self.stop_requested:
                     break
+                ar = pool.map_async(
+                    _run_test,
+                    filter(
+                        lambda t: ('test_zREPEAT' in str(t)) == is_repeat,
+                        self.tests,
+                    ),
+                    chunksize=1,
+                )
+
+                while True:
+                    try:
+                        ar.get(timeout=0.1)
+                    except multiprocessing.TimeoutError:
+                        if self.stop_requested:
+                            break
+                        else:
+                            continue
+                    else:
+                        break
 
         # Wait for pool to shutdown, this includes test teardowns.
         pool.join()
