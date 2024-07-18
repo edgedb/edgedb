@@ -27,6 +27,7 @@ from edb.server.pgcon import errors as pgerror
 from edb import errors
 from edb.pgsql import ast as pgast
 from edb.pgsql import compiler as pgcompiler
+from edb.pgsql.compiler import enums as pgce
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -257,10 +258,12 @@ def _preprocess_insert_stmt(
         ptr_id = _get_ptr_id(value_id, ptr, ctx)
         output_var = pgast.ColumnRef(name=(ptr_name,), nullable=True)
         if is_link:
-            value_rel.path_outputs[(ptr_id, 'identity')] = output_var
-            value_rel.path_outputs[(ptr_id, 'value')] = output_var
+            value_rel.path_outputs[(ptr_id, pgce.PathAspect.IDENTITY)] = (
+                output_var
+            )
+            value_rel.path_outputs[(ptr_id, pgce.PathAspect.VALUE)] = output_var
         else:
-            value_rel.path_outputs[(ptr_id, 'value')] = output_var
+            value_rel.path_outputs[(ptr_id, pgce.PathAspect.VALUE)] = output_var
 
         # prepare insert shape that will use the paths from source_outputs
         insert_shape.append(
@@ -276,8 +279,8 @@ def _preprocess_insert_stmt(
     # source needs an identity column, so we need to invent one
     value_iterator = ctx.alias_generator.get('identity')
     output_var = pgast.ColumnRef(name=(value_iterator,))
-    value_rel.path_outputs[(value_id, 'iterator')] = output_var
-    value_rel.path_outputs[(value_id, 'value')] = output_var
+    value_rel.path_outputs[(value_id, pgce.PathAspect.ITERATOR)] = output_var
+    value_rel.path_outputs[(value_id, pgce.PathAspect.VALUE)] = output_var
 
     # the core thing
     ql_stmt: qlast.Expr = qlast.InsertQuery(
