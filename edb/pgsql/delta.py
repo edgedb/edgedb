@@ -401,7 +401,6 @@ class CreateGlobalSchemaVersion(
         schema = super().apply(schema, context)
         ver_id = str(self.scls.id)
         ver_name = str(self.scls.get_name(schema))
-        tenant_id = self._get_tenant_id(context)
 
         ctx_backend_params = context.backend_runtime_params
         if ctx_backend_params is not None:
@@ -422,8 +421,7 @@ class CreateGlobalSchemaVersion(
         if backend_params.has_create_database:
             self.pgops.add(
                 dbops.UpdateMetadataSection(
-                    dbops.Database(name=common.get_database_backend_name(
-                        edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)),
+                    dbops.DatabaseWithTenant(name=edbdef.EDGEDB_TEMPLATE_DB),
                     section='GlobalSchemaVersion',
                     metadata=metadata
                 )
@@ -461,9 +459,6 @@ class AlterGlobalSchemaVersion(
         else:
             backend_params = params.get_default_runtime_params()
 
-        tpl_db_name = common.get_database_backend_name(
-            edbdef.EDGEDB_TEMPLATE_DB, tenant_id=backend_params.tenant_id)
-
         if not backend_params.has_create_database:
             key = f'{edbdef.EDGEDB_TEMPLATE_DB}metadata'
             lock = dbops.Query(
@@ -491,7 +486,9 @@ class AlterGlobalSchemaVersion(
                         objoid = (
                             SELECT oid
                             FROM pg_database
-                            WHERE datname = {ql(tpl_db_name)}
+                            WHERE datname =
+                              {V('edgedb')}.get_database_backend_name(
+                                {ql(edbdef.EDGEDB_TEMPLATE_DB)})
                         )
                         AND classoid = 'pg_database'::regclass::oid
                     FOR UPDATE
@@ -513,8 +510,9 @@ class AlterGlobalSchemaVersion(
                                 AND objid = (
                                     SELECT oid
                                     FROM pg_database
-                                    WHERE
-                                        datname = {ql(tpl_db_name)}
+                                    WHERE datname =
+                                      {V('edgedb')}.get_database_backend_name(
+                                        {ql(edbdef.EDGEDB_TEMPLATE_DB)})
                                 )
                                 AND mode = 'ShareUpdateExclusiveLock'
                                 AND granted
@@ -569,7 +567,7 @@ class AlterGlobalSchemaVersion(
         if backend_params.has_create_database:
             self.pgops.add(
                 dbops.UpdateMetadataSection(
-                    dbops.Database(name=tpl_db_name),
+                    dbops.DatabaseWithTenant(name=edbdef.EDGEDB_TEMPLATE_DB),
                     section='GlobalSchemaVersion',
                     metadata=metadata
                 )
@@ -7453,13 +7451,9 @@ class CreateExtensionPackage(
             backend_params = params.get_default_runtime_params()
 
         if backend_params.has_create_database:
-            tenant_id = self._get_tenant_id(context)
-            tpl_db_name = common.get_database_backend_name(
-                edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
-
             self.pgops.add(
                 dbops.UpdateMetadataSection(
-                    dbops.Database(name=tpl_db_name),
+                    dbops.DatabaseWithTenant(name=edbdef.EDGEDB_TEMPLATE_DB),
                     section='ExtensionPackage',
                     metadata=metadata
                 )
@@ -7501,12 +7495,9 @@ class DeleteExtensionPackage(
         }
 
         if backend_params.has_create_database:
-            tenant_id = self._get_tenant_id(context)
-            tpl_db_name = common.get_database_backend_name(
-                edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
             self.pgops.add(
                 dbops.UpdateMetadataSection(
-                    dbops.Database(name=tpl_db_name),
+                    dbops.DatabaseWithTenant(name=edbdef.EDGEDB_TEMPLATE_DB),
                     section='ExtensionPackage',
                     metadata=metadata
                 )

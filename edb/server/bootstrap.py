@@ -87,7 +87,6 @@ from edb.pgsql import params
 from edb.pgsql import patches
 from edb.pgsql import trampoline
 from edb.pgsql.common import quote_ident as qi
-from edb.pgsql.common import quote_literal as ql
 
 from edgedb import scram
 
@@ -1523,8 +1522,6 @@ async def _init_stdlib(
         if in_dev_mode or cache_dir:
             tpl_db_name = edbdef.EDGEDB_TEMPLATE_DB
             tpl_pg_db_name = cluster.get_db_name(tpl_db_name)
-            tpl_pg_db_name_dyn = (
-                f"edgedb.get_database_backend_name({ql(tpl_db_name)})")
             tpldbdump = await cluster.dump_database(
                 tpl_pg_db_name,
                 exclude_schemas=[
@@ -1555,6 +1552,8 @@ async def _init_stdlib(
                 flags=re.MULTILINE,
             )
 
+            # The instance metadata doesn't go in the dump, so collect
+            # it ourselves.
             global_metadata = await conn.sql_fetch_val(
                 b"SELECT edgedb.get_database_metadata($1)::json",
                 args=[tpl_db_name.encode("utf-8")],
@@ -1564,13 +1563,9 @@ async def _init_stdlib(
             pl_block = dbops.PLTopBlock()
 
             set_metadata_text = dbops.SetMetadata(
-                dbops.Database(name='__dummy_placeholder_database__'),
+                dbops.DatabaseWithTenant(name=tpl_db_name),
                 global_metadata,
             ).code(pl_block)
-            set_metadata_text = set_metadata_text.replace(
-                '__dummy_placeholder_database__',
-                f"' || quote_ident({tpl_pg_db_name_dyn}) || '",
-            )
 
             set_single_db_metadata_text = dbops.SetSingleDBMetadata(
                 edbdef.EDGEDB_TEMPLATE_DB, global_metadata
@@ -1748,9 +1743,7 @@ async def _configure(
     metadata = {'sysconfig': json.loads(config_json)}
     if ctx.cluster.get_runtime_params().has_create_database:
         dbops.UpdateMetadata(
-            dbops.Database(
-                name=ctx.cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB)
-            ),
+            dbops.DatabaseWithTenant(name=edbdef.EDGEDB_SYSTEM_DB),
             metadata,
         ).generate(block)
     else:
