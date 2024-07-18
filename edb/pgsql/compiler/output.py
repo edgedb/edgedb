@@ -574,7 +574,10 @@ def serialize_expr_to_json(
     elif irtyputils.is_range(styperef) and not expr.ser_safe:
         val = pgast.FuncCall(
             # Use the actual generic helper for converting anyrange to jsonb
-            name=('edgedb', 'range_to_jsonb'),
+            name=common.maybe_versioned_name(
+                ('edgedb', 'range_to_jsonb'),
+                versioned=env.versioned_stdlib,
+            ),
             args=[expr], null_safe=True, ser_safe=True)
         if env.output_format in _JSON_FORMATS:
             val = pgast.TypeCast(
@@ -586,7 +589,10 @@ def serialize_expr_to_json(
         val = pgast.FuncCall(
             # Use the actual generic helper for converting anymultirange to
             # jsonb
-            name=('edgedb', 'multirange_to_jsonb'),
+            name=common.maybe_versioned_name(
+                ('edgedb', 'multirange_to_jsonb'),
+                versioned=env.versioned_stdlib,
+            ),
             args=[expr], null_safe=True, ser_safe=True)
         if env.output_format in _JSON_FORMATS:
             val = pgast.TypeCast(

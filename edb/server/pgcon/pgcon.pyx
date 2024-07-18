@@ -946,8 +946,10 @@ cdef class PGConnection:
         if state is not None and start == 0:
             self._build_apply_state_req(state, out)
 
-        for query_unit, bind_data in zip(
-                query_unit_group.units[start:end], bind_datas):
+        # Build the parse_array first, closing statements if needed before
+        # actually executing any command that may fail, in order to ensure
+        # self.prep_stmts is always in sync with the actual open statements
+        for query_unit in query_unit_group.units[start:end]:
             if query_unit.system_config:
                 raise RuntimeError(
                     "CONFIGURE INSTANCE command is not allowed in scripts"
@@ -963,13 +965,21 @@ cdef class PGConnection:
                 if stmt_name not in parsed and self.before_prepare(
                     stmt_name, dbver, out
                 ):
+                    parse_array[idx] = True
+                    parsed.add(stmt_name)
+            idx += 1
+        idx = start
+
+        for query_unit, bind_data in zip(
+            query_unit_group.units[start:end], bind_datas):
+            stmt_name = query_unit.sql_hash
+            if stmt_name:
+                if parse_array[idx]:
                     buf = WriteBuffer.new_message(b'P')
                     buf.write_bytestring(stmt_name)
                     buf.write_bytestring(query_unit.sql[0])
                     buf.write_int16(0)
                     out.write_buffer(buf.end_message())
-                    parse_array[idx] = True
-                    parsed.add(stmt_name)
                     metrics.query_size.observe(
                         len(query_unit.sql[0]),
                         self.get_tenant_label(),
@@ -1636,7 +1646,6 @@ cdef class PGConnection:
         fe_conn: frontend.AbstractFrontendConnection,
         dbver: int,
         dbv: pg_ext.ConnectionView,
-        send_sync_on_error: bool = False,
     ) -> tuple[bool, bool]:
         self.before_command()
         try:
@@ -1653,7 +1662,6 @@ cdef class PGConnection:
                     fe_conn,
                     dbver,
                     dbv,
-                    send_sync_on_error=send_sync_on_error,
                 )
             finally:
                 if not dbv.in_tx():
@@ -1836,7 +1844,6 @@ cdef class PGConnection:
         fe_conn: frontend.AbstractFrontendConnection,
         dbver: int,
         dbv: pg_ext.ConnectionView,
-        send_sync_on_error: bool,
     ) -> tuple[bool, bool]:
         cdef:
             WriteBuffer buf, msg_buf
@@ -2109,7 +2116,7 @@ cdef class PGConnection:
                 elif mtype == b'E':  # ErrorResponse
                     rv = False
                     if self.debug:
-                        self.debug_print('ERROR RESPONSE MSG', send_sync_on_error)
+                        self.debug_print('ERROR RESPONSE MSG')
                     fe_conn.on_error(action.query_unit)
                     dbv.on_error()
                     self._rewrite_sql_error_response(action, buf)
@@ -2117,14 +2124,7 @@ cdef class PGConnection:
                     fe_conn.flush()
                     buf = WriteBuffer.new()
                     ignore_till_sync = True
-                    if send_sync_on_error:
-                        be_buf = WriteBuffer.new()
-                        if self.debug:
-                            self.debug_print("sent backend message: 'Z'")
-                        self.write_sync(be_buf)
-                        self.write(be_buf)
-                    else:
-                        break
+                    break
 
                 elif mtype == b'Z':  # ReadyForQuery
                     ignore_till_sync = False

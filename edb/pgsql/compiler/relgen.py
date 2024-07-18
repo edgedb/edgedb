@@ -2356,7 +2356,7 @@ def process_set_as_singleton_assertion(
         )
 
         maybe_raise = pgast.FuncCall(
-            name=('edgedb', 'raise_on_null'),
+            name=astutils.edgedb_func('raise_on_null', ctx=ctx),
             args=[
                 check_expr,
                 pgast.StringConstant(val='cardinality_violation'),
@@ -2447,7 +2447,7 @@ def process_set_as_existence_assertion(
         msg = dispatch.compile(msg_arg.expr, ctx=newctx)
 
         set_expr = pgast.FuncCall(
-            name=('edgedb', 'raise_on_null'),
+            name=astutils.edgedb_func('raise_on_null', ctx=ctx),
             args=[
                 arg_val,
                 pgast.StringConstant(val='cardinality_violation'),
@@ -2583,7 +2583,7 @@ def process_set_as_multiplicity_assertion(
         msg = dispatch.compile(msg_arg.expr, ctx=newctx)
 
         do_raise = pgast.FuncCall(
-            name=('edgedb', 'raise'),
+            name=astutils.edgedb_func('raise', ctx=ctx),
             args=[
                 pgast.TypeCast(
                     arg=pgast.NullConstant(),
@@ -2966,7 +2966,7 @@ def process_set_as_std_range(
             *null_case,
             pgast.CaseWhen(
                 expr=pgast.FuncCall(
-                    name=('edgedb', 'range_validate'),
+                    name=astutils.edgedb_func('range_validate', ctx=ctx),
                     args=[lower, upper, inc_lower, inc_upper, empty],
                 ),
                 result=empty_range,
@@ -3490,7 +3490,7 @@ def process_set_as_func_expr(
 
         if expr.error_on_null_result:
             set_expr = pgast.FuncCall(
-                name=('edgedb', 'raise_on_null'),
+                name=astutils.edgedb_func('raise_on_null', ctx=ctx),
                 args=[
                     set_expr,
                     pgast.StringConstant(
@@ -3690,7 +3690,7 @@ def process_set_as_agg_expr_inner(
 
         if expr.error_on_null_result:
             set_expr = pgast.FuncCall(
-                name=('edgedb', 'raise_on_null'),
+                name=astutils.edgedb_func('raise_on_null', ctx=ctx),
                 args=[
                     set_expr,
                     pgast.StringConstant(
@@ -3874,7 +3874,7 @@ def build_array_expr(
         elements: List[pgast.BaseExpr], *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
-    array = astutils.safe_array_expr(elements)
+    array = astutils.safe_array_expr(elements, ctx=ctx)
 
     if irutils.is_empty_array_expr(ir_expr):
         assert isinstance(ir_expr, irast.Array)
@@ -3940,7 +3940,7 @@ def process_set_as_array_expr(
 
     if serializing:
         set_expr = astutils.safe_array_expr(
-            s_elements, ser_safe=all(x.ser_safe for x in s_elements))
+            s_elements, ser_safe=all(x.ser_safe for x in s_elements), ctx=ctx)
 
         if irutils.is_empty_array_expr(expr):
             set_expr = pgast.TypeCast(
@@ -4288,12 +4288,13 @@ def _fts_search_inner_pg(
     )
 
     lang = pgast.FuncCall(
-        name=('edgedb', 'fts_to_regconfig'),
+        name=astutils.edgedb_func('fts_to_regconfig', ctx=ctx),
         args=[lang],
     )
 
     parsed_query: pgast.BaseExpr = pgast.FuncCall(
-        name=('edgedb', 'fts_parse_query'), args=[query, lang]
+        name=astutils.edgedb_func('fts_parse_query', ctx=ctx),
+        args=[query, lang]
     )
     parsed_query_id = create_subrel_for_expr(parsed_query, ctx=inner_ctx)
     parsed_query = pathctx.get_path_var(

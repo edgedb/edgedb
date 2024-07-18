@@ -24,6 +24,8 @@ from typing import (
 )
 
 
+from edb.pgsql import common as pg_common
+
 if TYPE_CHECKING:
     from edb.pgsql import metaschema
 
@@ -36,9 +38,10 @@ async def get_instdata(
     if field == 'json':
         field = 'json::json'
 
+    schema = pg_common.versioned_schema('edgedbinstdata')
     return await backend_conn.sql_fetch_val(
         f"""
-        SELECT {field} FROM edgedbinstdata.instdata
+        SELECT {field} FROM {schema}.instdata
         WHERE key = $1
         """.encode('utf-8'),
         args=[key.encode("utf-8")],

@@ -1947,12 +1947,23 @@ class TestInsert(tb.QueryTestCase):
             INSERT DefaultTest8;
         ''')
 
-        await self.assert_query_result(
-            r'''
-                SELECT DefaultTest8.number;
-            ''',
-            {1, 2, 3}
-        )
+        try:
+            await self.assert_query_result(
+                r'''
+                    SELECT DefaultTest8.number;
+                ''',
+                {1, 2, 3},
+            )
+        except AssertionError:
+            if self.is_repeat:
+                await self.assert_query_result(
+                    r'''
+                        SELECT DefaultTest8.number;
+                    ''',
+                    {4, 5, 6},
+                )
+            else:
+                raise
 
     async def test_edgeql_insert_default_06(self):
         res = await self.con.query(r'''

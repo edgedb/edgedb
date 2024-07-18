@@ -990,19 +990,41 @@ class TestEdgeQLDT(tb.QueryTestCase):
             '''
         )
 
-        await self.assert_query_result(
-            r'''SELECT Obj { seq_prop } ORDER BY Obj.seq_prop;''',
-            [
-                {'seq_prop': 1}, {'seq_prop': 2}
-            ],
-        )
+        try:
+            await self.assert_query_result(
+                r'''SELECT Obj { seq_prop } ORDER BY Obj.seq_prop;''',
+                [
+                    {'seq_prop': 1}, {'seq_prop': 2}
+                ],
+            )
+        except AssertionError:
+            if self.is_repeat:
+                await self.assert_query_result(
+                    r'''SELECT Obj { seq_prop } ORDER BY Obj.seq_prop;''',
+                    [
+                        {'seq_prop': 3}, {'seq_prop': 4}
+                    ],
+                )
+            else:
+                raise
 
-        await self.assert_query_result(
-            r'''SELECT Obj2 { seq_prop };''',
-            [
-                {'seq_prop': 1}
-            ],
-        )
+        try:
+            await self.assert_query_result(
+                r'''SELECT Obj2 { seq_prop };''',
+                [
+                    {'seq_prop': 1},
+                ],
+            )
+        except AssertionError:
+            if self.is_repeat:
+                await self.assert_query_result(
+                    r'''SELECT Obj2 { seq_prop };''',
+                    [
+                        {'seq_prop': 2},
+                    ],
+                )
+            else:
+                raise
 
     async def test_edgeql_dt_enum_01(self):
         await self.assert_query_result(

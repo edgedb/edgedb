@@ -626,7 +626,7 @@ class SchemaTableConstraint:
             check = dbops.Query(
                 f'''
                 SELECT
-                    edgedb.raise(
+                    edgedb_VER.raise(
                         NULL::text,
                         'unique_violation',
                         msg => '{errmsg}',

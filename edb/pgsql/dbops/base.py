@@ -420,9 +420,14 @@ class Condition(BaseCommand):
 
 class Query(Command):
     def __init__(
-        self, text: str, *, type: Optional[str | Tuple[str, str]] = None
+        self, text: str, *, type: Optional[str | Tuple[str, str]] = None,
+        trampoline_fixup: bool=True,
     ):
+        from ..import trampoline
+
         super().__init__()
+        if trampoline_fixup:
+            text = trampoline.fixup_query(text)
         self.text = text
         self.type = type
 

@@ -85,8 +85,8 @@ from edb.pgsql import delta as delta_cmds
 from edb.pgsql import metaschema
 from edb.pgsql import params
 from edb.pgsql import patches
+from edb.pgsql import trampoline
 from edb.pgsql.common import quote_ident as qi
-from edb.pgsql.common import quote_literal as ql
 
 from edgedb import scram
 
@@ -397,15 +397,15 @@ async def _get_cluster_mode(ctx: BootstrapContext) -> ClusterMode:
 
     # Then, check if the current database was bootstrapped in single-db mode.
     has_instdata = await ctx.conn.sql_fetch_val(
-        b'''
+        trampoline.fixup_query('''
             SELECT
                 tablename
             FROM
                 pg_catalog.pg_tables
             WHERE
-                schemaname = 'edgedbinstdata'
+                schemaname = 'edgedbinstdata_VER'
                 AND tablename = 'instdata'
-        ''',
+        ''').encode('utf-8'),
     )
     if has_instdata:
         return ClusterMode.single_database
@@ -490,13 +490,13 @@ async def _store_static_bin_cache_conn(
     data: bytes,
 ) -> None:
 
-    text = f"""\
-        INSERT INTO edgedbinstdata.instdata (key, bin)
+    text = trampoline.fixup_query(f"""\
+        INSERT INTO edgedbinstdata_VER.instdata (key, bin)
         VALUES(
             {pg_common.quote_literal(key)},
             {pg_common.quote_bytea_literal(data)}::bytea
         )
-    """
+    """)
 
     await _execute(conn, text)
 
@@ -515,13 +515,13 @@ async def _store_static_text_cache(
     data: str,
 ) -> None:
 
-    text = f"""\
-        INSERT INTO edgedbinstdata.instdata (key, text)
+    text = trampoline.fixup_query(f"""\
+        INSERT INTO edgedbinstdata_VER.instdata (key, text)
         VALUES(
             {pg_common.quote_literal(key)},
             {pg_common.quote_literal(data)}::text
         )
-    """
+    """)
 
     await _execute(ctx.conn, text)
 
@@ -532,13 +532,13 @@ async def _store_static_json_cache(
     data: str,
 ) -> None:
 
-    text = f"""\
-        INSERT INTO edgedbinstdata.instdata (key, json)
+    text = trampoline.fixup_query(f"""\
+        INSERT INTO edgedbinstdata_VER.instdata (key, json)
         VALUES(
             {pg_common.quote_literal(key)},
             {pg_common.quote_literal(data)}::jsonb
         )
-    """
+    """)
 
     await _execute(ctx.conn, text)
 
@@ -751,12 +751,12 @@ def prepare_patch(
     val = f'{pg_common.quote_literal(json.dumps(num + 1))}::jsonb'
     # TODO: This is an INSERT because 2.0 shipped without num_patches.
     # We can just make this an UPDATE for 3.0
-    update = f"""\
-        INSERT INTO edgedbinstdata.instdata (key, json)
+    update = trampoline.fixup_query(f"""\
+        INSERT INTO edgedbinstdata_VER.instdata (key, json)
         VALUES('num_patches', {val})
         ON CONFLICT (key)
         DO UPDATE SET json = {val};
-    """
+    """)
 
     existing_view_columns = patch_info
 
@@ -1022,21 +1022,21 @@ def prepare_patch(
             if k not in rawbin:
                 v = pickle.dumps(v, protocol=pickle.HIGHEST_PROTOCOL)
             val = f'{pg_common.quote_bytea_literal(v)}::bytea'
-            sys_updates += (f'''
-                INSERT INTO edgedbinstdata.instdata (key, bin)
+            sys_updates += (trampoline.fixup_query(f'''
+                INSERT INTO edgedbinstdata_VER.instdata (key, bin)
                 VALUES({key}, {val})
                 ON CONFLICT (key)
                 DO UPDATE SET bin = {val};
-            ''',)
+            '''),)
         else:
             typ, col = ('jsonb', 'json') if k in jsons else ('text', 'text')
             val = f'{pg_common.quote_literal(v.decode("utf-8"))}::{typ}'
-            sys_updates += (f'''
-                INSERT INTO edgedbinstdata.instdata (key, {col})
+            sys_updates += (trampoline.fixup_query(f'''
+                INSERT INTO edgedbinstdata_VER.instdata (key, {col})
                 VALUES({key}, {val})
                 ON CONFLICT (key)
                 DO UPDATE SET {col} = {val};
-            ''',)
+            '''),)
         if k in unversioned:
             spatches += (sys_updates[-1],)
 
@@ -1142,9 +1142,9 @@ async def create_branch(
         name = pg_common.get_backend_name(schema, mprop, catenate=True)
         await conn.sql_execute(f'delete from {name}'.encode('utf-8'))
 
-    await conn.sql_execute(f'''
-        delete from edgedbinstdata.instdata where key = 'configspec_ext'
-    '''.encode('utf-8'))
+    await conn.sql_execute(trampoline.fixup_query(f'''
+        delete from edgedbinstdata_VER.instdata where key = 'configspec_ext'
+    ''').encode('utf-8'))
 
     # Do the dump/restore for the data. We always need to copy over
     # edgedbstd, since it has the reflected schema. We copy over
@@ -1155,7 +1155,7 @@ async def create_branch(
         '--table=edgedbstd.*',
         f'--table={pg_common.versioned_schema("edgedbstd")}.*',
         '--table=edgedb._db_config',
-        '--table=edgedbinstdata.instdata',
+        f'--table={pg_common.versioned_schema("edgedbinstdata")}.instdata',
         *data_arg,
         '--disable-triggers',
         # We need to use --inserts so that we can use --on-conflict-do-nothing.
@@ -1522,12 +1522,10 @@ async def _init_stdlib(
         if in_dev_mode or cache_dir:
             tpl_db_name = edbdef.EDGEDB_TEMPLATE_DB
             tpl_pg_db_name = cluster.get_db_name(tpl_db_name)
-            tpl_pg_db_name_dyn = (
-                f"edgedb.get_database_backend_name({ql(tpl_db_name)})")
             tpldbdump = await cluster.dump_database(
                 tpl_pg_db_name,
                 exclude_schemas=[
-                    'edgedbinstdata',
+                    pg_common.versioned_schema('edgedbinstdata'),
                     'edgedbext',
                     backend_params.instance_params.ext_schema,
                 ],
@@ -1554,6 +1552,8 @@ async def _init_stdlib(
                 flags=re.MULTILINE,
             )
 
+            # The instance metadata doesn't go in the dump, so collect
+            # it ourselves.
             global_metadata = await conn.sql_fetch_val(
                 b"SELECT edgedb.get_database_metadata($1)::json",
                 args=[tpl_db_name.encode("utf-8")],
@@ -1563,13 +1563,9 @@ async def _init_stdlib(
             pl_block = dbops.PLTopBlock()
 
             set_metadata_text = dbops.SetMetadata(
-                dbops.Database(name='__dummy_placeholder_database__'),
+                dbops.DatabaseWithTenant(name=tpl_db_name),
                 global_metadata,
             ).code(pl_block)
-            set_metadata_text = set_metadata_text.replace(
-                '__dummy_placeholder_database__',
-                f"' || quote_ident({tpl_pg_db_name_dyn}) || '",
-            )
 
             set_single_db_metadata_text = dbops.SetSingleDBMetadata(
                 edbdef.EDGEDB_TEMPLATE_DB, global_metadata
@@ -1747,9 +1743,7 @@ async def _configure(
     metadata = {'sysconfig': json.loads(config_json)}
     if ctx.cluster.get_runtime_params().has_create_database:
         dbops.UpdateMetadata(
-            dbops.Database(
-                name=ctx.cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB)
-            ),
+            dbops.DatabaseWithTenant(name=edbdef.EDGEDB_SYSTEM_DB),
             metadata,
         ).generate(block)
     else:
@@ -1979,11 +1973,12 @@ async def _populate_misc_instance_data(
     ctx: BootstrapContext,
 ) -> Dict[str, Any]:
 
+    sname = pg_common.versioned_schema('edgedbinstdata')
     commands = dbops.CommandGroup()
     commands.add_commands([
-        dbops.CreateSchema(name='edgedbinstdata'),
+        dbops.CreateSchema(name=sname),
         dbops.CreateTable(dbops.Table(
-            name=('edgedbinstdata', 'instdata'),
+            name=(sname, 'instdata'),
             columns=[
                 dbops.Column(
                     name='key',
@@ -2004,7 +1999,7 @@ async def _populate_misc_instance_data(
             ],
             constraints=[
                 dbops.PrimaryKey(
-                    table_name=('edgedbinstdata', 'instdata'),
+                    table_name=(sname, 'instdata'),
                     columns=['key'],
                 ),
             ],
@@ -2136,11 +2131,11 @@ def _pg_log_listener(severity, message):
 
 async def _get_instance_data(conn: metaschema.PGConnection) -> Dict[str, Any]:
     data = await conn.sql_fetch_val(
-        b"""
+        trampoline.fixup_query("""
         SELECT json::json
-        FROM edgedbinstdata.instdata
+        FROM edgedbinstdata_VER.instdata
         WHERE key = 'instancedata'
-        """,
+        """).encode('utf-8'),
     )
     return json.loads(data)
 
@@ -2151,11 +2146,11 @@ async def _check_catalog_compatibility(
     tenant_id = ctx.cluster.get_runtime_params().tenant_id
     if ctx.mode == ClusterMode.single_database:
         sys_db = await ctx.conn.sql_fetch_val(
-            b"""
+            trampoline.fixup_query("""
             SELECT current_database()
-            FROM edgedbinstdata.instdata
+            FROM edgedbinstdata_VER.instdata
             WHERE key = $1 AND json->>'tenant_id' = $2
-            """,
+            """).encode('utf-8'),
             args=[
                 f"{edbdef.EDGEDB_TEMPLATE_DB}metadata".encode("utf-8"),
                 tenant_id.encode("utf-8"),
