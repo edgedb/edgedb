@@ -24,6 +24,7 @@ import textwrap
 
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql
+from ..common import versioned_schema as V
 
 from . import base
 from . import ddl
@@ -68,6 +69,33 @@ class Database(base.DBObject):
                 pg_database
             WHERE
                 datname = {ql(self.name)}
+        ''')
+
+        return base.Query(text=qry)
+
+
+class DatabaseWithTenant(Database):
+    def __init__(
+        self,
+        name: str,
+    ) -> None:
+        super().__init__(name=name)
+
+    def get_id(self):
+        dyn_db = f"{V('edgedb')}.get_database_backend_name({ql(self.name)})"
+        return f"' || quote_ident({dyn_db}) || '"
+
+    def get_oid(self) -> base.Query:
+        qry = textwrap.dedent(f'''\
+            SELECT
+                'pg_database'::regclass::oid AS classoid,
+                pg_database.oid AS objectoid,
+                0
+            FROM
+                pg_database
+            WHERE
+                datname =
+                  {V("edgedb")}.get_database_backend_name({ql(self.name)})
         ''')
 
         return base.Query(text=qry)
