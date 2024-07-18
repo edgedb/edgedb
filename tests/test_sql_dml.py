@@ -17,7 +17,6 @@
 #
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 try:
     import asyncpg
