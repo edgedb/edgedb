@@ -543,7 +543,11 @@ async def _store_static_json_cache(
     await _execute(ctx.conn, text)
 
 
-def _process_delta_params(delta, schema, params):
+def _process_delta_params(delta, schema: s_schema.Schema, params) -> tuple[
+    s_schema.ChainedSchema,
+    delta_cmds.MetaCommand,
+    delta_cmds.CreateTrampolines,
+]:
     """Adapt and process the delta command."""
 
     if debug.flags.delta_plan:
@@ -567,10 +571,20 @@ def _process_delta_params(delta, schema, params):
         debug.header('PgSQL Delta Plan')
         debug.dump(delta, schema=schema)
 
-    return schema, delta
+    assert isinstance(schema, s_schema.ChainedSchema)
+    if isinstance(delta, delta_cmds.DeltaRoot):
+        out = delta.create_trampolines
+    else:
+        out = delta_cmds.CreateTrampolines()
+
+    return schema, delta, out
 
 
-def _process_delta(ctx, delta, schema):
+def _process_delta(ctx, delta, schema) -> tuple[
+    s_schema.ChainedSchema,
+    delta_cmds.MetaCommand,
+    delta_cmds.CreateTrampolines,
+]:
     """Adapt and process the delta command."""
     return _process_delta_params(
         delta, schema, ctx.cluster.get_runtime_params()
@@ -808,7 +822,7 @@ def prepare_patch(
             # stdschema
             delta_command = s_ddl.delta_from_ddl(
                 ddl_cmd, modaliases={}, schema=schema, stdmode=True)
-            schema, _ = _process_delta_params(
+            schema, _, _ = _process_delta_params(
                 delta_command, schema, backend_params)
 
             # We need to extract all ids of new objects created when
@@ -821,10 +835,11 @@ def prepare_patch(
             delta_command = s_ddl.delta_from_ddl(
                 ddl_cmd, modaliases={}, schema=reflschema,
                 schema_object_ids=schema_object_ids, stdmode=True)
-            reflschema, plan = _process_delta_params(
+            reflschema, plan, tplan = _process_delta_params(
                 delta_command, reflschema, backend_params)
             std_plans.append(delta_command)
             plan.generate(subblock)
+            tplan.generate(subblock)
 
         metadata_user_schema = reflschema
 
@@ -860,10 +875,11 @@ def prepare_patch(
                 stdmode=False,
                 testmode=True,
             )
-            cschema, plan = _process_delta_params(
+            cschema, plan, tplan = _process_delta_params(
                 delta_command, cschema, backend_params)
             std_plans.append(delta_command)
             plan.generate(subblock)
+            tplan.generate(subblock)
 
         if '+config' in kind:
             views = metaschema.get_config_views(cschema, existing_view_columns)
@@ -893,9 +909,10 @@ def prepare_patch(
             reflschema, make_funcs=False,
         )
 
-        reflschema, plan = _process_delta_params(
+        reflschema, plan, tplan = _process_delta_params(
             reflection.intro_schema_delta, reflschema, backend_params)
         plan.generate(subblock)
+        tplan.generate(subblock)
 
         compiler = edbcompiler.new_compiler(
             std_schema=schema,
@@ -1186,6 +1203,8 @@ class StdlibBits(NamedTuple):
     global_schema: s_schema.Schema
     #: SQL text of the procedure to initialize `std` in Postgres.
     sqltext: str
+    #: Descriptors of all the needed trampolines
+    trampolines: list[trampoline.Trampoline]
     #: A set of ids of all types in std.
     types: Set[uuid.UUID]
     #: Schema class reflection layout.
@@ -1220,6 +1239,8 @@ async def _make_stdlib(
 
     current_block = dbops.PLTopBlock()
 
+    trampolines = []
+
     std_texts = []
     for modname in s_schema.STD_SOURCES:
         std_texts.append(s_std.get_std_module_text(modname))
@@ -1239,16 +1260,19 @@ async def _make_stdlib(
 
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.
-        schema, plan = _process_delta(ctx, delta_command, schema)
+        schema, plan, tplan = _process_delta(ctx, delta_command, schema)
+        assert isinstance(plan, delta_cmds.DeltaRoot)
         std_plans.append(delta_command)
 
         types.update(plan.new_types)
         plan.generate(current_block)
+        trampolines.extend(tplan.trampolines)
 
     _, schema_version = s_std.make_schema_version(schema)
-    schema, plan = _process_delta(ctx, schema_version, schema)
+    schema, plan, tplan = _process_delta(ctx, schema_version, schema)
     std_plans.append(schema_version)
     plan.generate(current_block)
+    trampolines.extend(tplan.trampolines)
 
     stdglobals = '\n'.join([
         f'''CREATE SUPERUSER ROLE {edbdef.EDGEDB_SUPERUSER} {{
@@ -1259,12 +1283,13 @@ async def _make_stdlib(
     schema = await _execute_edgeql_ddl(schema, stdglobals)
 
     _, global_schema_version = s_std.make_global_schema_version(schema)
-    schema, plan = _process_delta(ctx, global_schema_version, schema)
+    schema, plan, tplan = _process_delta(ctx, global_schema_version, schema)
     std_plans.append(global_schema_version)
     plan.generate(current_block)
+    trampolines.extend(tplan.trampolines)
 
     reflection = s_refl.generate_structure(schema)
-    reflschema, reflplan = _process_delta(
+    reflschema, reflplan, treflplan = _process_delta(
         ctx, reflection.intro_schema_delta, schema)
 
     # Any collection types that made it into reflschema need to get
@@ -1279,6 +1304,7 @@ async def _make_stdlib(
 
     assert current_block is not None
     reflplan.generate(current_block)
+    trampolines.extend(treflplan.trampolines)
     subblock = current_block.add_block()
 
     compiler = edbcompiler.new_compiler(
@@ -1331,6 +1357,7 @@ async def _make_stdlib(
         reflschema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         sqltext=sqltext,
+        trampolines=trampolines,
         types=types,
         classlayout=reflection.class_layout,
         local_intro_query=local_intro_sql,
@@ -1343,7 +1370,7 @@ async def _amend_stdlib(
     ctx: BootstrapContext,
     ddl_text: str,
     stdlib: StdlibBits,
-) -> Tuple[StdlibBits, str]:
+) -> Tuple[StdlibBits, str, list[trampoline.Trampoline]]:
     schema = s_schema.ChainedSchema(
         s_schema.EMPTY_SCHEMA,
         stdlib.stdschema,
@@ -1353,6 +1380,7 @@ async def _amend_stdlib(
 
     topblock = dbops.PLTopBlock()
     plans = []
+    trampolines = []
 
     context = sd.CommandContext(stdmode=True)
 
@@ -1363,10 +1391,11 @@ async def _amend_stdlib(
 
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.
-        schema, plan = _process_delta(ctx, delta_command, schema)
+        schema, plan, tplan = _process_delta(ctx, delta_command, schema)
         reflschema = delta_command.apply(reflschema, context)
         plan.generate(topblock)
         plans.append(plan)
+        trampolines.extend(tplan.trampolines)
 
     compiler = edbcompiler.new_compiler(
         std_schema=schema.get_top_schema(),
@@ -1392,7 +1421,7 @@ async def _amend_stdlib(
         stdschema=schema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         reflschema=reflschema,
-    ), sqltext
+    ), sqltext, trampolines
 
 
 def compile_intro_queries_stdlib(
@@ -1503,19 +1532,40 @@ async def _init_stdlib(
         cache_dir=cache_dir,
     )
 
+    stdlib_was_none = stdlib is None
     if stdlib is None:
         logger.info('Compiling the standard library...')
-        stdlib = await _make_stdlib(ctx, in_dev_mode or testmode, global_ids)
+        stdlib = await _make_stdlib(
+            ctx, in_dev_mode or testmode, global_ids)
+
+    config_spec = config.load_spec_from_schema(stdlib.stdschema)
+
+    # If we recompiled the stdlib or need to generate a tpldbdump, we
+    # need to generate bootstrap commands and trampolines, and update
+    # the stdlib's trampolines if we compiled it.
+    bootstrap_commands = None
+    if stdlib_was_none or tpldbdump is None:
+        bootstrap_commands, bootstrap_trampolines = (
+            metaschema.get_bootstrap_commands(config_spec)
+        )
+        if stdlib_was_none:
+            stdlib = stdlib._replace(
+                trampolines=bootstrap_trampolines + stdlib.trampolines
+            )
 
     logger.info('Creating the necessary PostgreSQL extensions...')
     backend_params = cluster.get_runtime_params()
     await metaschema.create_pg_extensions(conn, backend_params)
 
-    config_spec = config.load_spec_from_schema(stdlib.stdschema)
+    trampolines = []
+    trampolines.extend(stdlib.trampolines)
 
     if tpldbdump is None:
         logger.info('Populating internal SQL structures...')
-        await metaschema.bootstrap(conn, config_spec)
+        assert bootstrap_commands is not None
+        block = dbops.PLTopBlock()
+        bootstrap_commands.generate(block)
+        await _execute_block(conn, block)
         logger.info('Executing the standard library...')
         await _execute(conn, stdlib.sqltext)
 
@@ -1555,7 +1605,9 @@ async def _init_stdlib(
             # The instance metadata doesn't go in the dump, so collect
             # it ourselves.
             global_metadata = await conn.sql_fetch_val(
-                b"SELECT edgedb.get_database_metadata($1)::json",
+                trampoline.fixup_query(
+                    "SELECT edgedb_VER.get_database_metadata($1)::json"
+                ).encode("utf-8"),
                 args=[tpl_db_name.encode("utf-8")],
             )
             global_metadata = json.loads(global_metadata)
@@ -1571,15 +1623,15 @@ async def _init_stdlib(
                 edbdef.EDGEDB_TEMPLATE_DB, global_metadata
             ).code(pl_block)
 
-            pl_block.add_command(textwrap.dedent(f"""\
-                IF (edgedb.get_backend_capabilities()
+            pl_block.add_command(textwrap.dedent(trampoline.fixup_query(f"""\
+                IF (edgedb_VER.get_backend_capabilities()
                     & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
                 THEN
                 {textwrap.indent(set_metadata_text, '    ')}
                 ELSE
                 {textwrap.indent(set_single_db_metadata_text, '    ')}
                 END IF
-                """))
+                """)))
 
             text = pl_block.to_string()
 
@@ -1609,12 +1661,13 @@ async def _init_stdlib(
     if not in_dev_mode and testmode:
         # Running tests on a production build.
         for modname in s_schema.TESTMODE_SOURCES:
-            stdlib, testmode_sql = await _amend_stdlib(
+            stdlib, testmode_sql, new_trampolines = await _amend_stdlib(
                 ctx,
                 s_std.get_std_module_text(modname),
                 stdlib,
             )
             await conn.sql_execute(testmode_sql.encode("utf-8"))
+            trampolines.extend(new_trampolines)
         # _testmode includes extra config settings, so make sure
         # those are picked up.
         config_spec = config.load_spec_from_schema(stdlib.stdschema)
@@ -1690,10 +1743,12 @@ async def _init_stdlib(
         stdlib.global_intro_query,
     )
 
-    await metaschema.generate_support_views(
+    trampolines.extend(await metaschema.generate_support_views(
         conn, stdlib.reflschema, cluster.get_runtime_params()
+    ))
+    trampolines.extend(
+        await metaschema.generate_support_functions(conn, stdlib.reflschema)
     )
-    await metaschema.generate_support_functions(conn, stdlib.reflschema)
 
     compiler = edbcompiler.new_compiler(
         std_schema=schema,
@@ -1703,8 +1758,11 @@ async def _init_stdlib(
         local_intro_query=stdlib.local_intro_query,
     )
 
-    await metaschema.generate_more_support_functions(
-        conn, compiler, stdlib.reflschema, testmode)
+    trampolines.extend(
+        await metaschema.generate_more_support_functions(
+            conn, compiler, stdlib.reflschema, testmode
+        )
+    )
 
     await _store_static_json_cache(
         ctx,
@@ -1716,6 +1774,13 @@ async def _init_stdlib(
         'configspec_ext',
         json.dumps({}),
     )
+
+    # Create all the trampolines
+    tramps = dbops.CommandGroup()
+    tramps.add_commands([t.make() for t in trampolines])
+    block = dbops.PLTopBlock()
+    tramps.generate(block)
+    await _execute_block(conn, block)
 
     return stdlib, config_spec, compiler
 

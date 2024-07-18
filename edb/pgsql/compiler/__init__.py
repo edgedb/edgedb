@@ -82,10 +82,12 @@ def compile_ir_to_sql_tree(
     ] = None,
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
     detach_params: bool = False,
+    alias_generator: Optional[aliases.AliasGenerator] = None,
     versioned_stdlib: bool = True,
-    alias_generator: Optional[aliases.AliasGenerator] = None
+    # HACK?
+    versioned_singleton: bool = False,
 ) -> CompileResult:
-    if singleton_mode:
+    if singleton_mode and not versioned_singleton:
         versioned_stdlib = False
 
     try:
