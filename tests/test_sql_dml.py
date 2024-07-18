@@ -431,7 +431,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         res = await self.scon.execute(query, 'Report', 'Briefing')
         self.assertEqual(res, 'INSERT 0 2')
 
-    async def test_sql_dml_insert_19(self):
+    async def test_sql_dml_insert_21(self):
         # CommandComplete tag (inserted rows) with RETURNING
 
         query = '''
