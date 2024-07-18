@@ -303,7 +303,6 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             ),
         )
 
-    @test.skip('bug 7471 closes connection')
     async def test_sql_dml_insert_14(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
@@ -317,7 +316,6 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
-    @test.skip('bug 7471 closes connection')
     async def test_sql_dml_insert_15(self):
         with self.assertRaisesRegex(
             asyncpg.exceptions.CardinalityViolationError,
@@ -331,7 +329,6 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
-    @test.skip('bug 7471 closes connection')
     async def test_sql_dml_insert_16(self):
         with self.assertRaisesRegex(
             asyncpg.exceptions.CannotCoerceError,
@@ -396,7 +393,6 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             ],
         )
 
-    @test.skip('bug 7471 closes connection')
     async def test_sql_dml_insert_19(self):
         # exclusive on base, then insert into base and child
         with self.assertRaisesRegex(
