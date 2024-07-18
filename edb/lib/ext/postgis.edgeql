@@ -279,6 +279,16 @@ create extension package postgis version '3.4.2' {
         $$;
     };
 
+    create function ext::postgis::letters(letters: std::str, font: optional std::json = {}) -> optional ext::postgis::geometry {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args:  letters,  font - Returns the input letters rendered as geometry with a default start position at the origin and default text height of 100.';
+        set impl_is_strict := false;
+        using sql $$
+        SELECT st_letters(letters, font::json);
+        $$;
+    };
+
     # total operators: 35
     ##################################################
     create function ext::postgis::op_overlaps(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
@@ -491,14 +501,9 @@ create extension package postgis version '3.4.2' {
         using sql $$SELECT a ~== b$$;
     };
 
-    # total functions: 481
-    ##################################################
-    create function ext::postgis::to_geometry(a0: ext::postgis::geometry, a1: std::int64, a2: std::bool) ->  ext::postgis::geometry {
-        set volatility := 'Immutable';
-        set force_return_cast := true;
-        using sql $$SELECT geometry("a0", "a1"::int4, "a2")$$;
-    };
 
+    # total functions: 464
+    ##################################################
     create function ext::postgis::to_geometry(a0: ext::postgis::box2d) ->  ext::postgis::geometry {
         set volatility := 'Immutable';
         set force_return_cast := true;
@@ -678,39 +683,6 @@ create extension package postgis version '3.4.2' {
         set force_return_cast := true;
         create annotation description := 'args: pointLowLeft, pointUpRight - Creates a BOX2D defined by two 2D point geometries.';
         using sql function 'st_makebox2d';
-    };
-
-    create function ext::postgis::estimatedextent(a0: std::str, a1: std::str, a2: std::str, a3: std::bool) ->  ext::postgis::box2d {
-        set volatility := 'Stable';
-        set force_return_cast := true;
-        create annotation description := 'args: schema_name, table_name, geocolumn_name, parent_only - Returns the estimated extent of a spatial table.';
-        using sql function 'st_estimatedextent';
-    };
-
-    create function ext::postgis::estimatedextent(a0: std::str, a1: std::str, a2: std::str) ->  ext::postgis::box2d {
-        set volatility := 'Stable';
-        set force_return_cast := true;
-        create annotation description := 'args: schema_name, table_name, geocolumn_name, parent_only - Returns the estimated extent of a spatial table.';
-        using sql function 'st_estimatedextent';
-    };
-
-    create function ext::postgis::estimatedextent(a0: std::str, a1: std::str) ->  ext::postgis::box2d {
-        set volatility := 'Stable';
-        set force_return_cast := true;
-        create annotation description := 'args: schema_name, table_name, geocolumn_name, parent_only - Returns the estimated extent of a spatial table.';
-        using sql function 'st_estimatedextent';
-    };
-
-    create function ext::postgis::findextent(a0: std::str, a1: std::str, a2: std::str) ->  ext::postgis::box2d {
-        set volatility := 'Stable';
-        set force_return_cast := true;
-        using sql function 'st_findextent';
-    };
-
-    create function ext::postgis::findextent(a0: std::str, a1: std::str) ->  ext::postgis::box2d {
-        set volatility := 'Stable';
-        set force_return_cast := true;
-        using sql function 'st_findextent';
     };
 
     create function ext::postgis::postgis_addbbox(a0: ext::postgis::geometry) ->  ext::postgis::geometry {
@@ -1189,13 +1161,12 @@ create extension package postgis version '3.4.2' {
         using sql $$SELECT st_astwkb("geom", "prec"::int4, "prec_z"::int4, "prec_m"::int4, "with_sizes", "with_boxes")$$;
     };
 
-    # FIXME: array<geometry> is causing an issue
-    # create function ext::postgis::astwkb(geom: optional array<ext::postgis::geometry>, ids: optional array<std::int64>, prec: optional std::int64 = {}, prec_z: optional std::int64 = {}, prec_m: optional std::int64 = {}, with_sizes: optional std::bool = {}, with_boxes: optional std::bool = {}) -> optional std::bytes {
-    #     set volatility := 'Immutable';
-    #     set force_return_cast := true;
-    #     set impl_is_strict := false;
-    #     using sql $$SELECT st_astwkb("geom"::geometry[], "ids"::int8[], "prec"::int4, "prec_z"::int4, "prec_m"::int4, "with_sizes", "with_boxes")$$;
-    # };
+    create function ext::postgis::astwkb(geom: optional array<ext::postgis::geometry>, ids: optional array<std::int64>, prec: optional std::int64 = {}, prec_z: optional std::int64 = {}, prec_m: optional std::int64 = {}, with_sizes: optional std::bool = {}, with_boxes: optional std::bool = {}) -> optional std::bytes {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        set impl_is_strict := false;
+        using sql $$SELECT st_astwkb("geom"::geometry[], "ids"::int8[], "prec"::int4, "prec_z"::int4, "prec_m"::int4, "with_sizes", "with_boxes")$$;
+    };
 
     create function ext::postgis::asewkb(a0: ext::postgis::geometry) ->  std::bytes {
         set volatility := 'Immutable';
@@ -1280,13 +1251,12 @@ create extension package postgis version '3.4.2' {
         using sql function 'st_3dmakebox';
     };
 
-    # FIXME: array<geometry> is causing an issue
-    # create function ext::postgis::makeline(a0: array<ext::postgis::geometry>) ->  ext::postgis::geometry {
-    #     set volatility := 'Immutable';
-    #     set force_return_cast := true;
-    #     create annotation description := 'args: geom1, geom2 - Creates a LineString from Point, MultiPoint, or LineString geometries.';
-    #     using sql $$SELECT st_makeline("a0"::geometry[])$$;
-    # };
+    create function ext::postgis::makeline(a0: array<ext::postgis::geometry>) ->  ext::postgis::geometry {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: geom1, geom2 - Creates a LineString from Point, MultiPoint, or LineString geometries.';
+        using sql $$SELECT st_makeline("a0"::geometry[])$$;
+    };
 
     create function ext::postgis::makeline(geom1: ext::postgis::geometry, geom2: ext::postgis::geometry) ->  ext::postgis::geometry {
         set volatility := 'Immutable';
@@ -1344,13 +1314,12 @@ create extension package postgis version '3.4.2' {
         using sql $$SELECT st_tileenvelope("zoom"::int4, "x"::int4, "y"::int4, "bounds", "margin")$$;
     };
 
-    # FIXME: array<geometry> is causing an issue
-    # create function ext::postgis::makepolygon(a0: ext::postgis::geometry, a1: array<ext::postgis::geometry>) ->  ext::postgis::geometry {
-    #     set volatility := 'Immutable';
-    #     set force_return_cast := true;
-    #     create annotation description := 'args: linestring - Creates a Polygon from a shell and optional list of holes.';
-    #     using sql $$SELECT st_makepolygon("a0", "a1"::geometry[])$$;
-    # };
+    create function ext::postgis::makepolygon(a0: ext::postgis::geometry, a1: array<ext::postgis::geometry>) ->  ext::postgis::geometry {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: linestring - Creates a Polygon from a shell and optional list of holes.';
+        using sql $$SELECT st_makepolygon("a0", "a1"::geometry[])$$;
+    };
 
     create function ext::postgis::makepolygon(a0: ext::postgis::geometry) ->  ext::postgis::geometry {
         set volatility := 'Immutable';
@@ -1366,27 +1335,24 @@ create extension package postgis version '3.4.2' {
         using sql function 'st_buildarea';
     };
 
-    # FIXME: array<geometry> is causing an issue
-    # create function ext::postgis::polygonize(a0: array<ext::postgis::geometry>) ->  ext::postgis::geometry {
-    #     set volatility := 'Immutable';
-    #     set force_return_cast := true;
-    #     create annotation description := 'args: geom_array - Computes a collection of polygons formed from the linework of a set of geometries.';
-    #     using sql $$SELECT st_polygonize("a0"::geometry[])$$;
-    # };
+    create function ext::postgis::polygonize(a0: array<ext::postgis::geometry>) ->  ext::postgis::geometry {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: geom_array - Computes a collection of polygons formed from the linework of a set of geometries.';
+        using sql $$SELECT st_polygonize("a0"::geometry[])$$;
+    };
 
-    # FIXME: array<geometry> is causing an issue
-    # create function ext::postgis::clusterintersecting(a0: array<ext::postgis::geometry>) ->  array<ext::postgis::geometry> {
-    #     set volatility := 'Immutable';
-    #     set force_return_cast := true;
-    #     using sql $$SELECT st_clusterintersecting("a0"::geometry[])$$;
-    # };
+    create function ext::postgis::clusterintersecting(a0: array<ext::postgis::geometry>) ->  array<ext::postgis::geometry> {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        using sql $$SELECT st_clusterintersecting("a0"::geometry[])$$;
+    };
 
-    # FIXME: array<geometry> is causing an issue
-    # create function ext::postgis::clusterwithin(a0: array<ext::postgis::geometry>, a1: std::float64) ->  array<ext::postgis::geometry> {
-    #     set volatility := 'Immutable';
-    #     set force_return_cast := true;
-    #     using sql $$SELECT st_clusterwithin("a0"::geometry[], "a1")$$;
-    # };
+    create function ext::postgis::clusterwithin(a0: array<ext::postgis::geometry>, a1: std::float64) ->  array<ext::postgis::geometry> {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        using sql $$SELECT st_clusterwithin("a0"::geometry[], "a1")$$;
+    };
 
     create function ext::postgis::linemerge(a0: ext::postgis::geometry) ->  ext::postgis::geometry {
         set volatility := 'Immutable';
@@ -1710,14 +1676,6 @@ create extension package postgis version '3.4.2' {
         create annotation description := 'Returns build date of the PostGIS library.';
         set impl_is_strict := false;
         using sql function 'postgis_lib_build_date';
-    };
-
-    create function ext::postgis::postgis_extensions_upgrade(target_version: optional std::str = {}) -> optional std::str {
-        set volatility := 'Volatile';
-        set force_return_cast := true;
-        create annotation description := 'args: target_version=null - Packages and upgrades PostGIS extensions (e.g. postgis_raster,postgis_topology, postgis_sfcgal) to given or latest version.';
-        set impl_is_strict := false;
-        using sql function 'postgis_extensions_upgrade';
     };
 
     create function ext::postgis::postgis_full_version() -> optional std::str {
@@ -2206,13 +2164,12 @@ create extension package postgis version '3.4.2' {
         using sql $$SELECT st_union("geom1", "geom2", "gridsize")$$;
     };
 
-    # FIXME: array<geometry> is causing an issue
-    # create function ext::postgis::union(a0: array<ext::postgis::geometry>) ->  ext::postgis::geometry {
-    #     set volatility := 'Immutable';
-    #     set force_return_cast := true;
-    #     create annotation description := 'args: g1, g2 - Computes a geometry representing the point-set union of the input geometries.';
-    #     using sql $$SELECT st_union("a0"::geometry[])$$;
-    # };
+    create function ext::postgis::union(a0: array<ext::postgis::geometry>) ->  ext::postgis::geometry {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: g1, g2 - Computes a geometry representing the point-set union of the input geometries.';
+        using sql $$SELECT st_union("a0"::geometry[])$$;
+    };
 
     create function ext::postgis::unaryunion(a0: ext::postgis::geometry, gridsize: std::float64 = -1.0) ->  ext::postgis::geometry {
         set volatility := 'Immutable';
@@ -2362,20 +2319,18 @@ create extension package postgis version '3.4.2' {
         using sql $$SELECT st_collect("geom1", "geom2")$$;
     };
 
-    # FIXME: array<geometry> is causing an issue
-    # create function ext::postgis::collect(a0: array<ext::postgis::geometry>) ->  ext::postgis::geometry {
-    #     set volatility := 'Immutable';
-    #     set force_return_cast := true;
-    #     create annotation description := 'args: g1, g2 - Creates a GeometryCollection or Multi* geometry from a set of geometries.';
-    #     using sql $$SELECT st_collect("a0"::geometry[])$$;
-    # };
+    create function ext::postgis::collect(a0: array<ext::postgis::geometry>) ->  ext::postgis::geometry {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: g1, g2 - Creates a GeometryCollection or Multi* geometry from a set of geometries.';
+        using sql $$SELECT st_collect("a0"::geometry[])$$;
+    };
 
-    # FIXME: array<geometry> is causing an issue
-    # create function ext::postgis::coverageunion(a0: array<ext::postgis::geometry>) ->  ext::postgis::geometry {
-    #     set volatility := 'Immutable';
-    #     set force_return_cast := true;
-    #     using sql $$SELECT st_coverageunion("a0"::geometry[])$$;
-    # };
+    create function ext::postgis::coverageunion(a0: array<ext::postgis::geometry>) ->  ext::postgis::geometry {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        using sql $$SELECT st_coverageunion("a0"::geometry[])$$;
+    };
 
     create function ext::postgis::relate(geom1: ext::postgis::geometry, geom2: ext::postgis::geometry) ->  std::str {
         set volatility := 'Immutable';
@@ -3393,78 +3348,11 @@ create extension package postgis version '3.4.2' {
         using sql $$SELECT st_bdmpolyfromtext("a0", "a1"::int4)$$;
     };
 
-    create function ext::postgis::unlockrows(a0: std::str) ->  std::int64 {
-        set volatility := 'Volatile';
-        set force_return_cast := true;
-        create annotation description := 'args: auth_token - Removes all locks held by an authorization token.';
-        using sql function 'unlockrows';
-    };
-
-    create function ext::postgis::lockrow(a0: std::str, a1: std::str, a2: std::str, a3: std::str) ->  std::int64 {
-        set volatility := 'Volatile';
-        set force_return_cast := true;
-        create annotation description := 'args: a_schema_name, a_table_name, a_row_key, an_auth_token, expire_dt - Sets lock/authorization for a row in a table.';
-        using sql function 'lockrow';
-    };
-
-    create function ext::postgis::lockrow(a0: std::str, a1: std::str, a2: std::str) ->  std::int64 {
-        set volatility := 'Volatile';
-        set force_return_cast := true;
-        create annotation description := 'args: a_schema_name, a_table_name, a_row_key, an_auth_token, expire_dt - Sets lock/authorization for a row in a table.';
-        using sql function 'lockrow';
-    };
-
-    create function ext::postgis::addauth(a0: optional std::str) -> optional std::bool {
-        set volatility := 'Volatile';
-        set force_return_cast := true;
-        create annotation description := 'args: auth_token - Adds an authorization token to be used in the current transaction.';
-        set impl_is_strict := false;
-        using sql function 'addauth';
-    };
-
-    create function ext::postgis::checkauth(a0: optional std::str, a1: optional std::str, a2: optional std::str) -> optional std::int64 {
-        set volatility := 'Volatile';
-        set force_return_cast := true;
-        create annotation description := 'args: a_schema_name, a_table_name, a_key_column_name - Creates a trigger on a table to prevent/allow updates and deletes of rows based on authorization token.';
-        set impl_is_strict := false;
-        using sql function 'checkauth';
-    };
-
-    create function ext::postgis::checkauth(a0: optional std::str, a1: optional std::str) -> optional std::int64 {
-        set volatility := 'Volatile';
-        set force_return_cast := true;
-        create annotation description := 'args: a_schema_name, a_table_name, a_key_column_name - Creates a trigger on a table to prevent/allow updates and deletes of rows based on authorization token.';
-        set impl_is_strict := false;
-        using sql function 'checkauth';
-    };
-
-    create function ext::postgis::enablelongtransactions() -> optional std::str {
-        set volatility := 'Volatile';
-        set force_return_cast := true;
-        create annotation description := 'Enables long transaction support.';
-        set impl_is_strict := false;
-        using sql function 'enablelongtransactions';
-    };
-
     create function ext::postgis::longtransactionsenabled() -> optional std::bool {
         set volatility := 'Volatile';
         set force_return_cast := true;
         set impl_is_strict := false;
         using sql function 'longtransactionsenabled';
-    };
-
-    create function ext::postgis::disablelongtransactions() -> optional std::str {
-        set volatility := 'Volatile';
-        set force_return_cast := true;
-        create annotation description := 'Disables long transaction support.';
-        set impl_is_strict := false;
-        using sql function 'disablelongtransactions';
-    };
-
-    create function ext::postgis::to_geography(a0: ext::postgis::geography, a1: std::int64, a2: std::bool) ->  ext::postgis::geography {
-        set volatility := 'Immutable';
-        set force_return_cast := true;
-        using sql $$SELECT geography("a0", "a1"::int4, "a2")$$;
     };
 
     create function ext::postgis::to_geography(a0: std::bytes) ->  ext::postgis::geography {
@@ -3728,11 +3616,84 @@ create extension package postgis version '3.4.2' {
         using sql function 'st_3dlineinterpolatepoint';
     };
 
-    create function ext::postgis::letters(letters: optional std::str, font: optional std::json = {}) -> optional ext::postgis::geometry {
+
+    # total aggregates: 11
+    ##################################################
+    create function ext::postgis::extent_agg(a0: set of ext::postgis::geometry) -> optional ext::postgis::box2d {
         set volatility := 'Immutable';
         set force_return_cast := true;
-        create annotation description := 'args:  letters,  font - Returns the input letters rendered as geometry with a default start position at the origin and default text height of 100.';
-        set impl_is_strict := false;
-        using sql function 'st_letters';
+        create annotation description := 'args: geomfield - Aggregate function that returns the bounding box of geometries.';
+        using sql function 'st_extent';
     };
+
+    create function ext::postgis::extent3d_agg(a0: set of ext::postgis::geometry) -> optional ext::postgis::box2d {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: geomfield - Aggregate function that returns the 3D bounding box of geometries.';
+        using sql function 'st_3dextent';
+    };
+
+    create function ext::postgis::memunion_agg(a0: set of ext::postgis::geometry) -> optional ext::postgis::box2d {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: geomfield - Aggregate function which unions geometries in a memory-efficent but slower way';
+        using sql function 'st_memunion';
+    };
+
+    create function ext::postgis::union_agg(a0: set of ext::postgis::geometry) -> optional ext::postgis::geometry {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: g1field - Computes a geometry representing the point-set union of the input geometries.';
+        using sql function 'st_union';
+    };
+
+    create function ext::postgis::union_agg(a0: set of ext::postgis::geometry, gridsize: std::float64) -> optional ext::postgis::geometry {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: g1field - Computes a geometry representing the point-set union of the input geometries.';
+        using sql function 'st_union';
+    };
+
+    create function ext::postgis::collect_agg(a0: set of ext::postgis::geometry) -> optional ext::postgis::geometry {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: g1field - Creates a GeometryCollection or Multi* geometry from a set of geometries.';
+        using sql function 'st_collect';
+    };
+
+    create function ext::postgis::clusterintersecting_agg(a0: set of ext::postgis::geometry) -> optional array<ext::postgis::geometry> {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: g - Aggregate function that clusters input geometries into connected sets.';
+        using sql function 'st_clusterintersecting';
+    };
+
+    create function ext::postgis::clusterwithin_agg(a0: set of ext::postgis::geometry, a1: std::float64) -> optional array<ext::postgis::geometry> {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: g, distance - Aggregate function that clusters geometries by separation distance.';
+        using sql function 'st_clusterwithin';
+    };
+
+    create function ext::postgis::polygonize_agg(a0: set of ext::postgis::geometry) -> optional ext::postgis::geometry {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: geomfield - Computes a collection of polygons formed from the linework of a set of geometries.';
+        using sql function 'st_polygonize';
+    };
+
+    create function ext::postgis::makeline_agg(a0: set of ext::postgis::geometry) -> optional ext::postgis::geometry {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: geoms - Creates a LineString from Point, MultiPoint, or LineString geometries.';
+        using sql function 'st_makeline';
+    };
+
+    create function ext::postgis::coverageunion_agg(a0: set of ext::postgis::geometry) -> optional ext::postgis::geometry {
+        set volatility := 'Immutable';
+        set force_return_cast := true;
+        create annotation description := 'args: geom - Computes the union of a set of polygons forming a coverage by removing shared edges.';
+        using sql function 'st_coverageunion';
+    };
+
 };

@@ -12,9 +12,12 @@ from collections import defaultdict
 
 
 functions = defaultdict(list)
+aggregates = defaultdict(list)
 comments = defaultdict(list)
+aggcomments = defaultdict(list)
 operators = []
 eqlfunc = []
+eqlagg = []
 eqlop = []
 adapt_fns =set()
 broken = []
@@ -204,7 +207,7 @@ def get_params(params, is_strict):
     if params:
         for i, p in enumerate(params):
             default = get_expr(p['FunctionParameter'].get('defexpr'))
-            # optional arguments are either because funciton is not strict or
+            # optional arguments are either because function is not strict or
             # because the default is null
             is_strict = is_strict and not isinstance(default, qlast.Set)
             pname = p['FunctionParameter'].get('name', f'a{i}')
@@ -327,6 +330,19 @@ def get_comment(name, func):
     return None
 
 
+def get_aggcomment(name, func):
+    # Given a SQL function find the corresponding comment based on signature.
+    for comm in aggcomments.get(name, []):
+
+        if compare_sql_defs(
+            func.get('parameters',[]),
+            comm['object']['ObjectWithArgs'].get('objfuncargs', []),
+        ):
+            return comm['comment']
+
+    return None
+
+
 for root, dirs, files in os.walk('build/postgres/install/share/extension/'):
     for name in files:
         if name in {'postgis--3.4.2.sql'}:
@@ -340,9 +356,12 @@ for root, dirs, files in os.walk('build/postgres/install/share/extension/'):
                     if 'stmt' in code:
                         stmt = code['stmt']
 
-                        if op := stmt.get('DefineStmt'):
-                            if op['kind'] == 'OBJECT_OPERATOR':
-                                operators.append(op)
+                        if defn := stmt.get('DefineStmt'):
+                            if defn['kind'] == 'OBJECT_OPERATOR':
+                                operators.append(defn)
+                            elif defn['kind'] == 'OBJECT_AGGREGATE':
+                                name = defn['defnames'][0]['String']['sval']
+                                aggregates[name].append(defn)
 
                         elif func := stmt.get('CreateFunctionStmt'):
                             name = func['funcname'][0]['String']['sval']
@@ -353,7 +372,10 @@ for root, dirs, files in os.walk('build/postgres/install/share/extension/'):
                                 name = comm['object']['ObjectWithArgs'] \
                                        ['objname'][0]['String']['sval']
                                 comments[name].append(comm)
-
+                            elif comm['objtype'] == 'OBJECT_AGGREGATE':
+                                name = comm['object']['ObjectWithArgs'] \
+                                       ['objname'][0]['String']['sval']
+                                aggcomments[name].append(comm)
 
 
 for op in operators:
@@ -439,8 +461,20 @@ for op in operators:
 for name in list(functions.keys()):
     if (
         name in {
-            'equals', 'st_geometrytype', 'geomfromewkb', 'geomfromewkt',
-            'populate_geometry_columns',
+            # Functions that are reflected manually or otherwise have special
+            # handling.
+            'equals', 'st_letters',
+
+            # Deprecated and duplicated
+            'geomfromewkb', 'geomfromewkt',
+
+            # Functions involving columns, tables or subtypes.
+            'st_geometrytype', 'populate_geometry_columns', 'st_findextent',
+            'st_estimatedextent', 'postgis_extensions_upgrade',
+
+            # Row locking functions that cannot just be reflected as is.
+            'addauth', 'checkauth', 'disablelongtransactions',
+            'enablelongtransactions', 'lockrow', 'unlockrows',
         }
         or name.startswith('_')
         or name.endswith('_in')
@@ -449,7 +483,7 @@ for name in list(functions.keys()):
         or name.endswith('_recv')
         or name.endswith('_analyze')
     ):
-        # skip obvious helpers
+        # skip functions we're not reflecting
         del functions[name]
 
 
@@ -491,6 +525,15 @@ for key, func_list in functions.items():
             params, code = convert_function_sig(eqlname, key, func, is_strict)
             rettype, _ = sql_to_eqltype(func['returnType'])
 
+            if eqlname in {'to_geometry', 'to_geography'} and len(params) > 1:
+                # We only care about converter functions that take a single
+                # argument here. Other casting functions take typemod
+                # indicating a geometry or geography subtype which we don't
+                # currently support. If and when we would support that, we'd
+                # expose them in a custom way using enums rather than integer
+                # codes.
+                continue
+
             ef = qlast.CreateFunction(
                 name=qlast.ObjectRef(
                     name=eqlname,
@@ -510,6 +553,65 @@ for key, func_list in functions.items():
             broken.append((key, func, e))
 
 
+for key, agg_list in aggregates.items():
+    for func in agg_list:
+        try:
+            eqlname = f'{screen_name(key)}_agg'
+
+            comment = get_aggcomment(key, func)
+            if not comment:
+                continue
+
+            commands=[
+                qlast.SetField(
+                    name='volatility',
+                    value=qlast.Constant.string('Immutable'),
+                ),
+                qlast.SetField(
+                    name='force_return_cast',
+                    value=qlast.Constant.boolean(True),
+                ),
+                qlast.CreateAnnotationValue(
+                    name=qlast.ObjectRef(
+                        name='description',
+                    ),
+                    value=qlast.Constant.string(comment),
+                ),
+            ]
+
+            params, _, _ = get_params(func['args'][0]['List']['items'], True)
+            params[0].typemod = qltypes.TypeModifier.SetOfType
+            code = qlast.FunctionCode(
+                language=qlast.Language.SQL,
+                from_function=key,
+            )
+
+            for el in func['definition']:
+                defel = el['DefElem']
+                if defel['defname'] == 'finalfunc':
+                    ffname = defel['arg']['TypeName']['names'][0]['String']['sval']
+                    ffunc = functions[ffname][0]
+                    rettype, _ = sql_to_eqltype(ffunc['returnType'])
+                    break
+
+            ef = qlast.CreateFunction(
+                name=qlast.ObjectRef(
+                    name=eqlname,
+                    module='ext::postgis',
+                    itemclass=qltypes.SchemaObjectClass.FUNCTION,
+                ),
+                params=params,
+                returning=rettype,
+                returning_typemod=qltypes.TypeModifier.OptionalType,
+                code=code,
+                commands=commands,
+            )
+            eqlagg.append(ef)
+
+        except Exception as e:
+            broken.append((key, func, e))
+
+
 # Review all generated functions to make sure that the way they are
 # implemented is consistent across overloaded variants.
 for func in eqlfunc:
@@ -522,27 +624,55 @@ for func in eqlfunc:
             code.from_function = None
 
 
-print(f'# total errors: {len(broken)}')
-print(f'# total operators: {len(eqlop)}')
-print('#'*50, flush=True)
-for ef in eqlop:
-    code = qlcodegen.generate_source(ef, pretty=True).replace('\n;', ';\n')
-    print(f'{code};\n')
+with open('postgis.3.2.4.template.edgeql', mode='rt') as tf:
+    with open('postgis.edgeql', mode='wt') as outf:
+        for line in tf.readlines():
+            match line:
+                case '### REFLECT: OPERATORS\n':
+                    text = (
+                        f'# total operators: {len(eqlop)}\n'
+                        +
+                        '#'*50
+                        +
+                        '\n'
+                    )
+                    outf.write(textwrap.indent(text, '    '))
 
-print(f'# total functions: {len(eqlfunc)}')
-print('#'*50, flush=True)
-for ef in eqlfunc:
-    code = qlcodegen.generate_source(ef, pretty=True).replace('\n;', ';\n')
-    if 'array<ext' in code:
-        # currently arrays of geometry are causing an issue:
-        #
-        # edb.errors.InvalidValueError: cannot determine OID of EdgeDB type
-        # 'b855d9a4-eb15-5850-9a93-2fd6e35197ae'
-        #
-        # So we comment them out
-        print('# FIXME: array<geometry> is causing an issue ', flush=True)
-        code = textwrap.indent(code, '# ')
-        print(f'{code};\n')
+                    for ef in eqlop:
+                        code = qlcodegen.generate_source(
+                            ef, pretty=True
+                        ).replace('\n;', ';\n')
+                        outf.write(textwrap.indent(f'{code};\n\n', '    '))
 
-    else:
-        print(f'{code};\n')
+                case '### REFLECT: FUNCTIONS\n':
+                    text = (
+                        f'# total functions: {len(eqlfunc)}\n'
+                        +
+                        '#'*50
+                        +
+                        '\n'
+                    )
+                    outf.write(textwrap.indent(text, '    '))
+
+                    for ef in eqlfunc:
+                        code = qlcodegen.generate_source(
+                            ef, pretty=True).replace('\n;', ';\n')
+                        outf.write(textwrap.indent(f'{code};\n\n', '    '))
+
+                case '### REFLECT: AGGREGATES\n':
+                    text = (
+                        f'# total aggregates: {len(eqlagg)}\n'
+                        +
+                        '#'*50
+                        +
+                        '\n'
+                    )
+                    outf.write(textwrap.indent(text, '    '))
+
+                    for ef in eqlagg:
+                        code = qlcodegen.generate_source(
+                            ef, pretty=True).replace('\n;', ';\n')
+                        outf.write(textwrap.indent(f'{code};\n\n', '    '))
+
+                case _:
+                    outf.write(line)

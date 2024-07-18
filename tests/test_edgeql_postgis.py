@@ -20,6 +20,7 @@
 import json
 import functools
 import os
+import re
 import typing
 
 import edgedb
@@ -30,34 +31,42 @@ from edb.tools import test
 
 class value(typing.NamedTuple):
     typename: str
-
     postgis: bool
-    geometry: bool
-    geography: bool
-    box2d: bool
-    box3d: bool
 
 
 VALUES = {
     '<geometry>"point(0 1)"':
-        value(typename='geometry',
-              postgis=True,
-              geometry=True, geography=False, box2d=False, box3d=False),
+        value(typename='geometry', postgis=True),
 
     '<geography>"point(0 1)"':
-        value(typename='geography',
-              postgis=True,
-              geometry=False, geography=True, box2d=False, box3d=False),
+        value(typename='geography', postgis=True),
 
     '<box2d>"box(0 0, 1 2)"':
-        value(typename='box2d',
-              postgis=True,
-              geometry=False, geography=False, box2d=True, box3d=False),
+        value(typename='box2d', postgis=True),
 
     '<box3d>"BOX3D(0 0 0, 1 2 3)"':
-        value(typename='box3d',
-              postgis=True,
-              geometry=False, geography=False, box2d=False, box3d=True),
+        value(typename='box3d', postgis=True),
+
+    '<bool>True':
+        value(typename='bool', postgis=False),
+
+    '<uuid>"d4288330-eea3-11e8-bc5f-7faf132b1d84"':
+        value(typename='uuid', postgis=False),
+
+    '<bytes>b"Hello"':
+        value(typename='bytes', postgis=False),
+
+    '<str>"Hello"':
+        value(typename='str', postgis=False),
+
+    '<json>"Hello"':
+        value(typename='json', postgis=False),
+
+    '<int64>1':
+        value(typename='int64', postgis=False),
+
+    '<float64>1':
+        value(typename='float64', postgis=False),
 }
 
 
@@ -632,13 +641,50 @@ class TestEdgeQLPostgis(tb.QueryTestCase):
     def _get_args(self, params):
         args = []
         for param in params:
-            vals = get_test_values(typename=param.split('::')[-1])
-            if not vals:
+            is_array = param.startswith('array<')
+            if is_array:
+                # strip 'array<...>'
+                vtype = param[6:-1]
+            else:
+                vtype = param
+
+            val = get_test_values(typename=vtype.split('::')[-1])
+            if not val:
                 raise Exception(
                     f"need a value of type {param} for bulk testing")
-            args.append(vals[0])
+
+            val = val[0]
+            if is_array:
+                args.append(f'[{val}]')
+            else:
+                args.append(val)
 
         return args
+
+    async def _get_grouped_funcs(self):
+        res = await self.con.query(
+            '''
+                with
+                    F := schema::Function,
+                    S := (
+                        select F {
+                            sig := array_agg((
+                                select (F.params, F.params.type.name)
+                                order by F.params@index
+                            ).1)
+                        } filter .name like 'ext::postgis::%'
+                    ),
+                select (group S{name} by .sig) order by .key.sig;
+            ''',
+        )
+
+        # Create a dict where all the functions with the same signature are
+        # grouped together. The function names are sorted to create a
+        # determinitic ordering.
+        return {
+            tuple(el.key.sig): sorted([f.name for f in el.elements])
+            for el in res
+        }
 
     async def test_edgeql_postgis_bulk_01(self):
         # Test in bulk all postgis functions that take the same type of
@@ -686,7 +732,6 @@ class TestEdgeQLPostgis(tb.QueryTestCase):
             'isvalid',
             'isvalidreason',
             'isvalidtrajectory',
-            'json',
             'length',
             'length2d',
             'length3d',
@@ -887,48 +932,94 @@ class TestEdgeQLPostgis(tb.QueryTestCase):
                 ''',
             )
 
-    # XXX: next batch to test for (geometry, geometry)
-        # for fname in [
-        #     'addpoint',
-        #     'closestpointofapproach',
-        #     'distancecpa',
-        #     'interpolatepoint',
-        #     'linecrossingdirection',
-        #     'linelocatepoint',
-        #     'scroll',
-        #     'sharedpaths',
-        #     'split',
-        #     'union',
-        # ]:
+    async def test_edgeql_postgis_bulk_all(self):
+        g = await self._get_grouped_funcs()
+        errors = []
 
-    # XXX: quick way to find all the functions that need special treatment in batch
-    # async def test_edgeql_postgis_bulk_xxx(self):
-    #     bad = []
-    #     for fname in [
-    #         'area',
-    #         'area2d',
-    #         'asbinary',
-    #         'asewkb',
-    #         'asewkt',
-    #         'ashexewkb',
-    #         'astext',
-    #         'boundary',
-    #         'buildarea',
-    #         'bytea',
-    #         'centroid',
-    #         'cleangeometry',
-    #         'collectionextract',
-    #     ]:
-    #         async with self._run_and_rollback():
-    #             try:
-    #                 await self.con.query_json(
-    #                     f'''
-    #                         with module ext::postgis
-    #                         select {fname}(<geometry>'point(0 1)')
-    #                     ''',
-    #                 )
-    #             except Exception:
-    #                 bad.append(fname)
+        for params, names in g.items():
+            args = self._get_args(params)
+            for fname in names:
+                async with self._run_and_rollback():
+                    try:
+                        await self.con.query_json(
+                            f'''
+                                with module ext::postgis
+                                select {fname}({", ".join(args)})
+                            ''',
+                        )
+                    except edgedb.errors.InternalServerError as e:
+                        # Some ISE are acceptable here, namely if they come
+                        # from inside the functions because of arguments not
+                        # passing some check.
+                        msg = e.args[0]
+                        if re.search(
+                            r'''(?ix)
+                                arg(ument)?\sis\snot\sa
+                                |
+                                arg(ument)?\sisn't\sa
+                                |
+                                arg(ument)?\smust\sbe
+                                |
+                                should\sonly\sbe\scalled
+                                |
+                                input\smust\sbe
+                                |
+                                input\sgeometry
+                                |
+                                input\sgeometries\smust\shave
+                                |
+                                unsupported\sgeometry
+                                |
+                                bad\sformat
+                                |
+                                parse\serror
+                                |
+                                could\snot\sparse
+                                |
+                                invalid\sendian\sflag
+                                |
+                                invalid\s\w+\srepresentation
+                                |
+                                invalid\s\S+\sdocument
+                                |
+                                unknown\s(wkb|GeoJSON)\stype
+                                |
+                                unexpected\scharacter
+                                |
+                                only\sGML\s2\sand\sGML\s3\sare\ssupported
+                                |
+                                buffer\sparameter
+                                |
+                                only\saccepts
+                                |
+                                is\sunsupported
+                                |
+                                is\snot\sa\sline
+                                |
+                                only\s[\w\s]+\s(is|are)\ssupported
+                                |
+                                cannot\ssubdivide
+                                |
+                                bounds\sare\stoo\ssmall
+                                |
+                                option\sstring\sentry
+                                |
+                                is\snot\slineal
+                                |
+                                IllegalArgumentException
+                            ''',
+                            msg
+                        ):
+                            pass
+                            # These are OK because they indicate that the
+                            # underlying function is successfully called.
+                        else:
+                            errors.append((fname, e))
 
-    #     if bad:
-    #         raise Exception(bad)
+        if errors:
+            names = {err[0] for err in errors}
+            raise Exception(
+                f'{len(errors)} unaccounted for errors occurred in bulk '
+                f'testing. The following functions were affected: '
+                f'{", ".join(sorted(names))}.'
+            ) from errors[0][1]
