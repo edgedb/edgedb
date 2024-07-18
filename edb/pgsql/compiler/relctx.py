@@ -821,7 +821,7 @@ def create_iterator_identity_for_path(
 ) -> None:
 
     id_expr = pgast.FuncCall(
-        name=('edgedb', 'uuid_generate_v4'),
+        name=astutils.edgedb_func('uuid_generate_v4', ctx=ctx),
         args=[],
     )
 
