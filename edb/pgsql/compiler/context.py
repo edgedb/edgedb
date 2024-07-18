@@ -49,7 +49,7 @@ from edb.common import enum as s_enum
 from edb.pgsql import ast as pgast
 from edb.pgsql import params as pgparams
 
-from . import aliases
+from . import aliases as pg_aliases
 
 if TYPE_CHECKING:
     from edb.ir import ast as irast
@@ -473,6 +473,11 @@ class CompilerContextLevel(compiler.ContextLevel):
             elif mode == ContextSwitchMode.NEWSCOPE:
                 self.path_scope = prevlevel.path_scope.new_child()
 
+    def get_current_dml_stmt(self) -> Optional[irast.MutatingLikeStmt]:
+        if len(self.dml_stmt_stack) == 0:
+            return None
+        return self.dml_stmt_stack[-1]
+
     def subrel(
         self,
     ) -> compiler.CompilerContextManager[CompilerContextLevel]:
@@ -518,7 +523,7 @@ FullRewriteKey = Tuple[
 class Environment:
     """Static compilation environment."""
 
-    aliases: aliases.AliasGenerator
+    aliases: pg_aliases.AliasGenerator
     output_format: Optional[OutputFormat]
     named_param_prefix: Optional[tuple[str, ...]]
     ptrref_source_visibility: Dict[irast.BasePointerRef, bool]
@@ -543,6 +548,7 @@ class Environment:
     def __init__(
         self,
         *,
+        alias_generator: Optional[pg_aliases.AliasGenerator] = None,
         output_format: Optional[OutputFormat],
         named_param_prefix: Optional[tuple[str, ...]],
         expected_cardinality_one: bool,
@@ -560,7 +566,7 @@ class Environment:
         # XXX: TRAMPOLINE: THIS IS WRONG
         versioned_stdlib: bool = True,
     ) -> None:
-        self.aliases = aliases.AliasGenerator()
+        self.aliases = alias_generator or pg_aliases.AliasGenerator()
         self.output_format = output_format
         self.named_param_prefix = named_param_prefix
         self.ptrref_source_visibility = {}

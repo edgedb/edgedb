@@ -166,7 +166,8 @@ def init_dml_stmt(
     ):
         dml_cte = pgast.CommonTableExpr(
             query=pgast.SelectStmt(),
-            name=ctx.env.aliases.get(hint='melse')
+            name=ctx.env.aliases.get(hint='melse'),
+            for_dml_stmt=ctx.get_current_dml_stmt(),
         )
         dml_rvar = relctx.rvar_for_rel(dml_cte, ctx=ctx)
         else_cte = (dml_cte, dml_rvar)
@@ -224,7 +225,8 @@ def gen_dml_union(
 
         union_cte = pgast.CommonTableExpr(
             query=qry.larg,
-            name=ctx.env.aliases.get(hint='ma')
+            name=ctx.env.aliases.get(hint='ma'),
+            for_dml_stmt=ctx.get_current_dml_stmt(),
         )
 
         union_rvar = relctx.rvar_for_rel(
@@ -283,7 +285,8 @@ def gen_dml_cte(
 
     dml_cte = pgast.CommonTableExpr(
         query=dml_stmt,
-        name=ctx.env.aliases.get(hint='m')
+        name=ctx.env.aliases.get(hint='m'),
+        for_dml_stmt=ctx.get_current_dml_stmt(),
     )
 
     # Due to the fact that DML statements are structured
@@ -539,7 +542,8 @@ def get_dml_range(
 
         range_cte = pgast.CommonTableExpr(
             query=range_stmt,
-            name=ctx.env.aliases.get('range')
+            name=ctx.env.aliases.get('range'),
+            for_dml_stmt=ctx.get_current_dml_stmt(),
         )
 
         return range_cte
@@ -579,6 +583,7 @@ def compile_iterator_cte(
         iterator_cte = pgast.CommonTableExpr(
             query=ictx.rel,
             name=ctx.env.aliases.get('iter'),
+            for_dml_stmt=ctx.get_current_dml_stmt(),
         )
         ictx.toplevel_stmt.append_cte(iterator_cte)
 
@@ -744,7 +749,8 @@ def process_insert_body(
     pathctx.put_path_bond(select, ir_stmt.subject.path_id)
     contents_cte = pgast.CommonTableExpr(
         query=select,
-        name=ctx.env.aliases.get('ins_contents')
+        name=ctx.env.aliases.get('ins_contents'),
+        for_dml_stmt=ctx.get_current_dml_stmt(),
     )
     ctx.toplevel_stmt.append_cte(contents_cte)
     contents_rvar = relctx.rvar_for_rel(contents_cte, ctx=ctx)
@@ -841,7 +847,8 @@ def process_insert_body(
 
     real_insert_cte = pgast.CommonTableExpr(
         query=insert_stmt,
-        name=ctx.env.aliases.get('ins')
+        name=ctx.env.aliases.get('ins'),
+        for_dml_stmt=ctx.get_current_dml_stmt(),
     )
 
     # Create the final CTE for the insert that joins the insert
@@ -994,7 +1001,8 @@ def process_insert_rewrites(
     pathctx.put_path_bond(rew_stmt, ir_stmt.subject.path_id)
     rewrites_cte = pgast.CommonTableExpr(
         query=rew_stmt,
-        name=ctx.env.aliases.get('ins_rewrites')
+        name=ctx.env.aliases.get('ins_rewrites'),
+        for_dml_stmt=ctx.get_current_dml_stmt(),
     )
     ctx.toplevel_stmt.append_cte(rewrites_cte)
     rewrites_rvar = relctx.rvar_for_rel(rewrites_cte, ctx=ctx)
@@ -1244,6 +1252,7 @@ def compile_policy_check(
             query=ictx.rel,
             name=ctx.env.aliases.get('policy'),
             materialized=True,
+            for_dml_stmt=ctx.get_current_dml_stmt(),
         )
         ictx.toplevel_stmt.append_cte(policy_cte)
         return policy_cte
@@ -1461,7 +1470,8 @@ def compile_insert_else_body(
 
         else_select_cte = pgast.CommonTableExpr(
             query=ictx.rel,
-            name=ctx.env.aliases.get('else')
+            name=ctx.env.aliases.get('else'),
+            for_dml_stmt=ctx.get_current_dml_stmt(),
         )
         if else_fail:
             ctx.env.check_ctes.append(else_select_cte)
@@ -1531,7 +1541,8 @@ def compile_insert_else_body(
             # Package it up as a CTE
             anti_cte = pgast.CommonTableExpr(
                 query=ictx.rel,
-                name=ctx.env.aliases.get('non_conflict')
+                name=ctx.env.aliases.get('non_conflict'),
+                for_dml_stmt=ctx.get_current_dml_stmt(),
             )
             ictx.toplevel_stmt.append_cte(anti_cte)
             anti_cte_iterator = pgast.IteratorCTE(
@@ -1707,7 +1718,9 @@ def process_update_body(
         contents_cte = update_cte
     else:
         contents_cte = pgast.CommonTableExpr(
-            query=contents_select, name=ctx.env.aliases.get("upd_contents")
+            query=contents_select,
+            name=ctx.env.aliases.get("upd_contents"),
+            for_dml_stmt=ctx.get_current_dml_stmt(),
         )
     toplevel.append_cte(contents_cte)
 
@@ -1976,7 +1989,9 @@ def process_update_rewrites(
         pathctx.put_path_value_rvar(rctx.rel, subject_path_id, fallback_rvar)
 
         rewrites_cte = pgast.CommonTableExpr(
-            query=rctx.rel, name=ctx.env.aliases.get("upd_rewrites")
+            query=rctx.rel,
+            name=ctx.env.aliases.get("upd_rewrites"),
+            for_dml_stmt=ctx.get_current_dml_stmt(),
         )
         ctx.toplevel_stmt.append_cte(rewrites_cte)
         rewrites_rvar = relctx.rvar_for_rel(rewrites_cte, ctx=ctx)
@@ -2596,6 +2611,7 @@ def process_link_update(
         delcte = pgast.CommonTableExpr(
             name=ctx.env.aliases.get(hint='d'),
             query=delqry,
+            for_dml_stmt=ctx.get_current_dml_stmt(),
         )
 
         if shape_op is not qlast.ShapeOp.SUBTRACT:
@@ -2807,7 +2823,8 @@ def process_link_update(
                     val=pgast.ColumnRef(name=[pgast.Star()])
                 )
             ]
-        )
+        ),
+        for_dml_stmt=ctx.get_current_dml_stmt(),
     )
 
     pathctx.put_path_value_rvar(update.query, path_id.ptr_path(), target_rvar)
@@ -3062,6 +3079,7 @@ def process_link_values(
     link_rows = pgast.CommonTableExpr(
         query=row_query,
         name=ctx.env.aliases.get(hint='r'),
+        for_dml_stmt=ctx.get_current_dml_stmt(),
     )
 
     return link_rows, specified_cols
@@ -3112,7 +3130,8 @@ def process_delete_body(
         )
         ctx.toplevel_stmt.append_cte(pgast.CommonTableExpr(
             query=del_query,
-            name=ctx.env.aliases.get(hint='mlink')
+            name=ctx.env.aliases.get(hint='mlink'),
+            for_dml_stmt=ctx.get_current_dml_stmt(),
         ))
 
 
@@ -3229,6 +3248,7 @@ def compile_trigger(
             query=ictx.rel,
             name=ctx.env.aliases.get('trig_contents'),
             materialized=True,  # XXX: or not?
+            for_dml_stmt=ctx.get_current_dml_stmt(),
         )
         ictx.toplevel_stmt.append_cte(contents_cte)
 
@@ -3318,6 +3338,7 @@ def compile_trigger(
                 query=tctx.rel,
                 name=ctx.env.aliases.get('trig_body'),
                 materialized=True,  # XXX: or not?
+                for_dml_stmt=ctx.get_current_dml_stmt(),
             )
             tctx.toplevel_stmt.append_cte(trigger_cte)
             tctx.env.check_ctes.append(trigger_cte)

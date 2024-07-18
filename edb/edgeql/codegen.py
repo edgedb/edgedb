@@ -794,6 +794,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_SpecialAnchor(self, node: qlast.Anchor) -> None:
         self.write(node.name)
 
+    def visit_IRAnchor(self, node: qlast.Anchor) -> None:
+        self.write(node.name)
+
     def visit_TypeExprLiteral(self, node: qlast.TypeExprLiteral) -> None:
         self.visit(node.val)
 

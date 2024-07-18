@@ -22,7 +22,7 @@ from edb.testbase import lang as tb
 from edb.tools import test
 
 
-class TestEdgeQLSelect(tb.BaseDocTest):
+class TestSQLParse(tb.BaseDocTest):
 
     def run_test(self, *, source, spec, expected):
         def inline(text):

@@ -285,6 +285,9 @@ class CommonTableExpr(Base):
     # If specified, determines if CTE is [NOT] MATERIALIZED
     materialized: typing.Optional[bool] = None
 
+    # the dml stmt that this CTE was generated for
+    for_dml_stmt: typing.Optional[irast.MutatingLikeStmt] = None
+
     def __repr__(self):
         return (
             f'<pg.{self.__class__.__name__} '

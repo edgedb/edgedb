@@ -41,4 +41,14 @@ def resolve(
 
     _ = context.ResolverContext(initial=ctx)
 
-    return dispatch.resolve(query, ctx=ctx)
+    top_level_ctes = command.compile_dml(query, ctx=ctx)
+
+    query = dispatch.resolve(query, ctx=ctx)
+
+    if top_level_ctes:
+        assert isinstance(query, pgast.Query)
+        if not query.ctes:
+            query.ctes = []
+        query.ctes.extend(top_level_ctes)
+
+    return query
