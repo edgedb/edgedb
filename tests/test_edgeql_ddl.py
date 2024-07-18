@@ -13728,6 +13728,8 @@ type default::Foo {
         )
 
     async def test_edgeql_ddl_create_migration_02(self):
+        await self.con.execute('reset schema to initial')
+
         await self.con.execute('''
 CREATE MIGRATION m1kmv2mcizpj2twxlxxerkgngr2fkto7wnjd6uig3aa3x67dykvspq
     ONTO initial
