@@ -1150,6 +1150,53 @@ class TestSQL(tb.SQLQueryTestCase):
                 'foo' FROM "Movie" ORDER BY id'''
             )
 
+    async def test_sql_query_error_11(self):
+        # extended query protocol
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            'invalid input syntax for type uuid',
+            position="8",
+        ):
+            await self.scon.fetch(
+                """SELECT 'bad uuid'::uuid"""
+            )
+
+        # simple query protocol
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            'invalid input syntax for type uuid',
+            position="8",
+        ):
+            await self.scon.execute(
+                """SELECT 'bad uuid'::uuid"""
+            )
+
+        # test that the connection has not be spuriously closed
+        res = await self.squery_values("SELECT 1")
+        self.assertEqual(res, [[1]])
+
+    async def test_sql_query_error_12(self):
+        print('tran')
+        tran = self.scon.transaction()
+        print('start')
+        await tran.start()
+
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            'invalid input syntax for type uuid',
+            position="8",
+        ):
+            print('query')
+            await self.scon.fetch("""SELECT 'bad uuid'::uuid""")
+        # await self.scon.fetch("""SELECT 1""")
+
+        print('rollback')
+        await tran.rollback()
+
+        # test that the connection has not be spuriously closed
+        res = await self.squery_values("SELECT 1")
+        self.assertEqual(res, [[1]])
+
     async def test_sql_query_error_13(self):
         # forbidden functions
 
