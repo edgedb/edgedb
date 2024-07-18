@@ -277,6 +277,10 @@ impl<C: Connector, D: Default> Block<C, D> {
     }
 
     /// Close one of idle connections in this block
+    ///
+    /// ## Panics
+    ///
+    /// If there are no idle connections, this function will panic.
     fn task_close_one(self: Rc<Self>, connector: &C) -> impl Future<Output = ConnResult<()>> {
         let conn = {
             consistency_check!(self);
@@ -295,6 +299,11 @@ impl<C: Connector, D: Default> Block<C, D> {
         }
     }
 
+    /// Steals a connection from one block to another.
+    ///
+    /// ## Panics
+    ///
+    /// If there are no idle connections, this function will panic.
     fn task_reconnect(
         from: Rc<Self>,
         to: Rc<Self>,
@@ -326,6 +335,8 @@ impl<C: Connector, D: Default> Block<C, D> {
         }
     }
 
+    /// Moves a connection to a different block than it was acquired from
+    /// without giving any wakers on the old block a chance to get it.
     fn task_reconnect_conn(
         from: Rc<Self>,
         to: Rc<Self>,
@@ -359,6 +370,7 @@ impl<C: Connector, D: Default> Block<C, D> {
         }
     }
 
+    /// Marks a connection as requiring re-open.
     fn task_reopen(
         self: Rc<Self>,
         conn: ConnHandle<C>,
@@ -378,6 +390,7 @@ impl<C: Connector, D: Default> Block<C, D> {
         }
     }
 
+    /// Marks a connection as requiring a discard.
     fn task_discard(
         self: Rc<Self>,
         conn: ConnHandle<C>,
