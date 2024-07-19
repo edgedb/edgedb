@@ -191,7 +191,7 @@ impl Spec {
 pub struct Scored {
     pub description: String,
     #[debug(skip)]
-    pub detailed_calculation: Box<dyn Fn(usize) -> String>,
+    pub detailed_calculation: Box<dyn Fn(usize) -> String + Send + Sync>,
     pub raw_value: f64,
 }
 
@@ -219,6 +219,7 @@ impl std::fmt::Debug for SuiteQoS {
         }
         s.field("qos", &self.qos());
         s.field("qos_rms", &self.qos_rms_error());
+        s.field("qos_min", &self.qos_min());
         s.finish()
     }
 }
@@ -252,6 +253,20 @@ impl SuiteQoS {
             total
         }
     }
+
+    /// Return the root-mean-square error QoS. The error between the QoS and 100
+    /// is squared, averaged, and we subtract that from 100 for a final score.
+    pub fn qos_min(&self) -> f64 {
+        let mut min: f64 = 100.0;
+        for qos in self.values() {
+            min = min.min(qos.qos);
+        }
+        if !min.is_normal() || min < 0.0 {
+            0.0
+        } else {
+            min
+        }
+    }
 }
 
 pub trait ScoringMethod {
@@ -264,18 +279,22 @@ pub struct Score {
     pub v60: f64,
     pub v0: f64,
     pub weight: f64,
-    pub method: Box<dyn ScoringMethod>,
+    pub method: Box<dyn ScoringMethod + Send + Sync + 'static>,
 }
 
 impl Score {
-    pub fn new(weight: f64, scores: [f64; 4], method: impl ScoringMethod + 'static) -> Self {
+    pub fn new(
+        weight: f64,
+        scores: [f64; 4],
+        method: impl ScoringMethod + Send + Sync + 'static,
+    ) -> Self {
         Self {
             weight,
             v0: scores[0],
             v60: scores[1],
             v90: scores[2],
             v100: scores[3],
-            method: method.into(),
+            method: Box::new(method),
         }
     }
 
@@ -369,20 +388,13 @@ impl<T: ScoringMethod + 'static> From<T> for Box<dyn ScoringMethod> {
 pub struct ConnectionOverhead {}
 
 impl ScoringMethod for ConnectionOverhead {
-    fn score(&self, latencies: &Latencies, metrics: &PoolMetrics, config: &PoolConfig) -> Scored {
-        let disconnects = metrics.all_time[MetricVariant::Disconnecting];
-        // Calculate the GC
-        let max = config.constraints.max;
-        let total = metrics.pool.total;
-        let gc = max - total;
-        let disconnects_adj = disconnects.saturating_sub(gc);
+    fn score(&self, latencies: &Latencies, metrics: &PoolMetrics, _config: &PoolConfig) -> Scored {
+        let reconnects = metrics.all_time[MetricVariant::Reconnecting];
         let count = latencies.len();
-        let raw_value = disconnects_adj as f64 / count as f64;
+        let raw_value = reconnects as f64 / count as f64;
         Scored {
-            description: "Num of disconnects/query".to_owned(),
-            detailed_calculation: Box::new(move |_precision| {
-                format!("({disconnects}-({max}-{total}))/{count}")
-            }),
+            description: "Num of re-connects/query".to_owned(),
+            detailed_calculation: Box::new(move |_precision| format!("{reconnects}/{count}")),
             raw_value,
         }
     }
