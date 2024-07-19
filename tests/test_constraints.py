@@ -2271,3 +2271,77 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     }
                 };
             """)
+
+    async def test_constraints_blarg_01(self):
+        await self.con.execute(
+            """
+            CREATE ABSTRACT LINK link_with_unique_property {
+                CREATE PROPERTY unique_property: str;
+                CREATE CONSTRAINT exclusive ON (@unique_property);
+            };
+            CREATE TYPE my_type {
+                CREATE LINK my_link : my_type {
+                    EXTENDING link_with_unique_property;
+                };
+            };
+        """)
+
+        await self.con.execute(
+            """
+            ALTER TYPE my_type {
+                ALTER LINK my_link {
+                    DROP EXTENDING link_with_unique_property;
+                };
+            };
+        """)
+
+        await self.con.execute(
+            """
+            ALTER TYPE my_type {
+                ALTER LINK my_link {
+                    EXTENDING link_with_unique_property LAST;
+                };
+            };
+        """)
+
+        await self.con.execute(
+            """
+            ALTER TYPE my_type {
+                ALTER LINK my_link {
+                    DROP EXTENDING link_with_unique_property;
+                };
+            };
+        """)
+
+    async def test_constraints_blarg_02(self):
+        await self.con.execute(
+            """
+            CREATE ABSTRACT TYPE type_with_constraint {
+                CREATE PROPERTY unique_property: std::str;
+                CREATE CONSTRAINT std::exclusive ON (.unique_property);
+            };
+            CREATE TYPE my_type EXTENDING type_with_constraint {
+                ALTER CONSTRAINT std::exclusive ON (.unique_property) {
+                    SET errmessage := 'haha';
+                }
+            }
+        """)
+
+    async def test_constraints_blarg_03(self):
+        await self.con.execute(
+            """
+            CREATE ABSTRACT LINK link_with_unique_property {
+                CREATE PROPERTY unique_property: str;
+                CREATE CONSTRAINT exclusive ON (@unique_property);
+            };
+            CREATE ABSTRACT LINK inherited_link_with_unique_property {
+                EXTENDING link_with_unique_property;
+            };
+            CREATE TYPE Foo;
+            CREATE TYPE MyType {
+                CREATE LINK my_link : Foo {
+                    EXTENDING link_with_unique_property;
+                };
+            };
+            CREATE TYPE InheritedType EXTENDING MyType;
+        """)

@@ -2023,9 +2023,30 @@ class ConstraintCommand(MetaCommand):
 
     @classmethod
     def fixup_base_constraint_triggers(
-        cls, constraint, orig_schema, schema, context, span=None, *, is_delete
+        cls,
+        constraint: s_constr.Constraint,
+        orig_schema: s_schema.Schema,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        span: Optional[parsing.Span] = None,
+        *,
+        is_delete: bool,
     ):
         base_schema = orig_schema if is_delete else schema
+
+        print('!','fixup_base_constraint_triggers')
+        print(':', constraint.dump(base_schema))
+        print(' ', constraint.id)
+        if orig_schema.has_object(constraint.id):
+            print(':','orig_schema bases')
+            for base in constraint.get_bases(orig_schema).objects(orig_schema):
+                print(':','.', base.dump(orig_schema))
+                print(':',' ', base.id)
+        if schema.has_object(constraint.id):
+            print(':','schema bases')
+            for base in constraint.get_bases(schema).objects(schema):
+                print(':','.', base.dump(schema))
+                print(':',' ', base.id)
 
         # When a constraint is added or deleted, we need to check its
         # parents and potentially enable/disable their triggers
@@ -2033,6 +2054,8 @@ class ConstraintCommand(MetaCommand):
         # parents or children affected by the constraint)
         op = dbops.CommandGroup()
         for base in constraint.get_bases(base_schema).objects(base_schema):
+            print('.', base.dump(schema))
+
             if (
                 schema.has_object(base.id)
                 and cls.constraint_is_effective(schema, base)
@@ -2041,6 +2064,7 @@ class ConstraintCommand(MetaCommand):
                 and not context.is_creating(base)
                 and not context.is_deleting(base)
             ):
+                print('.','.','only_modify_enabled')
                 subject = base.get_subject(schema)
                 bconstr = schemamech.compile_constraint(
                     subject, base, schema, span
@@ -2048,6 +2072,7 @@ class ConstraintCommand(MetaCommand):
                 op.add_command(bconstr.alter_ops(
                     bconstr, only_modify_enabled=True))
 
+        print('\n\n\n\n')
         return op
 
     @classmethod
@@ -2123,6 +2148,7 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
 
         op = self.create_constraint(constraint, schema, self.span)
         self.pgops.add(op)
+        print('!','CreateConstraint')
         self.pgops.add(self.fixup_base_constraint_triggers(
             constraint, orig_schema, schema, context, self.span,
             is_delete=False))
@@ -2261,6 +2287,7 @@ class AlterConstraint(
                      else None),
                     s_sources.SourceCommandContext)
 
+            print('!','AlterConstraint')
             self.pgops.add(self.fixup_base_constraint_triggers(
                 constraint, orig_schema, schema, context, self.span,
                 is_delete=False))
@@ -2284,6 +2311,7 @@ class DeleteConstraint(ConstraintCommand, adapts=s_constr.DeleteConstraint):
         )
         self.pgops.add(op)
 
+        print('!','DeleteConstraint')
         self.pgops.add(self.fixup_base_constraint_triggers(
             constraint, orig_schema, schema, context, self.span,
             is_delete=True))
