@@ -29,7 +29,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
+      uses: fantix/edgedb-pkg/integration/linux/build/debian-buster@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -52,7 +52,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
+      uses: fantix/edgedb-pkg/integration/linux/build/debian-buster@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -75,7 +75,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
+      uses: fantix/edgedb-pkg/integration/linux/build/debian-bullseye@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -98,7 +98,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
+      uses: fantix/edgedb-pkg/integration/linux/build/debian-bullseye@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -121,7 +121,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
+      uses: fantix/edgedb-pkg/integration/linux/build/debian-bookworm@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -144,7 +144,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
+      uses: fantix/edgedb-pkg/integration/linux/build/debian-bookworm@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -167,7 +167,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
+      uses: fantix/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -190,7 +190,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
+      uses: fantix/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -213,7 +213,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
+      uses: fantix/edgedb-pkg/integration/linux/build/ubuntu-focal@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -236,7 +236,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
+      uses: fantix/edgedb-pkg/integration/linux/build/ubuntu-focal@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -259,7 +259,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
+      uses: fantix/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -282,7 +282,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
+      uses: fantix/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -305,7 +305,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-noble@master
+      uses: fantix/edgedb-pkg/integration/linux/build/ubuntu-noble@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -328,7 +328,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-noble@master
+      uses: fantix/edgedb-pkg/integration/linux/build/ubuntu-noble@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -351,7 +351,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
+      uses: fantix/edgedb-pkg/integration/linux/build/centos-8@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -374,7 +374,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
+      uses: fantix/edgedb-pkg/integration/linux/build/centos-8@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -397,7 +397,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
+      uses: fantix/edgedb-pkg/integration/linux/build/rockylinux-9@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -420,7 +420,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
+      uses: fantix/edgedb-pkg/integration/linux/build/rockylinux-9@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -443,7 +443,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/build/linux-x86_64@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -467,7 +467,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/linux-aarch64@master
+      uses: fantix/edgedb-pkg/integration/linux/build/linux-aarch64@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -491,7 +491,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/build/linuxmusl-x86_64@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -516,7 +516,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-aarch64@master
+      uses: fantix/edgedb-pkg/integration/linux/build/linuxmusl-aarch64@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -563,7 +563,7 @@ jobs:
 
     - uses: actions/checkout@v4
       with:
-        repository: edgedb/edgedb-pkg
+        repository: fantix/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
@@ -633,7 +633,7 @@ jobs:
 
     - uses: actions/checkout@v4
       with:
-        repository: edgedb/edgedb-pkg
+        repository: fantix/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
@@ -685,7 +685,7 @@ jobs:
         path: artifacts/debian-buster
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/debian-buster@master
+      uses: fantix/edgedb-pkg/integration/linux/test/debian-buster@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "debian"
@@ -706,7 +706,7 @@ jobs:
         path: artifacts/debian-buster
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/debian-buster@master
+      uses: fantix/edgedb-pkg/integration/linux/test/debian-buster@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "debian"
@@ -727,7 +727,7 @@ jobs:
         path: artifacts/debian-bullseye
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/debian-bullseye@master
+      uses: fantix/edgedb-pkg/integration/linux/test/debian-bullseye@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "debian"
@@ -748,7 +748,7 @@ jobs:
         path: artifacts/debian-bullseye
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/debian-bullseye@master
+      uses: fantix/edgedb-pkg/integration/linux/test/debian-bullseye@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "debian"
@@ -769,7 +769,7 @@ jobs:
         path: artifacts/debian-bookworm
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/debian-bookworm@master
+      uses: fantix/edgedb-pkg/integration/linux/test/debian-bookworm@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "debian"
@@ -790,7 +790,7 @@ jobs:
         path: artifacts/debian-bookworm
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/debian-bookworm@master
+      uses: fantix/edgedb-pkg/integration/linux/test/debian-bookworm@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "debian"
@@ -811,7 +811,7 @@ jobs:
         path: artifacts/ubuntu-bionic
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-bionic@master
+      uses: fantix/edgedb-pkg/integration/linux/test/ubuntu-bionic@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "ubuntu"
@@ -832,7 +832,7 @@ jobs:
         path: artifacts/ubuntu-bionic
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-bionic@master
+      uses: fantix/edgedb-pkg/integration/linux/test/ubuntu-bionic@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "ubuntu"
@@ -853,7 +853,7 @@ jobs:
         path: artifacts/ubuntu-focal
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-focal@master
+      uses: fantix/edgedb-pkg/integration/linux/test/ubuntu-focal@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "ubuntu"
@@ -874,7 +874,7 @@ jobs:
         path: artifacts/ubuntu-focal
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-focal@master
+      uses: fantix/edgedb-pkg/integration/linux/test/ubuntu-focal@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "ubuntu"
@@ -895,7 +895,7 @@ jobs:
         path: artifacts/ubuntu-jammy
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-jammy@master
+      uses: fantix/edgedb-pkg/integration/linux/test/ubuntu-jammy@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "ubuntu"
@@ -916,7 +916,7 @@ jobs:
         path: artifacts/ubuntu-jammy
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-jammy@master
+      uses: fantix/edgedb-pkg/integration/linux/test/ubuntu-jammy@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "ubuntu"
@@ -937,7 +937,7 @@ jobs:
         path: artifacts/ubuntu-noble
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-noble@master
+      uses: fantix/edgedb-pkg/integration/linux/test/ubuntu-noble@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "ubuntu"
@@ -958,7 +958,7 @@ jobs:
         path: artifacts/ubuntu-noble
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-noble@master
+      uses: fantix/edgedb-pkg/integration/linux/test/ubuntu-noble@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "ubuntu"
@@ -979,7 +979,7 @@ jobs:
         path: artifacts/centos-8
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/centos-8@master
+      uses: fantix/edgedb-pkg/integration/linux/test/centos-8@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "centos"
@@ -1000,7 +1000,7 @@ jobs:
         path: artifacts/centos-8
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/centos-8@master
+      uses: fantix/edgedb-pkg/integration/linux/test/centos-8@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "centos"
@@ -1021,7 +1021,7 @@ jobs:
         path: artifacts/rockylinux-9
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/rockylinux-9@master
+      uses: fantix/edgedb-pkg/integration/linux/test/rockylinux-9@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "rockylinux"
@@ -1042,7 +1042,7 @@ jobs:
         path: artifacts/rockylinux-9
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/rockylinux-9@master
+      uses: fantix/edgedb-pkg/integration/linux/test/rockylinux-9@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "rockylinux"
@@ -1063,7 +1063,7 @@ jobs:
         path: artifacts/linux-x86_64
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/test/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "linux"
@@ -1084,7 +1084,7 @@ jobs:
         path: artifacts/linux-aarch64
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/linux-aarch64@master
+      uses: fantix/edgedb-pkg/integration/linux/test/linux-aarch64@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "linux"
@@ -1105,7 +1105,7 @@ jobs:
         path: artifacts/linuxmusl-x86_64
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/linuxmusl-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/test/linuxmusl-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "linux"
@@ -1126,7 +1126,7 @@ jobs:
         path: artifacts/linuxmusl-aarch64
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/linuxmusl-aarch64@master
+      uses: fantix/edgedb-pkg/integration/linux/test/linuxmusl-aarch64@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "linux"
@@ -1143,7 +1143,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        repository: edgedb/edgedb-pkg
+        repository: fantix/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
@@ -1172,7 +1172,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        repository: edgedb/edgedb-pkg
+        repository: fantix/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
@@ -1229,7 +1229,7 @@ jobs:
         path: artifacts/debian-buster
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1250,12 +1250,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: debian-buster
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/debian-buster@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -1281,7 +1281,7 @@ jobs:
         path: artifacts/debian-buster
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1302,12 +1302,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: debian-buster
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/debian-buster@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -1333,7 +1333,7 @@ jobs:
         path: artifacts/debian-bullseye
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1354,12 +1354,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: debian-bullseye
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -1385,7 +1385,7 @@ jobs:
         path: artifacts/debian-bullseye
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1406,12 +1406,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: debian-bullseye
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -1437,7 +1437,7 @@ jobs:
         path: artifacts/debian-bookworm
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1458,12 +1458,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: debian-bookworm
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -1489,7 +1489,7 @@ jobs:
         path: artifacts/debian-bookworm
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1510,12 +1510,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: debian-bookworm
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/debian-bookworm@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -1541,7 +1541,7 @@ jobs:
         path: artifacts/ubuntu-bionic
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1562,12 +1562,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: ubuntu-bionic
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -1593,7 +1593,7 @@ jobs:
         path: artifacts/ubuntu-bionic
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1614,12 +1614,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: ubuntu-bionic
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -1645,7 +1645,7 @@ jobs:
         path: artifacts/ubuntu-focal
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1666,12 +1666,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: ubuntu-focal
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -1697,7 +1697,7 @@ jobs:
         path: artifacts/ubuntu-focal
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1718,12 +1718,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: ubuntu-focal
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -1749,7 +1749,7 @@ jobs:
         path: artifacts/ubuntu-jammy
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1770,12 +1770,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: ubuntu-jammy
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -1801,7 +1801,7 @@ jobs:
         path: artifacts/ubuntu-jammy
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1822,12 +1822,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: ubuntu-jammy
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -1853,7 +1853,7 @@ jobs:
         path: artifacts/ubuntu-noble
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1874,12 +1874,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: ubuntu-noble
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-noble@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/ubuntu-noble@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -1905,7 +1905,7 @@ jobs:
         path: artifacts/ubuntu-noble
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1926,12 +1926,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: ubuntu-noble
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-noble@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/ubuntu-noble@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -1957,7 +1957,7 @@ jobs:
         path: artifacts/centos-8
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -1978,12 +1978,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: centos-8
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/centos-8@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -2009,7 +2009,7 @@ jobs:
         path: artifacts/centos-8
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -2030,12 +2030,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: centos-8
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/centos-8@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -2061,7 +2061,7 @@ jobs:
         path: artifacts/rockylinux-9
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -2082,12 +2082,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: rockylinux-9
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -2113,7 +2113,7 @@ jobs:
         path: artifacts/rockylinux-9
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -2134,12 +2134,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: rockylinux-9
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/rockylinux-9@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -2165,7 +2165,7 @@ jobs:
         path: artifacts/linux-x86_64
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -2186,12 +2186,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: linux-x86_64
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/linux-x86_64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -2217,7 +2217,7 @@ jobs:
         path: artifacts/linux-aarch64
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -2238,12 +2238,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: linux-aarch64
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-aarch64@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/linux-aarch64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -2269,7 +2269,7 @@ jobs:
         path: artifacts/linuxmusl-x86_64
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -2290,12 +2290,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: linuxmusl-x86_64
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/linuxmusl-x86_64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -2321,7 +2321,7 @@ jobs:
         path: artifacts/linuxmusl-aarch64
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
@@ -2342,12 +2342,12 @@ jobs:
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: linuxmusl-aarch64
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-aarch64@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/linuxmusl-aarch64@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "testing"
@@ -2374,18 +2374,18 @@ jobs:
 
     - uses: actions/checkout@v4
       with:
-        repository: edgedb/edgedb-pkg
+        repository: fantix/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: macos-x86_64
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "macos"
@@ -2404,18 +2404,18 @@ jobs:
 
     - uses: actions/checkout@v4
       with:
-        repository: edgedb/edgedb-pkg
+        repository: fantix/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: macos-aarch64
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "testing"
         PKG_PLATFORM: "macos"

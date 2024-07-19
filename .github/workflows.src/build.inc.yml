@@ -91,7 +91,7 @@
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/<< plat_id >>@master
+      uses: fantix/edgedb-pkg/integration/linux/build/<< plat_id >>@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -152,7 +152,7 @@
 
     - uses: actions/checkout@v4
       with:
-        repository: edgedb/edgedb-pkg
+        repository: fantix/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
@@ -214,7 +214,7 @@
         path: artifacts/<< plat_id >>
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/<< plat_id >>@master
+      uses: fantix/edgedb-pkg/integration/linux/test/<< plat_id >>@master
       env:
         <%- if subdist != "" %>
         PKG_SUBDIST: "<< subdist >>"
@@ -237,7 +237,7 @@
     steps:
     - uses: actions/checkout@v4
       with:
-        repository: edgedb/edgedb-pkg
+        repository: fantix/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
@@ -292,7 +292,7 @@
         path: artifacts/<< plat_id >>
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         <%- if subdist != "" %>
         PKG_SUBDIST: "<< subdist >>"
@@ -317,12 +317,12 @@
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: << plat_id >>
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/<< plat_id >>@master
+      uses: fantix/edgedb-pkg/integration/linux/testpublished/<< plat_id >>@master
       env:
         PKG_NAME: "${{ steps.describe.outputs.name }}"
         <%- if subdist != "" %>
@@ -359,18 +359,18 @@
 
     - uses: actions/checkout@v4
       with:
-        repository: edgedb/edgedb-pkg
+        repository: fantix/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
     - name: Describe
       id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      uses: fantix/edgedb-pkg/integration/actions/describe-artifact@master
       with:
         target: << plat_id >>
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      uses: fantix/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         <%- if subdist != "" %>
         PKG_SUBDIST: "<< subdist >>"
