@@ -919,6 +919,23 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [[11]])
 
+    async def test_sql_query_static_eval_05(self):
+        # pg_get_serial_sequence always returns NULL, we don't expose sequences
+
+        res = await self.squery_values(
+            '''
+            SELECT
+              CAST(
+                CAST(
+                  pg_catalog.pg_get_serial_sequence('a', 'b')
+                  AS REGCLASS
+                )
+                AS OID
+              )
+            '''
+        )
+        self.assertEqual(res, [[None]])
+
     async def test_sql_query_be_state(self):
         con = await self.connect(database=self.con.dbname)
         try:
