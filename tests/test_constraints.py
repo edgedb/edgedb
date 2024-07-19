@@ -2271,3 +2271,45 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     }
                 };
             """)
+
+    async def test_constraints_blarg(self):
+        await self.con.execute(
+            """
+  CREATE ABSTRACT LINK default::link_with_unique_property {
+      CREATE PROPERTY unique_property: std::str;
+      CREATE CONSTRAINT std::exclusive ON (@unique_property);
+  };
+  CREATE TYPE default::UniqueName {
+      CREATE LINK my_link : default::UniqueName {
+          EXTENDING default::link_with_unique_property;
+      };
+  };
+        """)
+
+        await self.con.execute(
+            """
+  ALTER TYPE default::UniqueName {
+      ALTER LINK my_link {
+          DROP EXTENDING default::link_with_unique_property;
+      };
+  };
+        """)
+
+        await self.con.execute(
+            """
+  ALTER TYPE default::UniqueName {
+      ALTER LINK my_link {
+          EXTENDING default::link_with_unique_property LAST;
+      };
+  };
+        """)
+
+        await self.con.execute(
+            """
+  ALTER TYPE default::UniqueName {
+      ALTER LINK my_link {
+          DROP EXTENDING default::link_with_unique_property;
+      };
+  };
+        """)
+

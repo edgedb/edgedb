@@ -2023,7 +2023,14 @@ class ConstraintCommand(MetaCommand):
 
     @classmethod
     def fixup_base_constraint_triggers(
-        cls, constraint, orig_schema, schema, context, span=None, *, is_delete
+        cls,
+        constraint: s_constr.Constraint,
+        orig_schema: s_schema.Schema,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        span: Optional[parsing.Span] = None,
+        *,
+        is_delete: bool,
     ):
         base_schema = orig_schema if is_delete else schema
 
@@ -2167,105 +2174,7 @@ class AlterConstraint(
     ConstraintCommand,
     adapts=s_constr.AlterConstraint,
 ):
-    def apply(self, schema, context):
-        orig_schema = schema
-        schema = super().apply(schema, context)
-        constraint = self.scls
-        if self.metadata_only:
-            return schema
-        if (
-            not self.constraint_is_effective(schema, constraint)
-            and not self.constraint_is_effective(orig_schema, constraint)
-        ):
-            return schema
-
-        subject = constraint.get_subject(schema)
-
-        subcommands = list(self.get_subcommands())
-        if (not subcommands or
-                isinstance(subcommands[0], s_constr.RenameConstraint)):
-            # This is a pure rename, so everything had been handled by
-            # RenameConstraint above.
-            return schema
-
-        if subject is not None:
-            if pcontext := context.get(s_pointers.PointerCommandContext):
-                orig_schema = pcontext.original_schema
-
-            bconstr = schemamech.compile_constraint(
-                subject, constraint, schema, self.span
-            )
-
-            orig_bconstr = schemamech.compile_constraint(
-                constraint.get_subject(orig_schema),
-                constraint,
-                orig_schema,
-                self.span,
-            )
-
-            op = dbops.CommandGroup()
-            if not self.constraint_is_effective(orig_schema, constraint):
-                op.add_command(bconstr.create_ops())
-
-                # XXX: I don't think any of this logic is needed??
-                for child in constraint.children(schema):
-                    orig_cbconstr = schemamech.compile_constraint(
-                        child.get_subject(orig_schema),
-                        child,
-                        orig_schema,
-                        self.span,
-                    )
-                    cbconstr = schemamech.compile_constraint(
-                        child.get_subject(schema),
-                        child,
-                        schema,
-                        self.span,
-                    )
-                    op.add_command(cbconstr.alter_ops(orig_cbconstr))
-            elif not self.constraint_is_effective(schema, constraint):
-                op.add_command(bconstr.alter_ops(orig_bconstr))
-
-                for child in constraint.children(schema):
-                    orig_cbconstr = schemamech.compile_constraint(
-                        child.get_subject(orig_schema),
-                        child,
-                        orig_schema,
-                        self.span,
-                    )
-                    cbconstr = schemamech.compile_constraint(
-                        child.get_subject(schema),
-                        child,
-                        schema,
-                        self.span,
-                    )
-                    op.add_command(cbconstr.alter_ops(orig_cbconstr))
-            else:
-                op.add_command(bconstr.alter_ops(orig_bconstr))
-            self.pgops.add(op)
-
-            if (
-                (subject := constraint.get_subject(schema))
-                and isinstance(
-                    subject, (s_objtypes.ObjectType, s_pointers.Pointer))
-                and not context.is_creating(subject)
-                and not context.is_deleting(subject)
-            ):
-                self.schedule_post_inhview_update_command(
-                    schema,
-                    context,
-                    (lambda nschema, ncontext:
-                     self.enforce_constraint(
-                         constraint, nschema, self.span
-                     )
-                     if nschema.has_object(constraint.id)
-                     else None),
-                    s_sources.SourceCommandContext)
-
-            self.pgops.add(self.fixup_base_constraint_triggers(
-                constraint, orig_schema, schema, context, self.span,
-                is_delete=False))
-
-        return schema
+    pass
 
 
 class DeleteConstraint(ConstraintCommand, adapts=s_constr.DeleteConstraint):
