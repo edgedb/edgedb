@@ -74,6 +74,7 @@ from edb.server.pgproto.pgproto cimport (
 )
 
 from edb.server import compiler
+from edb.server.compiler import dbstate
 from edb.server import defines
 from edb.server.cache cimport stmt_cache
 from edb.server.dbview cimport dbview
@@ -1849,9 +1850,11 @@ cdef class PGConnection:
             WriteBuffer buf, msg_buf
             PGMessage action
             bint ignore_till_sync = False
+            int32_t row_count
 
         buf = WriteBuffer.new()
         rv = True
+        is_binary_format = True
 
         for action in actions:
             if self.debug:
@@ -1984,6 +1987,7 @@ cdef class PGConnection:
                         buf.write_buffer(msg_buf.end_message())
                 continue
 
+            row_count = 0
             while True:
                 if not self.buffer.take_message():
                     if buf.len() > 0:
@@ -2049,7 +2053,27 @@ cdef class PGConnection:
                     data = self.buffer.consume_message()
                     if self.debug:
                         self.debug_print('END OF DESCRIBE', mtype)
-                    if not action.is_injected() and not (
+                    if (
+                        mtype == b'T' and 
+                        action.action == PGAction.DESCRIBE_STMT_ROWS and
+                        isinstance(
+                            action.query_unit.command_complete_tag,
+                            dbstate.TagUnpackRow,
+                        )
+                    ):
+                        # when unpacking a DataRow, we need to know if it is in
+                        # in binary or text mode.
+                        # Here we assume that there will be a single column in
+                        # the DataRow, so last byte will be the format code of
+                        # that col.
+                        is_binary_format = data[-1] == 1
+
+                        if is_binary_format:
+                            # TagUnpackRow converts RowDescription into NoData
+                            msg_buf = WriteBuffer.new_message(b'n')
+                            buf.write_buffer(msg_buf.end_message())
+
+                    elif not action.is_injected() and not (
                         mtype == b'n' and
                         action.action == PGAction.DESCRIBE_STMT_ROWS
                     ):
@@ -2063,6 +2087,46 @@ cdef class PGConnection:
                     and action.action == PGAction.DESCRIBE_STMT_ROWS
                 ):
                     self.buffer.consume_message()
+
+                elif (
+                    mtype == b'T'  # RowDescription
+                    and action.action == PGAction.EXECUTE
+                    and isinstance(
+                        action.query_unit.command_complete_tag,
+                        dbstate.TagUnpackRow,
+                    )
+                ):
+                    data = self.buffer.consume_message()
+
+                    # when unpacking a DataRow, we need to know if it is in
+                    # in binary or text mode.
+                    # Here we assume that there will be a single column in the
+                    # DataRow, so last byte will be the format code of that col.
+                    is_binary_format = data[-1] == 1
+
+                    # tell the frontend connection that there is NoData
+                    # because we intercept and unpack the DataRow.
+                    msg_buf = WriteBuffer.new_message(b'n')
+                    buf.write_buffer(msg_buf.end_message())
+
+                elif (
+                    mtype == b'D'  # DataRow
+                    and action.action == PGAction.EXECUTE
+                    and isinstance(
+                        action.query_unit.command_complete_tag,
+                        dbstate.TagUnpackRow,
+                    )
+                ):
+                    # unpack a single row with a single column
+                    data = self.buffer.consume_message()
+
+                    field_size = int.from_bytes(data[2:6], "big")
+                    val_bytes = data[6:6 + field_size]
+
+                    if is_binary_format:
+                        row_count = int.from_bytes(val_bytes, "big")
+                    else:
+                        row_count = int(str(val_bytes, "ascii"))
 
                 elif (
                     # CommandComplete, EmptyQueryResponse, PortalSuspended
@@ -2087,7 +2151,31 @@ cdef class PGConnection:
                                 )
                             self.prep_stmts[be_stmt_name] = dbver
 
-                    if not action.is_injected():
+                    if (
+                        not action.is_injected()
+                        and mtype == b'C'
+                        and action.query_unit.command_complete_tag
+                    ):
+                        tag = action.query_unit.command_complete_tag
+
+                        msg_buf = WriteBuffer.new_message(mtype)
+                        if isinstance(tag, dbstate.TagPlain):
+                            msg_buf.write_str(tag.tag, "utf-8")
+
+                        elif isinstance(tag, (dbstate.TagCountMessages, dbstate.TagUnpackRow)):
+                            msg_buf.write_bytes(bytes(tag.prefix, "utf-8"))
+
+                            # This should return the number of modified rows by
+                            # the top-level query, but we are returning the
+                            # count of rows in the response. These two will
+                            # always match because our compiled DML with always
+                            # have a top-level SELECT with same number of rows
+                            # as the DML stmt somewhere in the the CTEs.
+                            msg_buf.write_str(str(row_count), "utf-8")
+
+                        buf.write_buffer(msg_buf.end_message())
+
+                    elif not action.is_injected():
                         msg_buf = WriteBuffer.new_message(mtype)
                         msg_buf.write_bytes(data)
                         buf.write_buffer(msg_buf.end_message())
@@ -2142,7 +2230,13 @@ cdef class PGConnection:
                     if not action.is_injected():
                         if self.debug:
                             self.debug_print('REDIRECT OTHER MSG', mtype)
-                        self.buffer.redirect_messages(buf, mtype, 0)
+                        messages_redirected = self.buffer.redirect_messages(
+                            buf, mtype, 0
+                        )
+
+                        # DataRow
+                        if mtype == b'D':
+                            row_count += messages_redirected
                     else:
                         logger.warning(
                             f"discarding unexpected backend message: "

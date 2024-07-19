@@ -17,9 +17,12 @@
 #
 
 from __future__ import annotations
+from typing import Tuple, Optional
 
 from edb.pgsql import ast as pgast
 from edb.schema import schema as s_schema
+
+from edb.server.compiler import dbstate
 
 from . import dispatch
 from . import context
@@ -34,7 +37,7 @@ def resolve(
     query: pgast.Base,
     schema: s_schema.Schema,
     options: context.Options,
-) -> pgast.Base:
+) -> Tuple[pgast.Base, Optional[dbstate.CommandCompleteTag]]:
     ctx = context.ResolverContextLevel(
         None, context.ContextSwitchMode.EMPTY, schema=schema, options=options
     )
@@ -43,12 +46,26 @@ def resolve(
 
     top_level_ctes = command.compile_dml(query, ctx=ctx)
 
-    query = dispatch.resolve(query, ctx=ctx)
+    resolved = dispatch.resolve(query, ctx=ctx)
 
     if top_level_ctes:
-        assert isinstance(query, pgast.Query)
-        if not query.ctes:
-            query.ctes = []
-        query.ctes.extend(top_level_ctes)
+        assert isinstance(resolved, pgast.Query)
+        if not resolved.ctes:
+            resolved.ctes = []
+        resolved.ctes.extend(top_level_ctes)
 
-    return query
+    # when the top-level query is DML statement, clients will expect a tag in
+    # the CommandComplete message that describes the number of modified rows.
+    # Since our resolved SQL does not have a top-level DML stmt, we need to
+    # override that tag.
+    command_complete_tag: Optional[dbstate.CommandCompleteTag] = None
+    if isinstance(query, pgast.InsertStmt):
+        if query.returning_list:
+            # resolved SQL will return a result, we count those rows
+            command_complete_tag = dbstate.TagCountMessages(prefix='INSERT 0 ')
+        else:
+            # resolved SQL will contain an injected COUNT clause
+            # we instruct io process to unpack that
+            command_complete_tag = dbstate.TagUnpackRow(prefix='INSERT 0 ')
+
+    return (resolved, command_complete_tag)

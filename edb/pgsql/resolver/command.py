@@ -682,7 +682,29 @@ def resolve_InsertStmt(
             ctx,
         )
     else:
-        res_query = pgast.SelectStmt()
+        if ctx.subquery_depth == 0:
+            # when a top-level DML query have a RETURNING clause,
+            # we inject a COUNT(*) clause so we can efficiently count
+            # modified rows which will be converted into CommandComplete tag.
+            res_query = pgast.SelectStmt(
+                target_list=[
+                    pgast.ResTarget(
+                        val=pgast.FuncCall(
+                            name=('count',), agg_star=True, args=[]
+                        ),
+                    )
+                ],
+                from_clause=[
+                    pgast.RelRangeVar(
+                        relation=pgast.Relation(
+                            name=compiled_dml.output_relation_name
+                        )
+                    )
+                ],
+            )
+        else:
+            # nested DML queries without RETURNING does not need any result
+            res_query = pgast.SelectStmt()
         res_table = context.Table()
 
     if not res_query.ctes:

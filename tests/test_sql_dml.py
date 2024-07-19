@@ -407,3 +407,49 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 SELECT 1
                 '''
             )
+
+    async def test_sql_dml_insert_20(self):
+        # CommandComplete tag (inserted rows) with no RETURNING
+
+        query = '''
+            INSERT INTO "Document" (title) VALUES ('Report'), ('Briefing');
+        '''
+
+        # extended (binary) protocol, because fetch
+        res = await self.scon.fetch(query)
+        # actually, no DataRows are returned, but asyncpg returns [] anyway
+        self.assert_shape(res, 0, 0)
+
+        # simple (text) protocol
+        res = await self.scon.execute(query)
+        self.assertEqual(res, 'INSERT 0 2')
+
+        # extended (binary) protocol because we used args
+        query = '''
+            INSERT INTO "Document" (title) VALUES ($1), ($2);
+        '''
+        res = await self.scon.execute(query, 'Report', 'Briefing')
+        self.assertEqual(res, 'INSERT 0 2')
+
+    async def test_sql_dml_insert_21(self):
+        # CommandComplete tag (inserted rows) with RETURNING
+
+        query = '''
+            INSERT INTO "Document" (title) VALUES ('Report'), ('Briefing')
+            RETURNING id as my_id;
+        '''
+
+        res = await self.scon.fetch(query)
+        self.assert_shape(res, rows=2, columns=["my_id"])
+
+        # simple (text) protocol
+        res = await self.scon.execute(query)
+        self.assertEqual(res, 'INSERT 0 2')
+
+        # extended (binary) protocol because we used args
+        query = '''
+            INSERT INTO "Document" (title) VALUES ($1), ($2)
+            RETURNING id as my_id;
+        '''
+        res = await self.scon.execute(query, 'Report', 'Briefing')
+        self.assertEqual(res, 'INSERT 0 2')
