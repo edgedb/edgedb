@@ -220,6 +220,10 @@ def eval_FuncCall(
             span=expr.span,
         )
 
+    if fn_name == "pg_get_serial_sequence":
+        # we do not expose sequences, so any calls to this function returns NULL
+        return pgast.NullConstant()
+
     if fn_name == "to_regclass":
         arg = require_a_string_literal(expr, fn_name, ctx)
         return to_regclass(arg, ctx=ctx)
@@ -306,6 +310,8 @@ def cast_to_regclass(param: pgast.BaseExpr, ctx: Context) -> pgast.BaseExpr:
     """
 
     expr = eval(param, ctx=ctx)
+    if isinstance(expr, pgast.NullConstant):
+        return pgast.NullConstant()
     if isinstance(expr, pgast.StringConstant):
         return to_regclass(expr.val, ctx=ctx)
     if isinstance(expr, pgast.NumericConstant):
