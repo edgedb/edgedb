@@ -2334,14 +2334,28 @@ class TestConstraintsDDL(tb.DDLTestCase):
                 CREATE PROPERTY unique_property: str;
                 CREATE CONSTRAINT exclusive ON (@unique_property);
             };
-            CREATE ABSTRACT LINK inherited_link_with_unique_property {
+            CREATE ABSTRACT LINK inherited_link {
                 EXTENDING link_with_unique_property;
             };
             CREATE TYPE Foo;
             CREATE TYPE MyType {
                 CREATE LINK my_link : Foo {
-                    EXTENDING link_with_unique_property;
+                    EXTENDING inherited_link;
                 };
             };
             CREATE TYPE InheritedType EXTENDING MyType;
+        """)
+
+        await self.con.execute(
+            """
+            ALTER ABSTRACT LINK inherited_link {
+                DROP EXTENDING link_with_unique_property;
+            };
+        """)
+
+        await self.con.execute(
+            """
+            ALTER ABSTRACT LINK inherited_link {
+                EXTENDING link_with_unique_property;
+            };
         """)

@@ -37,6 +37,7 @@ from copy import copy
 import collections.abc
 import itertools
 import textwrap
+import uuid
 
 from edb import errors
 
@@ -2032,7 +2033,25 @@ class ConstraintCommand(MetaCommand):
         *,
         is_delete: bool,
     ):
+        def describe_constraint(c, s):
+            return (
+                (
+                    c.get_subject(s).get_source(s).get_displayname(s)
+                    + '.' + c.get_subject(s).get_displayname(s)
+                    if (
+                        isinstance(c.get_subject(s), s_pointers.Pointer)
+                        and c.get_subject(s).get_source(s) is not None
+                    ) else
+                    c.get_subject(s).get_displayname(s)
+                    if c.get_subject(s) is not None else
+                    "None"
+                ),
+                c.get_displayname(s),
+            )
+
         base_schema = orig_schema if is_delete else schema
+
+        relatives: dict[uuid.UUID, tuple[Optional[s_constr.Constraint], Optional[s_constr.Constraint]]] = {}
 
         print('!','fixup_base_constraint_triggers')
         print(':', constraint.dump(base_schema))
@@ -2042,35 +2061,144 @@ class ConstraintCommand(MetaCommand):
             for base in constraint.get_bases(orig_schema).objects(orig_schema):
                 print(':','.', base.dump(orig_schema))
                 print(':',' ', base.id)
+            for origin in constraint.get_constraint_origins(orig_schema):
+                for relative in [origin] + list(origin.descendants(orig_schema)):
+                    if relative.id not in relatives:
+                        relatives[relative.id] = (None, None)
+                    relatives[relative.id] = (
+                        relative,
+                        relatives[relative.id][1],
+                    )
         if schema.has_object(constraint.id):
             print(':','schema bases')
             for base in constraint.get_bases(schema).objects(schema):
                 print(':','.', base.dump(schema))
                 print(':',' ', base.id)
+            for origin in constraint.get_constraint_origins(schema):
+                for relative in [origin] + list(origin.descendants(schema)):
+                    if relative.id not in relatives:
+                        relatives[relative.id] = (None, None)
+                    relatives[relative.id] = (
+                        relatives[relative.id][0],
+                        relative,
+                    )
+
+        descriptions_1 = []
+        descriptions_3 = []
 
         # When a constraint is added or deleted, we need to check its
         # parents and potentially enable/disable their triggers
         # (since we want to disable triggers on types without
         # parents or children affected by the constraint)
         op = dbops.CommandGroup()
-        for base in constraint.get_bases(base_schema).objects(base_schema):
-            print('.', base.dump(schema))
+        if True:
+            print()
+            for base in constraint.get_bases(base_schema).objects(base_schema):
+                print('.', base.dump(schema))
+                print(' ', describe_constraint(base, schema))
 
-            if (
-                schema.has_object(base.id)
-                and cls.constraint_is_effective(schema, base)
-                and (base.is_independent(orig_schema)
-                     != base.is_independent(schema))
-                and not context.is_creating(base)
-                and not context.is_deleting(base)
-            ):
-                print('.','.','only_modify_enabled')
-                subject = base.get_subject(schema)
-                bconstr = schemamech.compile_constraint(
-                    subject, base, schema, span
-                )
-                op.add_command(bconstr.alter_ops(
-                    bconstr, only_modify_enabled=True))
+                if (
+                    schema.has_object(base.id)
+                    and cls.constraint_is_effective(schema, base)
+                    and (base.is_independent(orig_schema)
+                        != base.is_independent(schema))
+                    and not context.is_creating(base)
+                    and not context.is_deleting(base)
+                ):
+                    descriptions_1.append(base)
+                    print('.','.','only_modify_enabled')
+                    continue
+                    subject = base.get_subject(schema)
+                    bconstr = schemamech.compile_constraint(
+                        subject, base, schema, span
+                    )
+                    op.add_command(bconstr.alter_ops(
+                        bconstr,
+                        #only_modify_enabled=True,
+                    ))
+
+        if not (
+            (subject := constraint.get_subject(base_schema))
+            and isinstance(subject, s_pointers.Pointer)
+            and subject.is_id_pointer(base_schema)
+        ):
+            print()
+            print('.','relatives =',[
+                describe_constraint(relative, relative_schema)
+                for relative_list in relatives.values()
+                for relative, relative_schema in zip(relative_list, [orig_schema, schema])
+                if relative is not None
+            ])
+
+        if True:
+            for relative_id, relative_list in relatives.items():
+                if relative_id == constraint.id:
+                    continue
+
+                orig_relative = relative_list[0]
+                curr_relative = relative_list[1]
+
+                if orig_relative is None and orig_schema.has_object(relative_id):
+                    orig_relative = cast(
+                        s_constr.Constraint,
+                        orig_schema.get_by_id(relative_id)
+                    )
+                if curr_relative is None and schema.has_object(relative_id):
+                    curr_relative = cast(
+                        s_constr.Constraint,
+                        schema.get_by_id(relative_id)
+                    )
+
+                if (
+                    relative_id != constraint.id
+                    and schema.has_object(relative_id)
+                    and orig_schema.has_object(relative_id)
+                    and cls.constraint_is_effective(schema, curr_relative)
+                ):
+                    descriptions_3.append(curr_relative)
+                    if curr_relative not in descriptions_1:
+                        continue
+                    orig_relative_constr = schemamech.compile_constraint(
+                        orig_relative.get_subject(orig_schema),
+                        orig_relative,
+                        orig_schema,
+                        span,
+                    )
+                    relative_constr = schemamech.compile_constraint(
+                        curr_relative.get_subject(schema),
+                        curr_relative,
+                        schema,
+                        span,
+                    )
+                    op.add_command(relative_constr.alter_ops(orig_relative_constr))
+                    continue
+                    r = curr_relative
+                    subject = r.get_subject(schema)
+                    bconstr = schemamech.compile_constraint(
+                        subject, r, schema, span
+                    )
+                    op.add_command(bconstr.alter_ops(
+                        bconstr,
+                        only_modify_enabled=True,
+                    ))
+
+        print()
+        print('.','bleep')
+        print()
+        for d in descriptions_1:
+            print('.',describe_constraint(d, schema))
+            print('.',d)
+            if d not in descriptions_3:
+                print('.','BLAH A')
+            print()
+        print()
+        print('.','bloop')
+        for d in descriptions_3:
+            print('.',describe_constraint(d, schema))
+            print('.',d)
+            if d not in descriptions_1:
+                print('.','BLAH B')
+            print()
 
         print('\n\n\n\n')
         return op
