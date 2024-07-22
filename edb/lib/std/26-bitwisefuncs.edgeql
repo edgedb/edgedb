@@ -183,7 +183,7 @@ std::bit_rshift(val: std::int16, n: std::int64) -> std::int16
     SELECT (
         CASE
             WHEN n < 0 THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::int8,
                     'invalid_parameter_value',
                     msg => (
@@ -212,7 +212,7 @@ std::bit_rshift(val: std::int32, n: std::int64) -> std::int32
     SELECT (
         CASE
             WHEN n < 0 THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::int8,
                     'invalid_parameter_value',
                     msg => (
@@ -241,7 +241,7 @@ std::bit_rshift(val: std::int64, n: std::int64) -> std::int64
     SELECT (
         CASE
             WHEN n < 0 THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::int8,
                     'invalid_parameter_value',
                     msg => (
@@ -270,7 +270,7 @@ std::bit_lshift(val: std::int16, n: std::int64) -> std::int16
     SELECT (
         CASE
             WHEN n < 0 THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::int8,
                     'invalid_parameter_value',
                     msg => (
@@ -295,7 +295,7 @@ std::bit_lshift(val: std::int32, n: std::int64) -> std::int32
     SELECT (
         CASE
             WHEN n < 0 THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::int8,
                     'invalid_parameter_value',
                     msg => (
@@ -320,7 +320,7 @@ std::bit_lshift(val: std::int64, n: std::int64) -> std::int64
     SELECT (
         CASE
             WHEN n < 0 THEN
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::int8,
                     'invalid_parameter_value',
                     msg => (

@@ -263,7 +263,7 @@ def compile_TypeCast(
         if detail is not None:
             args.append(detail)
         res = pgast.FuncCall(
-            name=('edgedb', 'raise_on_null'),
+            name=astutils.edgedb_func('raise_on_null', ctx=ctx),
             args=args
         )
 
@@ -295,7 +295,7 @@ def compile_IndexIndirection(
         index = dispatch.compile(expr.index, ctx=subctx)
 
     result = pgast.FuncCall(
-        name=('edgedb', '_index'),
+        name=astutils.edgedb_func('_index', ctx=ctx),
         args=[subj, index, span]
     )
 
@@ -330,22 +330,25 @@ def compile_SliceIndirection(
         )
 
         if inline_array_slicing:
-            return _inline_array_slicing(subj, start, stop)
+            return _inline_array_slicing(subj, start, stop, ctx=ctx)
         else:
             return pgast.FuncCall(
-                name=("edgedb", "_slice"), args=[subj, start, stop]
+                name=astutils.edgedb_func('_slice', ctx=ctx),
+                args=[subj, start, stop]
             )
 
 
 def _inline_array_slicing(
-    subj: pgast.BaseExpr, start: pgast.BaseExpr, stop: pgast.BaseExpr
+    subj: pgast.BaseExpr, start: pgast.BaseExpr, stop: pgast.BaseExpr,
+    ctx: context.CompilerContextLevel
 ) -> pgast.BaseExpr:
     return pgast.Indirection(
         arg=subj,
         indirection=[
             pgast.Slice(
                 lidx=pgast.FuncCall(
-                    name=("edgedb", "_normalize_array_slice_index"),
+                    name=astutils.edgedb_func(
+                        '_normalize_array_slice_index', ctx=ctx),
                     args=[
                         start,
                         pgast.FuncCall(
@@ -355,7 +358,8 @@ def _inline_array_slicing(
                 ),
                 ridx=astutils.new_binop(
                     lexpr=pgast.FuncCall(
-                        name=("edgedb", "_normalize_array_slice_index"),
+                        name=astutils.edgedb_func(
+                            '_normalize_array_slice_index', ctx=ctx),
                         args=[
                             stop,
                             pgast.FuncCall(
@@ -643,7 +647,7 @@ def compile_TypeCheckOp(
                 right = dispatch.compile(expr.right, ctx=newctx)
 
             result = pgast.FuncCall(
-                name=('edgedb', 'issubclass'),
+                name=astutils.edgedb_func('issubclass', ctx=ctx),
                 args=[left, right])
 
             if negated:

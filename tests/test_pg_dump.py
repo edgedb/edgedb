@@ -31,18 +31,18 @@ class TestPGDump01(tb.StablePGDumpTestCase):
                          'pg_dump01_setup.edgeql')
 
     async def test_pgdump01_dump_restore_01(self):
-        eqlres = await self.con.query('select A {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "A"')
+        eqlres = await self.con.query('select A {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "A" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump01_dump_restore_02(self):
-        eqlres = await self.con.query('select B {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "B"')
+        eqlres = await self.con.query('select B {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "B" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump01_dump_restore_03(self):
-        eqlres = await self.con.query('select C {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "C"')
+        eqlres = await self.con.query('select C {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "C" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
 
@@ -57,8 +57,8 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                          'dump01_setup.edgeql')
 
     async def test_pgdump02_dump_restore_01(self):
-        eqlres = await self.con.query('select A {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "A"')
+        eqlres = await self.con.query('select A {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "A" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump02_dump_restore_02(self):
@@ -68,21 +68,23 @@ class TestPGDump02(tb.StablePGDumpTestCase):
             'p_int32', 'p_int64', 'p_float32', 'p_float64', 'p_bigint',
             'p_decimal', 'p_json', 'p_bytes',
         ]
-        eqlres = await self.con.query(f'select B {{id, {", ".join(props)}}}')
+        eqlres = await self.con.query(
+            f'select B {{id, {", ".join(props)}}} order by .id'
+        )
 
         sql = f'''
             SELECT
                 id,
                 {", ".join(self.multi_prop_subquery("B", p) for p in props)}
             FROM "B"
-
+            ORDER BY id
         '''
         sqlres = await self.scon.fetch(sql)
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump02_dump_restore_03(self):
-        eqlres = await self.con.query('select C {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "C"')
+        eqlres = await self.con.query('select C {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "C" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump02_dump_restore_04(self):
@@ -93,6 +95,7 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                 single_link: {*},
                 multi_link: {*}
             }
+            order by .id
         ''')
 
         sql = f'''
@@ -102,7 +105,7 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                 {self.single_link_subquery("D", "single_link", "C")},
                 {self.multi_link_subquery("D", "multi_link", "C")}
             FROM "D"
-
+            ORDER BY id
         '''
         sqlres = await self.scon.fetch(sql)
         self.assert_shape(sqlres, eqlres)
@@ -123,6 +126,7 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                     target := .id,
                 },
             }
+            order by .id
         ''')
 
         sql = f'''
@@ -132,6 +136,7 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                 {self.single_link_subquery("E", "single_link", "C", ["lp0"])},
                 {self.multi_link_subquery("E", "multi_link", "C", ["lp1"])}
             FROM "E"
+            ORDER BY id
         '''
         sqlres = await self.scon.fetch(sql)
         self.assert_shape(sqlres, eqlres)
@@ -144,6 +149,7 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                 single_link: {*},
                 multi_link: {*}
             }
+            order by .id
         ''')
 
         sql = f'''
@@ -153,32 +159,32 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                 {self.single_link_subquery("F", "single_link", "C")},
                 {self.multi_link_subquery("F", "multi_link", "C")}
             FROM "F"
-
+            ORDER BY id
         '''
         sqlres = await self.scon.fetch(sql)
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump02_dump_restore_07(self):
-        eqlres = await self.con.query('select M {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "M"')
+        eqlres = await self.con.query('select M {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "M" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
-        eqlres = await self.con.query('select N {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "N"')
+        eqlres = await self.con.query('select N {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "N" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump02_dump_restore_08(self):
-        eqlres = await self.con.query('select O {id, o0, o1}')
-        sqlres = await self.scon.fetch('SELECT * FROM "O"')
+        eqlres = await self.con.query('select O {id, o0, o1} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "O" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump02_dump_restore_09(self):
-        eqlres = await self.con.query('select P {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "P"')
+        eqlres = await self.con.query('select P {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "P" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
-        eqlres = await self.con.query('select Q {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "Q"')
+        eqlres = await self.con.query('select Q {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "Q" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump02_dump_restore_10(self):
@@ -188,24 +194,24 @@ class TestPGDump02(tb.StablePGDumpTestCase):
         #           \
         #         U - V
 
-        eqlres = await self.con.query('select R {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "R"')
+        eqlres = await self.con.query('select R {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "R" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
-        eqlres = await self.con.query('select S {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "S"')
+        eqlres = await self.con.query('select S {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "S" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
-        eqlres = await self.con.query('select T {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "T"')
+        eqlres = await self.con.query('select T {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "T" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
-        eqlres = await self.con.query('select U {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "U"')
+        eqlres = await self.con.query('select U {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "U" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
-        eqlres = await self.con.query('select V {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "V"')
+        eqlres = await self.con.query('select V {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "V" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump02_dump_restore_11(self):
@@ -215,8 +221,9 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                 name,
                 w_id := .w.id,
             }
+            order by .id
         ''')
-        sqlres = await self.scon.fetch('SELECT * FROM "W"')
+        sqlres = await self.scon.fetch('SELECT * FROM "W" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump02_dump_restore_12(self):
@@ -226,6 +233,7 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                 name,
                 y: {*},
             }
+            order by .id
         ''')
 
         sql = f'''
@@ -234,7 +242,7 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                 name,
                 {self.single_link_subquery("X", "y", "Y")}
             FROM "X"
-
+            ORDER BY id
         '''
         sqlres = await self.scon.fetch(sql)
         self.assert_shape(sqlres, eqlres)
@@ -245,6 +253,7 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                 name,
                 x: {*},
             }
+            order by .id
         ''')
 
         sql = f'''
@@ -253,7 +262,7 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                 name,
                 {self.single_link_subquery("Y", "x", "X")}
             FROM "Y"
-
+            ORDER BY id
         '''
         sqlres = await self.scon.fetch(sql)
         self.assert_shape(sqlres, eqlres)
@@ -272,7 +281,8 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                 id,
                 ck_id := .ck.id,
                 stw_ids := (select .stw order by <str>.id).id
-            };
+            }
+            order by .id
         ''')
         sqlres = await self.scon.fetch(f'''
             SELECT
@@ -284,6 +294,7 @@ class TestPGDump02(tb.StablePGDumpTestCase):
                     WHERE x.source = "Z".id
                 ) as stw_ids
             FROM "Z"
+            ORDER BY id
         ''')
         self.assert_shape(sqlres, eqlres)
 
@@ -302,13 +313,17 @@ class TestPGDump03(tb.StablePGDumpTestCase):
     '''
 
     async def test_pgdump03_dump_restore_01(self):
-        eqlres = await self.con.query('select `S p a M` {id, `🚀`}')
-        sqlres = await self.scon.fetch('SELECT * FROM "S p a M"')
+        eqlres = await self.con.query(
+            'select `S p a M` {id, `🚀`} order by .id'
+        )
+        sqlres = await self.scon.fetch(
+            'SELECT * FROM "S p a M" ORDER BY id'
+        )
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump03_dump_restore_02(self):
-        eqlres = await self.con.query('select A {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "A"')
+        eqlres = await self.con.query('select A {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "A" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump03_dump_restore_03(self):
@@ -318,8 +333,9 @@ class TestPGDump03(tb.StablePGDumpTestCase):
                 val,
                 parent_id := .parent.id,
             }
+            order by .id
         ''')
-        sqlres = await self.scon.fetch('SELECT * FROM "Tree"')
+        sqlres = await self.scon.fetch('SELECT * FROM "Tree" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump03_dump_restore_04(self):
@@ -334,6 +350,7 @@ class TestPGDump03(tb.StablePGDumpTestCase):
                     target := .id,
                 },
             }
+            order by .id
         ''')
         subquery = self.single_link_subquery(
             "Łukasz", "Ł💯", "A", ["🙀🚀🚀🚀🙀", "🙀مرحبا🙀"])
@@ -343,20 +360,25 @@ class TestPGDump03(tb.StablePGDumpTestCase):
                 "Ł🤞",
                 {subquery}
             FROM "Łukasz"
+            ORDER BY id
         '''
         sqlres = await self.scon.fetch(sql)
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump03_dump_restore_05(self):
-        eqlres = await self.con.query('select `💯💯💯`::`🚀🙀🚀Type` {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "💯💯💯"."🚀🙀🚀Type"')
+        eqlres = await self.con.query(
+            'select `💯💯💯`::`🚀🙀🚀Type` {*} order by .id'
+        )
+        sqlres = await self.scon.fetch(
+            'SELECT * FROM "💯💯💯"."🚀🙀🚀Type" ORDER BY id'
+        )
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump03_dump_restore_06(self):
         eqlres = await self.con.query(
-            'select `back``ticked`::`Ticked``Type` {*}')
+            'select `back``ticked`::`Ticked``Type` {*} order by .id')
         sqlres = await self.scon.fetch(
-            'SELECT * FROM "back`ticked"."Ticked`Type"')
+            'SELECT * FROM "back`ticked"."Ticked`Type" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
 
@@ -370,8 +392,8 @@ class TestPGDump04(tb.StablePGDumpTestCase):
                          'dump03_setup.edgeql')
 
     async def test_pgdump04_dump_restore_01(self):
-        eqlres = await self.con.query('select Test{*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "Test"')
+        eqlres = await self.con.query('select Test{*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "Test" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
 
@@ -385,18 +407,18 @@ class TestPGDump05(tb.StablePGDumpTestCase):
                          'dump_v2_setup.edgeql')
 
     async def test_pgdump05_dump_restore_01(self):
-        eqlres = await self.con.query('select Test1 {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "Test1"')
+        eqlres = await self.con.query('select Test1 {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "Test1" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump05_dump_restore_02(self):
-        eqlres = await self.con.query('select Test2 {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "Test2"')
+        eqlres = await self.con.query('select Test2 {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "Test2" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
     async def test_pgdump05_dump_restore_03(self):
-        eqlres = await self.con.query('select TargetA {*}')
-        sqlres = await self.scon.fetch('SELECT * FROM "TargetA"')
+        eqlres = await self.con.query('select TargetA {*} order by .id')
+        sqlres = await self.scon.fetch('SELECT * FROM "TargetA" ORDER BY id')
         self.assert_shape(sqlres, eqlres)
 
         eqlres = await self.con.query('''
@@ -406,6 +428,7 @@ class TestPGDump05(tb.StablePGDumpTestCase):
                 link1: {*},
                 link2: {*},
             }
+            order by .id
         ''')
         sql = f'''
             SELECT
@@ -414,7 +437,7 @@ class TestPGDump05(tb.StablePGDumpTestCase):
                 {self.single_link_subquery("SourceA", "link1", "TargetA")},
                 {self.single_link_subquery("SourceA", "link2", "TargetA")}
             FROM "SourceA"
-
+            ORDER BY id
         '''
         sqlres = await self.scon.fetch(sql)
         self.assert_shape(sqlres, eqlres)

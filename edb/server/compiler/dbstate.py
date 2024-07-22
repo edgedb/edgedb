@@ -532,6 +532,39 @@ class SQLQueryUnit:
     command_tag: bytes = b""
     """If frontend_only is True, only issue CommandComplete with this tag."""
 
+    command_complete_tag: Optional[CommandCompleteTag] = None
+    """When set, CommandComplete for this query will be overridden.
+    This is useful, for example, for setting the tag of DML statements,
+    which return the number of modified rows."""
+
+
+class CommandCompleteTag:
+    '''Dictates the tag of CommandComplete message that concludes this query.'''
+
+
+@dataclasses.dataclass(kw_only=True)
+class TagPlain(CommandCompleteTag):
+    '''Set the tag verbatim'''
+
+    tag: str
+
+
+@dataclasses.dataclass(kw_only=True)
+class TagCountMessages(CommandCompleteTag):
+    '''Count DataRow messages in the response and set the tag to
+    f'{prefix} {count_of_messages}'.'''
+
+    prefix: str
+
+
+@dataclasses.dataclass(kw_only=True)
+class TagUnpackRow(CommandCompleteTag):
+    '''Intercept a single DataRow message with a single column which represents
+    the number of modified rows.
+    Sets the CommandComplete tag to f'{prefix} {modified_rows}'.'''
+
+    prefix: str
+
 
 @dataclasses.dataclass
 class ParsedDatabase:

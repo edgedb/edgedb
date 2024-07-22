@@ -1,0 +1,50 @@
+[package]
+name = "conn-pool"
+version = "0.1.0"
+license = "MIT/Apache-2.0"
+authors = ["MagicStack Inc. <hello@magic.io>"]
+rust-version = "1.65.0"
+edition = "2021"
+
+[features]
+python_extension = ["pyo3/extension-module"]
+optimizer = []
+
+[dependencies]
+futures = "0"
+scopeguard = "1"
+pyo3 = "0"
+itertools = "0"
+thiserror = "1"
+tracing = "0"
+tracing-subscriber = "0"
+strum = { version = "0.26", features = ["derive"] }
+consume_on_drop = "0"
+smart-default = "0"
+
+[dependencies.tokio]
+version = "1"
+features = ["rt", "time", "sync"]
+
+[dependencies.derive_more]
+version = "1.0.0-beta.6"
+features = ["full"]
+
+[dev-dependencies]
+pretty_assertions = "1.2.0"
+test-log = { version = "0", features = ["trace"] }
+anyhow = "1"
+rstest = "0"
+rand = "0"
+statrs = "0"
+genetic_algorithm = "0"
+lru = "0"
+
+[dev-dependencies.tokio]
+version = "1"
+features = ["macros", "rt-multi-thread", "time", "test-util"]
+
+[lib]
+crate-type = ["lib", "cdylib"]
+name = "conn_pool"
+path = "src/lib.rs"

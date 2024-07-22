@@ -19,12 +19,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Optional, Sequence, List, Dict
+from typing import Optional, Sequence, List, Dict, Mapping, Tuple
 from dataclasses import dataclass, field
 import enum
 import uuid
 
 from edb.pgsql import ast as pgast
+from edb.pgsql.compiler import aliases
 
 from edb.common import compiler
 
@@ -67,6 +68,8 @@ class Scope:
 
 @dataclass(kw_only=True)
 class Table:
+    # The schema id of the object that is the source of this table
+    schema_id: Optional[uuid.UUID] = None
 
     # Public SQL
     name: Optional[str] = None
@@ -141,6 +144,30 @@ class ColumnComputable(ColumnKind):
     pointer: s_pointers.Pointer
 
 
+@dataclass(kw_only=True, eq=False, slots=True, repr=False)
+class CompiledDML:
+    # relation that provides the DML value. not yet resolved.
+    value_cte_name: str
+
+    # relation that provides the DML value. not yet resolved.
+    value_relation_input: pgast.BaseRelation
+
+    # columns that are expected to be produced by the value relation
+    value_columns: List[Tuple[Column, s_pointers.Pointer]]
+
+    # name of the column in the value relation, that should provide the identity
+    value_iterator_name: str
+
+    # CTEs that perform the operation
+    output_ctes: List[pgast.CommonTableExpr]
+
+    # name of the CTE that contains the output of the insert
+    output_relation_name: str
+
+    # mapping from output column names into output vars
+    output_namespace: Mapping[str, pgast.BaseExpr]
+
+
 class ContextSwitchMode(enum.Enum):
     EMPTY = enum.auto()
     CHILD = enum.auto()
@@ -149,7 +176,7 @@ class ContextSwitchMode(enum.Enum):
 
 class ResolverContextLevel(compiler.ContextLevel):
     schema: s_schema.Schema
-    names: compiler.AliasGenerator
+    alias_generator: aliases.AliasGenerator
 
     # Visible names in scope
     scope: Scope
@@ -159,13 +186,15 @@ class ResolverContextLevel(compiler.ContextLevel):
     subquery_depth: int
 
     # List of CTEs to add the top-level statement.
-    # This is currently only used by DML compilation to ensure that all DML is
+    # This is used, for example, by DML compilation to ensure that all DML is
     # in the top-level WITH binding.
     ctes_buffer: List[pgast.CommonTableExpr]
 
     # A mapping of from objects to CTEs that provide an "inheritance view",
     # which is basically a union of all of their descendant's tables.
     inheritance_ctes: Dict[s_objects.InheritingObject, str]
+
+    compiled_dml: Mapping[pgast.Query, CompiledDML]
 
     options: Options
 
@@ -184,19 +213,21 @@ class ResolverContextLevel(compiler.ContextLevel):
             self.schema = schema
             self.options = options
             self.scope = Scope()
-            self.names = compiler.AliasGenerator()
+            self.alias_generator = aliases.AliasGenerator()
             self.subquery_depth = 0
             self.ctes_buffer = []
             self.inheritance_ctes = dict()
+            self.compiled_dml = dict()
 
         else:
             self.schema = prevlevel.schema
             self.options = prevlevel.options
-            self.names = prevlevel.names
+            self.alias_generator = prevlevel.alias_generator
 
             self.subquery_depth = prevlevel.subquery_depth + 1
             self.ctes_buffer = prevlevel.ctes_buffer
             self.inheritance_ctes = prevlevel.inheritance_ctes
+            self.compiled_dml = prevlevel.compiled_dml
 
             if mode == ContextSwitchMode.EMPTY:
                 self.scope = Scope(ctes=prevlevel.scope.ctes)

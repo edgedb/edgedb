@@ -84,9 +84,9 @@ Remove a module.
 Description
 -----------
 
-The command ``drop module`` removes an existing module from the
-current :versionreplace:`database;5.0:branch`. All schema items and data
-contained in the module are removed as well.
+The command ``drop module`` removes an existing empty module from the
+current :versionreplace:`database;5.0:branch`. If the module contains any
+schema items, this command will fail.
 
 
 Examples

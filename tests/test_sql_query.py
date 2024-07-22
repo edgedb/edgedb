@@ -31,7 +31,7 @@ except ImportError:
     pass
 
 
-class TestSQL(tb.SQLQueryTestCase):
+class TestSQLQuery(tb.SQLQueryTestCase):
     EXTENSIONS = ["pgvector", "ai"]
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'movies.esdl')
     SCHEMA_INVENTORY = os.path.join(
@@ -919,6 +919,23 @@ class TestSQL(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [[11]])
 
+    async def test_sql_query_static_eval_05(self):
+        # pg_get_serial_sequence always returns NULL, we don't expose sequences
+
+        res = await self.squery_values(
+            '''
+            SELECT
+              CAST(
+                CAST(
+                  pg_catalog.pg_get_serial_sequence('a', 'b')
+                  AS REGCLASS
+                )
+                AS OID
+              )
+            '''
+        )
+        self.assertEqual(res, [[None]])
+
     async def test_sql_query_be_state(self):
         con = await self.connect(database=self.con.dbname)
         try:
@@ -1165,6 +1182,53 @@ class TestSQL(tb.SQLQueryTestCase):
                 'foo' FROM "Movie" ORDER BY id'''
             )
 
+    async def test_sql_query_error_11(self):
+        # extended query protocol
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            'invalid input syntax for type uuid',
+            position="8",
+        ):
+            await self.scon.fetch(
+                """SELECT 'bad uuid'::uuid"""
+            )
+
+        # simple query protocol
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            'invalid input syntax for type uuid',
+            position="8",
+        ):
+            await self.scon.execute(
+                """SELECT 'bad uuid'::uuid"""
+            )
+
+        # test that the connection has not be spuriously closed
+        res = await self.squery_values("SELECT 1")
+        self.assertEqual(res, [[1]])
+
+    async def test_sql_query_error_12(self):
+        print('tran')
+        tran = self.scon.transaction()
+        print('start')
+        await tran.start()
+
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            'invalid input syntax for type uuid',
+            position="8",
+        ):
+            print('query')
+            await self.scon.fetch("""SELECT 'bad uuid'::uuid""")
+        # await self.scon.fetch("""SELECT 1""")
+
+        print('rollback')
+        await tran.rollback()
+
+        # test that the connection has not be spuriously closed
+        res = await self.squery_values("SELECT 1")
+        self.assertEqual(res, [[1]])
+
     @unittest.skip("this test flakes: #5783")
     async def test_sql_query_prepare_01(self):
         await self.scon.execute(
@@ -1358,12 +1422,12 @@ class TestSQL(tb.SQLQueryTestCase):
             """
         )
 
-    async def test_sql_dml_insert(self):
+    async def test_sql_dml_update(self):
         with self.assertRaisesRegex(
-            asyncpg.FeatureNotSupportedError, "DML", position="30",
+            asyncpg.FeatureNotSupportedError, "DML", position="25",
         ):
             await self.scon.fetch(
                 """
-                INSERT INTO "Movie" (title) VALUES ('A man called Ove')
+                UPDATE "Movie" SET title = 'A man called Ove'
                 """
             )

@@ -99,6 +99,8 @@ class GetMetadata(base.Command):
         self.object = object
 
     def code(self, block: base.PLBlock) -> str:
+        from .. import trampoline
+
         oid = self.object.get_oid()
         is_shared = self.object.is_shared()
         if isinstance(oid, base.Query):
@@ -112,29 +114,31 @@ class GetMetadata(base.Command):
             objoid, classoid, objsubid = oid
 
         if is_shared:
-            return textwrap.dedent(f'''\
+            q = textwrap.dedent(f'''\
                 SELECT
-                    edgedb.shobj_metadata(
+                    edgedb_VER.shobj_metadata(
                         {objoid},
                         {classoid}::regclass::text
                     )
                 ''')
         elif objsubid:
-            return textwrap.dedent(f'''\
+            q = textwrap.dedent(f'''\
                 SELECT
-                    edgedb.col_metadata(
+                    edgedb_VER.col_metadata(
                         {objoid},
                         {objsubid}
                     )
                 ''')
         else:
-            return textwrap.dedent(f'''\
+            q = textwrap.dedent(f'''\
                 SELECT
-                    edgedb.obj_metadata(
+                    edgedb_VER.obj_metadata(
                         {objoid},
                         {classoid}::regclass::text,
                     )
                 ''')
+
+        return trampoline.fixup_query(q)
 
 
 class GetSingleDBMetadata(base.Command):

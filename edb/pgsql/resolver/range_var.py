@@ -45,7 +45,7 @@ def resolve_BaseRangeVar(
         return _resolve_JoinExpr(range_var, ctx=ctx)
 
     # generate internal alias
-    internal_alias = ctx.names.get('rel')
+    internal_alias = ctx.alias_generator.get('rel')
     alias = pgast.Alias(
         aliasname=internal_alias, colnames=range_var.alias.colnames
     )
@@ -232,7 +232,9 @@ def resolve_CommonTableExpr(
                         aliascolnames = res
 
         if cte.recursive and aliascolnames:
-            reference_as = [subctx.names.get('col') for _ in aliascolnames]
+            reference_as = [
+                subctx.alias_generator.get('col') for _ in aliascolnames
+            ]
             columns = [
                 context.Column(
                     name=col, kind=context.ColumnByName(reference_as=ref_as)
@@ -322,7 +324,7 @@ def _resolve_RangeFunction(
                 context.Column(
                     name=al or col.name,
                     kind=context.ColumnByName(
-                        reference_as=al or ctx.names.get('col')
+                        reference_as=al or ctx.alias_generator.get('col')
                     ),
                 )
                 for col, al in _zip_column_alias(

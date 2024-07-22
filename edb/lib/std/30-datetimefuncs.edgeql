@@ -69,7 +69,7 @@ std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
         WHEN "el" = 'epochseconds'
         THEN date_part('epoch', "dt")
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::float,
                 'invalid_datetime_format',
                 msg => (
@@ -104,7 +104,7 @@ std::datetime_truncate(dt: std::datetime, unit: std::str) -> std::datetime
         WHEN "unit" = 'quarters'
         THEN date_trunc('quarter', "dt")::edgedbt.timestamptz_t
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::edgedbt.timestamptz_t,
                 'invalid_datetime_format',
                 msg => (
@@ -135,7 +135,7 @@ std::duration_get(dt: std::duration, el: std::str) -> std::float64
         WHEN "el" = 'totalseconds'
         THEN date_part('epoch', "dt")
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::float,
                 'invalid_datetime_format',
                 msg => (
@@ -164,7 +164,7 @@ std::duration_truncate(dt: std::duration, unit: std::str) -> std::duration
                                 'seconds', 'minutes', 'hours')
         THEN date_trunc("unit", "dt")::edgedbt.duration_t
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::edgedbt.duration_t,
                 'invalid_datetime_format',
                 msg => (

@@ -45,28 +45,37 @@ from . import sql_introspection
 Context = context.ResolverContextLevel
 
 
-def column_of_name(name: str) -> context.Column:
-    return context.Column(
-        name=name, kind=context.ColumnByName(reference_as=name)
-    )
-
-
 @dispatch._resolve_relation.register
 def resolve_SelectStmt(
     stmt: pgast.SelectStmt, *, include_inherited: bool, ctx: Context
 ) -> Tuple[pgast.SelectStmt, context.Table]:
+    # CTEs
+    ctes: List[pgast.CommonTableExpr] = []
+    if stmt.ctes:
+        for cte in stmt.ctes:
+            cte, tab = range_var.resolve_CommonTableExpr(cte, ctx=ctx)
+            ctes.extend(extract_ctes_from_ctx(ctx))
+            ctes.append(cte)
+            ctx.scope.ctes.append(tab)
+
     # VALUES
     if stmt.values:
         values = dispatch.resolve_list(stmt.values, ctx=ctx)
         relation = pgast.SelectStmt(
-            values=values, ctes=extract_ctes_from_ctx(ctx)
+            values=values, ctes=ctes + extract_ctes_from_ctx(ctx)
         )
 
         first_val = values[0]
         assert isinstance(first_val, pgast.ImplicitRowExpr)
         table = context.Table(
             columns=[
-                column_of_name(ctx.names.get('col')) for _ in first_val.args
+                context.Column(
+                    name=f'column{index + 1}',
+                    kind=context.ColumnByName(
+                        reference_as=f'column{index + 1}'
+                    ),
+                )
+                for index, _ in enumerate(first_val.args)
             ]
         )
         return relation, table
@@ -93,18 +102,9 @@ def resolve_SelectStmt(
             rarg=cast(pgast.Query, rarg),
             op=stmt.op,
             all=stmt.all,
-            ctes=extract_ctes_from_ctx(ctx),
+            ctes=ctes + extract_ctes_from_ctx(ctx),
         )
         return (relation, ltable)
-
-    # CTEs
-    ctes: List[pgast.CommonTableExpr] = []
-    if stmt.ctes:
-        for cte in stmt.ctes:
-            cte, tab = range_var.resolve_CommonTableExpr(cte, ctx=ctx)
-            ctes.extend(extract_ctes_from_ctx(ctx))
-            ctes.append(cte)
-            ctx.scope.ctes.append(tab)
 
     # FROM
     from_clause: List[pgast.BaseRangeVar] = []
@@ -186,7 +186,7 @@ def extract_ctes_from_ctx(
         return []
 
     res = list(ctx.ctes_buffer)
-    ctx.ctes_buffer = []
+    ctx.ctes_buffer.clear()
     return res
 
 
@@ -206,17 +206,6 @@ def register_projections(target_list: List[pgast.ResTarget], *, ctx: Context):
             )
         )
     ctx.scope.tables.append(table)
-
-
-@dispatch._resolve_relation.register
-def resolve_DMLQuery(
-    query: pgast.DMLQuery, *, include_inherited: bool, ctx: Context
-) -> Tuple[pgast.DMLQuery, context.Table]:
-    raise errors.QueryError(
-        'DML queries (INSERT/UPDATE/DELETE) are not supported',
-        span=query.span,
-        pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
-    )
 
 
 PG_TOAST_TABLE: List[
@@ -315,7 +304,7 @@ def resolve_relation(
         )
 
     # extract table name
-    table = context.Table(name=relation.name)
+    table = context.Table(schema_id=obj.id, name=relation.name)
 
     # extract table columns
     # when changing this, make sure to update sql information_schema
@@ -370,7 +359,7 @@ def _select_from_inheritance_cte(
 ) -> pgast.Relation:
     if obj not in ctx.inheritance_ctes:
         cte = pgast.CommonTableExpr(
-            name=ctx.names.get('inh'),
+            name=ctx.alias_generator.get('inh'),
             query=pginheritance.get_inheritance_view(ctx.schema, obj),
         )
         ctx.ctes_buffer.append(cte)

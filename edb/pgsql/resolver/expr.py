@@ -56,6 +56,9 @@ def infer_alias(res_target: pgast.ResTarget) -> Optional[str]:
     if isinstance(val, pgast.FuncCall):
         return val.name[-1]
 
+    if isinstance(val, pgast.ImplicitRowExpr):
+        return 'row'
+
     # if just name has been selected, use it as the alias
     if isinstance(val, pgast.ColumnRef):
         name = val.name
@@ -99,7 +102,7 @@ def resolve_ResTarget(
     ):
         alias = static.name_in_pg_catalog(res_target.val.name)
 
-    name: str = alias or ctx.names.get('col')
+    name: str = alias or ctx.alias_generator.get('col')
     col = context.Column(
         name=name, kind=context.ColumnByName(reference_as=name)
     )

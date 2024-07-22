@@ -17,6 +17,6 @@
 #
 
 from .pool import Pool, _NaivePool  # NoQA
+from .pool2 import Pool as Pool2
 
-
-__all__ = ('Pool',)
+__all__ = ('Pool', 'Pool2')

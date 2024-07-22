@@ -90,25 +90,40 @@ if TYPE_CHECKING:
 
 
 def _add_test(result, test):
-    cls = type(test)
+    # test is a tuple of the same test method that may zREPEAT
+    cls = type(test[0])
     try:
-        methods = result[cls]
+        methods, repeat_methods = result[cls]
     except KeyError:
-        methods = result[cls] = []
+        # put zREPEAT tests in a separate list
+        methods = []
+        repeat_methods = []
+        result[cls] = methods, repeat_methods
 
-    methods.append(test)
+    methods.append(test[0])
+    if len(test) > 1:
+        repeat_methods.extend(test[1:])
 
 
-def get_test_cases(tests):
+def _merge_results(result):
+    # make sure all the zREPEAT tests comes in the end
+    return {k: v[0] + v[1] for k, v in result.items()}
+
+
+def _get_test_cases(tests):
     result = {}
 
     for test in tests:
         if isinstance(test, unittest.TestSuite):
-            result.update(get_test_cases(test._tests))
+            result.update(_get_test_cases(test._tests))
         elif not getattr(test, '__unittest_skip__', False):
-            _add_test(result, test)
+            _add_test(result, (test,))
 
     return result
+
+
+def get_test_cases(tests):
+    return _merge_results(_get_test_cases(tests))
 
 
 bag = assert_data_shape.bag
@@ -2625,15 +2640,31 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
     # Prepare the source heaps
     setup_count = 0
     for case, tests in cases.items():
+        # Extract zREPEAT tests and attach them to their first runs
+        combined = {}
+        for test in tests:
+            test_name = str(test)
+            orig_name = test_name.replace('test_zREPEAT', 'test')
+            if orig_name == test_name:
+                if test_name in combined:
+                    combined[test_name] = (test, *combined[test_name])
+                else:
+                    combined[test_name] = (test,)
+            else:
+                if orig_name in combined:
+                    combined[orig_name] = (*combined[orig_name], test)
+                else:
+                    combined[orig_name] = (test,)
+
         setup_script_getter = getattr(case, 'get_setup_script', None)
-        if setup_script_getter and tests:
+        if setup_script_getter and combined:
             tests_per_setup = []
             est_per_setup = setup_est = stats.get(
                 'setup::' + case.get_database_name(), (new_setup_est, 0),
             )[0]
-            for test in tests:
-                total_tests += 1
-                est = stats.get(str(test), (new_test_est, 0))[0]
+            for test_name, test in combined.items():
+                total_tests += len(test)
+                est = stats.get(test_name, (new_test_est, 0))[0] * len(test)
                 est_per_setup += est
                 tests_per_setup.append((est, test))
             heapq.heappush(
@@ -2643,9 +2674,9 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
             setup_count += 1
             total_est += est_per_setup
         else:
-            for test in tests:
-                total_tests += 1
-                est = stats.get(str(test), (new_test_est, 0))[0]
+            for test_name, test in combined.items():
+                total_tests += len(test)
+                est = stats.get(test_name, (new_test_est, 0))[0] * len(test)
                 total_est += est
                 heapq.heappush(tests_with_est, (-est, total_tests, test))
 
@@ -2682,7 +2713,7 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
             if current == selected_shard:
                 # Add the test to the result
                 _add_test(cases, test)
-                selected_tests += 1
+                selected_tests += len(test)
                 selected_est += est
 
             if est_acc >= target_est and -remaining_est > setup_est * 2:
@@ -2707,7 +2738,7 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
         if current == selected_shard:
             # Add the test to the result
             _add_test(cases, test)
-            selected_tests += 1
+            selected_tests += len(test)
             selected_est -= est
 
         if est_acc >= target_est:
@@ -2726,7 +2757,7 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
             if current == selected_shard:
                 for est, _, test in tests_with_est:
                     _add_test(cases, test)
-                    selected_tests += 1
+                    selected_tests += len(test)
                     selected_est -= est
                 break
             tests_with_est.clear()  # should always be empty already here
@@ -2737,7 +2768,7 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
               f'estimate: {int(selected_est / 60)}m {int(selected_est % 60)}s'
               f' / {int(total_est / 60)}m {int(total_est % 60)}s, '
               f'{len(setups)}/{setup_count} databases to setup.')
-    return cases
+    return _merge_results(cases)
 
 
 def find_available_port(max_value=None) -> int:

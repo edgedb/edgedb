@@ -2549,7 +2549,7 @@ CREATE CAST FROM std::float32 TO std::decimal {
             THEN
                 NULL::numeric
             ELSE
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::numeric,
                     'invalid_text_representation',
                     msg => 'invalid value for numeric: ' || quote_literal(val)
@@ -2597,7 +2597,7 @@ CREATE CAST FROM std::float64 TO std::decimal {
             THEN
                 NULL::numeric
             ELSE
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::numeric,
                     'invalid_text_representation',
                     msg => 'invalid value for numeric: ' || quote_literal(val)
