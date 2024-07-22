@@ -1434,25 +1434,38 @@ class TestServerConfig(tb.QueryTestCase):
     async def test_server_proto_recompile_on_db_config(self):
         await self.con.execute("create type RecompileOnDBConfig;")
         try:
+            # We need the retries here because the 2 `configure database` may
+            # race with each other and cause temporary inconsistency
             await self.con.execute('''
                 configure current database set allow_user_specified_id := true;
             ''')
-            await self.con.execute('''
-                insert RecompileOnDBConfig {
-                    id := <uuid>'8c425e34-d1c3-11ee-8c78-8f34556d1111'
-                };
-            ''')
+            async for tr in self.try_until_succeeds(ignore=edgedb.QueryError):
+                async with tr:
+                    await self.con.execute('''
+                        insert RecompileOnDBConfig {
+                            id := <uuid>'8c425e34-d1c3-11ee-8c78-8f34556d1111'
+                        };
+                    ''')
+
             await self.con.execute('''
                 configure current database set allow_user_specified_id := false;
             ''')
-            with self.assertRaisesRegex(
-                edgedb.QueryError, "cannot assign to property 'id'"
-            ):
-                await self.con.execute('''
-                    insert RecompileOnDBConfig {
-                        id := <uuid>'8c425e34-d1c3-11ee-8c78-8f34556d2222'
-                    };
-                ''')
+            async for tr in self.try_until_succeeds(ignore=AssertionError):
+                async with tr:
+                    try:
+                        with self.assertRaisesRegex(
+                            edgedb.QueryError, "cannot assign to property 'id'"
+                        ):
+                            await self.con.execute('''
+                                insert RecompileOnDBConfig {
+                                    id := <uuid>
+                                    '8c425e34-d1c3-11ee-8c78-8f34556d2222'
+                                };
+                            ''')
+                    finally:
+                        await self.con.execute('''
+                            delete RecompileOnDBConfig;
+                        ''')
         finally:
             await self.con.execute('''
                 configure current database reset allow_user_specified_id;
