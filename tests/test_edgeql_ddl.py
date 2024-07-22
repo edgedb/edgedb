@@ -5139,6 +5139,28 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             );
         ''')
 
+    async def test_edgeql_ddl_function_39(self):
+        '''
+        Creating a function operating on or returning an array of valid
+        scalars.
+        '''
+
+        await self.con.execute('''
+            create function get_singleton(
+                a: array<range<int64>>
+            ) -> array<range<int64>> using(
+                a[:1]
+            );
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                select get_singleton([range(1, 3), range(1, 2)]) =
+                    [range(1, 3)];
+            ''',
+            [True]
+        )
+
     async def test_edgeql_ddl_function_inh_01(self):
         await self.con.execute("""
             create abstract type T;
@@ -10206,6 +10228,24 @@ type default::Foo {
                 create alias Z := 2;
                 """
             )
+
+    async def test_edgeql_ddl_alias_13(self):
+        '''
+        Creating an alias of an array of valid scalars should be possible.
+
+        (Related to #6456.)
+        '''
+
+        await self.con.execute(r"""
+            create alias ArrAlias := [range(0, 1)];
+        """)
+
+        await self.assert_query_result(
+            r'''
+                select ArrAlias = [range(0, 1)];
+            ''',
+            [True]
+        )
 
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""

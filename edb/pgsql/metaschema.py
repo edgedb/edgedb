@@ -4221,6 +4221,155 @@ class GetPgTypeForEdgeDBTypeFunction(trampoline.VersionedFunction):
         )
 
 
+class GetPgTypeForEdgeDBTypeFunction2(trampoline.VersionedFunction):
+    """Return Postgres OID representing a given EdgeDB type.
+
+    This is an updated version that should replace the original. It takes
+    advantage of the schema views to correctly identify non-trivial array
+    types.
+    """
+
+    text = f'''
+        SELECT
+            coalesce(
+                sql_type::regtype::oid,
+                (
+                    SELECT
+                        tn::regtype::oid
+                    FROM
+                        edgedb_VER._get_base_scalar_type_map()
+                            AS m(tid uuid, tn text)
+                    WHERE
+                        m.tid = "typeid"
+                ),
+                (
+                    SELECT
+                        typ.oid
+                    FROM
+                        pg_catalog.pg_type typ
+                    WHERE
+                        typ.typname = "typeid"::text || '_domain'
+                        OR typ.typname = "typeid"::text || '_t'
+                ),
+                (
+                    SELECT
+                        typ.typarray
+                    FROM
+                        pg_catalog.pg_type typ
+                    WHERE
+                        "kind" = 'schema::Array'
+                         AND (
+                            typ.typname = "elemid"::text || '_domain'
+                            OR typ.typname = "elemid"::text || '_t'
+                            OR typ.oid = (
+                                SELECT
+                                    tn::regtype::oid
+                                FROM
+                                    edgedb_VER._get_base_scalar_type_map()
+                                        AS m(tid uuid, tn text)
+                                WHERE
+                                    tid = "elemid"
+                            )
+                        )
+                ),
+                (
+                    SELECT
+                        typ.typarray
+                    FROM
+                        pg_catalog.pg_type typ
+                    WHERE
+                        "kind" = 'schema::Array'
+                         AND (
+                            typ.typname = "elemid"::text || '_domain'
+                            OR typ.typname = "elemid"::text || '_t'
+                            OR typ.oid = (
+                                SELECT
+                                    st.backend_id
+                                FROM
+                                    edgedb_VER."_SchemaType" AS st
+                                WHERE
+                                    st.id = "elemid"
+                            )
+                        )
+                ),
+                (
+                    SELECT
+                        rng.rngtypid
+                    FROM
+                        pg_catalog.pg_range rng
+                    WHERE
+                        "kind" = 'schema::Range'
+                        -- For ranges, we need to do the lookup based on
+                        -- our internal map of elem names to range names,
+                        -- because we use the builtin daterange as the range
+                        -- for edgedbt.date_t.
+                        AND rng.rngtypid = (
+                            SELECT
+                                rn::regtype::oid
+                            FROM
+                                edgedb_VER._get_base_scalar_type_map()
+                                    AS m(tid uuid, tn text)
+                            INNER JOIN
+                                edgedb_VER._get_type_to_range_type_map()
+                                    AS m2(tn2 text, rn text)
+                                ON tn = tn2
+                            WHERE
+                                tid = "elemid"
+                        )
+                ),
+                (
+                    SELECT
+                        rng.rngmultitypid
+                    FROM
+                        pg_catalog.pg_range rng
+                    WHERE
+                        "kind" = 'schema::MultiRange'
+                        -- For multiranges, we need to do the lookup based on
+                        -- our internal map of elem names to range names,
+                        -- because we use the builtin daterange as the range
+                        -- for edgedbt.date_t.
+                        AND rng.rngmultitypid = (
+                            SELECT
+                                rn::regtype::oid
+                            FROM
+                                edgedb_VER._get_base_scalar_type_map()
+                                    AS m(tid uuid, tn text)
+                            INNER JOIN
+                                edgedb_VER._get_type_to_multirange_type_map()
+                                    AS m2(tn2 text, rn text)
+                                ON tn = tn2
+                            WHERE
+                                tid = "elemid"
+                        )
+                ),
+                edgedb_VER.raise(
+                    NULL::bigint,
+                    'invalid_parameter_value',
+                    msg => (
+                        format(
+                            'cannot determine OID of EdgeDB type %L',
+                            "typeid"::text
+                        )
+                    )
+                )
+            )::bigint
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_pg_type_for_edgedb_type'),
+            args=[
+                ('typeid', ('uuid',)),
+                ('kind', ('text',)),
+                ('elemid', ('uuid',)),
+                ('sql_type', ('text',)),
+            ],
+            returns=('bigint',),
+            volatility='stable',
+            text=self.text,
+        )
+
+
 class FTSParseQueryFunction(trampoline.VersionedFunction):
     """Return tsquery representing the given FTS input query."""
 
@@ -7066,6 +7215,8 @@ async def generate_support_functions(
     commands = dbops.CommandGroup()
 
     commands.add_commands(trampoline_functions([
+        dbops.CreateFunction(GetPgTypeForEdgeDBTypeFunction2(),
+                             or_replace=True),
         dbops.CreateFunction(IssubclassFunction()),
         dbops.CreateFunction(IssubclassFunction2()),
         dbops.CreateFunction(GetSchemaObjectNameFunction()),
