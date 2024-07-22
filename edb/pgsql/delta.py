@@ -2838,21 +2838,24 @@ class DeleteScalarType(ScalarTypeMetaCommand,
         cls, scalar: s_scalars.ScalarType, orig_schema: s_schema.Schema
     ) -> dbops.Command:
         ops = dbops.CommandGroup()
-        old_domain_name = common.get_backend_name(
-            orig_schema, scalar, catenate=False)
 
         # The custom scalar types are sometimes included in the function
         # signatures of query cache functions under QueryCacheMode.PgFunc.
         # We need to find such functions through pg_depend and evict the cache
         # before dropping the custom scalar type.
-        drop_func_cache_sql = textwrap.dedent(f'''
-            DO $$
-            DECLARE
-                qc RECORD;
-            BEGIN
-                FOR qc IN
-                    WITH
-                    types AS (
+        pg_type = types.pg_type_from_scalar(orig_schema, scalar)
+        if len(pg_type) == 1:
+            types_cte = f'''
+                        SELECT
+                            pt.oid AS oid
+                        FROM
+                            pg_type pt
+                        WHERE
+                            pt.typname = {ql(pg_type[0])}
+                            OR pt.typname = {ql('_' + pg_type[0])}\
+            '''
+        else:
+            types_cte = f'''
                         SELECT
                             pt.oid AS oid
                         FROM
@@ -2860,11 +2863,20 @@ class DeleteScalarType(ScalarTypeMetaCommand,
                             JOIN pg_namespace pn
                                 ON pt.typnamespace = pn.oid
                         WHERE
-                            pn.nspname = {ql(old_domain_name[0])}
+                            pn.nspname = {ql(pg_type[0])}
                             AND (
-                                pt.typname = {ql(old_domain_name[1])}
-                                OR pt.typname = {ql('_' + old_domain_name[1])}
-                            )
+                                pt.typname = {ql(pg_type[1])}
+                                OR pt.typname = {ql('_' + pg_type[1])}
+                            )\
+            '''
+        drop_func_cache_sql = textwrap.dedent(f'''
+            DO $$
+            DECLARE
+                qc RECORD;
+            BEGIN
+                FOR qc IN
+                    WITH
+                    types AS ({types_cte}
                     ),
                     class AS (
                         SELECT
@@ -2896,6 +2908,8 @@ class DeleteScalarType(ScalarTypeMetaCommand,
         ''')
         ops.add_command(dbops.Query(drop_func_cache_sql))
 
+        old_domain_name = common.get_backend_name(
+            orig_schema, scalar, catenate=False)
         cond: dbops.Condition
         if scalar.is_concrete_enum(orig_schema):
             old_enum_name = old_domain_name
