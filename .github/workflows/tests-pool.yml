@@ -165,7 +165,7 @@ jobs:
       if: |
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true'
-      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      uses: dtolnay/rust-toolchain@d0e72ca3bfdc51937a4f81431ccbed269ef9f2a2
       with:
         components: "cargo,rustc,rust-std"
         toolchain: "stable"
