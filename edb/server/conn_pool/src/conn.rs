@@ -136,9 +136,9 @@ impl<C: Connector> Conn<C> {
             ConnInner::Idle(_t, conn, ..) | ConnInner::Active(_t, conn, ..) => {
                 from.inc_all_time(MetricVariant::Disconnecting);
                 from.inc_all_time(MetricVariant::Closed);
-                to.insert(MetricVariant::Connecting);
+                to.insert(MetricVariant::Reconnecting);
                 let f = connector.reconnect(conn, db).boxed_local();
-                ConnInner::Connecting(Instant::now(), f)
+                ConnInner::Reconnecting(Instant::now(), f)
             }
             _ => unreachable!(),
         });
@@ -168,30 +168,38 @@ impl<C: Connector> Conn<C> {
         to: MetricVariant,
     ) -> Poll<ConnResult<()>> {
         let mut lock = self.inner.borrow_mut();
+        debug_assert!(
+            to == MetricVariant::Active || to == MetricVariant::Idle || to == MetricVariant::Closed
+        );
 
         let res = match &mut *lock {
             ConnInner::Idle(..) => Ok(()),
-            ConnInner::Connecting(t, f) => match ready!(f.poll_unpin(cx)) {
-                Ok(c) => {
-                    debug_assert!(to == MetricVariant::Active || to == MetricVariant::Idle);
-                    metrics.transition(MetricVariant::Connecting, to, t.elapsed());
-                    if to == MetricVariant::Active {
-                        *lock = ConnInner::Active(Instant::now(), c);
-                    } else {
-                        *lock = ConnInner::Idle(Instant::now(), c);
+            ConnInner::Connecting(t, f) | ConnInner::Reconnecting(t, f) => {
+                match ready!(f.poll_unpin(cx)) {
+                    Ok(c) => {
+                        let elapsed = t.elapsed();
+                        let from = (&std::mem::replace(&mut *lock, ConnInner::Transition)).into();
+                        metrics.transition(from, to, elapsed);
+                        if to == MetricVariant::Active {
+                            *lock = ConnInner::Active(Instant::now(), c);
+                        } else if to == MetricVariant::Idle {
+                            *lock = ConnInner::Idle(Instant::now(), c);
+                        } else {
+                            unreachable!()
+                        }
+                        Ok(())
                     }
-                    Ok(())
+                    Err(err) => {
+                        metrics.transition(
+                            MetricVariant::Connecting,
+                            MetricVariant::Failed,
+                            t.elapsed(),
+                        );
+                        *lock = ConnInner::Failed;
+                        Err(err)
+                    }
                 }
-                Err(err) => {
-                    metrics.transition(
-                        MetricVariant::Connecting,
-                        MetricVariant::Failed,
-                        t.elapsed(),
-                    );
-                    *lock = ConnInner::Failed;
-                    Err(err)
-                }
-            },
+            }
             ConnInner::Disconnecting(t, f) => match ready!(f.poll_unpin(cx)) {
                 Ok(_) => {
                     debug_assert_eq!(to, MetricVariant::Closed);
@@ -239,7 +247,8 @@ impl<C: Connector> Conn<C> {
             ConnInner::Active(t, _)
             | ConnInner::Idle(t, _)
             | ConnInner::Connecting(t, _)
-            | ConnInner::Disconnecting(t, _) => metrics.remove_time(self.variant(), t.elapsed()),
+            | ConnInner::Disconnecting(t, _)
+            | ConnInner::Reconnecting(t, _) => metrics.remove_time(self.variant(), t.elapsed()),
             other => metrics.remove(other.into()),
         }
     }
@@ -257,6 +266,8 @@ enum ConnInner<C: Connector> {
     Connecting(Instant, Pin<Box<dyn Future<Output = ConnResult<C::Conn>>>>),
     /// Disconnecting connections hold a spot in the pool as they count towards quotas
     Disconnecting(Instant, Pin<Box<dyn Future<Output = ConnResult<()>>>>),
+    /// Reconnecting hold a spot in the pool as they count towards quotas
+    Reconnecting(Instant, Pin<Box<dyn Future<Output = ConnResult<C::Conn>>>>),
     /// The connection is alive, but it is not being held.
     Idle(Instant, C::Conn),
     /// The connection is alive, and is being held.
@@ -275,6 +286,7 @@ impl<C: Connector> From<&ConnInner<C>> for MetricVariant {
         match val {
             ConnInner::Connecting(..) => MetricVariant::Connecting,
             ConnInner::Disconnecting(..) => MetricVariant::Disconnecting,
+            ConnInner::Reconnecting(..) => MetricVariant::Reconnecting,
             ConnInner::Idle(..) => MetricVariant::Idle,
             ConnInner::Active(..) => MetricVariant::Active,
             ConnInner::Failed => MetricVariant::Failed,

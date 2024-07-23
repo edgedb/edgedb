@@ -12,6 +12,7 @@ use crate::block::Name;
 pub enum MetricVariant {
     Connecting,
     Disconnecting,
+    Reconnecting,
     Idle,
     Active,
     Failed,

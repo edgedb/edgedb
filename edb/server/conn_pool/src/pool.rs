@@ -298,9 +298,9 @@ impl<C: Connector> Pool<C> {
         if cfg!(debug_assertions) {
             let all_time = &pool.metrics().all_time;
             assert_eq!(
-                all_time[MetricVariant::Connecting],
+                all_time[MetricVariant::Connecting] + all_time[MetricVariant::Reconnecting],
                 all_time[MetricVariant::Disconnecting],
-                "Connecting != Disconnecting"
+                "Connecting + Reconnecting != Disconnecting"
             );
             assert_eq!(
                 all_time[MetricVariant::Disconnecting],

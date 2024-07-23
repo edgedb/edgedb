@@ -335,7 +335,10 @@ pub trait PoolAlgorithmDataBlock: PoolAlgorithmDataMetrics {
         let waiting = self.count(MetricVariant::Waiting);
         let waiters = waiting.saturating_sub(connecting);
         let active_ms = self.avg_ms(MetricVariant::Active).max(MIN_TIME.get());
-        let connecting_ms = self.avg_ms(MetricVariant::Connecting).max(MIN_TIME.get());
+        let reconnecting_ms = self
+            .avg_ms(MetricVariant::Reconnecting)
+            .max(self.avg_ms(MetricVariant::Connecting) + self.avg_ms(MetricVariant::Disconnecting))
+            .max(MIN_TIME.get());
         let youngest_ms = self.youngest_ms().max(MIN_TIME.get());
 
         // If we have no idle connections, or we don't have enough connections we're not overfull.
@@ -348,7 +351,7 @@ pub trait PoolAlgorithmDataBlock: PoolAlgorithmDataMetrics {
             // `OVERFULL_CHANGE_WEIGHT_DIVIDEND` by that to give an overfullness
             // "negative" penalty to blocks that have newly acquired a connection.
             let youngest_score =
-                ((OVERFULL_CHANGE_WEIGHT_DIVIDEND.get() * connecting_ms) / youngest_ms) as isize;
+                ((OVERFULL_CHANGE_WEIGHT_DIVIDEND.get() * reconnecting_ms) / youngest_ms) as isize;
             // The number of waiters and the amount of time we expect to spend
             // active on these waiters also acts as a "negative" penalty.
             let waiter_score = (waiters * OVERFULL_WAITER_WEIGHT.get()
