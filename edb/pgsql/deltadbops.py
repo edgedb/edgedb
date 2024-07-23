@@ -503,6 +503,16 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
 
         self.add_command(my_alter)
 
+        self.create_constraint_trigger_and_fuction(constraint)
+
+    def create_constraint_trigger_and_fuction(
+        self, constraint: SchemaConstraintTableConstraint
+    ):
+        """Create constraint trigger FUNCTION and TRIGGER.
+
+        Adds the new function to the trigger.
+        Disables the trigger if possible.
+        """
         if constraint.requires_triggers():
             # Create trigger function
             self.add_commands(self.create_constr_trigger_function(constraint))
@@ -534,23 +544,8 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
             self.drop_constraint(old_constraint)
             self.create_constraint(new_constraint)
 
-    def update_constraint_enabled(
-        self, constraint: SchemaConstraintTableConstraint
-    ):
-        if constraint.requires_triggers():
-            if constraint.can_disable_triggers():
-                self.add_commands(
-                    self.disable_constr_trigger(self.name, constraint))
-            else:
-                self.add_commands(
-                    self.enable_constr_trigger(self.name, constraint))
-
     def drop_constraint(self, constraint: SchemaConstraintTableConstraint):
-        if constraint.requires_triggers():
-            self.add_commands(self.drop_constr_trigger(
-                constraint._subject_name, constraint))
-            proc_name = constraint.get_trigger_procname()
-            self.add_commands(self.drop_constr_trigger_function(proc_name))
+        self.drop_constraint_trigger_and_fuction(constraint)
 
         # Drop the constraint normally from our table
         #
@@ -560,6 +555,16 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
         my_alter.add_command(drop_constr)
 
         self.add_command(my_alter)
+
+    def drop_constraint_trigger_and_fuction(
+        self, constraint: SchemaConstraintTableConstraint
+    ):
+        """Drop constraint trigger FUNCTION and TRIGGER."""
+        if constraint.requires_triggers():
+            self.add_commands(self.drop_constr_trigger(
+                constraint._subject_name, constraint))
+            proc_name = constraint.get_trigger_procname()
+            self.add_commands(self.drop_constr_trigger_function(proc_name))
 
 
 class AlterTableAddConstraint(AlterTableConstraintBase):
@@ -610,5 +615,6 @@ class AlterTableUpdateConstraintTrigger(AlterTableConstraintBase):
             self._constraint)
 
     def generate(self, block):
-        self.update_constraint_enabled(self._constraint)
+        self.drop_constraint_trigger_and_fuction(self._constraint)
+        self.create_constraint_trigger_and_fuction(self._constraint)
         super().generate(block)
