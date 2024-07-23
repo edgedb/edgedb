@@ -1,7 +1,7 @@
 use crate::{
     algo::{
         AcquireOp, PoolAlgoTargetData, PoolAlgorithmDataBlock, PoolAlgorithmDataMetrics,
-        PoolConstraints, RebalanceOp, ReleaseOp, ReleaseType, VisitPoolAlgoData,
+        PoolConstraints, RebalanceOp, ReleaseOp, ReleaseType, ShutdownOp, VisitPoolAlgoData,
     },
     block::{Blocks, Name},
     conn::{ConnError, ConnHandle, ConnResult, Connector},
@@ -158,19 +158,7 @@ impl<C: Connector> Pool<C> {
             for op in self.config.constraints.plan_shutdown(&self.blocks) {
                 trace!("Shutdown: {op:?}");
                 match op {
-                    RebalanceOp::Transfer { from, to } => {
-                        tokio::task::spawn_local(self.blocks.task_steal(
-                            &self.connector,
-                            &to,
-                            &from,
-                        ));
-                    }
-                    RebalanceOp::Create(name) => {
-                        tokio::task::spawn_local(
-                            self.blocks.task_create_one(&self.connector, &name),
-                        );
-                    }
-                    RebalanceOp::Close(name) => {
+                    ShutdownOp::Close(name) => {
                         tokio::task::spawn_local(
                             self.blocks.task_close_one(&self.connector, &name),
                         );

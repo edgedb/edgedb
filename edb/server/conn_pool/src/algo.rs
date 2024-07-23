@@ -199,6 +199,13 @@ pub enum RebalanceOp {
     Close(Name),
 }
 
+/// Determines the shutdown plan based on the current pool state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ShutdownOp {
+    /// Garbage collect a block.
+    Close(Name),
+}
+
 /// Determines the acquire plan based on the current pool state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AcquireOp {
@@ -288,7 +295,8 @@ pub trait PoolAlgorithmDataBlock: PoolAlgorithmDataMetrics {
     /// and there are waiting elements; otherwise, returns `None`.
     fn hunger_score(&self, will_release: bool) -> Option<isize> {
         let waiting = self.count(MetricVariant::Waiting);
-        let connecting = self.count(MetricVariant::Connecting);
+        let connecting =
+            self.count(MetricVariant::Connecting) + self.count(MetricVariant::Reconnecting);
         let waiters = waiting.saturating_sub(connecting);
         let current = self.total() - if will_release { 1 } else { 0 };
         let target = self.target();
@@ -331,7 +339,8 @@ pub trait PoolAlgorithmDataBlock: PoolAlgorithmDataMetrics {
         let idle = self.count(MetricVariant::Idle) + if will_release { 1 } else { 0 };
         let current = self.total();
         let target = self.target();
-        let connecting = self.count(MetricVariant::Connecting);
+        let connecting =
+            self.count(MetricVariant::Connecting) + self.count(MetricVariant::Reconnecting);
         let waiting = self.count(MetricVariant::Waiting);
         let waiters = waiting.saturating_sub(connecting);
         let active_ms = self.avg_ms(MetricVariant::Active).max(MIN_TIME.get());
@@ -539,14 +548,14 @@ impl PoolConstraints {
     }
 
     /// Plan a shutdown.
-    pub fn plan_shutdown(&self, it: &impl VisitPoolAlgoData) -> Vec<RebalanceOp> {
+    pub fn plan_shutdown(&self, it: &impl VisitPoolAlgoData) -> Vec<ShutdownOp> {
         let mut ops = vec![];
         it.with_all(|name, block| {
             let idle = block.count(MetricVariant::Idle);
             let failed = block.count(MetricVariant::Failed);
 
             for _ in 0..(idle + failed) {
-                ops.push(RebalanceOp::Close(name.clone()));
+                ops.push(ShutdownOp::Close(name.clone()));
             }
         });
         ops

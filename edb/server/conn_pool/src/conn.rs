@@ -190,31 +190,29 @@ impl<C: Connector> Conn<C> {
         );
 
         let res = match &mut *lock {
-            ConnInner::Connecting(t, f) | ConnInner::Reconnecting(t, f) => match ready!(f.poll_unpin(cx)) {
-                Ok(c) => {
-                    let elapsed = t.elapsed();
-                    debug_assert!(to == MetricVariant::Active || to == MetricVariant::Idle);
-                    let from = (&std::mem::replace(&mut *lock, ConnInner::Transition)).into();
-                    metrics.transition(from, to, elapsed);
-                    if to == MetricVariant::Active {
-                        *lock = ConnInner::Active(Instant::now(), c);
-                    } else {
-                        *lock = ConnInner::Idle(Instant::now(), c);
+            ConnInner::Connecting(t, f) | ConnInner::Reconnecting(t, f) => {
+                match ready!(f.poll_unpin(cx)) {
+                    Ok(c) => {
+                        let elapsed = t.elapsed();
+                        debug_assert!(to == MetricVariant::Active || to == MetricVariant::Idle);
+                        let from = (&std::mem::replace(&mut *lock, ConnInner::Transition)).into();
+                        metrics.transition(from, to, elapsed);
+                        if to == MetricVariant::Active {
+                            *lock = ConnInner::Active(Instant::now(), c);
+                        } else {
+                            *lock = ConnInner::Idle(Instant::now(), c);
+                        }
+                        Ok(())
                     }
-                    Ok(())
+                    Err(err) => {
+                        let elapsed = t.elapsed();
+                        let from = (&std::mem::replace(&mut *lock, ConnInner::Transition)).into();
+                        metrics.transition(from, MetricVariant::Failed, elapsed);
+                        *lock = ConnInner::Failed(err);
+                        Err(ConnError::TaskFailed)
+                    }
                 }
-                Err(err) => {
-                    let elapsed = t.elapsed();
-                    let from = (&std::mem::replace(&mut *lock, ConnInner::Transition)).into();
-                    metrics.transition(
-                        from,
-                        MetricVariant::Failed,
-                        elapsed,
-                    );
-                    *lock = ConnInner::Failed(err);
-                    Err(ConnError::TaskFailed)
-                }
-            },
+            }
             ConnInner::Disconnecting(t, f) => match ready!(f.poll_unpin(cx)) {
                 Ok(_) => {
                     debug_assert_eq!(to, MetricVariant::Closed);
@@ -267,7 +265,7 @@ impl<C: Connector> Conn<C> {
             ConnInner::Closed | ConnInner::Failed(..) => {
                 metrics.remove(self.variant());
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
