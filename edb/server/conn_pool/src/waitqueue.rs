@@ -82,8 +82,14 @@ impl WaitQueue {
         .await;
     }
 
+    #[inline]
     pub fn len(&self) -> usize {
-        self.waiters.borrow().len()
+        self.lock.get()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub(crate) fn lock(&self) {

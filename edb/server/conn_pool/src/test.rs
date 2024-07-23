@@ -1,4 +1,7 @@
 //! Test utilities.
+use itertools::Itertools;
+use rand::random;
+use statrs::statistics::{Data, Distribution, OrderStatistics, Statistics};
 use std::{
     borrow::Cow,
     cell::{Cell, RefCell},
@@ -9,12 +12,8 @@ use std::{
     time::Duration,
 };
 
-use itertools::Itertools;
-use rand::random;
-use statrs::statistics::{Data, Distribution, OrderStatistics, Statistics};
-
 use crate::{
-    conn::{ConnResult, Connector},
+    conn::{ConnError, ConnResult, Connector},
     metrics::{MetricVariant, PoolMetrics},
     PoolConfig,
 };
@@ -22,27 +21,64 @@ use crate::{
 #[derive(derive_more::Debug)]
 pub struct BasicConnector {
     #[debug(skip)]
-    delay: Option<Rc<dyn Fn(bool) -> Duration>>,
+    delay: Option<Rc<dyn Fn(bool) -> Result<Duration, ()>>>,
+    fail_next_connect: Cell<bool>,
+    fail_next_disconnect: Cell<bool>,
 }
 
 impl BasicConnector {
     pub fn no_delay() -> Self {
-        BasicConnector { delay: None }
+        BasicConnector {
+            delay: None,
+            fail_next_connect: Default::default(),
+            fail_next_disconnect: Default::default(),
+        }
     }
-    pub fn delay(f: impl Fn(bool) -> Duration + 'static) -> Self {
+
+    pub fn delay(f: impl Fn(bool) -> Result<Duration, ()> + 'static) -> Self {
         BasicConnector {
             delay: Some(Rc::new(f)),
+            fail_next_connect: Default::default(),
+            fail_next_disconnect: Default::default(),
+        }
+    }
+
+    pub fn fail_next_connect(&self) {
+        self.fail_next_connect.set(true);
+    }
+
+    pub fn fail_next_disconnect(&self) {
+        self.fail_next_disconnect.set(true);
+    }
+
+    fn duration(&self, disconnect: bool) -> ConnResult<Option<Duration>, String> {
+        if disconnect && self.fail_next_disconnect.replace(false) {
+            return Err(ConnError::Underlying("failed".to_string()));
+        }
+        if !disconnect && self.fail_next_connect.replace(false) {
+            return Err(ConnError::Underlying("failed".to_string()));
+        }
+        if let Some(f) = &self.delay {
+            Ok(Some(f(disconnect).map_err(|_| {
+                ConnError::Underlying("failed".to_string())
+            })?))
+        } else {
+            Ok(None)
         }
     }
 }
 
 impl Connector for BasicConnector {
     type Conn = ();
-    fn connect(&self, _db: &str) -> impl Future<Output = ConnResult<Self::Conn>> + 'static {
-        let delay = self.delay.clone();
+    type Error = String;
+    fn connect(
+        &self,
+        _db: &str,
+    ) -> impl Future<Output = ConnResult<Self::Conn, Self::Error>> + 'static {
+        let connect = self.duration(false);
         async move {
-            if let Some(f) = delay {
-                tokio::time::sleep(f(false)).await;
+            if let Some(f) = connect? {
+                tokio::time::sleep(f).await;
             }
             Ok(())
         }
@@ -51,21 +87,27 @@ impl Connector for BasicConnector {
         &self,
         conn: Self::Conn,
         _db: &str,
-    ) -> impl Future<Output = ConnResult<Self::Conn>> + 'static {
-        let delay = self.delay.clone();
+    ) -> impl Future<Output = ConnResult<Self::Conn, Self::Error>> + 'static {
+        let connect = self.duration(false);
+        let disconnect = self.duration(true);
         async move {
-            if let Some(f) = delay {
-                tokio::time::sleep(f(true)).await;
-                tokio::time::sleep(f(false)).await;
+            if let Some(f) = disconnect? {
+                tokio::time::sleep(f).await;
+            }
+            if let Some(f) = connect? {
+                tokio::time::sleep(f).await;
             }
             Ok(conn)
         }
     }
-    fn disconnect(&self, _conn: Self::Conn) -> impl Future<Output = ConnResult<()>> + 'static {
-        let delay = self.delay.clone();
+    fn disconnect(
+        &self,
+        _conn: Self::Conn,
+    ) -> impl Future<Output = ConnResult<(), Self::Error>> + 'static {
+        let disconnect = self.duration(true);
         async move {
-            if let Some(f) = delay {
-                tokio::time::sleep(f(true)).await;
+            if let Some(f) = disconnect? {
+                tokio::time::sleep(f).await;
             }
             Ok(())
         }
@@ -172,6 +214,8 @@ pub struct Spec {
     pub duration: f64,
     pub capacity: usize,
     pub conn_cost: Triangle,
+    #[default = 0]
+    pub conn_failure_percentage: u8,
     pub dbs: Vec<DBSpec>,
     #[default(Triangle(0.006, 0.0015))]
     pub disconn_cost: Triangle,

@@ -110,3 +110,15 @@ more connections are waiting on this block, we return the connection to the
 block to be re-used immediately. If no connections are waiting but the block is
 hungry, we return it. If the block is satisfied or overfull and we have hungry
 blocks waiting, we transfer it to a hungry block that has waiters.
+
+## Error Handling
+
+The pool will attempt to provide a connection where possible, but connection
+operations may not always be reliable. The error for a connection failure will
+be routed through the acquire operation if the pool detects there are no other
+potential sources for a connection for the acquire. Sources for a connection may
+be a currently-connecting connection, a reconnecting connection, a connection
+that is actively held by someone else or a connection that is sitting idle.
+
+The pool does not currently retry, and retry logic should be included in the
+connect operation.

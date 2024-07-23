@@ -152,6 +152,7 @@ impl<T: Copy + Default> VariantArray<T> {
 #[allow(unused)]
 pub struct ConnMetrics {
     pub(crate) value: VariantArray<usize>,
+    pub(crate) all_time: VariantArray<usize>,
     pub(crate) max: VariantArray<usize>,
     pub(crate) avg_time: VariantArray<u32>,
     pub(crate) total: usize,
@@ -283,6 +284,29 @@ impl MetricsAccum {
         self.raw.borrow().counts[variant]
     }
 
+    /// Sums the values of all the given variants.
+    #[inline(always)]
+    pub fn sum_all(&self, variants: &[MetricVariant]) -> usize {
+        let mut sum = 0;
+        let lock = self.raw.borrow();
+        for variant in variants {
+            sum += lock.counts[*variant];
+        }
+        sum
+    }
+
+    /// Returns true if there is a non-zero count for any of the variants.
+    #[inline(always)]
+    pub fn has_any(&self, variants: &[MetricVariant]) -> bool {
+        let lock = self.raw.borrow();
+        for variant in variants {
+            if lock.counts[*variant] > 0 {
+                return true;
+            }
+        }
+        false
+    }
+
     #[inline(always)]
     pub fn reset_max(&self) {
         self.raw.borrow_mut().reset_max();
@@ -296,6 +320,7 @@ impl MetricsAccum {
         }
         ConnMetrics {
             value: lock.counts,
+            all_time: lock.all_time,
             max: lock.max,
             avg_time,
             total: lock.total,
@@ -303,9 +328,12 @@ impl MetricsAccum {
         }
     }
 
+    pub fn counts(&self) -> VariantArray<usize> {
+        self.raw.borrow().counts
+    }
+
     pub fn all_time(&self) -> VariantArray<usize> {
-        let lock = self.raw.borrow();
-        lock.all_time
+        self.raw.borrow().all_time
     }
 
     #[inline]

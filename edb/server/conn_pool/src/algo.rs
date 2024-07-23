@@ -538,6 +538,20 @@ impl PoolConstraints {
         );
     }
 
+    /// Plan a shutdown.
+    pub fn plan_shutdown(&self, it: &impl VisitPoolAlgoData) -> Vec<RebalanceOp> {
+        let mut ops = vec![];
+        it.with_all(|name, block| {
+            let idle = block.count(MetricVariant::Idle);
+            let failed = block.count(MetricVariant::Failed);
+
+            for _ in 0..(idle + failed) {
+                ops.push(RebalanceOp::Close(name.clone()));
+            }
+        });
+        ops
+    }
+
     /// Plan a rebalance to better match the target quotas of the blocks in the
     /// pool.
     pub fn plan_rebalance(&self, it: &impl VisitPoolAlgoData) -> Vec<RebalanceOp> {
