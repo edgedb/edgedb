@@ -485,7 +485,7 @@ class SchemaDomainConstraint:
         return ops
 
     def alter_ops(
-        self, orig_constr: SchemaConstraint, only_modify_enabled: bool = False
+        self, orig_constr: SchemaConstraint
     ):
         ops = dbops.CommandGroup()
         return ops
@@ -502,6 +502,10 @@ class SchemaDomainConstraint:
         return ops
 
     def enforce_ops(self):
+        ops = dbops.CommandGroup()
+        return ops
+
+    def update_trigger_ops(self):
         ops = dbops.CommandGroup()
         return ops
 
@@ -549,7 +553,7 @@ class SchemaTableConstraint:
         return ops
 
     def alter_ops(
-        self, orig_constr: SchemaConstraint, only_modify_enabled=False
+        self, orig_constr: SchemaConstraint
     ):
         ops = dbops.CommandGroup()
 
@@ -558,8 +562,9 @@ class SchemaTableConstraint:
 
         alter_constr = deltadbops.AlterTableAlterConstraint(
             name=tabconstr.get_subject_name(quote=False),
-            constraint=orig_tabconstr, new_constraint=tabconstr,
-            only_modify_enabled=only_modify_enabled)
+            constraint=orig_tabconstr,
+            new_constraint=tabconstr,
+        )
 
         ops.add_command(alter_constr)
 
@@ -645,6 +650,19 @@ class SchemaTableConstraint:
                 '''
             )
             ops.add_command(check)
+
+        return ops
+
+    def update_trigger_ops(self) -> dbops.CommandGroup:
+        ops = dbops.CommandGroup()
+
+        tabconstr = self._table_constraint(self)
+        add_constr = deltadbops.AlterTableUpdateConstraintTrigger(
+            name=tabconstr.get_subject_name(quote=False),
+            constraint=tabconstr,
+        )
+
+        ops.add_command(add_constr)
 
         return ops
 

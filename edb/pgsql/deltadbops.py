@@ -576,11 +576,10 @@ class AlterTableAddConstraint(AlterTableConstraintBase):
 
 class AlterTableAlterConstraint(AlterTableConstraintBase):
     def __init__(
-        self, name, *, constraint, new_constraint, only_modify_enabled, **kwargs
+        self, name, *, constraint, new_constraint, **kwargs
     ):
         super().__init__(name, constraint=constraint, **kwargs)
         self._new_constraint = new_constraint
-        self._only_modify_enabled = only_modify_enabled
 
     def __repr__(self):
         return '<{}.{} {!r}>'.format(
@@ -588,10 +587,7 @@ class AlterTableAlterConstraint(AlterTableConstraintBase):
             self._constraint)
 
     def generate(self, block):
-        if self._only_modify_enabled:
-            self.update_constraint_enabled(self._new_constraint)
-        else:
-            self.alter_constraint(self._constraint, self._new_constraint)
+        self.alter_constraint(self._constraint, self._new_constraint)
         super().generate(block)
 
 
@@ -604,4 +600,15 @@ class AlterTableDropConstraint(AlterTableConstraintBase):
     def generate(self, block):
         if not self._constraint.delegated:
             self.drop_constraint(self._constraint)
+        super().generate(block)
+
+
+class AlterTableUpdateConstraintTrigger(AlterTableConstraintBase):
+    def __repr__(self):
+        return '<{}.{} {!r}>'.format(
+            self.__class__.__module__, self.__class__.__name__,
+            self._constraint)
+
+    def generate(self, block):
+        self.update_constraint_enabled(self._constraint)
         super().generate(block)

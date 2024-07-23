@@ -2043,8 +2043,7 @@ class ConstraintCommand(MetaCommand):
                 bconstr = schemamech.compile_constraint(
                     subject, base, schema, span
                 )
-                op.add_command(bconstr.alter_ops(
-                    bconstr, only_modify_enabled=True))
+                op.add_command(bconstr.update_trigger_ops())
 
         return op
 
