@@ -148,7 +148,7 @@ constants! {
     /// The weight we apply to waiting connections.
     const DEMAND_WEIGHT_WAITING: usize = 3;
     /// The weight we apply to active connections.
-    const DEMAND_WEIGHT_ACTIVE: usize = 277;
+    const DEMAND_WEIGHT_ACTIVE: usize = 4;
     /// The minimum non-zero demand. This makes the demand calculations less noisy
     /// when we are competing at lower levels of demand, allowing for more
     /// reproducable results.
@@ -162,30 +162,30 @@ constants! {
     /// The boost we apply to our own apparent hunger when releasing a connection.
     /// This prevents excessive swapping when hunger is similar across various
     /// backends.
-    const SELF_HUNGER_BOOST_FOR_RELEASE: usize = 160;
+    const SELF_HUNGER_BOOST_FOR_RELEASE: usize = 45;
     /// The weight we apply to the difference between the target and required
     /// connections when determining overfullness.
-    const HUNGER_DIFF_WEIGHT: usize = 20;
+    const HUNGER_DIFF_WEIGHT: usize = 3;
     /// The weight we apply to waiters when determining hunger.
-    const HUNGER_WAITER_WEIGHT: usize = 0;
-    const HUNGER_WAITER_ACTIVE_WEIGHT: usize = 0;
+    const HUNGER_WAITER_WEIGHT: usize = 15;
+    const HUNGER_WAITER_ACTIVE_WEIGHT: usize = 2;
     const HUNGER_ACTIVE_WEIGHT_DIVIDEND: usize = 9650;
     /// The weight we apply to the oldest waiter's age in milliseconds (as a divisor).
     #[range(1..=2000)]
-    const HUNGER_AGE_DIVISOR_WEIGHT: usize = 1360;
+    const HUNGER_AGE_DIVISOR_WEIGHT: usize = 707;
 
     /// The weight we apply to the difference between the target and required
     /// connections when determining overfullness.
-    const OVERFULL_DIFF_WEIGHT: usize = 20;
+    const OVERFULL_DIFF_WEIGHT: usize = 151;
     /// The weight we apply to idle connections when determining overfullness.
-    const OVERFULL_IDLE_WEIGHT: usize = 100;
+    const OVERFULL_IDLE_WEIGHT: usize = 220;
     /// This is divided by the youngest connection metric to penalize switching from
     /// a backend which has changed recently.
-    const OVERFULL_CHANGE_WEIGHT_DIVIDEND: usize = 4690;
+    const OVERFULL_CHANGE_WEIGHT_DIVIDEND: usize = 57;
     /// The weight we apply to waiters when determining overfullness.
-    const OVERFULL_WAITER_WEIGHT: usize = 4460;
-    const OVERFULL_WAITER_ACTIVE_WEIGHT: usize = 1300;
-    const OVERFULL_ACTIVE_WEIGHT_DIVIDEND: usize = 6620;
+    const OVERFULL_WAITER_WEIGHT: usize = 912;
+    const OVERFULL_WAITER_ACTIVE_WEIGHT: usize = 49;
+    const OVERFULL_ACTIVE_WEIGHT_DIVIDEND: usize = 951;
 }
 
 /// Determines the rebalance plan based on the current pool state.
