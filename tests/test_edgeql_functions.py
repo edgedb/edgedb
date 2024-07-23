@@ -2338,7 +2338,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
                 SELECT <str>cal::to_local_datetime(
                     <datetime>'2018-05-07T20:01:22.306916+00:00',
-                    'US/Pacific');
+                    'America/Los_Angeles');
             ''',
             ['2018-05-07T13:01:22.306916'],
         )
@@ -2457,7 +2457,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
                 SELECT <str>cal::to_local_date(
                     <datetime>'2018-05-07T20:01:22.306916+00:00',
-                    'US/Pacific');
+                    'America/Los_Angeles');
             ''',
             ['2018-05-07'],
         )
@@ -2528,7 +2528,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
                 SELECT <str>cal::to_local_time(
                     <datetime>'2018-05-07T20:01:22.306916+00:00',
-                    'US/Pacific');
+                    'America/Los_Angeles');
             ''',
             ['13:01:22.306916'],
         )
