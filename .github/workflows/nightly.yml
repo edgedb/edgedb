@@ -982,8 +982,18 @@ jobs:
         ref: master
         path: edgedb-pkg
 
+    - name: Update Homebrew before installing Rust toolchain
+      run: |
+        # Homebrew renamed `rustup-init` to `rustup`:
+        #   https://github.com/Homebrew/homebrew-core/pull/177840
+        # But the GitHub Action runner is not updated with this change yet.
+        # This caused the later `brew update` in step `Build` to relink Rust
+        # toolchain executables, overwriting the custom toolchain installed by
+        # `dtolnay/rust-toolchain`. So let's just run `brew update` early.
+        brew update
+
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      uses: dtolnay/rust-toolchain@d0e72ca3bfdc51937a4f81431ccbed269ef9f2a2
       if: true
       with:
         components: "cargo,rustc,rust-std"
@@ -1040,8 +1050,18 @@ jobs:
         ref: master
         path: edgedb-pkg
 
+    - name: Update Homebrew before installing Rust toolchain
+      run: |
+        # Homebrew renamed `rustup-init` to `rustup`:
+        #   https://github.com/Homebrew/homebrew-core/pull/177840
+        # But the GitHub Action runner is not updated with this change yet.
+        # This caused the later `brew update` in step `Build` to relink Rust
+        # toolchain executables, overwriting the custom toolchain installed by
+        # `dtolnay/rust-toolchain`. So let's just run `brew update` early.
+        brew update
+
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      uses: dtolnay/rust-toolchain@d0e72ca3bfdc51937a4f81431ccbed269ef9f2a2
       if: true
       with:
         components: "cargo,rustc,rust-std"
