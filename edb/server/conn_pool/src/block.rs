@@ -10,7 +10,7 @@ use crate::{
 };
 use futures::future::Either;
 use std::{
-    cell::{Cell, RefCell},
+    cell::RefCell,
     collections::HashMap,
     future::{poll_fn, ready, Future},
     rc::Rc,
@@ -101,9 +101,8 @@ impl std::borrow::Borrow<str> for Name {
 /// where additional metadata for this block can live.
 pub struct Block<C: Connector, D: Default = ()> {
     pub db_name: Name,
-    conns: RefCell<Vec<Conn<C>>>,
+    conns: Conns<C>,
     state: Rc<ConnState>,
-    youngest: Cell<Instant>,
     /// Associated data for this block useful for statistics, quotas or other
     /// information. This is provided by the algorithm in this crate.
     data: D,
@@ -120,10 +119,9 @@ impl<C: Connector, D: Default> Block<C, D> {
         .into();
         Self {
             db_name,
-            conns: Vec::new().into(),
+            conns: Conns::default(),
             state,
             data: Default::default(),
-            youngest: Cell::new(Instant::now()),
         }
     }
 
@@ -144,14 +142,12 @@ impl<C: Connector, D: Default> Block<C, D> {
         if cfg!(debug_assertions) {
             assert_eq!(
                 self.len(),
-                self.conns.borrow().len(),
+                self.conns.len(),
                 "Block {} failed consistency check. Total connection count was wrong.",
                 self.db_name
             );
             let conn_metrics = MetricsAccum::default();
-            for conn in &*self.conns.borrow() {
-                conn_metrics.insert(conn.variant())
-            }
+            self.conns.walk(|conn| conn_metrics.insert(conn.variant()));
             conn_metrics.set_value(MetricVariant::Waiting, self.state.waiters.lock.get());
             assert_eq!(
                 self.metrics().summary().value,
@@ -166,44 +162,13 @@ impl<C: Connector, D: Default> Block<C, D> {
         self.state.metrics.clone()
     }
 
-    fn try_acquire_used(&self) -> Option<Conn<C>> {
-        for conn in &*self.conns.borrow() {
-            if conn.try_lock(&self.state.metrics) {
-                return Some(conn.clone());
-            }
-        }
-        None
-    }
-
-    fn try_get_used(&self) -> Option<Conn<C>> {
-        for conn in &*self.conns.borrow() {
-            if conn.variant() == MetricVariant::Idle {
-                return Some(conn.clone());
-            }
-        }
-        None
-    }
-
-    fn try_take_used(&self) -> Option<Conn<C>> {
-        let mut lock = self.conns.borrow_mut();
-        let pos = lock
-            .iter()
-            .position(|conn| conn.variant() == MetricVariant::Idle);
-        if let Some(index) = pos {
-            let conn = lock.remove(index);
-            return Some(conn);
-        }
-        None
-    }
-
     /// Creates a connection from this block.
     #[cfg(test)]
     fn create(self: Rc<Self>, connector: &C) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
         let conn = {
             consistency_check!(self);
             let conn = Conn::new(connector.connect(&self.db_name), &self.state.metrics);
-            self.youngest.set(Instant::now());
-            self.conns.borrow_mut().push(conn.clone());
+            self.conns.insert(conn.clone());
             conn
         };
         async move {
@@ -219,7 +184,7 @@ impl<C: Connector, D: Default> Block<C, D> {
         self: Rc<Self>,
         connector: &C,
     ) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
-        if let Some(conn) = self.try_acquire_used() {
+        if let Some(conn) = self.conns.try_acquire_idle_mru(&self.state.metrics) {
             return Either::Left(ready(Ok(self.conn(conn))));
         }
         Either::Right(self.create(connector))
@@ -229,7 +194,7 @@ impl<C: Connector, D: Default> Block<C, D> {
     fn queue(self: Rc<Self>) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
         // If someone else is waiting, we have to queue, even if there's a connection
         if self.state.waiters.len() == 0 {
-            if let Some(conn) = self.try_acquire_used() {
+            if let Some(conn) = self.conns.try_acquire_idle_mru(&self.state.metrics) {
                 trace!("Got a connection");
                 return Either::Left(ready(Ok(self.conn(conn))));
             }
@@ -248,7 +213,7 @@ impl<C: Connector, D: Default> Block<C, D> {
         Either::Right(async move {
             consistency_check!(self);
             loop {
-                if let Some(conn) = self.try_acquire_used() {
+                if let Some(conn) = self.conns.try_acquire_idle_mru(&self.state.metrics) {
                     trace!("Got a connection");
                     drop(guard);
                     return Ok(self.conn(conn));
@@ -264,8 +229,7 @@ impl<C: Connector, D: Default> Block<C, D> {
         let conn = {
             consistency_check!(self);
             let conn = Conn::new(connector.connect(&self.db_name), &self.state.metrics);
-            self.youngest.set(Instant::now());
-            self.conns.borrow_mut().push(conn.clone());
+            self.conns.insert(conn.clone());
             conn
         };
         async move {
@@ -284,16 +248,17 @@ impl<C: Connector, D: Default> Block<C, D> {
     fn task_close_one(self: Rc<Self>, connector: &C) -> impl Future<Output = ConnResult<()>> {
         let conn = {
             consistency_check!(self);
-            let conn = self.try_get_used().expect("Could not acquire a connection");
+            let conn = self
+                .conns
+                .try_get_idle_lru()
+                .expect("Could not acquire a connection");
             conn.close(connector, &self.state.metrics);
             conn
         };
         async move {
             consistency_check!(self);
             poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics, MetricVariant::Closed)).await?;
-            // TODO: this can be replaced by moving the final item of the list into the
-            // empty spot to avoid reshuffling
-            self.conns.borrow_mut().retain(|other| other != &conn);
+            self.conns.remove(&conn);
             conn.untrack(&self.state.metrics);
             Ok(())
         }
@@ -314,10 +279,10 @@ impl<C: Connector, D: Default> Block<C, D> {
             consistency_check!(to);
 
             let conn = from
-                .try_take_used()
+                .conns
+                .try_take_idle_lru()
                 .expect("Could not acquire a connection");
-            to.youngest.set(Instant::now());
-            to.conns.borrow_mut().push(conn.clone());
+            to.conns.insert(conn.clone());
             conn.transfer(
                 connector,
                 &from.state.metrics,
@@ -347,12 +312,9 @@ impl<C: Connector, D: Default> Block<C, D> {
             consistency_check!(from);
             consistency_check!(to);
 
-            // TODO: this can be replaced by moving the final item of the list into the
-            // empty spot to avoid reshuffling
             let conn = conn.into_inner();
-            from.conns.borrow_mut().retain(|other| other != &conn);
-            to.youngest.set(Instant::now());
-            to.conns.borrow_mut().push(conn.clone());
+            from.conns.remove(&conn);
+            to.conns.insert(conn.clone());
             conn.transfer(
                 connector,
                 &from.state.metrics,
@@ -405,9 +367,7 @@ impl<C: Connector, D: Default> Block<C, D> {
         async move {
             consistency_check!(self);
             poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics, MetricVariant::Closed)).await?;
-            // TODO: this can be replaced by moving the final item of the list into the
-            // empty spot to avoid reshuffling
-            self.conns.borrow_mut().retain(|other| other != &conn);
+            self.conns.remove(&conn);
             conn.untrack(&self.state.metrics);
             Ok(())
         }
@@ -477,7 +437,7 @@ impl<C: Connector> PoolAlgorithmDataBlock for Block<C, PoolAlgoTargetData> {
     }
     #[inline(always)]
     fn youngest_ms(&self) -> usize {
-        self.youngest.get().elapsed().as_millis() as _
+        self.conns.youngest().as_millis() as _
     }
 }
 

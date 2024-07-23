@@ -12,6 +12,7 @@ use std::{
     pin::Pin,
     rc::Rc,
     task::{ready, Poll},
+    time::Duration,
 };
 use tracing::error;
 
@@ -344,5 +345,101 @@ impl<C: Connector> Drop for ConnHandle<C> {
                 unreachable!("Impossible state: {:?}", MetricVariant::from(&inner));
             }
         });
+    }
+}
+
+/// Maintains a list of connections. Tries to provide idle connections for use
+/// in a MRU mode, and for release in a LRU mode where possible.
+#[derive(Debug)]
+pub struct Conns<C: Connector> {
+    conns: RefCell<Vec<Conn<C>>>,
+    youngest: Cell<Instant>,
+}
+
+impl<C: Connector> Default for Conns<C> {
+    fn default() -> Self {
+        Self {
+            conns: Default::default(),
+            youngest: Cell::new(Instant::now()),
+        }
+    }
+}
+
+impl<C: Connector> Conns<C> {
+    pub fn len(&self) -> usize {
+        self.conns.borrow().len()
+    }
+
+    pub fn youngest(&self) -> Duration {
+        self.youngest.get().elapsed()
+    }
+
+    pub fn walk(&self, mut f: impl FnMut(&Conn<C>)) {
+        for conn in self.conns.borrow().iter() {
+            f(conn)
+        }
+    }
+
+    /// Insert a new connection, in the MRU spot.
+    pub fn insert(&self, conn: Conn<C>) {
+        self.conns.borrow_mut().push(conn);
+        self.youngest.set(Instant::now());
+    }
+
+    /// Remove a specific connection from the list. This may break MRU ordering
+    /// for performance reasons.
+    pub fn remove(&self, conn: &Conn<C>) {
+        let lock = self.conns.borrow_mut();
+        let index = lock
+            .iter()
+            .position(|other| conn == other)
+            .expect("Connection unexpectedly could not be found");
+        {
+            let mut lock = lock;
+            lock.swap_remove(index)
+        };
+    }
+
+    /// Acquires the most-recently-used idle connection, moving it to the end of
+    /// the internal vector.
+    pub fn try_acquire_idle_mru(&self, metrics: &MetricsAccum) -> Option<Conn<C>> {
+        let mut lock = self.conns.borrow_mut();
+        let pos = lock
+            .iter()
+            .rev()
+            .position(|conn| conn.variant() == MetricVariant::Idle)?;
+        let last_item = lock.len() - 1;
+        let pos = last_item - pos;
+        lock.swap(last_item, pos);
+        let conn = lock[last_item].clone();
+        if !conn.try_lock(&metrics) {
+            panic!("Connection unexpectedly could not be locked")
+        }
+        Some(conn)
+    }
+
+    /// Gets the least-recently-used idle connection, does not re-order the
+    /// underlying list.
+    pub fn try_get_idle_lru(&self) -> Option<Conn<C>> {
+        for conn in self.conns.borrow().iter() {
+            if conn.variant() == MetricVariant::Idle {
+                return Some(conn.clone());
+            }
+        }
+        None
+    }
+
+    /// Takes the least-recently-used idle connection, does not re-order the
+    /// underlying list.
+    pub fn try_take_idle_lru(&self) -> Option<Conn<C>> {
+        let lock = self.conns.borrow_mut();
+        let pos = lock
+            .iter()
+            .position(|conn| conn.variant() == MetricVariant::Idle)?;
+        let conn = {
+            let mut lock = lock;
+            lock.swap_remove(pos)
+        };
+        Some(conn)
     }
 }
