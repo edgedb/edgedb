@@ -171,10 +171,9 @@ async def _ext_ai_index_builder_controller_loop(
     try:
         while True:
             try:
-                pgconn = await tenant.acquire_pgcon(dbname)
                 models = []
                 sleep_timer: rs.Timer = rs.Timer(None, False)
-                try:
+                async with tenant.with_pgcon(dbname) as pgconn:
                     models = await _ext_ai_fetch_active_models(pgconn)
                     if models:
                         if not holding_lock:
@@ -199,8 +198,6 @@ async def _ext_ai_index_builder_controller_loop(
                                     await asyncutil.deferred_shield(
                                         _ext_ai_unlock(pgconn))
                                     holding_lock = False
-                finally:
-                    tenant.release_pgcon(dbname, pgconn)
             except Exception:
                 logger.exception(f"caught error in {task_name}")
 
