@@ -37,6 +37,7 @@ from copy import copy
 import collections.abc
 import itertools
 import textwrap
+import uuid
 
 from edb import errors
 
@@ -2021,29 +2022,75 @@ class ConstraintCommand(MetaCommand):
 
     @classmethod
     def fixup_base_constraint_triggers(
-        cls, constraint, orig_schema, schema, context, span=None, *, is_delete
+        cls,
+        constraint: s_constr.Constraint,
+        orig_schema: s_schema.Schema,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        span: Optional[parsing.Span] = None,
     ):
-        base_schema = orig_schema if is_delete else schema
-
-        # When a constraint is added or deleted, we need to check its
-        # parents and potentially enable/disable their triggers
-        # (since we want to disable triggers on types without
-        # parents or children affected by the constraint)
-        op = dbops.CommandGroup()
-        for base in constraint.get_bases(base_schema).objects(base_schema):
-            if (
-                schema.has_object(base.id)
-                and cls.constraint_is_effective(schema, base)
-                and (base.is_independent(orig_schema)
-                     != base.is_independent(schema))
-                and not context.is_creating(base)
-                and not context.is_deleting(base)
-            ):
-                subject = base.get_subject(schema)
-                bconstr = schemamech.compile_constraint(
-                    subject, base, schema, span
+        # Find all constraints which were or are related to the current
+        # constraint.
+        relative_ids: set[uuid.UUID] = set()
+        if orig_schema.has_object(constraint.id):
+            # Get all former relatives.
+            for origin in constraint.get_constraint_origins(orig_schema):
+                origin_descendants = (
+                    [origin] + list(origin.descendants(orig_schema))
                 )
-                op.add_command(bconstr.update_trigger_ops())
+                for relative in origin_descendants:
+                    if not schema.has_object(relative.id):
+                        # The constraint was deleted, updating the triggers is
+                        # not needed.
+                        continue
+                    if relative.id == constraint.id:
+                        continue
+                    relative_ids.add(relative.id)
+        if schema.has_object(constraint.id):
+            # Get all current relatives.
+            for origin in constraint.get_constraint_origins(schema):
+                origin_descendants = (
+                    [origin] + list(origin.descendants(orig_schema))
+                )
+                for relative in origin_descendants:
+                    if relative.id == constraint.id:
+                        continue
+                    relative_ids.add(relative.id)
+
+        relatives: list[s_constr.Constraint] = [
+            schema.get_by_id(relative_id, type=s_constr.Constraint)
+            for relative_id in relative_ids
+        ]
+
+        op = dbops.CommandGroup()
+
+        # Update constraint triggers for all relatives.
+        for relative in relatives:
+            if (
+                cls.constraint_is_effective(schema, relative)
+                and not context.is_creating(relative)
+                and not context.is_altering(relative)
+                and not context.is_deleting(relative)
+            ):
+                subject = relative.get_subject(schema)
+                bconstr = schemamech.compile_constraint(
+                    subject, relative, schema, span
+                )
+
+                # If the original constraint exists and is effective, it has
+                # triggers which should be recompiled.
+                orig_bconstr = None
+                if orig_schema.has_object(relative.id):
+                    orig_relative: s_constr.Constraint = orig_schema.get_by_id(
+                        relative.id, type=s_constr.Constraint
+                    )
+                    if cls.constraint_is_effective(orig_schema, orig_relative):
+                        orig_subject = orig_relative.get_subject(orig_schema)
+                        orig_bconstr = schemamech.compile_constraint(
+                            orig_subject, orig_relative, orig_schema, span
+                        )
+
+                op.add_command(bconstr.update_trigger_ops(orig_bconstr))
 
         return op
 
@@ -2122,7 +2169,7 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
         self.pgops.add(op)
         self.pgops.add(self.fixup_base_constraint_triggers(
             constraint, orig_schema, schema, context, self.span,
-            is_delete=False))
+        ))
 
         # If the constraint is being added to existing data,
         # we need to enforce it on the existing data. (This only
@@ -2260,7 +2307,7 @@ class AlterConstraint(
 
             self.pgops.add(self.fixup_base_constraint_triggers(
                 constraint, orig_schema, schema, context, self.span,
-                is_delete=False))
+            ))
 
         return schema
 
@@ -2283,7 +2330,7 @@ class DeleteConstraint(ConstraintCommand, adapts=s_constr.DeleteConstraint):
 
         self.pgops.add(self.fixup_base_constraint_triggers(
             constraint, orig_schema, schema, context, self.span,
-            is_delete=True))
+        ))
 
         return schema
 

@@ -505,7 +505,9 @@ class SchemaDomainConstraint:
         ops = dbops.CommandGroup()
         return ops
 
-    def update_trigger_ops(self):
+    def update_trigger_ops(
+        self, orig_constr: Optional[SchemaConstraint]
+    ):
         ops = dbops.CommandGroup()
         return ops
 
@@ -653,13 +655,22 @@ class SchemaTableConstraint:
 
         return ops
 
-    def update_trigger_ops(self) -> dbops.CommandGroup:
+    def update_trigger_ops(
+        self, orig_constr: Optional[SchemaConstraint]
+    ) -> dbops.CommandGroup:
         ops = dbops.CommandGroup()
 
         tabconstr = self._table_constraint(self)
+        orig_tabconstr = (
+            self._table_constraint(orig_constr)
+            if orig_constr is not None else
+            None
+        )
+
         add_constr = deltadbops.AlterTableUpdateConstraintTrigger(
             name=tabconstr.get_subject_name(quote=False),
             constraint=tabconstr,
+            orig_constraint=orig_tabconstr,
         )
 
         ops.add_command(add_constr)
