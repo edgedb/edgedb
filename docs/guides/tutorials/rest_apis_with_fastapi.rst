@@ -1366,10 +1366,9 @@ Next, we're going to create endpoints in FastAPI to handle user registration
         body = await request.json()
         email = body.get("email")
         password = body.get("password")
-        name = body.get("name")
 
-        if not email or not password or not name:
-            raise HTTPException(status_code=400, detail="Missing email, password, or name.")
+        if not email or not password:
+            raise HTTPException(status_code=400, detail="Missing email or password")
 
         verifier, challenge = generate_pkce()
         register_url = f"{EDGEDB_AUTH_BASE_URL}/register"
@@ -1384,13 +1383,21 @@ Next, we're going to create endpoints in FastAPI to handle user registration
         if register_response.status_code != 200 and register_response.status_code != 201:
             return JSONResponse(status_code=400, content={"message": "Registration failed"})
 
+        code = register_response.json().get("code")
+        token_url = f"{EDGEDB_AUTH_BASE_URL}/token"
+        token_response = httpx.get(token_url, params={"code": code, "verifier": verifier})
+
+        if token_response.status_code != 200:
+            return JSONResponse(status_code=400, content={"message": "Token exchange failed"})
+
+        auth_token = token_response.json().get("auth_token")
+
         response = JSONResponse(content={"message": "User registered"})
-        response.set_cookie(key="edgedb-pkce-verifier", value=verifier, httponly=True, secure=True, samesite='strict')
+        response.set_cookie(key="edgedb-auth-token", value=auth_token, httponly=True, secure=True, samesite='strict')
         return response
 
 The sign-up endpoint sends a POST request to the EdgeDB Auth server to register
-a new user. It also generates a PKCE verifier and sets it as an HttpOnly cookie
-in the response.
+a new user. It also sets the auth token as an HttpOnly cookie in the response.
 
 **Sign-in endpoint**
 
@@ -1516,11 +1523,13 @@ endpoint to create a new user in the database. We need to do a few things:
       async def handle_signup(request: Request):
           body = await request.json()
           email = body.get("email")
-          name = body.get("name")
+    +     name = body.get("name")
           password = body.get("password")
-      
-          if not email or not password or not name:
-              raise HTTPException(status_code=400, detail="Missing email, password, or name.")
+
+    -     if not email or not password:
+    +     if not email or not password or not name:
+    -         raise HTTPException(status_code=400, detail="Missing email or password.")
+    +         raise HTTPException(status_code=400, detail="Missing email, password, or name.")
       
           verifier, challenge = generate_pkce()
           register_url = f"{EDGEDB_AUTH_BASE_URL}/register"
@@ -1535,13 +1544,14 @@ endpoint to create a new user in the database. We need to do a few things:
           if response.status_code != 200 and response.status_code != 201:
               return JSONResponse(status_code=400, content={"message": "Registration failed"})
           
-    +     code = response.json().get("code")
-    +     token_url = f"{EDGEDB_AUTH_BASE_URL}/token"
-    +     token_response = httpx.get(token_url, params={"code": code, "verifier": verifier})
-    + 
-    +     if token_response.status_code != 200:
-    +         return JSONResponse(status_code=400, content={"message": "Token exchange failed"})
-    +     
+          code = response.json().get("code")
+          token_url = f"{EDGEDB_AUTH_BASE_URL}/token"
+          token_response = httpx.get(token_url, params={"code": code, "verifier": verifier})
+      
+          if token_response.status_code != 200:
+              return JSONResponse(status_code=400, content={"message": "Token exchange failed"})
+
+          auth_token = token_response.json().get("auth_token")
     +     identity_id = token_response.json().get("identity_id")
     +     try:
     +         created_user = await create_user_qry.create_user(client, name=name, identity_id=identity_id)
@@ -1552,7 +1562,7 @@ endpoint to create a new user in the database. We need to do a few things:
     +         )
               
           response = JSONResponse(content={"message": "User registered"})
-          response.set_cookie(key="edgedb-pkce-verifier", value=verifier, httponly=True, secure=True, samesite='strict')
+          response.set_cookie(key="edgedb-auth-token", value=auth_token, httponly=True, secure=True, samesite='strict')
           return response
 
 You can now test the sign-up endpoint by sending a POST request to
