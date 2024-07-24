@@ -1533,7 +1533,7 @@ endpoint to create a new user in the database. We need to do a few things:
       
           verifier, challenge = generate_pkce()
           register_url = f"{EDGEDB_AUTH_BASE_URL}/register"
-          response = httpx.post(register_url, json={
+          register_response = httpx.post(register_url, json={
               "challenge": challenge,
               "email": email,
               "password": password,
@@ -1541,10 +1541,10 @@ endpoint to create a new user in the database. We need to do a few things:
               "verify_url": "http://localhost:8000/auth/verify",
           })
       
-          if response.status_code != 200 and response.status_code != 201:
+          if register_response.status_code != 200 and register_response.status_code != 201:
               return JSONResponse(status_code=400, content={"message": "Registration failed"})
           
-          code = response.json().get("code")
+          code = register_response.json().get("code")
           token_url = f"{EDGEDB_AUTH_BASE_URL}/token"
           token_response = httpx.get(token_url, params={"code": code, "verifier": verifier})
       
