@@ -233,15 +233,13 @@ cdef class Database:
                 continue
 
             g = execute.build_cache_persistence_units(ops)
-            conn = await self.tenant.acquire_pgcon(self.name)
-            try:
-                await g.execute(conn, self)
-            except Exception as e:
-                logger.warning("Failed to persist function cache",
-                               exc_info=True)
-                continue
-            finally:
-                self.tenant.release_pgcon(self.name, conn)
+            async with self.tenant.with_pgcon(self.name) as conn:
+                try:
+                    await g.execute(conn, self)
+                except Exception as e:
+                    logger.warning("Failed to persist function cache",
+                                exc_info=True)
+                    continue
 
             for query_req, units in ops:
                 units.cache_state = CacheState.Present

@@ -19,6 +19,7 @@
 import asyncio
 import base64
 import collections
+import contextlib
 import json
 import logging
 import time
@@ -479,9 +480,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             raise ConnectionAbortedError
 
         dbv = self.get_dbview()
-        conn = await self.get_pgcon()
-
-        try:
+        async with self.with_pgcon() as conn:
             await execute.execute_script(
                 conn,
                 dbv,
@@ -489,8 +488,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 bind_args,
                 fe_conn=self,
             )
-        finally:
-            self.maybe_release_pgcon(conn)
 
     def _tokenize(self, eql: bytes) -> edgeql.Source:
         text = eql.decode('utf-8')
@@ -699,8 +696,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         ):
             _dbview.raise_in_tx_error()
 
-        conn = await self.get_pgcon()
-        try:
+        async with self.with_pgcon() as conn:
             if query_unit.sql:
                 await conn.sql_execute(query_unit.sql)
 
@@ -711,8 +707,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             else:
                 assert query_unit.tx_rollback
                 _dbview.abort_tx()
-        finally:
-            self.maybe_release_pgcon(conn)
 
     async def _execute(
         self,
@@ -725,8 +719,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             pgcon.PGConnection conn
 
         dbv = self.get_dbview()
-        conn = await self.get_pgcon()
-        try:
+        async with self.with_pgcon() as conn:
             await execute.execute(
                 conn,
                 dbv,
@@ -735,8 +728,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 fe_conn=self,
                 use_prep_stmt=use_prep_stmt,
             )
-        finally:
-            self.maybe_release_pgcon(conn)
 
         query_unit = compiled.query_unit_group[0]
         if query_unit.config_requires_restart:
@@ -1251,6 +1242,18 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self.server.on_binary_client_disconnected(self)
         super().connection_lost(exc)
 
+    @contextlib.asynccontextmanager
+    async def _with_dump_restore_pgcon(self):
+        self._in_dump_restore = True
+        try:
+            async with self.with_pgcon() as conn:
+                yield conn
+        finally:
+            self._in_dump_restore = False
+            # If backpressure was being applied during the operation, release it.
+            # `resume_reading` is idempotent.
+            self._transport.resume_reading()
+
     async def dump(self):
         cdef:
             WriteBuffer msg_buf
@@ -1271,9 +1274,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         compiler_pool = server.get_compiler_pool()
 
         dbname = _dbview.dbname
-        pgcon = await self.get_pgcon()
-        self._in_dump_restore = True
-        try:
+        async with self._with_dump_restore_pgcon() as pgcon:
             # To avoid having races, we want to:
             #
             #   1. start a transaction;
@@ -1407,10 +1408,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
             await pgcon.sql_execute(b"ROLLBACK;")
 
-        finally:
-            self._in_dump_restore = False
-            self.maybe_release_pgcon(pgcon)
-
         msg_buf = WriteBuffer.new_message(b'C')
         msg_buf.write_int16(0)  # no headers
         msg_buf.write_int64(0)  # capabilities
@@ -1526,152 +1523,146 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.buffer.finish_message()
         dbname = _dbview.dbname
-        pgcon = await self.get_pgcon()
 
-        self._in_dump_restore = True
-        try:
+        async with self._with_dump_restore_pgcon() as pgcon:
             _dbview.decode_state(sertypes.NULL_TYPE_ID.bytes, b'')
             await self._execute_utility_stmt(
                 'START TRANSACTION ISOLATION SERIALIZABLE',
                 pgcon,
             )
 
-            await pgcon.sql_execute(
-                b'''
-                    -- Disable transaction or query execution timeout
-                    -- limits. Both clients and the server can be slow
-                    -- during the dump/restore process.
-                    SET LOCAL idle_in_transaction_session_timeout = 0;
-                    SET LOCAL statement_timeout = 0;
-                ''',
-            )
-
-            schema_sql_units, restore_blocks, tables, repopulate_units = \
-                await compiler_pool.describe_database_restore(
-                    user_schema_pickle,
-                    global_schema_pickle,
-                    dump_server_ver_str,
-                    cat_ver,
-                    schema_ddl,
-                    schema_ids,
-                    blocks,
-                    proto,
+            try:
+                await pgcon.sql_execute(
+                    b'''
+                        -- Disable transaction or query execution timeout
+                        -- limits. Both clients and the server can be slow
+                        -- during the dump/restore process.
+                        SET LOCAL idle_in_transaction_session_timeout = 0;
+                        SET LOCAL statement_timeout = 0;
+                    ''',
                 )
 
-            for query_unit in schema_sql_units:
-                new_types = None
-                _dbview.start(query_unit)
+                schema_sql_units, restore_blocks, tables, repopulate_units = \
+                    await compiler_pool.describe_database_restore(
+                        user_schema_pickle,
+                        global_schema_pickle,
+                        dump_server_ver_str,
+                        cat_ver,
+                        schema_ddl,
+                        schema_ids,
+                        blocks,
+                        proto,
+                    )
 
-                try:
-                    if query_unit.config_ops:
-                        for op in query_unit.config_ops:
-                            if op.scope is config.ConfigScope.INSTANCE:
-                                raise errors.ProtocolError(
-                                    'CONFIGURE INSTANCE cannot be executed'
-                                    ' in dump restore'
-                                )
+                for query_unit in schema_sql_units:
+                    new_types = None
+                    _dbview.start(query_unit)
 
-                    if query_unit.sql:
-                        if query_unit.ddl_stmt_id:
-                            ddl_ret = await pgcon.run_ddl(query_unit)
-                            if ddl_ret and ddl_ret['new_types']:
-                                new_types = ddl_ret['new_types']
-                        else:
-                            await pgcon.sql_execute(query_unit.sql)
-                except Exception:
-                    _dbview.on_error()
-                    raise
-                else:
-                    _dbview.on_success(query_unit, new_types)
+                    try:
+                        if query_unit.config_ops:
+                            for op in query_unit.config_ops:
+                                if op.scope is config.ConfigScope.INSTANCE:
+                                    raise errors.ProtocolError(
+                                        'CONFIGURE INSTANCE cannot be executed'
+                                        ' in dump restore'
+                                    )
 
-            restore_blocks = {
-                b.schema_object_id: b
-                for b in restore_blocks
-            }
+                        if query_unit.sql:
+                            if query_unit.ddl_stmt_id:
+                                ddl_ret = await pgcon.run_ddl(query_unit)
+                                if ddl_ret and ddl_ret['new_types']:
+                                    new_types = ddl_ret['new_types']
+                            else:
+                                await pgcon.sql_execute(query_unit.sql)
+                    except Exception:
+                        _dbview.on_error()
+                        raise
+                    else:
+                        _dbview.on_success(query_unit, new_types)
 
-            disable_trigger_q = ''
-            enable_trigger_q = ''
-            for table in tables:
-                disable_trigger_q += (
-                    f'ALTER TABLE {table} DISABLE TRIGGER ALL;'
-                )
-                enable_trigger_q += (
-                    f'ALTER TABLE {table} ENABLE TRIGGER ALL;'
-                )
+                restore_blocks = {
+                    b.schema_object_id: b
+                    for b in restore_blocks
+                }
 
-            await pgcon.sql_execute(disable_trigger_q.encode())
+                disable_trigger_q = ''
+                enable_trigger_q = ''
+                for table in tables:
+                    disable_trigger_q += (
+                        f'ALTER TABLE {table} DISABLE TRIGGER ALL;'
+                    )
+                    enable_trigger_q += (
+                        f'ALTER TABLE {table} ENABLE TRIGGER ALL;'
+                    )
 
-            # Send "RestoreReadyMessage"
-            msg = WriteBuffer.new_message(b'+')
-            msg.write_int16(0)  # no headers
-            msg.write_int16(1)  # -j1
-            self.write(msg.end_message())
-            self.flush()
+                await pgcon.sql_execute(disable_trigger_q.encode())
 
-            while True:
-                if not self.buffer.take_message():
-                    # Don't report idling when restoring a dump.
-                    # This is an edge case and the client might be
-                    # legitimately slow.
-                    await self.wait_for_message(report_idling=False)
-                mtype = self.buffer.get_message_type()
+                # Send "RestoreReadyMessage"
+                msg = WriteBuffer.new_message(b'+')
+                msg.write_int16(0)  # no headers
+                msg.write_int16(1)  # -j1
+                self.write(msg.end_message())
+                self.flush()
 
-                if mtype == b'=':
-                    block_type = None
-                    block_id = None
-                    block_num = None
-                    block_data = None
+                while True:
+                    if not self.buffer.take_message():
+                        # Don't report idling when restoring a dump.
+                        # This is an edge case and the client might be
+                        # legitimately slow.
+                        await self.wait_for_message(report_idling=False)
+                    mtype = self.buffer.get_message_type()
 
-                    num_headers = self.buffer.read_int16()
-                    for _ in range(num_headers):
-                        header = self.buffer.read_int16()
-                        if header == DUMP_HEADER_BLOCK_TYPE:
-                            block_type = self.buffer.read_len_prefixed_bytes()
-                        elif header == DUMP_HEADER_BLOCK_ID:
-                            block_id = self.buffer.read_len_prefixed_bytes()
-                            block_id = pg_UUID(block_id)
-                        elif header == DUMP_HEADER_BLOCK_NUM:
-                            block_num = self.buffer.read_len_prefixed_bytes()
-                        elif header == DUMP_HEADER_BLOCK_DATA:
-                            block_data = self.buffer.read_len_prefixed_bytes()
+                    if mtype == b'=':
+                        block_type = None
+                        block_id = None
+                        block_num = None
+                        block_data = None
 
-                    self.buffer.finish_message()
+                        num_headers = self.buffer.read_int16()
+                        for _ in range(num_headers):
+                            header = self.buffer.read_int16()
+                            if header == DUMP_HEADER_BLOCK_TYPE:
+                                block_type = self.buffer.read_len_prefixed_bytes()
+                            elif header == DUMP_HEADER_BLOCK_ID:
+                                block_id = self.buffer.read_len_prefixed_bytes()
+                                block_id = pg_UUID(block_id)
+                            elif header == DUMP_HEADER_BLOCK_NUM:
+                                block_num = self.buffer.read_len_prefixed_bytes()
+                            elif header == DUMP_HEADER_BLOCK_DATA:
+                                block_data = self.buffer.read_len_prefixed_bytes()
 
-                    if (block_type is None or block_id is None
-                            or block_num is None or block_data is None):
-                        raise errors.ProtocolError('incomplete data block')
+                        self.buffer.finish_message()
 
-                    restore_block = restore_blocks[block_id]
-                    type_id_map = self._build_type_id_map_for_restore_mending(
-                        restore_block)
-                    self._transport.pause_reading()
-                    await pgcon.restore(restore_block, block_data, type_id_map)
-                    self._transport.resume_reading()
+                        if (block_type is None or block_id is None
+                                or block_num is None or block_data is None):
+                            raise errors.ProtocolError('incomplete data block')
 
-                elif mtype == b'.':
-                    self.buffer.finish_message()
-                    break
+                        restore_block = restore_blocks[block_id]
+                        type_id_map = self._build_type_id_map_for_restore_mending(
+                            restore_block)
+                        self._transport.pause_reading()
+                        await pgcon.restore(restore_block, block_data, type_id_map)
+                        self._transport.resume_reading()
 
-                else:
-                    self.fallthrough()
+                    elif mtype == b'.':
+                        self.buffer.finish_message()
+                        break
 
-            for repopulate_unit in repopulate_units:
-                await pgcon.sql_execute(repopulate_unit.encode())
+                    else:
+                        self.fallthrough()
 
-            await pgcon.sql_execute(enable_trigger_q.encode())
+                for repopulate_unit in repopulate_units:
+                    await pgcon.sql_execute(repopulate_unit.encode())
 
-        except Exception:
-            await pgcon.sql_execute(b'ROLLBACK')
-            _dbview.abort_tx()
-            raise
+                await pgcon.sql_execute(enable_trigger_q.encode())
 
-        else:
-            await self._execute_utility_stmt('COMMIT', pgcon)
+            except Exception:
+                await pgcon.sql_execute(b'ROLLBACK')
+                _dbview.abort_tx()
+                raise
 
-        finally:
-            self._transport.resume_reading()
-            self._in_dump_restore = False
-            self.maybe_release_pgcon(pgcon)
+            else:
+                await self._execute_utility_stmt('COMMIT', pgcon)
 
         execute.signal_side_effects(_dbview, dbview.SideEffects.SchemaChanges)
         await self.tenant.introspect_db(dbname)

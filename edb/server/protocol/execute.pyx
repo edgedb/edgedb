@@ -702,18 +702,17 @@ async def parse_execute_json(
     )
 
     tenant = db.tenant
-    pgcon = await tenant.acquire_pgcon(db.name)
-    try:
-        return await execute_json(
-            pgcon,
-            dbv,
-            compiled,
-            variables=variables,
-            globals_=globals_,
-        )
-    finally:
-        tenant.release_pgcon(db.name, pgcon)
-        tenant.remove_dbview(dbv)
+    async with tenant.with_pgcon(db.name) as pgcon:
+        try:
+            return await execute_json(
+                pgcon,
+                dbv,
+                compiled,
+                variables=variables,
+                globals_=globals_,
+            )
+        finally:
+            tenant.remove_dbview(dbv)
 
 
 async def execute_json(
