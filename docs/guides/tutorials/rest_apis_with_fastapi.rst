@@ -1486,10 +1486,9 @@ Next, update the ``create_user_async_edgeql`` query to include the identity:
     :caption: app/queries/create_user.edgeql
 
       select (
-    +     with identity := (select ext::auth::Identity filter .id = <uuid>$identity_id),
           insert User {
             name := <str>$name,
-    +       identity := identity
+    +       identity := <ext::auth::Identity><uuid>$identity_id,
           }) {
           name,
           created_at,
