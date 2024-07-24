@@ -1202,13 +1202,31 @@ Configuring EdgeDB Auth
 
 The configuration of EdgeDB Auth involves setting various parameters to secure
 and tailor authentication to your needs. For now, we'll focus on the essential
-parameters you need to set to get started.
+parameters to get started. You can configure these settings through a Python 
+script, which is recommended for scalability, or you can use the EdgeDB UI for 
+a more user-friendly approach.
 
 **Auth Signing Key**
 
 This key is used to sign the JWTs for internal operations. Although it's not
-necessary for your application's functionality, it's essential for secure token
-handling.
+necessary for your application's functionality, it's essential for secure
+token handling. To generate a secure key, you can use OpenSSL or Python with
+the following commands:
+
+Using OpenSSL:
+
+.. code-block:: bash
+
+    $ openssl rand -base64 32
+
+Using Python:
+
+.. code-block:: python
+
+    import secrets
+    print(secrets.token_urlsafe(32))
+
+Once you have generated your key, configure it in EdgeDB like this:
 
 .. code-block:: edgeql
 
@@ -1355,15 +1373,15 @@ Next, we're going to create endpoints in FastAPI to handle user registration
 
         verifier, challenge = generate_pkce()
         register_url = f"{EDGEDB_AUTH_BASE_URL}/register"
-        response = httpx.post(register_url, json={
+        register_response = httpx.post(register_url, json={
             "challenge": challenge,
             "email": email,
             "password": password,
-            "provider": provider,
+            "provider": "builtin::local_emailpassword",
             "verify_url": "http://localhost:8000/auth/verify",
         })
 
-        if response.status_code != 200 and response.status_code != 201:
+        if register_response.status_code != 200 and register_response.status_code != 201:
             return JSONResponse(status_code=400, content={"message": "Registration failed"})
 
         response = JSONResponse(content={"message": "User registered"})
@@ -1442,7 +1460,7 @@ to store the EdgeDB Auth identity and a new ``current_user`` type.
     
     + global current_user := assert_single(
     +     ((
-    +         select User { id, name }
+    +         select User
     +         filter .identity = global ext::auth::ClientTokenIdentity
     +     ))
     + );
