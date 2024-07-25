@@ -2418,8 +2418,8 @@ jobs:
 
   publish-docker:
     needs:
-      - check-published-debian-buster-x86_64
-      - check-published-debian-buster-aarch64
+      - check-published-debian-bookworm-x86_64
+      - check-published-debian-bookworm-aarch64
     runs-on: ubuntu-latest
 
     steps:
@@ -2430,8 +2430,8 @@ jobs:
         path: dockerfile
 
     - env:
-        VERSION_SLOT: "${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }}"
-        VERSION_CORE: "${{ needs.check-published-debian-buster-x86_64.outputs.version-core }}"
+        VERSION_SLOT: "${{ needs.check-published-debian-bookworm-x86_64.outputs.version-slot }}"
+        VERSION_CORE: "${{ needs.check-published-debian-bookworm-x86_64.outputs.version-core }}"
         PKG_SUBDIST: "testing"
       id: tags
       run: |
@@ -2483,7 +2483,7 @@ jobs:
         password: ${{ secrets.DOCKER_PASSWORD }}
         tags: "${{ steps.tags.outputs.tags }}"
         workdir: dockerfile
-        buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }},subdist=testing
+        buildargs: version=${{ needs.check-published-debian-bookworm-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-bookworm-x86_64.outputs.version-core }},subdist=testing
         platforms: linux/amd64,linux/arm64
 
     - name: Publish Docker Image (ghcr.io)
@@ -2495,7 +2495,7 @@ jobs:
         password: ${{ secrets.GITHUB_CI_BOT_TOKEN }}
         tags: "${{ steps.tags.outputs.tags }}"
         workdir: dockerfile
-        buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }},subdist=testing
+        buildargs: version=${{ needs.check-published-debian-bookworm-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-bookworm-x86_64.outputs.version-core }},subdist=testing
         platforms: linux/amd64,linux/arm64
 
   workflow-notifications:
