@@ -94,9 +94,7 @@ create extension package postgis version '3.4.2' {
 
     create cast from std::str to ext::postgis::geometry {
         set volatility := 'Immutable';
-        using sql $$
-        SELECT val::geometry;
-        $$;
+        using sql cast;
         allow assignment;
     };
 
@@ -125,9 +123,7 @@ create extension package postgis version '3.4.2' {
 
     create cast from std::str to ext::postgis::geography {
         set volatility := 'Immutable';
-        using sql $$
-        SELECT val::geography;
-        $$;
+        using sql cast;
         allow assignment;
     };
 
@@ -156,9 +152,7 @@ create extension package postgis version '3.4.2' {
 
     create cast from std::str to ext::postgis::box2d {
         set volatility := 'Immutable';
-        using sql $$
-        SELECT val::box2d;
-        $$;
+        using sql cast;
         allow assignment;
     };
 
@@ -187,9 +181,7 @@ create extension package postgis version '3.4.2' {
 
     create cast from std::str to ext::postgis::box3d {
         set volatility := 'Immutable';
-        using sql $$
-        SELECT val::box3d;
-        $$;
+        using sql cast;
         allow assignment;
     };
 
@@ -291,212 +283,318 @@ create extension package postgis version '3.4.2' {
 
     # total operators: 35
     ##################################################
+
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_overlaps(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a && b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_same(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a ~= b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_distance_centroid(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::float64 {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a <-> b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_distance_box(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::float64 {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a <#> b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_within(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a @ b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_contains(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a ~ b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_left(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a << b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_overleft(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a &< b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_below(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a <<| b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_overbelow(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a &<| b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_overright(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a &> b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_right(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a >> b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_overabove(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a |&> b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_above(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a |>> b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_overlaps_nd(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a &&& b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_contains_nd(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a ~~ b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_within_nd(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a @@ b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_same_nd(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a ~~= b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_distance_centroid_nd(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::float64 {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a <<->> b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_distance_cpa(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::float64 {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a |=| b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_overlaps(a: ext::postgis::geography, b: ext::postgis::geography) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a && b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_distance_knn(a: ext::postgis::geography, b: ext::postgis::geography) ->  std::float64 {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a <-> b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_contains_2d(a: ext::postgis::box2d, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a ~ b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_is_contained_2d(a: ext::postgis::box2d, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a @ b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_overlaps_2d(a: ext::postgis::box2d, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a && b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_contains_2d(a: ext::postgis::geometry, b: ext::postgis::box2d) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a ~ b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_is_contained_2d(a: ext::postgis::geometry, b: ext::postgis::box2d) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a @ b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_overlaps_2d(a: ext::postgis::geometry, b: ext::postgis::box2d) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a && b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_overlaps_2d(a: ext::postgis::box2d, b: ext::postgis::box2d) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a && b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_is_contained_2d(a: ext::postgis::box2d, b: ext::postgis::box2d) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a @ b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_contains_2d(a: ext::postgis::box2d, b: ext::postgis::box2d) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a ~ b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_overlaps_3d(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a &/& b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_contains_3d(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a @>> b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_contained_3d(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a <<@ b$$;
     };
 
+    # Postgres only manages to inline this function if it isn't marked
+    # strict, and we want it to be inlined so that indexes work with it.
     create function ext::postgis::op_same_3d(a: ext::postgis::geometry, b: ext::postgis::geometry) ->  std::bool {
         set volatility := 'Immutable';
+        set impl_is_strict := false;
         set prefer_subquery_args := true;
         using sql $$SELECT a ~== b$$;
     };
@@ -504,6 +602,7 @@ create extension package postgis version '3.4.2' {
 
     # total functions: 464
     ##################################################
+
     create function ext::postgis::to_geometry(a0: ext::postgis::box2d) ->  ext::postgis::geometry {
         set volatility := 'Immutable';
         set force_return_cast := true;
@@ -3619,6 +3718,7 @@ create extension package postgis version '3.4.2' {
 
     # total aggregates: 11
     ##################################################
+
     create function ext::postgis::extent_agg(a0: set of ext::postgis::geometry) -> optional ext::postgis::box2d {
         set volatility := 'Immutable';
         set force_return_cast := true;

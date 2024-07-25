@@ -1163,7 +1163,10 @@ class ConnectedTestCase(ClusterTestCase):
 
     async def assert_index_use(self, query, *args, index_type):
         def look(obj):
-            if isinstance(obj, dict) and obj.get('plan_type') == "IndexScan":
+            if (
+                isinstance(obj, dict)
+                and "IndexScan" in obj.get('plan_type', '')
+            ):
                 return any(
                     prop['title'] == 'index_name'
                     and index_type in prop['value']
