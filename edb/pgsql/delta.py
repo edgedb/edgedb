@@ -214,6 +214,17 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
     def _get_tenant_id(self, context: sd.CommandContext) -> str:
         return self._get_instance_params(context).tenant_id
 
+    def _get_topmost_command_op(
+        self,
+        context: sd.CommandContext,
+        ctxcls: Type[sd.CommandContextToken[sd.Command]],
+    ) -> CompositeMetaCommand:
+        ctx = context.get_topmost_ancestor(ctxcls)
+        if ctx is None:
+            raise AssertionError(f"there is no {ctxcls} in context stack")
+        assert isinstance(ctx.op, CompositeMetaCommand)
+        return ctx.op
+
     def schedule_inhview_update(
         self,
         schema: s_schema.Schema,
@@ -221,13 +232,10 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         source: s_sources.Source,
         ctxcls: Type[sd.CommandContextToken[sd.Command]],
     ) -> None:
-        ctx = context.get_topmost_ancestor(ctxcls)
-        if ctx is None:
-            raise AssertionError(f"there is no {ctxcls} in context stack")
-        assert isinstance(ctx.op, CompositeMetaCommand)
-        ctx.op.inhview_updates.add((source, True))
+        op = self._get_topmost_command_op(context, ctxcls)
+        op.inhview_updates.add((source, True))
         for anc in source.get_ancestors(schema).objects(schema):
-            ctx.op.inhview_updates.add((anc, False))
+            op.inhview_updates.add((anc, False))
 
     def schedule_inhview_source_update(
         self,
@@ -236,10 +244,7 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         ptr: s_pointers.Pointer,
         ctxcls: Type[sd.CommandContextToken[sd.Command]],
     ) -> None:
-        ctx = context.get_topmost_ancestor(ctxcls)
-        if ctx is None:
-            raise AssertionError(f"there is no {ctxcls} in context stack")
-        assert isinstance(ctx.op, CompositeMetaCommand)
+        op = self._get_topmost_command_op(context, ctxcls)
 
         src = ptr.get_source(schema)
         if src and irtyputils.is_cfg_view(src, schema):
@@ -248,10 +253,10 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
                 CompositeMetaCommand._refresh_fake_cfg_view_cmd(
                     src, schema, context))
 
-        ctx.op.inhview_updates.add((src, True))
+        op.inhview_updates.add((src, True))
         for anc in ptr.get_ancestors(schema).objects(schema):
             if src := anc.get_source(schema):
-                ctx.op.inhview_updates.add((src, False))
+                op.inhview_updates.add((src, False))
 
     def schedule_post_inhview_update_command(
         self,
@@ -260,11 +265,8 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         cmd: PostCommand,
         ctxcls: Type[sd.CommandContextToken[sd.Command]],
     ) -> None:
-        ctx = context.get_topmost_ancestor(ctxcls)
-        if ctx is None:
-            raise AssertionError(f"there is no {ctxcls} in context stack")
-        assert isinstance(ctx.op, CompositeMetaCommand)
-        ctx.op.post_inhview_update_commands.append(cmd)
+        op = self._get_topmost_command_op(context, ctxcls)
+        op.post_inhview_update_commands.append(cmd)
 
     @staticmethod
     def get_function_type(
@@ -2163,7 +2165,7 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
     ) -> s_schema.Schema:
         orig_schema = schema
         schema = super().apply(schema, context)
-        constraint = self.scls
+        constraint: s_constr.Constraint = self.scls
 
         op = self.create_constraint(constraint, schema, self.span)
         self.pgops.add(op)
@@ -2185,12 +2187,8 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
                 constraint, schema, self.span
             )
 
-            # XXX: PostCommand or maybe even pg_ops have incorrect type
-            # annotations, but I cannot figure them out.
-            op2: sd.Command = op  # type: ignore
-
             self.schedule_post_inhview_update_command(
-                schema, context, op2, s_sources.SourceCommandContext
+                schema, context, op, s_sources.SourceCommandContext
             )
 
         return schema
@@ -2211,10 +2209,14 @@ class AlterConstraint(
     ConstraintCommand,
     adapts=s_constr.AlterConstraint,
 ):
-    def apply(self, schema, context):
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
         orig_schema = schema
         schema = super().apply(schema, context)
-        constraint = self.scls
+        constraint: s_constr.Constraint = self.scls
         if self.metadata_only:
             return schema
         if (
@@ -2297,12 +2299,14 @@ class AlterConstraint(
                 self.schedule_post_inhview_update_command(
                     schema,
                     context,
-                    (lambda nschema, ncontext:
-                     self.enforce_constraint(
-                         constraint, nschema, self.span
-                     )
-                     if nschema.has_object(constraint.id)
-                     else None),
+                    (
+                        lambda nschema, ncontext:
+                            self.enforce_constraint(
+                                constraint, nschema, self.span
+                            )
+                            if nschema.has_object(constraint.id)
+                            else None
+                    ),
                     s_sources.SourceCommandContext)
 
             self.pgops.add(self.fixup_base_constraint_triggers(
@@ -2320,7 +2324,9 @@ class DeleteConstraint(ConstraintCommand, adapts=s_constr.DeleteConstraint):
     ) -> s_schema.Schema:
         delta_root_ctx = context.top()
         orig_schema = delta_root_ctx.original_schema
-        constraint = schema.get(self.classname, type=s_constr.Constraint)
+        constraint: s_constr.Constraint = (
+            schema.get(self.classname, type=s_constr.Constraint)
+        )
 
         schema = super().apply(schema, context)
         op = self.delete_constraint(
@@ -3033,13 +3039,18 @@ if TYPE_CHECKING:
     CompositeObject = s_sources.Source | s_pointers.Pointer
 
     PostCommand = (
-        sd.Command | Callable[[s_schema.Schema, sd.CommandContext], sd.Command]
+        dbops.Command
+        | Callable[
+            [s_schema.Schema, sd.CommandContext],
+            Optional[dbops.Command]
+        ]
     )
 
 
 class CompositeMetaCommand(MetaCommand):
 
     post_inhview_update_commands: List[PostCommand]
+    constraint_trigger_updates: dict[uuid.UUID, bool]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -3912,12 +3923,11 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
             drop_ops = deltafts.delete_fts_index(
                 index, drop_index, options, schema, orig_schema, context
             )
-            drop_s_ops = cast(sd.Command, drop_ops)
 
             if isinstance(drop_index, dbops.NoOpCommand):
                 # Even though the object type table is getting dropped, we have
                 # to drop the trigger and its function
-                self.pgops.add(drop_s_ops)
+                self.pgops.add(drop_ops)
             else:
                 # The object is not getting dropped, so we need to update the
                 # inh view *before* the __fts_document__ is dropped.
@@ -3931,7 +3941,7 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
 
                 # schedule the index to be dropped after
                 self.schedule_post_inhview_update_command(
-                    schema, context, drop_s_ops, s_sources.SourceCommandContext
+                    schema, context, drop_ops, s_sources.SourceCommandContext
                 )
         # ext::ai::index
         elif s_indexes.is_ext_ai_index(orig_schema, index):
@@ -3964,7 +3974,7 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
                 self.schedule_post_inhview_update_command(
                     schema,
                     context,
-                    cast(sd.Command, drop_col_ops),
+                    drop_col_ops,
                     s_sources.SourceCommandContext,
                 )
         else:
