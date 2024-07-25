@@ -268,6 +268,28 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         op = self._get_topmost_command_op(context, ctxcls)
         op.post_inhview_update_commands.append(cmd)
 
+    def schedule_constraint_trigger_update(
+        self,
+        constraint: s_constr.Constraint,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        ctxcls: Type[sd.CommandContextToken[sd.Command]],
+    ) -> None:
+
+        if (
+            not isinstance(
+                constraint.get_subject(schema),
+                (s_objtypes.ObjectType, s_pointers.Pointer)
+            )
+            or not schemamech.table_constraint_requires_triggers(
+                constraint, schema, 'unique'
+            )
+        ):
+            return
+
+        op = self._get_topmost_command_op(context, ctxcls)
+        op.constraint_trigger_updates.add(constraint.id)
+
     @staticmethod
     def get_function_type(
         name: tuple[str, str]
@@ -2022,77 +2044,59 @@ class ConstraintCommand(MetaCommand):
                 return not subject.get_abstract(schema)
         raise NotImplementedError(subject)
 
-    @classmethod
-    def fixup_base_constraint_triggers(
-        cls,
+    def schedule_relatives_constraint_trigger_update(
+        self,
         constraint: s_constr.Constraint,
         orig_schema: s_schema.Schema,
-        schema: s_schema.Schema,
+        curr_schema: s_schema.Schema,
         context: sd.CommandContext,
-        span: Optional[parsing.Span] = None,
     ):
-        # Find all constraints which were or are related to the current
-        # constraint.
-        relative_ids: set[uuid.UUID] = set()
+        # Find all origins whose relationship with the constraint has changed.
+        orig_origins: dict[uuid.UUID, s_constr.Constraint] = {}
         if orig_schema.has_object(constraint.id):
-            # Get all former relatives.
             for origin in constraint.get_constraint_origins(orig_schema):
-                origin_descendants = (
-                    [origin] + list(origin.descendants(orig_schema))
-                )
-                for relative in origin_descendants:
-                    if not schema.has_object(relative.id):
-                        # The constraint was deleted, updating the triggers is
-                        # not needed.
-                        continue
-                    if relative.id == constraint.id:
-                        continue
-                    relative_ids.add(relative.id)
-        if schema.has_object(constraint.id):
-            # Get all current relatives.
-            for origin in constraint.get_constraint_origins(schema):
-                origin_descendants = (
-                    [origin] + list(origin.descendants(orig_schema))
-                )
-                for relative in origin_descendants:
-                    if relative.id == constraint.id:
-                        continue
-                    relative_ids.add(relative.id)
+                orig_origins[origin.id] = origin
+        curr_origins: dict[uuid.UUID, s_constr.Constraint] = {}
+        if curr_schema.has_object(constraint.id):
+            for origin in constraint.get_constraint_origins(curr_schema):
+                curr_origins[origin.id] = origin
+
+        # Find all constraints whose inheritance relationship with the
+        # constraint has changed.
+        relative_ids: set[uuid.UUID] = set()
+        for origin_id in (orig_origins.keys() - curr_origins.keys()):
+            origin = orig_origins[origin_id]
+            for relative in (
+                [origin] + list(origin.descendants(orig_schema))
+            ):
+                if not curr_schema.has_object(relative.id):
+                    # The constraint was deleted, updating the triggers is
+                    # not needed.
+                    continue
+                relative_ids.add(relative.id)
+
+        for origin_id in (curr_origins.keys() - orig_origins.keys()):
+            origin = curr_origins[origin_id]
+            for relative in (
+                [origin] + list(origin.descendants(curr_schema))
+            ):
+                relative_ids.add(relative.id)
 
         relatives: list[s_constr.Constraint] = [
-            schema.get_by_id(relative_id, type=s_constr.Constraint)
+            curr_schema.get_by_id(relative_id, type=s_constr.Constraint)
             for relative_id in relative_ids
         ]
 
         op = dbops.CommandGroup()
 
-        # Update constraint triggers for all relatives.
+        # Schedule constraint trigger updates for relatives.
         for relative in relatives:
-            if (
-                cls.constraint_is_effective(schema, relative)
-                and not context.is_creating(relative)
-                and not context.is_altering(relative)
-                and not context.is_deleting(relative)
-            ):
-                subject = relative.get_subject(schema)
-                bconstr = schemamech.compile_constraint(
-                    subject, relative, schema, span
-                )
-
-                # If the original constraint exists and is effective, it has
-                # triggers which should be recompiled.
-                orig_bconstr = None
-                if orig_schema.has_object(relative.id):
-                    orig_relative: s_constr.Constraint = orig_schema.get_by_id(
-                        relative.id, type=s_constr.Constraint
-                    )
-                    if cls.constraint_is_effective(orig_schema, orig_relative):
-                        orig_subject = orig_relative.get_subject(orig_schema)
-                        orig_bconstr = schemamech.compile_constraint(
-                            orig_subject, orig_relative, orig_schema, span
-                        )
-
-                op.add_command(bconstr.update_trigger_ops(orig_bconstr))
+            self.schedule_constraint_trigger_update(
+                relative,
+                curr_schema,
+                context,
+                s_sources.SourceCommandContext,
+            )
 
         return op
 
@@ -2169,8 +2173,12 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
 
         op = self.create_constraint(constraint, schema, self.span)
         self.pgops.add(op)
-        self.pgops.add(self.fixup_base_constraint_triggers(
-            constraint, orig_schema, schema, context, self.span,
+
+        self.schedule_constraint_trigger_update(
+            constraint, schema, context, s_sources.SourceCommandContext,
+        )
+        self.pgops.add(self.schedule_relatives_constraint_trigger_update(
+            constraint, orig_schema, schema, context,
         ))
 
         # If the constraint is being added to existing data,
@@ -2309,8 +2317,11 @@ class AlterConstraint(
                     ),
                     s_sources.SourceCommandContext)
 
-            self.pgops.add(self.fixup_base_constraint_triggers(
-                constraint, orig_schema, schema, context, self.span,
+            self.schedule_constraint_trigger_update(
+                constraint, schema, context, s_sources.SourceCommandContext,
+            )
+            self.pgops.add(self.schedule_relatives_constraint_trigger_update(
+                constraint, orig_schema, schema, context,
             ))
 
         return schema
@@ -2334,8 +2345,8 @@ class DeleteConstraint(ConstraintCommand, adapts=s_constr.DeleteConstraint):
         )
         self.pgops.add(op)
 
-        self.pgops.add(self.fixup_base_constraint_triggers(
-            constraint, orig_schema, schema, context, self.span,
+        self.pgops.add(self.schedule_relatives_constraint_trigger_update(
+            constraint, orig_schema, schema, context,
         ))
 
         return schema
@@ -3050,7 +3061,7 @@ if TYPE_CHECKING:
 class CompositeMetaCommand(MetaCommand):
 
     post_inhview_update_commands: List[PostCommand]
-    constraint_trigger_updates: dict[uuid.UUID, bool]
+    constraint_trigger_updates: set[uuid.UUID]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -3059,6 +3070,7 @@ class CompositeMetaCommand(MetaCommand):
         self.update_search_indexes = None
         self.inhview_updates = set()
         self.post_inhview_update_commands = []
+        self.constraint_trigger_updates = set()
 
     def schedule_trampoline(self, obj, schema, context):
         delta = context.get(sd.DeltaRootContext).op
@@ -3649,6 +3661,31 @@ class CompositeMetaCommand(MetaCommand):
             else:
                 self.pgops.add(post_cmd)
 
+    def apply_constraint_trigger_updates(
+        self,
+        schema: s_schema.Schema,
+    ) -> None:
+        for constraint_id in self.constraint_trigger_updates:
+            constraint = (
+                schema.get_by_id(constraint_id, type=s_constr.Constraint)
+                if schema.has_object(constraint_id) else
+                None
+            )
+            if not constraint:
+                continue
+
+            if not ConstraintCommand.constraint_is_effective(
+                schema, constraint
+            ):
+                continue
+
+            subject = constraint.get_subject(schema)
+            bconstr = schemamech.compile_constraint(
+                subject, constraint, schema, None
+            )
+
+            self.pgops.add(bconstr.update_trigger_ops())
+
 
 class IndexCommand(MetaCommand):
     pass
@@ -4115,6 +4152,7 @@ class CreateObjectType(
     def _create_finalize(self, schema, context):
         schema = super()._create_finalize(schema, context)
         self.apply_scheduled_inhview_updates(schema, context)
+        self.apply_constraint_trigger_updates(schema)
         return schema
 
 
@@ -4164,6 +4202,7 @@ class AlterObjectType(ObjectTypeMetaCommand, adapts=s_objtypes.AlterObjectType):
         objtype = self.scls
 
         self.apply_scheduled_inhview_updates(schema, context)
+        self.apply_constraint_trigger_updates(schema)
 
         self._maybe_do_abstract_test(orig_schema, schema, context)
 
@@ -4229,6 +4268,7 @@ class DeleteObjectType(
         schema = super().apply(schema, context)
 
         self.apply_scheduled_inhview_updates(schema, context)
+        self.apply_constraint_trigger_updates(schema)
 
         if types.has_table(objtype, orig_schema):
             self.attach_alter_table(context)
@@ -4526,6 +4566,9 @@ class PointerMetaCommand(
             self.pgops.add(ConstraintCommand.create_constraint(
                 constr, schema
             ))
+            self.schedule_constraint_trigger_update(
+                constr, schema, context, s_sources.SourceCommandContext,
+            )
 
     def _alter_pointer_optionality(
         self,
@@ -5560,6 +5603,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
     def _create_finalize(self, schema, context):
         schema = super()._create_finalize(schema, context)
         self.apply_scheduled_inhview_updates(schema, context)
+        self.apply_constraint_trigger_updates(schema)
         self.schedule_trampoline(self.scls, schema, context)
         return schema
 
@@ -5725,6 +5769,7 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
     def _alter_finalize(self, schema, context):
         schema = super()._alter_finalize(schema, context)
         self.apply_scheduled_inhview_updates(schema, context)
+        self.apply_constraint_trigger_updates(schema)
         return schema
 
 
@@ -5750,6 +5795,7 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
         schema = super().apply(schema, context)
 
         self.apply_scheduled_inhview_updates(schema, context)
+        self.apply_constraint_trigger_updates(schema)
 
         return schema
 

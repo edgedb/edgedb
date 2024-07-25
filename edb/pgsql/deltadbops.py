@@ -609,24 +609,12 @@ class AlterTableDropConstraint(AlterTableConstraintBase):
 
 
 class AlterTableUpdateConstraintTrigger(AlterTableConstraintBase):
-    def __init__(
-        self,
-        name: Tuple[str, ...],
-        *,
-        constraint: SchemaConstraintTableConstraint,
-        orig_constraint: Optional[SchemaConstraintTableConstraint],
-        **kwargs,
-    ):
-        super().__init__(name, constraint=constraint, **kwargs)
-        self._orig_constraint = orig_constraint
-
     def __repr__(self):
         return '<{}.{} {!r}>'.format(
             self.__class__.__module__, self.__class__.__name__,
             self._constraint)
 
     def generate(self, block):
-        if self._orig_constraint is not None:
-            self.drop_constraint_trigger_and_fuction(self._orig_constraint)
+        self.drop_constraint_trigger_and_fuction(self._constraint)
         self.create_constraint_trigger_and_fuction(self._constraint)
         super().generate(block)
