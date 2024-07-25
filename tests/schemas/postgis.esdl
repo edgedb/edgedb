@@ -17,13 +17,33 @@
 #
 
 
-type GeoTest {
+type GeoTest0 {
     required name: str;
     geometry: ext::postgis::geometry;
     geography: ext::postgis::geography;
 
     index pg::gist on (.geometry);
     index pg::gist on (.geography);
+}
+
+
+type GeoTest1 {
+    required name: str;
+    geometry: ext::postgis::geometry;
+    geography: ext::postgis::geography;
+
+    index pg::brin on (.geometry);
+    index pg::brin on (.geography);
+}
+
+
+type GeoTest2 {
+    required name: str;
+    geometry: ext::postgis::geometry;
+    geography: ext::postgis::geography;
+
+    index pg::spgist on (.geometry);
+    index pg::spgist on (.geography);
 }
 
 

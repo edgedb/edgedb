@@ -94,9 +94,7 @@ create extension package postgis version '3.4.2' {
 
     create cast from std::str to ext::postgis::geometry {
         set volatility := 'Immutable';
-        using sql $$
-        SELECT val::geometry;
-        $$;
+        using sql cast;
         allow assignment;
     };
 
@@ -125,9 +123,7 @@ create extension package postgis version '3.4.2' {
 
     create cast from std::str to ext::postgis::geography {
         set volatility := 'Immutable';
-        using sql $$
-        SELECT val::geography;
-        $$;
+        using sql cast;
         allow assignment;
     };
 
@@ -156,9 +152,7 @@ create extension package postgis version '3.4.2' {
 
     create cast from std::str to ext::postgis::box2d {
         set volatility := 'Immutable';
-        using sql $$
-        SELECT val::box2d;
-        $$;
+        using sql cast;
         allow assignment;
     };
 
@@ -187,9 +181,7 @@ create extension package postgis version '3.4.2' {
 
     create cast from std::str to ext::postgis::box3d {
         set volatility := 'Immutable';
-        using sql $$
-        SELECT val::box3d;
-        $$;
+        using sql cast;
         allow assignment;
     };
 

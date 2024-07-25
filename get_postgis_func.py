@@ -434,6 +434,10 @@ for op in operators:
                         value=qlast.Constant.string(volatility),
                     ),
                     qlast.SetField(
+                        name='impl_is_strict',
+                        value=qlast.Constant.boolean(False),
+                    ),
+                    qlast.SetField(
                         name='prefer_subquery_args',
                         value=qlast.Constant.boolean(True),
                     ),
@@ -634,11 +638,18 @@ with open('postgis.3.2.4.template.edgeql', mode='rt') as tf:
                         +
                         '#'*50
                         +
-                        '\n'
+                        '\n\n'
                     )
                     outf.write(textwrap.indent(text, '    '))
 
                     for ef in eqlop:
+                        outf.write(textwrap.indent(
+                            "# Postgres only manages to inline this function "
+                            "if it isn't marked\n"
+                            "# strict, and we want it to be inlined so that "
+                            "indexes work with it.\n",
+                            '    ',
+                        ))
                         code = qlcodegen.generate_source(
                             ef, pretty=True
                         ).replace('\n;', ';\n')
@@ -650,7 +661,7 @@ with open('postgis.3.2.4.template.edgeql', mode='rt') as tf:
                         +
                         '#'*50
                         +
-                        '\n'
+                        '\n\n'
                     )
                     outf.write(textwrap.indent(text, '    '))
 
@@ -665,7 +676,7 @@ with open('postgis.3.2.4.template.edgeql', mode='rt') as tf:
                         +
                         '#'*50
                         +
-                        '\n'
+                        '\n\n'
                     )
                     outf.write(textwrap.indent(text, '    '))
 

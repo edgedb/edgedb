@@ -18,14 +18,14 @@
 
 
 with gis as module ext::postgis
-insert GeoTest {
+insert GeoTest0 {
     name := '1st',
     geometry := <gis::geometry>'POINT(0 1)',
     geography := <gis::geography>'POINT(2 3)',
 };
 
 with gis as module ext::postgis
-insert GeoTest {
+insert GeoTest0 {
     name := '2nd',
     geometry := <gis::geometry><gis::box2d>'box(0 0, 2 3)',
     geography := <gis::geography>'POINT(4 5)',
@@ -33,7 +33,53 @@ insert GeoTest {
 
 with gis as module ext::postgis
 for x in range_unpack(range(0, 100_000)) union (
-    insert GeoTest {
+    insert GeoTest0 {
+        name := 'gen' ++ to_str(x),
+        geometry := <gis::geometry>(
+            'POLYGON((' ++
+            to_str(x) ++ ' 0,' ++
+            to_str(x + 1) ++ ' 0,' ++
+            to_str(x + 1) ++ ' 2,' ++
+            to_str(x) ++ ' 2,' ++
+            to_str(x) ++ ' 0))'
+        ),
+        geography := <gis::geography>(
+            'POLYGON((' ++
+            to_str(x/1000 - 10) ++ ' 0,' ++
+            to_str(x/1000 - 9) ++ ' 0,' ++
+            to_str(x/1000 - 9) ++ ' 2,' ++
+            to_str(x/1000 - 10) ++ ' 2,' ++
+            to_str(x/1000 - 10) ++ ' 0))'
+        ),
+    }
+);
+
+with gis as module ext::postgis
+for x in range_unpack(range(0, 100_000)) union (
+    insert GeoTest1 {
+        name := 'gen' ++ to_str(x),
+        geometry := <gis::geometry>(
+            'POLYGON((' ++
+            to_str(x) ++ ' 0,' ++
+            to_str(x + 1) ++ ' 0,' ++
+            to_str(x + 1) ++ ' 2,' ++
+            to_str(x) ++ ' 2,' ++
+            to_str(x) ++ ' 0))'
+        ),
+        geography := <gis::geography>(
+            'POLYGON((' ++
+            to_str(x/1000 - 10) ++ ' 0,' ++
+            to_str(x/1000 - 9) ++ ' 0,' ++
+            to_str(x/1000 - 9) ++ ' 2,' ++
+            to_str(x/1000 - 10) ++ ' 2,' ++
+            to_str(x/1000 - 10) ++ ' 0))'
+        ),
+    }
+);
+
+with gis as module ext::postgis
+for x in range_unpack(range(0, 100_000)) union (
+    insert GeoTest2 {
         name := 'gen' ++ to_str(x),
         geometry := <gis::geometry>(
             'POLYGON((' ++

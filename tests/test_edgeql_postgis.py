@@ -17,7 +17,6 @@
 #
 
 
-import json
 import functools
 import os
 import re
@@ -26,7 +25,6 @@ import typing
 import edgedb
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class value(typing.NamedTuple):
@@ -573,7 +571,7 @@ class TestEdgeQLPostgis(tb.QueryTestCase):
         await self.assert_query_result(
             '''
                 with gis as module ext::postgis
-                select GeoTest{
+                select GeoTest0{
                     name,
                     geometry,
                     geography,
@@ -812,16 +810,6 @@ class TestEdgeQLPostgis(tb.QueryTestCase):
         )
 
     async def test_edgeql_postgis_bulk_03(self):
-        # this may require a specific GEOS version to run
-        await self.con.query_json(
-            f'''
-                with module ext::postgis
-                select triangulatepolygon(
-                    <geometry>'polygon((0 1, 2 3, 4 5, 0 1))')
-            ''',
-        )
-
-    async def test_edgeql_postgis_bulk_04(self):
         # Test in bulk all postgis functions that take the same type of
         # arguments: (geography)
 
@@ -843,7 +831,7 @@ class TestEdgeQLPostgis(tb.QueryTestCase):
                 ''',
             )
 
-    async def test_edgeql_postgis_bulk_05(self):
+    async def test_edgeql_postgis_bulk_04(self):
         # Test in bulk all postgis functions that take the same type of
         # arguments: (box2d)
         for fname in [
@@ -857,7 +845,7 @@ class TestEdgeQLPostgis(tb.QueryTestCase):
                 ''',
             )
 
-    async def test_edgeql_postgis_bulk_06(self):
+    async def test_edgeql_postgis_bulk_05(self):
         # Test in bulk all postgis functions that take the same type of
         # arguments: (box3d)
 
@@ -879,7 +867,7 @@ class TestEdgeQLPostgis(tb.QueryTestCase):
                 ''',
             )
 
-    async def test_edgeql_postgis_bulk_07(self):
+    async def test_edgeql_postgis_bulk_06(self):
         # Test in bulk all postgis functions that take the same type of
         # arguments: (geometry, geometry)
 
@@ -1023,3 +1011,129 @@ class TestEdgeQLPostgis(tb.QueryTestCase):
                 f'testing. The following functions were affected: '
                 f'{", ".join(sorted(names))}.'
             ) from errors[0][1]
+
+    async def _assert_index_use(self, query, *args, index_type):
+        async with self._run_and_rollback():
+            await self.con.execute('select _set_seqscan("off");')
+            await self.assert_index_use(query, *args, index_type=index_type)
+
+    async def test_edgeql_postgis_index_01(self):
+        await self._assert_index_use(
+            '''
+            with gis as module ext::postgis
+            select GeoTest0{name}
+            filter
+                gis::op_overlaps(
+                    .geometry,
+                    <gis::geometry>'point(55555.5 1)',
+                )
+            ''',
+            index_type="pg::gist",
+        )
+
+    async def _get_grouped_ops(self):
+        res = await self.con.query(
+            '''
+                with
+                    F := schema::Function,
+                    S := (
+                        select F {
+                            sig := array_agg((
+                                select (F.params, F.params.type.name)
+                                order by F.params@index
+                            ).1) ++ [.return_type.name]
+                        } filter .name like 'ext::postgis::op_%'
+                    ),
+                select (group S{name} by .sig) order by .key.sig;
+            ''',
+        )
+
+        # Create a dict where all the functions with the same signature are
+        # grouped together. The function names are sorted to create a
+        # determinitic ordering.
+        return {
+            tuple(el.key.sig): sorted([f.name for f in el.elements])
+            for el in res
+        }
+
+    async def _test_edgeql_postgis_bulk_ops(self, typename, index_type):
+        '''Test postgis operators in filters w.r.t. gist index.'''
+        g = await self._get_grouped_ops()
+        errors = []
+
+        for params, names in g.items():
+            # Get the values for args, but we will swap one of them with the
+            # property.
+            p0, p1, ret = params
+            args = self._get_args([p0, p1])
+            if p0 in {'ext::postgis::box2d', 'ext::postgis::box3d'}:
+                if p1 in {'ext::postgis::box2d', 'ext::postgis::box3d'}:
+                    # Skip index test for box types since they aren't indexed
+                    continue
+
+                a0 = args[0]
+                a1 = f'.{p1.split("::")[-1]}'
+            else:
+                a0 = f'.{p0.split("::")[-1]}'
+                a1 = args[1]
+
+            for fname in names:
+                async with self._run_and_rollback():
+                    if ret == 'std::float64':
+                        q = f'''
+                                with module ext::postgis
+                                select default::{typename}{{name}}
+                                filter
+                                    {fname}(
+                                        {a0},
+                                        {a1},
+                                    ) < 1
+                            '''
+                    else:
+                        q = f'''
+                                with module ext::postgis
+                                select default::{typename}{{name}}
+                                filter
+                                    {fname}(
+                                        {a0},
+                                        {a1},
+                                    )
+                            '''
+                    try:
+                        await self._assert_index_use(
+                            q, index_type=index_type)
+                    except edgedb.errors.InternalServerError as e:
+                        # Some ISE are acceptable here, namely if they come
+                        # from inside the functions because of arguments not
+                        # passing some check.
+                        msg = e.args[0]
+                        if re.search(
+                            r'''(?ix)
+                                must\shave\sa\smeasure
+                            ''',
+                            msg
+                        ):
+                            pass
+                            # Skip testing a value that requires a measure.
+                    except Exception as e:
+                        errors.append((fname, e))
+
+        if errors:
+            names = {err[0] for err in errors}
+            raise Exception(
+                f'{len(errors)} unaccounted for errors occurred in bulk '
+                f'testing. The following functions were affected: '
+                f'{", ".join(sorted(names))}.'
+            ) from errors[0][1]
+
+    async def test_edgeql_postgis_bulk_ops_01(self):
+        '''Test postgis operators in filters w.r.t. gist index.'''
+        await self._test_edgeql_postgis_bulk_ops('GeoTest0', 'pg::gist')
+
+    async def test_edgeql_postgis_bulk_ops_02(self):
+        '''Test postgis operators in filters w.r.t. brin index.'''
+        await self._test_edgeql_postgis_bulk_ops('GeoTest1', 'pg::brin')
+
+    async def test_edgeql_postgis_bulk_ops_03(self):
+        '''Test postgis operators in filters w.r.t. spgist index.'''
+        await self._test_edgeql_postgis_bulk_ops('GeoTest2', 'pg::spgist')
