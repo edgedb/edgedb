@@ -315,7 +315,8 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
     @staticmethod
     def try_until_succeeds(
         *,
-        ignore: Union[Type[Exception], Tuple[Type[Exception]]],
+        ignore: Union[Type[Exception], Tuple[Type[Exception]]] | None = None,
+        ignore_regexp: str | None = None,
         delay: float=0.5,
         timeout: float=5
     ):
@@ -329,10 +330,13 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
                     await edgedb.connect(...)
 
         """
+        if ignore is None and ignore_regexp is None:
+            raise ValueError('Expect at least one of ignore or ignore_regexp')
         return retryloop.RetryLoop(
             backoff=retryloop.const_backoff(delay),
             timeout=timeout,
             ignore=ignore,
+            ignore_regexp=ignore_regexp,
         )
 
     @staticmethod

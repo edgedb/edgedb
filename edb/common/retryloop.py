@@ -27,6 +27,7 @@ from typing import (
 
 import asyncio
 import random
+import re
 import time
 import types
 
@@ -54,6 +55,7 @@ class RetryLoop:
         backoff: Callable[[int], float] = const_backoff(0.5),
         timeout: float,
         ignore: Type[Exception] | Tuple[Type[Exception], ...] | None = None,
+        ignore_regexp: str | None = None,
         wait_for: Type[Exception] | Tuple[Type[Exception], ...] | None = None,
         retry_cb: Callable[[Optional[BaseException]], None] | None = None,
     ) -> None:
@@ -61,6 +63,10 @@ class RetryLoop:
         self._backoff = backoff
         self._timeout = timeout
         self._ignore = ignore
+        if ignore_regexp is None:
+            self._ignore_regexp = None
+        else:
+            self._ignore_regexp = re.compile(ignore_regexp)
         self._wait_for = wait_for
         self._started_at = 0.0
         self._stop_request = False
@@ -102,16 +108,23 @@ class RetryIteration:
     ) -> bool:
         elapsed = time.monotonic() - self._loop._started_at
 
-        if self._loop._ignore is not None:
+        if (
+            self._loop._ignore is not None or
+            self._loop._ignore_regexp is not None
+        ):
             # Mode 1: Try until we don't get errors matching `ignore`
 
             if et is None:
                 self._loop._stop_request = True
                 return False
 
-            if not isinstance(e, self._loop._ignore):
-                # Propagate, it's not the error we expected.
-                return False
+            # Propagate if it's not the error we expected.
+            if self._loop._ignore is not None:
+                if not isinstance(e, self._loop._ignore):
+                    return False
+            if self._loop._ignore_regexp is not None:
+                if not self._loop._ignore_regexp.search(str(e)):
+                    return False
 
             if elapsed > self._loop._timeout:
                 # Propagate -- we've run it enough times.
