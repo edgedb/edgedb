@@ -211,6 +211,14 @@ def _edgeql_ref_to_pg_constr(
     )
 
 
+@dataclasses.dataclass(frozen=True)
+class CompiledConstraintParts:
+    subject: s_types.Type | s_pointers.Pointer
+    exclusive_expr_refs: Optional[Sequence[irast.Base]]
+    subject_db_name: Optional[Tuple[str, str]] = None
+    except_data: Optional[ExprDataSources] = None
+
+
 def compile_constraint(
     subject: s_constraints.ConsistencySubject,
     constraint: s_constraints.Constraint,
@@ -304,8 +312,6 @@ def compile_constraint(
         )
         table_type = 'ObjectType'
 
-    exclusive_expr_refs = _get_exclusive_refs(ir)
-
     pg_constr_data = PGConstrData(
         subject_db_name=subject_db_name,
         expressions=[],
@@ -318,84 +324,84 @@ def compile_constraint(
         origin for origin in constraint_origins if origin != constraint
     ]
 
-    per_origin_parts = []
-    for constraint_origin in different_origins:
-        sub = constraint_origin.get_subject(schema)
-        assert isinstance(sub, (s_types.Type, s_pointers.Pointer))
-        origin_subject: s_types.Type | s_pointers.Pointer = sub
+    per_origin_parts: list[CompiledConstraintParts] = []
+    if different_origins:
+        for constraint_origin in different_origins:
+            sub = constraint_origin.get_subject(schema)
+            assert isinstance(sub, (s_types.Type, s_pointers.Pointer))
+            origin_subject: s_types.Type | s_pointers.Pointer = sub
 
-        origin_path_prefix_anchor = '__subject__'
-        singletons = frozenset({(origin_subject, is_optional)})
+            origin_path_prefix_anchor = '__subject__'
+            singletons = frozenset({(origin_subject, is_optional)})
 
-        origin_options = qlcompiler.CompilerOptions(
-            anchors={'__subject__': origin_subject},
-            path_prefix_anchor=origin_path_prefix_anchor,
-            apply_query_rewrites=False,
-            singletons=singletons,
-            schema_object_context=type(constraint),
-        )
-
-        final_expr = constraint_origin.get_finalexpr(schema)
-        assert final_expr is not None and final_expr.parse() is not None
-        origin_ir = qlcompiler.compile_ast_to_ir(
-            final_expr.parse(),
-            schema,
-            options=origin_options,
-        )
-
-        assert origin_ir.expr.expr
-        origin_terminal_refs = ir_utils.get_longest_paths(
-            origin_ir.expr.expr
-        )
-        origin_ref_tables = get_ref_storage_info(
-            origin_ir.schema, origin_terminal_refs
-        )
-
-        if origin_ref_tables:
-            origin_subject_db_name, _ = next(iter(origin_ref_tables.items()))
-        else:
-            origin_subject_db_name = common.get_backend_name(
-                schema,
-                origin_subject,
-                catenate=False,
+            origin_options = qlcompiler.CompilerOptions(
+                anchors={'__subject__': origin_subject},
+                path_prefix_anchor=origin_path_prefix_anchor,
+                apply_query_rewrites=False,
+                singletons=singletons,
+                schema_object_context=type(constraint),
             )
 
-        origin_except_data = None
-        if except_expr := constraint_origin.get_except_expr(schema):
-            assert isinstance(except_expr, s_expr.Expression)
-            except_ir = qlcompiler.compile_ast_to_ir(
-                except_expr.parse(),
+            final_expr = constraint_origin.get_finalexpr(schema)
+            assert final_expr is not None and final_expr.parse() is not None
+            origin_ir = qlcompiler.compile_ast_to_ir(
+                final_expr.parse(),
                 schema,
                 options=origin_options,
             )
-            except_sql = compiler.compile_ir_to_sql_tree(
-                except_ir, singleton_mode=True)
-            origin_except_data = _edgeql_tree_to_expr_data(except_sql.ast)
 
-        origin_exclusive_expr_refs = _get_exclusive_refs(origin_ir)
-        per_origin_parts.append(
-            (
-                origin_subject,
-                origin_exclusive_expr_refs,
-                origin_subject_db_name,
-                origin_except_data,
+            assert origin_ir.expr.expr
+            origin_terminal_refs = ir_utils.get_longest_paths(
+                origin_ir.expr.expr
             )
-        )
+            origin_ref_tables = get_ref_storage_info(
+                origin_ir.schema, origin_terminal_refs
+            )
 
-    if not per_origin_parts:
-        origin_subject = subject
-        origin_subject_db_name = subject_db_name
-        origin_except_data = except_data
+            if origin_ref_tables:
+                origin_subject_db_name, _ = (
+                    next(iter(origin_ref_tables.items()))
+                )
+            else:
+                origin_subject_db_name = common.get_backend_name(
+                    schema,
+                    origin_subject,
+                    catenate=False,
+                )
+
+            origin_except_data = None
+            if except_expr := constraint_origin.get_except_expr(schema):
+                assert isinstance(except_expr, s_expr.Expression)
+                except_ir = qlcompiler.compile_ast_to_ir(
+                    except_expr.parse(),
+                    schema,
+                    options=origin_options,
+                )
+                except_sql = compiler.compile_ir_to_sql_tree(
+                    except_ir, singleton_mode=True)
+                origin_except_data = _edgeql_tree_to_expr_data(except_sql.ast)
+
+            origin_exclusive_expr_refs = _get_exclusive_refs(origin_ir)
+            per_origin_parts.append(
+                CompiledConstraintParts(
+                    origin_subject,
+                    origin_exclusive_expr_refs,
+                    origin_subject_db_name,
+                    origin_except_data,
+                )
+            )
+
+    else:
         per_origin_parts.append(
-            (
-                origin_subject,
+            CompiledConstraintParts(
+                subject,
                 None,
-                origin_subject_db_name,
-                origin_except_data,
+                subject_db_name,
+                except_data,
             )
         )
 
-    if exclusive_expr_refs:
+    if exclusive_expr_refs := _get_exclusive_refs(ir):
         exprdatas: List[ExprData] = []
         for ref in exclusive_expr_refs:
             exprdata = _edgeql_ref_to_pg_constr(subject, None, ref)
@@ -405,38 +411,38 @@ def compile_constraint(
 
         pg_constr_data.expressions.extend(exprdatas)
 
-    else:
-        assert len(constraint_origins) == 1
-        exprdata = _edgeql_ref_to_pg_constr(subject, origin_subject, ir)
-        exprdata.origin_subject_db_name = origin_subject_db_name
-        exprdata.origin_except_data = origin_except_data
+        if different_origins:
+            origin_expressions: list[ExprData] = []
+            for per_origin_part in per_origin_parts:
+                assert per_origin_part.exclusive_expr_refs is not None
+                for ref in per_origin_part.exclusive_expr_refs:
+                    exprdata = _edgeql_ref_to_pg_constr(
+                        subject, per_origin_part.subject, ref
+                    )
+                    exprdata.origin_subject_db_name = (
+                        per_origin_part.subject_db_name
+                    )
+                    exprdata.origin_except_data = per_origin_part.except_data
+                    origin_expressions.append(exprdata)
 
-        pg_constr_data.expressions.append(exprdata)
+            pg_constr_data.origin_expressions.extend(origin_expressions)
 
-    for (
-        origin_subject,
-        origin_exclusive_expr_refs,
-        origin_subject_db_name,
-        origin_except_data,
-    ) in per_origin_parts:
-        if not exclusive_expr_refs:
-            continue
-
-        if origin_exclusive_expr_refs:
-            for ref in origin_exclusive_expr_refs:
-                exprdata = _edgeql_ref_to_pg_constr(
-                    subject, origin_subject, ref
-                )
-                exprdata.origin_subject_db_name = origin_subject_db_name
-                exprdata.origin_except_data = origin_except_data
-                pg_constr_data.origin_expressions.append(exprdata)
         else:
             pg_constr_data.origin_expressions.extend(exprdatas)
 
-    if exclusive_expr_refs:
         pg_constr_data.scope = 'relation'
         pg_constr_data.type = 'unique'
+
     else:
+        assert len(per_origin_parts) == 1
+        exprdata = _edgeql_ref_to_pg_constr(
+            subject, per_origin_parts[0].subject, ir
+        )
+        exprdata.origin_subject_db_name = per_origin_parts[0].subject_db_name
+        exprdata.origin_except_data = per_origin_parts[0].except_data
+
+        pg_constr_data.expressions.append(exprdata)
+
         pg_constr_data.scope = 'row'
         pg_constr_data.type = 'check'
 
