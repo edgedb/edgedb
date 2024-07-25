@@ -57,6 +57,7 @@ class RetryLoop:
         ignore: Type[Exception] | Tuple[Type[Exception], ...] | None = None,
         ignore_regexp: str | None = None,
         wait_for: Type[Exception] | Tuple[Type[Exception], ...] | None = None,
+        wait_for_regexp: str | None = None,
         retry_cb: Callable[[Optional[BaseException]], None] | None = None,
     ) -> None:
         self._iteration = 0
@@ -68,6 +69,10 @@ class RetryLoop:
         else:
             self._ignore_regexp = re.compile(ignore_regexp)
         self._wait_for = wait_for
+        if wait_for_regexp is None:
+            self._wait_for_regexp = None
+        else:
+            self._wait_for_regexp = re.compile(wait_for_regexp)
         self._started_at = 0.0
         self._stop_request = False
         self._retry_cb = retry_cb
@@ -139,10 +144,19 @@ class RetryIteration:
         else:
             # Mode 2: Try until we fail with an error matching `wait_for`
 
-            assert self._loop._wait_for is not None
+            assert (
+                self._loop._wait_for is not None or
+                self._loop._wait_for_regexp is not None
+            )
 
             if et is not None:
-                if isinstance(e, self._loop._wait_for):
+                if (
+                    self._loop._wait_for is None or
+                    isinstance(e, self._loop._wait_for)
+                ) and (
+                    self._loop._wait_for_regexp is None
+                    or self._loop._wait_for_regexp.search(str(e))
+                ):
                     # We're done, we've got what we waited for.
                     self._loop._stop_request = True
                     return True
