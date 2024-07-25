@@ -200,8 +200,6 @@ impl<C: Connector, D: Default> Block<C, D> {
         self: Rc<Self>,
         connector: &C,
     ) -> impl Future<Output = ConnResult<ConnHandle<C>, C::Error>> {
-        use futures::future::Either;
-        use std::future::ready;
         if let Some(res) = self.conns.try_acquire_idle_mru(&self.state.metrics) {
             return Either::Left(ready(res.map(|c| self.conn(c))));
         }
