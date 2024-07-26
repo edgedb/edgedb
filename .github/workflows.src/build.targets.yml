@@ -11,14 +11,12 @@ targets:
           platform_version: buster
           family: debian
           runs_on: [package-builder, self-hosted, linux, x64]
-          docker_arch: linux/amd64
         - name: debian-buster-aarch64
           arch: aarch64
           platform: debian
           platform_version: buster
           family: debian
           runs_on: [package-builder, self-hosted, linux, arm64]
-          docker_arch: linux/arm64
         - name: debian-bullseye-x86_64
           arch: x86_64
           platform: debian
@@ -37,12 +35,14 @@ targets:
           platform_version: bookworm
           family: debian
           runs_on: [package-builder, self-hosted, linux, x64]
+          docker_arch: linux/amd64
         - name: debian-bookworm-aarch64
           arch: aarch64
           platform: debian
           platform_version: bookworm
           family: debian
           runs_on: [package-builder, self-hosted, linux, arm64]
+          docker_arch: linux/arm64
         - name: ubuntu-bionic-x86_64
           arch: x86_64
           platform: ubuntu

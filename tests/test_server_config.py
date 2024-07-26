@@ -1439,7 +1439,10 @@ class TestServerConfig(tb.QueryTestCase):
             await self.con.execute('''
                 configure current database set allow_user_specified_id := true;
             ''')
-            async for tr in self.try_until_succeeds(ignore=edgedb.QueryError):
+            async for tr in self.try_until_succeeds(
+                ignore=edgedb.QueryError,
+                ignore_regexp="cannot assign to property 'id'",
+            ):
                 async with tr:
                     await self.con.execute('''
                         insert RecompileOnDBConfig {
@@ -1450,22 +1453,20 @@ class TestServerConfig(tb.QueryTestCase):
             await self.con.execute('''
                 configure current database set allow_user_specified_id := false;
             ''')
-            async for tr in self.try_until_succeeds(ignore=AssertionError):
+            async for tr in self.try_until_fails(
+                wait_for=edgedb.QueryError,
+                wait_for_regexp="cannot assign to property 'id'",
+            ):
                 async with tr:
-                    try:
-                        with self.assertRaisesRegex(
-                            edgedb.QueryError, "cannot assign to property 'id'"
-                        ):
-                            await self.con.execute('''
-                                insert RecompileOnDBConfig {
-                                    id := <uuid>
-                                    '8c425e34-d1c3-11ee-8c78-8f34556d2222'
-                                };
-                            ''')
-                    finally:
-                        await self.con.execute('''
-                            delete RecompileOnDBConfig;
-                        ''')
+                    await self.con.execute('''
+                        insert RecompileOnDBConfig {
+                            id := <uuid>
+                            '8c425e34-d1c3-11ee-8c78-8f34556d2222'
+                        };
+                    ''')
+                    await self.con.execute('''
+                        delete RecompileOnDBConfig;
+                    ''')
         finally:
             await self.con.execute('''
                 configure current database reset allow_user_specified_id;

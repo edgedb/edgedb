@@ -3057,9 +3057,14 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
             self.assertEqual(result, 'b')
         finally:
-            await self.con.execute('''
-                DROP SCALAR TYPE tid_prop_07;
-            ''')
+            async for tr in self.try_until_succeeds(
+                ignore_regexp="cannot drop type .* "
+                              "because other objects depend on it",
+            ):
+                async with tr:
+                    await self.con.execute('''
+                        DROP SCALAR TYPE tid_prop_07;
+                    ''')
 
     async def test_server_proto_backend_tid_propagation_08(self):
         try:

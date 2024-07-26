@@ -315,7 +315,8 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
     @staticmethod
     def try_until_succeeds(
         *,
-        ignore: Union[Type[Exception], Tuple[Type[Exception]]],
+        ignore: Union[Type[Exception], Tuple[Type[Exception]]] | None = None,
+        ignore_regexp: str | None = None,
         delay: float=0.5,
         timeout: float=5
     ):
@@ -329,16 +330,20 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
                     await edgedb.connect(...)
 
         """
+        if ignore is None and ignore_regexp is None:
+            raise ValueError('Expect at least one of ignore or ignore_regexp')
         return retryloop.RetryLoop(
             backoff=retryloop.const_backoff(delay),
             timeout=timeout,
             ignore=ignore,
+            ignore_regexp=ignore_regexp,
         )
 
     @staticmethod
     def try_until_fails(
         *,
-        wait_for: Union[Type[Exception], Tuple[Type[Exception]]],
+        wait_for: Union[Type[Exception], Tuple[Type[Exception]]] | None = None,
+        wait_for_regexp: str | None = None,
         delay: float=0.5,
         timeout: float=5
     ):
@@ -352,10 +357,15 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
                     await edgedb.connect(...)
 
         """
+        if wait_for is None and wait_for_regexp is None:
+            raise ValueError(
+                'Expect at least one of wait_for or wait_for_regexp'
+            )
         return retryloop.RetryLoop(
             backoff=retryloop.const_backoff(delay),
             timeout=timeout,
             wait_for=wait_for,
+            wait_for_regexp=wait_for_regexp,
         )
 
     def addCleanup(self, func, *args, **kwargs):
