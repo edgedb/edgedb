@@ -368,15 +368,14 @@ def compile_constraint(
 
         pg_constr_data.expressions.extend(exprdatas)
 
-        different_origins = [
-            origin for origin in constraint_origins if origin != constraint
-        ]
+        origin_expressions: list[ExprData] = []
+        for origin in constraint_origins:
+            if origin == constraint:
+                origin_expressions.extend(exprdatas)
 
-        if different_origins:
-            origin_expressions: list[ExprData] = []
-            for constraint_origin in different_origins:
+            else:
                 origin_data = _compile_constraint_data(
-                    constraint_origin,
+                    origin,
                     schema,
                     is_optional,
                 )
@@ -392,10 +391,7 @@ def compile_constraint(
                     exprdata.origin_except_data = origin_data.except_data
                     origin_expressions.append(exprdata)
 
-            pg_constr_data.origin_expressions.extend(origin_expressions)
-
-        else:
-            pg_constr_data.origin_expressions.extend(exprdatas)
+        pg_constr_data.origin_expressions.extend(origin_expressions)
 
         pg_constr_data.scope = 'relation'
         pg_constr_data.type = 'unique'
