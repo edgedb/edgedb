@@ -140,6 +140,13 @@ impl<C: Connector, D: Default> Block<C, D> {
     #[track_caller]
     pub fn check_consistency(&self) {
         if cfg!(debug_assertions) {
+            // These should never be non-zero during the consistency check
+            assert_eq!(
+                self.state.metrics.count(MetricVariant::Closed),
+                0,
+                "Should not have any closed connections"
+            );
+
             assert_eq!(
                 self.len(),
                 self.conns.len(),
@@ -164,7 +171,10 @@ impl<C: Connector, D: Default> Block<C, D> {
 
     /// Creates a connection from this block.
     #[cfg(test)]
-    fn create(self: Rc<Self>, connector: &C) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
+    fn create(
+        self: Rc<Self>,
+        connector: &C,
+    ) -> impl Future<Output = ConnResult<ConnHandle<C>, C::Error>> {
         let conn = {
             consistency_check!(self);
             let conn = Conn::new(connector.connect(&self.db_name), &self.state.metrics);
@@ -173,8 +183,14 @@ impl<C: Connector, D: Default> Block<C, D> {
         };
         async move {
             consistency_check!(self);
-            poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics, MetricVariant::Active)).await?;
-            Ok(self.conn(conn))
+            let res =
+                poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics, MetricVariant::Active)).await;
+            if res.is_ok() {
+                Ok(self.conn(conn))
+            } else {
+                let res = self.conns.remove(conn, &self.state.metrics);
+                Err(res.err().unwrap())
+            }
         }
     }
 
@@ -183,22 +199,19 @@ impl<C: Connector, D: Default> Block<C, D> {
     fn create_if_needed(
         self: Rc<Self>,
         connector: &C,
-    ) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
-        if let Some(conn) = self.conns.try_acquire_idle_mru(&self.state.metrics) {
-            return Either::Left(ready(Ok(self.conn(conn))));
+    ) -> impl Future<Output = ConnResult<ConnHandle<C>, C::Error>> {
+        if let Some(res) = self.conns.try_acquire_idle_mru(&self.state.metrics) {
+            return Either::Left(ready(res.map(|c| self.conn(c))));
         }
         Either::Right(self.create(connector))
     }
 
     /// Awaits a connection from this block.
-    fn queue(self: Rc<Self>) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
-        // If someone else is waiting, we have to queue, even if there's a connection
-        if self.state.waiters.len() == 0 {
-            if let Some(conn) = self.conns.try_acquire_idle_mru(&self.state.metrics) {
-                trace!("Got a connection");
-                return Either::Left(ready(Ok(self.conn(conn))));
-            }
-        }
+    fn queue(self: Rc<Self>) -> impl Future<Output = ConnResult<ConnHandle<C>, C::Error>> {
+        // Note that we cannot skip the waiting queue because this makes it
+        // difficult to test and manage metrics -- if we skipped the queue then
+        // there would never be an apparent waiter.
+
         // Update the metrics now before we actually queue
         self.state.waiters.lock();
         self.state.metrics.insert(MetricVariant::Waiting);
@@ -210,34 +223,31 @@ impl<C: Connector, D: Default> Block<C, D> {
                 .metrics
                 .remove_time(MetricVariant::Waiting, now.elapsed());
         });
-        Either::Right(async move {
-            consistency_check!(self);
+        async move {
             loop {
-                if let Some(conn) = self.conns.try_acquire_idle_mru(&self.state.metrics) {
-                    trace!("Got a connection");
+                consistency_check!(self);
+                if let Some(res) = self.conns.try_acquire_idle_mru(&self.state.metrics) {
                     drop(guard);
-                    return Ok(self.conn(conn));
+                    return res.map(|c| self.conn(c));
                 }
                 trace!("Queueing for a connection");
                 self.state.waiters.queue().await;
             }
-        })
+        }
     }
 
     /// Creates a connection from this block.
-    fn task_create(self: Rc<Self>, connector: &C) -> impl Future<Output = ConnResult<()>> {
+    fn task_create(
+        self: Rc<Self>,
+        connector: &C,
+    ) -> impl Future<Output = ConnResult<(), C::Error>> {
         let conn = {
             consistency_check!(self);
             let conn = Conn::new(connector.connect(&self.db_name), &self.state.metrics);
             self.conns.insert(conn.clone());
             conn
         };
-        async move {
-            consistency_check!(self);
-            poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics, MetricVariant::Idle)).await?;
-            self.state.waiters.trigger();
-            Ok(())
-        }
+        self.poll_to_idle(conn)
     }
 
     /// Close one of idle connections in this block
@@ -245,23 +255,26 @@ impl<C: Connector, D: Default> Block<C, D> {
     /// ## Panics
     ///
     /// If there are no idle connections, this function will panic.
-    fn task_close_one(self: Rc<Self>, connector: &C) -> impl Future<Output = ConnResult<()>> {
+    fn task_close_one(
+        self: Rc<Self>,
+        connector: &C,
+    ) -> impl Future<Output = ConnResult<(), C::Error>> {
         let conn = {
             consistency_check!(self);
             let conn = self
                 .conns
-                .try_get_idle_lru()
+                .try_get_idle(&self.state.metrics, false)
                 .expect("Could not acquire a connection");
+            let conn = match conn {
+                Ok(conn) => conn,
+                Err(err) => {
+                    return Either::Left(ready(Err(err)));
+                }
+            };
             conn.close(connector, &self.state.metrics);
             conn
         };
-        async move {
-            consistency_check!(self);
-            poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics, MetricVariant::Closed)).await?;
-            self.conns.remove(&conn);
-            conn.untrack(&self.state.metrics);
-            Ok(())
-        }
+        Either::Right(self.poll_to_close(conn))
     }
 
     /// Steals a connection from one block to another.
@@ -273,31 +286,20 @@ impl<C: Connector, D: Default> Block<C, D> {
         from: Rc<Self>,
         to: Rc<Self>,
         connector: &C,
-    ) -> impl Future<Output = ConnResult<()>> {
+    ) -> impl Future<Output = ConnResult<(), C::Error>> {
         let conn = {
             consistency_check!(from);
             consistency_check!(to);
 
             let conn = from
                 .conns
-                .try_take_idle_lru()
+                .try_take_idle_lru(&from.state.metrics)
                 .expect("Could not acquire a connection");
+            let conn = Conn::new(connector.reconnect(conn, &to.db_name), &to.state.metrics);
             to.conns.insert(conn.clone());
-            conn.transfer(
-                connector,
-                &from.state.metrics,
-                &to.state.metrics,
-                &to.db_name,
-            );
             conn
         };
-        async move {
-            consistency_check!(from);
-            consistency_check!(to);
-            poll_fn(|cx| conn.poll_ready(cx, &to.state.metrics, MetricVariant::Idle)).await?;
-            to.state.waiters.trigger();
-            Ok(())
-        }
+        to.poll_to_idle(conn)
     }
 
     /// Moves a connection to a different block than it was acquired from
@@ -307,29 +309,22 @@ impl<C: Connector, D: Default> Block<C, D> {
         to: Rc<Self>,
         conn: ConnHandle<C>,
         connector: &C,
-    ) -> impl Future<Output = ConnResult<()>> {
+    ) -> impl Future<Output = ConnResult<(), C::Error>> {
         let conn = {
             consistency_check!(from);
             consistency_check!(to);
 
             let conn = conn.into_inner();
-            from.conns.remove(&conn);
+            let conn = from
+                .conns
+                .remove(conn, &from.state.metrics)
+                .unwrap()
+                .unwrap();
+            let conn = Conn::new(connector.reconnect(conn, &to.db_name), &to.state.metrics);
             to.conns.insert(conn.clone());
-            conn.transfer(
-                connector,
-                &from.state.metrics,
-                &to.state.metrics,
-                &to.db_name,
-            );
             conn
         };
-        async move {
-            consistency_check!(from);
-            consistency_check!(to);
-            poll_fn(|cx| conn.poll_ready(cx, &to.state.metrics, MetricVariant::Idle)).await?;
-            to.state.waiters.trigger();
-            Ok(())
-        }
+        to.poll_to_idle(conn)
     }
 
     /// Marks a connection as requiring re-open.
@@ -337,19 +332,14 @@ impl<C: Connector, D: Default> Block<C, D> {
         self: Rc<Self>,
         conn: ConnHandle<C>,
         connector: &C,
-    ) -> impl Future<Output = ConnResult<()>> {
+    ) -> impl Future<Output = ConnResult<(), C::Error>> {
         let conn = {
             consistency_check!(self);
             let conn = conn.into_inner();
             conn.reopen(connector, &self.state.metrics, &self.db_name);
             conn
         };
-        async move {
-            consistency_check!(self);
-            poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics, MetricVariant::Idle)).await?;
-            self.state.waiters.trigger();
-            Ok(())
-        }
+        self.poll_to_idle(conn)
     }
 
     /// Marks a connection as requiring a discard.
@@ -357,20 +347,35 @@ impl<C: Connector, D: Default> Block<C, D> {
         self: Rc<Self>,
         conn: ConnHandle<C>,
         connector: &C,
-    ) -> impl Future<Output = ConnResult<()>> {
+    ) -> impl Future<Output = ConnResult<(), C::Error>> {
         let conn = {
             consistency_check!(self);
             let conn = conn.into_inner();
             conn.discard(connector, &self.state.metrics);
             conn
         };
-        async move {
-            consistency_check!(self);
-            poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics, MetricVariant::Closed)).await?;
-            self.conns.remove(&conn);
-            conn.untrack(&self.state.metrics);
-            Ok(())
-        }
+        self.poll_to_close(conn)
+    }
+
+    async fn poll_to_close(self: Rc<Self>, conn: Conn<C>) -> ConnResult<(), C::Error> {
+        consistency_check!(self);
+        // If the close task fails, we route the error to the task's result
+        // as there will never be a waiter who will pick it up
+        let res =
+            poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics, MetricVariant::Closed)).await;
+        let res2 = self.conns.remove(conn, &self.state.metrics);
+        debug_assert_eq!(res.is_ok(), res2.is_ok());
+        let conn = res2?;
+        debug_assert!(conn.is_none());
+        Ok(())
+    }
+
+    /// Once a connection has completed the `Connecting` phase, we will route
+    /// the results to a waiter, assuming there is one.
+    async fn poll_to_idle(self: Rc<Self>, conn: Conn<C>) -> ConnResult<(), C::Error> {
+        let res = poll_fn(|cx| conn.poll_ready(cx, &self.state.metrics, MetricVariant::Idle)).await;
+        self.state.waiters.trigger();
+        res.map_err(|_| ConnError::TaskFailed)
     }
 }
 
@@ -532,7 +537,8 @@ impl<C: Connector, D: Default> Blocks<C, D> {
             assert_eq!(
                 total,
                 self.metrics.total(),
-                "Blocks failed consistency check. Total connection count was wrong."
+                "Blocks failed consistency check. Total connection count was wrong. {:?}",
+                self.metrics
             );
         }
     }
@@ -595,7 +601,7 @@ impl<C: Connector, D: Default> Blocks<C, D> {
         &self,
         connector: &C,
         db: &str,
-    ) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
+    ) -> impl Future<Output = ConnResult<ConnHandle<C>, C::Error>> {
         consistency_check!(self);
         let block = self.block(db);
         block.create(connector)
@@ -608,28 +614,36 @@ impl<C: Connector, D: Default> Blocks<C, D> {
         &self,
         connector: &C,
         db: &str,
-    ) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
+    ) -> impl Future<Output = ConnResult<ConnHandle<C>, C::Error>> {
         consistency_check!(self);
         let block = self.block(db);
         block.create_if_needed(connector)
     }
 
     /// Queue for a connection.
-    pub fn queue(&self, db: &str) -> impl Future<Output = ConnResult<ConnHandle<C>>> {
+    pub fn queue(&self, db: &str) -> impl Future<Output = ConnResult<ConnHandle<C>, C::Error>> {
         consistency_check!(self);
         let block = self.block(db);
         block.queue()
     }
 
     /// Creates one connection in a block.
-    pub fn task_create_one(&self, connector: &C, db: &str) -> impl Future<Output = ConnResult<()>> {
+    pub fn task_create_one(
+        &self,
+        connector: &C,
+        db: &str,
+    ) -> impl Future<Output = ConnResult<(), C::Error>> {
         consistency_check!(self);
         let block = self.block(db);
         block.task_create(connector)
     }
 
     /// Closes one connection in a block.
-    pub fn task_close_one(&self, connector: &C, db: &str) -> impl Future<Output = ConnResult<()>> {
+    pub fn task_close_one(
+        &self,
+        connector: &C,
+        db: &str,
+    ) -> impl Future<Output = ConnResult<(), C::Error>> {
         consistency_check!(self);
         let block = self.block(db);
         block.task_close_one(connector)
@@ -641,7 +655,7 @@ impl<C: Connector, D: Default> Blocks<C, D> {
         connector: &C,
         db: &str,
         from: &str,
-    ) -> impl Future<Output = ConnResult<()>> {
+    ) -> impl Future<Output = ConnResult<(), C::Error>> {
         let from_block = self.block(from);
         let to_block = self.block(db);
         Block::task_reconnect(from_block, to_block, connector)
@@ -654,7 +668,7 @@ impl<C: Connector, D: Default> Blocks<C, D> {
         connector: &C,
         conn: ConnHandle<C>,
         db: &str,
-    ) -> impl Future<Output = ConnResult<()>> {
+    ) -> impl Future<Output = ConnResult<(), C::Error>> {
         let from_block = self.block(&conn.state.db_name);
         let to_block = self.block(db);
         Block::task_reconnect_conn(from_block, to_block, conn, connector)
@@ -665,7 +679,7 @@ impl<C: Connector, D: Default> Blocks<C, D> {
         &self,
         connector: &C,
         conn: ConnHandle<C>,
-    ) -> impl Future<Output = ConnResult<()>> {
+    ) -> impl Future<Output = ConnResult<(), C::Error>> {
         let block = self.block(&conn.state.db_name);
         block.task_discard(conn, connector)
     }
@@ -675,7 +689,7 @@ impl<C: Connector, D: Default> Blocks<C, D> {
         &self,
         connector: &C,
         conn: ConnHandle<C>,
-    ) -> impl Future<Output = ConnResult<()>> {
+    ) -> impl Future<Output = ConnResult<(), C::Error>> {
         let block = self.block(&conn.state.db_name);
         block.task_reopen(conn, connector)
     }
@@ -708,11 +722,25 @@ mod tests {
         ($block:ident $db:literal is empty) => {
             assert_eq!($block.metrics($db).summary().value, VariantArray::default(), stringify!(Expected block is empty));
         };
-        ($block:ident $db:literal has $count:literal $type:ident) => {
+        ($block:ident $db:literal has $($count:literal $type:ident),+) => {
             assert_eq!(
                 $block.metrics($db).summary().value,
-                VariantArray::with(MetricVariant::$type, $count),
-                stringify!(Expected block has $count $type)
+                [$(VariantArray::with(MetricVariant::$type, $count)),+].into_iter().sum(),
+                stringify!(Expected block $db has $($count $type),+)
+            );
+        };
+        ($block:ident $db:literal has max $($count:literal $type:ident),+) => {
+            assert_eq!(
+                $block.metrics($db).summary().max,
+                [$(VariantArray::with(MetricVariant::$type, $count)),+].into_iter().sum(),
+                stringify!(Expected block $db has max $($count $type),+)
+            );
+        };
+        ($block:ident $db:literal has all time $($count:literal $type:ident),+) => {
+            assert_eq!(
+                $block.metrics($db).summary().all_time,
+                [$(VariantArray::with(MetricVariant::$type, $count)),+].into_iter().sum(),
+                stringify!(Expected block $db has all time $($count $type),+)
             );
         };
     }
@@ -785,6 +813,69 @@ mod tests {
     }
 
     #[test(tokio::test)]
+    async fn test_block_fails_connect() -> Result<()> {
+        let connector = BasicConnector::no_delay();
+        let block = Rc::new(Block::<BasicConnector>::new(Name::from("db"), None));
+        connector.fail_next_connect();
+        block
+            .clone()
+            .create(&connector)
+            .await
+            .expect_err("Expected this to fail");
+        Ok(())
+    }
+
+    #[test(tokio::test)]
+    async fn test_block_fails_queue() -> Result<()> {
+        let connector = BasicConnector::no_delay();
+        let block = Rc::new(Block::<BasicConnector>::new(Name::from("db"), None));
+        connector.fail_next_connect();
+        let queue = block.clone().queue();
+        let local = LocalSet::new();
+        local.spawn_local(block.clone().task_create(&connector));
+        local.await;
+        queue
+            .await
+            .expect_err("Expected this queueing operation to fail");
+        Ok(())
+    }
+
+    #[test(tokio::test)]
+    async fn test_block_fails_queue_multiple() -> Result<()> {
+        let connector = BasicConnector::no_delay();
+        let block = Rc::new(Block::<BasicConnector>::new(Name::from("db"), None));
+        connector.fail_next_connect();
+        let queue = block.clone().queue();
+        let local = LocalSet::new();
+        // The first will fail, but the second one will provide a valid
+        // connection to the waiter.
+        local.spawn_local(block.clone().task_create(&connector));
+        local.spawn_local(block.clone().task_create(&connector));
+        local.await;
+        queue.await?;
+        Ok(())
+    }
+
+    /// This test shows that we
+    #[test(tokio::test)]
+    async fn test_block_fails_queue_multiple_2() -> Result<()> {
+        let connector = BasicConnector::no_delay();
+        let block = Rc::new(Block::<BasicConnector>::new(Name::from("db"), None));
+        let queue1 = block.clone().queue();
+        let queue2 = block.clone().queue();
+        let local = LocalSet::new();
+
+        connector.fail_next_connect();
+        local.spawn_local(block.clone().task_create(&connector));
+        connector.fail_next_connect();
+        local.spawn_local(block.clone().task_create(&connector));
+        local.await;
+        queue1.await.expect_err("Expected this to fail");
+        queue2.await.expect_err("Expected this to fail");
+        Ok(())
+    }
+
+    #[test(tokio::test)]
     async fn test_steal() -> Result<()> {
         let connector = BasicConnector::no_delay();
         let blocks = Blocks::<_, ()>::default();
@@ -805,8 +896,34 @@ mod tests {
         assert_block!(blocks "db" is empty);
         assert_block!(blocks "db2" has 3 Idle);
         // Should not activate a connection to steal it
-        assert_eq!(0, blocks.metrics("db").max(MetricVariant::Active));
-        assert_eq!(0, blocks.metrics("db2").max(MetricVariant::Active));
+        assert_block!(blocks "db" has max 0 Active, 3 Idle);
+        assert_block!(blocks "db2" has max 0 Active, 1 Connecting, 3 Idle);
+        Ok(())
+    }
+
+    #[test(tokio::test)]
+    async fn test_steal_fails() -> Result<()> {
+        let connector = BasicConnector::no_delay();
+        let blocks = Blocks::<_, ()>::default();
+        assert_eq!(0, blocks.block_count());
+        blocks.create(&connector, "db").await?;
+        blocks.create(&connector, "db").await?;
+        blocks.metrics("db").reset_max();
+        connector.fail_next_connect();
+        blocks
+            .task_steal(&connector, "db2", "db")
+            .await
+            .expect_err("Expected to fail");
+        assert_block!(blocks "db" has 1 Idle);
+        assert_block!(blocks "db2" has 1 Failed);
+        let queue = blocks.queue("db2");
+        assert_block!(blocks "db2" has 1 Waiting, 1 Failed);
+        connector.fail_next_connect();
+        blocks
+            .task_steal(&connector, "db2", "db")
+            .await
+            .expect_err("Expected to fail");
+        queue.await.expect_err("Expected this to fail");
         Ok(())
     }
 
@@ -829,8 +946,37 @@ mod tests {
         assert_block!(blocks "db" has 2 Idle);
         assert_block!(blocks "db2" has 1 Idle);
         // Should not activate a connection to move it
-        assert_eq!(1, blocks.metrics("db").max(MetricVariant::Active));
-        assert_eq!(0, blocks.metrics("db2").max(MetricVariant::Active));
+        assert_block!(blocks "db" has max 1 Active, 3 Idle, 1 Waiting);
+        assert_block!(blocks "db2" has max 0 Active, 1 Connecting, 1 Idle);
+        Ok(())
+    }
+
+    #[test(tokio::test)]
+    async fn test_move_fail() -> Result<()> {
+        let connector = BasicConnector::no_delay();
+        let blocks = Blocks::<_, ()>::default();
+        assert_eq!(0, blocks.block_count());
+        blocks.create(&connector, "db").await?;
+        blocks.create(&connector, "db").await?;
+        blocks.create(&connector, "db").await?;
+        assert_block!(blocks "db" has 3 Idle);
+        let conn1 = blocks.queue("db").await?;
+        let conn2 = blocks.queue("db").await?;
+        blocks.metrics("db").reset_max();
+        blocks.metrics("db2").reset_max();
+        connector.fail_next_connect();
+        let queue = blocks.queue("db2");
+        blocks
+            .task_move_to(&connector, conn1, "db2")
+            .await
+            .expect_err("Expected this to fail");
+        blocks.task_move_to(&connector, conn2, "db2").await?;
+        queue.await?;
+        assert_eq!(2, blocks.block_count());
+        assert_block!(blocks "db" has 1 Idle);
+        assert_block!(blocks "db2" has 1 Idle, 1 Failed);
+        assert_block!(blocks "db" has max 2 Active, 1 Idle);
+        assert_block!(blocks "db2" has max 1 Active, 1 Connecting, 1 Idle, 1 Failed, 1 Waiting);
         Ok(())
     }
 
@@ -845,12 +991,17 @@ mod tests {
         assert_eq!(1, blocks.block_count());
         assert_block!(blocks "db" has 2 Idle);
         blocks.task_close_one(&connector, "db").await?;
-        blocks.task_close_one(&connector, "db").await?;
+        // This will only fail the task
+        connector.fail_next_disconnect();
+        blocks
+            .task_close_one(&connector, "db")
+            .await
+            .expect_err("Expected to fail");
         assert_block!(blocks "db" is empty);
         // Hasn't GC'd yet
         assert_eq!(1, blocks.block_count());
         // Should not activate a connection to close it
-        assert_eq!(0, blocks.metrics("db").max(MetricVariant::Active));
+        assert_block!(blocks "db" has max 0 Active, 1 Disconnecting, 2 Idle, 1 Failed, 1 Closed);
         Ok(())
     }
 
@@ -862,14 +1013,57 @@ mod tests {
         let conn = blocks.create(&connector, "db").await?;
         blocks.task_reopen(&connector, conn).await?;
         assert_block!(blocks "db" has 1 Idle);
-        assert_eq!(
-            blocks.metrics("db").all_time()[MetricVariant::Connecting],
-            2
-        );
-        assert_eq!(
-            blocks.metrics("db").all_time()[MetricVariant::Disconnecting],
-            1
-        );
+        assert_block!(blocks "db" has all time 2 Connecting, 1 Disconnecting, 1 Idle, 1 Active, 1 Closed);
+        Ok(())
+    }
+
+    #[test(tokio::test)]
+    async fn test_reopen_fails() -> Result<()> {
+        let connector = BasicConnector::no_delay();
+        let blocks = Blocks::<_, ()>::default();
+        assert_eq!(0, blocks.block_count());
+        let local = LocalSet::new();
+
+        // Success
+        let conn = blocks.create(&connector, "db").await?;
+        // This one gets the error
+        let acq1 = blocks.queue("db");
+        // This one doesn't
+        let acq2 = local.spawn_local(blocks.queue("db"));
+
+        assert_block!(blocks "db" has 1 Active, 2 Waiting);
+
+        connector.fail_next_connect();
+        blocks
+            .task_reopen(&connector, conn)
+            .await
+            .expect_err("Expected a failure");
+        acq1.await.expect_err("Expected a failure");
+
+        local.spawn_local(blocks.task_create_one(&connector, "db"));
+        local.await;
+        _ = acq2.await?;
+
+        assert_block!(blocks "db" has 1 Idle);
+        assert_block!(blocks "db" has all time 
+            3 Connecting, 1 Disconnecting, 2 Idle, 2 Active, 1 Failed, 1 Closed, 2 Waiting);
+        Ok(())
+    }
+
+    #[test(tokio::test)]
+    async fn test_reopen_fails_2() -> Result<()> {
+        let connector = BasicConnector::no_delay();
+        let blocks = Blocks::<_, ()>::default();
+        assert_eq!(0, blocks.block_count());
+        let conn = blocks.create(&connector, "db").await?;
+        assert_block!(blocks "db" has all time 1 Connecting, 1 Active);
+        connector.fail_next_connect();
+        blocks
+            .task_reopen(&connector, conn)
+            .await
+            .expect_err("Expected a failure");
+        assert_block!(blocks "db" has 1 Failed);
+        assert_block!(blocks "db" has all time 2 Connecting, 1 Disconnecting, 1 Failed, 1 Active, 1 Closed);
         Ok(())
     }
 
@@ -881,14 +1075,7 @@ mod tests {
         let conn = blocks.create(&connector, "db").await?;
         blocks.task_discard(&connector, conn).await?;
         assert_block!(blocks "db" is empty);
-        assert_eq!(
-            blocks.metrics("db").all_time()[MetricVariant::Connecting],
-            1
-        );
-        assert_eq!(
-            blocks.metrics("db").all_time()[MetricVariant::Disconnecting],
-            1
-        );
+        assert_block!(blocks "db" has all time 1 Connecting, 1 Disconnecting, 1 Active, 1 Closed);
         Ok(())
     }
 }

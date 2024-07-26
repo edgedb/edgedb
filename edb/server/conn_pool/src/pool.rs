@@ -1,7 +1,7 @@
 use crate::{
     algo::{
         AcquireOp, PoolAlgoTargetData, PoolAlgorithmDataBlock, PoolAlgorithmDataMetrics,
-        PoolConstraints, RebalanceOp, ReleaseOp, ReleaseType, VisitPoolAlgoData,
+        PoolConstraints, RebalanceOp, ReleaseOp, ReleaseType, ShutdownOp, VisitPoolAlgoData,
     },
     block::{Blocks, Name},
     conn::{ConnError, ConnHandle, ConnResult, Connector},
@@ -154,10 +154,24 @@ impl<C: Connector> Pool<C> {
             return;
         }
 
+        if self.drain.shutdown.get() {
+            for op in self.config.constraints.plan_shutdown(&self.blocks) {
+                trace!("Shutdown: {op:?}");
+                match op {
+                    ShutdownOp::Close(name) => {
+                        tokio::task::spawn_local(
+                            self.blocks.task_close_one(&self.connector, &name),
+                        );
+                    }
+                }
+            }
+            return;
+        }
+
         self.config.constraints.adjust(&self.blocks);
         let mut s = String::new();
         self.blocks.with_all(|name, block| {
-            s += &format!("{name}={} ", block.target());
+            s += &format!("{name}={}/{} ", block.target(), block.len());
         });
         trace!("Targets: {s}");
         for op in self.config.constraints.plan_rebalance(&self.blocks) {
@@ -179,7 +193,7 @@ impl<C: Connector> Pool<C> {
     /// Acquire a handle from this connection pool. The returned [`PoolHandle`]
     /// controls the lock for the connection and may be dropped to release it
     /// back into the pool.
-    pub async fn acquire(self: &Rc<Self>, db: &str) -> ConnResult<PoolHandle<C>> {
+    pub async fn acquire(self: &Rc<Self>, db: &str) -> ConnResult<PoolHandle<C>, C::Error> {
         if self.drain.shutdown.get() {
             return Err(ConnError::Shutdown);
         }
@@ -297,16 +311,18 @@ impl<C: Connector> Pool<C> {
         }
         if cfg!(debug_assertions) {
             let all_time = &pool.metrics().all_time;
-            assert_eq!(
-                all_time[MetricVariant::Connecting] + all_time[MetricVariant::Reconnecting],
-                all_time[MetricVariant::Disconnecting],
-                "Connecting + Reconnecting != Disconnecting"
-            );
-            assert_eq!(
-                all_time[MetricVariant::Disconnecting],
-                all_time[MetricVariant::Closed],
-                "Disconnecting != Closed"
-            );
+            if all_time[MetricVariant::Failed] == 0 {
+                assert_eq!(
+                    all_time[MetricVariant::Connecting] + all_time[MetricVariant::Reconnecting],
+                    all_time[MetricVariant::Disconnecting],
+                    "Connecting + Reconnecting != Disconnecting"
+                );
+                assert_eq!(
+                    all_time[MetricVariant::Disconnecting],
+                    all_time[MetricVariant::Closed],
+                    "Disconnecting != Closed"
+                );
+            }
         }
     }
 }
@@ -391,6 +407,7 @@ mod tests {
     use crate::time::Instant;
     use anyhow::{Ok, Result};
     use itertools::Itertools;
+    use rand::{thread_rng, Rng};
     use rstest::rstest;
 
     use test_log::test;
@@ -501,6 +518,43 @@ mod tests {
         run(spec).await.map(drop)
     }
 
+    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
+    #[rstest]
+    #[case::small(1)]
+    #[case::medium(10)]
+    #[case::large(20)]
+    async fn test_pool_failures(#[case] databases: usize) -> Result<()> {
+        let spec = Spec {
+            name: format!("test_pool_fail50_{databases}").into(),
+            desc: "",
+            capacity: 10,
+            conn_cost: Triangle(0.05, 0.0),
+            conn_failure_percentage: 50,
+            score: vec![
+                Score::new(
+                    0.8,
+                    [2.0, 0.5, 0.25, 0.0],
+                    LatencyDistribution {
+                        group: 0..databases,
+                    },
+                ),
+                Score::new(0.2, [0.5, 0.2, 0.1, 0.0], ConnectionOverhead {}),
+            ],
+            dbs: (0..databases)
+                .map(|db| DBSpec {
+                    db,
+                    start_at: 0.0,
+                    end_at: 1.0,
+                    qps: 1200,
+                    query_cost: Triangle(0.001, 0.0),
+                })
+                .collect_vec(),
+            ..Default::default()
+        };
+
+        run(spec).await.map(drop)
+    }
+
     async fn run(spec: Spec) -> Result<QoS> {
         let local = LocalSet::new();
         let res = local.run_until(run_local(spec)).await?;
@@ -514,16 +568,20 @@ mod tests {
         let config = PoolConfig::suggested_default_for(spec.capacity);
         let disconnect_cost = spec.disconn_cost;
         let connect_cost = spec.disconn_cost;
-        let pool = Pool::new(
-            config,
-            BasicConnector::delay(move |disconnect| {
-                if disconnect {
-                    disconnect_cost.random_duration()
-                } else {
-                    connect_cost.random_duration()
+        let conn_failure_percentage = spec.conn_failure_percentage;
+        let connector = BasicConnector::delay(move |disconnect| {
+            if conn_failure_percentage > 0 {
+                if thread_rng().gen_range(0..100) > conn_failure_percentage {
+                    return std::result::Result::Err(());
                 }
-            }),
-        );
+            }
+            std::result::Result::Ok(if disconnect {
+                disconnect_cost.random_duration()
+            } else {
+                connect_cost.random_duration()
+            })
+        });
+        let pool = Pool::new(config, connector);
         let mut tasks = vec![];
         let latencies = Latencies::default();
 
