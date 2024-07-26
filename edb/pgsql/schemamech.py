@@ -222,14 +222,6 @@ class CompiledConstraintData:
     subject_table_type: str
 
 
-@dataclasses.dataclass(frozen=True)
-class CompiledConstraintParts:
-    subject: s_types.Type | s_pointers.Pointer
-    exclusive_expr_refs: Optional[Sequence[irast.Base]]
-    subject_db_name: Optional[Tuple[str, str]]
-    except_data: Optional[ExprDataSources]
-
-
 def _compile_constraint_data(
     constraint: s_constraints.Constraint,
     schema: s_schema.Schema,
@@ -366,38 +358,6 @@ def compile_constraint(
         except_data=constraint_data.except_data,
     )
 
-    different_origins = [
-        origin for origin in constraint_origins if origin != constraint
-    ]
-
-    per_origin_parts: list[CompiledConstraintParts] = []
-    if different_origins:
-        for constraint_origin in different_origins:
-            origin_data: CompiledConstraintData = _compile_constraint_data(
-                constraint_origin,
-                schema,
-                is_optional,
-            )
-
-            per_origin_parts.append(
-                CompiledConstraintParts(
-                    origin_data.subject,
-                    origin_data.exclusive_expr_refs,
-                    origin_data.subject_db_name,
-                    origin_data.except_data,
-                )
-            )
-
-    else:
-        per_origin_parts.append(
-            CompiledConstraintParts(
-                constraint_data.subject,
-                None,
-                constraint_data.subject_db_name,
-                constraint_data.except_data,
-            )
-        )
-
     if constraint_data.exclusive_expr_refs:
         exprdatas: List[ExprData] = []
         for ref in constraint_data.exclusive_expr_refs:
@@ -408,18 +368,28 @@ def compile_constraint(
 
         pg_constr_data.expressions.extend(exprdatas)
 
+        different_origins = [
+            origin for origin in constraint_origins if origin != constraint
+        ]
+
         if different_origins:
             origin_expressions: list[ExprData] = []
-            for per_origin_part in per_origin_parts:
-                assert per_origin_part.exclusive_expr_refs is not None
-                for ref in per_origin_part.exclusive_expr_refs:
+            for constraint_origin in different_origins:
+                origin_data = _compile_constraint_data(
+                    constraint_origin,
+                    schema,
+                    is_optional,
+                )
+
+                assert origin_data.exclusive_expr_refs is not None
+                for ref in origin_data.exclusive_expr_refs:
                     exprdata = _edgeql_ref_to_pg_constr(
-                        subject, per_origin_part.subject, ref
+                        subject, origin_data.subject, ref
                     )
                     exprdata.origin_subject_db_name = (
-                        per_origin_part.subject_db_name
+                        origin_data.subject_db_name
                     )
-                    exprdata.origin_except_data = per_origin_part.except_data
+                    exprdata.origin_except_data = origin_data.except_data
                     origin_expressions.append(exprdata)
 
             pg_constr_data.origin_expressions.extend(origin_expressions)
@@ -431,12 +401,21 @@ def compile_constraint(
         pg_constr_data.type = 'unique'
 
     else:
-        assert len(per_origin_parts) == 1
-        exprdata = _edgeql_ref_to_pg_constr(
-            subject, per_origin_parts[0].subject, constraint_data.ir
+        assert len(constraint_origins) == 1
+        origin_data = (
+            _compile_constraint_data(
+                constraint_origins[0],
+                schema,
+                is_optional,
+            )
+            if constraint_origins[0] != constraint else
+            constraint_data
         )
-        exprdata.origin_subject_db_name = per_origin_parts[0].subject_db_name
-        exprdata.origin_except_data = per_origin_parts[0].except_data
+        exprdata = _edgeql_ref_to_pg_constr(
+            subject, origin_data.subject, constraint_data.ir
+        )
+        exprdata.origin_subject_db_name = origin_data.subject_db_name
+        exprdata.origin_except_data = origin_data.except_data
 
         pg_constr_data.expressions.append(exprdata)
 
