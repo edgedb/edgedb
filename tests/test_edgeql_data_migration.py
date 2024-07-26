@@ -12119,15 +12119,20 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
             ['wontfix'],
         )
 
-        await self.migrate('''
-            scalar type Status extending enum<
-                pending, in_progress, wontfix, again>;
-            scalar type ImportStatus extending Status;
-            scalar type ImportAnalyticsStatus extending Status;
+        async for tr in self.try_until_succeeds(
+            ignore_regexp="cannot drop type .* "
+                          "because other objects depend on it",
+        ):
+            async with tr:
+                await self.migrate('''
+                    scalar type Status extending enum<
+                        pending, in_progress, wontfix, again>;
+                    scalar type ImportStatus extending Status;
+                    scalar type ImportAnalyticsStatus extending Status;
 
-            type Foo { property x -> ImportStatus };
-            function f(x: Status) -> str USING (<str>x);
-        ''')
+                    type Foo { property x -> ImportStatus };
+                    function f(x: Status) -> str USING (<str>x);
+                ''')
 
         await self.migrate('')
 
