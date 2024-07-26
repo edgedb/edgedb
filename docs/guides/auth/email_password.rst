@@ -217,9 +217,27 @@ an existing user.
          return;
        }
 
-       res.writeHead(204, {
-         "Set-Cookie": `edgedb-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       const { code } = await registerResponse.json();
+
+       const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+       tokenUrl.searchParams.set("code", code);
+       tokenUrl.searchParams.set("verifier", pkce.verifier);
+       const tokenResponse = await fetch(tokenUrl.href, {
+         method: "get",
        });
+
+       if (!tokenResponse.ok) {
+         const text = await tokenResponse.text();
+         res.status = 400;
+         res.end(`Error from the auth server: ${text}`);
+         return;
+       }
+
+       const { auth_token } = await tokenResponse.json();
+       res.writeHead(204, {
+         "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       });
+
        res.end();
      });
    };
@@ -277,7 +295,7 @@ an existing user.
        });
 
        if (!tokenResponse.ok) {
-         const text = await authenticateResponse.text();
+         const text = await tokenResponse.text();
          res.status = 400;
          res.end(`Error from the auth server: ${text}`);
          return;
