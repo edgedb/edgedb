@@ -26,8 +26,6 @@ import itertools
 
 from edb.common import adapter
 
-from edb.schema import name as s_name
-from edb.schema import pointers as s_pointers
 from edb.schema import objects as s_obj
 
 from edb.pgsql import common
@@ -105,8 +103,9 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         table_name,
         *,
         constraint,
-        exprdata: List[schemamech.ExprData],
-        origin_exprdata: List[schemamech.ExprData],
+        exprdata: list[schemamech.ExprData],
+        origin_exprdata: list[schemamech.ExprData],
+        relative_exprdata: list[schemamech.ExprData],
         scope,
         type,
         table_type,
@@ -117,6 +116,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         dbops.TableConstraint.__init__(self, table_name, None)
         self._exprdata = exprdata
         self._origin_exprdata = origin_exprdata
+        self._relative_exprdata = relative_exprdata
         self._scope = scope
         self._type = type
         self._table_type = table_type
@@ -198,18 +198,18 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         errmsg = 'duplicate key value violates unique ' \
                  'constraint {constr}'.format(constr=constr_name)
 
-        for expr, origin_expr in zip(
-            itertools.cycle(self._exprdata), self._origin_exprdata
+        for expr, relative_expr in zip(
+            itertools.cycle(self._exprdata), self._relative_exprdata
         ):
             exprdata = expr.exprdata
-            origin_exprdata = origin_expr.exprdata
+            relative_exprdata = relative_expr.exprdata
 
             except_data = self._except_data
-            origin_except_data = origin_expr.except_data
+            relative_except_data = relative_expr.except_data
 
             if self._except_data:
                 except_part = f'''
-                    AND ({origin_except_data.plain} is not true)
+                    AND ({relative_except_data.plain} is not true)
                     AND ({except_data.new} is not true)
                 '''
             else:
@@ -229,7 +229,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                 if self._table_type == 'link' else ''
             )
 
-            schemaname, tablename = origin_expr.subject_db_name
+            schemaname, tablename = relative_expr.subject_db_name
             text = '''
                 PERFORM
                     TRUE
@@ -247,20 +247,18 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                           DETAIL = {detail};
                 END IF;
             '''.format(
-                plain_expr=origin_exprdata.plain,
-                detail=common.quote_literal(
-                    f"Key ({origin_exprdata.plain}) already exists."
-                ),
+                table=common.qname(schemaname, tablename),
+                plain_expr=relative_exprdata.plain,
                 new_expr=exprdata.new,
                 except_part=except_part,
-                table=common.qname(
-                    schemaname,
-                    tablename + "_" + common.get_aspect_suffix("inhview")),
+                src_check=src_check,
                 schemaname=schemaname,
                 tablename=tablename,
                 constr=raw_constr_name,
-                src_check=src_check,
                 errmsg=errmsg,
+                detail=common.quote_literal(
+                    f"Key ({relative_exprdata.plain}) already exists."
+                ),
             )
 
             chunks.append(text)
@@ -269,21 +267,12 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
 
         return text
 
-    def is_multiconstraint(self):
-        """Determine if multiple database constraints are needed."""
-        return self._scope != 'row' and len(self._exprdata) > 1
-
     def requires_triggers(self):
-        subject = self._constraint.get_subject(self._schema)
-        cname = self._constraint.get_shortname(self._schema)
-        if (
-            isinstance(subject, s_pointers.Pointer)
-            and subject.is_id_pointer(self._schema)
-            and cname == s_name.QualName('std', 'exclusive')
-        ):
-            return False
-        else:
-            return self._type != 'check'
+        return schemamech.table_constraint_requires_triggers(
+            self._constraint,
+            self._schema,
+            self._type,
+        )
 
     def can_disable_triggers(self):
         return self._constraint.is_independent(self._schema)
