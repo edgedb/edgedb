@@ -5,6 +5,9 @@ version = "0.1.0"
 authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2021"
 
+[lints]
+workspace = true
+
 [dependencies]
 edgeql-parser = { path = "..", features = ["serde"] }
 bytes = "1.0.1"

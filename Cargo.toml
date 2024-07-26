@@ -11,3 +11,9 @@ resolver = "2"
 [profile.release]
 debug = true
 lto = true
+
+[workspace.lints.rust]
+# `unexpected_cfgs` shipped in Rust 1.80 but it's too noisy as various libs
+# catch up. Disable it for now, revisit in the future.
+# c.f. https://blog.rust-lang.org/2024/05/06/check-cfg.html
+unexpected_cfgs = { level = 'allow', check-cfg = ['cfg()'] }
