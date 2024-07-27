@@ -68,6 +68,7 @@ from . import gen_errors  # noqa
 from . import gen_types  # noqa
 from . import gen_meta_grammars  # noqa
 from . import gen_cast_table  # noqa
+from . import gen_ext_postgis  # noqa
 from . import inittestdb  # noqa
 from . import test  # noqa
 from . import wipe  # noqa

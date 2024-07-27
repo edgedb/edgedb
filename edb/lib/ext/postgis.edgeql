@@ -600,7 +600,7 @@ create extension package postgis version '3.4.2' {
     };
 
 
-    # total functions: 464
+    # total functions: 463
     ##################################################
 
     create function ext::postgis::to_geometry(a0: ext::postgis::box2d) ->  ext::postgis::geometry {
@@ -2836,12 +2836,6 @@ create extension package postgis version '3.4.2' {
         set volatility := 'Immutable';
         set force_return_cast := true;
         using sql $$SELECT st_asgeojson("a0")$$;
-    };
-
-    create function ext::postgis::json(a0: ext::postgis::geometry) ->  std::json {
-        set volatility := 'Immutable';
-        set force_return_cast := true;
-        using sql function 'json';
     };
 
     create function ext::postgis::asmvtgeom(geom: optional ext::postgis::geometry, bounds: optional ext::postgis::box2d, extent: optional std::int64 = 4096, buffer: optional std::int64 = 256, clip_geom: optional std::bool = true) -> optional ext::postgis::geometry {
