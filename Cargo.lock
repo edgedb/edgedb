@@ -1174,6 +1174,7 @@ name = "pgrust"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "byteorder",
  "consume_on_drop",
  "derive_more",
  "futures",

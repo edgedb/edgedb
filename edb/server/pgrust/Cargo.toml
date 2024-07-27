@@ -42,6 +42,7 @@ rand = "0"
 statrs = "0"
 genetic_algorithm = "0"
 lru = "0"
+byteorder = "1.5"
 
 [dev-dependencies.tokio]
 version = "1"
