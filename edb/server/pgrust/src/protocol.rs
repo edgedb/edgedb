@@ -121,14 +121,7 @@ macro_rules! protocol {
                 }
             }
 
-            impl <'a> FieldAccessNonConst<'a, $name<'a>> for $name<'a> {
-                fn size_of_field_at(buf: &[u8]) -> usize {
-                    FieldAccess::<$name>::size_of_field_at(buf)
-                }
-                fn extract(mut buf: &'a [u8]) -> $name<'a> {
-                    FieldAccess::<$name>::extract(buf)
-                }
-            }
+            field_access!{'a $name<'a>}
 
             impl <'a> $name<'a> {
                 pub const fn new(buf: &'a [u8]) -> Self{
@@ -174,6 +167,7 @@ macro_rules! protocol {
     };
 }
 
+/// Delegates to a concrete `FieldAccess` but as a non-const trait.
 trait FieldAccessNonConst<'a, T: 'a> {
     fn size_of_field_at(buf: &[u8]) -> usize;
     fn extract(buf: &'a [u8]) -> T;
@@ -183,21 +177,24 @@ pub struct FieldAccess<T> {
     _phantom_data: PhantomData<T>,
 }
 
+macro_rules! field_access {
+    ($lt:lifetime $ty:ty) => {
+        impl <$lt> FieldAccessNonConst<$lt, $ty> for $ty {
+            fn size_of_field_at(buf: &[u8]) -> usize {
+                FieldAccess::<$ty>::size_of_field_at(buf)
+            }
+            fn extract(buf: &$lt [u8]) -> $ty {
+                FieldAccess::<$ty>::extract(buf)
+            }
+        }
+    };
+}
+
 macro_rules! basic_types {
     ($($ty:ty)*) => {
         $(
-        impl <'a> FieldAccessNonConst<'a, $ty> for $ty {
-            fn size_of_field_at(_buf: &[u8]) -> usize {
-                std::mem::size_of::<$ty>()
-            }
-            fn extract(buf: &[u8]) -> $ty {
-                if let Some(bytes) = buf.first_chunk() {
-                    <$ty>::from_ne_bytes(*bytes)
-                } else {
-                    panic!()
-                }
-            }
-        }
+        field_access!{'a $ty}
+
         impl FieldAccess<$ty> {
             pub const fn size_of_field_at(_buf: &[u8]) -> usize {
                 std::mem::size_of::<$ty>()
@@ -234,8 +231,8 @@ macro_rules! basic_types {
         }
 
         impl <'a> FieldAccess<Array<'a, $ty, u8>> {
-            pub const fn size_of_field_at(_buf: &[u8]) -> usize {
-                unimplemented!()
+            pub const fn size_of_field_at(buf: &[u8]) -> usize {
+                (buf[0] + 1) as _
             }
             pub const fn extract(mut buf: &[u8]) -> Array<$ty, u8> {
                 unimplemented!()
@@ -243,11 +240,15 @@ macro_rules! basic_types {
         }
 
         impl <'a> FieldAccess<Array<'a, $ty, i16>> {
-            pub const fn size_of_field_at(_buf: &[u8]) -> usize {
-                unimplemented!()
+            pub const fn size_of_field_at(buf: &[u8]) -> usize {
+                let Some(len) = buf.split_first_chunk(std::mem::size_of::<i16>()) {
+                    i16::from_ne_bytes(len) * std::mem::size_of::<i16>() + std::mem::size_of::<i16>()
+                } else {
+                    panic!()
+                }
             }
             pub const fn extract(mut buf: &[u8]) -> Array<$ty, i16> {
-                unimplemented!()
+                Array::new(buf, len)
             }
         }
 
@@ -309,23 +310,8 @@ impl <'a> FieldAccess<ZTString<'a>> {
     }
 }
 
-impl <'a> FieldAccessNonConst<'a, ZTString<'a>> for ZTString<'a> {
-    fn size_of_field_at(buf: &[u8]) -> usize {
-        FieldAccess::<ZTString>::size_of_field_at(buf)
-    }
-    fn extract(buf: &'a [u8]) -> ZTString {
-        FieldAccess::<ZTString>::extract(buf)
-    }
-}
-
-impl <'a> FieldAccessNonConst<'a, Encoded> for Encoded {
-    fn size_of_field_at(buf: &[u8]) -> usize {
-        unimplemented!()
-    }
-    fn extract(buf: &'a [u8]) -> Encoded {
-        unimplemented!()
-    }
-}
+field_access!{'a ZTString<'a>}
+field_access!{'a Encoded}
 
 impl FieldAccess<Encoded> {
     pub const fn size_of_field_at(_buf: &[u8]) -> usize {
