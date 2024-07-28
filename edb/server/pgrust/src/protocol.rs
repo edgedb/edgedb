@@ -1,21 +1,54 @@
+#![allow(private_bounds)]
 use std::marker::PhantomData;
+
+trait TupleNest {
+    type Nested;
+}
+
+impl TupleNest for () {
+    type Nested = ();
+}
+
+trait TupleUnnest {
+    type Unnested;
+}
+
+macro_rules! tuple_nest {
+    () => {};
+    ($first:ident $(,$tail:ident)*) => {
+        tuple_nest!($($tail),*);
+
+        impl <$first,$($tail),*> TupleNest for ($first,$($tail),*) {
+            type Nested = ($first, <($($tail,)*) as TupleNest>::Nested);
+        }
+    };
+}
+
+tuple_nest!(A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z);
 
 macro_rules! protocol {
     ($(
         struct $name:ident {
             $(
-                #[ $doc:meta ] $field:ident : $type:ty $( = $value:literal)?
+                #[ $doc:meta ] $field:ident : $type:tt $(< $($gen:tt),* >)? $( = $value:literal)?
             ),*
             $(,)?
         }
-    )*) => {
+    )+) => {
+        // The first phase of the macro adds lifetimes to the structs and then
+        // calls __one_struct__ for each individual struct.
+        #[allow(unused_parens)]
         mod struct_defs {
             $(
-                protocol!{__one_struct__ struct $name {
-                    $(
-                        #[$doc] $field : $type $( = $value)?
-                    ),*
-                }}
+                protocol!{__one_struct__ 
+                    struct $name <'a> {
+                        $(
+                            // Note that we pass type in parens to keep it as a
+                            // token tree.
+                            #[$doc] $field : ($type $(<$($gen),*>)?) $( = $value)?
+                        ),*
+                    }
+                }
             )*
         }
 
@@ -26,9 +59,12 @@ macro_rules! protocol {
     };
 
     (__one_struct__
-        struct $name:ident {
+        struct $name:ident <$lt:lifetime> {
             $(
-                #[$doc:meta] $field:ident : $type:ty $( = $value:literal)?
+                // Type is parenthesized here but (T) is equivalent to T. This
+                // allows us to keep it as a token tree and perform matches on
+                // it.
+                #[$doc:meta] $field:ident : $type:tt $( = $value:literal)?
             ),*
         }
     ) => {
@@ -38,6 +74,10 @@ macro_rules! protocol {
             use $crate::protocol::*;
 
             const FIELD_COUNT: usize = [$(stringify!($field)),*].len();
+
+            // type FieldTypes<$lt> = ($(
+            //     protocol!(__lifetime__ $lt $type)
+            // ),*);
 
             #[allow(unused)]
             #[allow(non_camel_case_types)]
@@ -50,8 +90,8 @@ macro_rules! protocol {
             }
 
             #[allow(unused)]
-            pub struct $name<'a> {
-                buf: &'a [u8],
+            pub struct $name<$lt> {
+                buf: &$lt [u8],
                 fields: [usize; FIELD_COUNT + 1]
             }
 
@@ -69,62 +109,28 @@ macro_rules! protocol {
                 }
             }
 
-            impl <'a> FieldAccess<$name<'a>> {
-                pub const fn size_of_field_at( buf: &[u8]) -> usize {
+            impl FieldAccess<$name<'_>> {
+                #[inline]
+                pub const fn size_of_field_at(buf: &[u8]) -> usize {
                     let mut offset = 0;
                     $(
                         offset += FieldAccess::<$type>::size_of_field_at(buf.split_at(offset).1);
                     )*
                     offset
                 }
-                pub const fn extract(mut buf: &'a [u8]) -> $name<'a> {
+                #[inline(always)]
+                pub const fn extract(buf: &[u8]) -> $name {
                     $name::new(buf)
                 }
             }
 
-            impl <'a> FieldAccess<Array<'a, i16, $name<'a>>> {
-                pub const fn size_of_field_at(mut buf: &[u8]) -> usize {
-                    let mut size = std::mem::size_of::<i16>();
-                    let mut len = FieldAccess::<i16>::extract(buf);
-                    buf = buf.split_at(2).1;
-                    loop {
-                        if len == 0 {
-                            break;
-                        }
-                        len -= 1;
-                        let elem_size = FieldAccess::<$name>::size_of_field_at(buf);
-                        buf = buf.split_at(elem_size).1;
-                        size += elem_size;
-                    }
-                    size
-                }
-                pub const fn extract(mut buf: &'a [u8]) -> Array<'a, i16, $name<'a>> {
-                    let len = FieldAccess::<i16>::extract(buf);
-                    Array::new(buf.split_at(2).1, len as u32)
-                }
-            }
-
-            impl <'a> FieldAccess<ZTArray<'a, $name<'a>>> {
-                pub const fn size_of_field_at(mut buf: &[u8]) -> usize {
-                    let mut size = 1;
-                    loop {
-                        if buf[0] == 0 {
-                            return size;
-                        }
-                        let elem_size = FieldAccess::<$name>::size_of_field_at(buf);
-                        buf = buf.split_at(elem_size).1;
-                        size += elem_size;
-                    }
-                }
-                pub const fn extract(mut buf: &'a [u8]) -> ZTArray<$name<'a>> {
-                    ZTArray::new(buf)
-                }
-            }
-
             field_access!{'a $name<'a>}
+            array_access!{'a $name<'a>}
 
-            impl <'a> $name<'a> {
-                pub const fn new(buf: &'a [u8]) -> Self{
+            #[allow(unused)]
+            impl <$lt> $name<$lt> {
+                #[inline]
+                pub const fn new(buf: &$lt [u8]) -> Self{
                     let mut fields = [0; FIELD_COUNT + 1];
                     let mut offset = 0;
                     let mut index = 0;
@@ -141,20 +147,12 @@ macro_rules! protocol {
                     }
                 }
 
-                fn field_offset(buf: &[u8], field: Fields) -> usize {
-                    let mut offset = 0;
-                    $(
-                        if field == Fields::$field {
-                            return offset;
-                        }
-                        offset += FieldAccess::<$type>::size_of_field_at(buf.split_at(offset).1);
-                    )*
-                    unreachable!("{offset}")
-                }
+                // protocol!(__measure__ { $( $field : $type ; )* });
 
                 $(
                     #[allow(unused)]
-                    pub const fn $field(&self) -> $type {
+                    #[inline]
+                    pub const fn $field<'s>(&'s self) -> protocol!(__lifetime__ $lt $type) where $lt: 's {
                         let offset1 = self.fields[Fields::$field as usize];
                         let offset2 = self.fields[Fields::$field as usize + 1];
                         let (_, buf) = self.buf.split_at(offset1);
@@ -165,7 +163,39 @@ macro_rules! protocol {
             }
         }
     };
+    (__measure__ { $( $field:ident : $type:ty ; )* }) => {
+        // #[inline]
+        // pub const fn measure<'s>(
+        //     $( 
+        //          $field : $type
+        //     ),*
+        // ) -> usize {
+        //     let mut size = 0;
+        //     $( size +=  FieldAccess::<$type>::measure($field); )
+        //     size
+        // }
+    };
+    (__lifetime__ $lt:lifetime ([$ty:ident; $count:literal])) => ([$ty; $count]);
+    (__lifetime__ $lt:lifetime (u8)) => (u8);
+    (__lifetime__ $lt:lifetime (i16)) => (i16);
+    (__lifetime__ $lt:lifetime (i32)) => (i32);
+    (__lifetime__ $lt:lifetime (ZTArray<$b:ty>)) => (ZTArray<$lt, protocol!(__lifetime__ $lt ($b))>);
+    (__lifetime__ $lt:lifetime (Array<$a:ty, $b:ty>)) => (Array<$lt, $a, protocol!(__lifetime__ $lt ($b))>);
+    (__lifetime__ $lt:lifetime ($ty:tt)) => ($ty);
+    (__measure_param__ (ZTString)) => (&str);
+    (__measure_param__ (Rest)) => (&[u8]);
+    (__measure_param__ (Encoded)) => (&[u8]);
+    (__measure_param__ (ZTArray<$b:tt>)) => (&[ protocol!(__measure_param__ ($b)) ]);
+    (__measure_param__ (Array<$a:tt, $b:tt>)) => (&[ protocol!(__measure_param__ ($b)) ]);
+    (__measure_param__ ($ty:ty)) => ($ty);
+    // (__measure_param_any__ $field:ident (ZTString)) => (#[cfg()]);
+    // (__measure_param_any__ $field:ident (Rest)) => (#[cfg()]);
+    // (__measure_param_any__ $field:ident (Encoded)) => ();
+    // (__measure_param_any__ $field:ident (ZTArray<$b:tt>)) => ();
+    // (__measure_param_any__ $field:ident (Array<$a:tt, $b:tt>)) => ();
+    (__measure_param_any__) => ("");
 }
+
 
 /// Delegates to a concrete `FieldAccess` but as a non-const trait.
 trait FieldAccessNonConst<'a, T: 'a> {
@@ -173,19 +203,23 @@ trait FieldAccessNonConst<'a, T: 'a> {
     fn extract(buf: &'a [u8]) -> T;
 }
 
-pub struct FieldAccess<T> {
+/// This struct is specialized for each type we want to extract data from. We
+/// have to do it this way to work around Rust's lack of specialization.
+struct FieldAccess<T> {
     _phantom_data: PhantomData<T>,
 }
 
 macro_rules! field_access {
     ($lt:lifetime $ty:ty) => {
         impl <$lt> FieldAccessNonConst<$lt, $ty> for $ty {
+            #[inline(always)]
             fn size_of_field_at(buf: &[u8]) -> usize {
                 FieldAccess::<$ty>::size_of_field_at(buf)
             }
+            #[inline(always)]
             fn extract(buf: &$lt [u8]) -> $ty {
                 FieldAccess::<$ty>::extract(buf)
-            }
+            }            
         }
     };
 }
@@ -195,10 +229,13 @@ macro_rules! basic_types {
         $(
         field_access!{'a $ty}
 
+        #[allow(unused)]
         impl FieldAccess<$ty> {
-            pub const fn size_of_field_at(_buf: &[u8]) -> usize {
+            #[inline(always)]
+            pub const fn size_of_field_at(_: &[u8]) -> usize {
                 std::mem::size_of::<$ty>()
             }
+            #[inline(always)]
             pub const fn extract(buf: &[u8]) -> $ty {
                 if let Some(bytes) = buf.first_chunk() {
                     <$ty>::from_ne_bytes(*bytes)
@@ -206,12 +243,19 @@ macro_rules! basic_types {
                     panic!()
                 }
             }
+            // #[inline(always)]
+            // pub const fn measure(_: $ty) -> usize {
+            //     std::mem::size_of::<$ty>()
+            // }
         }
 
+        #[allow(unused)]
         impl <const S: usize> FieldAccess<[$ty; S]> {
+            #[inline(always)]
             pub const fn size_of_field_at(_buf: &[u8]) -> usize {
                 std::mem::size_of::<$ty>() * S
             }
+            #[inline(always)]
             pub const fn extract(mut buf: &[u8]) -> [$ty; S] {
                 let mut out: [$ty; S] = [0; S];
                 let mut i = 0;
@@ -228,55 +272,78 @@ macro_rules! basic_types {
                 }
                 out
             }
+            // #[inline(always)]
+            // pub const fn measure(_: [$ty; S]) -> usize {
+            //     std::mem::size_of::<$ty>() * S
+            // }
         }
 
+        #[allow(unused)]
         impl <'a> FieldAccess<Array<'a, $ty, u8>> {
+            #[inline(always)]
             pub const fn size_of_field_at(buf: &[u8]) -> usize {
                 (buf[0] + 1) as _
             }
+            #[inline(always)]
             pub const fn extract(mut buf: &[u8]) -> Array<$ty, u8> {
-                unimplemented!()
+                Array::new(buf.split_at(1).1, (buf.len() - 1) as _)
             }
+            // #[inline(always)]
+            // pub const fn measure(buffer: &[u8]) -> usize {
+            //     buffer.len() + std::mem::size_of::<$ty>()
+            // }
         }
 
+        #[allow(unused)]
         impl <'a> FieldAccess<Array<'a, $ty, i16>> {
+            #[inline(always)]
             pub const fn size_of_field_at(buf: &[u8]) -> usize {
-                let Some(len) = buf.split_first_chunk(std::mem::size_of::<i16>()) {
-                    i16::from_ne_bytes(len) * std::mem::size_of::<i16>() + std::mem::size_of::<i16>()
+                const N: usize = std::mem::size_of::<i16>();
+                if let Some(len) = buf.first_chunk::<N>() {
+                    (i16::from_ne_bytes(*len) as usize * N + N)
                 } else {
                     panic!()
                 }
             }
+            #[inline(always)]
             pub const fn extract(mut buf: &[u8]) -> Array<$ty, i16> {
-                Array::new(buf, len)
+                const N: usize = std::mem::size_of::<i16>();
+                if let Some((len, array)) = buf.split_first_chunk::<N>() {
+                    Array::new(array, i16::from_ne_bytes(*len) as u32)
+                } else {
+                    panic!()
+                }
             }
+            // #[inline(always)]
+            // pub const fn measure(buffer: &[i16]) -> usize {
+            //     buffer.len() * std::mem::size_of::<i16>() + std::mem::size_of::<$ty>()
+            // }
         }
 
+        #[allow(unused)]
         impl <'a> FieldAccess<Array<'a, $ty, i32>> {
-            pub const fn size_of_field_at(_buf: &[u8]) -> usize {
-                unimplemented!()
-            }
-            pub const fn extract(mut buf: &[u8]) -> Array<$ty, i32> {
-                unimplemented!()
-            }
-        }
-
-        impl <'a> FieldAccess<Array<'a, $ty, Encoded>> {
-            pub const fn size_of_field_at(_buf: &[u8]) -> usize {
-                unimplemented!()
-            }
-            pub const fn extract(mut buf: &[u8]) -> Array<$ty, Encoded> {
-                unimplemented!()
-            }
-        }
-
-        impl <'a> FieldAccess<Array<'a, $ty, ZTString<'a>>> {
+            #[inline(always)]
             pub const fn size_of_field_at(buf: &[u8]) -> usize {
-                unimplemented!()
+                const N: usize = std::mem::size_of::<i32>();
+                if let Some(len) = buf.first_chunk::<N>() {
+                    (i32::from_ne_bytes(*len) as usize * N + N)
+                } else {
+                    panic!()
+                }
             }
-            pub const fn extract(mut buf: &'a [u8]) -> Array<$ty, ZTString> {
-                unimplemented!()
+            #[inline(always)]
+            pub const fn extract(mut buf: &[u8]) -> Array<$ty, i32> {
+                const N: usize = std::mem::size_of::<i32>();
+                if let Some((len, array)) = buf.split_first_chunk::<N>() {
+                    Array::new(array, i32::from_ne_bytes(*len) as u32)
+                } else {
+                    panic!()
+                }
             }
+            // #[inline(always)]
+            // pub const fn measure(buffer: &[i32]) -> usize {
+            //     buffer.len() * std::mem::size_of::<i32>() + std::mem::size_of::<$ty>()
+            // }
         }
 
         )*
@@ -286,15 +353,22 @@ macro_rules! basic_types {
 basic_types!(u8 i16 i32);
 
 impl <'a> FieldAccess<Rest<'a>> {
+    #[inline(always)]
     pub const fn size_of_field_at(buf: &[u8]) -> usize {
         buf.len()
     }
+    #[inline(always)]
     pub const fn extract(buf: &[u8]) -> Rest {
         Rest { buf }
     }
+    // #[inline(always)]
+    // pub const fn measure(data: &[u8]) -> usize {
+    //     data.len()
+    // }
 }
 
 impl <'a> FieldAccess<ZTString<'a>> {
+    #[inline(always)]
     pub const fn size_of_field_at(buf: &[u8]) -> usize {
         let mut i = 0;
         loop {
@@ -304,32 +378,122 @@ impl <'a> FieldAccess<ZTString<'a>> {
             i += 1;
         }
     }
+    #[inline(always)]
     pub const fn extract(buf: &[u8]) -> ZTString {
         let buf = buf.split_at(buf.len() - 1).0;
         ZTString { buf }
     }
+    // #[inline(always)]
+    // pub const fn measure(data: &str) -> usize {
+    //     data.len() + 1
+    // }
 }
 
-field_access!{'a ZTString<'a>}
-field_access!{'a Encoded}
-
-impl FieldAccess<Encoded> {
-    pub const fn size_of_field_at(_buf: &[u8]) -> usize {
-        unimplemented!()
-    }
-    pub const fn extract(buf: &[u8]) -> Encoded {
-        unimplemented!()
-    }
-}
-
-impl <'a> FieldAccess<ZTArray<'a, ZTString<'a>>> {
+impl <'a> FieldAccess<Encoded<'a>> {
+    #[inline(always)]
     pub const fn size_of_field_at(buf: &[u8]) -> usize {
-        unimplemented!()
+        const N: usize = std::mem::size_of::<i32>();
+        if let Some(len) = buf.first_chunk::<N>() {
+            let mut len = i32::from_ne_bytes(*len);
+            if len == -1 {
+                len = 0;
+            }
+            len as usize * N + N
+        } else {
+            panic!()
+        }
     }
-    pub const fn extract(buf: &'a [u8]) -> ZTArray<ZTString<'a>> {
-        ZTArray::new(buf)
+    #[inline(always)]
+    pub const fn extract(buf: &[u8]) -> Encoded {
+        const N: usize = std::mem::size_of::<i32>();
+        if let Some((len, array)) = buf.split_first_chunk::<N>() {
+            let len = i32::from_ne_bytes(*len);
+            if len == -1 {
+                Encoded::new(None)
+            } else {
+                Encoded::new(Some(array))
+            }
+        } else {
+            panic!()
+        }
     }
+    // #[inline(always)]
+    // pub const fn measure(data: &[u8]) -> usize {
+    //     data.len() + 4
+    // }
 }
+
+field_access!{'a Rest<'a>}
+field_access!{'a ZTString<'a>}
+field_access!{'a Encoded<'a>}
+
+macro_rules! array_access {
+    ($lt:lifetime $ty:ty) => {
+        array_access!($lt $ty | u8 i16 i32);
+    };
+    ($lt:lifetime $ty:ty | $($len:ty)*) => {
+        $(
+        #[allow(unused)]
+        impl <$lt> FieldAccess<Array<$lt, $len, $ty>> {
+            #[inline]
+            pub const fn size_of_field_at(mut buf: &[u8]) -> usize {
+                let mut size = std::mem::size_of::<$len>();
+                let mut len = FieldAccess::<$len>::extract(buf);
+                buf = buf.split_at(size).1;
+                loop {
+                    if len == 0 {
+                        break;
+                    }
+                    len -= 1;
+                    let elem_size = FieldAccess::<$ty>::size_of_field_at(buf);
+                    buf = buf.split_at(elem_size).1;
+                    size += elem_size;
+                }
+                size
+            }
+            #[inline(always)]
+            pub const fn extract(buf: &$lt [u8]) -> Array<$lt, $len, $ty> {
+                let len = FieldAccess::<$len>::extract(buf);
+                Array::new(buf.split_at(std::mem::size_of::<$len>()).1, len as u32)
+            }
+        }
+        )*
+
+        #[allow(unused)]
+        impl <$lt> FieldAccess<ZTArray<$lt, $ty>> {
+            #[inline]
+            pub const fn size_of_field_at(mut buf: &[u8]) -> usize {
+                let mut size = 1;
+                loop {
+                    if buf[0] == 0 {
+                        return size;
+                    }
+                    let elem_size = FieldAccess::<$ty>::size_of_field_at(buf);
+                    buf = buf.split_at(elem_size).1;
+                    size += elem_size;
+                }
+            }
+            #[inline(always)]
+            pub const fn extract(mut buf: &$lt [u8]) -> ZTArray<$lt, $ty> {
+                ZTArray::new(buf)
+            }
+            // #[inline]
+            // pub const fn measure(data: &[$ty]) -> usize {
+            //     let mut size = 0;
+            //     let mut index = 0;
+            //     loop {
+            //         unimplemented!();
+            //         // size += FieldAccess::<$ty>::measure(data[index]);
+            //         index += 1;
+            //     }
+            //     size
+            // }
+        }
+    };
+}
+
+array_access!{'a ZTString<'a>}
+array_access!{'a Encoded<'a>}
 
 pub struct ZTArray<'a, T: FieldAccessNonConst<'a, T> + 'a> {
     _phantom: PhantomData<T>,
@@ -497,14 +661,30 @@ impl PartialEq<&str> for ZTString<'_> {
 }
 
 
-#[allow(unused)]
-pub struct Encoded {
+pub struct Encoded<'a> {
+    buf: Option<&'a[u8]>
+}
 
+impl <'a> Encoded<'a> {
+    pub const fn new(buf: Option<&'a[u8]>) -> Self {
+        Self {
+            buf
+        }
+    }
 }
 
 // Some fields are at a known, fixed position. Other fields require us to decode previous fields.
 
 protocol!{
+struct Message {
+    /// Identifies the message.
+    mtype: u8,
+    /// Length of message contents in bytes, including self.
+    mlen: i32,
+    /// Message contents.
+    data: Rest,
+}
+
 struct AuthenticationOk {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
