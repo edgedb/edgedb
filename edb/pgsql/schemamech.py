@@ -383,16 +383,12 @@ def compile_constraint(
     )
 
     if constraint_data.exclusive_expr_refs:
-        expressions: List[ExprData] = _get_compiled_constraint_expr_data(
-            subject, constraint_data
-        )
-
-        pg_constr_data.expressions.extend(expressions)
-
-        origin_expressions: list[ExprData] = []
+        origin_expr_datas: dict[
+            s_constraints.Constraint, list[ExprData]
+        ] = {}
         for origin in constraint_origins:
             if origin == constraint:
-                origin_expressions.extend(expressions)
+                origin_data = constraint_data
 
             else:
                 origin_data = _compile_constraint_data(
@@ -401,11 +397,23 @@ def compile_constraint(
                     is_optional,
                 )
 
-                origin_exprdatas = _get_compiled_constraint_expr_data(
-                    subject, origin_data
-                )
+            origin_expr_datas[origin] = _get_compiled_constraint_expr_data(
+                subject, origin_data
+            )
 
-                origin_expressions.extend(origin_exprdatas)
+        expressions: list[ExprData]
+        if constraint in origin_expr_datas:
+            expressions = origin_expr_datas[constraint]
+        else:
+            expressions = _get_compiled_constraint_expr_data(
+                subject, constraint_data
+            )
+
+        pg_constr_data.expressions.extend(expressions)
+
+        origin_expressions: list[ExprData] = []
+        for origin in constraint_origins:
+            origin_expressions.extend(origin_expr_datas[origin])
 
         pg_constr_data.origin_expressions.extend(origin_expressions)
 
