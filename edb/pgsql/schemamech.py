@@ -318,6 +318,30 @@ def _compile_constraint_data(
     )
 
 
+def _get_compiled_constraint_expr_data(
+    primary_subject: s_constraints.ConsistencySubject,
+    constraint_data: CompiledConstraintData,
+) -> list[ExprData]:
+    exprdatas: list[ExprData] = []
+
+    constraint_subject = (
+        constraint_data.subject
+        if constraint_data.subject != primary_subject else
+        None
+    )
+
+    assert constraint_data.exclusive_expr_refs is not None
+    for ref in constraint_data.exclusive_expr_refs:
+        exprdata = _edgeql_ref_to_pg_constr(
+            primary_subject, constraint_subject, ref
+        )
+        exprdata.origin_subject_db_name = constraint_data.subject_db_name
+        exprdata.origin_except_data = constraint_data.except_data
+        exprdatas.append(exprdata)
+
+    return exprdatas
+
+
 def compile_constraint(
     subject: s_constraints.ConsistencySubject,
     constraint: s_constraints.Constraint,
@@ -359,19 +383,16 @@ def compile_constraint(
     )
 
     if constraint_data.exclusive_expr_refs:
-        exprdatas: List[ExprData] = []
-        for ref in constraint_data.exclusive_expr_refs:
-            exprdata = _edgeql_ref_to_pg_constr(subject, None, ref)
-            exprdata.origin_subject_db_name = constraint_data.subject_db_name
-            exprdata.origin_except_data = constraint_data.except_data
-            exprdatas.append(exprdata)
+        expressions: List[ExprData] = _get_compiled_constraint_expr_data(
+            subject, constraint_data
+        )
 
-        pg_constr_data.expressions.extend(exprdatas)
+        pg_constr_data.expressions.extend(expressions)
 
         origin_expressions: list[ExprData] = []
         for origin in constraint_origins:
             if origin == constraint:
-                origin_expressions.extend(exprdatas)
+                origin_expressions.extend(expressions)
 
             else:
                 origin_data = _compile_constraint_data(
@@ -380,16 +401,11 @@ def compile_constraint(
                     is_optional,
                 )
 
-                assert origin_data.exclusive_expr_refs is not None
-                for ref in origin_data.exclusive_expr_refs:
-                    exprdata = _edgeql_ref_to_pg_constr(
-                        subject, origin_data.subject, ref
-                    )
-                    exprdata.origin_subject_db_name = (
-                        origin_data.subject_db_name
-                    )
-                    exprdata.origin_except_data = origin_data.except_data
-                    origin_expressions.append(exprdata)
+                origin_exprdatas = _get_compiled_constraint_expr_data(
+                    subject, origin_data
+                )
+
+                origin_expressions.extend(origin_exprdatas)
 
         pg_constr_data.origin_expressions.extend(origin_expressions)
 
