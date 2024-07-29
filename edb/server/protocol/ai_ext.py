@@ -17,7 +17,7 @@
 #
 
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     cast,
     Any,
@@ -29,6 +29,7 @@ from typing import (
     TYPE_CHECKING,
 )
 
+import abc
 import asyncio
 import contextlib
 import contextvars
@@ -39,6 +40,10 @@ import logging
 
 import httpx
 import httpx_sse
+
+import tiktoken
+from mistral_common.tokens.tokenizers import mistral as mistral_tokenizer
+
 
 from edb import errors
 from edb.common import asyncutil
@@ -106,6 +111,102 @@ class BadRequestError(AIExtError):
 class ApiStyle(s_enum.StrEnum):
     OpenAI = 'OpenAI'
     Anthropic = 'Anthropic'
+
+
+class Tokenizer(abc.ABC):
+
+    @abc.abstractmethod
+    def encode(self, text: str) -> list[int]:
+        """Encode text into tokens."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def encode_padding(self) -> int:
+        """How many special characters are added to encodings?"""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def decode(self, tokens: list[int]) -> str:
+        """Decode tokens into text."""
+        raise NotImplementedError
+
+    def shorten_to_token_length(self, text: str, token_length: int) -> str:
+        """Truncate text to a maximum token length."""
+        encoded = self.encode(text)
+        if len(encoded) > token_length:
+            encoded = encoded[:token_length]
+        return self.decode(encoded)
+
+
+class OpenAITokenizer(Tokenizer):
+
+    _instances: dict[str, OpenAITokenizer] = {}
+
+    encoding: Any
+
+    @classmethod
+    def for_model(cls, model_name: str) -> OpenAITokenizer:
+        if model_name in cls._instances:
+            return cls._instances[model_name]
+
+        tokenizer = OpenAITokenizer()
+        tokenizer.encoding = tiktoken.encoding_for_model(model_name)
+        cls._instances[model_name] = tokenizer
+
+        return tokenizer
+
+    def encode(self, text: str) -> list[int]:
+        return cast(list[int], self.encoding.encode(text))
+
+    def encode_padding(self) -> int:
+        return 0
+
+    def decode(self, tokens: list[int]) -> str:
+        return cast(str, self.encoding.decode(tokens))
+
+
+class MistralTokenizer(Tokenizer):
+
+    _instances: dict[str, MistralTokenizer] = {}
+
+    tokenizer: Any
+
+    @classmethod
+    def for_model(cls, model_name: str) -> MistralTokenizer:
+        if model_name in cls._instances:
+            return cls._instances[model_name]
+
+        assert model_name == 'mistral-embed'
+
+        tokenizer = MistralTokenizer()
+        tokenizer.tokenizer = mistral_tokenizer.MistralTokenizer.v1()
+        cls._instances[model_name] = tokenizer
+
+        return tokenizer
+
+    def encode(self, text: str) -> list[int]:
+        # V1 tokenizer wraps input text with control tokens [INST] [/INST].
+        #
+        # While these count towards the overal token limit, how special tokens
+        # are applied to embedding requests is not documented. For now, directly
+        # pass the text into the inner tokenizer.
+        tokenized = self.tokenizer.instruct_tokenizer.tokenizer.encode(
+            text, bos=False, eos=False
+        )
+        return cast(list[int], tokenized)
+
+    def encode_padding(self) -> int:
+        # V1 tokenizer wraps input text with control tokens [INST] [/INST].
+        #
+        # This is only 2 tokens, and testing shows that mistral-embed does add
+        # two tokens to embeddings inputs. However, this is not documented, so
+        # add some extra leeway in case things change.
+        #
+        # Note, other models may use significantly more control tokens.
+        return 16
+
+    def decode(self, tokens: list[int]) -> str:
+        return cast(str, self.tokenizer.decode(tokens))
 
 
 @dataclass
@@ -351,6 +452,12 @@ class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
 
     provider_name: str = ''
 
+    # If a text is too long for a model, it will be excluded from embeddings
+    # to prevent pointlessly wasting requests and tokens.
+    # An embedding index may have its `truncate_to_max` flag switched. If the
+    # flag is on, previously excluded inputs will be truncated and processed.
+    model_excluded_ids: dict[str, list[str]] = field(default_factory=dict)
+
     async def get_params(
         self, context: rs.Context,
     ) -> Optional[Sequence[EmbeddingsParams]]:
@@ -360,6 +467,7 @@ class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
             context.pgconn,
             self.provider_name,
             context.provider_models,
+            self.model_excluded_ids,
         )
 
     def finalize(self, execution_report: rs.ExecutionReport) -> None:
@@ -373,10 +481,10 @@ class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
             )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class EmbeddingsParams(rs.Params[EmbeddingsData]):
     pgconn: pgcon.PGConnection
-    provider: Any
+    provider: ProviderConfig
     model_name: str
     inputs: list[str]
     shortening: Optional[int]
@@ -450,6 +558,7 @@ async def _generate_embeddings_params(
     pgconn: pgcon.PGConnection,
     provider_name: str,
     provider_models: list[str],
+    model_excluded_ids: dict[str, list[str]],
 ) -> Optional[list[EmbeddingsParams]]:
     task_name = _task_name.get()
 
@@ -460,6 +569,38 @@ async def _generate_embeddings_params(
         logger.error(f"{task_name}: {e}")
         return None
 
+    model_tokenizers: dict[str, Tokenizer] = {}
+    if provider_name == 'builtin::openai':
+        model_tokenizers = {
+            model_name: OpenAITokenizer.for_model(model_name)
+            for model_name in provider_models
+        }
+    elif provider_name == 'builtin::mistral':
+        model_tokenizers = {
+            model_name: MistralTokenizer.for_model(model_name)
+            for model_name in provider_models
+        }
+
+    model_max_input_tokens: dict[str, int] = {
+        model_name: await _get_model_annotation_as_int(
+            db,
+            base_model_type="ext::ai::EmbeddingModel",
+            model_name=model_name,
+            annotation_name="ext::ai::embedding_model_max_input_tokens",
+        )
+        for model_name in provider_models
+    }
+
+    model_max_batch_tokens: dict[str, int] = {
+        model_name: await _get_model_annotation_as_int(
+            db,
+            base_model_type="ext::ai::EmbeddingModel",
+            model_name=model_name,
+            annotation_name="ext::ai::embedding_model_max_batch_tokens",
+        )
+        for model_name in provider_models
+    }
+
     model_entries: dict[str, list[tuple[bytes, ...]]] = {}
 
     for model_name in provider_models:
@@ -467,6 +608,25 @@ async def _generate_embeddings_params(
             f"{task_name} considering {model_name!r} "
             f"indexes via {provider_name!r}"
         )
+
+        where_clause = ""
+        if (
+            model_name in model_excluded_ids
+            and (excluded_ids := model_excluded_ids[model_name])
+        ):
+            # Only exclude long text if it won't be auto-truncated.
+            logger.debug(
+                f"{task_name} skipping {len(excluded_ids)} indexes "
+                f"for {model_name!r}"
+            )
+            where_clause = (f"""
+                WHERE
+                    q."id" not in ({','.join(
+                        "'" + excluded_id + "'"
+                        for excluded_id in excluded_ids
+                    )})
+                    OR q."truncate_to_max"
+            """)
 
         entries = await pgconn.sql_fetch(
             f"""
@@ -479,12 +639,14 @@ async def _generate_embeddings_params(
                         "text",
                         "target_rel",
                         "target_attr",
-                        "target_dims_shortening"
+                        "target_dims_shortening",
+                        "truncate_to_max"
                     FROM
                         edgedbext."ai_pending_embeddings_{model_name}"
                     LIMIT
                         500
                 ) AS q
+            {where_clause}
             ORDER BY
                 q."target_dims_shortening",
                 q."target_rel"
@@ -517,16 +679,121 @@ async def _generate_embeddings_params(
             else:
                 shortening = None
             part = list(part_iter)
+
+            inputs: list[str] = []
+            for entry in part:
+                input = entry[1].decode("utf-8")
+                truncate_to_max = bool.from_bytes(entry[5])
+
+                if model_name in model_tokenizers:
+                    tokenizer = model_tokenizers[model_name]
+                    truncate_length = (
+                        model_max_input_tokens[model_name]
+                        - tokenizer.encode_padding()
+                    )
+
+                    if truncate_to_max:
+                        input = tokenizer.shorten_to_token_length(
+                            input, truncate_length
+                        )
+                    elif len(tokenizer.encode(input)) > truncate_length:
+                        # If the text is too long, mark it as excluded and skip.
+                        if model_name not in model_excluded_ids:
+                            model_excluded_ids[model_name] = []
+                        model_excluded_ids[model_name].append(
+                            uuidgen.from_bytes(entry[0]).hex
+                        )
+                        continue
+
+                inputs.append(input)
+
+            if model_name in model_tokenizers:
+                # Trim the inputs so that they fit into the batch size
+                batches = _batch_embeddings_inputs(
+                    tokenizer, inputs, model_max_batch_tokens[model_name]
+                )
+                if batches:
+                    # The request scheduler is not designed to handle multiple
+                    # batches for a single provider. Just take the first one,
+                    # and the rest can be processed next time. If the limits are
+                    # not exceeded, this will happen "immediately".
+                    inputs = batches[0]
+                else:
+                    inputs = []
+
+            if not inputs:
+                continue
+
             embeddings_params.append(EmbeddingsParams(
-                pgconn,
-                provider_cfg,
-                model_name,
-                [entry[1].decode("utf-8") for entry in part],
-                shortening,
-                part,
+                pgconn=pgconn,
+                provider=provider_cfg,
+                model_name=model_name,
+                inputs=inputs,
+                shortening=shortening,
+                entries=part,
             ))
 
     return embeddings_params
+
+
+def _batch_embeddings_inputs(
+    tokenizer: Tokenizer,
+    inputs: list[str],
+    max_batch_tokens: int,
+) -> list[list[str]]:
+    """Create batches of embeddings inputs."""
+
+    # Get token counts
+    input_token_counts = [
+        len(tokenizer.encode(input))
+        for input in inputs
+    ]
+
+    # Get indexes of inputs, sorted from shortest to longest by token count
+    unbatched_input_indexes = list(range(len(inputs)))
+    unbatched_input_indexes.sort(
+        key=lambda index: input_token_counts[index],
+        reverse=False,
+    )
+
+    def unbatched_input(unbatched_index: int) -> str:
+        return inputs[unbatched_input_indexes[unbatched_index]]
+
+    def unbatched_token_count(unbatched_index: int) -> int:
+        return input_token_counts[unbatched_input_indexes[unbatched_index]]
+
+    # Remove any inputs that are larger than the maximum
+    while (
+        unbatched_input_indexes
+        and unbatched_token_count(-1) > max_batch_tokens
+    ):
+        unbatched_input_indexes.pop()
+
+    batches: list[list[str]] = []
+    while unbatched_input_indexes:
+        # Start with the largest available input
+        batch = [unbatched_input(-1)]
+        batch_token_count = unbatched_token_count(-1)
+        unbatched_input_indexes.pop()
+
+        if batch_token_count < max_batch_tokens:
+            # Then add the smallest available input as long as long as the
+            # max batch token count isn't exceeded
+            unbatched_index = 0
+            while unbatched_index < len(unbatched_input_indexes):
+                if (
+                    batch_token_count + unbatched_token_count(unbatched_index)
+                    <= max_batch_tokens
+                ):
+                    batch.append(unbatched_input(unbatched_index))
+                    batch_token_count += unbatched_token_count(unbatched_index)
+                    unbatched_input_indexes.pop(unbatched_index)
+                else:
+                    unbatched_index += 1
+
+        batches.append(batch)
+
+    return batches
 
 
 async def _update_embeddings_in_db(
@@ -1470,6 +1737,52 @@ async def _get_model_provider(
         raise InternalError("multiple models defined as requested model")
 
     return cast(str, models[0]["provider"])
+
+
+async def _get_model_annotation_as_int(
+    db: dbview.Database,
+    base_model_type: str,
+    model_name: str,
+    annotation_name: str,
+) -> int:
+    models = await _edgeql_query_json(
+        db=db,
+        query="""
+        WITH
+            Parent := (
+                SELECT
+                    schema::ObjectType
+                FILTER
+                    .name = <str>$base_model_type
+            ),
+            Models := Parent.<ancestors[IS schema::ObjectType],
+        SELECT
+            Models {
+                value := (
+                    SELECT
+                        (.annotations@value, .annotations.name)
+                    FILTER
+                        .1 = <str>$annotation_name
+                    LIMIT
+                        1
+                ).0,
+            }
+        FILTER
+            .annotations.name = "ext::ai::model_name"
+            AND .annotations@value = <str>$model_name
+        """,
+        variables={
+            "base_model_type": base_model_type,
+            "model_name": model_name,
+            "annotation_name": annotation_name,
+        },
+    )
+    if len(models) == 0:
+        raise BadRequestError("invalid model name")
+    elif len(models) > 1:
+        raise InternalError("multiple models defined as requested model")
+
+    return int(models[0]["value"])
 
 
 async def _generate_embeddings_for_type(

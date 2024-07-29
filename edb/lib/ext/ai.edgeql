@@ -165,6 +165,9 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         ext::ai::embedding_model_max_input_tokens;
 
     create abstract inheritable annotation
+        ext::ai::embedding_model_max_batch_tokens;
+
+    create abstract inheritable annotation
         ext::ai::embedding_model_max_output_dimensions;
 
     create abstract inheritable annotation
@@ -175,6 +178,8 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
     {
         create annotation
             ext::ai::embedding_model_max_input_tokens := "<must override>";
+        create annotation
+            ext::ai::embedding_model_max_batch_tokens := "<must override>";
         create annotation
             ext::ai::embedding_model_max_output_dimensions := "<must override>";
         create annotation
@@ -203,6 +208,8 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         alter annotation
             ext::ai::embedding_model_max_input_tokens := "8191";
         alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "8191";
+        alter annotation
             ext::ai::embedding_model_max_output_dimensions := "1536";
         alter annotation
             ext::ai::embedding_model_supports_shortening := "true";
@@ -217,6 +224,8 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             ext::ai::model_provider := "builtin::openai";
         alter annotation
             ext::ai::embedding_model_max_input_tokens := "8191";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "8191";
         # Note: ext::pgvector is currently limited to 2000 dimensions,
         # so returned embeddings will be automatically truncated if
         # pgvector is used as the index implementation.
@@ -235,6 +244,8 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             ext::ai::model_provider := "builtin::openai";
         alter annotation
             ext::ai::embedding_model_max_input_tokens := "8191";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "8191";
         alter annotation
             ext::ai::embedding_model_max_output_dimensions := "1536";
     };
@@ -270,7 +281,9 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         alter annotation
             ext::ai::model_provider := "builtin::mistral";
         alter annotation
-            ext::ai::embedding_model_max_input_tokens := "16384";
+            ext::ai::embedding_model_max_input_tokens := "8192";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "16384";
         alter annotation
             ext::ai::embedding_model_max_output_dimensions := "1024";
     };
@@ -359,6 +372,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             = ext::ai::IndexType.HNSW,
         named only index_parameters: tuple<m: int64, ef_construction: int64>
             = (m := 32, ef_construction := 100),
+        named only truncate_to_max: bool = False,
     ) {
         create annotation std::description :=
             "Semantic similarity index.";

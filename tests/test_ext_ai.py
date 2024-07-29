@@ -19,7 +19,9 @@
 
 import json
 import pathlib
+import unittest
 
+from edb.server.protocol import ai_ext
 from edb.testbase import http as tb
 
 
@@ -387,4 +389,68 @@ class TestExtAI(tb.BaseHttpExtensionTest):
             select ext::ai::search(Stuff, <array<float32>><json>$0) limit 5;
             ''',
             json.dumps(qv),
+        )
+
+
+class CharacterTokenizer(ai_ext.Tokenizer):
+    def encode(self, text: str) -> list[int]:
+        return [ord(c) for c in text]
+
+    def encode_padding(self) -> int:
+        return 0
+
+    def decode(self, tokens: list[int]) -> str:
+        return str(chr(t) for t in tokens)
+
+
+class TestExtAIUtils(unittest.TestCase):
+
+    def test_batch_embeddings_inputs_01(self):
+        self.assertEqual(
+            ai_ext._batch_embeddings_inputs(
+                CharacterTokenizer(),
+                [],
+                10
+            ),
+            [],
+        )
+        self.assertEqual(
+            ai_ext._batch_embeddings_inputs(
+                CharacterTokenizer(),
+                ['1', '22', '333', '4444'],
+                10
+            ),
+            [['4444', '1', '22', '333']],
+        )
+        self.assertEqual(
+            ai_ext._batch_embeddings_inputs(
+                CharacterTokenizer(),
+                ['1', '22', '333', '4444', '55555'],
+                10
+            ),
+            [['55555', '1', '22'], ['4444', '333']],
+        )
+        self.assertEqual(
+            ai_ext._batch_embeddings_inputs(
+                CharacterTokenizer(),
+                ['1', '22', '333', '4444', '55555', '666666'],
+                10
+            ),
+            [['666666', '1', '22'], ['55555', '333'], ['4444']],
+        )
+        self.assertEqual(
+            ai_ext._batch_embeddings_inputs(
+                CharacterTokenizer(),
+                ['1', '22', '333', '4444', '55555', '666666'],
+                10
+            ),
+            [['666666', '1', '22'], ['55555', '333'], ['4444']],
+        )
+        self.assertEqual(
+            ai_ext._batch_embeddings_inputs(
+                CharacterTokenizer(),
+                ['1', '22', '333', '4444', '55555', '121212121212'],
+                10
+            ),
+            [['55555', '1', '22'], ['4444', '333']],
         )
