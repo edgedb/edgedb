@@ -2968,9 +2968,15 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
             self.assertEqual(result, 'b')
         finally:
-            await self.con.execute('''
-                DROP SCALAR TYPE tid_prop_02;
-            ''')
+            # Retry for https://github.com/edgedb/edgedb/issues/7553
+            async for tr in self.try_until_succeeds(
+                ignore_regexp="cannot drop type .* "
+                              "because other objects depend on it",
+            ):
+                async with tr:
+                    await self.con.execute('''
+                        DROP SCALAR TYPE tid_prop_02;
+                    ''')
 
     async def test_server_proto_backend_tid_propagation_03(self):
         try:
@@ -2991,9 +2997,15 @@ class TestServerProtoDDL(tb.DDLTestCase):
             self.assertEqual(result, 'B')
 
         finally:
-            await self.con.execute('''
-                DROP SCALAR TYPE tid_prop_03;
-            ''')
+            # Retry for https://github.com/edgedb/edgedb/issues/7553
+            async for tr in self.try_until_succeeds(
+                ignore_regexp="cannot drop type .* "
+                              "because other objects depend on it",
+            ):
+                async with tr:
+                    await self.con.execute('''
+                        DROP SCALAR TYPE tid_prop_03;
+                    ''')
 
     async def test_server_proto_backend_tid_propagation_04(self):
         try:
@@ -3057,6 +3069,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
             self.assertEqual(result, 'b')
         finally:
+            # Retry for https://github.com/edgedb/edgedb/issues/7553
             async for tr in self.try_until_succeeds(
                 ignore_regexp="cannot drop type .* "
                               "because other objects depend on it",
@@ -3099,9 +3112,15 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
         finally:
             await self.con.query('ROLLBACK')
-            await self.con.execute('''
-                DROP SCALAR TYPE tid_prop_081;
-            ''')
+            # Retry for https://github.com/edgedb/edgedb/issues/7553
+            async for tr in self.try_until_succeeds(
+                ignore_regexp="cannot drop type .* "
+                              "because other objects depend on it",
+            ):
+                async with tr:
+                    await self.con.execute('''
+                        DROP SCALAR TYPE tid_prop_081;
+                    ''')
 
     async def test_server_proto_backend_tid_propagation_09(self):
         try:
@@ -3137,11 +3156,17 @@ class TestServerProtoDDL(tb.DDLTestCase):
             self.assertEqual(result, 'Z')
 
         finally:
-            await self.con.execute('''
-                DROP SCALAR TYPE tid_prop_091;
-                DROP SCALAR TYPE tid_prop_092;
-                DROP SCALAR TYPE tid_prop_093;
-            ''')
+            # Retry for https://github.com/edgedb/edgedb/issues/7553
+            async for tr in self.try_until_succeeds(
+                ignore_regexp="cannot drop type .* "
+                              "because other objects depend on it",
+            ):
+                async with tr:
+                    await self.con.execute('''
+                        DROP SCALAR TYPE tid_prop_091;
+                        DROP SCALAR TYPE tid_prop_092;
+                        DROP SCALAR TYPE tid_prop_093;
+                    ''')
 
     async def test_server_proto_fetch_limit_01(self):
         try:
