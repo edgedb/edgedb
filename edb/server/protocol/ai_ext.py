@@ -17,7 +17,7 @@
 #
 
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     cast,
     Any,
@@ -452,6 +452,12 @@ class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
 
     provider_name: str = ''
 
+    # If a text is too long for a model, it will be excluded from embeddings
+    # to prevent pointlessly wasting requests and tokens.
+    # An embedding index may have its `truncate_to_max` flag switched. If the
+    # flag is on, previously excluded inputs will be truncated and processed.
+    model_excluded_ids: dict[str, list[str]] = field(default_factory=dict)
+
     async def get_params(
         self, context: rs.Context,
     ) -> Optional[Sequence[EmbeddingsParams]]:
@@ -461,6 +467,7 @@ class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
             context.pgconn,
             self.provider_name,
             context.provider_models,
+            self.model_excluded_ids,
         )
 
     def finalize(self, execution_report: rs.ExecutionReport) -> None:
@@ -551,6 +558,7 @@ async def _generate_embeddings_params(
     pgconn: pgcon.PGConnection,
     provider_name: str,
     provider_models: list[str],
+    model_excluded_ids: dict[str, list[str]],
 ) -> Optional[list[EmbeddingsParams]]:
     task_name = _task_name.get()
 
@@ -601,6 +609,25 @@ async def _generate_embeddings_params(
             f"indexes via {provider_name!r}"
         )
 
+        where_clause = ""
+        if (
+            model_name in model_excluded_ids
+            and (excluded_ids := model_excluded_ids[model_name])
+        ):
+            # Only exclude long text if it won't be auto-truncated.
+            logger.debug(
+                f"{task_name} skipping {len(excluded_ids)} indexes "
+                f"for {model_name!r}"
+            )
+            where_clause = (f"""
+                WHERE
+                    q."id" not in ({','.join(
+                        "'" + excluded_id + "'"
+                        for excluded_id in excluded_ids
+                    )})
+                    OR q."truncate_to_max"
+            """)
+
         entries = await pgconn.sql_fetch(
             f"""
             SELECT
@@ -619,6 +646,7 @@ async def _generate_embeddings_params(
                     LIMIT
                         500
                 ) AS q
+            {where_clause}
             ORDER BY
                 q."target_dims_shortening",
                 q."target_rel"
@@ -657,16 +685,25 @@ async def _generate_embeddings_params(
                 input = entry[1].decode("utf-8")
                 truncate_to_max = bool.from_bytes(entry[5])
 
-                if truncate_to_max and model_name in model_tokenizers:
+                if model_name in model_tokenizers:
                     tokenizer = model_tokenizers[model_name]
                     truncate_length = (
                         model_max_input_tokens[model_name]
                         - tokenizer.encode_padding()
                     )
 
-                    input = tokenizer.shorten_to_token_length(
-                        input, truncate_length
-                    )
+                    if truncate_to_max:
+                        input = tokenizer.shorten_to_token_length(
+                            input, truncate_length
+                        )
+                    elif len(tokenizer.encode(input)) > truncate_length:
+                        # If the text is too long, mark it as excluded and skip.
+                        if model_name not in model_excluded_ids:
+                            model_excluded_ids[model_name] = []
+                        model_excluded_ids[model_name].append(
+                            uuidgen.from_bytes(entry[0]).hex
+                        )
+                        continue
 
                 inputs.append(input)
 
