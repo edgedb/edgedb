@@ -12119,6 +12119,7 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
             ['wontfix'],
         )
 
+        # Retry for https://github.com/edgedb/edgedb/issues/7553
         async for tr in self.try_until_succeeds(
             ignore_regexp="cannot drop type .* "
                           "because other objects depend on it",
