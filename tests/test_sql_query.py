@@ -135,7 +135,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             FROM "Movie" JOIN "Genre" ON "Movie".genre_id = "Genre".id
             '''
         )
-        self.assert_shape(res, 2, ['id', 'id'])
+        self.assert_shape(res, 2, ['id', 'col~1'])
 
     async def test_sql_query_09(self):
         # resolve columns without table names
