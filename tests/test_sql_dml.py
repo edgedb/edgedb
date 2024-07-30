@@ -456,6 +456,8 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         self.assertEqual(res, 'INSERT 0 2')
 
     async def test_sql_dml_insert_22(self):
+        # insert into link table
+
         query = '''
             INSERT INTO "Document" (title) VALUES ('Report'), ('Briefing')
             RETURNING id;
@@ -514,6 +516,8 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         self.assertEqual(res, [[True]])
 
     async def test_sql_dml_insert_24(self):
+        # insert into link table, link properties
+
         documents = await self.squery_values(
             '''
             INSERT INTO "Document" (title) VALUES ('Report') RETURNING id
@@ -542,6 +546,8 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         self.assertEqual(res, [[True]])
 
     async def test_sql_dml_insert_25(self):
+        # insert into link table, returning
+
         documents = await self.squery_values(
             '''
             INSERT INTO "Document" (title) VALUES ('Report') RETURNING id
@@ -558,6 +564,34 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             INSERT INTO "Document.shared_with"
             VALUES ($1, $2, FALSE)
             RETURNING source, target, not can_edit
+            ''',
+            str(documents[0][0]),
+            str(users[0][0]),
+        )
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0][0], documents[0][0])
+        self.assertEqual(res[0][1], users[0][0])
+        self.assertEqual(res[0][2], True)
+
+    async def test_sql_dml_insert_26(self):
+        # insert into single link table
+
+        documents = await self.squery_values(
+            '''
+            INSERT INTO "Document" (title) VALUES ('Report') RETURNING id
+            '''
+        )
+        users = await self.squery_values(
+            '''
+            INSERT INTO "User" DEFAULT VALUES RETURNING id
+            '''
+        )
+
+        res = await self.squery_values(
+            '''
+            INSERT INTO "Document.owner"
+            VALUES ($1, $2, FALSE)
+            RETURNING source, target, not is_author
             ''',
             str(documents[0][0]),
             str(users[0][0]),

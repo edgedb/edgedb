@@ -30,6 +30,7 @@ from edb.pgsql import compiler as pgcompiler
 from edb.pgsql.compiler import enums as pgce
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 from edb.edgeql import compiler as qlcompiler
 
 from edb.ir import ast as irast
@@ -524,7 +525,14 @@ def _preprocess_insert_link_stmt(
         shape=[
             qlast.ShapeElement(
                 expr=qlast.Path(steps=[qlast.Ptr(name=sub_name.name)]),
-                operation=qlast.ShapeOperation(op=qlast.ShapeOp.APPEND),
+                operation=(
+                    qlast.ShapeOperation(op=qlast.ShapeOp.APPEND)
+                    if (
+                        link.get_cardinality(ctx.schema)
+                        == qltypes.SchemaCardinality.Many
+                    )
+                    else qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN)
+                ),
                 compexpr=qlast.Shape(
                     expr=qlast.TypeCast(
                         expr=qlast.Path(  # target
@@ -583,7 +591,7 @@ def _preprocess_insert_link_stmt(
                         steps=[
                             qlast.Ptr(name=sub_name.name),
                             qlast.Ptr(name=column.name, type='property'),
-                        ]
+                        ],
                     ),
                 )
             )
