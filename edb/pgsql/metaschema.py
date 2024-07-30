@@ -28,6 +28,7 @@ from typing import (
     Iterable,
     List,
     Set,
+    Sequence,
     cast,
 )
 
@@ -4763,36 +4764,32 @@ class PadBase64StringFunction(trampoline.VersionedFunction):
 
 
 def _maybe_trampoline(
-    cmd: dbops.Command, out_cmds: list[dbops.Command]
+    cmd: dbops.Command, out: list[trampoline.Trampoline]
 ) -> None:
     namespace = V('')
     if (
         isinstance(cmd, dbops.CreateFunction)
         and cmd.function.name[0].endswith(namespace)
     ):
-        out_cmds.append(dbops.CreateFunction(
-            trampoline.make_trampoline(cmd.function),
-            or_replace=True,
-        ))
+        out.append(trampoline.make_trampoline(cmd.function))
     elif (
         isinstance(cmd, dbops.CreateView)
         and cmd.view.name[0].endswith(namespace)
     ):
-        out_cmds.append(dbops.CreateView(
-            trampoline.make_view_trampoline(cmd.view),
-            or_replace=True,
-        ))
+        out.append(trampoline.make_view_trampoline(cmd.view))
 
 
-def trampoline_functions(cmds: list[dbops.Command]) -> list[dbops.Command]:
-    ncmds = list(cmds)
+def trampoline_functions(
+    cmds: Sequence[dbops.Command]
+) -> list[trampoline.Trampoline]:
+    ncmds: list[trampoline.Trampoline] = []
     for cmd in cmds:
-        _maybe_trampoline(cmd, out_cmds=ncmds)
+        _maybe_trampoline(cmd, ncmds)
     return ncmds
 
 
-def trampoline_command(cmd: dbops.Command) -> list[dbops.Command]:
-    ncmds: list[dbops.Command] = []
+def trampoline_command(cmd: dbops.Command) -> list[trampoline.Trampoline]:
+    ncmds: list[trampoline.Trampoline] = []
 
     def go(cmd: dbops.Command) -> None:
         if isinstance(cmd, dbops.CommandGroup):
@@ -4806,10 +4803,9 @@ def trampoline_command(cmd: dbops.Command) -> list[dbops.Command]:
     return ncmds
 
 
-async def bootstrap(
-    conn: PGConnection,
+def get_bootstrap_commands(
     config_spec: edbconfig.Spec,
-) -> None:
+) -> tuple[dbops.CommandGroup, list[trampoline.Trampoline]]:
     cmds = [
         dbops.CreateSchema(name='edgedb'),
         dbops.CreateSchema(name='edgedbt'),
@@ -4944,11 +4940,9 @@ async def bootstrap(
     ]
 
     commands = dbops.CommandGroup()
-    commands.add_commands(trampoline_functions(cmds))
+    commands.add_commands(cmds)
 
-    block = dbops.PLTopBlock()
-    commands.generate(block)
-    await _execute_block(conn, block)
+    return commands, trampoline_functions(cmds)
 
 
 async def create_pg_extensions(
@@ -5689,6 +5683,7 @@ def _make_json_caster(
         cast_ir,
         named_param_prefix=(),
         singleton_mode=True,
+        versioned_singleton=True,
     )
     cast_sql = codegen.generate_source(cast_sql_res.ast)
 
@@ -7139,7 +7134,7 @@ def get_synthetic_type_views(
 def get_support_views(
     schema: s_schema.Schema,
     backend_params: params.BackendRuntimeParams,
-) -> dbops.CommandGroup:
+) -> tuple[dbops.CommandGroup, list[trampoline.Trampoline]]:
     commands = dbops.CommandGroup()
 
     schema_alias_views = _generate_schema_alias_views(
@@ -7191,41 +7186,45 @@ def get_support_views(
     commands.add_commands(_generate_sql_information_schema())
 
     # The synthetic type views (cfg::, sys::) need to be trampolined
-    commands.add_commands(trampoline_command(synthetic_types))
-    commands.add_commands(trampoline_command(wrapper_commands))
+    trampolines = []
+    trampolines.extend(trampoline_command(synthetic_types))
+    trampolines.extend(trampoline_command(wrapper_commands))
 
-    return commands
+    return commands, trampolines
 
 
 async def generate_support_views(
     conn: PGConnection,
     schema: s_schema.Schema,
     backend_params: params.BackendRuntimeParams,
-) -> None:
-    commands = get_support_views(schema, backend_params)
+) -> list[trampoline.Trampoline]:
+    commands, trampolines = get_support_views(schema, backend_params)
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
+    return trampolines
 
 
 async def generate_support_functions(
     conn: PGConnection,
     schema: s_schema.Schema,
-) -> None:
+) -> list[trampoline.Trampoline]:
     commands = dbops.CommandGroup()
 
-    commands.add_commands(trampoline_functions([
+    cmds = [
         dbops.CreateFunction(GetPgTypeForEdgeDBTypeFunction2(),
                              or_replace=True),
         dbops.CreateFunction(IssubclassFunction()),
         dbops.CreateFunction(IssubclassFunction2()),
         dbops.CreateFunction(GetSchemaObjectNameFunction()),
         dbops.CreateFunction(FormatTypeFunction()),
-    ]))
+    ]
+    commands.add_commands(cmds)
 
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
+    return trampoline_functions(cmds)
 
 
 async def generate_more_support_functions(
@@ -7233,19 +7232,21 @@ async def generate_more_support_functions(
     compiler: edbcompiler.Compiler,
     schema: s_schema.Schema,
     testmode: bool,
-) -> None:
+) -> list[trampoline.Trampoline]:
     commands = dbops.CommandGroup()
 
-    commands.add_commands(trampoline_functions([
+    cmds = [
         dbops.CreateFunction(
             DescribeRolesAsDDLFunction(schema), or_replace=True),
         dbops.CreateFunction(GetSequenceBackendNameFunction()),
         dbops.CreateFunction(DumpSequencesFunction()),
-    ]))
+    ]
+    commands.add_commands(cmds)
 
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
+    return trampoline_functions(cmds)
 
 
 def _build_key_source(

@@ -331,6 +331,8 @@ def _process_delta(
 
     # Generate SQL DDL for the delta.
     pgdelta.generate(block)  # type: ignore
+    # XXX: We would prefer for there to not be trampolines ever after bootstrap
+    pgdelta.create_trampolines.generate(block)  # type: ignore
 
     # Generate schema storage SQL (DML into schema storage tables).
     subblock = block.add_block()

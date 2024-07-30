@@ -38,7 +38,9 @@ from typing import (
     TYPE_CHECKING,
 )
 
+import abc
 import copy
+import dataclasses
 
 
 from . import common
@@ -86,7 +88,32 @@ class VersionedView(dbops.View):
             self.query = fixup_query(self.query)
 
 
-def make_trampoline(func: dbops.Function) -> dbops.Function:
+@dataclasses.dataclass
+class Trampoline:
+    name: tuple[str, str]
+
+    @abc.abstractmethod
+    def make(self) -> dbops.Command:
+        pass
+
+
+@dataclasses.dataclass
+class TrampolineFunction(Trampoline):
+    func: dbops.Function
+
+    def make(self) -> dbops.Command:
+        return dbops.CreateFunction(self.func, or_replace=True)
+
+
+@dataclasses.dataclass
+class TrampolineView(Trampoline):
+    view: dbops.View
+
+    def make(self) -> dbops.Command:
+        return dbops.CreateView(self.view, or_replace=True)
+
+
+def make_trampoline(func: dbops.Function) -> TrampolineFunction:
     new_func = copy.copy(func)
     schema, name = func.name
     namespace = V('')
@@ -107,18 +134,23 @@ def make_trampoline(func: dbops.Function) -> dbops.Function:
     new_func.text = f'select {q(*func.name)}({", ".join(args)})'
     new_func.language = 'sql'
     new_func.strict = False
-    return new_func
+    return TrampolineFunction(new_func.name, new_func)
 
 
-def make_view_trampoline(view: dbops.View) -> dbops.View:
-    schema, name = view.name
+def make_table_trampoline(fullname: tuple[str, str]) -> TrampolineView:
+    schema, name = fullname
     namespace = V('')
     assert schema.endswith(namespace), schema
     new_name = (schema[:-len(namespace)], name)
 
-    return dbops.View(
+    view = dbops.View(
         name=new_name,
         query=f'''
-            SELECT * FROM {q(*view.name)}
+            SELECT * FROM {q(*fullname)}
         ''',
     )
+    return TrampolineView(new_name, view)
+
+
+def make_view_trampoline(view: dbops.View) -> TrampolineView:
+    return make_table_trampoline(view.name)

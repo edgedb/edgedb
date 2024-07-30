@@ -274,21 +274,19 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
             else dbops.Function
         )
 
-    @staticmethod
-    def maybe_trampoline_inline(
-        f: Optional[dbops.Function]
-    ) -> dbops.Command:
+    @classmethod
+    def maybe_trampoline(
+        cls,
+        f: Optional[dbops.Function],
+        context: sd.CommandContext,
+    ) -> None:
         if isinstance(f, trampoline.VersionedFunction):
-            return dbops.CreateFunction(
-                trampoline.make_trampoline(f), or_replace=True
-            )
-        else:
-            return dbops.CommandGroup()
+            create = trampoline.make_trampoline(f)
 
-    def maybe_trampoline(self, f: Optional[dbops.Function]) -> None:
-        # XXX: TRAMPOLINE: Is this where we want to do this???
-        if isinstance(f, trampoline.VersionedFunction):
-            self.pgops.add(self.maybe_trampoline_inline(f))
+            ctx = not_none(context.get(sd.DeltaRootContext))
+            assert isinstance(ctx.op, DeltaRoot)
+            create_trampolines = ctx.op.create_trampolines
+            create_trampolines.trampolines.append(create)
 
 
 class CommandGroupAdapted(MetaCommand, adapts=sd.CommandGroup):
@@ -1556,7 +1554,7 @@ class FunctionCommand(MetaCommand):
             ops: list[dbops.Command] = []
 
             ops.append(dbops.CreateFunction(dbf, or_replace=or_replace))
-            ops.append(self.maybe_trampoline_inline(dbf))
+            self.maybe_trampoline(dbf, context)
             return ops
 
 
@@ -1773,7 +1771,7 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
             oper_func = self.make_operator_function(oper, schema)
             self.pgops.add(dbops.CreateFunction(oper_func))
 
-            self.maybe_trampoline(oper_func)
+            self.maybe_trampoline(oper_func, context)
 
             if not params.has_polymorphic(schema):
                 cexpr = self.get_dummy_func_call(
@@ -1874,7 +1872,7 @@ class CreateCast(CastCommand, adapts=s_casts.CreateCast):
         if cast_language is ql_ast.Language.SQL and cast_code:
             cast_func = self.make_cast_function(cast, schema)
             self.pgops.add(dbops.CreateFunction(cast_func))
-            self.maybe_trampoline(cast_func)
+            self.maybe_trampoline(cast_func, context)
 
         elif from_cast is not None or from_expr is not None:
             # This operator is handled by the compiler and does not
@@ -2316,13 +2314,15 @@ class CreateScalarType(ScalarTypeMetaCommand,
         scalar: s_scalars.ScalarType,
         default: Optional[s_expr.Expression],
         schema: s_schema.Schema,
+        context: sd.CommandContext,
     ) -> dbops.Command:
 
         if scalar.is_concrete_enum(schema):
             enum_values = scalar.get_enum_values(schema)
             assert enum_values
 
-            return CreateScalarType.create_enum(scalar, enum_values, schema)
+            return CreateScalarType.create_enum(
+                scalar, enum_values, schema, context)
         else:
             ops = dbops.CommandGroup()
 
@@ -2361,6 +2361,7 @@ class CreateScalarType(ScalarTypeMetaCommand,
         scalar: s_scalars.ScalarType,
         values: Sequence[str],
         schema: s_schema.Schema,
+        context: sd.CommandContext,
     ) -> dbops.Command:
         ops = dbops.CommandGroup()
 
@@ -2386,7 +2387,7 @@ class CreateScalarType(ScalarTypeMetaCommand,
             text=f"SELECT value::{qt(new_enum_name)}",
         )
         ops.add_command(dbops.CreateFunction(cast_func))
-        ops.add_command(cls.maybe_trampoline_inline(cast_func))
+        cls.maybe_trampoline(cast_func, context)
 
         # Simialry, uncast from enum to str
         uncast_func_name = common.get_backend_name(
@@ -2400,7 +2401,7 @@ class CreateScalarType(ScalarTypeMetaCommand,
             text=f"SELECT value::text",
         )
         ops.add_command(dbops.CreateFunction(uncast_func))
-        ops.add_command(cls.maybe_trampoline_inline(uncast_func))
+        cls.maybe_trampoline(uncast_func, context)
         return ops
 
     def _create_begin(
@@ -2426,7 +2427,7 @@ class CreateScalarType(ScalarTypeMetaCommand,
             schema=schema,
             context=context,
         )
-        self.pgops.add(self.create_scalar(scalar, default, schema))
+        self.pgops.add(self.create_scalar(scalar, default, schema, context))
 
         return schema
 
@@ -2673,7 +2674,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
             elif isinstance(obj, s_scalars.ScalarType):
                 self.pgops.add(
                     CreateScalarType.create_scalar(
-                        obj, obj.get_default(schema), orig_schema
+                        obj, obj.get_default(schema), orig_schema, context
                     )
                 )
             elif isinstance(obj, s_props.Property):
@@ -2768,7 +2769,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 )
                 self.pgops.add(
                     CreateScalarType.create_enum(
-                        new_scalar, new_enum_values, schema
+                        new_scalar, new_enum_values, schema, context
                     )
                 )
 
@@ -2999,8 +3000,8 @@ class CompositeMetaCommand(MetaCommand):
         self.post_inhview_update_commands = []
 
     def schedule_trampoline(self, obj, schema, context):
-        create_trampolines = context.get(
-            sd.DeltaRootContext).op.create_trampolines
+        delta = context.get(sd.DeltaRootContext).op
+        create_trampolines = delta.create_trampolines
         create_trampolines.table_targets.append(obj)
 
     def _get_multicommand(
@@ -3186,7 +3187,7 @@ class CompositeMetaCommand(MetaCommand):
         schema: s_schema.Schema,
         obj: CompositeObject,
         aspect: str='table',
-    ) -> dbops.Command:
+    ) -> Optional[trampoline.TrampolineView]:
         versioned_name = common.get_backend_name(
             schema, obj, aspect=aspect, catenate=False
         )
@@ -3194,13 +3195,9 @@ class CompositeMetaCommand(MetaCommand):
             schema, obj, aspect=aspect, catenate=False, versioned=False
         )
         if versioned_name != trampolined_name:
-            query = f'''
-                SELECT * FROM {q(*versioned_name)}
-            '''
-            view = dbops.View(name=trampolined_name, query=query)
-            return dbops.CreateView(view, or_replace=True)
+            return trampoline.make_table_trampoline(versioned_name)
         else:
-            return dbops.CommandGroup()
+            return None
 
     @classmethod
     def drop_type_trampoline(
@@ -3495,10 +3492,6 @@ class CompositeMetaCommand(MetaCommand):
         if alter_ancestors:
             self.alter_ancestor_inhviews(schema, context, obj)
 
-        self.pgops.add(
-            self.create_type_trampoline(schema, obj, aspect='inhview')
-        )
-
     def alter_inhview(
         self,
         schema: s_schema.Schema,
@@ -3558,6 +3551,7 @@ class CompositeMetaCommand(MetaCommand):
         obj: CompositeObject,
         conditional: bool = False,
     ) -> None:
+        # XXX: I would prefer to not do this!
         self.pgops.add(self.drop_type_trampoline(schema, obj, aspect='inhview'))
 
         inhview_name = common.get_backend_name(
@@ -6177,6 +6171,7 @@ class DeleteProperty(PropertyMetaCommand, adapts=s_props.DeleteProperty):
 class CreateTrampolines(MetaCommand):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
+        self.trampolines: list[trampoline.Trampoline] = []
         self.table_targets: list[s_objtypes.ObjectType | s_pointers.Pointer] = (
             []
         )
@@ -6189,16 +6184,17 @@ class CreateTrampolines(MetaCommand):
         for obj in self.table_targets:
             if not (schema.has_object(obj.id) and types.has_table(obj, schema)):
                 continue
-            self.pgops.add(
-                CompositeMetaCommand.create_type_trampoline(
-                    schema, obj
-                )
-            )
-            self.pgops.add(
-                CompositeMetaCommand.create_type_trampoline(
-                    schema, obj, aspect='inhview',
-                )
-            )
+            if tramp := CompositeMetaCommand.create_type_trampoline(
+                schema, obj
+            ):
+                self.trampolines.append(tramp)
+            if tramp := CompositeMetaCommand.create_type_trampoline(
+                schema, obj, aspect='inhview',
+            ):
+                self.trampolines.append(tramp)
+
+        for t in self.trampolines:
+            self.pgops.add(t.make())
 
         return schema
 
@@ -7710,7 +7706,6 @@ class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
         self.pgops.add(self.update_endpoint_delete_actions)
 
         self.create_trampolines.apply(schema, context)
-        self.pgops.add(self.create_trampolines)
 
         return schema
 
