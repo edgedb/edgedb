@@ -645,6 +645,65 @@ class TestRequests(unittest.TestCase):
             rs.Timer(1044, False),
         )
 
+    @with_fake_event_loop
+    async def test_service_next_delay_05(self):
+        await asyncio.sleep(1000)
+
+        # If there were no errors and some deferred, with multiple limits,
+        # use an immediate delay with the highest value.
+
+        success_count = 0
+        deferred_costs = {'requests': 1, 'tokens': 2}
+        error_count = 0
+
+        # No base delay, run immediately
+        self.assertEqual(
+            rs.Service(
+                limits={
+                    'requests': rs.Limits(total='unlimited'),
+                    'tokens': rs.Limits(total='unlimited'),
+                },
+            ).next_delay(
+                success_count, deferred_costs, error_count, naptime=30,
+            ),
+            rs.Timer(None, True),
+        )
+
+        # Has delay, run immediately after delay
+        self.assertAlmostEqual(
+            rs.Service(
+                limits={
+                    'requests': rs.Limits(total=6),
+                    'tokens': rs.Limits(total='unlimited'),
+                },
+            ).next_delay(
+                success_count, deferred_costs, error_count, naptime=30,
+            ),
+            rs.Timer(1011, True),
+        )
+        self.assertAlmostEqual(
+            rs.Service(
+                limits={
+                    'requests': rs.Limits(total='unlimited'),
+                    'tokens': rs.Limits(total=6),
+                },
+            ).next_delay(
+                success_count, deferred_costs, error_count, naptime=30,
+            ),
+            rs.Timer(1011, True),
+        )
+        self.assertAlmostEqual(
+            rs.Service(
+                limits={
+                    'requests': rs.Limits(total=3),
+                    'tokens': rs.Limits(total=6),
+                },
+            ).next_delay(
+                success_count, deferred_costs, error_count, naptime=30,
+            ),
+            rs.Timer(1022, True),
+        )
+
     def test_limits_update_total_01(self):
         # Check total takes the "latest" value
         self.assertEqual(
@@ -866,13 +925,21 @@ class TestRequests(unittest.TestCase):
         self.assertEqual([], report.known_error_messages)
         self.assertEqual({'requests': 0}, report.deferred_costs)
 
-        # No errors or deferred, delay factor is decreased, can't go below 1
+        # Check limits
         self.assertEqual(
-            {'requests': 1},
-            {
-                limit_name: limit.delay_factor
-                for limit_name, limit in report.updated_limits.items()
-            }
+            {'requests'},
+            set(report.updated_limits.keys())
+        )
+
+        # Total limit is unchanged
+        self.assertTrue(True, report.updated_limits['requests'].total)
+
+        # Remaining limit is reset to None
+        self.assertIsNone(report.updated_limits['requests'].remaining)
+
+        # No errors or deferred, delay factor is decreased, can't go below 1
+        self.assertAlmostEqual(
+            1, report.updated_limits['requests'].delay_factor
         )
 
     @with_fake_event_loop
@@ -936,13 +1003,21 @@ class TestRequests(unittest.TestCase):
         self.assertEqual(['D'], report.known_error_messages)
         self.assertEqual({'requests': 5}, report.deferred_costs)
 
-        # Deferred request, delay factor is increased
+        # Check limits
         self.assertEqual(
-            {'requests': 4},
-            {
-                limit_name: limit.delay_factor
-                for limit_name, limit in report.updated_limits.items()
-            }
+            {'requests'},
+            set(report.updated_limits.keys())
+        )
+
+        # Total limit is unchanged
+        self.assertTrue(True, report.updated_limits['requests'].total)
+
+        # Remaining limit is reset to None
+        self.assertIsNone(report.updated_limits['requests'].remaining)
+
+        # Deferred requests, delay factor increased
+        self.assertAlmostEqual(
+            4, report.updated_limits['requests'].delay_factor
         )
 
     @with_fake_event_loop
@@ -1005,13 +1080,21 @@ class TestRequests(unittest.TestCase):
         self.assertEqual([], report.known_error_messages)
         self.assertEqual({'requests': 9}, report.deferred_costs)
 
-        # Deferred requests, delay factor increased
+        # Check limits
         self.assertEqual(
-            {'requests': 4},
-            {
-                limit_name: limit.delay_factor
-                for limit_name, limit in report.updated_limits.items()
-            }
+            {'requests'},
+            set(report.updated_limits.keys())
+        )
+
+        # Total limit is unchanged
+        self.assertTrue(6, report.updated_limits['requests'].total)
+
+        # Remaining limit is reset to None
+        self.assertIsNone(report.updated_limits['requests'].remaining)
+
+        # Deferred requests, delay factor increased
+        self.assertAlmostEqual(
+            4, report.updated_limits['requests'].delay_factor
         )
 
     @with_fake_event_loop
@@ -1076,21 +1159,195 @@ class TestRequests(unittest.TestCase):
         self.assertEqual([], report.known_error_messages)
         self.assertEqual({'requests': 0}, report.deferred_costs)
 
-        # All succeed, delay factor reduced
+        # Check limits
         self.assertEqual(
-            {'requests': 1.9},
-            {
-                limit_name: limit.delay_factor
-                for limit_name, limit in report.updated_limits.items()
-            }
+            {'requests'},
+            set(report.updated_limits.keys())
         )
-        # remaining stays None
+
+        # Total limit is unchanged
+        self.assertTrue(12, report.updated_limits['requests'].total)
+
+        # Remaining limit is reset to None
+        self.assertIsNone(report.updated_limits['requests'].remaining)
+
+        # All succeed, delay factor reduced
+        self.assertAlmostEqual(
+            1.9, report.updated_limits['requests'].delay_factor
+        )
+
+    @with_fake_event_loop
+    async def test_execute_no_sleep_05(self):
+        # Two different unlimited totals
+        limits = {
+            'requests': rs.Limits(total='unlimited', delay_factor=2),
+            'tokens': rs.Limits(total='unlimited', delay_factor=2),
+        }
+
+        # All tasks return a valid result
+        finalize_target: dict[int, float] = {}
+
+        report = await rs.execute_no_sleep(
+            params=[
+                TestParams(
+                    _costs={'requests': 1, 'tokens': 1},
+                    _results=[
+                        TestResult(
+                            data=TestData(1),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _costs={'requests': 2, 'tokens': 2},
+                    _results=[
+                        TestResult(
+                            data=TestData(2),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _costs={'requests': 3, 'tokens': 3},
+                    _results=[
+                        TestResult(
+                            data=TestData(3),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _costs={'requests': 4, 'tokens': 4},
+                    _results=[
+                        TestResult(
+                            data=TestData(4),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+            ],
+            service=rs.Service(jitter=False, limits=limits),
+        )
+
         self.assertEqual(
-            {'requests': None},
-            {
-                limit_name: limit.remaining
-                for limit_name, limit in report.updated_limits.items()
-            }
+            {1: 0, 2: 0, 3: 0, 4: 0},
+            finalize_target
+        )
+
+        self.assertEqual(4, report.success_count)
+        self.assertEqual(0, report.unknown_error_count)
+        self.assertEqual([], report.known_error_messages)
+        self.assertEqual({'requests': 0, 'tokens': 0}, report.deferred_costs)
+
+        # Check limits
+        self.assertEqual(
+            {'requests', 'tokens'},
+            set(report.updated_limits.keys())
+        )
+
+        # Total limit is unchanged
+        self.assertTrue(6, report.updated_limits['requests'].total)
+        self.assertTrue(20, report.updated_limits['tokens'].total)
+
+        # Remaining limit is reset to None
+        self.assertIsNone(report.updated_limits['requests'].remaining)
+        self.assertIsNone(report.updated_limits['tokens'].remaining)
+
+        # No errors or deferred, both delay factor decreased
+        self.assertAlmostEqual(
+            1.9, report.updated_limits['requests'].delay_factor
+        )
+        self.assertAlmostEqual(
+            1.9, report.updated_limits['tokens'].delay_factor
+        )
+
+    @with_fake_event_loop
+    async def test_execute_no_sleep_06(self):
+        # Two different finite limits
+        limits = {
+            'requests': rs.Limits(total=6, remaining=6, delay_factor=2),
+            'tokens': rs.Limits(total=20, remaining=20, delay_factor=3),
+        }
+
+        # Only the first task will be run
+        # After the first task, the function will determine the remaining
+        # requests are insufficient and return.
+        finalize_target: dict[int, float] = {}
+
+        # The delaying limit ('requests') is found
+        report = await rs.execute_no_sleep(
+            params=[
+                TestParams(
+                    _costs={'requests': 1, 'tokens': 1},
+                    _results=[
+                        TestResult(
+                            data=TestData(1),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _costs={'requests': 2, 'tokens': 2},
+                    _results=[
+                        TestResult(
+                            data=TestData(2),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _costs={'requests': 3, 'tokens': 3},
+                    _results=[
+                        TestResult(
+                            data=TestData(3),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+                TestParams(
+                    _costs={'requests': 4, 'tokens': 4},
+                    _results=[
+                        TestResult(
+                            data=TestData(4),
+                            finalize_target=finalize_target,
+                        )
+                    ]
+                ),
+            ],
+            service=rs.Service(jitter=False, limits=limits),
+        )
+
+        self.assertEqual(
+            {1: 0},
+            finalize_target
+        )
+
+        self.assertEqual(1, report.success_count)
+        self.assertEqual(0, report.unknown_error_count)
+        self.assertEqual([], report.known_error_messages)
+        self.assertEqual({'requests': 9, 'tokens': 9}, report.deferred_costs)
+
+        # Check limits
+        self.assertEqual(
+            {'requests', 'tokens'},
+            set(report.updated_limits.keys())
+        )
+
+        # Total limit is unchanged
+        self.assertEqual(6, report.updated_limits['requests'].total)
+        self.assertEqual(20, report.updated_limits['tokens'].total)
+
+        # Remaining limit is reset to None
+        self.assertIsNone(report.updated_limits['requests'].remaining)
+        self.assertIsNone(report.updated_limits['tokens'].remaining)
+
+        # Deferred requests limit, delay factor increased
+        # Tokens limit is ok, delay factor reduced
+        self.assertAlmostEqual(
+            4, report.updated_limits['requests'].delay_factor
+        )
+        self.assertAlmostEqual(
+            2.85, report.updated_limits['tokens'].delay_factor
         )
 
     @with_fake_event_loop
