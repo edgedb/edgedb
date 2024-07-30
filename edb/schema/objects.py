@@ -3032,11 +3032,14 @@ class SubclassableObject(Object):
     def issubclass(
         self,
         schema: s_schema.Schema,
-        parent: Union[SubclassableObject, Tuple[SubclassableObject, ...]],
+        parent: Union[Optional[SubclassableObject],
+                      Tuple[Optional[SubclassableObject], ...]],
     ) -> bool:
         from . import types as s_types
         if isinstance(parent, tuple):
             return any(self.issubclass(schema, p) for p in parent)
+        elif parent is None:
+            return False
         if (
             isinstance(parent, s_types.Type)
             and parent.is_anyobject(schema)

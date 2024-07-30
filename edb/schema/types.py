@@ -1089,12 +1089,14 @@ class Collection(Type, s_abc.Collection):
         self,
         schema: s_schema.Schema,
         parent: Union[
-            so.SubclassableObject,
-            typing.Tuple[so.SubclassableObject, ...],
+            Optional[so.SubclassableObject],
+            typing.Tuple[Optional[so.SubclassableObject], ...],
         ],
     ) -> bool:
         if isinstance(parent, tuple):
             return any(self.issubclass(schema, p) for p in parent)
+        elif parent is None:
+            return False
 
         if isinstance(parent, Type) and parent.is_any(schema):
             return True

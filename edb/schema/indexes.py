@@ -100,9 +100,11 @@ def is_index_valid_for_type(
                     schema,
                     (
                         schema.get('ext::postgis::geometry',
-                                   type=s_scalars.ScalarType),
+                                   type=s_scalars.ScalarType,
+                                   default=None),
                         schema.get('ext::postgis::geography',
-                                   type=s_scalars.ScalarType),
+                                   type=s_scalars.ScalarType,
+                                   default=None),
                     )
                 )
             )
@@ -116,9 +118,11 @@ def is_index_valid_for_type(
                         schema.get('std::str',
                                    type=s_scalars.ScalarType),
                         schema.get('ext::postgis::geometry',
-                                   type=s_scalars.ScalarType),
+                                   type=s_scalars.ScalarType,
+                                   default=None),
                         schema.get('ext::postgis::geography',
-                                   type=s_scalars.ScalarType),
+                                   type=s_scalars.ScalarType,
+                                   default=None),
                     )
                 )
             )
@@ -152,9 +156,11 @@ def is_index_valid_for_type(
                         schema.get('cal::date_duration',
                                    type=s_scalars.ScalarType),
                         schema.get('ext::postgis::geometry',
-                                   type=s_scalars.ScalarType),
+                                   type=s_scalars.ScalarType,
+                                   default=None),
                         schema.get('ext::postgis::geography',
-                                   type=s_scalars.ScalarType),
+                                   type=s_scalars.ScalarType,
+                                   default=None),
                     )
                 )
             )
