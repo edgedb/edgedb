@@ -600,3 +600,52 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         self.assertEqual(res[0][0], documents[0][0])
         self.assertEqual(res[0][1], users[0][0])
         self.assertEqual(res[0][2], True)
+
+    async def test_sql_dml_insert_27(self):
+        with self.assertRaisesRegex(
+            asyncpg.PostgresError,
+            'column source is required when inserting into link tables'
+        ):
+            await self.squery_values(
+                '''
+                INSERT INTO "Document.shared_with" (target, can_edit)
+                VALUES ('uuid 1'::uuid, FALSE)
+                ''',
+            )
+        with self.assertRaisesRegex(
+            asyncpg.PostgresError,
+            'column target is required when inserting into link tables'
+        ):
+            await self.squery_values(
+                '''
+                INSERT INTO "Document.shared_with" (source, can_edit)
+                VALUES ('uuid 1'::uuid, FALSE)
+                ''',
+            )
+
+    async def test_sql_dml_insert_28(self):
+        documents = await self.squery_values(
+            '''
+            INSERT INTO "Document" (title) VALUES ('Report') RETURNING id
+            '''
+        )
+        res = await self.squery_values(
+            '''
+            INSERT INTO "Document.keywords"
+            VALUES ($1, 'notes')
+            RETURNING source, target
+            ''',
+            str(documents[0][0]),
+        )
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0][0], documents[0][0])
+        self.assertEqual(res[0][1], 'notes')
+
+        res = await self.scon.execute(
+            '''
+            INSERT INTO "Document.keywords" (source, target)
+            VALUES ($1, 'priority'), ($1, 'recent')
+            ''',
+            str(documents[0][0]),
+        )
+        self.assertEqual(res, 'INSERT 0 2')
