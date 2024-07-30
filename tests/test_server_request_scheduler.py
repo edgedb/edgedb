@@ -232,21 +232,25 @@ class TestRequests(unittest.TestCase):
 
         # Not ready, not immediate
         self.assertFalse(await TestScheduler(
+            service=rs.Service(),
             timer=rs.Timer(10, False),
         ).process(context))
 
         # Not ready, immediate
         self.assertFalse(await TestScheduler(
+            service=rs.Service(),
             timer=rs.Timer(10, True),
         ).process(context))
 
         # Ready, not immediate
         self.assertTrue(await TestScheduler(
+            service=rs.Service(),
             timer=rs.Timer(0, False),
         ).process(context))
 
         # Ready, immediate
         self.assertTrue(await TestScheduler(
+            service=rs.Service(),
             timer=rs.Timer(0, True),
         ).process(context))
 

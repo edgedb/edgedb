@@ -117,10 +117,6 @@ class Timer:
         return None
 
 
-def _default_service() -> Service:
-    return Service()
-
-
 def _default_delay_time() -> Timer:
     return Timer()
 
@@ -133,7 +129,7 @@ class Scheduler(abc.ABC, Generic[_T]):
     accessed.
     """
 
-    service: Service = field(default_factory=_default_service)
+    service: Service
 
     # The next time to process requests
     timer: Timer = field(default_factory=_default_delay_time)

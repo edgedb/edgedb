@@ -393,7 +393,10 @@ def _prepare_provider_contexts(
         if provider_name not in provider_schedulers:
             # Create new schedulers if necessary
             provider_schedulers[provider_name] = ProviderScheduler(
-                provider_name=provider_name
+                service=rs.Service(
+                    limits={'requests': None, 'tokens': None},
+                ),
+                provider_name=provider_name,
             )
         provider_scheduler = provider_schedulers[provider_name]
 
@@ -487,12 +490,16 @@ class EmbeddingsParams(rs.Params[EmbeddingsData]):
     provider: ProviderConfig
     model_name: str
     inputs: list[str]
+    token_count: int
     shortening: Optional[int]
 
     entries: list[tuple[bytes, ...]]
 
     def costs(self) -> dict[str, int]:
-        return {'requests': 1}
+        return {
+            'requests': 1,
+            'tokens': self.token_count,
+        }
 
     def create_request(self) -> EmbeddingsRequest:
         return EmbeddingsRequest(self)
@@ -681,6 +688,7 @@ async def _generate_embeddings_params(
             part = list(part_iter)
 
             inputs: list[str] = []
+            total_token_count: int = 0
             for entry in part:
                 input = entry[1].decode("utf-8")
                 truncate_to_max = bool.from_bytes(entry[5])
@@ -696,14 +704,21 @@ async def _generate_embeddings_params(
                         input = tokenizer.shorten_to_token_length(
                             input, truncate_length
                         )
-                    elif len(tokenizer.encode(input)) > truncate_length:
-                        # If the text is too long, mark it as excluded and skip.
-                        if model_name not in model_excluded_ids:
-                            model_excluded_ids[model_name] = []
-                        model_excluded_ids[model_name].append(
-                            uuidgen.from_bytes(entry[0]).hex
-                        )
-                        continue
+                        total_token_count += truncate_length
+                    else:
+                        current_token_count = len(tokenizer.encode(input))
+
+                        if current_token_count > truncate_length:
+                            # If the text is too long, mark it as excluded and
+                            # skip.
+                            if model_name not in model_excluded_ids:
+                                model_excluded_ids[model_name] = []
+                            model_excluded_ids[model_name].append(
+                                uuidgen.from_bytes(entry[0]).hex
+                            )
+                            continue
+
+                        total_token_count += current_token_count
 
                 inputs.append(input)
 
@@ -717,9 +732,10 @@ async def _generate_embeddings_params(
                     # batches for a single provider. Just take the first one,
                     # and the rest can be processed next time. If the limits are
                     # not exceeded, this will happen "immediately".
-                    inputs = batches[0]
+                    inputs, total_token_count = batches[0]
                 else:
                     inputs = []
+                    total_token_count = 0
 
             if not inputs:
                 continue
@@ -729,6 +745,7 @@ async def _generate_embeddings_params(
                 provider=provider_cfg,
                 model_name=model_name,
                 inputs=inputs,
+                token_count=total_token_count,
                 shortening=shortening,
                 entries=part,
             ))
@@ -740,8 +757,13 @@ def _batch_embeddings_inputs(
     tokenizer: Tokenizer,
     inputs: list[str],
     max_batch_tokens: int,
-) -> list[list[str]]:
-    """Create batches of embeddings inputs."""
+) -> list[tuple[list[str], int]]:
+    """Create batches of embeddings inputs.
+
+    Returns batches which are a tuple of:
+    - Input strings grouped to avoid exceeding the max_batch_token
+    - The batch's token count
+    """
 
     # Get token counts
     input_token_counts = [
@@ -769,7 +791,7 @@ def _batch_embeddings_inputs(
     ):
         unbatched_input_indexes.pop()
 
-    batches: list[list[str]] = []
+    batches: list[tuple[list[str], int]] = []
     while unbatched_input_indexes:
         # Start with the largest available input
         batch = [unbatched_input(-1)]
@@ -791,7 +813,7 @@ def _batch_embeddings_inputs(
                 else:
                     unbatched_index += 1
 
-        batches.append(batch)
+        batches.append((batch, batch_token_count))
 
     return batches
 
@@ -955,10 +977,30 @@ def _read_openai_limits(
         ],
     )
 
+    token_limit = _read_openai_header_field(
+        result,
+        [
+            'x-ratelimit-limit-project-tokens',
+            'x-ratelimit-limit-tokens',
+        ],
+    )
+
+    token_remaining = _read_openai_header_field(
+        result,
+        [
+            'x-ratelimit-remaining-project-tokens',
+            'x-ratelimit-remaining-tokens',
+        ],
+    )
+
     return {
         'requests': rs.Limits(
             total=request_limit,
-            remaining=request_remaining
+            remaining=request_remaining,
+        ),
+        'tokens': rs.Limits(
+            total=token_limit,
+            remaining=token_remaining,
         ),
     }
 
