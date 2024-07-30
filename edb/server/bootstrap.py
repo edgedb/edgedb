@@ -596,6 +596,7 @@ def compile_bootstrap_script(
     schema: s_schema.Schema,
     eql: str,
     *,
+    bootstrap_mode: bool = True,
     expected_cardinality_one: bool = False,
     output_format: edbcompiler.OutputFormat = edbcompiler.OutputFormat.JSON,
 ) -> Tuple[s_schema.Schema, str]:
@@ -606,7 +607,8 @@ def compile_bootstrap_script(
         expected_cardinality_one=expected_cardinality_one,
         json_parameters=True,
         output_format=output_format,
-        bootstrap_mode=True,
+        bootstrap_mode=bootstrap_mode,
+        log_ddl_as_migrations=False,
     )
 
     return edbcompiler.compile_edgeql_script(ctx, eql)
@@ -1790,7 +1792,9 @@ async def _init_defaults(schema, compiler, conn):
         CREATE MODULE default;
     '''
 
-    schema, sql = compile_bootstrap_script(compiler, schema, script)
+    schema, sql = compile_bootstrap_script(
+        compiler, schema, script, bootstrap_mode=False
+    )
     await _execute(conn, sql)
     return schema
 
