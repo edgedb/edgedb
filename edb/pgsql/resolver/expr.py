@@ -20,7 +20,7 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import Optional, Tuple, Iterator, Sequence, Dict, List, cast
+from typing import Optional, Tuple, Iterator, Sequence, Dict, List, cast, Set
 import uuid
 
 from edb import errors
@@ -71,7 +71,10 @@ def infer_alias(res_target: pgast.ResTarget) -> Optional[str]:
 # this function cannot go though dispatch,
 # because it may return multiple nodes, due to * notation
 def resolve_ResTarget(
-    res_target: pgast.ResTarget, *, ctx: Context
+    res_target: pgast.ResTarget,
+    *,
+    existing_names: Optional[Set[str]] = None,
+    ctx: Context,
 ) -> Tuple[Sequence[pgast.ResTarget], Sequence[context.Column]]:
     alias = infer_alias(res_target)
 
@@ -101,6 +104,13 @@ def resolve_ResTarget(
         and isinstance(res_target.val, pgast.FuncCall)
     ):
         alias = static.name_in_pg_catalog(res_target.val.name)
+
+    if not res_target.name and existing_names and alias in existing_names:
+        # when a name already exists, don't infer the same name
+        # this behavior is technically different than Postgres, but it is also
+        # not documented and users should not be relying on it.
+        # It does help us in some cases (passing `SELECT a.id, b.id` into DML).
+        alias = None
 
     name: str = alias or ctx.alias_generator.get('col')
     col = context.Column(

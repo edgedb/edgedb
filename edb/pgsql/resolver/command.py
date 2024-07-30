@@ -38,6 +38,7 @@ from edb.ir import typeutils as irtypeutils
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import links as s_links
+from edb.schema import sources as s_sources
 from edb.schema import name as sn
 
 
@@ -174,6 +175,7 @@ class PreprocessedDML:
     ql_stmt: qlast.Expr
 
     # additional params needed during compilation of the edgeql node
+    ql_returning_shape: List[qlast.ShapeElement]
     ql_singletons: Set[irast.PathId]
     ql_anchors: Mapping[str, irast.PathId]
     external_rels: Mapping[
@@ -181,6 +183,7 @@ class PreprocessedDML:
     ]
 
     # list of column names of the subject type, along with pointer name
+    # these columns will be available within RETURNING clause
     subject_columns: List[Tuple[str, str]]
 
     # data needed for stitching the compiled ast into the resolver output
@@ -197,6 +200,7 @@ def _preprocess_insert_stmt(
     """
 
     # determine the subject object we are inserting into
+    # (this can either be an ObjectType or a Pointer for link tables)
     assert isinstance(stmt.relation, pgast.RelRangeVar)
     assert isinstance(stmt.relation.relation, pgast.Relation)
     _sub_rel, sub_table = pg_res_rel.resolve_relation(
@@ -204,20 +208,43 @@ def _preprocess_insert_stmt(
     )
     assert sub_table.schema_id  # TODO: raise a proper error here
     sub = ctx.schema.get_by_id(sub_table.schema_id)
-    sub_name = sub.get_name(ctx.schema)
-    assert isinstance(sub_name, sn.QualName)
-
-    if not isinstance(sub, s_objtypes.ObjectType):
-        raise errors.QueryError(
-            'DML supported for object type tables only',
-            span=stmt.span,
-            pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
-        )
 
     expected_columns = _pull_columns_from_table(
         sub_table,
         ((c.name, c.span) for c in stmt.cols) if stmt.cols else None,
     )
+
+    res: PreprocessedDML
+    if isinstance(sub, s_objtypes.ObjectType):
+        res = _preprocess_insert_object_stmt(
+            stmt, sub, sub_table, expected_columns, ctx=ctx
+        )
+    elif isinstance(sub, s_links.Link):
+        res = _preprocess_insert_link_stmt(
+            stmt, sub, sub_table, expected_columns, ctx=ctx
+        )
+    else:
+        raise NotImplementedError()
+
+    if stmt.returning_list:
+        # wrap into a select shape that selects all pointers
+        # (because they might be be used by RETURNING clause)
+        for column in sub_table.columns:
+            if column.hidden:
+                continue
+            _, ptr_name, _ = _get_pointer_for_column(column, sub, ctx)
+            res.subject_columns.append((column.name, ptr_name))
+    return res
+
+
+def _preprocess_insert_object_stmt(
+    stmt: pgast.InsertStmt,
+    sub: s_objtypes.ObjectType,
+    sub_table: context.Table,
+    expected_columns: List[context.Column],
+    *,
+    ctx: Context,
+) -> PreprocessedDML:
 
     # handle DEFAULT and prepare the value relation
     value_relation, expected_columns = _preprocess_insert_value(
@@ -252,7 +279,7 @@ def _preprocess_insert_stmt(
     insert_shape = []
     for expected_col in expected_columns:
         ptr, ptr_name, is_link = _get_pointer_for_column(expected_col, sub, ctx)
-        value_columns.append((expected_col, ptr))
+        value_columns.append((ptr_name, is_link))
 
         # prepare the outputs of the source CTE
         ptr_id = _get_ptr_id(value_id, ptr, ctx)
@@ -284,7 +311,9 @@ def _preprocess_insert_stmt(
     value_rel.path_outputs[(value_id, pgce.PathAspect.ITERATOR)] = output_var
     value_rel.path_outputs[(value_id, pgce.PathAspect.VALUE)] = output_var
 
-    # the core thing
+    # construct the EdgeQL DML AST
+    sub_name = sub.get_name(ctx.schema)
+    assert isinstance(sub_name, sn.QualName)
     ql_stmt: qlast.Expr = qlast.InsertQuery(
         subject=qlast.ObjectRef(
             name=sub_name.name,
@@ -301,34 +330,27 @@ def _preprocess_insert_stmt(
             result=ql_stmt,
         )
 
-    subject_columns: List[Tuple[str, str]] = []
+    ql_returning_shape: List[qlast.ShapeElement] = []
     if stmt.returning_list:
-        # wrap into a select shape that selects all pointers
-        # (because they might be be used by RETURNING clause)
-        select_shape: List[qlast.ShapeElement] = []
+        # construct the shape that will extract all needed column of the subject
+        # table (because they might be be used by RETURNING clause)
         for column in sub_table.columns:
             if column.hidden:
                 continue
-
-            ptr, ptr_name, is_link = _get_pointer_for_column(column, sub, ctx)
-            select_shape.append(
+            _, ptr_name, _ = _get_pointer_for_column(column, sub, ctx)
+            ql_returning_shape.append(
                 qlast.ShapeElement(
                     expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
                 )
             )
-            subject_columns.append((column.name, ptr_name))
-
-        ql_stmt = qlast.SelectQuery(
-            result=qlast.Shape(expr=ql_stmt, elements=select_shape)
-        )
 
     return PreprocessedDML(
         input=stmt,
         ql_stmt=ql_stmt,
+        ql_returning_shape=ql_returning_shape,
         ql_singletons={value_id},
         ql_anchors={value_name: value_id},
         external_rels={value_id: (value_rel, ('source', 'identity'))},
-        subject_columns=subject_columns,
         early_result=context.CompiledDML(
             value_cte_name=value_cte_name,
             value_relation_input=value_relation,
@@ -339,6 +361,252 @@ def _preprocess_insert_stmt(
             output_relation_name='',
             output_namespace={},
         ),
+        # these will be populated after compilation
+        subject_columns=[],
+    )
+
+
+def _construct_insert_element_for_ptr(
+    source_ql: qlast.PathElement,
+    ptr_name: str,
+    ptr: s_pointers.Pointer,
+    is_link: bool,
+    ctx: context.ResolverContextLevel,
+):
+    ptr_ql: qlast.Expr = qlast.Path(
+        steps=[
+            source_ql,
+            qlast.Ptr(name=ptr_name),
+        ]
+    )
+    if is_link:
+        # add .id for links, which will figure out that it has uuid type.
+        # This will make type cast to the object type into "find_by_id".
+        assert isinstance(ptr_ql, qlast.Path)
+        ptr_ql.steps.append(qlast.Ptr(name='id'))
+
+        ptr_target = ptr.get_target(ctx.schema)
+        assert ptr_target
+        ptr_target_name: sn.Name = ptr_target.get_name(ctx.schema)
+        assert isinstance(ptr_target_name, sn.QualName)
+        ptr_ql = qlast.TypeCast(
+            type=qlast.TypeName(
+                maintype=qlast.ObjectRef(
+                    module=ptr_target_name.module,
+                    name=ptr_target_name.name,
+                )
+            ),
+            expr=ptr_ql,
+        )
+    return qlast.ShapeElement(
+        expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
+        operation=qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN),
+        compexpr=ptr_ql,
+    )
+
+
+def _preprocess_insert_link_stmt(
+    stmt: pgast.InsertStmt,
+    link: s_links.Link,
+    sub_table: context.Table,
+    expected_columns: List[context.Column],
+    *,
+    ctx: Context,
+) -> PreprocessedDML:
+    sub_source = link.get_source(ctx.schema)
+    assert sub_source
+    sub_target = link.get_target(ctx.schema)
+    assert sub_target
+
+    # handle DEFAULT and prepare the value relation
+    value_relation, expected_columns = _preprocess_insert_value(
+        stmt.select_stmt, stmt.ctes, expected_columns
+    )
+
+    # if we are sure that we are inserting a single row
+    # we can skip for-loops and iterators, which produces better SQL
+    is_value_single = _has_at_most_one_row(stmt.select_stmt)
+
+    # prepare anchors for inserted value columns
+    value_name = ctx.alias_generator.get('ins_val')
+    iterator_name = ctx.alias_generator.get('ins_iter')
+    source_id = irast.PathId.from_type(
+        ctx.schema,
+        sub_source,
+        typename=sn.QualName('__derived__', value_name),
+        env=None,
+    )
+    link_ref = irtypeutils.ptrref_from_ptrcls(
+        schema=ctx.schema, ptrcls=link, cache=None, typeref_cache=None
+    )
+    value_id: irast.PathId = source_id.extend(ptrref=link_ref)
+
+    value_ql: qlast.PathElement = (
+        qlast.IRAnchor(name=value_name)
+        if is_value_single
+        else qlast.ObjectRef(name=iterator_name)
+    )
+
+    # a phantom relation that is supposed to hold the inserted value
+    # (in the resolver, this will be replaced by the real value relation)
+    value_cte_name = ctx.alias_generator.get('ins_value')
+    value_rel = pgast.Relation(name=value_cte_name)
+    value_columns: List[Tuple[str, bool]] = []
+    for expected_col in expected_columns:
+        if expected_col.name == 'source':
+            ptr_name = 'source'
+            is_link = True
+
+            output_var = pgast.ColumnRef(name=(ptr_name,), nullable=True)
+            value_rel.path_outputs[(source_id, pgce.PathAspect.VALUE)] = (
+                output_var
+            )
+            value_rel.path_outputs[(source_id, pgce.PathAspect.IDENTITY)] = (
+                output_var
+            )
+        elif expected_col.name == 'target':
+            ptr_name = 'target'
+            is_link = True
+
+            ptr_id = value_id.tgt_path()
+            output_var = pgast.ColumnRef(name=(ptr_name,), nullable=True)
+            value_rel.path_outputs[(ptr_id, pgce.PathAspect.VALUE)] = output_var
+            value_rel.path_outputs[(ptr_id, pgce.PathAspect.IDENTITY)] = (
+                output_var
+            )
+        else:
+            # link pointer
+            ptr_name = expected_col.name
+            ptr = link.maybe_get_ptr(ctx.schema, sn.UnqualName(ptr_name))
+            assert ptr
+            is_link = False
+
+            ptr_id = _get_ptr_id(value_id.ptr_path(), ptr, ctx)
+            output_var = pgast.ColumnRef(name=(ptr_name,), nullable=True)
+            value_rel.path_outputs[(ptr_id, pgce.PathAspect.VALUE)] = output_var
+
+        value_columns.append((ptr_name, is_link))
+
+    # source needs an iterator column, so we need to invent one
+    # Here we only decide on the name of that iterator column, the actual column
+    # is generated later, when resolving the DML stmt.
+    value_iterator = ctx.alias_generator.get('iter')
+    output_var = pgast.ColumnRef(name=(value_iterator,))
+    value_rel.path_outputs[(source_id, pgce.PathAspect.ITERATOR)] = output_var
+    value_rel.path_outputs[(value_id, pgce.PathAspect.ITERATOR)] = output_var
+
+    # construct the EdgeQL DML AST
+    sub_name = link.get_name(ctx.schema)
+    assert isinstance(sub_name, sn.QualName)
+    sub_source_name = sub_source.get_name(ctx.schema)
+    assert isinstance(sub_source_name, sn.QualName)
+    sub_target_name = sub_target.get_name(ctx.schema)
+    assert isinstance(sub_target_name, sn.QualName)
+
+    sub_name = link.get_shortname(ctx.schema)
+
+    ql_sub_source_ref = qlast.ObjectRef(
+        name=sub_source_name.name,
+        module=sub_source_name.module,
+    )
+    ql_sub_target_ref = qlast.ObjectRef(
+        name=sub_target_name.name,
+        module=sub_target_name.module,
+    )
+
+    ql_stmt: qlast.Expr = qlast.UpdateQuery(
+        subject=qlast.Path(steps=[ql_sub_source_ref]),
+        where=qlast.BinOp(  # ObjectType == value.source
+            left=qlast.Path(steps=[ql_sub_source_ref]),
+            op='=',
+            right=qlast.Path(steps=[value_ql]),
+        ),
+        shape=[
+            qlast.ShapeElement(
+                expr=qlast.Path(steps=[qlast.Ptr(name=sub_name.name)]),
+                operation=qlast.ShapeOperation(op=qlast.ShapeOp.APPEND),
+                compexpr=qlast.Shape(
+                    expr=qlast.TypeCast(
+                        expr=qlast.Path(  # target
+                            steps=[value_ql, qlast.Ptr(name=sub_name.name)]
+                        ),
+                        type=qlast.TypeName(maintype=ql_sub_target_ref),
+                    ),
+                    elements=[
+                        qlast.ShapeElement(
+                            expr=qlast.Path(
+                                steps=[
+                                    qlast.Ptr(name=ptr_name, type='property')
+                                ],
+                            ),
+                            compexpr=qlast.Path(
+                                steps=[
+                                    value_ql,
+                                    qlast.Ptr(name=sub_name.name),
+                                    qlast.Ptr(name=ptr_name, type='property'),
+                                ],
+                            ),
+                        )
+                        for ptr_name, _ in value_columns
+                        if ptr_name not in ('source', 'target')
+                    ],
+                ),
+            )
+        ],
+    )
+    if not is_value_single:
+        # value relation might contain multiple rows
+        # to express this in EdgeQL, we must wrap `insert` into a `for` query
+        ql_stmt = qlast.ForQuery(
+            iterator=qlast.Path(steps=[qlast.IRAnchor(name=value_name)]),
+            iterator_alias=iterator_name,
+            result=ql_stmt,
+        )
+    # ql_stmt = qlast.Path(steps=[ql_stmt, qlast.Ptr(name=sub_name.name)])
+
+    ql_returning_shape: List[qlast.ShapeElement] = []
+    if stmt.returning_list:
+        # construct the shape that will extract all needed column of the subject
+        # table (because they might be be used by RETURNING clause)
+        for column in sub_table.columns:
+            if column.hidden:
+                continue
+            if column.name in ('source', 'target'):
+                # no need to include in shape, they will be present anyway
+                continue
+
+            ql_returning_shape.append(
+                qlast.ShapeElement(
+                    expr=qlast.Path(steps=[qlast.Ptr(name=column.name)]),
+                    compexpr=qlast.Path(
+                        partial=True,
+                        steps=[
+                            qlast.Ptr(name=sub_name.name),
+                            qlast.Ptr(name=column.name, type='property'),
+                        ]
+                    ),
+                )
+            )
+
+    return PreprocessedDML(
+        input=stmt,
+        ql_stmt=ql_stmt,
+        ql_returning_shape=ql_returning_shape,
+        ql_singletons={source_id},
+        ql_anchors={value_name: source_id},
+        external_rels={source_id: (value_rel, ('source', 'identity'))},
+        early_result=context.CompiledDML(
+            value_cte_name=value_cte_name,
+            value_relation_input=value_relation,
+            value_columns=value_columns,
+            value_iterator_name=value_iterator,
+            # these will be populated after compilation
+            output_ctes=[],
+            output_relation_name='',
+            output_namespace={},
+        ),
+        # these will be populated after compilation
+        subject_columns=[],
     )
 
 
@@ -434,18 +702,29 @@ def _compile_preprocessed_dml(
         anchors.update(stmt.ql_anchors)
 
     # construct the main query
+    ql_aliases: List[qlast.AliasedExpr | qlast.ModuleAliasDecl] = []
     ql_stmt_shape: List[qlast.ShapeElement] = []
     ql_stmt_shape_names = []
     for index, stmt in enumerate(stmts):
         name = f'dml_{index}'
         ql_stmt_shape_names.append(name)
+        ql_aliases.append(
+            qlast.AliasedExpr(
+                alias=name,
+                expr=qlast.DetachedExpr(expr=stmt.ql_stmt),
+            )
+        )
         ql_stmt_shape.append(
             qlast.ShapeElement(
                 expr=qlast.Path(steps=[qlast.Ptr(name=name)]),
-                compexpr=stmt.ql_stmt,
+                compexpr=qlast.Shape(
+                    expr=qlast.Path(steps=[qlast.ObjectRef(name=name)]),
+                    elements=stmt.ql_returning_shape,
+                ),
             )
         )
     ql_stmt = qlast.SelectQuery(
+        aliases=ql_aliases,
         result=qlast.Shape(expr=None, elements=ql_stmt_shape),
     )
 
@@ -490,15 +769,14 @@ def _compile_preprocessed_dml(
         stmt_ctes = []
         found_it = False
         while len(ctes) > 0:
-            cte = ctes.pop(0)
-            stmt_ctes.append(cte)
-
-            matches = cte.for_dml_stmt == ir_mutating_stmt
+            matches = ctes[0].for_dml_stmt == ir_mutating_stmt
             if not matches and found_it:
-                # use all matching CTEs + 1
+                # use all matching CTEs plus all preceding
                 break
             if matches:
                 found_it = True
+
+            stmt_ctes.append(ctes.pop(0))
 
         last_query = stmt_ctes[-1].query
 
@@ -517,6 +795,8 @@ def _compile_preprocessed_dml(
                 val = ptr_map.get((ptr_name, 'value'), None)
             if not val:
                 val = ptr_map.get((ptr_name, 'identity'), None)
+            if ptr_name in ('source', 'target'):
+                val = pgast.ColumnRef(name=(ptr_name,))
             assert val, f'{ptr_name} was in shape, but not in path_namespace'
             output_namespace[col_name] = val
 
@@ -575,8 +855,12 @@ def _merge_and_prepare_external_rels(
         element = shape_elements_by_name[name]
 
         while not isinstance(element, irast.MutatingStmt):
-            assert isinstance(element, irast.SelectStmt)
-            element = element.result.expr
+            if isinstance(element, irast.SelectStmt):
+                element = element.result.expr
+            elif isinstance(element, irast.Pointer):
+                element = element.source.expr
+            else:
+                raise NotImplementedError('cannot find mutating stmt')
         ir_stmts.append(element)
 
         subject_path_id = element.result.path_id
@@ -623,7 +907,7 @@ def resolve_InsertStmt(
             compiled_dml.value_relation_input, ctx=sctx
         )
     if len(compiled_dml.value_columns) != len(val_table.columns):
-        col_names = ', '.join(c.name for c, _ in compiled_dml.value_columns)
+        col_names = ', '.join(c for c, _ in compiled_dml.value_columns)
         raise errors.QueryError(
             f'INSERT expected {len(compiled_dml.value_columns)} columns, '
             f'but got {len(val_table.columns)} (expecting {col_names})',
@@ -632,15 +916,15 @@ def resolve_InsertStmt(
 
     # wrap the value relation, to we can add type casts for link ids
     value_target_list: List[pgast.ResTarget] = []
-    for val_col, (_, ptr) in zip(val_table.columns, compiled_dml.value_columns):
-        is_link = isinstance(ptr, s_links.Link)
-        ptr_name = ptr.get_shortname(ctx.schema).name
+    for val_col, (ptr_name, cast_to_uuid) in zip(
+        val_table.columns, compiled_dml.value_columns
+    ):
 
         # prepare pre-projection of this pointer value
         val_col_pg = pg_res_expr.resolve_column_kind(
             val_table, val_col.kind, ctx=ctx
         )
-        if is_link:
+        if cast_to_uuid:
             val_col_pg = pgast.TypeCast(
                 arg=val_col_pg, type_name=pgast.TypeName(name=('uuid',))
             )
@@ -766,48 +1050,9 @@ def _resolve_returning_rows(
     return returning_query, returning_table
 
 
-def _construct_insert_element_for_ptr(
-    source_ql: qlast.PathElement,
-    ptr_name: str,
-    ptr: s_pointers.Pointer,
-    is_link: bool,
-    ctx: context.ResolverContextLevel,
-):
-    ptr_ql: qlast.Expr = qlast.Path(
-        steps=[
-            source_ql,
-            qlast.Ptr(name=ptr_name),
-        ]
-    )
-    if is_link:
-        # add .id for links, which will figure out that it has uuid type.
-        # This will make type cast to the object type into "find_by_id".
-        assert isinstance(ptr_ql, qlast.Path)
-        ptr_ql.steps.append(qlast.Ptr(name='id'))
-
-        ptr_target = ptr.get_target(ctx.schema)
-        assert ptr_target
-        ptr_target_name: sn.Name = ptr_target.get_name(ctx.schema)
-        assert isinstance(ptr_target_name, sn.QualName)
-        ptr_ql = qlast.TypeCast(
-            type=qlast.TypeName(
-                maintype=qlast.ObjectRef(
-                    module=ptr_target_name.module,
-                    name=ptr_target_name.name,
-                )
-            ),
-            expr=ptr_ql,
-        )
-    return qlast.ShapeElement(
-        expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
-        operation=qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN),
-        compexpr=ptr_ql,
-    )
-
-
 def _get_pointer_for_column(
     col: context.Column,
-    subject_stype: s_objtypes.ObjectType,
+    subject_stype: s_sources.Source,
     ctx: context.ResolverContextLevel,
 ) -> Tuple[s_pointers.Pointer, str, bool]:
     is_link = False
@@ -819,7 +1064,8 @@ def _get_pointer_for_column(
     else:
         ptr_name = col.name
 
-    ptr = subject_stype.getptr(ctx.schema, sn.UnqualName(ptr_name))
+    ptr = subject_stype.maybe_get_ptr(ctx.schema, sn.UnqualName(ptr_name))
+    assert ptr
 
     return ptr, ptr_name, is_link
 

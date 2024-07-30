@@ -1540,8 +1540,8 @@ class SQLQueryTestCase(BaseQueryTestCase):
         finally:
             super().tearDown()
 
-    async def squery_values(self, query):
-        res = await self.scon.fetch(query)
+    async def squery_values(self, query, *args):
+        res = await self.scon.fetch(query, *args)
         return [list(r.values()) for r in res]
 
     def assert_shape(self, res: Any, rows: int, columns: int | List[str]):
