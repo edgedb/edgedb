@@ -1224,6 +1224,7 @@ def _get_pointer_for_column(
         subject, (s_links.Link, s_properties.Property)
     ) and col.name in ('source', 'target'):
         return subject, col.name, False
+    assert not isinstance(subject, s_properties.Property)
 
     is_link = False
     if col.name.endswith('_id'):
