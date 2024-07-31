@@ -67,5 +67,13 @@ def resolve(
             # resolved SQL will contain an injected COUNT clause
             # we instruct io process to unpack that
             command_complete_tag = dbstate.TagUnpackRow(prefix='INSERT 0 ')
+    elif isinstance(query, pgast.DeleteStmt):
+        if query.returning_list:
+            # resolved SQL will return a result, we count those rows
+            command_complete_tag = dbstate.TagCountMessages(prefix='DELETE ')
+        else:
+            # resolved SQL will contain an injected COUNT clause
+            # we instruct io process to unpack that
+            command_complete_tag = dbstate.TagUnpackRow(prefix='DELETE ')
 
     return (resolved, command_complete_tag)

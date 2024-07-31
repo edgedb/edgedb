@@ -156,7 +156,7 @@ class CompiledDML:
     value_columns: List[Tuple[str, bool]]
 
     # name of the column in the value relation, that should provide the identity
-    value_iterator_name: str
+    value_iterator_name: Optional[str]
 
     # CTEs that perform the operation
     output_ctes: List[pgast.CommonTableExpr]

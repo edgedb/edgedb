@@ -1467,7 +1467,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
     async def test_sql_dml_update(self):
         with self.assertRaisesRegex(
             asyncpg.FeatureNotSupportedError,
-            "DML",
+            "UpdateStmt are not supported",
             position="25",
         ):
             await self.scon.fetch(
