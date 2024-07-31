@@ -519,7 +519,7 @@ def _preprocess_insert_pointer_stmt(
     sub_name = sub.get_name(ctx.schema)
     sub_source_name = sub_source.get_name(ctx.schema)
     sub_target_name = sub_target.get_name(ctx.schema)
-    
+
     sub_name = sub.get_shortname(ctx.schema)
 
     ql_sub_source_ref = s_utils.name_to_ast_ref(sub_source_name)
