@@ -327,7 +327,6 @@ def _preprocess_insert_object_stmt(
 
     # construct the EdgeQL DML AST
     sub_name = sub.get_name(ctx.schema)
-    assert isinstance(sub_name, sn.QualName)
     ql_stmt: qlast.Expr = qlast.InsertQuery(
         subject=s_utils.name_to_ast_ref(sub_name),
         shape=insert_shape,
@@ -399,7 +398,6 @@ def _construct_insert_element_for_ptr(
         ptr_target = ptr.get_target(ctx.schema)
         assert ptr_target
         ptr_target_name: sn.Name = ptr_target.get_name(ctx.schema)
-        assert isinstance(ptr_target_name, sn.QualName)
         ptr_ql = qlast.TypeCast(
             type=qlast.TypeName(
                 maintype=s_utils.name_to_ast_ref(ptr_target_name)
@@ -791,7 +789,7 @@ def _compile_preprocessed_dml(
 
     result = {}
     for stmt, ir_mutating_stmt in zip(stmts, ir_stmts):
-        stmt_ctes = []
+        stmt_ctes: List[pgast.CommonTableExpr] = []
         found_it = False
         while len(ctes) > 0:
             matches = ctes[0].for_dml_stmt == ir_mutating_stmt

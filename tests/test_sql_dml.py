@@ -604,7 +604,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
     async def test_sql_dml_insert_27(self):
         with self.assertRaisesRegex(
             asyncpg.PostgresError,
-            'column source is required when inserting into link tables'
+            'column source is required when inserting into link tables',
         ):
             await self.squery_values(
                 '''
@@ -614,7 +614,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             )
         with self.assertRaisesRegex(
             asyncpg.PostgresError,
-            'column target is required when inserting into link tables'
+            'column target is required when inserting into link tables',
         ):
             await self.squery_values(
                 '''
