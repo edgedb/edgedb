@@ -33,7 +33,6 @@ from edb.schema import objects as s_obj
 from edb.pgsql import common
 from edb.pgsql import dbops
 from edb.pgsql import schemamech
-from edb.pgsql import trampoline
 
 
 class SchemaDBObjectMeta(adapter.Adapter):  # type: ignore
@@ -296,7 +295,11 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
 
 
 class MultiConstraintItem:
-    def __init__(self, constraint, index):
+    def __init__(
+        self,
+        constraint: SchemaConstraintTableConstraint,
+        index: int,
+    ):
         self.constraint = constraint
         self.index = index
 
@@ -304,11 +307,8 @@ class MultiConstraintItem:
         return self.constraint.get_type()
 
     def get_id(self):
-        raw_name = self.constraint.raw_constraint_name()
         # XXX
-        name = trampoline.versioned_name(common.edgedb_name_to_pg_name(
-            '{}#{}'.format(raw_name, self.index)))
-        name = common.quote_ident(name)
+        name = self.constraint.numbered_constraint_name(self.index)
 
         return '{} ON {} {}'.format(
             name, self.constraint.get_subject_type(),
@@ -342,16 +342,18 @@ class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
         comments = []
 
         exprs = self.constraint.constraint_code(block)
-        constr_name = self.constraint.raw_constraint_name()
 
         if isinstance(exprs, list) and len(exprs) > 1:
+            assert isinstance(self.constraint, SchemaConstraintTableConstraint)
             for i, _expr in enumerate(exprs):
+                name = self.constraint.numbered_constraint_name(i)
                 constraint = MultiConstraintItem(self.constraint, i)
 
-                comment = dbops.Comment(constraint, constr_name)
+                comment = dbops.Comment(constraint, name)
                 comments.append(comment)
         else:
-            comment = dbops.Comment(self.constraint, constr_name)
+            name = self.constraint.constraint_name()
+            comment = dbops.Comment(self.constraint, name)
             comments.append(comment)
 
         for comment in comments:
