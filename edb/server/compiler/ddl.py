@@ -282,7 +282,6 @@ def _new_delta_context(
 ) -> s_delta.CommandContext:
     return s_delta.CommandContext(
         backend_runtime_params=ctx.compiler_state.backend_runtime_params,
-        stdmode=ctx.bootstrap_mode,
         internal_schema_mode=ctx.internal_schema_mode,
         **(_get_delta_context_args(ctx) if args is None else args),
     )
@@ -291,6 +290,7 @@ def _new_delta_context(
 def _get_delta_context_args(ctx: compiler.CompileContext) -> dict[str, Any]:
     """Get the args needed for delta_and_schema_from_ddl"""
     return dict(
+        stdmode=ctx.bootstrap_mode,
         testmode=compiler._get_config_val(ctx, '__internal_testmode'),
         allow_dml_in_functions=(
             compiler._get_config_val(ctx, 'allow_dml_in_functions')

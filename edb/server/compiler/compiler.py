@@ -287,6 +287,7 @@ def new_compiler_context(
     internal_schema_mode: bool = False,
     protocol_version: defines.ProtocolVersion = defines.CURRENT_PROTOCOL,
     backend_runtime_params: Optional[pg_params.BackendRuntimeParams] = None,
+    log_ddl_as_migrations: bool = True,
 ) -> CompileContext:
     """Create and return an ad-hoc compiler context."""
 
@@ -313,6 +314,7 @@ def new_compiler_context(
         backend_runtime_params=(
             backend_runtime_params or pg_params.get_default_runtime_params()
         ),
+        log_ddl_as_migrations=log_ddl_as_migrations,
     )
 
     return ctx
