@@ -39,6 +39,7 @@ from . import indexes
 from . import name as sn
 from . import objects as so
 from . import pointers as s_pointers
+from .generated import sources as sg_sources
 
 if TYPE_CHECKING:
     from . import links
@@ -61,6 +62,7 @@ class SourceCommand(indexes.IndexSourceCommand[Source_T]):
 
 
 class Source(
+    sg_sources.SourceMixin,
     so.QualifiedObject,
     indexes.IndexableSubject,
     so.Object,  # Help reflection figure out the right db MRO

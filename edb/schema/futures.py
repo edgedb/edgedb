@@ -29,9 +29,11 @@ from . import delta as sd
 from . import objects as so
 from . import name as sn
 from . import schema as s_schema
+from .generated import futures as sg_futures
 
 
 class FutureBehavior(
+    sg_futures.FutureBehaviorMixin,
     so.Object,
     qlkind=qltypes.SchemaObjectClass.FUTURE,
     data_safe=False,

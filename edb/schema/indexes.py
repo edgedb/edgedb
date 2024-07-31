@@ -54,6 +54,7 @@ from . import referencing
 from . import scalars as s_scalars
 from . import types as s_types
 from . import utils
+from .generated import indexes as sg_indexes
 
 
 if TYPE_CHECKING:
@@ -278,6 +279,7 @@ def merge_deferred(
 
 
 class Index(
+    sg_indexes.IndexMixin,
     referencing.ReferencedInheritingObject,
     so.InheritingObject,  # Help reflection figure out the right db MRO
     s_anno.AnnotationSubject,
@@ -538,7 +540,7 @@ class Index(
 IndexableSubject_T = TypeVar('IndexableSubject_T', bound='IndexableSubject')
 
 
-class IndexableSubject(so.InheritingObject):
+class IndexableSubject(sg_indexes.IndexableSubjectMixin, so.InheritingObject):
     indexes_refs = so.RefDict(
         attr='indexes',
         ref_cls=Index)

@@ -36,12 +36,14 @@ from . import delta as sd
 from . import name as sn
 from . import objects as so
 from . import utils as s_utils
+from .generated import migrations as sg_migrations
 
 if TYPE_CHECKING:
     from . import schema as s_schema
 
 
 class Migration(
+    sg_migrations.MigrationMixin,
     so.Object,
     s_abc.Migration,
     qlkind=qltypes.SchemaObjectClass.MIGRATION,

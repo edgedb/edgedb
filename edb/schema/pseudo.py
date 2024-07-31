@@ -29,6 +29,7 @@ from . import delta as sd
 from . import name as sn
 from . import objects as so
 from . import types as s_types
+from .generated import pseudo as sg_pseudo
 
 if TYPE_CHECKING:
     from . import schema as s_schema
@@ -38,6 +39,7 @@ PseudoType_T = TypeVar("PseudoType_T", bound="PseudoType")
 
 
 class PseudoType(
+    sg_pseudo.PseudoTypeMixin,
     so.InheritingObject,
     s_types.Type,
     qlkind=qltypes.SchemaObjectClass.PSEUDO_TYPE,
@@ -54,13 +56,13 @@ class PseudoType(
     def as_shell(self, schema: s_schema.Schema) -> PseudoTypeShell:
         return PseudoTypeShell(name=self.get_name(schema))
 
-    def get_bases(
+    def get_bases(  # type: ignore
         self,
         schema: s_schema.Schema,
     ) -> so.ObjectList[PseudoType]:
         return so.ObjectList[PseudoType].create_empty()  # type: ignore
 
-    def get_ancestors(
+    def get_ancestors(  # type: ignore
         self,
         schema: s_schema.Schema,
     ) -> so.ObjectList[PseudoType]:
