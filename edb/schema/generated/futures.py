@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 from edb.schema import getter as s_getter
-
 from edb.schema import name
 
 
@@ -18,6 +17,9 @@ class FutureBehaviorMixin:
     def get_name(
         self, schema: 's_schema.Schema'
     ) -> 'name.Name':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'name'    # type: ignore
+        field = type(self).get_field('name')
+        return s_getter.regular_getter(
+            self,
+            schema,
+            field,
         )

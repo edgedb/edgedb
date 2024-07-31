@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 from edb.schema import getter as s_getter
-
 from edb.schema import expr
 from edb.common import checked
 
@@ -19,41 +18,59 @@ class ScalarTypeMixin:
     def get_default(
         self, schema: 's_schema.Schema'
     ) -> 'expr.Expression':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'default'    # type: ignore
+        field = type(self).get_field('default')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_enum_values(
         self, schema: 's_schema.Schema'
     ) -> 'checked.FrozenCheckedList[str]':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'enum_values'    # type: ignore
+        field = type(self).get_field('enum_values')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_sql_type(
         self, schema: 's_schema.Schema'
     ) -> 'str':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'sql_type'    # type: ignore
+        field = type(self).get_field('sql_type')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_sql_type_scheme(
         self, schema: 's_schema.Schema'
     ) -> 'str':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'sql_type_scheme'    # type: ignore
+        field = type(self).get_field('sql_type_scheme')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_num_params(
         self, schema: 's_schema.Schema'
     ) -> 'int':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'num_params'    # type: ignore
+        field = type(self).get_field('num_params')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_arg_values(
         self, schema: 's_schema.Schema'
     ) -> 'checked.FrozenCheckedList[str]':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'arg_values'    # type: ignore
+        field = type(self).get_field('arg_values')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )

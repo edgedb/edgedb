@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 from edb.schema import getter as s_getter
-
 import uuid
 from edb.common import span
 from edb.schema import name
@@ -19,46 +18,54 @@ from edb.common import checked
 
 class ObjectMixin:
 
-    def get_id(
-        self, schema: 's_schema.Schema'
-    ) -> 'uuid.UUID':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'id'    # type: ignore
-        )
-
     def get_internal(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'internal'    # type: ignore
+        field = type(self).get_field('internal')
+        return s_getter.regular_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_sourcectx(
         self, schema: 's_schema.Schema'
     ) -> 'span.Span':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'sourcectx'    # type: ignore
+        field = type(self).get_field('sourcectx')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_name(
         self, schema: 's_schema.Schema'
     ) -> 'name.Name':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'name'    # type: ignore
+        field = type(self).get_field('name')
+        return s_getter.regular_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_builtin(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'builtin'    # type: ignore
+        field = type(self).get_field('builtin')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_computed_fields(
         self, schema: 's_schema.Schema'
     ) -> 'checked.FrozenCheckedSet[str]':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'computed_fields'    # type: ignore
+        field = type(self).get_field('computed_fields')
+        return s_getter.regular_getter(
+            self,
+            schema,
+            field,
         )
 
 
@@ -71,8 +78,11 @@ class QualifiedObjectMixin:
     def get_name(
         self, schema: 's_schema.Schema'
     ) -> 'name.QualName':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'name'    # type: ignore
+        field = type(self).get_field('name')
+        return s_getter.regular_getter(
+            self,
+            schema,
+            field,
         )
 
 
@@ -97,8 +107,11 @@ class SubclassableObjectMixin:
     def get_abstract(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'abstract'    # type: ignore
+        field = type(self).get_field('abstract')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
 
@@ -107,29 +120,41 @@ class InheritingObjectMixin:
     def get_bases(
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectList[objects.InheritingObject]':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'bases'    # type: ignore
+        field = type(self).get_field('bases')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_ancestors(
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectList[objects.InheritingObject]':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'ancestors'    # type: ignore
+        field = type(self).get_field('ancestors')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_inherited_fields(
         self, schema: 's_schema.Schema'
     ) -> 'checked.FrozenCheckedSet[str]':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'inherited_fields'    # type: ignore
+        field = type(self).get_field('inherited_fields')
+        return s_getter.regular_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_is_derived(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'is_derived'    # type: ignore
+        field = type(self).get_field('is_derived')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
 

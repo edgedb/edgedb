@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 from edb.schema import getter as s_getter
-
 from edb.schema import objects
 from edb.common import checked
 from edb.schema import expr
@@ -21,57 +20,81 @@ class TypeMixin:
     def get_expr(
         self, schema: 's_schema.Schema'
     ) -> 'expr.Expression':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'expr'    # type: ignore
+        field = type(self).get_field('expr')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_expr_type(
         self, schema: 's_schema.Schema'
     ) -> 'types.ExprType':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'expr_type'    # type: ignore
+        field = type(self).get_field('expr_type')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_from_alias(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'from_alias'    # type: ignore
+        field = type(self).get_field('from_alias')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_from_global(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'from_global'    # type: ignore
+        field = type(self).get_field('from_global')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_alias_is_persistent(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'alias_is_persistent'    # type: ignore
+        field = type(self).get_field('alias_is_persistent')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_rptr(
         self, schema: 's_schema.Schema'
     ) -> 'objects.Object':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'rptr'    # type: ignore
+        field = type(self).get_field('rptr')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_backend_id(
         self, schema: 's_schema.Schema'
     ) -> 'int':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'backend_id'    # type: ignore
+        field = type(self).get_field('backend_id')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_transient(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'transient'    # type: ignore
+        field = type(self).get_field('transient')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
 
@@ -88,8 +111,11 @@ class CollectionMixin:
     def get_is_persistent(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'is_persistent'    # type: ignore
+        field = type(self).get_field('is_persistent')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
 
@@ -102,15 +128,21 @@ class ArrayMixin:
     def get_element_type(
         self, schema: 's_schema.Schema'
     ) -> 'types.Type':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'element_type'    # type: ignore
+        field = type(self).get_field('element_type')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_dimensions(
         self, schema: 's_schema.Schema'
     ) -> 'checked.FrozenCheckedList[int]':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'dimensions'    # type: ignore
+        field = type(self).get_field('dimensions')
+        return s_getter.regular_getter(
+            self,
+            schema,
+            field,
         )
 
 
@@ -123,15 +155,21 @@ class TupleMixin:
     def get_named(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'named'    # type: ignore
+        field = type(self).get_field('named')
+        return s_getter.regular_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_element_types(
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectDict[str, types.Type]':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'element_types'    # type: ignore
+        field = type(self).get_field('element_types')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
 
@@ -144,8 +182,11 @@ class RangeMixin:
     def get_element_type(
         self, schema: 's_schema.Schema'
     ) -> 'types.Type':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'element_type'    # type: ignore
+        field = type(self).get_field('element_type')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
 
@@ -158,8 +199,11 @@ class MultiRangeMixin:
     def get_element_type(
         self, schema: 's_schema.Schema'
     ) -> 'types.Type':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'element_type'    # type: ignore
+        field = type(self).get_field('element_type')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
 

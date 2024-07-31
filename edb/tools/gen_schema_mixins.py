@@ -4,6 +4,7 @@ import textwrap
 
 from edb import schema
 from edb.schema import objects as s_objects
+from edb.schema import abc as s_abc
 from edb.common import typing_inspect
 
 from edb.tools.edb import edbcommands
@@ -83,20 +84,53 @@ def gen_for_module(mod_name: str, mod: types.ModuleType):
 
         fa = '{}.{}_fields'.format(cls.__module__, cls.__name__)
         my_fields = getattr(cls, fa)
+        field: s_objects.Field
         for field in my_fields.values():
             fn = field.name
 
             ty = codegen_ty(field.type, mod.__name__)
+
+            if not isinstance(field, s_objects.SchemaField):
+                continue
 
             f.write(
                 '\n'
                 f'    def get_{fn}(\n'
                 f'        self, schema: \'s_schema.Schema\'\n'
                 f'    ) -> \'{ty}\':\n'
-                f'        return s_getter.get_field_value(  # type: ignore\n'
-                f'            self, schema, \'{fn}\'    # type: ignore\n'
-                f'        )\n'
             )
+
+            if issubclass(field.type, s_abc.Reducible):
+                f.write(
+                    f'        field = type(self).get_field(\'{fn}\')\n'
+                    f'        return s_getter.reducible_getter(\n'
+                    f'            self,\n'
+                    f'            schema,\n'
+                    f'            field,\n'
+                    f'        )\n'
+                )
+            elif (
+                field.default is not s_objects.NoDefault
+                and field.default is not s_objects.DEFAULT_CONSTRUCTOR
+            ):
+                f.write(
+                    f'        field = type(self).get_field(\'{fn}\')\n'
+                    f'        return s_getter.regular_default_getter(\n'
+                    f'            self,\n'
+                    f'            schema,\n'
+                    f'            field,\n'
+                    f'        )\n'
+                )
+            else:
+                f.write(
+                    f'        field = type(self).get_field(\'{fn}\')\n'
+                    f'        return s_getter.regular_getter(\n'
+                    f'            self,\n'
+                    f'            schema,\n'
+                    f'            field,\n'
+                    f'        )\n'
+                )
+
         if len(my_fields) == 0:
             f.write('    pass\n')
 

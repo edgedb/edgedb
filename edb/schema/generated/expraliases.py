@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 from edb.schema import getter as s_getter
-
 from edb.schema import objects
 from edb.schema import expr
 from edb.schema import types
@@ -20,20 +19,29 @@ class AliasMixin:
     def get_expr(
         self, schema: 's_schema.Schema'
     ) -> 'expr.Expression':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'expr'    # type: ignore
+        field = type(self).get_field('expr')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_type(
         self, schema: 's_schema.Schema'
     ) -> 'types.Type':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'type'    # type: ignore
+        field = type(self).get_field('type')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_created_types(
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectSet[types.Type]':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'created_types'    # type: ignore
+        field = type(self).get_field('created_types')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )

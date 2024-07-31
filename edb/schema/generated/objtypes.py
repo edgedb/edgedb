@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 from edb.schema import getter as s_getter
-
 from edb.schema import objects
 from edb.schema import triggers
 from edb.schema import objtypes
@@ -21,15 +20,21 @@ class ObjectTypeRefMixinMixin:
     def get_access_policies(
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectIndexByUnqualifiedName[policies.AccessPolicy]':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'access_policies'    # type: ignore
+        field = type(self).get_field('access_policies')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_triggers(
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectIndexByUnqualifiedName[triggers.Trigger]':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'triggers'    # type: ignore
+        field = type(self).get_field('triggers')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
 
@@ -38,20 +43,29 @@ class ObjectTypeMixin:
     def get_union_of(
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectSet[objtypes.ObjectType]':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'union_of'    # type: ignore
+        field = type(self).get_field('union_of')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_intersection_of(
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectSet[objtypes.ObjectType]':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'intersection_of'    # type: ignore
+        field = type(self).get_field('intersection_of')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_is_opaque_union(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'is_opaque_union'    # type: ignore
+        field = type(self).get_field('is_opaque_union')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )

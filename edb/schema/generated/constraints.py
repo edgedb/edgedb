@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 from edb.schema import getter as s_getter
-
 from edb.schema import objects
 from edb.schema import expr
 from edb.schema import constraints
@@ -21,71 +20,101 @@ class ConstraintMixin:
     def get_params(
         self, schema: 's_schema.Schema'
     ) -> 'functions.FuncParameterList':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'params'    # type: ignore
+        field = type(self).get_field('params')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_expr(
         self, schema: 's_schema.Schema'
     ) -> 'expr.Expression':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'expr'    # type: ignore
+        field = type(self).get_field('expr')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_subjectexpr(
         self, schema: 's_schema.Schema'
     ) -> 'expr.Expression':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'subjectexpr'    # type: ignore
+        field = type(self).get_field('subjectexpr')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_finalexpr(
         self, schema: 's_schema.Schema'
     ) -> 'expr.Expression':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'finalexpr'    # type: ignore
+        field = type(self).get_field('finalexpr')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_except_expr(
         self, schema: 's_schema.Schema'
     ) -> 'expr.Expression':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'except_expr'    # type: ignore
+        field = type(self).get_field('except_expr')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_subject(
         self, schema: 's_schema.Schema'
     ) -> 'objects.Object':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'subject'    # type: ignore
+        field = type(self).get_field('subject')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_args(
         self, schema: 's_schema.Schema'
     ) -> 'expr.ExpressionList':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'args'    # type: ignore
+        field = type(self).get_field('args')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_delegated(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'delegated'    # type: ignore
+        field = type(self).get_field('delegated')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_errmessage(
         self, schema: 's_schema.Schema'
     ) -> 'str':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'errmessage'    # type: ignore
+        field = type(self).get_field('errmessage')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_is_aggregate(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'is_aggregate'    # type: ignore
+        field = type(self).get_field('is_aggregate')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
 
@@ -94,6 +123,9 @@ class ConsistencySubjectMixin:
     def get_constraints(
         self, schema: 's_schema.Schema'
     ) -> 'constraints.ObjectIndexByConstraintName[constraints.Constraint]':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'constraints'    # type: ignore
+        field = type(self).get_field('constraints')
+        return s_getter.reducible_getter(
+            self,
+            schema,
+            field,
         )

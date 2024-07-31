@@ -16,20 +16,29 @@ class RoleMixin:
     def get_superuser(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'superuser'    # type: ignore
+        field = type(self).get_field('superuser')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_password(
         self, schema: 's_schema.Schema'
     ) -> 'str':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'password'    # type: ignore
+        field = type(self).get_field('password')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
     def get_password_hash(
         self, schema: 's_schema.Schema'
     ) -> 'str':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'password_hash'    # type: ignore
+        field = type(self).get_field('password_hash')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )

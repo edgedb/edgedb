@@ -18,42 +18,64 @@
 
 """Machinery for mapping the schema data onto the model classes."""
 
-from typing import TYPE_CHECKING
-import typing
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
     from edb.schema import objects as s_obj
 
 
-def get_field_value(
-    self: 's_obj.Object',
+def reducible_getter(
+    self: Any,
     schema: 's_schema.Schema',
-    field_name: str,
-) -> typing.Any:
-    from edb.schema import objects as s_obj
-
-    field = type(self).get_field(field_name)
-
-    if isinstance(field, s_obj.SchemaField):
-        data = schema.get_obj_data_raw(self)
-        val = data[field.index]
-        if val is not None:
-            if field.is_reducible:
-                return field.type.schema_restore(val)
-            else:
-                return val
-        else:
-            try:
-                return field.get_default()
-            except ValueError:
-                pass
+    field: 's_obj.SchemaField',
+) -> Any:
+    data = schema.get_obj_data_raw(self)
+    v = data[field.index]
+    if v is not None:
+        return field.type.schema_restore(v)
     else:
         try:
-            return object.__getattribute__(self, field_name)
-        except AttributeError:
+            return field.get_default()
+        except ValueError:
             pass
 
-    raise s_obj.FieldValueNotFoundError(
-        f'{self!r} object has no value for field {field_name!r}'
-    )
+        from edb.schema import objects as s_obj
+        raise s_obj.FieldValueNotFoundError(
+            f'{self!r} object has no value for field {field.name!r}'
+        )
+
+
+def regular_default_getter(
+    self: Any,
+    schema: 's_schema.Schema',
+    field: 's_obj.SchemaField',
+) -> Any:
+    data = schema.get_obj_data_raw(self)
+    v = data[field.index]
+    if v is not None:
+        return v
+    else:
+        return field.default
+
+
+def regular_getter(
+    self: Any,
+    schema: 's_schema.Schema',
+    field: 's_obj.SchemaField'
+) -> Any:
+    data = schema.get_obj_data_raw(self)
+    v = data[field.index]
+    if v is not None:
+        return v
+    else:
+        try:
+            return field.get_default()
+        except ValueError:
+            pass
+
+        from edb.schema import objects as s_obj
+        raise s_obj.FieldValueNotFoundError(
+            f'{self!r} object has no value '
+            f'for field {field.name!r}'
+        )

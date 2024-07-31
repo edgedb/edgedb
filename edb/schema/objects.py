@@ -922,7 +922,7 @@ class Object(
     is_global_object = False
 
     # Unique ID for this schema item.
-    id: uuid.UUID = Field(
+    id = Field(
         uuid.UUID,
         inheritable=False,
         simpledelta=False,

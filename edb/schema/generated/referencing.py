@@ -16,8 +16,11 @@ class ReferencedObjectMixin:
     def get_owned(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'owned'    # type: ignore
+        field = type(self).get_field('owned')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
 
@@ -26,8 +29,11 @@ class ReferencedInheritingObjectMixin:
     def get_declared_overloaded(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
-        return s_getter.get_field_value(  # type: ignore
-            self, schema, 'declared_overloaded'    # type: ignore
+        field = type(self).get_field('declared_overloaded')
+        return s_getter.regular_default_getter(
+            self,
+            schema,
+            field,
         )
 
 
