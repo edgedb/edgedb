@@ -31,13 +31,14 @@ def gen_for_module(mod_name: str, mod: types.ModuleType):
         if not (isinstance(cls, type) and issubclass(cls, s_objects.Object)):
             continue
 
-        fa = '{}.{}_fields'.format(cls.__module__, cls.__name__)
-        my_fields = getattr(cls, fa)
+        # fa = '{}.{}_fields'.format(cls.__module__, cls.__name__)
+        # fields = getattr(cls, fa)
+        fields = cls._schema_fields
 
-        if len(my_fields) > 0:
+        if len(fields) > 0:
             has_fields = True
 
-        for field in my_fields.values():
+        for field in fields.values():
             imports.update(collect_imports(field.type, mod.__name__))
 
         schema_object_classes.append(cls)
@@ -82,14 +83,10 @@ def gen_for_module(mod_name: str, mod: types.ModuleType):
     for cls in schema_object_classes:
         f.write(f'\n\nclass {cls.__name__}Mixin:\n')
 
-        fa = '{}.{}_fields'.format(cls.__module__, cls.__name__)
-        my_fields = getattr(cls, fa)
-        field: s_objects.Field
-        for field in my_fields.values():
-            fn = field.name
+        fields = cls._schema_fields
 
-            if not isinstance(field, s_objects.SchemaField):
-                continue
+        for field in fields.values():
+            fn = field.name
 
             ty = codegen_ty(field.type, mod.__name__)
 
@@ -104,7 +101,7 @@ def gen_for_module(mod_name: str, mod: types.ModuleType):
                 f.write(
                     f'        field = type(self).get_field(\'{fn}\')\n'
                     f'        data = schema.get_obj_data_raw(self)\n'
-                    f'        v = data[field.index]\n'
+                    f'        v = data[{field.index}]\n'
                     f'        if v is not None:\n'
                     f'            return field.type.schema_restore(v)\n'
                     f'        else:\n'
@@ -118,44 +115,45 @@ def gen_for_module(mod_name: str, mod: types.ModuleType):
                     f'                \'for field `{fn}`\'\n'
                     f'            )\n'
                 )
-            elif (
-                field.default is not s_objects.NoDefault
-                and field.default is not s_objects.DEFAULT_CONSTRUCTOR
-            ):
+            elif field.default is s_objects.NoDefault:
                 f.write(
-                    f'        field = type(self).get_field(\'{fn}\')\n'
                     f'        data = schema.get_obj_data_raw(self)\n'
-                    f'        v = data[field.index]\n'
+                    f'        v = data[{field.index}]\n'
                     f'        if v is not None:\n'
                     f'            return v\n'
                     f'        else:\n'
-                    f'            return {codegen_const(field.default, mod)}\n'
-                )
-            else:
-                f.write(
-                    f'        field = type(self).get_field(\'{fn}\')\n'
-                    f'        data = schema.get_obj_data_raw(self)\n'
-                    f'        v = data[field.index]\n'
-                    f'        if v is not None:\n'
-                    f'            return v\n'
-                    f'        else:\n'
-                    f'            try:\n'
-                    f'                return field.get_default()\n'
-                    f'            except ValueError:\n'
-                    f'                pass\n'
                     f'            from edb.schema import objects as s_obj\n'
                     f'            raise s_obj.FieldValueNotFoundError(\n'
                     f'                \'{cls.__name__} object has no value \'\n'
                     f'                \'for field `{fn}`\'\n'
                     f'            )\n'
                 )
+            elif field.default is s_objects.DEFAULT_CONSTRUCTOR:
+                f.write(
+                    f'        data = schema.get_obj_data_raw(self)\n'
+                    f'        v = data[{field.index}]\n'
+                    f'        if v is not None:\n'
+                    f'            return v\n'
+                    f'        else:\n'
+                    f'            field = type(self).get_field(\'{fn}\')\n'
+                    f'            return field.get_default()\n'
+                )
+            else:
+                f.write(
+                    f'        data = schema.get_obj_data_raw(self)\n'
+                    f'        v = data[{field.index}]\n'
+                    f'        if v is not None:\n'
+                    f'            return v\n'
+                    f'        else:\n'
+                    f'            return {codegen_const(field.default, mod)}\n'
+                )
 
-        if len(my_fields) == 0:
+        if len(fields) == 0:
             f.write('    pass\n')
 
 
 def codegen_const(value: typing.Any, mod: types.ModuleType) -> str:
-    if value == None:
+    if value is None:
         return 'None'
     elif isinstance(value, enum.Enum):
         def_ty = codegen_ty(type(value), mod.__name__)
