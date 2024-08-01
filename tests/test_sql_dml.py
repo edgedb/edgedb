@@ -649,3 +649,11 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             str(documents[0][0]),
         )
         self.assertEqual(res, 'INSERT 0 2')
+
+    async def test_sql_dml_insert_29(self):
+        res = await self.scon.execute(
+            '''
+            INSERT INTO "User" (id) VALUES (DEFAULT), (DEFAULT)
+            '''
+        )
+        self.assertEqual(res, 'INSERT 0 2')

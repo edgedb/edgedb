@@ -691,6 +691,31 @@ def _preprocess_insert_value(
                 del cols[to_remove]
                 value_query.values[r_index] = row.replace(args=cols)
 
+        if (
+            len(value_query.values) > 0
+            and isinstance(value_query.values[0], pgast.ImplicitRowExpr)
+            and len(value_query.values[0].args) == 0
+        ):
+            # special case: `VALUES (), (), ..., ()`
+            # This is syntactically incorrect, so we transform it into:
+            # `SELECT FROM (VALUES (NULL), (NULL), ..., (NULL)) _`
+            value_query = pgast.SelectStmt(
+                target_list=[],
+                from_clause=[
+                    pgast.RangeSubselect(
+                        subquery=pgast.SelectStmt(
+                            values=[
+                                pgast.ImplicitRowExpr(
+                                    args=[pgast.NullConstant()]
+                                )
+                                for _ in value_query.values
+                            ]
+                        ),
+                        alias=pgast.Alias(aliasname='_'),
+                    )
+                ],
+            )
+
     # compile these CTEs as they were defined on value relation
     assert not value_query.ctes
     value_query.ctes = value_ctes
