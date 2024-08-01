@@ -17076,3 +17076,19 @@ class TestDDLNonIsolated(tb.DDLTestCase):
                 1,
                 f"Too many indexes on .id: {res}",
             )
+
+    async def test_edgeql_ddl_function_drop_tuple_cache(self):
+        await self.con.execute('''
+            create function lol() -> SET OF tuple<str, str> using (('x', 'y'));
+        ''')
+        # Run many times to wait for the func cache creation
+        for _ in range(64):
+            await self.assert_query_result(
+                'select lol()',
+                [('x', 'y')]
+            )
+        # This drop should succeed, even when the func cache depends on the
+        # returning tuple type; the cache should be evicted.
+        await self.con.execute('''
+            drop function lol();
+        ''')

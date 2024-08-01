@@ -653,11 +653,11 @@ class DeleteTuple(TupleCommand, adapts=s_types.DeleteTuple):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         tup = schema.get_global(s_types.Tuple, self.classname)
-
         if not tup.is_polymorphic(schema):
-            self.pgops.add(dbops.DropCompositeType(
-                name=common.get_backend_name(schema, tup, catenate=False),
-            ))
+            domain_name = common.get_backend_name(schema, tup, catenate=False)
+            assert isinstance(domain_name, tuple)
+            self.pgops.add(drop_dependant_func_cache(domain_name))
+            self.pgops.add(dbops.DropCompositeType(name=domain_name))
 
         schema = super().apply(schema, context)
 
@@ -2832,6 +2832,72 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         return schema
 
 
+def drop_dependant_func_cache(pg_type: Tuple[str, ...]) -> dbops.Query:
+    if len(pg_type) == 1:
+        types_cte = f'''
+                    SELECT
+                        pt.oid AS oid
+                    FROM
+                        pg_type pt
+                    WHERE
+                        pt.typname = {ql(pg_type[0])}
+                        OR pt.typname = {ql('_' + pg_type[0])}\
+        '''
+    else:
+        types_cte = f'''
+                    SELECT
+                        pt.oid AS oid
+                    FROM
+                        pg_type pt
+                        JOIN pg_namespace pn
+                            ON pt.typnamespace = pn.oid
+                    WHERE
+                        pn.nspname = {ql(pg_type[0])}
+                        AND (
+                            pt.typname = {ql(pg_type[1])}
+                            OR pt.typname = {ql('_' + pg_type[1])}
+                        )\
+        '''
+    drop_func_cache_sql = textwrap.dedent(f'''
+        DO $$
+        DECLARE
+            qc RECORD;
+        BEGIN
+            FOR qc IN
+                WITH
+                types AS ({types_cte}
+                ),
+                class AS (
+                    SELECT
+                        pc.oid AS oid
+                    FROM
+                        pg_class pc
+                        JOIN pg_namespace pn
+                            ON pc.relnamespace = pn.oid
+                    WHERE
+                        pn.nspname = 'pg_catalog'
+                        AND pc.relname = 'pg_type'
+                )
+                SELECT
+                    substring(p.proname FROM 6)::uuid AS key
+                FROM
+                    pg_proc p
+                    JOIN pg_depend d
+                        ON d.objid = p.oid
+                    JOIN types t
+                        ON d.refobjid = t.oid
+                    JOIN class c
+                        ON d.refclassid = c.oid
+                WHERE
+                    p.proname LIKE '__qh_%'
+            LOOP
+                PERFORM edgedb_VER."_evict_query_cache"(qc.key);
+            END LOOP;
+        END $$;
+    ''')
+    return dbops.Query(drop_func_cache_sql)
+
+
 class DeleteScalarType(ScalarTypeMetaCommand,
                        adapts=s_scalars.DeleteScalarType):
     @classmethod
@@ -2845,69 +2911,7 @@ class DeleteScalarType(ScalarTypeMetaCommand,
         # We need to find such functions through pg_depend and evict the cache
         # before dropping the custom scalar type.
         pg_type = types.pg_type_from_scalar(orig_schema, scalar)
-        if len(pg_type) == 1:
-            types_cte = f'''
-                        SELECT
-                            pt.oid AS oid
-                        FROM
-                            pg_type pt
-                        WHERE
-                            pt.typname = {ql(pg_type[0])}
-                            OR pt.typname = {ql('_' + pg_type[0])}\
-            '''
-        else:
-            types_cte = f'''
-                        SELECT
-                            pt.oid AS oid
-                        FROM
-                            pg_type pt
-                            JOIN pg_namespace pn
-                                ON pt.typnamespace = pn.oid
-                        WHERE
-                            pn.nspname = {ql(pg_type[0])}
-                            AND (
-                                pt.typname = {ql(pg_type[1])}
-                                OR pt.typname = {ql('_' + pg_type[1])}
-                            )\
-            '''
-        drop_func_cache_sql = textwrap.dedent(f'''
-            DO $$
-            DECLARE
-                qc RECORD;
-            BEGIN
-                FOR qc IN
-                    WITH
-                    types AS ({types_cte}
-                    ),
-                    class AS (
-                        SELECT
-                            pc.oid AS oid
-                        FROM
-                            pg_class pc
-                            JOIN pg_namespace pn
-                                ON pc.relnamespace = pn.oid
-                        WHERE
-                            pn.nspname = 'pg_catalog'
-                            AND pc.relname = 'pg_type'
-                    )
-                    SELECT
-                        substring(p.proname FROM 6)::uuid AS key
-                    FROM
-                        pg_proc p
-                        JOIN pg_depend d
-                            ON d.objid = p.oid
-                        JOIN types t
-                            ON d.refobjid = t.oid
-                        JOIN class c
-                            ON d.refclassid = c.oid
-                    WHERE
-                        p.proname LIKE '__qh_%'
-                LOOP
-                    PERFORM edgedb_VER."_evict_query_cache"(qc.key);
-                END LOOP;
-            END $$;
-        ''')
-        ops.add_command(dbops.Query(drop_func_cache_sql))
+        ops.add_command(drop_dependant_func_cache(pg_type))
 
         old_domain_name = common.get_backend_name(
             orig_schema, scalar, catenate=False)
