@@ -1159,18 +1159,18 @@ def _try_inject_type_cast(
 
     if not isinstance(rel, pgast.SelectStmt):
         return
-    
+
     if rel.values:
         for row_i, row in enumerate(rel.values):
             if isinstance(row, pgast.ImplicitRowExpr):
                 args = list(row.args)
                 args[pos] = pgast.TypeCast(arg=args[pos], type_name=ty)
-                rel.values[row_i] = row.replace(args = args)
+                rel.values[row_i] = row.replace(args=args)
 
     elif rel.target_list:
         target = rel.target_list[pos]
         rel.target_list[pos] = target.replace(
-            val = pgast.TypeCast(arg=target.val, type_name=ty)
+            val=pgast.TypeCast(arg=target.val, type_name=ty)
         )
 
 

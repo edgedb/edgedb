@@ -665,10 +665,10 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
     async def test_sql_query_40(self):
         id: uuid.UUID = uuid.uuid4()
-        
+
         res = await self.squery_values('SELECT $1::uuid;', id)
         self.assertEqual(res, [[id]])
-        
+
         res = await self.squery_values('SELECT CAST($1 as uuid);', id)
         self.assertEqual(res, [[id]])
 
