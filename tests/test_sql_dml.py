@@ -845,3 +845,122 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             ''',
         )
         self.assertEqual(res, [['Report (new)']])
+
+    async def test_sql_dml_delete_08(self):
+        [document] = await self.squery_values(
+            'INSERT INTO "Document" DEFAULT VALUES RETURNING id'
+        )
+        [user1] = await self.squery_values(
+            'INSERT INTO "User" DEFAULT VALUES RETURNING id'
+        )
+        [user2] = await self.squery_values(
+            'INSERT INTO "User" DEFAULT VALUES RETURNING id'
+        )
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document.shared_with" (source, target)
+            VALUES ($1, $2), ($1, $3)
+            ''',
+            document[0],
+            user1[0],
+            user2[0],
+        )
+
+        # delete where false
+        res = await self.scon.execute(
+            '''
+            DELETE FROM "Document.shared_with" WHERE FALSE
+            ''',
+        )
+        self.assertEqual(res, 'DELETE 0')
+        res = await self.squery_values(
+            '''
+            SELECT COUNT(*) FROM "Document.shared_with"
+            ''',
+        )
+        self.assertEqual(res, [[2]])
+
+        # delete where source
+        res = await self.scon.execute(
+            '''
+            DELETE FROM "Document.shared_with" WHERE source = $1
+            ''',
+            document[0],
+        )
+        self.assertEqual(res, 'DELETE 2')
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document.shared_with" (source, target)
+            VALUES ($1, $2), ($1, $3)
+            ''',
+            document[0],
+            user1[0],
+            user2[0],
+        )
+
+        # delete where target
+        res = await self.scon.execute(
+            '''
+            DELETE FROM "Document.shared_with" WHERE target = $1
+            ''',
+            user1[0],
+        )
+        self.assertEqual(res, 'DELETE 1')
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document.shared_with" (source, target)
+            VALUES ($1, $2), ($1, $3)
+            ''',
+            document[0],
+            user1[0],
+            user2[0],
+        )
+
+        # delete all
+        res = await self.scon.execute(
+            '''
+            DELETE FROM "Document.shared_with"
+            '''
+        )
+        self.assertEqual(res, 'DELETE 2')
+
+    async def test_sql_dml_delete_09(self):
+        # delete with returning clause and using and CTEs
+
+        [document] = await self.squery_values(
+            'INSERT INTO "Document" DEFAULT VALUES RETURNING id'
+        )
+        [user1] = await self.squery_values(
+            'INSERT INTO "User" DEFAULT VALUES RETURNING id'
+        )
+        [user2] = await self.squery_values(
+            'INSERT INTO "User" DEFAULT VALUES RETURNING id'
+        )
+        await self.squery_values(
+            '''
+            INSERT INTO "Document.shared_with" (source, target)
+            VALUES ($1, $2), ($1, $3)
+            ''',
+            document[0],
+            user1[0],
+            user2[0],
+        )
+
+        deleted = await self.squery_values(
+            '''
+            WITH
+              users_to_keep as (SELECT id FROM "User" WHERE id = $1),
+              users_to_delete as (
+                SELECT u.id
+                FROM "User" u
+                LEFT JOIN users_to_keep utk ON (u.id = utk.id)
+                WHERE utk.id IS NULL
+              )
+            DELETE FROM "Document.shared_with" dsw
+            USING users_to_delete utd
+            WHERE utd.id = dsw.target
+            RETURNING source, target
+            ''',
+            user2[0],
+        )
+        self.assertEqual(deleted, [[document[0], user1[0]]])
