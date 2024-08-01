@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
-from edb.schema import getter as s_getter
 from edb.schema import objects
 from edb.schema import expr
 from edb.schema import types
@@ -20,28 +19,55 @@ class AliasMixin:
         self, schema: 's_schema.Schema'
     ) -> 'expr.Expression':
         field = type(self).get_field('expr')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Alias object has no value '
+                'for field `expr`'
+            )
 
     def get_type(
         self, schema: 's_schema.Schema'
     ) -> 'types.Type':
         field = type(self).get_field('type')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Alias object has no value '
+                'for field `type`'
+            )
 
     def get_created_types(
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectSet[types.Type]':
         field = type(self).get_field('created_types')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Alias object has no value '
+                'for field `created_types`'
+            )

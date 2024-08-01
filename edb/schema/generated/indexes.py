@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
-from edb.schema import getter as s_getter
 from edb.schema import objects
 from edb.edgeql import qltypes
 from edb.schema import indexes
@@ -23,101 +22,167 @@ class IndexMixin:
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectList[indexes.Index]':
         field = type(self).get_field('bases')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Index object has no value '
+                'for field `bases`'
+            )
 
     def get_subject(
         self, schema: 's_schema.Schema'
     ) -> 'objects.Object':
         field = type(self).get_field('subject')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Index object has no value '
+                'for field `subject`'
+            )
 
     def get_params(
         self, schema: 's_schema.Schema'
     ) -> 'functions.FuncParameterList':
         field = type(self).get_field('params')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Index object has no value '
+                'for field `params`'
+            )
 
     def get_code(
         self, schema: 's_schema.Schema'
     ) -> 'str':
         field = type(self).get_field('code')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return None
 
     def get_kwargs(
         self, schema: 's_schema.Schema'
     ) -> 'checked.CheckedDict[str, expr.Expression]':
         field = type(self).get_field('kwargs')
-        return s_getter.regular_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Index object has no value '
+                'for field `kwargs`'
+            )
 
     def get_type_args(
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectList[objects.Object]':
         field = type(self).get_field('type_args')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Index object has no value '
+                'for field `type_args`'
+            )
 
     def get_expr(
         self, schema: 's_schema.Schema'
     ) -> 'expr.Expression':
         field = type(self).get_field('expr')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Index object has no value '
+                'for field `expr`'
+            )
 
     def get_except_expr(
         self, schema: 's_schema.Schema'
     ) -> 'expr.Expression':
         field = type(self).get_field('except_expr')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Index object has no value '
+                'for field `except_expr`'
+            )
 
     def get_deferrability(
         self, schema: 's_schema.Schema'
     ) -> 'qltypes.IndexDeferrability':
         field = type(self).get_field('deferrability')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return qltypes.IndexDeferrability.Prohibited
 
     def get_deferred(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
         field = type(self).get_field('deferred')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return False
 
 
 class IndexableSubjectMixin:
@@ -126,8 +191,17 @@ class IndexableSubjectMixin:
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectIndexByFullname[indexes.Index]':
         field = type(self).get_field('indexes')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'IndexableSubject object has no value '
+                'for field `indexes`'
+            )

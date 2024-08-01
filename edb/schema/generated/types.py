@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
-from edb.schema import getter as s_getter
 from edb.schema import objects
 from edb.common import checked
 from edb.schema import expr
@@ -21,81 +20,105 @@ class TypeMixin:
         self, schema: 's_schema.Schema'
     ) -> 'expr.Expression':
         field = type(self).get_field('expr')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Type object has no value '
+                'for field `expr`'
+            )
 
     def get_expr_type(
         self, schema: 's_schema.Schema'
     ) -> 'types.ExprType':
         field = type(self).get_field('expr_type')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return None
 
     def get_from_alias(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
         field = type(self).get_field('from_alias')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return False
 
     def get_from_global(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
         field = type(self).get_field('from_global')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return False
 
     def get_alias_is_persistent(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
         field = type(self).get_field('alias_is_persistent')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return False
 
     def get_rptr(
         self, schema: 's_schema.Schema'
     ) -> 'objects.Object':
         field = type(self).get_field('rptr')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Type object has no value '
+                'for field `rptr`'
+            )
 
     def get_backend_id(
         self, schema: 's_schema.Schema'
     ) -> 'int':
         field = type(self).get_field('backend_id')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return None
 
     def get_transient(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
         field = type(self).get_field('transient')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return False
 
 
 class QualifiedTypeMixin:
@@ -112,11 +135,12 @@ class CollectionMixin:
         self, schema: 's_schema.Schema'
     ) -> 'bool':
         field = type(self).get_field('is_persistent')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return False
 
 
 class CollectionExprAliasMixin:
@@ -129,21 +153,39 @@ class ArrayMixin:
         self, schema: 's_schema.Schema'
     ) -> 'types.Type':
         field = type(self).get_field('element_type')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Array object has no value '
+                'for field `element_type`'
+            )
 
     def get_dimensions(
         self, schema: 's_schema.Schema'
     ) -> 'checked.FrozenCheckedList[int]':
         field = type(self).get_field('dimensions')
-        return s_getter.regular_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Array object has no value '
+                'for field `dimensions`'
+            )
 
 
 class ArrayExprAliasMixin:
@@ -156,21 +198,39 @@ class TupleMixin:
         self, schema: 's_schema.Schema'
     ) -> 'bool':
         field = type(self).get_field('named')
-        return s_getter.regular_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Tuple object has no value '
+                'for field `named`'
+            )
 
     def get_element_types(
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectDict[str, types.Type]':
         field = type(self).get_field('element_types')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Tuple object has no value '
+                'for field `element_types`'
+            )
 
 
 class TupleExprAliasMixin:
@@ -183,11 +243,20 @@ class RangeMixin:
         self, schema: 's_schema.Schema'
     ) -> 'types.Type':
         field = type(self).get_field('element_type')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Range object has no value '
+                'for field `element_type`'
+            )
 
 
 class RangeExprAliasMixin:
@@ -200,11 +269,20 @@ class MultiRangeMixin:
         self, schema: 's_schema.Schema'
     ) -> 'types.Type':
         field = type(self).get_field('element_type')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'MultiRange object has no value '
+                'for field `element_type`'
+            )
 
 
 class MultiRangeExprAliasMixin:

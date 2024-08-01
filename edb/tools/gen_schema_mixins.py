@@ -1,6 +1,7 @@
 import types
 import typing
 import textwrap
+import enum
 
 from edb import schema
 from edb.schema import objects as s_objects
@@ -66,7 +67,6 @@ def gen_for_module(mod_name: str, mod: types.ModuleType):
 
                 if TYPE_CHECKING:
                     from edb.schema import schema as s_schema
-                from edb.schema import getter as s_getter
                 '''
             )
         )
@@ -88,10 +88,10 @@ def gen_for_module(mod_name: str, mod: types.ModuleType):
         for field in my_fields.values():
             fn = field.name
 
-            ty = codegen_ty(field.type, mod.__name__)
-
             if not isinstance(field, s_objects.SchemaField):
                 continue
+
+            ty = codegen_ty(field.type, mod.__name__)
 
             f.write(
                 '\n'
@@ -103,11 +103,20 @@ def gen_for_module(mod_name: str, mod: types.ModuleType):
             if issubclass(field.type, s_abc.Reducible):
                 f.write(
                     f'        field = type(self).get_field(\'{fn}\')\n'
-                    f'        return s_getter.reducible_getter(\n'
-                    f'            self,\n'
-                    f'            schema,\n'
-                    f'            field,\n'
-                    f'        )\n'
+                    f'        data = schema.get_obj_data_raw(self)\n'
+                    f'        v = data[field.index]\n'
+                    f'        if v is not None:\n'
+                    f'            return field.type.schema_restore(v)\n'
+                    f'        else:\n'
+                    f'            try:\n'
+                    f'                return field.get_default()\n'
+                    f'            except ValueError:\n'
+                    f'                pass\n'
+                    f'            from edb.schema import objects as s_obj\n'
+                    f'            raise s_obj.FieldValueNotFoundError(\n'
+                    f'                \'{cls.__name__} object has no value \'\n'
+                    f'                \'for field `{fn}`\'\n'
+                    f'            )\n'
                 )
             elif (
                 field.default is not s_objects.NoDefault
@@ -115,24 +124,48 @@ def gen_for_module(mod_name: str, mod: types.ModuleType):
             ):
                 f.write(
                     f'        field = type(self).get_field(\'{fn}\')\n'
-                    f'        return s_getter.regular_default_getter(\n'
-                    f'            self,\n'
-                    f'            schema,\n'
-                    f'            field,\n'
-                    f'        )\n'
+                    f'        data = schema.get_obj_data_raw(self)\n'
+                    f'        v = data[field.index]\n'
+                    f'        if v is not None:\n'
+                    f'            return v\n'
+                    f'        else:\n'
+                    f'            return {codegen_const(field.default, mod)}\n'
                 )
             else:
                 f.write(
                     f'        field = type(self).get_field(\'{fn}\')\n'
-                    f'        return s_getter.regular_getter(\n'
-                    f'            self,\n'
-                    f'            schema,\n'
-                    f'            field,\n'
-                    f'        )\n'
+                    f'        data = schema.get_obj_data_raw(self)\n'
+                    f'        v = data[field.index]\n'
+                    f'        if v is not None:\n'
+                    f'            return v\n'
+                    f'        else:\n'
+                    f'            try:\n'
+                    f'                return field.get_default()\n'
+                    f'            except ValueError:\n'
+                    f'                pass\n'
+                    f'            from edb.schema import objects as s_obj\n'
+                    f'            raise s_obj.FieldValueNotFoundError(\n'
+                    f'                \'{cls.__name__} object has no value \'\n'
+                    f'                \'for field `{fn}`\'\n'
+                    f'            )\n'
                 )
 
         if len(my_fields) == 0:
             f.write('    pass\n')
+
+
+def codegen_const(value: typing.Any, mod: types.ModuleType) -> str:
+    if value == None:
+        return 'None'
+    elif isinstance(value, enum.Enum):
+        def_ty = codegen_ty(type(value), mod.__name__)
+        return f"{def_ty}.{value}"
+    elif isinstance(value, str):
+        return f"'{value}'"
+    elif isinstance(value, (bool, str, int)):
+        return str(value)
+    else:
+        raise NotImplementedError(f'default type: {type(value)}')
 
 
 def collect_imports(ty: type, current_module: str) -> typing.Set[str]:

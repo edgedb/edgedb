@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
-from edb.schema import getter as s_getter
 from edb.schema import objects
 from edb.schema import expr
 from edb.edgeql import qltypes
@@ -20,68 +19,123 @@ class TriggerMixin:
         self, schema: 's_schema.Schema'
     ) -> 'qltypes.TriggerTiming':
         field = type(self).get_field('timing')
-        return s_getter.regular_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Trigger object has no value '
+                'for field `timing`'
+            )
 
     def get_kinds(
         self, schema: 's_schema.Schema'
     ) -> 'objects.MultiPropSet[qltypes.TriggerKind]':
         field = type(self).get_field('kinds')
-        return s_getter.regular_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Trigger object has no value '
+                'for field `kinds`'
+            )
 
     def get_scope(
         self, schema: 's_schema.Schema'
     ) -> 'qltypes.TriggerScope':
         field = type(self).get_field('scope')
-        return s_getter.regular_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Trigger object has no value '
+                'for field `scope`'
+            )
 
     def get_expr(
         self, schema: 's_schema.Schema'
     ) -> 'expr.Expression':
         field = type(self).get_field('expr')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Trigger object has no value '
+                'for field `expr`'
+            )
 
     def get_condition(
         self, schema: 's_schema.Schema'
     ) -> 'expr.Expression':
         field = type(self).get_field('condition')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Trigger object has no value '
+                'for field `condition`'
+            )
 
     def get_subject(
         self, schema: 's_schema.Schema'
     ) -> 'objects.InheritingObject':
         field = type(self).get_field('subject')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Trigger object has no value '
+                'for field `subject`'
+            )
 
     def get_owned(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
         field = type(self).get_field('owned')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return False

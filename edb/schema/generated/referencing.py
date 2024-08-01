@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
-from edb.schema import getter as s_getter
 
 
 class ReferencedObjectMixin:
@@ -17,11 +16,12 @@ class ReferencedObjectMixin:
         self, schema: 's_schema.Schema'
     ) -> 'bool':
         field = type(self).get_field('owned')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return False
 
 
 class ReferencedInheritingObjectMixin:
@@ -30,11 +30,12 @@ class ReferencedInheritingObjectMixin:
         self, schema: 's_schema.Schema'
     ) -> 'bool':
         field = type(self).get_field('declared_overloaded')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return False
 
 
 class NamedReferencedInheritingObjectMixin:

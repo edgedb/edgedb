@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
-from edb.schema import getter as s_getter
 import uuid
 from edb.common import span
 from edb.schema import name
@@ -22,51 +21,80 @@ class ObjectMixin:
         self, schema: 's_schema.Schema'
     ) -> 'bool':
         field = type(self).get_field('internal')
-        return s_getter.regular_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Object object has no value '
+                'for field `internal`'
+            )
 
     def get_sourcectx(
         self, schema: 's_schema.Schema'
     ) -> 'span.Span':
         field = type(self).get_field('sourcectx')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return None
 
     def get_name(
         self, schema: 's_schema.Schema'
     ) -> 'name.Name':
         field = type(self).get_field('name')
-        return s_getter.regular_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Object object has no value '
+                'for field `name`'
+            )
 
     def get_builtin(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
         field = type(self).get_field('builtin')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return False
 
     def get_computed_fields(
         self, schema: 's_schema.Schema'
     ) -> 'checked.FrozenCheckedSet[str]':
         field = type(self).get_field('computed_fields')
-        return s_getter.regular_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Object object has no value '
+                'for field `computed_fields`'
+            )
 
 
 class InternalObjectMixin:
@@ -79,11 +107,20 @@ class QualifiedObjectMixin:
         self, schema: 's_schema.Schema'
     ) -> 'name.QualName':
         field = type(self).get_field('name')
-        return s_getter.regular_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'QualifiedObject object has no value '
+                'for field `name`'
+            )
 
 
 class ObjectFragmentMixin:
@@ -108,11 +145,12 @@ class SubclassableObjectMixin:
         self, schema: 's_schema.Schema'
     ) -> 'bool':
         field = type(self).get_field('abstract')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return False
 
 
 class InheritingObjectMixin:
@@ -121,41 +159,69 @@ class InheritingObjectMixin:
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectList[objects.InheritingObject]':
         field = type(self).get_field('bases')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'InheritingObject object has no value '
+                'for field `bases`'
+            )
 
     def get_ancestors(
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectList[objects.InheritingObject]':
         field = type(self).get_field('ancestors')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'InheritingObject object has no value '
+                'for field `ancestors`'
+            )
 
     def get_inherited_fields(
         self, schema: 's_schema.Schema'
     ) -> 'checked.FrozenCheckedSet[str]':
         field = type(self).get_field('inherited_fields')
-        return s_getter.regular_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'InheritingObject object has no value '
+                'for field `inherited_fields`'
+            )
 
     def get_is_derived(
         self, schema: 's_schema.Schema'
     ) -> 'bool':
         field = type(self).get_field('is_derived')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return False
 
 
 class DerivableInheritingObjectMixin:

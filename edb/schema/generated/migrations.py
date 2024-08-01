@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
-from edb.schema import getter as s_getter
 from edb.schema import objects
 from edb.schema import migrations
 
@@ -19,38 +18,58 @@ class MigrationMixin:
         self, schema: 's_schema.Schema'
     ) -> 'objects.ObjectList[migrations.Migration]':
         field = type(self).get_field('parents')
-        return s_getter.reducible_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return field.type.schema_restore(v)
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Migration object has no value '
+                'for field `parents`'
+            )
 
     def get_message(
         self, schema: 's_schema.Schema'
     ) -> 'str':
         field = type(self).get_field('message')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return None
 
     def get_generated_by(
         self, schema: 's_schema.Schema'
     ) -> 'str':
         field = type(self).get_field('generated_by')
-        return s_getter.regular_default_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            return None
 
     def get_script(
         self, schema: 's_schema.Schema'
     ) -> 'str':
         field = type(self).get_field('script')
-        return s_getter.regular_getter(
-            self,
-            schema,
-            field,
-        )
+        data = schema.get_obj_data_raw(self)
+        v = data[field.index]
+        if v is not None:
+            return v
+        else:
+            try:
+                return field.get_default()
+            except ValueError:
+                pass
+            from edb.schema import objects as s_obj
+            raise s_obj.FieldValueNotFoundError(
+                'Migration object has no value '
+                'for field `script`'
+            )
