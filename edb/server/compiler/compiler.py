@@ -2039,7 +2039,7 @@ def _build_cache_function(
                     ir.expr.typeref.base_type or ir.expr.typeref
                 )
                 if ir.stype.is_tuple(ir.schema):
-                    returns_record = True
+                    returns_record = return_type == ('record',)
 
         case enums.OutputFormat.JSON:
             return_type = ("json",)
