@@ -205,7 +205,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
             origin_exprdata = origin_expr.exprdata
 
             except_data = self._except_data
-            origin_except_data = origin_expr.origin_except_data
+            origin_except_data = origin_expr.except_data
 
             if self._except_data:
                 except_part = f'''
@@ -229,7 +229,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                 if self._table_type == 'link' else ''
             )
 
-            schemaname, tablename = origin_expr.origin_subject_db_name
+            schemaname, tablename = origin_expr.subject_db_name
             text = '''
                 PERFORM
                     TRUE

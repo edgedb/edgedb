@@ -85,8 +85,8 @@ class ExprData:
     exprdata: ExprDataSources
     is_multicol: bool
     is_trivial: bool
-    origin_subject_db_name: Optional[Tuple[str, str]] = None
-    origin_except_data: Optional[ExprDataSources] = None
+    subject_db_name: Optional[Tuple[str, str]] = None
+    except_data: Optional[ExprDataSources] = None
 
 
 @dataclasses.dataclass(kw_only=True, repr=False, eq=False, slots=True)
@@ -335,8 +335,8 @@ def _get_compiled_constraint_expr_data(
         exprdata = _edgeql_ref_to_pg_constr(
             primary_subject, constraint_subject, ref
         )
-        exprdata.origin_subject_db_name = constraint_data.subject_db_name
-        exprdata.origin_except_data = constraint_data.except_data
+        exprdata.subject_db_name = constraint_data.subject_db_name
+        exprdata.except_data = constraint_data.except_data
         exprdatas.append(exprdata)
 
     return exprdatas
@@ -434,8 +434,8 @@ def compile_constraint(
         exprdata = _edgeql_ref_to_pg_constr(
             subject, origin_data.subject, constraint_data.ir
         )
-        exprdata.origin_subject_db_name = origin_data.subject_db_name
-        exprdata.origin_except_data = origin_data.except_data
+        exprdata.subject_db_name = origin_data.subject_db_name
+        exprdata.except_data = origin_data.except_data
 
         pg_constr_data.expressions.append(exprdata)
 
@@ -600,8 +600,8 @@ class SchemaTableConstraint:
             old_expr = origin_exprdata.old
             new_expr = exprdata.new
 
-            assert origin_expr.origin_subject_db_name
-            schemaname, tablename = origin_expr.origin_subject_db_name
+            assert origin_expr.subject_db_name
+            schemaname, tablename = origin_expr.subject_db_name
             real_tablename = tabconstr.get_subject_name(quote=False)
 
             errmsg = 'duplicate key value violates unique ' \
@@ -619,7 +619,7 @@ class SchemaTableConstraint:
                 key = "id"
 
             except_data = tabconstr._except_data
-            origin_except_data = origin_expr.origin_except_data
+            origin_except_data = origin_expr.except_data
 
             if except_data:
                 assert origin_except_data
