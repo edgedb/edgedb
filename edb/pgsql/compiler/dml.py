@@ -286,7 +286,7 @@ def gen_dml_cte(
     dml_cte = pgast.CommonTableExpr(
         query=dml_stmt,
         name=ctx.env.aliases.get(hint='m'),
-        for_dml_stmt=ctx.get_current_dml_stmt(),
+        for_dml_stmt=ir_stmt,
     )
 
     # Due to the fact that DML statements are structured

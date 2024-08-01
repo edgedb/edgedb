@@ -19,7 +19,7 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import Optional, Tuple, List, cast
+from typing import Optional, Tuple, List, cast, Set
 
 from edb import errors
 from edb.server.pgcon import errors as pgerror
@@ -123,10 +123,14 @@ def resolve_SelectStmt(
     # SELECT projection
     table = context.Table()
     target_list: List[pgast.ResTarget] = []
+    names: Set[str] = set()
     for t in stmt.target_list:
-        targets, columns = expr.resolve_ResTarget(t, ctx=ctx)
+        targets, columns = expr.resolve_ResTarget(
+            t, existing_names=names, ctx=ctx
+        )
         target_list.extend(targets)
         table.columns.extend(columns)
+        names.update(c.name for c in columns)
 
     distinct_clause = None
     if stmt.distinct_clause:

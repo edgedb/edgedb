@@ -153,7 +153,7 @@ class CompiledDML:
     value_relation_input: pgast.BaseRelation
 
     # columns that are expected to be produced by the value relation
-    value_columns: List[Tuple[Column, s_pointers.Pointer]]
+    value_columns: List[Tuple[str, bool]]
 
     # name of the column in the value relation, that should provide the identity
     value_iterator_name: str
