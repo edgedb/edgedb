@@ -293,8 +293,9 @@ def _build_select_stmt(n: Node, c: Context) -> pgast.SelectStmt:
 def _build_insert_stmt(n: Node, c: Context) -> pgast.InsertStmt:
     return pgast.InsertStmt(
         relation=_maybe(n, c, "relation", _build_rel_range_var),
-        returning_list=_maybe_list(n, c, "returningList", _build_res_target)
-        or [],
+        returning_list=(
+            _maybe_list(n, c, "returningList", _build_res_target) or []
+        ),
         cols=_maybe_list(n, c, "cols", _build_insert_target),
         select_stmt=_maybe(n, c, "selectStmt", _build_stmt),
         on_conflict=_maybe(n, c, "on_conflict", _build_on_conflict),
@@ -307,19 +308,24 @@ def _build_update_stmt(n: Node, c: Context) -> pgast.UpdateStmt:
         relation=_maybe(n, c, "relation", _build_rel_range_var),
         targets=_build_targets(n, c, "targetList") or [],
         where_clause=_maybe(n, c, "whereClause", _build_base_expr),
-        from_clause=_maybe_list(n, c, "fromClause", _build_base_range_var)
-        or [],
+        from_clause=(
+            _maybe_list(n, c, "fromClause", _build_base_range_var) or []
+        ),
+        ctes=_maybe(n, c, "withClause", _build_ctes),
     )
 
 
 def _build_delete_stmt(n: Node, c: Context) -> pgast.DeleteStmt:
     return pgast.DeleteStmt(
         relation=_maybe(n, c, "relation", _build_rel_range_var),
-        returning_list=_maybe_list(n, c, "returningList", _build_res_target)
-        or [],
+        returning_list=(
+            _maybe_list(n, c, "returningList", _build_res_target) or []
+        ),
         where_clause=_maybe(n, c, "whereClause", _build_base_expr),
-        using_clause=_maybe_list(n, c, "usingClause", _build_base_range_var)
-        or [],
+        using_clause=(
+            _maybe_list(n, c, "usingClause", _build_base_range_var) or []
+        ),
+        ctes=_maybe(n, c, "withClause", _build_ctes),
     )
 
 
@@ -351,9 +357,11 @@ def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
     if n["kind"] == "VAR_RESET":
         return pgast.VariableResetStmt(
             name=n["name"],
-            scope=pgast.OptionsScope.TRANSACTION
-            if n["name"] in tx_only_vars
-            else pgast.OptionsScope.SESSION,
+            scope=(
+                pgast.OptionsScope.TRANSACTION
+                if n["name"] in tx_only_vars
+                else pgast.OptionsScope.SESSION
+            ),
             span=_build_span(n, c),
         )
 
@@ -369,27 +377,35 @@ def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
         if name == "TRANSACTION" or name == "SESSION CHARACTERISTICS":
             return pgast.SetTransactionStmt(
                 options=_build_transaction_options(n["args"], c),
-                scope=pgast.OptionsScope.TRANSACTION
-                if name == "TRANSACTION"
-                else pgast.OptionsScope.SESSION,
+                scope=(
+                    pgast.OptionsScope.TRANSACTION
+                    if name == "TRANSACTION"
+                    else pgast.OptionsScope.SESSION
+                ),
             )
 
     if n["kind"] == "VAR_SET_VALUE":
         return pgast.VariableSetStmt(
             name=n["name"],
             args=pgast.ArgsList(args=_list(n, c, "args", _build_base_expr)),
-            scope=pgast.OptionsScope.TRANSACTION
-            if n["name"] in tx_only_vars or "is_local" in n and n["is_local"]
-            else pgast.OptionsScope.SESSION,
+            scope=(
+                pgast.OptionsScope.TRANSACTION
+                if n["name"] in tx_only_vars
+                or ("is_local" in n and n["is_local"])
+                else pgast.OptionsScope.SESSION
+            ),
             span=_build_span(n, c),
         )
 
     if n["kind"] == "VAR_SET_DEFAULT":
         return pgast.VariableResetStmt(
             name=n["name"],
-            scope=pgast.OptionsScope.TRANSACTION
-            if n["name"] in tx_only_vars or "is_local" in n and n["is_local"]
-            else pgast.OptionsScope.SESSION,
+            scope=(
+                pgast.OptionsScope.TRANSACTION
+                if n["name"] in tx_only_vars
+                or ("is_local" in n and n["is_local"])
+                else pgast.OptionsScope.SESSION
+            ),
             span=_build_span(n, c),
         )
 
@@ -901,14 +917,16 @@ def _build_join_expr(n: Node, c: Context) -> pgast.JoinExpr:
     return pgast.JoinExpr(
         alias=_maybe(n, c, "alias", _build_alias) or pgast.Alias(aliasname=""),
         larg=_build_base_range_var(n["larg"], c),
-        joins=[pgast.JoinClause(
-            type=n["jointype"][5:],
-            rarg=_build_base_range_var(n["rarg"], c),
-            using_clause=_maybe_list(
-                n, c, "usingClause", _build_str, _as_column_ref
-            ),
-            quals=_maybe(n, c, "quals", _build_base_expr),
-        )],
+        joins=[
+            pgast.JoinClause(
+                type=n["jointype"][5:],
+                rarg=_build_base_range_var(n["rarg"], c),
+                using_clause=_maybe_list(
+                    n, c, "usingClause", _build_str, _as_column_ref
+                ),
+                quals=_maybe(n, c, "quals", _build_base_expr),
+            )
+        ],
     )
 
 
@@ -1084,9 +1102,7 @@ def _build_window_def(n: Node, c: Context) -> pgast.WindowDef:
     return pgast.WindowDef(
         name=_maybe(n, c, "name", _build_str),
         refname=_maybe(n, c, "refname", _build_str),
-        partition_clause=_maybe_list(
-            n, c, "partitionClause", _build_base_expr
-        ),
+        partition_clause=_maybe_list(n, c, "partitionClause", _build_base_expr),
         order_clause=_maybe_list(n, c, "orderClause", _build_sort_by),
         frame_options=None,
         start_offset=_maybe(n, c, "startOffset", _build_base_expr),

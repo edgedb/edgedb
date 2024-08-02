@@ -21,6 +21,7 @@ in our internal Postgres instance."""
 
 from typing import List, Optional, Dict, Tuple, Iterable, Mapping, Set
 import dataclasses
+import functools
 
 from edb.server.pgcon import errors as pgerror
 
@@ -143,7 +144,7 @@ def compile_dml(
         return []
 
     # preprocess each SQL dml stmt into EdgeQL
-    stmts = [_preprocess_insert_stmt(s, ctx=ctx) for s in dml_stmts_sql]
+    stmts = [_preprocess_dml_stmt(s, ctx=ctx) for s in dml_stmts_sql]
 
     # merge EdgeQL stmts & compile to SQL
     ctx.compiled_dml, ctes = _compile_preprocessed_dml(stmts, ctx=ctx)
@@ -151,19 +152,19 @@ def compile_dml(
     return ctes
 
 
-def _collect_dml_stmts(stmt: pgast.Base) -> List[pgast.InsertStmt]:
+def _collect_dml_stmts(stmt: pgast.Base) -> List[pgast.DMLQuery]:
     if not isinstance(stmt, pgast.Query):
         return []
 
     # DML can only be in the top-level statement or its CTEs.
     # If it is in any of the nested CTEs, throw errors later on
-    res: List[pgast.InsertStmt] = []
+    res: List[pgast.DMLQuery] = []
     if stmt.ctes:
         for cte in stmt.ctes:
-            if isinstance(cte.query, pgast.InsertStmt):
+            if isinstance(cte.query, pgast.DMLQuery):
                 res.append(cte.query)
 
-    if isinstance(stmt, pgast.InsertStmt):
+    if isinstance(stmt, pgast.DMLQuery):
         res.append(stmt)
     return res
 
@@ -192,6 +193,16 @@ class PreprocessedDML:
     early_result: context.CompiledDML
 
 
+@functools.singledispatch
+def _preprocess_dml_stmt(stmt: pgast.DMLQuery, *, ctx: Context):
+    raise errors.QueryError(
+        f'{stmt.__class__.__name__} are not supported',
+        span=stmt.span,
+        pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
+    )
+
+
+@_preprocess_dml_stmt.register
 def _preprocess_insert_stmt(
     stmt: pgast.InsertStmt, *, ctx: Context
 ) -> PreprocessedDML:
@@ -735,6 +746,153 @@ def _preprocess_insert_value(
     return value_query, expected_columns
 
 
+@_preprocess_dml_stmt.register
+def _preprocess_delete_stmt(
+    stmt: pgast.DeleteStmt, *, ctx: Context
+) -> PreprocessedDML:
+    # determine the subject object we are inserting into
+    # (this can either be an ObjectType or a Pointer for link tables)
+    assert isinstance(stmt.relation, pgast.RelRangeVar)
+    assert isinstance(stmt.relation.relation, pgast.Relation)
+    _sub_rel, sub_table = pg_res_rel.resolve_relation(
+        stmt.relation.relation, include_inherited=False, ctx=ctx
+    )
+    assert sub_table.schema_id  # TODO: raise a proper error here
+    sub = ctx.schema.get_by_id(sub_table.schema_id)
+
+    res: PreprocessedDML
+    if isinstance(sub, s_objtypes.ObjectType):
+        res = _preprocess_delete_object_stmt(stmt, sub, sub_table, ctx=ctx)
+    # elif isinstance(sub, (s_links.Link, s_properties.Property)):
+    #     res = _preprocess_insert_pointer_stmt(
+    #         stmt, sub, sub_table, ctx=ctx
+    #     )
+    else:
+        raise NotImplementedError()
+
+    if stmt.returning_list:
+        assert isinstance(
+            sub, (s_objtypes.ObjectType, s_links.Link, s_properties.Property)
+        )
+        # wrap into a select shape that selects all pointers
+        # (because they might be be used by RETURNING clause)
+        for column in sub_table.columns:
+            if column.hidden:
+                continue
+            _, ptr_name, _ = _get_pointer_for_column(column, sub, ctx)
+            res.subject_columns.append((column.name, ptr_name))
+    return res
+
+
+def _preprocess_delete_object_stmt(
+    stmt: pgast.DeleteStmt,
+    sub: s_objtypes.ObjectType,
+    sub_table: context.Table,
+    *,
+    ctx: Context,
+) -> PreprocessedDML:
+    """
+    Translates a 'SQL DELETE of object type table' to an EdgeQL delete.
+    """
+
+    # prepare value relation
+    # For deletes, value relation contains a single column of ids of all the
+    # objects that need to be deleted. We construct this relation from WHERE
+    # and USING clauses of DELETE.
+
+    assert isinstance(stmt.relation, pgast.RelRangeVar)
+    val_sub_rvar = stmt.relation.alias.aliasname or stmt.relation.relation.name
+    assert val_sub_rvar
+    value_relation = pgast.SelectStmt(
+        ctes=stmt.ctes,
+        target_list=[
+            pgast.ResTarget(
+                val=pgast.ColumnRef(
+                    name=(val_sub_rvar, 'id'),
+                ),
+                name='id',
+            )
+        ],
+        from_clause=[
+            pgast.RelRangeVar(
+                relation=stmt.relation.relation,
+                alias=pgast.Alias(aliasname=val_sub_rvar),
+            )
+        ]
+        + stmt.using_clause,
+        where_clause=stmt.where_clause,
+    )
+    stmt.ctes = []
+
+    # prepare anchors for inserted value columns
+    value_name = ctx.alias_generator.get('del_val')
+    value_id = irast.PathId.from_type(
+        ctx.schema,
+        sub,
+        typename=sn.QualName('__derived__', value_name),
+        env=None,
+    )
+
+    value_ql = qlast.IRAnchor(name=value_name)
+
+    # a phantom relation that contains a single column, which is the id of all
+    # the objects that should be deleted.
+    value_cte_name = ctx.alias_generator.get('del_value')
+    value_rel = pgast.Relation(name=value_cte_name)
+    value_columns = [('id', False)]
+
+    output_var = pgast.ColumnRef(name=('id',), nullable=False)
+    value_rel.path_outputs[(value_id, pgce.PathAspect.IDENTITY)] = output_var
+    value_rel.path_outputs[(value_id, pgce.PathAspect.VALUE)] = output_var
+    value_rel.path_outputs[(value_id, pgce.PathAspect.ITERATOR)] = output_var
+
+    # construct the EdgeQL DML AST
+    sub_name = sub.get_name(ctx.schema)
+    ql_stmt: qlast.Expr = qlast.DeleteQuery(
+        subject=qlast.Path(steps=[s_utils.name_to_ast_ref(sub_name)]),
+        where=qlast.BinOp(
+            left=qlast.Path(partial=True, steps=[qlast.Ptr(name='id')]),
+            op='IN',
+            right=qlast.Path(steps=[value_ql, qlast.Ptr(name='id')]),
+        ),
+    )
+
+    ql_returning_shape: List[qlast.ShapeElement] = []
+    if stmt.returning_list:
+        # construct the shape that will extract all needed column of the subject
+        # table (because they might be be used by RETURNING clause)
+        for column in sub_table.columns:
+            if column.hidden:
+                continue
+            _, ptr_name, _ = _get_pointer_for_column(column, sub, ctx)
+            ql_returning_shape.append(
+                qlast.ShapeElement(
+                    expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
+                )
+            )
+
+    return PreprocessedDML(
+        input=stmt,
+        ql_stmt=ql_stmt,
+        ql_returning_shape=ql_returning_shape,
+        ql_singletons={value_id},
+        ql_anchors={value_name: value_id},
+        external_rels={value_id: (value_rel, ('source', 'identity'))},
+        early_result=context.CompiledDML(
+            value_cte_name=value_cte_name,
+            value_relation_input=value_relation,
+            value_columns=value_columns,
+            value_iterator_name=None,
+            # these will be populated after compilation
+            output_ctes=[],
+            output_relation_name='',
+            output_namespace={},
+        ),
+        # these will be populated after compilation
+        subject_columns=[],
+    )
+
+
 def _compile_preprocessed_dml(
     stmts: List[PreprocessedDML], ctx: context.ResolverContextLevel
 ) -> Tuple[
@@ -838,11 +996,18 @@ def _compile_preprocessed_dml(
 
             stmt_ctes.append(ctes.pop(0))
 
-        last_query = stmt_ctes[-1].query
+        # Find the output CTE by filtering for a DML query with returning list.
+        # This will filter out any DML for link tables and triggers.
+        output_cte = next(
+            c
+            for c in reversed(stmt_ctes)
+            if isinstance(c.query, pgast.DMLQuery) and c.query.returning_list
+        )
+        output_rel = output_cte.query
 
         # prepare a map from pointer name into pgast
         ptr_map: Dict[Tuple[str, str], pgast.BaseExpr] = {}
-        for (ptr_id, aspect), output_var in last_query.path_outputs.items():
+        for (ptr_id, aspect), output_var in output_rel.path_outputs.items():
             qual_name = ptr_id.rptr_name()
             if not qual_name:
                 ptr_map['id', aspect] = output_var
@@ -866,7 +1031,7 @@ def _compile_preprocessed_dml(
             value_columns=stmt.early_result.value_columns,
             value_iterator_name=stmt.early_result.value_iterator_name,
             output_ctes=stmt_ctes,
-            output_relation_name=stmt_ctes[-1].name,
+            output_relation_name=output_cte.name,
             output_namespace=output_namespace,
         )
 
@@ -993,6 +1158,7 @@ def resolve_InsertStmt(
     # source needs an iterator column, so we need to invent one
     # The name of the column was invented before (in pre-processing) so it could
     # be used in DML CTEs.
+    assert compiled_dml.value_iterator_name
     value_target_list.append(
         pgast.ResTarget(
             name=compiled_dml.value_iterator_name,
@@ -1013,6 +1179,88 @@ def resolve_InsertStmt(
             from_clause=[pgast.RangeSubselect(subquery=val_rel)],
             target_list=value_target_list,
         ),
+    )
+    ctx.ctes_buffer.append(value_cte)
+    ctx.ctes_buffer.extend(compiled_dml.output_ctes)
+
+    if stmt.returning_list:
+        res_query, res_table = _resolve_returning_rows(
+            stmt.returning_list,
+            compiled_dml.output_relation_name,
+            compiled_dml.output_namespace,
+            stmt.relation.alias.aliasname,
+            ctx,
+        )
+    else:
+        if ctx.subquery_depth == 0:
+            # when a top-level DML query have a RETURNING clause,
+            # we inject a COUNT(*) clause so we can efficiently count
+            # modified rows which will be converted into CommandComplete tag.
+            res_query = pgast.SelectStmt(
+                target_list=[
+                    pgast.ResTarget(
+                        val=pgast.FuncCall(
+                            name=('count',), agg_star=True, args=[]
+                        ),
+                    )
+                ],
+                from_clause=[
+                    pgast.RelRangeVar(
+                        relation=pgast.Relation(
+                            name=compiled_dml.output_relation_name
+                        )
+                    )
+                ],
+            )
+        else:
+            # nested DML queries without RETURNING does not need any result
+            res_query = pgast.SelectStmt()
+        res_table = context.Table()
+
+    if not res_query.ctes:
+        res_query.ctes = []
+    res_query.ctes.extend(pg_res_rel.extract_ctes_from_ctx(ctx))
+    return res_query, res_table
+
+
+@dispatch._resolve_relation.register
+def resolve_DeleteStmt(
+    stmt: pgast.DeleteStmt, *, include_inherited: bool, ctx: Context
+) -> Tuple[pgast.Query, context.Table]:
+    assert stmt.relation
+
+    if ctx.subquery_depth >= 2:
+        raise errors.QueryError(
+            'WITH clause containing a data-modifying statement must be at '
+            'the top level',
+            span=stmt.span,
+            pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
+        )
+
+    compiled_dml = ctx.compiled_dml[stmt]
+
+    # resolve the value relation
+    with ctx.child() as sctx:
+        # this subctx is needed so it is not deemed as top-level which would
+        # extract and attach CTEs, but not make the available to all
+        # following CTEs
+
+        # but it is not a "real" subquery context
+        sctx.subquery_depth -= 1
+
+        val_rel, val_table = dispatch.resolve_relation(
+            compiled_dml.value_relation_input, ctx=sctx
+        )
+    assert len(val_table.columns) == 1
+    assert len(compiled_dml.value_columns) == 1
+
+    assert isinstance(val_rel, pgast.Query)
+    if val_rel.ctes:
+        ctx.ctes_buffer.extend(val_rel.ctes)
+        val_rel.ctes = None
+    value_cte = pgast.CommonTableExpr(
+        name=compiled_dml.value_cte_name,
+        query=val_rel,
     )
     ctx.ctes_buffer.append(value_cte)
     ctx.ctes_buffer.extend(compiled_dml.output_ctes)
