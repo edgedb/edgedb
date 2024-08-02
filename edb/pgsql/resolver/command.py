@@ -174,6 +174,9 @@ class PreprocessedDML:
     # the input DML node
     input: pgast.Query
 
+    # schema object associated with the table that is the subject of the DML
+    subject: s_objtypes.ObjectType | s_links.Link | s_properties.Property
+
     # EdgeQL equivalent to the input node
     ql_stmt: qlast.Expr
 
@@ -373,6 +376,7 @@ def _preprocess_insert_object_stmt(
 
     return PreprocessedDML(
         input=stmt,
+        subject=sub,
         ql_stmt=ql_stmt,
         ql_returning_shape=ql_returning_shape,
         ql_singletons={value_id},
@@ -636,6 +640,7 @@ def _preprocess_insert_pointer_stmt(
 
     return PreprocessedDML(
         input=stmt,
+        subject=sub,
         ql_stmt=ql_stmt,
         ql_returning_shape=ql_returning_shape,
         ql_singletons={source_id},
@@ -763,10 +768,8 @@ def _preprocess_delete_stmt(
     res: PreprocessedDML
     if isinstance(sub, s_objtypes.ObjectType):
         res = _preprocess_delete_object_stmt(stmt, sub, sub_table, ctx=ctx)
-    # elif isinstance(sub, (s_links.Link, s_properties.Property)):
-    #     res = _preprocess_insert_pointer_stmt(
-    #         stmt, sub, sub_table, ctx=ctx
-    #     )
+    elif isinstance(sub, (s_links.Link, s_properties.Property)):
+        res = _preprocess_delete_pointer_stmt(stmt, sub, sub_table, ctx=ctx)
     else:
         raise NotImplementedError()
 
@@ -809,8 +812,7 @@ def _preprocess_delete_object_stmt(
             pgast.ResTarget(
                 val=pgast.ColumnRef(
                     name=(val_sub_rvar, 'id'),
-                ),
-                name='id',
+                )
             )
         ],
         from_clause=[
@@ -873,6 +875,7 @@ def _preprocess_delete_object_stmt(
 
     return PreprocessedDML(
         input=stmt,
+        subject=sub,
         ql_stmt=ql_stmt,
         ql_returning_shape=ql_returning_shape,
         ql_singletons={value_id},
@@ -883,6 +886,193 @@ def _preprocess_delete_object_stmt(
             value_relation_input=value_relation,
             value_columns=value_columns,
             value_iterator_name=None,
+            # these will be populated after compilation
+            output_ctes=[],
+            output_relation_name='',
+            output_namespace={},
+        ),
+        # these will be populated after compilation
+        subject_columns=[],
+    )
+
+
+def _preprocess_delete_pointer_stmt(
+    stmt: pgast.DeleteStmt,
+    sub: s_links.Link | s_properties.Property,
+    sub_table: context.Table,
+    *,
+    ctx: Context,
+) -> PreprocessedDML:
+    """
+    Translates a SQL 'DELETE FROM a link / multi-property table' into
+    an `EdgeQL update SourceObject { subject: ... }`.
+    """
+
+    sub_source = sub.get_source(ctx.schema)
+    assert isinstance(sub_source, s_objtypes.ObjectType)
+    sub_target = sub.get_target(ctx.schema)
+    assert sub_target
+
+    # prepare value relation
+    # For link deletes, value relation contains two columns: source and target
+    # of all links that need to be deleted. We construct this relation from
+    # WHERE and USING clauses of DELETE.
+
+    assert isinstance(stmt.relation, pgast.RelRangeVar)
+    val_sub_rvar = stmt.relation.alias.aliasname or stmt.relation.relation.name
+    assert val_sub_rvar
+    value_relation = pgast.SelectStmt(
+        ctes=stmt.ctes,
+        target_list=[
+            pgast.ResTarget(
+                val=pgast.ColumnRef(
+                    name=(val_sub_rvar, 'source'),
+                )
+            ),
+            pgast.ResTarget(
+                val=pgast.ColumnRef(
+                    name=(val_sub_rvar, 'target'),
+                )
+            )
+        ],
+        from_clause=[
+            pgast.RelRangeVar(
+                relation=stmt.relation.relation,
+                alias=pgast.Alias(aliasname=val_sub_rvar),
+            )
+        ]
+        + stmt.using_clause,
+        where_clause=stmt.where_clause,
+    )
+    stmt.ctes = []
+
+    # if we are sure that we are updating a single source object,
+    # we can skip for-loops and iterators, which produces better SQL
+    is_value_single = False
+
+    # prepare anchors for inserted value columns
+    value_name = ctx.alias_generator.get('ins_val')
+    iterator_name = ctx.alias_generator.get('ins_iter')
+    source_id = irast.PathId.from_type(
+        ctx.schema,
+        sub_source,
+        typename=sn.QualName('__derived__', value_name),
+        env=None,
+    )
+    link_ref = irtypeutils.ptrref_from_ptrcls(
+        schema=ctx.schema, ptrcls=sub, cache=None, typeref_cache=None
+    )
+    value_id: irast.PathId = source_id.extend(ptrref=link_ref)
+
+    value_ql: qlast.PathElement = (
+        qlast.IRAnchor(name=value_name)
+        if is_value_single
+        else qlast.ObjectRef(name=iterator_name)
+    )
+
+    # a phantom relation that is supposed to hold the two source and target
+    # columns of rows that need to be deleted.
+    value_cte_name = ctx.alias_generator.get('del_value')
+    value_rel = pgast.Relation(name=value_cte_name)
+    value_columns = [('source', False), ('target', False)]
+
+    var = pgast.ColumnRef(name=('source',), nullable=True)
+    value_rel.path_outputs[(source_id, pgce.PathAspect.VALUE)] = var
+    value_rel.path_outputs[(source_id, pgce.PathAspect.IDENTITY)] = var
+
+    tgt_id = value_id.tgt_path()
+    var = pgast.ColumnRef(name=('target',), nullable=True)
+    value_rel.path_outputs[(tgt_id, pgce.PathAspect.VALUE)] = var
+    value_rel.path_outputs[(tgt_id, pgce.PathAspect.IDENTITY)] = var
+
+    # source needs an iterator column, so we need to invent one
+    # Here we only decide on the name of that iterator column, the actual column
+    # is generated later, when resolving the DML stmt.
+    value_iterator = ctx.alias_generator.get('iter')
+    var = pgast.ColumnRef(name=(value_iterator,))
+    value_rel.path_outputs[(source_id, pgce.PathAspect.ITERATOR)] = var
+    value_rel.path_outputs[(value_id, pgce.PathAspect.ITERATOR)] = var
+
+    # construct the EdgeQL DML AST
+    sub_name = sub.get_name(ctx.schema)
+    sub_source_name = sub_source.get_name(ctx.schema)
+    sub_target_name = sub_target.get_name(ctx.schema)
+
+    sub_name = sub.get_shortname(ctx.schema)
+
+    ql_sub_source_ref = s_utils.name_to_ast_ref(sub_source_name)
+    ql_sub_target_ref = s_utils.name_to_ast_ref(sub_target_name)
+
+    ql_ptr_val: qlast.Expr = qlast.Path(
+        steps=[value_ql, qlast.Ptr(name=sub_name.name)]
+    )
+    if isinstance(sub, s_links.Link):
+        ql_ptr_val = qlast.TypeCast(
+            expr=ql_ptr_val,
+            type=qlast.TypeName(maintype=ql_sub_target_ref),
+        )
+
+    ql_stmt: qlast.Expr = qlast.UpdateQuery(
+        subject=qlast.Path(steps=[ql_sub_source_ref]),
+        where=qlast.BinOp(  # ObjectType == value.source
+            left=qlast.Path(steps=[ql_sub_source_ref]),
+            op='=',
+            right=qlast.Path(steps=[value_ql]),
+        ),
+        shape=[
+            qlast.ShapeElement(
+                expr=qlast.Path(steps=[qlast.Ptr(name=sub_name.name)]),
+                operation=qlast.ShapeOperation(op=qlast.ShapeOp.SUBTRACT),
+                compexpr=ql_ptr_val,
+            )
+        ],
+    )
+    if not is_value_single:
+        # value relation might contain multiple rows
+        # to express this in EdgeQL, we must wrap `delete` into a `for` query
+        ql_stmt = qlast.ForQuery(
+            iterator=qlast.Path(steps=[qlast.IRAnchor(name=value_name)]),
+            iterator_alias=iterator_name,
+            result=ql_stmt,
+        )
+
+    ql_returning_shape: List[qlast.ShapeElement] = []
+    if stmt.returning_list:
+        # construct the shape that will extract all needed column of the subject
+        # table (because they might be be used by RETURNING clause)
+        for column in sub_table.columns:
+            if column.hidden:
+                continue
+            if column.name in ('source', 'target'):
+                # no need to include in shape, they will be present anyway
+                continue
+
+            ql_returning_shape.append(
+                qlast.ShapeElement(
+                    expr=qlast.Path(steps=[qlast.Ptr(name=column.name)]),
+                    compexpr=qlast.Path(
+                        partial=True,
+                        steps=[
+                            qlast.Ptr(name=sub_name.name),
+                            qlast.Ptr(name=column.name, type='property'),
+                        ],
+                    ),
+                )
+            )
+
+    return PreprocessedDML(
+        input=stmt,
+        subject=sub,
+        ql_stmt=ql_stmt,
+        ql_returning_shape=ql_returning_shape,
+        ql_singletons={source_id},
+        ql_anchors={value_name: source_id},
+        external_rels={source_id: (value_rel, ('source', 'identity'))},
+        early_result=context.CompiledDML(
+            value_cte_name=value_cte_name,
+            value_relation_input=value_relation,
+            value_columns=value_columns,
+            value_iterator_name=value_iterator,
             # these will be populated after compilation
             output_ctes=[],
             output_relation_name='',
@@ -996,12 +1186,16 @@ def _compile_preprocessed_dml(
 
             stmt_ctes.append(ctes.pop(0))
 
-        # Find the output CTE by filtering for a DML query with returning list.
-        # This will filter out any DML for link tables and triggers.
+        # Find the output CTE by filtering by the name of relation that is being
+        # manipulated. This will filter out stmts for link tables and triggers.
+        # XXX: this is the least reliable part of SQL DML
+        subject_id = str(stmt.subject.id)
         output_cte = next(
             c
             for c in reversed(stmt_ctes)
-            if isinstance(c.query, pgast.DMLQuery) and c.query.returning_list
+            if isinstance(c.query, pgast.DMLQuery)
+            and isinstance(c.query.relation, pgast.RelRangeVar)
+            and c.query.relation.relation.name == subject_id
         )
         output_rel = output_cte.query
 
@@ -1251,8 +1445,7 @@ def resolve_DeleteStmt(
         val_rel, val_table = dispatch.resolve_relation(
             compiled_dml.value_relation_input, ctx=sctx
         )
-    assert len(val_table.columns) == 1
-    assert len(compiled_dml.value_columns) == 1
+    assert len(val_table.columns) == len(compiled_dml.value_columns)
 
     assert isinstance(val_rel, pgast.Query)
     if val_rel.ctes:
