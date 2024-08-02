@@ -477,8 +477,8 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             INSERT INTO "Document.shared_with" (source, target)
             VALUES ($1, $2)
             ''',
-            str(documents[0][0]),
-            str(users[0][0]),
+            documents[0][0],
+            users[0][0],
         )
         self.assertEqual(res, 'INSERT 0 1')
 
@@ -487,9 +487,9 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             INSERT INTO "Document.shared_with" (source, target)
             VALUES ($1, $2), ($1, $3)
             ''',
-            str(documents[1][0]),
-            str(users[0][0]),
-            str(users[1][0]),
+            documents[1][0],
+            users[0][0],
+            users[1][0],
         )
         self.assertEqual(res, 'INSERT 0 2')
 
@@ -531,12 +531,12 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
 
         res = await self.scon.execute(
             '''
-            WITH t(doc, usr) as (VALUES ($1, $2))
+            WITH t(doc, usr) as (VALUES ($1::uuid, $2::uuid))
             INSERT INTO "Document.shared_with" (source, target, can_edit)
             SELECT doc, usr, TRUE FROM t
             ''',
-            str(documents[0][0]),
-            str(users[0][0]),
+            documents[0][0],
+            users[0][0],
         )
         self.assertEqual(res, 'INSERT 0 1')
 
@@ -565,8 +565,8 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             VALUES ($1, $2, FALSE)
             RETURNING source, target, not can_edit
             ''',
-            str(documents[0][0]),
-            str(users[0][0]),
+            documents[0][0],
+            users[0][0],
         )
         self.assertEqual(len(res), 1)
         self.assertEqual(res[0][0], documents[0][0])
@@ -593,8 +593,8 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             VALUES ($1, $2, FALSE)
             RETURNING source, target, not is_author
             ''',
-            str(documents[0][0]),
-            str(users[0][0]),
+            documents[0][0],
+            users[0][0],
         )
         self.assertEqual(len(res), 1)
         self.assertEqual(res[0][0], documents[0][0])
@@ -635,7 +635,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             VALUES ($1, 'notes')
             RETURNING source, target
             ''',
-            str(documents[0][0]),
+            documents[0][0],
         )
         self.assertEqual(len(res), 1)
         self.assertEqual(res[0][0], documents[0][0])
@@ -646,7 +646,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             INSERT INTO "Document.keywords" (source, target)
             VALUES ($1, 'priority'), ($1, 'recent')
             ''',
-            str(documents[0][0]),
+            documents[0][0],
         )
         self.assertEqual(res, 'INSERT 0 2')
 
@@ -657,3 +657,24 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             '''
         )
         self.assertEqual(res, 'INSERT 0 2')
+
+    async def test_sql_dml_insert_30(self):
+        # params
+        users = await self.squery_values(
+            'INSERT INTO "User" DEFAULT VALUES RETURNING id;'
+        )
+        res = await self.squery_values(
+            '''
+            INSERT INTO "Document" (title, owner_id)
+            VALUES ('Report', $1), ('Briefing', NULL)
+            RETURNING title, owner_id
+            ''',
+            users[0][0],
+        )
+        self.assertEqual(
+            res,
+            [
+                ['Report (new)', users[0][0]],
+                ['Briefing (new)', None],
+            ],
+        )

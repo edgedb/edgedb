@@ -20,6 +20,7 @@ import csv
 import io
 import os.path
 import unittest
+import uuid
 
 from edb.tools import test
 from edb.testbase import server as tb
@@ -383,13 +384,17 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         await self.scon.fetch('SELECT title FROM "novel" ORDER BY title')
 
         with self.assertRaisesRegex(
-            asyncpg.UndefinedTableError, "unknown table", position="19",
+            asyncpg.UndefinedTableError,
+            "unknown table",
+            position="19",
         ):
             await self.scon.fetch('SELECT title FROM "Novel" ORDER BY title')
 
     async def test_sql_query_26(self):
         with self.assertRaisesRegex(
-            asyncpg.UndefinedTableError, "unknown table", position="19",
+            asyncpg.UndefinedTableError,
+            "unknown table",
+            position="19",
         ):
             await self.scon.fetch('SELECT title FROM Movie ORDER BY title')
 
@@ -658,6 +663,37 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         )
         self.assertEqual(res[0][1], res2[0][1])
 
+    async def test_sql_query_40(self):
+        id: uuid.UUID = uuid.uuid4()
+
+        res = await self.squery_values('SELECT $1::uuid;', id)
+        self.assertEqual(res, [[id]])
+
+        res = await self.squery_values('SELECT CAST($1 as uuid);', id)
+        self.assertEqual(res, [[id]])
+
+        with self.assertRaisesRegex(
+            asyncpg.exceptions.DataError, 'expected str, got UUID'
+        ):
+            res = await self.squery_values('SELECT CAST($1::text as uuid);', id)
+            self.assertEqual(res, [[id]])
+
+        res = await self.squery_values(
+            'SELECT CAST($1::text as uuid);', str(id)
+        )
+        self.assertEqual(res, [[id]])
+
+        with self.assertRaisesRegex(
+            asyncpg.exceptions.DataError, 'expected str, got UUID'
+        ):
+            res = await self.squery_values(
+                'SELECT column1::uuid FROM (VALUES ($1))', id
+            )
+            self.assertEqual(res, [[id]])
+
+        res = await self.squery_values('SELECT $1::uuid;', str(id))
+        self.assertEqual(res, [[id]])
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
@@ -841,13 +877,17 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         await self.scon.execute('SET search_path TO public;')
         with self.assertRaisesRegex(
-            asyncpg.UndefinedTableError, "unknown table", position="16",
+            asyncpg.UndefinedTableError,
+            "unknown table",
+            position="16",
         ):
             await self.squery_values('SELECT id FROM "Item"')
 
         await self.scon.execute('SET search_path TO inventory;')
         with self.assertRaisesRegex(
-            asyncpg.UndefinedTableError, "unknown table", position="17",
+            asyncpg.UndefinedTableError,
+            "unknown table",
+            position="17",
         ):
             await self.scon.fetch('SELECT id FROM "Person";')
 
@@ -1034,8 +1074,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         # 0,  1,        2,           3,        4,            5
 
         self.assertEqual(
-            set(row[5] for row in res),
-            {"Forrest Gump", "Saving Private Ryan"}
+            set(row[5] for row in res), {"Forrest Gump", "Saving Private Ryan"}
         )
 
     async def test_sql_query_copy_02(self):
@@ -1052,10 +1091,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         # source, target, @bar
         # 0,      1,      2
 
-        self.assertEqual(
-            {row[2] for row in res},
-            {"bar"}
-        )
+        self.assertEqual({row[2] for row in res}, {"bar"})
 
     async def test_sql_query_copy_03(self):
         # copy of query
@@ -1063,7 +1099,9 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         out = io.BytesIO()
         await self.scon.copy_from_query(
             "SELECT 1, 2 UNION ALL SELECT 3, 4",
-            output=out, format="csv", delimiter="\t"
+            output=out,
+            format="csv",
+            delimiter="\t",
         )
         out = io.StringIO(out.getvalue().decode("utf-8"))
         res = list(csv.reader(out, delimiter="\t"))
@@ -1075,16 +1113,24 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         out = io.BytesIO()
         await self.scon.copy_from_table(
-            "Person", columns=['first_name', 'full_name'], output=out,
-            format="csv", delimiter="\t"
+            "Person",
+            columns=['first_name', 'full_name'],
+            output=out,
+            format="csv",
+            delimiter="\t",
         )
         out = io.StringIO(out.getvalue().decode("utf-8"))
         res = list(csv.reader(out, delimiter="\t"))
-        self.assert_data_shape(res, tb.bag([
-            ["Robin", "Robin"],
-            ["Steven", "Steven Spielberg"],
-            ["Tom", "Tom Hanks"],
-        ]))
+        self.assert_data_shape(
+            res,
+            tb.bag(
+                [
+                    ["Robin", "Robin"],
+                    ["Steven", "Steven Spielberg"],
+                    ["Tom", "Tom Hanks"],
+                ]
+            ),
+        )
 
     async def test_sql_query_error_01(self):
         with self.assertRaisesRegex(
@@ -1189,9 +1235,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             'invalid input syntax for type uuid',
             position="8",
         ):
-            await self.scon.fetch(
-                """SELECT 'bad uuid'::uuid"""
-            )
+            await self.scon.fetch("""SELECT 'bad uuid'::uuid""")
 
         # simple query protocol
         with self.assertRaisesRegex(
@@ -1199,9 +1243,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             'invalid input syntax for type uuid',
             position="8",
         ):
-            await self.scon.execute(
-                """SELECT 'bad uuid'::uuid"""
-            )
+            await self.scon.execute("""SELECT 'bad uuid'::uuid""")
 
         # test that the connection has not be spuriously closed
         res = await self.squery_values("SELECT 1")
@@ -1424,7 +1466,9 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
     async def test_sql_dml_update(self):
         with self.assertRaisesRegex(
-            asyncpg.FeatureNotSupportedError, "DML", position="25",
+            asyncpg.FeatureNotSupportedError,
+            "DML",
+            position="25",
         ):
             await self.scon.fetch(
                 """

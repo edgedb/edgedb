@@ -291,9 +291,15 @@ def _preprocess_insert_object_stmt(
     value_rel = pgast.Relation(name=value_cte_name)
     value_columns = []
     insert_shape = []
-    for expected_col in expected_columns:
+    for index, expected_col in enumerate(expected_columns):
         ptr, ptr_name, is_link = _get_pointer_for_column(expected_col, sub, ctx)
         value_columns.append((ptr_name, is_link))
+
+        # inject type annotation into value relation
+        if is_link:
+            _try_inject_type_cast(
+                value_relation, index, pgast.TypeName(name=('uuid',))
+            )
 
         # prepare the outputs of the source CTE
         ptr_id = _get_ptr_id(value_id, ptr, ctx)
@@ -474,7 +480,7 @@ def _preprocess_insert_pointer_stmt(
     value_cte_name = ctx.alias_generator.get('ins_value')
     value_rel = pgast.Relation(name=value_cte_name)
     value_columns: List[Tuple[str, bool]] = []
-    for expected_col in expected_columns:
+    for index, expected_col in enumerate(expected_columns):
         if expected_col.name == 'source':
             ptr_name = 'source'
             is_link = True
@@ -502,6 +508,12 @@ def _preprocess_insert_pointer_stmt(
             ptr_id = _get_ptr_id(value_id.ptr_path(), ptr, ctx)
             var = pgast.ColumnRef(name=(ptr_name,), nullable=True)
             value_rel.path_outputs[(ptr_id, pgce.PathAspect.VALUE)] = var
+
+        # inject type annotation into value relation
+        if is_link:
+            _try_inject_type_cast(
+                value_relation, index, pgast.TypeName(name=('uuid',))
+            )
 
         value_columns.append((ptr_name, is_link))
 
@@ -1132,6 +1144,34 @@ def _get_ptr_id(
         schema=ctx.schema, ptrcls=ptr, cache=None, typeref_cache=None
     )
     return source_id.extend(ptrref=ptrref)
+
+
+def _try_inject_type_cast(
+    rel: pgast.BaseRelation,
+    pos: int,
+    ty: pgast.TypeName,
+):
+    """
+    If a relation is simple, injects type annotation for a column.
+    This is needed for Postgres to correctly infer the type so it will be able
+    to bind to correct paramater types.
+    """
+
+    if not isinstance(rel, pgast.SelectStmt):
+        return
+
+    if rel.values:
+        for row_i, row in enumerate(rel.values):
+            if isinstance(row, pgast.ImplicitRowExpr):
+                args = list(row.args)
+                args[pos] = pgast.TypeCast(arg=args[pos], type_name=ty)
+                rel.values[row_i] = row.replace(args=args)
+
+    elif rel.target_list:
+        target = rel.target_list[pos]
+        rel.target_list[pos] = target.replace(
+            val=pgast.TypeCast(arg=target.val, type_name=ty)
+        )
 
 
 @dispatch._resolve_relation.register
