@@ -6,6 +6,7 @@ pub struct BufWriter<'a> {
 }
 
 impl<'a> BufWriter<'a> {
+    #[inline(always)]
     pub fn new(buf: &'a mut [u8]) -> Self {
         Self {
             buf,
@@ -14,6 +15,7 @@ impl<'a> BufWriter<'a> {
         }
     }
 
+    #[inline]
     pub fn test(&mut self, size: usize) -> bool {
         if self.buf.len() < size {
             self.size += size;
@@ -24,6 +26,7 @@ impl<'a> BufWriter<'a> {
         }
     }
 
+    #[inline]
     pub fn write(&mut self, buf: &[u8]) {
         let len = buf.len();
         self.size += len;
@@ -40,6 +43,7 @@ impl<'a> BufWriter<'a> {
         self.buf = rest;
     }
 
+    #[inline]
     pub fn write_u8(&mut self, value: u8) {
         self.size += 1;
         if self.error {
@@ -55,7 +59,7 @@ impl<'a> BufWriter<'a> {
         self.buf = rest;
     }
 
-    pub fn finish(self) -> Result<usize, usize> {
+    pub const fn finish(self) -> Result<usize, usize> {
         if self.error {
             Err(self.size)
         } else {
