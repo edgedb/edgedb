@@ -110,8 +110,14 @@ impl<'a, L, T: FieldAccessNonConst<'a, T> + 'a> Array<'a, L, T> {
         }
     }
 
+    #[inline(always)]
     pub const fn len(&self) -> usize {
         self.len as usize
+    }
+
+    #[inline(always)]
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
     }
 }
 

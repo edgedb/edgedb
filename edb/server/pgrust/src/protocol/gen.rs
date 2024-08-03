@@ -98,7 +98,7 @@ macro_rules! protocol {
                         super::$name::new(buf)
                     }
                     #[inline(always)]
-                    pub const fn measure<'a>(measure: &measure::$name) -> usize {
+                    pub const fn measure(measure: &measure::$name) -> usize {
                         measure.measure()
                     }
                     #[inline(always)]
@@ -336,7 +336,7 @@ macro_rules! protocol {
             /// Convert this builder into a vector of bytes. This is generally
             /// not the most efficient way to perform serialization.
             #[allow(unused)]
-            pub fn to_vec(&self) -> Vec<u8> {
+            pub fn to_vec(self) -> Vec<u8> {
                 let mut vec = Vec::with_capacity(256);
                 let mut buf = $crate::protocol::writer::BufWriter::new(&mut vec);
                 self.copy_to_buf(&mut buf);

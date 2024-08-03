@@ -27,8 +27,13 @@ impl<'a> Enliven<'a> for RestMeta {
 }
 
 impl<'a> Rest<'a> {
-    pub fn len(&self) -> usize {
+    #[inline(always)]
+    pub const fn len(&self) -> usize {
         self.buf.len()
+    }
+    #[inline(always)]
+    pub const fn is_empty(&self) -> bool {
+        self.buf.is_empty()
     }
 }
 
