@@ -94,7 +94,7 @@ macro_rules! protocol {
                         offset
                     }
                     #[inline(always)]
-                    pub const fn extract<'a>(buf: &'a [u8]) -> super::$name<'a> {
+                    pub const fn extract(buf: &[u8]) -> super::$name<'_> {
                         super::$name::new(buf)
                     }
                     #[inline(always)]

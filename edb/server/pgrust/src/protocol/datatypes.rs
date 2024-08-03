@@ -38,11 +38,11 @@ impl FieldAccess<RestMeta> {
         buf.len()
     }
     #[inline(always)]
-    pub const fn extract<'a>(buf: &'a [u8]) -> Rest<'a> {
+    pub const fn extract(buf: &[u8]) -> Rest<'_> {
         Rest { buf }
     }
     #[inline(always)]
-    pub const fn measure<'a>(buf: &'a [u8]) -> usize {
+    pub const fn measure(buf: &[u8]) -> usize {
         buf.len()
     }
     #[inline(always)]
@@ -110,12 +110,12 @@ impl FieldAccess<ZTStringMeta> {
         }
     }
     #[inline(always)]
-    pub const fn extract<'a>(buf: &'a [u8]) -> ZTString<'a> {
+    pub const fn extract(buf: &[u8]) -> ZTString<'_> {
         let buf = buf.split_at(buf.len() - 1).0;
         ZTString { buf }
     }
     #[inline(always)]
-    pub const fn measure<'a>(buf: &'a str) -> usize {
+    pub const fn measure(buf: &str) -> usize {
         buf.len() + 1
     }
     #[inline(always)]
@@ -161,7 +161,7 @@ impl FieldAccess<EncodedMeta> {
         }
     }
     #[inline(always)]
-    pub const fn extract<'a>(buf: &'a [u8]) -> Encoded<'a> {
+    pub const fn extract(buf: &[u8]) -> Encoded<'_> {
         const N: usize = std::mem::size_of::<i32>();
         if let Some((len, array)) = buf.split_first_chunk::<N>() {
             let len = i32::from_ne_bytes(*len);
@@ -175,7 +175,7 @@ impl FieldAccess<EncodedMeta> {
         }
     }
     #[inline(always)]
-    pub const fn measure<'a>(_: &'a [u8]) -> usize {
+    pub const fn measure(_: &[u8]) -> usize {
         unimplemented!()
     }
     #[inline(always)]

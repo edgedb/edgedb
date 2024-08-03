@@ -71,7 +71,7 @@ impl<'a, T: FieldAccessNonConst<'a, T> + 'a> Iterator for ZTArrayIter<'a, T> {
         if self.buf[0] == 0 {
             return None;
         }
-        let (value, buf) = self.buf.split_at(T::size_of_field_at(&self.buf));
+        let (value, buf) = self.buf.split_at(T::size_of_field_at(self.buf));
         self.buf = buf;
         Some(T::extract(value))
     }
@@ -152,7 +152,7 @@ impl<'a, T: FieldAccessNonConst<'a, T> + 'a> Iterator for ArrayIter<'a, T> {
             return None;
         }
         self.len -= 1;
-        let len = T::size_of_field_at(&self.buf);
+        let len = T::size_of_field_at(self.buf);
         let (value, buf) = self.buf.split_at(len);
         self.buf = buf;
         Some(T::extract(value))
@@ -186,7 +186,7 @@ macro_rules! array_access {
                 size
             }
             #[inline(always)]
-            pub const fn extract<'a>(buf: &'a [u8]) -> $crate::protocol::Array<'a, $len, <$ty as $crate::protocol::Enliven::<'a>>::WithLifetime> {
+            pub const fn extract(buf: &[u8]) -> $crate::protocol::Array<'_, $len, <$ty as $crate::protocol::Enliven::<'_>>::WithLifetime> {
                 let len = FieldAccess::<$len>::extract(buf);
                 $crate::protocol::Array::new(buf.split_at(std::mem::size_of::<$len>()).1, len as u32)
             }
@@ -246,7 +246,7 @@ macro_rules! array_access {
                 size
             }
             #[inline(always)]
-            pub fn copy_to_buf<'a>(buf: &mut $crate::protocol::writer::BufWriter, value: &[<$ty as Enliven<'a>>::ForBuilder]) {
+            pub fn copy_to_buf(buf: &mut $crate::protocol::writer::BufWriter, value: &[<$ty as Enliven<'_>>::ForBuilder]) {
                 for elem in value {
                     FieldAccess::<$ty>::copy_to_buf(buf, elem);
                 }

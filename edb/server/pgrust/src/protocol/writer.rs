@@ -24,7 +24,7 @@ impl<'a> BufWriter<'a> {
         }
     }
 
-    pub fn write<'b>(&'b mut self, buf: &[u8]) {
+    pub fn write(&mut self, buf: &[u8]) {
         let len = buf.len();
         self.size += len;
         if self.error {
@@ -40,7 +40,7 @@ impl<'a> BufWriter<'a> {
         self.buf = rest;
     }
 
-    pub fn write_u8<'b>(&'b mut self, value: u8) {
+    pub fn write_u8(&mut self, value: u8) {
         self.size += 1;
         if self.error {
             return;
