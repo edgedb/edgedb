@@ -115,9 +115,10 @@ mod tests {
     #[test]
     fn test_row_description() {
         let buf = [
-            b'T', 0, 0, 0, 0, 2, 0, // # of fields
-            b'f', b'1', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, b'f', b'2', 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            b'T', 0, 0, 0, 0, // header
+            2, 0, // # of fields
+            b'f', b'1', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // field 1
+            b'f', b'2', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // field 2
         ];
         let message = RowDescription::new(&buf);
         assert_eq!(message.fields().len(), 2);
