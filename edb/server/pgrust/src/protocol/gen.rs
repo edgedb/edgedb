@@ -102,7 +102,7 @@ macro_rules! protocol {
                         measure.measure()
                     }
                     #[inline(always)]
-                    pub fn copy_to_buf<'a>(buf: &mut $crate::protocol::writer::BufWriter, builder: &builder::$name) {
+                    pub fn copy_to_buf(buf: &mut $crate::protocol::writer::BufWriter, builder: &builder::$name) {
                         builder.copy_to_buf(buf)
                     }
                 }
