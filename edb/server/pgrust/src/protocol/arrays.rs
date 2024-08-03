@@ -229,7 +229,7 @@ macro_rules! array_access {
                 }
             }
             #[inline(always)]
-            pub const fn extract<'a>(mut buf: &'a [u8]) -> $crate::protocol::ZTArray<'a, <$ty as Enliven::<'a>>::WithLifetime> {
+            pub const fn extract(mut buf: &[u8]) -> $crate::protocol::ZTArray<<$ty as Enliven>::WithLifetime> {
                 $crate::protocol::ZTArray::new(buf)
             }
             #[inline]
