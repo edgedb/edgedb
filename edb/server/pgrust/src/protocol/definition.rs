@@ -593,7 +593,7 @@ struct StartupMessage {
 
 /// The `StartupMessage` struct represents a name/value pair within the `StartupMessage` message.
 struct StartupNameValue {
-    /// The parameter name. 
+    /// The parameter name.
     name: ZTString,
     /// The parameter value.
     value: ZTString,

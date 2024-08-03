@@ -1,6 +1,6 @@
 #![allow(private_bounds)]
+use super::{Enliven, FieldAccessNonConst};
 pub use std::marker::PhantomData;
-use super::{FieldAccessNonConst, Enliven};
 
 pub mod meta {
     pub use super::ArrayMeta as Array;
@@ -10,56 +10,62 @@ pub mod meta {
 /// Inflated version of a zero-terminated array with zero-copy iterator access.
 pub struct ZTArray<'a, T: FieldAccessNonConst<'a, T> + 'a> {
     _phantom: PhantomData<T>,
-    buf: &'a [u8]
+    buf: &'a [u8],
 }
 
-pub struct ZTArrayMeta<T> { _phantom: PhantomData<T> }
-impl <'a, T> Enliven<'a> for ZTArrayMeta<T> where
-    T: Enliven<'a>, 
-    <T as Enliven<'a>>::WithLifetime: 'a + FieldAccessNonConst<'a, <T as Enliven<'a>>::WithLifetime>,
-    <T as Enliven<'a>>::ForBuilder: 'a
-    { 
-        type WithLifetime = ZTArray<'a, <T as Enliven<'a>>::WithLifetime>; 
-        type ForBuilder = &'a [<T as Enliven<'a>>::ForBuilder];
-    }
+pub struct ZTArrayMeta<T> {
+    _phantom: PhantomData<T>,
+}
+impl<'a, T> Enliven<'a> for ZTArrayMeta<T>
+where
+    T: Enliven<'a>,
+    <T as Enliven<'a>>::WithLifetime:
+        'a + FieldAccessNonConst<'a, <T as Enliven<'a>>::WithLifetime>,
+    <T as Enliven<'a>>::ForMeasure: 'a,
+    <T as Enliven<'a>>::ForBuilder: 'a,
+{
+    type WithLifetime = ZTArray<'a, <T as Enliven<'a>>::WithLifetime>;
+    type ForMeasure = &'a [<T as Enliven<'a>>::ForMeasure];
+    type ForBuilder = &'a [<T as Enliven<'a>>::ForBuilder];
+}
 
-impl <'a, T: FieldAccessNonConst<'a, T> + 'a> ZTArray<'a, T> {
+impl<'a, T: FieldAccessNonConst<'a, T> + 'a> ZTArray<'a, T> {
     pub const fn new(buf: &'a [u8]) -> Self {
         Self {
             buf,
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
 }
 
 pub struct ZTArrayIter<'a, T: FieldAccessNonConst<'a, T> + 'a> {
     _phantom: PhantomData<T>,
-    buf: &'a [u8]
+    buf: &'a [u8],
 }
 
-impl <'a, T: FieldAccessNonConst<'a, T> + 'a> IntoIterator for ZTArray<'a, T> {
+impl<'a, T: FieldAccessNonConst<'a, T> + 'a> IntoIterator for ZTArray<'a, T> {
     type Item = T;
     type IntoIter = ZTArrayIter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         ZTArrayIter {
             _phantom: PhantomData,
-            buf: self.buf
+            buf: self.buf,
         }
     }
 }
 
-impl <'a, T: FieldAccessNonConst<'a, T> + 'a> IntoIterator for &ZTArray<'a, T> {
+impl<'a, T: FieldAccessNonConst<'a, T> + 'a> IntoIterator for &ZTArray<'a, T> {
     type Item = T;
     type IntoIter = ZTArrayIter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         ZTArrayIter {
             _phantom: PhantomData,
-            buf: self.buf
+            buf: self.buf,
         }
     }
 }
 
-impl <'a, T: FieldAccessNonConst<'a, T> + 'a> Iterator for ZTArrayIter<'a, T> {
+impl<'a, T: FieldAccessNonConst<'a, T> + 'a> Iterator for ZTArrayIter<'a, T> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         if self.buf[0] == 0 {
@@ -75,26 +81,32 @@ impl <'a, T: FieldAccessNonConst<'a, T> + 'a> Iterator for ZTArrayIter<'a, T> {
 pub struct Array<'a, L: 'static, T: FieldAccessNonConst<'a, T> + 'a> {
     _phantom: PhantomData<(L, T)>,
     buf: &'a [u8],
-    len: u32
+    len: u32,
 }
 
-pub struct ArrayMeta<L, T> { _phantom: PhantomData<(L, T)> }
+pub struct ArrayMeta<L, T> {
+    _phantom: PhantomData<(L, T)>,
+}
 
-impl <'a, L: 'static, T> Enliven<'a> for ArrayMeta<L, T> where
-    T: Enliven<'a>, 
-    <T as Enliven<'a>>::WithLifetime: 'a + FieldAccessNonConst<'a, <T as Enliven<'a>>::WithLifetime>,
-    <T as Enliven<'a>>::ForBuilder: 'a 
-    { 
-        type WithLifetime = Array<'a, L, <T as Enliven<'a>>::WithLifetime>; 
-        type ForBuilder = &'a [<T as Enliven<'a>>::ForBuilder];
-    }
+impl<'a, L: 'static, T> Enliven<'a> for ArrayMeta<L, T>
+where
+    T: Enliven<'a>,
+    <T as Enliven<'a>>::WithLifetime:
+        'a + FieldAccessNonConst<'a, <T as Enliven<'a>>::WithLifetime>,
+    <T as Enliven<'a>>::ForMeasure: 'a,
+    <T as Enliven<'a>>::ForBuilder: 'a,
+{
+    type WithLifetime = Array<'a, L, <T as Enliven<'a>>::WithLifetime>;
+    type ForMeasure = &'a [<T as Enliven<'a>>::ForMeasure];
+    type ForBuilder = &'a [<T as Enliven<'a>>::ForBuilder];
+}
 
-impl <'a, L, T: FieldAccessNonConst<'a, T> + 'a> Array<'a, L, T> {
+impl<'a, L, T: FieldAccessNonConst<'a, T> + 'a> Array<'a, L, T> {
     pub const fn new(buf: &'a [u8], len: u32) -> Self {
         Self {
             buf,
             _phantom: PhantomData,
-            len
+            len,
         }
     }
 
@@ -106,34 +118,34 @@ impl <'a, L, T: FieldAccessNonConst<'a, T> + 'a> Array<'a, L, T> {
 pub struct ArrayIter<'a, T: FieldAccessNonConst<'a, T> + 'a> {
     _phantom: PhantomData<T>,
     buf: &'a [u8],
-    len: u32
+    len: u32,
 }
 
-impl <'a, L, T: FieldAccessNonConst<'a, T> + 'a> IntoIterator for Array<'a, L, T> {
+impl<'a, L, T: FieldAccessNonConst<'a, T> + 'a> IntoIterator for Array<'a, L, T> {
     type Item = T;
     type IntoIter = ArrayIter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         ArrayIter {
             _phantom: PhantomData,
             buf: self.buf,
-            len: self.len
+            len: self.len,
         }
     }
 }
 
-impl <'a, L, T: FieldAccessNonConst<'a, T> + 'a> IntoIterator for &Array<'a, L, T> {
+impl<'a, L, T: FieldAccessNonConst<'a, T> + 'a> IntoIterator for &Array<'a, L, T> {
     type Item = T;
     type IntoIter = ArrayIter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
         ArrayIter {
             _phantom: PhantomData,
             buf: self.buf,
-            len: self.len
+            len: self.len,
         }
     }
 }
 
-impl <'a, T: FieldAccessNonConst<'a, T> + 'a> Iterator for ArrayIter<'a, T> {
+impl<'a, T: FieldAccessNonConst<'a, T> + 'a> Iterator for ArrayIter<'a, T> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         if self.len == 0 {
@@ -179,7 +191,7 @@ macro_rules! array_access {
                 $crate::protocol::Array::new(buf.split_at(std::mem::size_of::<$len>()).1, len as u32)
             }
             #[inline]
-            pub const fn measure<'a>(buffer: &'a[<$ty as Enliven<'a>>::ForBuilder]) -> usize {
+            pub const fn measure<'a>(buffer: &'a[<$ty as Enliven<'a>>::ForMeasure]) -> usize {
                 let mut size = std::mem::size_of::<$len>();
                 let mut index = 0;
                 loop {
@@ -191,6 +203,14 @@ macro_rules! array_access {
                 }
                 size
             }
+            #[inline(always)]
+            pub fn copy_to_buf<'a>(buf: &mut $crate::protocol::writer::BufWriter, value: &'a[<$ty as Enliven<'a>>::ForBuilder]) {
+                buf.write(&<$len>::to_ne_bytes(value.len() as _));
+                for elem in value {
+                    FieldAccess::<$ty>::copy_to_buf(buf, elem);
+                }
+            }
+
         }
         )*
 
@@ -213,7 +233,7 @@ macro_rules! array_access {
                 $crate::protocol::ZTArray::new(buf)
             }
             #[inline]
-            pub const fn measure<'a>(buffer: &'a[<$ty as Enliven<'a>>::ForBuilder]) -> usize {
+            pub const fn measure<'a>(buffer: &'a[<$ty as Enliven<'a>>::ForMeasure]) -> usize {
                 let mut size = 1;
                 let mut index = 0;
                 loop {
@@ -224,6 +244,13 @@ macro_rules! array_access {
                     index += 1;
                 }
                 size
+            }
+            #[inline(always)]
+            pub fn copy_to_buf<'a>(buf: &mut $crate::protocol::writer::BufWriter, value: &[<$ty as Enliven<'a>>::ForBuilder]) {
+                for elem in value {
+                    FieldAccess::<$ty>::copy_to_buf(buf, elem);
+                }
+                buf.write_u8(0);
             }
         }
     };

@@ -13,7 +13,7 @@ macro_rules! protocol {
         #[allow(unused_parens)]
         mod struct_defs {
             $(
-                $crate::protocol::gen::protocol!{__one_struct__ 
+                $crate::protocol::gen::protocol!{__one_struct__
                     $( #[ $sdoc ] )?
                     struct $name {
                         $(
@@ -43,6 +43,12 @@ macro_rules! protocol {
                     pub use super::super::struct_defs::$name::measure::$name;
                 )*
             }
+            pub mod builder {
+                $(
+                    #[allow(unused_imports)]
+                    pub use super::super::struct_defs::$name::builder::$name;
+                )*
+            }
         }
     };
 
@@ -65,6 +71,7 @@ macro_rules! protocol {
                 use $crate::protocol::{Enliven, FieldAccess};
                 use $crate::protocol::meta::*;
                 use $crate::protocol::definition::gen::measure;
+                use $crate::protocol::definition::gen::builder;
 
                 $( #[$sdoc] )?
                 #[allow(unused)]
@@ -73,7 +80,8 @@ macro_rules! protocol {
 
                 impl <'a> Enliven<'a> for $name {
                     type WithLifetime = super::$name<'a>;
-                    type ForBuilder = measure::$name<'a>;
+                    type ForMeasure = measure::$name<'a>;
+                    type ForBuilder = builder::$name<'a>;
                 }
 
                 impl FieldAccess<$name> {
@@ -93,15 +101,30 @@ macro_rules! protocol {
                     pub const fn measure<'a>(measure: &measure::$name) -> usize {
                         measure.measure()
                     }
+                    #[inline(always)]
+                    pub fn copy_to_buf<'a>(buf: &mut $crate::protocol::writer::BufWriter, builder: &builder::$name) {
+                        builder.copy_to_buf(buf)
+                    }
                 }
-    
+
                 $crate::protocol::field_access!{$name}
                 $crate::protocol::arrays::array_access!{$name}
             }
 
             pub mod measure {
                 use $crate::protocol::meta::*;
-                $crate::protocol::gen::protocol!{__measure__ 
+                $crate::protocol::gen::protocol!{__measure__
+                    struct $name {
+                        $(
+                            #[$doc] $field : $type $( = $value)?
+                        ),*
+                    }
+                }
+            }
+
+            pub mod builder {
+                use $crate::protocol::meta::*;
+                $crate::protocol::gen::protocol!{__builder__
                     struct $name {
                         $(
                             #[$doc] $field : $type $( = $value)?
@@ -160,7 +183,7 @@ macro_rules! protocol {
                         index += 1;
                     )*
                     fields[index] = offset;
-                    
+
                     Self {
                         buf,
                         fields,
@@ -190,7 +213,7 @@ macro_rules! protocol {
     // fields. We parse each field one-by-one, emitting the parts of the struct necessary,
     // and then generate the struct all in one go.
     // https://veykril.github.io/tlborm/decl-macros/patterns/push-down-acc.html
-    (__measure__ 
+    (__measure__
         struct $name:ident{
             $(
                 #[$doc:meta] $field:ident : $type:ty $( = $value:literal)?
@@ -222,8 +245,8 @@ macro_rules! protocol {
         ] [$($body)*]);
     };
     (__measure__ $name:ident $lt:lifetime [$($accum:tt)*] [$($accum2:tt)*] [[$field:ident, ($($type:tt)*)], $($body:tt)*]) => {
-        $crate::protocol::gen::protocol!(__measure__ $name $lt [$($accum)* 
-            pub $field: <$($type)* as $crate::protocol::Enliven<$lt>>::ForBuilder,
+        $crate::protocol::gen::protocol!(__measure__ $name $lt [$($accum)*
+            pub $field: <$($type)* as $crate::protocol::Enliven<$lt>>::ForMeasure,
         ] [$($accum2)*
             + $crate::protocol::FieldAccess::<$($type)*>::measure($name.$field)
         ] [$($body)*]);
@@ -240,6 +263,7 @@ macro_rules! protocol {
             $($accum)*
         }
         impl <$lt> $name<$lt> {
+            #[allow(unused)]
             pub const fn measure(&self) -> usize {
                 // Workaround for hygene -- otherwise we need to pass self into the macro
                 #[allow(unused)]
@@ -248,5 +272,91 @@ macro_rules! protocol {
             }
         }
     };
+
+
+    // Build a push-down automation to regenerate the struct, but omitting all fixed-sized
+    // fields. We parse each field one-by-one, emitting the parts of the struct necessary,
+    // and then generate the struct all in one go.
+    // https://veykril.github.io/tlborm/decl-macros/patterns/push-down-acc.html
+    (__builder__
+        struct $name:ident{
+            $(
+                #[$doc:meta] $field:ident : $type:ty $( = $value:literal)?
+            ),*
+        }
+    ) => {
+        // paste! is necessary here because it allows us to re-interpret a "ty"
+        // as a "tt".
+        paste::paste!($crate::protocol::gen::protocol!(__builder__ $name 'a [] [] [
+            $(
+                [$field, ($type) $( , ($value) )?],
+            )*
+        ]););
+    };
+
+    (__builder__ $name:ident $lt:lifetime [$($accum:tt)*] [$($accum2:tt)*] [[$field:ident, ($($type:tt)*), ($($value:tt)*)], $($body:tt)*]) => {
+        $crate::protocol::gen::protocol!(__builder__ $name $lt [$($accum)*
+
+        ] [$($accum2)*
+            {
+                let (this, buf) = &mut $name;
+                let val = $($value)* as usize as _;
+                $crate::protocol::FieldAccess::<$($type)*>::copy_to_buf(buf, val);
+            }
+        ] [$($body)*]);
+    };
+    (__builder__ $name:ident $lt:lifetime [$($accum:tt)*] [$($accum2:tt)*] [[$field:ident, ($($type:tt)*)], $($body:tt)*]) => {
+        $crate::protocol::gen::protocol!(__builder__ $name $lt [$($accum)*
+            pub $field: <$($type)* as $crate::protocol::Enliven<$lt>>::ForBuilder,
+        ] [$($accum2)*
+            {
+                let (this, buf) = &mut $name;
+                $crate::protocol::FieldAccess::<$($type)*>::copy_to_buf(buf, this.$field);
+            }
+        ] [$($body)*]);
+    };
+    // If we end the struct and there are no fields, add a phantom one
+    (__builder__ $name:ident $lt:lifetime [] [$($accum2:tt)*] []) => {
+        $crate::protocol::gen::protocol!(__builder__ $name $lt [
+            phantom: std::marker::PhantomData<&$lt ()>,
+        ] [$($accum2)*] []);
+    };
+    (__builder__ $name:ident $lt:lifetime [$($accum:tt)+] [$($accum2:tt)*] []) => {
+        #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
+        pub struct $name<$lt> {
+            $($accum)*
+        }
+        impl <$lt> $name<$lt> {
+            #[allow(unused)]
+            pub fn copy_to_buf(&self, buf: &mut $crate::protocol::writer::BufWriter) {
+                let mut $name = (self, buf);
+                $($accum2)*
+            }
+
+            /// Convert this builder into a vector of bytes. This is generally
+            /// not the most efficient way to perform serialization.
+            #[allow(unused)]
+            pub fn to_vec(&self) -> Vec<u8> {
+                let mut vec = Vec::with_capacity(256);
+                let mut buf = $crate::protocol::writer::BufWriter::new(&mut vec);
+                self.copy_to_buf(&mut buf);
+                match buf.finish() {
+                    Ok(size) => {
+                        vec.truncate(size);
+                        vec
+                    },
+                    Err(size) => {
+                        vec.resize(size, 0);
+                        let mut buf = $crate::protocol::writer::BufWriter::new(&mut vec);
+                        self.copy_to_buf(&mut buf);
+                        let size = buf.finish().unwrap();
+                        vec.truncate(size);
+                        vec
+                    }
+                }
+            }
+        }
+    };
+
 }
 pub(crate) use protocol;
