@@ -12,7 +12,7 @@ pub mod meta {
 }
 
 /// Represents the remainder of data in a message.
-#[allow(unused)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Rest<'a> {
     buf: &'a [u8],
 }
@@ -27,13 +27,36 @@ impl<'a> Enliven<'a> for RestMeta {
 }
 
 impl<'a> Rest<'a> {
-    #[inline(always)]
-    pub const fn len(&self) -> usize {
-        self.buf.len()
+}
+
+impl <'a> AsRef<[u8]> for Rest<'a> {
+    fn as_ref(&self) -> &[u8] {
+        self.buf
     }
-    #[inline(always)]
-    pub const fn is_empty(&self) -> bool {
-        self.buf.is_empty()
+}
+
+impl <'a> std::ops::Deref for Rest<'a> {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        self.buf
+    }
+}
+
+impl PartialEq<[u8]> for Rest<'_> {
+    fn eq(&self, other: &[u8]) -> bool {
+        self.buf == other
+    }
+}
+
+impl <const N: usize> PartialEq<&[u8; N]> for Rest<'_> {
+    fn eq(&self, other: &&[u8; N]) -> bool {
+        self.buf == *other
+    }
+}
+
+impl PartialEq<&[u8]> for Rest<'_> {
+    fn eq(&self, other: &&[u8]) -> bool {
+        self.buf == *other
     }
 }
 

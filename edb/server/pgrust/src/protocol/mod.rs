@@ -14,7 +14,7 @@ mod writer;
 /// Metatypes
 pub mod meta {
     pub use super::arrays::meta::*;
-    pub use super::datatypes::meta::{Encoded, Rest, ZTString};
+    pub use super::datatypes::meta::*;
     pub use super::definition::gen::meta::*;
 }
 
@@ -23,9 +23,9 @@ pub mod measure {
 }
 
 #[allow(unused)]
-pub use arrays::*;
+pub use arrays::{Array, ArrayIter, ZTArray, ZTArrayIter};
 #[allow(unused)]
-pub use datatypes::*;
+pub use datatypes::{Encoded, Rest, ZTString};
 #[allow(unused)]
 pub use definition::gen::data::*;
 
@@ -53,7 +53,7 @@ pub trait FieldTypes {
 /// This struct is specialized for each type we want to extract data from. We
 /// have to do it this way to work around Rust's lack of const specialization.
 pub(crate) struct FieldAccess<T: for<'a> Enliven<'a>> {
-    _phantom_data: PhantomData<T>,
+    _phantom_data: std::marker::PhantomData<T>,
 }
 
 /// Delegate to the concrete `FieldAccess` for each type we want to extract.
@@ -100,9 +100,10 @@ mod tests {
     #[test]
     fn test_startup_message() {
         let buf = [
-            5, 0, 0, 0, 0, 0x30, 0, 0, b'a', 0, b'b', 0, b'c', 0, b'd', 0, 0,
+            17, 0, 0, 0, 0, 0x30, 0, 0, b'a', 0, b'b', 0, b'c', 0, b'd', 0, 0,
         ];
         let message = StartupMessage::new(&buf);
+        assert_eq!(message.mlen() as usize, buf.len());
         let arr = message.params();
         let mut vals = vec![];
         for entry in arr {
@@ -115,12 +116,13 @@ mod tests {
     #[test]
     fn test_row_description() {
         let buf = [
-            b'T', 0, 0, 0, 0, // header
+            b'T', 48, 0, 0, 0, // header
             2, 0, // # of fields
             b'f', b'1', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // field 1
             b'f', b'2', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // field 2
         ];
         let message = RowDescription::new(&buf);
+        assert_eq!(message.mlen() as usize, buf.len() - 1);
         assert_eq!(message.fields().len(), 2);
         let mut iter = message.fields().into_iter();
         let f1 = iter.next().unwrap();
@@ -175,5 +177,43 @@ mod tests {
         assert_eq!(f2.data_type_oid(), 1234);
         assert_eq!(f2.format_code(), 1);
         assert_eq!(None, iter.next());
+    }
+
+    #[test]
+    fn test_message_polymorphism_sync() {
+        let sync = builder::Sync::default();
+        let buf = sync.to_vec();
+        assert_eq!(buf.len(), 5);
+        // Read it as a Message
+        let message = Message::new(&buf);
+        assert_eq!(message.mlen(), 4);
+        assert_eq!(message.mtype(), b'S');
+        assert_eq!(message.data(), &[]);
+        // And also a Sync
+        let message = Sync::new(&buf);
+        assert_eq!(message.mlen(), 4);
+        assert_eq!(message.mtype(), b'S');
+    }
+
+    #[test]
+    fn test_message_polymorphism_rest() {
+        let mlen = measure::AuthenticationGSSContinue {
+            data: &[1, 2, 3, 4, 5],
+        }.measure() as _;
+        let auth = builder::AuthenticationGSSContinue {
+            mlen,
+            data: &[1, 2, 3, 4, 5],
+        };
+        let buf = auth.to_vec();
+        // Read it as a Message
+        let message = Message::new(&buf);
+        assert_eq!(message.mlen(), 14);
+        assert_eq!(message.mtype(), b'R');
+        assert_eq!(message.data(), &[8, 0, 0, 0, 1, 2, 3, 4, 5]);
+        // And also a AuthenticationGSSContinue
+        let message = AuthenticationGSSContinue::new(&buf);
+        assert_eq!(message.mlen(), 14);
+        assert_eq!(message.mtype(), b'R');
+        assert_eq!(message.data(), &[1, 2, 3, 4, 5]);
     }
 }
