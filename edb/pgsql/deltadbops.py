@@ -434,7 +434,10 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
     ) -> List[dbops.DDLOperation]:
         ins_trigger, upd_trigger = self._get_triggers(table_name, constraint)
 
-        return [dbops.DropTrigger(ins_trigger), dbops.DropTrigger(upd_trigger)]
+        return [
+            dbops.DropTrigger(ins_trigger, conditional=True),
+            dbops.DropTrigger(upd_trigger, conditional=True),
+        ]
 
     def enable_constr_trigger(
         self,
@@ -481,7 +484,7 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
         return [dbops.CreateFunction(func, or_replace=True)]
 
     def drop_constr_trigger_function(self, proc_name: Tuple[str, ...]):
-        return [dbops.DropFunction(name=proc_name, args=())]
+        return [dbops.DropFunction(name=proc_name, args=(), if_exists=True)]
 
     def create_constraint(self, constraint: SchemaConstraintTableConstraint):
         # Add the constraint normally to our table
@@ -491,8 +494,6 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
         my_alter.add_command(add_constr)
 
         self.add_command(my_alter)
-
-        self.create_constraint_trigger_and_fuction(constraint)
 
     def create_constraint_trigger_and_fuction(
         self, constraint: SchemaConstraintTableConstraint
