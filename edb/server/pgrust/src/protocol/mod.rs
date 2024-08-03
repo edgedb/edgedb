@@ -6,19 +6,20 @@
 // Maybe it can also remove the fixed-value itsems as well for creation
 
 
-use std::marker::PhantomData;
-
 mod arrays;
 mod datatypes;
 mod definition;
 mod gen;
-mod tuples;
 
 /// Metatypes
 pub mod meta {
     pub use super::definition::gen::meta::*;
     pub use super::datatypes::meta::{Encoded, Rest, ZTString};
     pub use super::arrays::meta::*;
+}
+
+pub mod measure {
+    pub use super::definition::gen::measure::*;
 }
 
 #[allow(unused)]
@@ -28,8 +29,9 @@ pub use datatypes::*;
 #[allow(unused)]
 pub use arrays::*;
 
-pub(crate) trait Enliven<'a> {
+pub trait Enliven<'a> {
     type WithLifetime;
+    type ForBuilder;
 }
 
 /// Delegates to a concrete `FieldAccess` but as a non-const trait.
@@ -37,6 +39,11 @@ pub(crate) trait FieldAccessNonConst<'a, T: 'a> {
     fn size_of_field_at(buf: &[u8]) -> usize;
     fn extract(buf: &'a [u8]) -> T;
 }
+
+tuplemagic::tuple_filter_predicate!(pub VariableSize = { 
+    include = (~ <T> meta::ZTArray<T>, ~ <T, U> meta::Array<T, U>, meta::Rest, meta::ZTString, meta::Encoded), 
+    exclude = (u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize, [u8; 4]) 
+});
 
 pub trait FieldTypes {
     type FieldTypes;
@@ -75,6 +82,14 @@ mod tests {
         let message = SASLResponse::new(&buf);
         assert_eq!(message.mlen(), 5);
         assert_eq!(message.response().len(), 1);
+    }
+
+    #[test]
+    fn test_sasl_response_measure() {
+        let measure = measure::SASLResponse {
+            response: &[1, 2, 3, 4, 5]
+        };
+        assert_eq!(measure.measure(), 10)
     }
 
     #[test]
@@ -123,7 +138,20 @@ mod tests {
         let f2 = iter.next().unwrap();
         assert_eq!(f2.name(), "f2");
         assert_eq!(None, iter.next());
+    }
 
-        let x: <crate::protocol::meta::RowDescription as FieldTypes>::FieldTypes;
+    #[test]
+    fn test_row_description_measure() {
+        let measure = measure::RowDescription {
+            fields: &[
+                measure::RowField {
+                    name: "F1"
+                },
+                measure::RowField {
+                    name: "F2"
+                }
+            ]
+        };
+        assert_eq!(49, measure.measure())
     }
 }

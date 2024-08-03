@@ -16,8 +16,12 @@ pub struct ZTArray<'a, T: FieldAccessNonConst<'a, T> + 'a> {
 pub struct ZTArrayMeta<T> { _phantom: PhantomData<T> }
 impl <'a, T> Enliven<'a> for ZTArrayMeta<T> where
     T: Enliven<'a>, 
-    <T as Enliven<'a>>::WithLifetime: 'a + FieldAccessNonConst<'a, <T as Enliven<'a>>::WithLifetime> 
-    { type WithLifetime = ZTArray<'a, <T as Enliven<'a>>::WithLifetime>; }
+    <T as Enliven<'a>>::WithLifetime: 'a + FieldAccessNonConst<'a, <T as Enliven<'a>>::WithLifetime>,
+    <T as Enliven<'a>>::ForBuilder: 'a
+    { 
+        type WithLifetime = ZTArray<'a, <T as Enliven<'a>>::WithLifetime>; 
+        type ForBuilder = &'a [<T as Enliven<'a>>::ForBuilder];
+    }
 
 impl <'a, T: FieldAccessNonConst<'a, T> + 'a> ZTArray<'a, T> {
     pub const fn new(buf: &'a [u8]) -> Self {
@@ -78,8 +82,12 @@ pub struct ArrayMeta<L, T> { _phantom: PhantomData<(L, T)> }
 
 impl <'a, L: 'static, T> Enliven<'a> for ArrayMeta<L, T> where
     T: Enliven<'a>, 
-    <T as Enliven<'a>>::WithLifetime: 'a + FieldAccessNonConst<'a, <T as Enliven<'a>>::WithLifetime> 
-    { type WithLifetime = Array<'a, L, <T as Enliven<'a>>::WithLifetime>; }
+    <T as Enliven<'a>>::WithLifetime: 'a + FieldAccessNonConst<'a, <T as Enliven<'a>>::WithLifetime>,
+    <T as Enliven<'a>>::ForBuilder: 'a 
+    { 
+        type WithLifetime = Array<'a, L, <T as Enliven<'a>>::WithLifetime>; 
+        type ForBuilder = &'a [<T as Enliven<'a>>::ForBuilder];
+    }
 
 impl <'a, L, T: FieldAccessNonConst<'a, T> + 'a> Array<'a, L, T> {
     pub const fn new(buf: &'a [u8], len: u32) -> Self {
@@ -170,6 +178,19 @@ macro_rules! array_access {
                 let len = FieldAccess::<$len>::extract(buf);
                 $crate::protocol::Array::new(buf.split_at(std::mem::size_of::<$len>()).1, len as u32)
             }
+            #[inline]
+            pub const fn measure<'a>(buffer: &'a[<$ty as Enliven<'a>>::ForBuilder]) -> usize {
+                let mut size = std::mem::size_of::<$len>();
+                let mut index = 0;
+                loop {
+                    if index + 1 > buffer.len() {
+                        break;
+                    }
+                    size += FieldAccess::<$ty>::measure(&buffer[index]);
+                    index += 1;
+                }
+                size
+            }
         }
         )*
 
@@ -191,17 +212,19 @@ macro_rules! array_access {
             pub const fn extract<'a>(mut buf: &'a [u8]) -> $crate::protocol::ZTArray<'a, <$ty as Enliven::<'a>>::WithLifetime> {
                 $crate::protocol::ZTArray::new(buf)
             }
-            // #[inline]
-            // pub const fn measure(data: &[$ty]) -> usize {
-            //     let mut size = 0;
-            //     let mut index = 0;
-            //     loop {
-            //         unimplemented!();
-            //         // size += FieldAccess::<$ty>::measure(data[index]);
-            //         index += 1;
-            //     }
-            //     size
-            // }
+            #[inline]
+            pub const fn measure<'a>(buffer: &'a[<$ty as Enliven<'a>>::ForBuilder]) -> usize {
+                let mut size = 1;
+                let mut index = 0;
+                loop {
+                    if index + 1 > buffer.len() {
+                        break;
+                    }
+                    size += FieldAccess::<$ty>::measure(&buffer[index]);
+                    index += 1;
+                }
+                size
+            }
         }
     };
 }

@@ -1,5 +1,5 @@
 mod conn;
-mod protocol;
+pub mod protocol;
 
 #[cfg(feature = "python_extension")]
 mod python;

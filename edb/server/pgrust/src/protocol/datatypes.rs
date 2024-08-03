@@ -15,7 +15,10 @@ pub struct Rest<'a> {
 field_access!(RestMeta);
 
 pub struct RestMeta {}
-impl <'a> Enliven<'a> for RestMeta { type WithLifetime = Rest<'a>; }
+impl <'a> Enliven<'a> for RestMeta { 
+    type WithLifetime = Rest<'a>; 
+    type ForBuilder = &'a [u8];
+}
 
 impl <'a> Rest<'a> {
     pub fn len(&self) -> usize {
@@ -32,6 +35,10 @@ impl FieldAccess<RestMeta> {
     pub const fn extract<'a>(buf: &'a [u8]) -> Rest<'a> {
         Rest { buf }
     }
+    #[inline(always)]
+    pub const fn measure<'a>(buf: &'a [u8]) -> usize {
+        buf.len()
+    }
 }
 
 
@@ -45,8 +52,10 @@ field_access!(ZTStringMeta);
 array_access!(ZTStringMeta);
 
 pub struct ZTStringMeta {}
-impl <'a> Enliven<'a> for ZTStringMeta { type WithLifetime = ZTString<'a>; }
-
+impl <'a> Enliven<'a> for ZTStringMeta { 
+    type WithLifetime = ZTString<'a>; 
+    type ForBuilder = &'a str;
+}
 
 impl std::fmt::Debug for ZTString<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -95,6 +104,10 @@ impl FieldAccess<ZTStringMeta> {
         let buf = buf.split_at(buf.len() - 1).0;
         ZTString { buf }
     }
+    #[inline(always)]
+    pub const fn measure<'a>(buf: &'a str) -> usize {
+        buf.len() + 1
+    }
 }
 
 
@@ -107,7 +120,10 @@ field_access!(EncodedMeta);
 array_access!(EncodedMeta);
 
 pub struct EncodedMeta {}
-impl <'a> Enliven<'a> for EncodedMeta { type WithLifetime = Encoded<'a>; }
+impl <'a> Enliven<'a> for EncodedMeta { 
+    type WithLifetime = Encoded<'a>; 
+    type ForBuilder = &'a [u8];
+}
 
 impl <'a> Encoded<'a> {
     pub const fn new(buf: Option<&'a[u8]>) -> Self {
@@ -145,6 +161,10 @@ impl FieldAccess<EncodedMeta> {
             panic!()
         }
     }
+    #[inline(always)]
+    pub const fn measure<'a>(buf: &'a [u8]) -> usize {
+        unimplemented!()
+    }
 }
 
 
@@ -155,10 +175,12 @@ macro_rules! basic_types {
 
         impl <'a> Enliven<'a> for $ty {
             type WithLifetime = $ty;
+            type ForBuilder = $ty;
         }
 
         impl <'a, const S: usize> Enliven<'a> for [$ty; S] {
             type WithLifetime = [$ty; S];
+            type ForBuilder = [$ty; S];
         }
 
         #[allow(unused)]
@@ -175,10 +197,10 @@ macro_rules! basic_types {
                     panic!()
                 }
             }
-            // #[inline(always)]
-            // pub const fn measure(_: $ty) -> usize {
-            //     std::mem::size_of::<$ty>()
-            // }
+            #[inline(always)]
+            pub const fn measure(_: $ty) -> usize {
+                std::mem::size_of::<$ty>()
+            }
         }
 
         #[allow(unused)]
@@ -204,30 +226,30 @@ macro_rules! basic_types {
                 }
                 out
             }
-            // #[inline(always)]
-            // pub const fn measure(_: [$ty; S]) -> usize {
-            //     std::mem::size_of::<$ty>() * S
-            // }
+            #[inline(always)]
+            pub const fn measure(_: [$ty; S]) -> usize {
+                std::mem::size_of::<$ty>() * S
+            }
         }
 
         #[allow(unused)]
-        impl <'a> FieldAccess<ArrayMeta<$ty, u8>> {
+        impl <'a> FieldAccess<ArrayMeta<u8, $ty>> {
             #[inline(always)]
             pub const fn size_of_field_at(buf: &[u8]) -> usize {
                 (buf[0] + 1) as _
             }
             #[inline(always)]
-            pub const fn extract(mut buf: &'a [u8]) -> Array<'a, $ty, u8> {
+            pub const fn extract(mut buf: &'a [u8]) -> Array<'a, u8, $ty> {
                 Array::new(buf.split_at(1).1, (buf.len() - 1) as _)
             }
-            // #[inline(always)]
-            // pub const fn measure(buffer: &[u8]) -> usize {
-            //     buffer.len() + std::mem::size_of::<$ty>()
-            // }
+            #[inline(always)]
+            pub const fn measure(buffer: &[$ty]) -> usize {
+                buffer.len() * std::mem::size_of::<$ty>() + std::mem::size_of::<u8>()
+            }
         }
 
         #[allow(unused)]
-        impl <'a> FieldAccess<ArrayMeta<$ty, i16>> {
+        impl <'a> FieldAccess<ArrayMeta<i16, $ty>> {
             #[inline(always)]
             pub const fn size_of_field_at(buf: &[u8]) -> usize {
                 const N: usize = std::mem::size_of::<i16>();
@@ -238,7 +260,7 @@ macro_rules! basic_types {
                 }
             }
             #[inline(always)]
-            pub const fn extract(mut buf: &[u8]) -> Array<$ty, i16> {
+            pub const fn extract(mut buf: &[u8]) -> Array<i16, $ty> {
                 const N: usize = std::mem::size_of::<i16>();
                 if let Some((len, array)) = buf.split_first_chunk::<N>() {
                     Array::new(array, i16::from_ne_bytes(*len) as u32)
@@ -246,14 +268,14 @@ macro_rules! basic_types {
                     panic!()
                 }
             }
-            // #[inline(always)]
-            // pub const fn measure(buffer: &[i16]) -> usize {
-            //     buffer.len() * std::mem::size_of::<i16>() + std::mem::size_of::<$ty>()
-            // }
+            #[inline(always)]
+            pub const fn measure(buffer: &[$ty]) -> usize {
+                buffer.len() * std::mem::size_of::<$ty>() + std::mem::size_of::<i16>()
+            }
         }
 
         #[allow(unused)]
-        impl FieldAccess<ArrayMeta<$ty, i32>> {
+        impl FieldAccess<ArrayMeta<i32, $ty>> {
             #[inline(always)]
             pub const fn size_of_field_at(buf: &[u8]) -> usize {
                 const N: usize = std::mem::size_of::<i32>();
@@ -264,7 +286,7 @@ macro_rules! basic_types {
                 }
             }
             #[inline(always)]
-            pub const fn extract(mut buf: &[u8]) -> Array<$ty, i32> {
+            pub const fn extract(mut buf: &[u8]) -> Array<i32, $ty> {
                 const N: usize = std::mem::size_of::<i32>();
                 if let Some((len, array)) = buf.split_first_chunk::<N>() {
                     Array::new(array, i32::from_ne_bytes(*len) as u32)
@@ -272,10 +294,10 @@ macro_rules! basic_types {
                     panic!()
                 }
             }
-            // #[inline(always)]
-            // pub const fn measure(buffer: &[i32]) -> usize {
-            //     buffer.len() * std::mem::size_of::<i32>() + std::mem::size_of::<$ty>()
-            // }
+            #[inline(always)]
+            pub const fn measure(buffer: &[$ty]) -> usize {
+                buffer.len() * std::mem::size_of::<$ty>() + std::mem::size_of::<i32>()
+            }
         }
 
         )*

@@ -1182,6 +1182,7 @@ dependencies = [
  "itertools 0.13.0",
  "lru",
  "openssl",
+ "paste",
  "pretty_assertions",
  "pyo3",
  "rand",
@@ -1195,6 +1196,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "tuplemagic",
 ]
 
 [[package]]
@@ -1701,6 +1703,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "static_assertions"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f3eb36b47e512f8f1c9e3d10c2c1965bc992bd9cdb024fa581e2194501c83d3"
+
+[[package]]
 name = "statrs"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1941,6 +1949,15 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "tuplemagic"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc93c6d42aa5db79f29f10788969c4a460dc8e4ba333f98159cb1e7f83374344"
+dependencies = [
+ "static_assertions",
 ]
 
 [[package]]

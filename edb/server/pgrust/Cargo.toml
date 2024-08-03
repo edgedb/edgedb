@@ -24,6 +24,8 @@ strum = { version = "0.26", features = ["derive"] }
 consume_on_drop = "0"
 smart-default = "0"
 openssl = "0.10.66"
+tuplemagic = "0.1.3"
+paste = "1"
 
 [dependencies.tokio]
 version = "1"
@@ -50,5 +52,4 @@ features = ["macros", "rt-multi-thread", "time", "test-util"]
 
 [lib]
 crate-type = ["lib", "cdylib"]
-name = "conn_pool"
 path = "src/lib.rs"

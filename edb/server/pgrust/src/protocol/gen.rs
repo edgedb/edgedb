@@ -1,5 +1,6 @@
 macro_rules! protocol {
     ($(
+        $( #[ $sdoc:meta ])?
         struct $name:ident {
             $(
                 #[ $doc:meta ] $field:ident : $type:ty $( = $value:literal)?
@@ -13,9 +14,10 @@ macro_rules! protocol {
         mod struct_defs {
             $(
                 $crate::protocol::gen::protocol!{__one_struct__ 
+                    $( #[ $sdoc ] )?
                     struct $name {
                         $(
-                            #[$doc] $field : $type $( = $value)?
+                            #[$doc]  $field : $type $( = $value)?
                         ),*
                     }
                 }
@@ -35,22 +37,26 @@ macro_rules! protocol {
                     pub use super::super::struct_defs::$name::$name;
                 )*
             }
+            pub mod measure {
+                $(
+                    #[allow(unused_imports)]
+                    pub use super::super::struct_defs::$name::measure::$name;
+                )*
+            }
         }
     };
 
     (__one_struct__
+        $( #[ $sdoc:meta ])?
         struct $name:ident{
             $(
-                // Type is parenthesized here but (T) is equivalent to T. This
-                // allows us to keep it as a token tree and perform matches on
-                // it.
                 #[$doc:meta] $field:ident : $type:ty $( = $value:literal)?
             ),*
         }
     ) => {
         #[allow(non_snake_case, unused_imports)]
         pub mod $name {
-            use $crate::protocol::{Enliven, FieldAccess, FieldTypes};
+            use $crate::protocol::{Enliven, FieldAccess, FieldTypes, VariableSize};
             use $crate::protocol::meta::*;
             const FIELD_COUNT: usize = [$(stringify!($field)),*].len();
 
@@ -58,13 +64,16 @@ macro_rules! protocol {
             pub mod meta {
                 use $crate::protocol::{Enliven, FieldAccess};
                 use $crate::protocol::meta::*;
+                use $crate::protocol::definition::gen::measure;
 
+                $( #[$sdoc] )?
                 #[allow(unused)]
                 pub struct $name {
                 }
 
                 impl <'a> Enliven<'a> for $name {
                     type WithLifetime = super::$name<'a>;
+                    type ForBuilder = measure::$name<'a>;
                 }
 
                 impl FieldAccess<$name> {
@@ -80,10 +89,25 @@ macro_rules! protocol {
                     pub const fn extract<'a>(buf: &'a [u8]) -> super::$name<'a> {
                         super::$name::new(buf)
                     }
+                    #[inline(always)]
+                    pub const fn measure<'a>(measure: &measure::$name) -> usize {
+                        measure.measure()
+                    }
                 }
     
                 $crate::protocol::field_access!{$name}
                 $crate::protocol::arrays::array_access!{$name}
+            }
+
+            pub mod measure {
+                use $crate::protocol::meta::*;
+                $crate::protocol::gen::protocol!{__measure__ 
+                    struct $name {
+                        $(
+                            #[$doc] $field : $type $( = $value)?
+                        ),*
+                    }
+                }
             }
 
             impl FieldTypes for meta::$name {
@@ -102,6 +126,7 @@ macro_rules! protocol {
                 )*
             }
 
+            $( #[$sdoc] )?
             #[allow(unused)]
             pub struct $name<'a> {
                 buf: &'a [u8],
@@ -142,7 +167,9 @@ macro_rules! protocol {
                     }
                 }
 
-                // protocol!(__measure__ { $( $field : $type ; )* });
+                pub const fn measure(measure: measure::$name) -> usize {
+                    unimplemented!()
+                }
 
                 $(
                     #[allow(unused)]
@@ -155,6 +182,69 @@ macro_rules! protocol {
                         FieldAccess::<$type>::extract(buf)
                     }
                 )*
+            }
+        }
+    };
+
+    // Build a push-down automation to regenerate the struct, but omitting all fixed-sized
+    // fields. We parse each field one-by-one, emitting the parts of the struct necessary,
+    // and then generate the struct all in one go.
+    // https://veykril.github.io/tlborm/decl-macros/patterns/push-down-acc.html
+    (__measure__ 
+        struct $name:ident{
+            $(
+                #[$doc:meta] $field:ident : $type:ty $( = $value:literal)?
+            ),*
+        }
+    ) => {
+        // paste! is necessary here because it allows us to re-interpret a "ty"
+        // as a "tt".
+        paste::paste!($crate::protocol::gen::protocol!(__measure__ $name 'a [] [0] [
+            $(
+                [$field, ($type)],
+            )*
+        ]););
+    };
+
+    (__measure__ $name:ident $lt:lifetime [$($accum:tt)*] [$($accum2:tt)*] [[$field:ident, (u8)], $($body:tt)*]) => {
+        $crate::protocol::gen::protocol!(__measure__ $name $lt [$($accum)*] [$($accum2)*
+            + std::mem::size_of::<u8>()
+        ] [$($body)*]);
+    };
+    (__measure__ $name:ident $lt:lifetime [$($accum:tt)*] [$($accum2:tt)*] [[$field:ident, (i16)], $($body:tt)*]) => {
+        $crate::protocol::gen::protocol!(__measure__ $name $lt [$($accum)*] [$($accum2)*
+            + std::mem::size_of::<i16>()
+        ][$($body)*]);
+    };
+    (__measure__ $name:ident $lt:lifetime [$($accum:tt)*] [$($accum2:tt)*] [[$field:ident, (i32)], $($body:tt)*]) => {
+        $crate::protocol::gen::protocol!(__measure__ $name $lt [$($accum)*] [$($accum2)*
+            + std::mem::size_of::<i32>()
+        ] [$($body)*]);
+    };
+    (__measure__ $name:ident $lt:lifetime [$($accum:tt)*] [$($accum2:tt)*] [[$field:ident, ($($type:tt)*)], $($body:tt)*]) => {
+        $crate::protocol::gen::protocol!(__measure__ $name $lt [$($accum)* 
+            pub $field: <$($type)* as $crate::protocol::Enliven<$lt>>::ForBuilder,
+        ] [$($accum2)*
+            + $crate::protocol::FieldAccess::<$($type)*>::measure($name.$field)
+        ] [$($body)*]);
+    };
+    // If we end the struct and there are no fields, add a phantom one
+    (__measure__ $name:ident $lt:lifetime [] [$($accum2:tt)*] []) => {
+        $crate::protocol::gen::protocol!(__measure__ $name $lt [
+            phantom: std::marker::PhantomData<&$lt ()>,
+        ] [$($accum2)*] []);
+    };
+    (__measure__ $name:ident $lt:lifetime [$($accum:tt)+] [$($accum2:tt)*] []) => {
+        #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
+        pub struct $name<$lt> {
+            $($accum)*
+        }
+        impl <$lt> $name<$lt> {
+            pub const fn measure(&self) -> usize {
+                // Workaround for hygene -- otherwise we need to pass self into the macro
+                #[allow(unused)]
+                let $name = self;
+                $($accum2)*
             }
         }
     };

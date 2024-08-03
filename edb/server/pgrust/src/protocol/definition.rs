@@ -1,6 +1,8 @@
 use super::gen::protocol;
 
 protocol!(
+
+// A generic base for all Postgres mtype/mlen-style messages.
 struct Message {
     /// Identifies the message.
     mtype: u8,
@@ -9,6 +11,8 @@ struct Message {
     /// Message contents.
     data: Rest,
 }
+
+/// The `AuthenticationOk` struct represents a message indicating successful authentication.
 struct AuthenticationOk {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
@@ -18,6 +22,7 @@ struct AuthenticationOk {
     status: i32 = 0,
 }
 
+/// The `AuthenticationKerberosV5` struct represents a message indicating that Kerberos V5 authentication is required.
 struct AuthenticationKerberosV5 {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
@@ -27,6 +32,7 @@ struct AuthenticationKerberosV5 {
     status: i32 = 2,
 }
 
+/// The `AuthenticationCleartextPassword` struct represents a message indicating that a cleartext password is required for authentication.
 struct AuthenticationCleartextPassword {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
@@ -36,6 +42,7 @@ struct AuthenticationCleartextPassword {
     status: i32 = 3,
 }
 
+/// The `AuthenticationMD5Password` struct represents a message indicating that an MD5-encrypted password is required for authentication.
 struct AuthenticationMD5Password {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
@@ -47,6 +54,17 @@ struct AuthenticationMD5Password {
     salt: [u8; 4],
 }
 
+/// The `AuthenticationSCMCredential` struct represents a message indicating that an SCM credential is required for authentication.
+struct AuthenticationSCMCredential {
+    /// Identifies the message as an authentication request.
+    mtype: u8 = 'R',
+    /// Length of message contents in bytes, including self.
+    mlen: i32 = 6,
+    /// Any data byte, which is ignored.
+    byte: u8 = 0,
+}
+
+/// The `AuthenticationGSS` struct represents a message indicating that GSSAPI authentication is required.
 struct AuthenticationGSS {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
@@ -56,6 +74,7 @@ struct AuthenticationGSS {
     status: i32 = 7,
 }
 
+/// The `AuthenticationGSSContinue` struct represents a message indicating the continuation of GSSAPI authentication.
 struct AuthenticationGSSContinue {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
@@ -67,6 +86,7 @@ struct AuthenticationGSSContinue {
     data: Rest,
 }
 
+/// The `AuthenticationSSPI` struct represents a message indicating that SSPI authentication is required.
 struct AuthenticationSSPI {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
@@ -76,6 +96,7 @@ struct AuthenticationSSPI {
     status: i32 = 9,
 }
 
+/// The `AuthenticationSASL` struct represents a message indicating that SASL authentication is required.
 struct AuthenticationSASL {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
@@ -87,6 +108,7 @@ struct AuthenticationSASL {
     mechanisms: ZTArray<ZTString>,
 }
 
+/// The `AuthenticationSASLContinue` struct represents a message containing a SASL challenge during the authentication process.
 struct AuthenticationSASLContinue {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
@@ -98,6 +120,7 @@ struct AuthenticationSASLContinue {
     data: Rest,
 }
 
+/// The `AuthenticationSASLFinal` struct represents a message indicating the completion of SASL authentication.
 struct AuthenticationSASLFinal {
     /// Identifies the message as an authentication request.
     mtype: u8 = 'R',
@@ -109,6 +132,7 @@ struct AuthenticationSASLFinal {
     data: Rest,
 }
 
+/// The `BackendKeyData` struct represents a message containing the process ID and secret key for this backend.
 struct BackendKeyData {
     /// Identifies the message as cancellation key data.
     mtype: u8 = 'K',
@@ -120,6 +144,7 @@ struct BackendKeyData {
     key: i32,
 }
 
+/// The `Bind` struct represents a message to bind a named portal to a prepared statement.
 struct Bind {
     /// Identifies the message as a Bind command.
     mtype: u8 = 'B',
@@ -137,6 +162,7 @@ struct Bind {
     result_format_codes: Array<i16, i16>,
 }
 
+/// The `BindComplete` struct represents a message indicating that a Bind operation was successful.
 struct BindComplete {
     /// Identifies the message as a Bind-complete indicator.
     mtype: u8 = '2',
@@ -144,6 +170,7 @@ struct BindComplete {
     mlen: i32 = 4,
 }
 
+/// The `CancelRequest` struct represents a message to request the cancellation of a query.
 struct CancelRequest {
     /// Length of message contents in bytes, including self.
     mlen: i32 = 16,
@@ -155,6 +182,7 @@ struct CancelRequest {
     key: i32,
 }
 
+/// The `Close` struct represents a message to close a prepared statement or portal.
 struct Close {
     /// Identifies the message as a Close command.
     mtype: u8 = 'C',
@@ -166,6 +194,7 @@ struct Close {
     name: ZTString,
 }
 
+/// The `CloseComplete` struct represents a message indicating that a Close operation was successful.
 struct CloseComplete {
     /// Identifies the message as a Close-complete indicator.
     mtype: u8 = '3',
@@ -173,6 +202,7 @@ struct CloseComplete {
     mlen: i32 = 4,
 }
 
+/// The `CommandComplete` struct represents a message indicating the successful completion of a command.
 struct CommandComplete {
     /// Identifies the message as a command-completed response.
     mtype: u8 = 'C',
@@ -182,6 +212,7 @@ struct CommandComplete {
     tag: ZTString,
 }
 
+/// The `CopyData` struct represents a message containing data for a copy operation.
 struct CopyData {
     /// Identifies the message as COPY data.
     mtype: u8 = 'd',
@@ -191,6 +222,7 @@ struct CopyData {
     data: Rest,
 }
 
+/// The `CopyDone` struct represents a message indicating that a copy operation is complete.
 struct CopyDone {
     /// Identifies the message as a COPY-complete indicator.
     mtype: u8 = 'c',
@@ -198,6 +230,7 @@ struct CopyDone {
     mlen: i32 = 4,
 }
 
+/// The `CopyFail` struct represents a message indicating that a copy operation has failed.
 struct CopyFail {
     /// Identifies the message as a COPY-failure indicator.
     mtype: u8 = 'f',
@@ -207,6 +240,7 @@ struct CopyFail {
     error_msg: ZTString,
 }
 
+/// The `CopyInResponse` struct represents a message indicating that the server is ready to receive data for a copy-in operation.
 struct CopyInResponse {
     /// Identifies the message as a Start Copy In response.
     mtype: u8 = 'G',
@@ -218,6 +252,7 @@ struct CopyInResponse {
     format_codes: Array<i16, i16>,
 }
 
+/// The `CopyOutResponse` struct represents a message indicating that the server is ready to send data for a copy-out operation.
 struct CopyOutResponse {
     /// Identifies the message as a Start Copy Out response.
     mtype: u8 = 'H',
@@ -240,6 +275,7 @@ struct CopyBothResponse {
     format_codes: Array<i16, i16>,
 }
 
+/// The `DataRow` struct represents a message containing a row of data.
 struct DataRow {
     /// Identifies the message as a data row.
     mtype: u8 = 'D',
@@ -249,6 +285,7 @@ struct DataRow {
     values: Array<i16, Encoded>,
 }
 
+/// The `Describe` struct represents a message to describe a prepared statement or portal.
 struct Describe {
     /// Identifies the message as a Describe command.
     mtype: u8 = 'D',
@@ -260,6 +297,7 @@ struct Describe {
     name: ZTString,
 }
 
+/// The `EmptyQueryResponse` struct represents a message indicating that an empty query string was recognized.
 struct EmptyQueryResponse {
     /// Identifies the message as a response to an empty query String.
     mtype: u8 = 'I',
@@ -267,6 +305,7 @@ struct EmptyQueryResponse {
     mlen: i32 = 4,
 }
 
+/// The `ErrorResponse` struct represents a message indicating that an error has occurred.
 struct ErrorResponse {
     /// Identifies the message as an error.
     mtype: u8 = 'E',
@@ -276,6 +315,7 @@ struct ErrorResponse {
     fields: ZTArray<ErrorField>,
 }
 
+/// The `ErrorField` struct represents a single error message within an `ErrorResponse`.
 struct ErrorField {
     /// A code identifying the field type.
     etype: u8,
@@ -283,6 +323,7 @@ struct ErrorField {
     value: ZTString,
 }
 
+/// The `Execute` struct represents a message to execute a prepared statement or portal.
 struct Execute {
     /// Identifies the message as an Execute command.
     mtype: u8 = 'E',
@@ -294,6 +335,7 @@ struct Execute {
     max_rows: i32,
 }
 
+/// The `Flush` struct represents a message to flush the backend's output buffer.
 struct Flush {
     /// Identifies the message as a Flush command.
     mtype: u8 = 'H',
@@ -301,6 +343,7 @@ struct Flush {
     mlen: i32 = 4,
 }
 
+/// The `FunctionCall` struct represents a message to call a function.
 struct FunctionCall {
     /// Identifies the message as a function call.
     mtype: u8 = 'F',
@@ -316,6 +359,7 @@ struct FunctionCall {
     result_format_code: i16,
 }
 
+/// The `FunctionCallResponse` struct represents a message containing the result of a function call.
 struct FunctionCallResponse {
     /// Identifies the message as a function-call response.
     mtype: u8 = 'V',
@@ -325,6 +369,7 @@ struct FunctionCallResponse {
     result: Encoded,
 }
 
+/// The `GSSENCRequest` struct represents a message requesting GSSAPI encryption.
 struct GSSENCRequest {
     /// Identifies the message as a GSSAPI Encryption request.
     mtype: u8 = 'F',
@@ -334,6 +379,7 @@ struct GSSENCRequest {
     gssenc_request_code: i32 = 80877104,
 }
 
+/// The `GSSResponse` struct represents a message containing a GSSAPI or SSPI response.
 struct GSSResponse {
     /// Identifies the message as a GSSAPI or SSPI response.
     mtype: u8 = 'p',
@@ -343,6 +389,7 @@ struct GSSResponse {
     data: Rest,
 }
 
+/// The `NegotiateProtocolVersion` struct represents a message requesting protocol version negotiation.
 struct NegotiateProtocolVersion {
     /// Identifies the message as a protocol version negotiation request.
     mtype: u8 = 'v',
@@ -354,6 +401,7 @@ struct NegotiateProtocolVersion {
     options: Array<i32, ZTString>,
 }
 
+/// The `NoData` struct represents a message indicating that there is no data to return.
 struct NoData {
     /// Identifies the message as a No Data indicator.
     mtype: u8 = 'n',
@@ -361,6 +409,7 @@ struct NoData {
     mlen: i32 = 4,
 }
 
+/// The `NoticeResponse` struct represents a message containing a notice.
 struct NoticeResponse {
     /// Identifies the message as a notice.
     mtype: u8 = 'N',
@@ -370,6 +419,7 @@ struct NoticeResponse {
     fields: ZTArray<NoticeField>,
 }
 
+/// The `NoticeField` struct represents a single error message within an `NoticeResponse`.
 struct NoticeField {
     /// A code identifying the field type.
     ntype: u8,
@@ -377,6 +427,7 @@ struct NoticeField {
     value: ZTString,
 }
 
+/// The `NotificationResponse` struct represents a message containing a notification from the backend.
 struct NotificationResponse {
     /// Identifies the message as a notification.
     mtype: u8 = 'A',
@@ -390,6 +441,7 @@ struct NotificationResponse {
     payload: ZTString,
 }
 
+/// The `ParameterDescription` struct represents a message describing the parameters needed by a prepared statement.
 struct ParameterDescription {
     /// Identifies the message as a parameter description.
     mtype: u8 = 't',
@@ -399,6 +451,7 @@ struct ParameterDescription {
     param_types: Array<i16, i32>,
 }
 
+/// The `ParameterStatus` struct represents a message containing the current status of a parameter.
 struct ParameterStatus {
     /// Identifies the message as a runtime parameter status report.
     mtype: u8 = 'S',
@@ -410,6 +463,7 @@ struct ParameterStatus {
     value: ZTString,
 }
 
+/// The `Parse` struct represents a message to parse a query string.
 struct Parse {
     /// Identifies the message as a Parse command.
     mtype: u8 = 'P',
@@ -423,6 +477,7 @@ struct Parse {
     param_types: Array<i16, i32>,
 }
 
+/// The `ParseComplete` struct represents a message indicating that a Parse operation was successful.
 struct ParseComplete {
     /// Identifies the message as a Parse-complete indicator.
     mtype: u8 = '1',
@@ -430,6 +485,7 @@ struct ParseComplete {
     mlen: i32 = 4,
 }
 
+/// The `PasswordMessage` struct represents a message containing a password.
 struct PasswordMessage {
     /// Identifies the message as a password response.
     mtype: u8 = 'p',
@@ -439,6 +495,7 @@ struct PasswordMessage {
     password: ZTString,
 }
 
+/// The `PortalSuspended` struct represents a message indicating that a portal has been suspended.
 struct PortalSuspended {
     /// Identifies the message as a portal-suspended indicator.
     mtype: u8 = 's',
@@ -446,6 +503,7 @@ struct PortalSuspended {
     mlen: i32 = 4,
 }
 
+/// The `Query` struct represents a message to execute a simple query.
 struct Query {
     /// Identifies the message as a simple query command.
     mtype: u8 = 'Q',
@@ -455,6 +513,7 @@ struct Query {
     query: ZTString,
 }
 
+/// The `ReadyForQuery` struct represents a message indicating that the backend is ready for a new query.
 struct ReadyForQuery {
     /// Identifies the message as a ready-for-query indicator.
     mtype: u8 = 'Z',
@@ -464,6 +523,7 @@ struct ReadyForQuery {
     status: u8,
 }
 
+/// The `RowDescription` struct represents a message describing the rows that will be returned by a query.
 struct RowDescription {
     /// Identifies the message as a row description.
     mtype: u8 = 'T',
@@ -473,6 +533,7 @@ struct RowDescription {
     fields: Array<i16, RowField>,
 }
 
+/// The `RowField` struct represents a row within the `RowDescription` message.
 struct RowField {
     /// The field name
     name: ZTString,
@@ -490,6 +551,7 @@ struct RowField {
     format_code: i16,
 }
 
+/// The `SASLInitialResponse` struct represents a message containing a SASL initial response.
 struct SASLInitialResponse {
     /// Identifies the message as a SASL initial response.
     mtype: u8 = 'p',
@@ -501,6 +563,7 @@ struct SASLInitialResponse {
     response: Array<i32, u8>,
 }
 
+/// The `SASLResponse` struct represents a message containing a SASL response.
 struct SASLResponse {
     /// Identifies the message as a SASL response.
     mtype: u8 = 'p',
@@ -510,6 +573,7 @@ struct SASLResponse {
     response: Rest,
 }
 
+/// The `SSLRequest` struct represents a message requesting SSL encryption.
 struct SSLRequest {
     /// Length of message contents in bytes, including self.
     mlen: i32 = 8,
@@ -517,6 +581,7 @@ struct SSLRequest {
     code: i32 = 80877103,
 }
 
+/// The `StartupMessage` struct represents a message to initiate a connection.
 struct StartupMessage {
     /// Length of message contents in bytes, including self.
     mlen: i32,
@@ -526,6 +591,7 @@ struct StartupMessage {
     params: ZTArray<StartupNameValue>,
 }
 
+/// The `StartupMessage` struct represents a name/value pair within the `StartupMessage` message.
 struct StartupNameValue {
     /// The parameter name. 
     name: ZTString,
@@ -533,6 +599,7 @@ struct StartupNameValue {
     value: ZTString,
 }
 
+/// The `Sync` struct represents a message to synchronize the frontend and backend.
 struct Sync {
     /// Identifies the message as a Sync command.
     mtype: u8 = 'S',
@@ -540,6 +607,7 @@ struct Sync {
     mlen: i32 = 4,
 }
 
+/// The `Terminate` struct represents a message to terminate a connection.
 struct Terminate {
     /// Identifies the message as a Terminate command.
     mtype: u8 = 'X',
