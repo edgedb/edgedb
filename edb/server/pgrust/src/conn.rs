@@ -1,6 +1,6 @@
 use crate::protocol::{
-    builder, measure, AuthenticationMessage, AuthenticationOk, BackendKeyData, Message,
-    ParameterStatus, ReadyForQuery, Sync,
+    builder, match_message, measure, AuthenticationOk, BackendKeyData, Message, ParameterStatus,
+    ReadyForQuery,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -60,35 +60,27 @@ impl<S: Stream> PGConn<S> {
         let mut buffer = &buffer[..r];
         while !buffer.is_empty() {
             let message = Message::new(buffer);
-            eprintln!("{} {}", message.mtype() as char, message.mlen());
             let message_buf = &buffer[..(message.mlen() + 1) as _];
             buffer = &buffer[((message.mlen() + 1) as _)..];
-            match (message.mtype(), message.mlen()) {
-                (AuthenticationMessage::MTYPE, _) => {
-                    let auth = AuthenticationMessage::new(message_buf);
-                    if auth.status() == AuthenticationOk::STATUS {
-                        eprintln!("auth ok");
-                    } else {
-                        eprintln!("status = {:?}", auth.status());
-                    }
-                }
-                (Sync::MTYPE, Sync::MLEN) => {
-                    eprintln!("sync");
-                }
-                (ParameterStatus::MTYPE, _) => {
-                    let param = ParameterStatus::new(message_buf);
+
+            match_message!(message_buf, Backend {
+                (AuthenticationOk) => {
+                    eprintln!("auth ok");
+                },
+                (ParameterStatus as param) => {
                     eprintln!("param: {:?}={:?}", param.name(), param.value());
-                }
-                (BackendKeyData::MTYPE, _) => {
-                    let key = BackendKeyData::new(message_buf);
-                    eprintln!("key={:?} pid={:?}", key.key(), key.pid());
-                }
-                (ReadyForQuery::MTYPE, _) => {
-                    let ready = ReadyForQuery::new(message_buf);
+                },
+                (BackendKeyData as key_data) => {
+                    eprintln!("key={:?} pid={:?}", key_data.key(), key_data.pid());
+                },
+                (ReadyForQuery as ready) => {
                     eprintln!("ready: {:?}", ready.status());
-                }
-                (mtype, mlen) => eprintln!("Unknown message: {} (len {mlen})", mtype as char),
-            }
+                },
+                (Message) => {
+                    let mlen = message.mlen();
+                    eprintln!("Unknown message: {} (len {mlen})", message.mtype() as char)
+                },
+            });
         }
         Ok(())
     }

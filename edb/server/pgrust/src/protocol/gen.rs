@@ -176,8 +176,26 @@ macro_rules! protocol {
                     $(pub const [<$field:upper>]: $type = $value as _;)?
                 )*);
 
+                /// Checks the constant values for this struct to determine whether
+                /// this message matches.
                 #[inline]
-                pub const fn new(buf: &'a [u8]) -> Self{
+                pub const fn is(buf: &'a [u8]) -> bool {
+                    let mut offset = 0;
+
+                    // NOTE! This only works for fixed-sized fields and assumes
+                    // that they all exist before variable-sized fields.
+
+                    $(
+                        $(if FieldAccess::<$type>::extract(buf.split_at(offset).1) != $value as _ { return false;})?
+
+                        offset += std::mem::size_of::<$type>();
+                    )*
+
+                    true
+                }
+
+                #[inline]
+                pub const fn new(mut buf: &'a [u8]) -> Self{
                     let mut fields = [0; FIELD_COUNT + 1];
                     let mut offset = 0;
                     let mut index = 0;
@@ -192,10 +210,6 @@ macro_rules! protocol {
                         buf,
                         fields,
                     }
-                }
-
-                pub const fn measure(measure: measure::$name) -> usize {
-                    unimplemented!()
                 }
 
                 $(
@@ -364,3 +378,41 @@ macro_rules! protocol {
 
 }
 pub(crate) use protocol;
+
+macro_rules! message_group {
+    ($group:ident = [$($message:ident),*]) => {
+        paste::paste!(
+        pub struct $group {
+        }
+
+        trait [<$group Match>] {
+            $(
+                fn [<$message:snake>]<'a>(&mut self) -> Option<impl FnMut(self::struct_defs::$message::$message<'a>)> {
+                    // No implementation by default
+                    let mut opt = Some(|_| {});
+                    opt.take();
+                    opt
+                }
+            )*
+            // fn unknown(&mut self, message: self::struct_defs::Message::Message) {
+            //     // No implementation by default
+            // }
+        }
+
+        impl $group {
+            pub fn match_message(matcher: &mut impl [<$group Match>], buf: &[u8]) {
+                $(
+                    if self::struct_defs::$message::$message::is(buf) {
+                        if let Some(mut f) = matcher.[<$message:snake>]() {
+                            let message = self::struct_defs::$message::$message::new(buf);
+                            f(message);
+                            return;
+                        }
+                    }
+                )*
+            }
+        }
+        );
+    };
+}
+pub(crate) use message_group;

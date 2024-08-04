@@ -26,6 +26,10 @@ pub mod builder {
     pub use super::definition::gen::builder::*;
 }
 
+pub mod messages {
+    pub use super::definition::Backend;
+}
+
 #[allow(unused)]
 pub use arrays::{Array, ArrayIter, ZTArray, ZTArrayIter};
 #[allow(unused)]
@@ -79,6 +83,21 @@ macro_rules! field_access {
 }
 pub(crate) use field_access;
 
+macro_rules! match_message {
+    ($buf:ident, $messages:path {
+        $(( $i1:path $(as $i2:ident )?) => $impl:block),* $(,)?
+    }) => {
+        $(
+            if <$i1>::is(&$buf) {
+                $(let $i2 = <$i1>::new($buf);)?
+                $impl;
+            } else
+        )*
+        {}
+    };
+}
+pub(crate) use match_message;
+
 #[cfg(test)]
 mod tests {
     use definition::r#gen::builder;
@@ -88,6 +107,7 @@ mod tests {
     #[test]
     fn test_sasl_response() {
         let buf = [b'p', 0, 0, 0, 5, 2];
+        assert!(SASLResponse::is(&buf));
         let message = SASLResponse::new(&buf);
         assert_eq!(message.mlen(), 5);
         assert_eq!(message.response().len(), 1);
@@ -128,6 +148,7 @@ mod tests {
             b'f', b'1', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // field 1
             b'f', b'2', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // field 2
         ];
+        assert!(RowDescription::is(&buf));
         let message = RowDescription::new(&buf);
         assert_eq!(message.mlen() as usize, buf.len() - 1);
         assert_eq!(message.fields().len(), 2);
@@ -173,6 +194,7 @@ mod tests {
         assert_eq!(49, vec.len());
 
         // Read it back
+        assert!(RowDescription::is(&vec));
         let message = RowDescription::new(&vec);
         assert_eq!(message.fields().len(), 2);
         let mut iter = message.fields().into_iter();
@@ -197,6 +219,7 @@ mod tests {
         assert_eq!(message.mtype(), b'S');
         assert_eq!(message.data(), &[]);
         // And also a Sync
+        assert!(Sync::is(&buf));
         let message = Sync::new(&buf);
         assert_eq!(message.mlen(), 4);
         assert_eq!(message.mtype(), b'S');
@@ -214,11 +237,13 @@ mod tests {
         };
         let buf = auth.to_vec();
         // Read it as a Message
+        assert!(Message::is(&buf));
         let message = Message::new(&buf);
         assert_eq!(message.mlen(), 14);
         assert_eq!(message.mtype(), b'R');
         assert_eq!(message.data(), &[0, 0, 0, 8, 1, 2, 3, 4, 5]);
         // And also a AuthenticationGSSContinue
+        assert!(AuthenticationGSSContinue::is(&buf));
         let message = AuthenticationGSSContinue::new(&buf);
         assert_eq!(message.mlen(), 14);
         assert_eq!(message.mtype(), b'R');

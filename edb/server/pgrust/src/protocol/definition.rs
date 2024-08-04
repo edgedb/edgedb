@@ -1,4 +1,68 @@
-use super::gen::protocol;
+use super::gen::{message_group, protocol};
+
+message_group!(
+    Backend = [
+        AuthenticationOk,
+        AuthenticationKerberosV5,
+        AuthenticationCleartextPassword,
+        AuthenticationMD5Password,
+        AuthenticationGSS,
+        AuthenticationGSSContinue,
+        AuthenticationSSPI,
+        AuthenticationSASL,
+        AuthenticationSASLContinue,
+        AuthenticationSASLFinal,
+        BackendKeyData,
+        BindComplete,
+        CloseComplete,
+        CommandComplete,
+        CopyData,
+        CopyDone,
+        CopyInResponse,
+        CopyOutResponse,
+        CopyBothResponse,
+        DataRow,
+        EmptyQueryResponse,
+        ErrorResponse,
+        FunctionCallResponse,
+        NegotiateProtocolVersion,
+        NoData,
+        NoticeResponse,
+        NotificationResponse,
+        ParameterDescription,
+        ParameterStatus,
+        ParseComplete,
+        PortalSuspended,
+        ReadyForQuery,
+        RowDescription
+    ]
+);
+
+message_group!(
+    Frontend = [
+        Bind,
+        CancelRequest,
+        Close,
+        CopyData,
+        CopyDone,
+        CopyFail,
+        Describe,
+        Execute,
+        Flush,
+        FunctionCall,
+        GSSENCRequest,
+        GSSResponse,
+        Parse,
+        PasswordMessage,
+        Query,
+        SASLInitialResponse,
+        SASLResponse,
+        SSLRequest,
+        StartupMessage,
+        Sync,
+        Terminate
+    ]
+);
 
 protocol!(
 
