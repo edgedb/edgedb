@@ -12,6 +12,16 @@ struct Message {
     data: Rest,
 }
 
+/// The `AuthenticationMessage` struct is a base for all Postgres authentication messages.
+struct AuthenticationMessage {
+    /// Identifies the message as an authentication request.
+    mtype: u8 = 'R',
+    /// Length of message contents in bytes, including self.
+    mlen: i32,
+    /// Specifies that the authentication was successful.
+    status: i32,
+}
+
 /// The `AuthenticationOk` struct represents a message indicating successful authentication.
 struct AuthenticationOk {
     /// Identifies the message as an authentication request.
@@ -264,6 +274,7 @@ struct CopyOutResponse {
     format_codes: Array<i16, i16>,
 }
 
+/// The `CopyBothResponse` is used only for Streaming Replication.
 struct CopyBothResponse {
     /// Identifies the message as a Start Copy Both response.
     mtype: u8 = 'W',
@@ -586,7 +597,7 @@ struct StartupMessage {
     /// Length of message contents in bytes, including self.
     mlen: i32,
     /// The protocol version number.
-    code: i32 = 196608,
+    protocol: i32 = 196608,
     /// List of parameter name-value pairs, terminated by a zero byte.
     params: ZTArray<StartupNameValue>,
 }

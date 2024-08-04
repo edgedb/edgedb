@@ -172,6 +172,10 @@ macro_rules! protocol {
 
             #[allow(unused)]
             impl <'a> $name<'a> {
+                paste::paste!($(
+                    $(pub const [<$field:upper>]: $type = $value as _;)?
+                )*);
+
                 #[inline]
                 pub const fn new(buf: &'a [u8]) -> Self{
                     let mut fields = [0; FIELD_COUNT + 1];

@@ -22,6 +22,10 @@ pub mod measure {
     pub use super::definition::gen::measure::*;
 }
 
+pub mod builder {
+    pub use super::definition::gen::builder::*;
+}
+
 #[allow(unused)]
 pub use arrays::{Array, ArrayIter, ZTArray, ZTArrayIter};
 #[allow(unused)]
@@ -83,7 +87,7 @@ mod tests {
 
     #[test]
     fn test_sasl_response() {
-        let buf = [b'p', 5, 0, 0, 0, 2];
+        let buf = [b'p', 0, 0, 0, 5, 2];
         let message = SASLResponse::new(&buf);
         assert_eq!(message.mlen(), 5);
         assert_eq!(message.response().len(), 1);
@@ -100,24 +104,27 @@ mod tests {
     #[test]
     fn test_startup_message() {
         let buf = [
-            17, 0, 0, 0, 0, 0x30, 0, 0, b'a', 0, b'b', 0, b'c', 0, b'd', 0, 0,
+            0, 0, 0, 41, 0, 0x03, 0, 0, 0x75, 0x73, 0x65, 0x72, 0, 0x70, 0x6f, 0x73, 0x74, 0x67,
+            0x72, 0x65, 0x73, 0, 0x64, 0x61, 0x74, 0x61, 0x62, 0x61, 0x73, 0x65, 0, 0x70, 0x6f,
+            0x73, 0x74, 0x67, 0x72, 0x65, 0x73, 0, 0,
         ];
         let message = StartupMessage::new(&buf);
         assert_eq!(message.mlen() as usize, buf.len());
+        assert_eq!(message.protocol(), 196608);
         let arr = message.params();
         let mut vals = vec![];
         for entry in arr {
             vals.push(entry.name().to_owned());
             vals.push(entry.value().to_owned());
         }
-        assert_eq!(vals, vec!["a", "b", "c", "d"]);
+        assert_eq!(vals, vec!["user", "postgres", "database", "postgres"]);
     }
 
     #[test]
     fn test_row_description() {
         let buf = [
-            b'T', 48, 0, 0, 0, // header
-            2, 0, // # of fields
+            b'T', 0, 0, 0, 48, // header
+            0, 2, // # of fields
             b'f', b'1', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // field 1
             b'f', b'2', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // field 2
         ];
@@ -199,7 +206,8 @@ mod tests {
     fn test_message_polymorphism_rest() {
         let mlen = measure::AuthenticationGSSContinue {
             data: &[1, 2, 3, 4, 5],
-        }.measure() as _;
+        }
+        .measure() as _;
         let auth = builder::AuthenticationGSSContinue {
             mlen,
             data: &[1, 2, 3, 4, 5],
@@ -209,7 +217,7 @@ mod tests {
         let message = Message::new(&buf);
         assert_eq!(message.mlen(), 14);
         assert_eq!(message.mtype(), b'R');
-        assert_eq!(message.data(), &[8, 0, 0, 0, 1, 2, 3, 4, 5]);
+        assert_eq!(message.data(), &[0, 0, 0, 8, 1, 2, 3, 4, 5]);
         // And also a AuthenticationGSSContinue
         let message = AuthenticationGSSContinue::new(&buf);
         assert_eq!(message.mlen(), 14);

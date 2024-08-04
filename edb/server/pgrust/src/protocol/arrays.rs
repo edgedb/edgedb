@@ -211,7 +211,7 @@ macro_rules! array_access {
             }
             #[inline(always)]
             pub fn copy_to_buf<'a>(buf: &mut $crate::protocol::writer::BufWriter, value: &'a[<$ty as Enliven<'a>>::ForBuilder]) {
-                buf.write(&<$len>::to_ne_bytes(value.len() as _));
+                buf.write(&<$len>::to_be_bytes(value.len() as _));
                 for elem in value {
                     FieldAccess::<$ty>::copy_to_buf(buf, elem);
                 }

@@ -26,16 +26,15 @@ impl<'a> Enliven<'a> for RestMeta {
     type ForBuilder = &'a [u8];
 }
 
-impl<'a> Rest<'a> {
-}
+impl<'a> Rest<'a> {}
 
-impl <'a> AsRef<[u8]> for Rest<'a> {
+impl<'a> AsRef<[u8]> for Rest<'a> {
     fn as_ref(&self) -> &[u8] {
         self.buf
     }
 }
 
-impl <'a> std::ops::Deref for Rest<'a> {
+impl<'a> std::ops::Deref for Rest<'a> {
     type Target = [u8];
     fn deref(&self) -> &Self::Target {
         self.buf
@@ -48,7 +47,7 @@ impl PartialEq<[u8]> for Rest<'_> {
     }
 }
 
-impl <const N: usize> PartialEq<&[u8; N]> for Rest<'_> {
+impl<const N: usize> PartialEq<&[u8; N]> for Rest<'_> {
     fn eq(&self, other: &&[u8; N]) -> bool {
         self.buf == *other
     }
@@ -179,7 +178,7 @@ impl FieldAccess<EncodedMeta> {
     pub const fn size_of_field_at(buf: &[u8]) -> usize {
         const N: usize = std::mem::size_of::<i32>();
         if let Some(len) = buf.first_chunk::<N>() {
-            let mut len = i32::from_ne_bytes(*len);
+            let mut len = i32::from_be_bytes(*len);
             if len == -1 {
                 len = 0;
             }
@@ -192,7 +191,7 @@ impl FieldAccess<EncodedMeta> {
     pub const fn extract(buf: &[u8]) -> Encoded<'_> {
         const N: usize = std::mem::size_of::<i32>();
         if let Some((len, array)) = buf.split_first_chunk::<N>() {
-            let len = i32::from_ne_bytes(*len);
+            let len = i32::from_be_bytes(*len);
             if len == -1 {
                 Encoded::new(None)
             } else {
@@ -238,7 +237,7 @@ macro_rules! basic_types {
             #[inline(always)]
             pub const fn extract(buf: &[u8]) -> $ty {
                 if let Some(bytes) = buf.first_chunk() {
-                    <$ty>::from_ne_bytes(*bytes)
+                    <$ty>::from_be_bytes(*bytes)
                 } else {
                     panic!()
                 }
@@ -249,7 +248,7 @@ macro_rules! basic_types {
             }
             #[inline(always)]
             pub fn copy_to_buf(buf: &mut BufWriter, value: $ty) {
-                buf.write(&<$ty>::to_ne_bytes(value));
+                buf.write(&<$ty>::to_be_bytes(value));
             }
         }
 
@@ -268,7 +267,7 @@ macro_rules! basic_types {
                         break;
                     }
                     (out[i], buf) = if let Some((bytes, rest)) = buf.split_first_chunk() {
-                        (<$ty>::from_ne_bytes(*bytes), rest)
+                        (<$ty>::from_be_bytes(*bytes), rest)
                     } else {
                         panic!()
                     };
@@ -286,7 +285,7 @@ macro_rules! basic_types {
                     return;
                 }
                 for n in value {
-                    buf.write(&<$ty>::to_ne_bytes(n));
+                    buf.write(&<$ty>::to_be_bytes(n));
                 }
             }
         }
@@ -304,7 +303,7 @@ macro_rules! basic_types {
                     const N: usize = std::mem::size_of::<$ty>();
                     const L: usize = std::mem::size_of::<$len>();
                     if let Some(len) = buf.first_chunk::<L>() {
-                        (<$len>::from_ne_bytes(*len) as usize * N + L)
+                        (<$len>::from_be_bytes(*len) as usize * N + L)
                     } else {
                         panic!()
                     }
@@ -314,7 +313,7 @@ macro_rules! basic_types {
                     const N: usize = std::mem::size_of::<$ty>();
                     const L: usize = std::mem::size_of::<$len>();
                     if let Some((len, array)) = buf.split_first_chunk::<L>() {
-                        Array::new(array, <$len>::from_ne_bytes(*len) as u32)
+                        Array::new(array, <$len>::from_be_bytes(*len) as u32)
                     } else {
                         panic!()
                     }
@@ -330,7 +329,7 @@ macro_rules! basic_types {
                         return;
                     }
                     for n in value {
-                        buf.write(&<$ty>::to_ne_bytes(*n));
+                        buf.write(&<$ty>::to_be_bytes(*n));
                     }
                 }
             }
