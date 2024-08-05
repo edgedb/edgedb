@@ -49,11 +49,6 @@ pub(crate) trait FieldAccessNonConst<'a, T: 'a> {
     fn extract(buf: &'a [u8]) -> T;
 }
 
-tuplemagic::tuple_filter_predicate!(pub VariableSize = {
-    include = (~ <T> meta::ZTArray<T>, ~ <T, U> meta::Array<T, U>, meta::Rest, meta::ZTString, meta::Encoded),
-    exclude = (u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize, [u8; 4])
-});
-
 pub trait FieldTypes {
     type FieldTypes;
 }

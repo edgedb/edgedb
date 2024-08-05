@@ -62,7 +62,7 @@ macro_rules! protocol {
     ) => {
         #[allow(non_snake_case, unused_imports)]
         pub mod $name {
-            use $crate::protocol::{Enliven, FieldAccess, FieldTypes, VariableSize};
+            use $crate::protocol::{Enliven, FieldAccess, FieldTypes};
             use $crate::protocol::meta::*;
             const FIELD_COUNT: usize = [$(stringify!($field)),*].len();
 

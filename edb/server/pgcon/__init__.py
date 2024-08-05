@@ -28,7 +28,7 @@ from .errors import (
 
 from .pgcon import (
     connect, PGConnection, SETUP_TEMP_TABLE_SCRIPT, SETUP_CONFIG_CACHE_SCRIPT,
-    set_init_con_script_data,
+    set_init_con_script_data, SCRAMAuthentication
 )
 
 __all__ = (
@@ -41,4 +41,5 @@ __all__ = (
     'BackendCatalogNameError',
     'SETUP_TEMP_TABLE_SCRIPT',
     'SETUP_CONFIG_CACHE_SCRIPT',
+    'SCRAMAuthentication',
 )
