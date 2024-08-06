@@ -1246,13 +1246,15 @@ def parse_args(**kwargs: Any):
                           'for mTLS authentication')
 
             if not all(
-                m is ServerAuthMethod.Trust or m is ServerAuthMethod.mTLS
+                m is ServerAuthMethod.Trust
+                  or m is ServerAuthMethod.mTLS
+                  or m is ServerAuthMethod.JWT
                 for m in methods
             ):
                 abort(
                     f'--default-auth-method of {transport} can only be one '
-                    f'of: {ServerAuthMethod.Trust}, {ServerAuthMethod.mTLS} '
-                    f'or {ServerAuthMethod.Auto}'
+                    f'of: {ServerAuthMethod.Trust}, {ServerAuthMethod.mTLS}, '
+                    f'{ServerAuthMethod.JWT} or {ServerAuthMethod.Auto}'
                 )
     kwargs['default_auth_method'] = ServerAuthMethods(transport_methods)
 
