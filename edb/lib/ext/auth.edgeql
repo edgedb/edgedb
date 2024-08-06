@@ -364,6 +364,33 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
     };
 
+    create type ext::auth::EmailTemplate extending cfg::ConfigObject {
+        create required property subject: std::str {
+            create annotation std::description :=
+                "Subject of the email.";
+        };
+        create required property html: std::str {
+            create annotation std::description :=
+                "Body of the email.";
+        };
+        create required property plain_text: std::str {
+            create annotation std::description :=
+                "Body of the email in plain text.";
+        };
+    };
+
+    create type ext::auth::EmailTemplateConfig extending cfg::ExtensionConfig {
+        create link verification -> ext::auth::EmailTemplate {
+            create annotation std::description :=
+                "Template for email verification emails.";
+        };
+
+        create link password_reset -> ext::auth::EmailTemplate {
+            create annotation std::description :=
+                "Template for password reset emails.";
+        };
+    };
+
     create type ext::auth::AuthConfig extending cfg::ExtensionConfig {
         create multi link providers -> ext::auth::ProviderConfig {
             create annotation std::description :=
