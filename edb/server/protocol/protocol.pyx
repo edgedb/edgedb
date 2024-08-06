@@ -524,7 +524,10 @@ cdef class HttpProtocol:
         path_parts_len = len(path_parts)
         route = path_parts[0]
 
-        if self.tenant is None and route in ['db', 'auth', 'branch']:
+        if self.tenant is None and (
+            route in ['db', 'auth', 'branch']
+            or (route == 'server' and path_parts[1] == 'branches')
+        ):
             self.tenant = self.server.get_default_tenant()
             self.check_readiness()
             if self.tenant.is_accepting_connections():
@@ -706,6 +709,13 @@ cdef class HttpProtocol:
                 self.tenant,
             )
         elif route == 'server':
+            if path_parts[1] == 'branches' and await self._handle_cors(
+                request, response,
+                allow_methods=['GET'],
+                allow_headers=['Authorization', 'X-EdgeDB-User'],
+            ):
+                return
+
             auth_method = await self._authenticate_for_default_conn_transport(
                 request,
                 response,
@@ -950,9 +960,20 @@ cdef class HttpProtocol:
             for auth_method in auth_methods:
                 authmethod_name = auth_method._tspec.name.split('::')[1]
                 try:
+                    scheme, auth_payload = auth_helpers.extract_token_from_auth_data(
+                        request.authorization
+                    )
                     # If the auth method and the provided auth information
                     # match, try to resolve the authentication.
-                    if authmethod_name == 'Trust':
+                    if authmethod_name == 'JWT' and scheme == 'bearer':
+                        username, _ = auth_helpers.extract_http_user(
+                            scheme, auth_payload, request.params
+                        )
+                        auth_helpers.auth_jwt(
+                            self.tenant, auth_payload,
+                            username, '__edgedbsys__'
+                        )
+                    elif authmethod_name == 'Trust':
                         pass
                     elif authmethod_name == 'mTLS':
                         if (
