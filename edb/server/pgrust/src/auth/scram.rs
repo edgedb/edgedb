@@ -45,9 +45,10 @@ use std::{
 };
 
 type HmacSha256 = Hmac<Sha256>;
+type Sha256Out = [u8; 32];
 
 #[derive(Debug, thiserror::Error)]
-enum SCRAMError {
+pub enum SCRAMError {
     #[error("Invalid encoding")]
     ProtocolError,
 }
@@ -71,6 +72,11 @@ fn extract<'a>(input: &'a [u8], prefix: &'static str) -> Result<&'a str, SCRAMEr
 
 fn inext<'a>(it: &mut impl Iterator<Item = &'a [u8]>) -> Result<&'a [u8], SCRAMError> {
     it.next().ok_or(SCRAMError::ProtocolError)
+}
+
+fn hmac(s: &[u8]) -> HmacSha256 {
+    // This is effectively infallible
+    HmacSha256::new_from_slice(s).expect("HMAC can take key of any size")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -192,12 +198,12 @@ pub fn generate_salted_password(
     password: &str,
     salt: &str,
     iterations: usize,
-) -> Result<[u8; 32], SCRAMError> {
+) -> Result<Sha256Out, SCRAMError> {
     // Convert the password to a binary string - UTF8 is safe for SASL
     let p = password.as_bytes();
 
     // Save the pre-keyed hmac
-    let ui_p = HmacSha256::new_from_slice(p).expect("HMAC can take key of any size");
+    let ui_p = hmac(p);
 
     // The initial signature is the salt with a terminator of a 32-bit string ending in 1
     let mut ui = ui_p.clone();
@@ -241,8 +247,8 @@ fn generate_proof(
     channel_binding: &[u8],
     server_nonce: &[u8],
     salted_password: &[u8],
-) -> ([u8; 32], [u8; 32]) {
-    let ui_p = HmacSha256::new_from_slice(salted_password).expect("HMAC can take key of any size");
+) -> (Sha256Out, Sha256Out) {
+    let ui_p = hmac(salted_password);
 
     let mut ui = ui_p.clone();
     ui.update(b"Server Key");
@@ -266,20 +272,19 @@ fn generate_proof(
         (server_nonce),
     ];
 
-    let mut client_signature =
-        HmacSha256::new_from_slice(&stored_key).expect("HMAC can take key of any size");
+    let mut client_signature = hmac(&stored_key);
     for chunk in auth_message {
         client_signature.update(chunk);
     }
 
     let client_signature = client_signature.finalize_fixed();
-    let mut client_signature: [u8; 32] = client_signature.as_slice().try_into().unwrap();
+    let mut client_signature: Sha256Out = client_signature.as_slice().try_into().unwrap();
 
     for i in 0..client_signature.len() {
         client_signature[i] ^= client_key[i];
     }
 
-    let mut server_proof = HmacSha256::new_from_slice(&server_key).unwrap();
+    let mut server_proof = hmac(&&server_key);
     for chunk in auth_message {
         server_proof.update(chunk);
     }
