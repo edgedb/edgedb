@@ -251,9 +251,19 @@ def gen_dml_cte(
     target_ir_set = ir_stmt.subject
     target_path_id = target_ir_set.path_id
 
+    relation = relctx.range_for_typeref(
+        typeref,
+        target_path_id,
+        for_mutation=True,
+        ctx=ctx,
+    )
+    assert isinstance(relation, pgast.RelRangeVar), (
+        "spurious overlay on DML target"
+    )
+
     dml_stmt: pgast.InsertStmt | pgast.SelectStmt | pgast.DeleteStmt
     if isinstance(ir_stmt, irast.InsertStmt):
-        dml_stmt = pgast.InsertStmt()
+        dml_stmt = pgast.InsertStmt(relation=relation)
     elif isinstance(ir_stmt, irast.UpdateStmt):
         # We generate a Select as the initial statement for an update,
         # since the contents select is the query that needs to join
@@ -262,20 +272,10 @@ def gen_dml_cte(
         # touches link tables).
         dml_stmt = pgast.SelectStmt()
     elif isinstance(ir_stmt, irast.DeleteStmt):
-        dml_stmt = pgast.DeleteStmt()
+        dml_stmt = pgast.DeleteStmt(relation=relation)
     else:
         raise AssertionError(f'unexpected DML IR: {ir_stmt!r}')
 
-    relation = relctx.range_for_typeref(
-        typeref,
-        target_path_id,
-        for_mutation=True,
-        ctx=ctx,
-    )
-    assert isinstance(relation, pgast.RelRangeVar), (
-        "spurious overlay on DML target")
-    if isinstance(dml_stmt, pgast.DMLQuery):
-        dml_stmt.relation = relation
     pathctx.put_path_value_rvar(dml_stmt, target_path_id, relation)
     pathctx.put_path_source_rvar(dml_stmt, target_path_id, relation)
     # Skip the path bond for inserts, since it doesn't help and
@@ -3104,9 +3104,7 @@ def process_delete_body(
     for ptrref in pointers:
         target_rvar = relctx.range_for_ptrref(
             ptrref, for_mutation=True, only_self=True, ctx=ctx)
-        # assert isinstance(target_rvar, pgast.RelRangeVar)
-        # assert isinstance(target_rvar.relation, pgast.Relation)
-        # relation = target_rvar.relation
+        assert isinstance(target_rvar, pgast.RelRangeVar)
 
         range_rvar = pgast.RelRangeVar(
             relation=delete_cte,

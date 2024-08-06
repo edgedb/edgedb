@@ -697,6 +697,17 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             res, [['Report (new)', res[0][1]], ['Report (new)', res[1][1]]]
         )
 
+    async def test_sql_dml_insert_32(self):
+        with self.assertRaisesRegex(
+            asyncpg.PostgresError,
+            'cannot write into table "columns"',
+        ):
+            await self.squery_values(
+                '''
+                INSERT INTO information_schema.columns DEFAULT VALUES
+                '''
+            )
+
     async def test_sql_dml_delete_01(self):
         # delete, inspect CommandComplete tag
 

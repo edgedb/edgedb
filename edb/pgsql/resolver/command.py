@@ -198,6 +198,18 @@ class PreprocessedDML:
 
 @functools.singledispatch
 def _preprocess_dml_stmt(stmt: pgast.DMLQuery, *, ctx: Context):
+    """
+    Takes an SQL DML query and produces an equivalent EdgeQL query plus a bunch
+    of metadata needed to extract associated CTEs from result of the EdgeQL
+    compiler.
+
+    In this context:
+    - subject is the object type/pointer being updated,
+    - source is the source of the subject (when subject is a pointer),
+    - value is the relation that provides new value to be inserted/updated,
+    - ptr-s are (usually) pointers on the subject.
+    """
+
     raise errors.QueryError(
         f'{stmt.__class__.__name__} are not supported',
         span=stmt.span,
@@ -205,31 +217,61 @@ def _preprocess_dml_stmt(stmt: pgast.DMLQuery, *, ctx: Context):
     )
 
 
+def _preprocess_dml_subject(
+    rvar: pgast.RelRangeVar, *, ctx: Context
+) -> Tuple[
+    context.Table, s_objtypes.ObjectType | s_links.Link | s_properties.Property
+]:
+    """
+    Determines the subject object of a DML operation.
+    This can either be an ObjectType or a Pointer for link tables.
+    """
+
+    assert isinstance(rvar.relation, pgast.Relation)
+    _sub_rel, sub_table = pg_res_rel.resolve_relation(
+        rvar.relation, include_inherited=False, ctx=ctx
+    )
+    if not sub_table.schema_id:
+        # this happens doing DML on an introspection table or (somehow) a CTE
+        raise errors.QueryError(
+            msg=f'cannot write into table "{sub_table.name}"',
+            pgext_code=pgerror.ERROR_UNDEFINED_TABLE,
+        )
+
+    sub = ctx.schema.get_by_id(sub_table.schema_id)
+    assert isinstance(
+        sub, (s_objtypes.ObjectType, s_links.Link, s_properties.Property)
+    )
+    return sub_table, sub
+
+
+def _preprocess_subject_columns(
+    sub: s_objtypes.ObjectType | s_links.Link | s_properties.Property,
+    sub_table: context.Table,
+    res: PreprocessedDML,
+    *,
+    ctx: Context,
+):
+    '''
+    Instruct PreprocessedDML to wrap the EdgeQL DML into a select shape that
+    selects all pointers.
+    This is applied when a RETURNING clause is present and these columns might
+    be used in the clause.
+    '''
+    for column in sub_table.columns:
+        if column.hidden:
+            continue
+        _, ptr_name, _ = _get_pointer_for_column(column, sub, ctx)
+        res.subject_columns.append((column.name, ptr_name))
+
+
 @_preprocess_dml_stmt.register
 def _preprocess_insert_stmt(
     stmt: pgast.InsertStmt, *, ctx: Context
 ) -> PreprocessedDML:
-    """
-    Takes SQL INSERT query and produces an equivalent EdgeQL insert query
-    and a bunch of metadata needed to extract associated CTEs from result of the
-    EdgeQL compiler.
-
-    In this context:
-    - subject is the pointer being updated,
-    - source is the source of the subject (when subject is a link / property),
-    - value is the relation that provides new value to be inserted,
-    - ptr-s are (usually) pointers on the subject.
-    """
-
     # determine the subject object we are inserting into
     # (this can either be an ObjectType or a Pointer for link tables)
-    assert isinstance(stmt.relation, pgast.RelRangeVar)
-    assert isinstance(stmt.relation.relation, pgast.Relation)
-    _sub_rel, sub_table = pg_res_rel.resolve_relation(
-        stmt.relation.relation, include_inherited=False, ctx=ctx
-    )
-    assert sub_table.schema_id  # TODO: raise a proper error here
-    sub = ctx.schema.get_by_id(sub_table.schema_id)
+    sub_table, sub = _preprocess_dml_subject(stmt.relation, ctx=ctx)
 
     expected_columns = _pull_columns_from_table(
         sub_table,
@@ -249,16 +291,7 @@ def _preprocess_insert_stmt(
         raise NotImplementedError()
 
     if stmt.returning_list:
-        assert isinstance(
-            sub, (s_objtypes.ObjectType, s_links.Link, s_properties.Property)
-        )
-        # wrap into a select shape that selects all pointers
-        # (because they might be be used by RETURNING clause)
-        for column in sub_table.columns:
-            if column.hidden:
-                continue
-            _, ptr_name, _ = _get_pointer_for_column(column, sub, ctx)
-            res.subject_columns.append((column.name, ptr_name))
+        _preprocess_subject_columns(sub, sub_table, res, ctx=ctx)
     return res
 
 
@@ -392,7 +425,7 @@ def _preprocess_insert_object_stmt(
             output_relation_name='',
             output_namespace={},
         ),
-        # these will be populated after compilation
+        # these will be populated by _preprocess_dml_stmt
         subject_columns=[],
     )
 
@@ -656,7 +689,7 @@ def _preprocess_insert_pointer_stmt(
             output_relation_name='',
             output_namespace={},
         ),
-        # these will be populated after compilation
+        # these will be populated by _preprocess_dml_stmt
         subject_columns=[],
     )
 
@@ -755,15 +788,8 @@ def _preprocess_insert_value(
 def _preprocess_delete_stmt(
     stmt: pgast.DeleteStmt, *, ctx: Context
 ) -> PreprocessedDML:
-    # determine the subject object we are inserting into
-    # (this can either be an ObjectType or a Pointer for link tables)
-    assert isinstance(stmt.relation, pgast.RelRangeVar)
-    assert isinstance(stmt.relation.relation, pgast.Relation)
-    _sub_rel, sub_table = pg_res_rel.resolve_relation(
-        stmt.relation.relation, include_inherited=False, ctx=ctx
-    )
-    assert sub_table.schema_id  # TODO: raise a proper error here
-    sub = ctx.schema.get_by_id(sub_table.schema_id)
+    # determine the subject object
+    sub_table, sub = _preprocess_dml_subject(stmt.relation, ctx=ctx)
 
     res: PreprocessedDML
     if isinstance(sub, s_objtypes.ObjectType):
@@ -774,16 +800,7 @@ def _preprocess_delete_stmt(
         raise NotImplementedError()
 
     if stmt.returning_list:
-        assert isinstance(
-            sub, (s_objtypes.ObjectType, s_links.Link, s_properties.Property)
-        )
-        # wrap into a select shape that selects all pointers
-        # (because they might be be used by RETURNING clause)
-        for column in sub_table.columns:
-            if column.hidden:
-                continue
-            _, ptr_name, _ = _get_pointer_for_column(column, sub, ctx)
-            res.subject_columns.append((column.name, ptr_name))
+        _preprocess_subject_columns(sub, sub_table, res, ctx=ctx)
     return res
 
 
@@ -891,7 +908,7 @@ def _preprocess_delete_object_stmt(
             output_relation_name='',
             output_namespace={},
         ),
-        # these will be populated after compilation
+        # these will be populated by _preprocess_dml_stmt
         subject_columns=[],
     )
 
@@ -933,7 +950,7 @@ def _preprocess_delete_pointer_stmt(
                 val=pgast.ColumnRef(
                     name=(val_sub_rvar, 'target'),
                 )
-            )
+            ),
         ],
         from_clause=[
             pgast.RelRangeVar(
@@ -1078,7 +1095,7 @@ def _preprocess_delete_pointer_stmt(
             output_relation_name='',
             output_namespace={},
         ),
-        # these will be populated after compilation
+        # these will be populated by _preprocess_dml_stmt
         subject_columns=[],
     )
 
