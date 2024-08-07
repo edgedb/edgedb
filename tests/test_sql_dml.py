@@ -975,3 +975,65 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             user2[0],
         )
         self.assertEqual(deleted, [[document[0], user1[0]]])
+
+    async def test_sql_dml_delete_10(self):
+        # delete from a single link table
+
+        [user1] = await self.squery_values(
+            'INSERT INTO "User" DEFAULT VALUES RETURNING id'
+        )
+        [user2] = await self.squery_values(
+            'INSERT INTO "User" DEFAULT VALUES RETURNING id'
+        )
+        [doc1, _doc2] = await self.squery_values(
+            '''
+            INSERT INTO "Document" (owner_id) VALUES ($1), ($2) RETURNING id
+            ''',
+            user1[0],
+            user2[0],
+        )
+
+        deleted = await self.squery_values(
+            '''
+            DELETE FROM "Document.owner"
+            WHERE source = $1
+            RETURNING source, target, is_author
+            ''',
+            doc1[0],
+        )
+        self.assertEqual(deleted, [[doc1[0], user1[0], None]])
+
+    async def test_sql_dml_delete_11(self):
+        # delete from a single link table
+
+        [document] = await self.squery_values(
+            '''
+            INSERT INTO "Document" (title) VALUES ('Report') RETURNING id
+            '''
+        )
+        await self.squery_values(
+            '''
+            INSERT INTO "Document.keywords"
+            VALUES ($1, 'notes'), ($1, 'priority')
+            ''',
+            document[0],
+        )
+
+        deleted = await self.squery_values(
+            '''
+            DELETE FROM "Document.keywords"
+            WHERE target = 'priority'
+            RETURNING source, target
+            '''
+        )
+        self.assertEqual(deleted, [[document[0], 'priority']])
+        
+        deleted = await self.squery_values(
+            '''
+            DELETE FROM "Document.keywords"
+            WHERE source = $1
+            RETURNING source, target
+            ''',
+            document[0]
+        )
+        self.assertEqual(deleted, [[document[0], 'notes']])
