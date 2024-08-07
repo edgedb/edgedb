@@ -442,6 +442,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 self.write('(')
                 self.visit(node.select_stmt)
                 self.write(')')
+        else:
+            self.write('DEFAULT VALUES')
 
         if node.on_conflict:
             self.new_lines = 1

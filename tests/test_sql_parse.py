@@ -541,6 +541,13 @@ class TestSQLParse(tb.BaseDocTest):
         INSERT INTO films (code, title, did) VALUES ($1, $2, $3)
         """
 
+    def test_sql_parse_insert_11(self):
+        """
+        INSERT INTO films DEFAULT VALUES
+        ON CONFLICT DO UPDATE
+        SET (a, b) = ('a', 'b'), c = 'c', (d, e) = ('d', 'e')
+        """
+
     def test_sql_parse_update_00(self):
         """
         UPDATE my_table SET the_value = DEFAULT
@@ -626,6 +633,18 @@ class TestSQLParse(tb.BaseDocTest):
     def test_sql_parse_update_10(self):
         """
         UPDATE x SET z = now()
+        """
+
+    def test_sql_parse_update_11(self):
+        """
+        UPDATE x SET (a, b) = ('a', 'b'), c = 'c', (d, e) = ('d', 'e')
+        """
+
+    @test.xerror('unsupported')
+    def test_sql_parse_update_12(self):
+        """
+        UPDATE tictactoe SET
+        (board[1:3][1:3], finished) = ('{{,,},{,,},{,,}}', FALSE)
         """
 
     def test_sql_parse_delete(self):

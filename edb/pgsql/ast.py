@@ -617,6 +617,8 @@ class Query(ReturningQuery):
 
     @property
     def ser_safe(self):
+        if not self.target_list:
+            return False
         return all(t.ser_safe for t in self.target_list)
 
     def append_cte(self, cte: CommonTableExpr) -> None:
