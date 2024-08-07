@@ -26,14 +26,11 @@ import itertools
 
 from edb.common import adapter
 
-from edb.schema import name as s_name
-from edb.schema import pointers as s_pointers
 from edb.schema import objects as s_obj
 
 from edb.pgsql import common
 from edb.pgsql import dbops
 from edb.pgsql import schemamech
-from edb.pgsql import trampoline
 
 
 class SchemaDBObjectMeta(adapter.Adapter):  # type: ignore
@@ -106,8 +103,9 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         table_name,
         *,
         constraint,
-        exprdata: List[schemamech.ExprData],
-        origin_exprdata: List[schemamech.ExprData],
+        exprdata: list[schemamech.ExprData],
+        origin_exprdata: list[schemamech.ExprData],
+        relative_exprdata: list[schemamech.ExprData],
         scope,
         type,
         table_type,
@@ -118,6 +116,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         dbops.TableConstraint.__init__(self, table_name, None)
         self._exprdata = exprdata
         self._origin_exprdata = origin_exprdata
+        self._relative_exprdata = relative_exprdata
         self._scope = scope
         self._type = type
         self._table_type = table_type
@@ -199,18 +198,18 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         errmsg = 'duplicate key value violates unique ' \
                  'constraint {constr}'.format(constr=constr_name)
 
-        for expr, origin_expr in zip(
-            itertools.cycle(self._exprdata), self._origin_exprdata
+        for expr, relative_expr in zip(
+            itertools.cycle(self._exprdata), self._relative_exprdata
         ):
             exprdata = expr.exprdata
-            origin_exprdata = origin_expr.exprdata
+            relative_exprdata = relative_expr.exprdata
 
             except_data = self._except_data
-            origin_except_data = origin_expr.origin_except_data
+            relative_except_data = relative_expr.except_data
 
             if self._except_data:
                 except_part = f'''
-                    AND ({origin_except_data.plain} is not true)
+                    AND ({relative_except_data.plain} is not true)
                     AND ({except_data.new} is not true)
                 '''
             else:
@@ -230,7 +229,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                 if self._table_type == 'link' else ''
             )
 
-            schemaname, tablename = origin_expr.origin_subject_db_name
+            schemaname, tablename = relative_expr.subject_db_name
             text = '''
                 PERFORM
                     TRUE
@@ -248,20 +247,18 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                           DETAIL = {detail};
                 END IF;
             '''.format(
-                plain_expr=origin_exprdata.plain,
-                detail=common.quote_literal(
-                    f"Key ({origin_exprdata.plain}) already exists."
-                ),
+                table=common.qname(schemaname, tablename),
+                plain_expr=relative_exprdata.plain,
                 new_expr=exprdata.new,
                 except_part=except_part,
-                table=common.qname(
-                    schemaname,
-                    tablename + "_" + common.get_aspect_suffix("inhview")),
+                src_check=src_check,
                 schemaname=schemaname,
                 tablename=tablename,
                 constr=raw_constr_name,
-                src_check=src_check,
                 errmsg=errmsg,
+                detail=common.quote_literal(
+                    f"Key ({relative_exprdata.plain}) already exists."
+                ),
             )
 
             chunks.append(text)
@@ -270,21 +267,12 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
 
         return text
 
-    def is_multiconstraint(self):
-        """Determine if multiple database constraints are needed."""
-        return self._scope != 'row' and len(self._exprdata) > 1
-
     def requires_triggers(self):
-        subject = self._constraint.get_subject(self._schema)
-        cname = self._constraint.get_shortname(self._schema)
-        if (
-            isinstance(subject, s_pointers.Pointer)
-            and subject.is_id_pointer(self._schema)
-            and cname == s_name.QualName('std', 'exclusive')
-        ):
-            return False
-        else:
-            return self._type != 'check'
+        return schemamech.table_constraint_requires_triggers(
+            self._constraint,
+            self._schema,
+            self._type,
+        )
 
     def can_disable_triggers(self):
         return self._constraint.is_independent(self._schema)
@@ -296,7 +284,11 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
 
 
 class MultiConstraintItem:
-    def __init__(self, constraint, index):
+    def __init__(
+        self,
+        constraint: SchemaConstraintTableConstraint,
+        index: int,
+    ):
         self.constraint = constraint
         self.index = index
 
@@ -304,11 +296,8 @@ class MultiConstraintItem:
         return self.constraint.get_type()
 
     def get_id(self):
-        raw_name = self.constraint.raw_constraint_name()
         # XXX
-        name = trampoline.versioned_name(common.edgedb_name_to_pg_name(
-            '{}#{}'.format(raw_name, self.index)))
-        name = common.quote_ident(name)
+        name = self.constraint.numbered_constraint_name(self.index)
 
         return '{} ON {} {}'.format(
             name, self.constraint.get_subject_type(),
@@ -342,16 +331,18 @@ class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
         comments = []
 
         exprs = self.constraint.constraint_code(block)
-        constr_name = self.constraint.raw_constraint_name()
 
         if isinstance(exprs, list) and len(exprs) > 1:
+            assert isinstance(self.constraint, SchemaConstraintTableConstraint)
             for i, _expr in enumerate(exprs):
+                name = self.constraint.numbered_constraint_name(i)
                 constraint = MultiConstraintItem(self.constraint, i)
 
-                comment = dbops.Comment(constraint, constr_name)
+                comment = dbops.Comment(constraint, name)
                 comments.append(comment)
         else:
-            comment = dbops.Comment(self.constraint, constr_name)
+            name = self.constraint.constraint_name()
+            comment = dbops.Comment(self.constraint, name)
             comments.append(comment)
 
         for comment in comments:
@@ -443,7 +434,10 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
     ) -> List[dbops.DDLOperation]:
         ins_trigger, upd_trigger = self._get_triggers(table_name, constraint)
 
-        return [dbops.DropTrigger(ins_trigger), dbops.DropTrigger(upd_trigger)]
+        return [
+            dbops.DropTrigger(ins_trigger, conditional=True),
+            dbops.DropTrigger(upd_trigger, conditional=True),
+        ]
 
     def enable_constr_trigger(
         self,
@@ -490,7 +484,7 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
         return [dbops.CreateFunction(func, or_replace=True)]
 
     def drop_constr_trigger_function(self, proc_name: Tuple[str, ...]):
-        return [dbops.DropFunction(name=proc_name, args=())]
+        return [dbops.DropFunction(name=proc_name, args=(), if_exists=True)]
 
     def create_constraint(self, constraint: SchemaConstraintTableConstraint):
         # Add the constraint normally to our table
@@ -501,6 +495,14 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
 
         self.add_command(my_alter)
 
+    def create_constraint_trigger_and_fuction(
+        self, constraint: SchemaConstraintTableConstraint
+    ):
+        """Create constraint trigger FUNCTION and TRIGGER.
+
+        Adds the new function to the trigger.
+        Disables the trigger if possible.
+        """
         if constraint.requires_triggers():
             # Create trigger function
             self.add_commands(self.create_constr_trigger_function(constraint))
@@ -532,23 +534,8 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
             self.drop_constraint(old_constraint)
             self.create_constraint(new_constraint)
 
-    def update_constraint_enabled(
-        self, constraint: SchemaConstraintTableConstraint
-    ):
-        if constraint.requires_triggers():
-            if constraint.can_disable_triggers():
-                self.add_commands(
-                    self.disable_constr_trigger(self.name, constraint))
-            else:
-                self.add_commands(
-                    self.enable_constr_trigger(self.name, constraint))
-
     def drop_constraint(self, constraint: SchemaConstraintTableConstraint):
-        if constraint.requires_triggers():
-            self.add_commands(self.drop_constr_trigger(
-                constraint._subject_name, constraint))
-            proc_name = constraint.get_trigger_procname()
-            self.add_commands(self.drop_constr_trigger_function(proc_name))
+        self.drop_constraint_trigger_and_fuction(constraint)
 
         # Drop the constraint normally from our table
         #
@@ -558,6 +545,16 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
         my_alter.add_command(drop_constr)
 
         self.add_command(my_alter)
+
+    def drop_constraint_trigger_and_fuction(
+        self, constraint: SchemaConstraintTableConstraint
+    ):
+        """Drop constraint trigger FUNCTION and TRIGGER."""
+        if constraint.requires_triggers():
+            self.add_commands(self.drop_constr_trigger(
+                constraint._subject_name, constraint))
+            proc_name = constraint.get_trigger_procname()
+            self.add_commands(self.drop_constr_trigger_function(proc_name))
 
 
 class AlterTableAddConstraint(AlterTableConstraintBase):
@@ -574,11 +571,10 @@ class AlterTableAddConstraint(AlterTableConstraintBase):
 
 class AlterTableAlterConstraint(AlterTableConstraintBase):
     def __init__(
-        self, name, *, constraint, new_constraint, only_modify_enabled, **kwargs
+        self, name, *, constraint, new_constraint, **kwargs
     ):
         super().__init__(name, constraint=constraint, **kwargs)
         self._new_constraint = new_constraint
-        self._only_modify_enabled = only_modify_enabled
 
     def __repr__(self):
         return '<{}.{} {!r}>'.format(
@@ -586,10 +582,7 @@ class AlterTableAlterConstraint(AlterTableConstraintBase):
             self._constraint)
 
     def generate(self, block):
-        if self._only_modify_enabled:
-            self.update_constraint_enabled(self._new_constraint)
-        else:
-            self.alter_constraint(self._constraint, self._new_constraint)
+        self.alter_constraint(self._constraint, self._new_constraint)
         super().generate(block)
 
 
@@ -602,4 +595,16 @@ class AlterTableDropConstraint(AlterTableConstraintBase):
     def generate(self, block):
         if not self._constraint.delegated:
             self.drop_constraint(self._constraint)
+        super().generate(block)
+
+
+class AlterTableUpdateConstraintTrigger(AlterTableConstraintBase):
+    def __repr__(self):
+        return '<{}.{} {!r}>'.format(
+            self.__class__.__module__, self.__class__.__name__,
+            self._constraint)
+
+    def generate(self, block):
+        self.drop_constraint_trigger_and_fuction(self._constraint)
+        self.create_constraint_trigger_and_fuction(self._constraint)
         super().generate(block)

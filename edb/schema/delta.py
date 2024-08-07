@@ -1425,6 +1425,19 @@ class CommandContext:
                    and getattr(ctx.op, 'scls', None) == obj
                    for ctx in self.stack)
 
+    def is_altering(self, obj: so.Object) -> bool:
+        """Return True if *obj* is being altered in this context.
+
+        :param obj:
+            The object in question.
+
+        :returns:
+            True if *obj* is being altered in this context.
+        """
+        return any(isinstance(ctx.op, AlterObject)
+                   and getattr(ctx.op, 'scls', None) == obj
+                   for ctx in self.stack)
+
     def push(self, token: CommandContextToken[Command]) -> None:
         self.stack.append(token)
 

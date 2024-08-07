@@ -71,8 +71,9 @@ def _get_exclusive_refs(tree: irast.Statement) -> Sequence[irast.Base] | None:
 @dataclasses.dataclass(kw_only=True, repr=False, eq=False, slots=True)
 class PGConstrData:
     subject_db_name: Optional[Tuple[str, str]]
-    expressions: List[ExprData]
-    origin_expressions: List[ExprData]
+    expressions: list[ExprData]
+    origin_expressions: list[ExprData]
+    relative_expressions: list[ExprData]
     table_type: str
     except_data: Optional[ExprDataSources]
 
@@ -85,8 +86,8 @@ class ExprData:
     exprdata: ExprDataSources
     is_multicol: bool
     is_trivial: bool
-    origin_subject_db_name: Optional[Tuple[str, str]] = None
-    origin_except_data: Optional[ExprDataSources] = None
+    subject_db_name: Optional[Tuple[str, str]] = None
+    except_data: Optional[ExprDataSources] = None
 
 
 @dataclasses.dataclass(kw_only=True, repr=False, eq=False, slots=True)
@@ -335,11 +336,28 @@ def _get_compiled_constraint_expr_data(
         exprdata = _edgeql_ref_to_pg_constr(
             primary_subject, constraint_subject, ref
         )
-        exprdata.origin_subject_db_name = constraint_data.subject_db_name
-        exprdata.origin_except_data = constraint_data.except_data
+        exprdata.subject_db_name = constraint_data.subject_db_name
+        exprdata.except_data = constraint_data.except_data
         exprdatas.append(exprdata)
 
     return exprdatas
+
+
+def table_constraint_requires_triggers(
+    constraint: s_constraints.Constraint,
+    schema: s_schema.Schema,
+    constraint_type: str,
+):
+    subject = constraint.get_subject(schema)
+    cname = constraint.get_shortname(schema)
+    if (
+        isinstance(subject, s_pointers.Pointer)
+        and subject.is_id_pointer(schema)
+        and cname == s_name.QualName('std', 'exclusive')
+    ):
+        return False
+    else:
+        return constraint_type != 'check'
 
 
 def compile_constraint(
@@ -378,6 +396,7 @@ def compile_constraint(
         subject_db_name=constraint_data.subject_db_name,
         expressions=[],
         origin_expressions=[],
+        relative_expressions=[],
         table_type=constraint_data.subject_table_type,
         except_data=constraint_data.except_data,
     )
@@ -401,6 +420,7 @@ def compile_constraint(
                 subject, origin_data
             )
 
+        # Set constraint expressions
         expressions: list[ExprData]
         if constraint in origin_expr_datas:
             expressions = origin_expr_datas[constraint]
@@ -411,11 +431,50 @@ def compile_constraint(
 
         pg_constr_data.expressions.extend(expressions)
 
+        # Set origin expressions
         origin_expressions: list[ExprData] = []
         for origin in constraint_origins:
             origin_expressions.extend(origin_expr_datas[origin])
 
         pg_constr_data.origin_expressions.extend(origin_expressions)
+
+        # Set relative expressions
+        # These are only needed for constraint triggers.
+        if (
+            not isinstance(constraint.get_subject(schema), s_scalars.ScalarType)
+            and table_constraint_requires_triggers(
+                constraint, schema, 'unique'
+            )
+        ):
+            relatives = list(set(
+                descendant
+                for origin in constraint_origins
+                for descendant in itertools.chain(
+                    [origin], origin.descendants(schema)
+                )
+            ))
+
+            relative_expressions: list[ExprData] = []
+            for relative in relatives:
+                if relative == constraint:
+                    relative_expressions.extend(expressions)
+
+                elif relative in origin_expr_datas:
+                    relative_expressions.extend(origin_expr_datas[relative])
+
+                else:
+                    relative_data = _compile_constraint_data(
+                        relative,
+                        schema,
+                        is_optional,
+                    )
+                    relative_expressions.extend(
+                        _get_compiled_constraint_expr_data(
+                            subject, relative_data
+                        )
+                    )
+
+            pg_constr_data.relative_expressions.extend(relative_expressions)
 
         pg_constr_data.scope = 'relation'
         pg_constr_data.type = 'unique'
@@ -434,8 +493,8 @@ def compile_constraint(
         exprdata = _edgeql_ref_to_pg_constr(
             subject, origin_data.subject, constraint_data.ir
         )
-        exprdata.origin_subject_db_name = origin_data.subject_db_name
-        exprdata.origin_except_data = origin_data.except_data
+        exprdata.subject_db_name = origin_data.subject_db_name
+        exprdata.except_data = origin_data.except_data
 
         pg_constr_data.expressions.append(exprdata)
 
@@ -485,7 +544,7 @@ class SchemaDomainConstraint:
         return ops
 
     def alter_ops(
-        self, orig_constr: SchemaConstraint, only_modify_enabled: bool = False
+        self, orig_constr: SchemaConstraint
     ):
         ops = dbops.CommandGroup()
         return ops
@@ -505,6 +564,10 @@ class SchemaDomainConstraint:
         ops = dbops.CommandGroup()
         return ops
 
+    def update_trigger_ops(self) -> dbops.CommandGroup:
+        ops = dbops.CommandGroup()
+        return ops
+
 
 @dataclasses.dataclass(kw_only=True, repr=False, eq=False, slots=True)
 class SchemaTableConstraint:
@@ -521,6 +584,7 @@ class SchemaTableConstraint:
         table_name = pg_c.subject_db_name
         expressions = pg_c.expressions
         origin_expressions = pg_c.origin_expressions
+        relative_expressions = pg_c.relative_expressions
         assert table_name
 
         return deltadbops.SchemaConstraintTableConstraint(
@@ -528,6 +592,7 @@ class SchemaTableConstraint:
             constraint=constr.constraint,
             exprdata=expressions,
             origin_exprdata=origin_expressions,
+            relative_exprdata=relative_expressions,
             except_data=pg_c.except_data,
             scope=pg_c.scope,
             type=pg_c.type,
@@ -549,7 +614,7 @@ class SchemaTableConstraint:
         return ops
 
     def alter_ops(
-        self, orig_constr: SchemaConstraint, only_modify_enabled=False
+        self, orig_constr: SchemaConstraint
     ):
         ops = dbops.CommandGroup()
 
@@ -558,8 +623,9 @@ class SchemaTableConstraint:
 
         alter_constr = deltadbops.AlterTableAlterConstraint(
             name=tabconstr.get_subject_name(quote=False),
-            constraint=orig_tabconstr, new_constraint=tabconstr,
-            only_modify_enabled=only_modify_enabled)
+            constraint=orig_tabconstr,
+            new_constraint=tabconstr,
+        )
 
         ops.add_command(alter_constr)
 
@@ -595,8 +661,8 @@ class SchemaTableConstraint:
             old_expr = origin_exprdata.old
             new_expr = exprdata.new
 
-            assert origin_expr.origin_subject_db_name
-            schemaname, tablename = origin_expr.origin_subject_db_name
+            assert origin_expr.subject_db_name
+            schemaname, tablename = origin_expr.subject_db_name
             real_tablename = tabconstr.get_subject_name(quote=False)
 
             errmsg = 'duplicate key value violates unique ' \
@@ -614,7 +680,7 @@ class SchemaTableConstraint:
                 key = "id"
 
             except_data = tabconstr._except_data
-            origin_except_data = origin_expr.origin_except_data
+            origin_except_data = origin_expr.except_data
 
             if except_data:
                 assert origin_except_data
@@ -645,6 +711,19 @@ class SchemaTableConstraint:
                 '''
             )
             ops.add_command(check)
+
+        return ops
+
+    def update_trigger_ops(self) -> dbops.CommandGroup:
+        ops = dbops.CommandGroup()
+
+        tabconstr = self._table_constraint(self)
+        add_constr = deltadbops.AlterTableUpdateConstraintTrigger(
+            name=tabconstr.get_subject_name(quote=False),
+            constraint=tabconstr,
+        )
+
+        ops.add_command(add_constr)
 
         return ops
 
