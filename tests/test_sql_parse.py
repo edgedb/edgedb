@@ -464,6 +464,13 @@ class TestSQLParse(tb.BaseDocTest):
         SELECT -1; SELECT 0; SELECT 1
         """
 
+    def test_sql_parse_select_61(self):
+        """
+        SELECT a[1:3], b.x
+% OK %
+        SELECT (a)[1:3], b.x
+        """
+
     def test_sql_parse_insert_00(self):
         """
         INSERT INTO my_table (id, name) VALUES (1, 'some')
@@ -546,6 +553,15 @@ class TestSQLParse(tb.BaseDocTest):
         INSERT INTO films DEFAULT VALUES
         ON CONFLICT DO UPDATE
         SET (a, b) = ('a', 'b'), c = 'c', (d, e) = ('d', 'e')
+        """
+
+    def test_sql_parse_insert_12(self):
+        """
+        INSERT INTO foo DEFAULT VALUES
+        RETURNING a[1:3] AS a, b.x AS b
+% OK %
+        INSERT INTO foo DEFAULT VALUES
+        RETURNING (a)[1:3] AS a, b.x AS b
         """
 
     def test_sql_parse_update_00(self):

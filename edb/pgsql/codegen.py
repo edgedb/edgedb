@@ -572,8 +572,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_ResTarget(self, node: pgast.ResTarget) -> None:
         self.visit(node.val)
-        if node.indirection:
-            self._visit_indirection_ops(node.indirection)
         if node.name:
             self.write(' AS ' + common.quote_col(node.name))
 

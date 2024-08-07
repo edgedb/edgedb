@@ -498,8 +498,6 @@ class ResTarget(ImmutableBaseExpr):
 
     # Column name (optional)
     name: typing.Optional[str] = None
-    # subscripts, field names and '*'
-    indirection: typing.Optional[typing.List[IndirectionOp]] = None
     # value expression to compute
     val: BaseExpr
 
