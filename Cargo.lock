@@ -1241,7 +1241,6 @@ dependencies = [
  "consume_on_drop",
  "derive_more",
  "futures",
- "genetic_algorithm",
  "hex-literal",
  "hmac",
  "itertools 0.13.0",

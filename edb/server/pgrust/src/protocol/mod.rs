@@ -79,7 +79,7 @@ macro_rules! field_access {
 pub(crate) use field_access;
 
 macro_rules! match_message {
-    ($buf:ident, $messages:path {
+    ($buf:expr, $messages:path {
         $(( $i1:path $(as $i2:ident )?) => $impl:block),* $(,)?
     }) => {
         $(
@@ -114,6 +114,40 @@ mod tests {
             response: &[1, 2, 3, 4, 5],
         };
         assert_eq!(measure.measure(), 10)
+    }
+
+    #[test]
+    fn test_sasl_initial_response() {
+        let buf = [
+            b'p', 0, 0, 0, 0x36, 
+            // Mechanism
+            b'S', b'C', b'R', b'A', b'M', b'-', b'S', b'H', b'A', b'-', b'2', b'5', b'6', 0, 
+            // Data
+            0, 0, 0, 32, 
+            b'n', b',', b',', b'n', b'=', b',', b'r', b'=', b'p',
+            b'E', b'k', b'P', b'L', b'Q', b'u', b'2', b'9', b'G', b'E', b'v', b'w', b'N', b'e', b'V', b'J',
+            b't', b'7', b'2', b'a', b'r', b'Q', b'I',
+        ];
+
+        assert!(SASLInitialResponse::is(&buf));
+        let message = SASLInitialResponse::new(&buf);
+        assert_eq!(message.mlen(), 0x36);
+        assert_eq!(message.mechanism(), "SCRAM-SHA-256");
+        assert_eq!(message.response().as_ref(), b"n,,n=,r=pEkPLQu29GEvwNeVJt72arQI");
+    }
+
+    #[test]
+    fn test_sasl_initial_response_builder() {
+        let buf = builder::SASLInitialResponse {
+            mlen: 0x36,
+            mechanism: "SCRAM-SHA-256",
+            response: b"n,,n=,r=pEkPLQu29GEvwNeVJt72arQI",
+        }.to_vec();
+
+        let message = SASLInitialResponse::new(&buf);
+        assert_eq!(message.mlen(), 0x36);
+        assert_eq!(message.mechanism(), "SCRAM-SHA-256");
+        assert_eq!(message.response().as_ref(), b"n,,n=,r=pEkPLQu29GEvwNeVJt72arQI");
     }
 
     #[test]

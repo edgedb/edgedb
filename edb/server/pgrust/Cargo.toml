@@ -30,6 +30,7 @@ stringprep = "0.1.5"
 hmac = "0.12"
 base64 = "0.22"
 sha2 = "0.10"
+rand = "0"
 
 [dependencies.tokio]
 version = "1"
@@ -44,9 +45,7 @@ pretty_assertions = "1.2.0"
 test-log = { version = "0", features = ["trace"] }
 anyhow = "1"
 rstest = "0"
-rand = "0"
 statrs = "0"
-genetic_algorithm = "0"
 lru = "0"
 byteorder = "1.5"
 clap = "4"

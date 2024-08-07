@@ -39,18 +39,184 @@
 use base64::{prelude::BASE64_STANDARD, Engine};
 use hmac::{Hmac, Mac};
 use sha2::{digest::FixedOutput, Digest, Sha256};
-use std::{
-    borrow::Cow,
-    io::{IoSlice, Write},
-};
+use std::borrow::Cow;
+
+const CHANNEL_BINDING_ENCODED: &str = "biws";
+const MINIMUM_NONCE_LENGTH: usize = 16;
 
 type HmacSha256 = Hmac<Sha256>;
-type Sha256Out = [u8; 32];
+pub type Sha256Out = [u8; 32];
 
 #[derive(Debug, thiserror::Error)]
 pub enum SCRAMError {
     #[error("Invalid encoding")]
     ProtocolError,
+}
+
+pub trait ServerEnvironment {
+    fn get_password_parameters(&self, username: &str) -> (Cow<'static, str>, usize);
+    fn get_salted_password(&self, username: &str) -> Sha256Out;
+    fn generate_nonce(&self) -> String;
+}
+
+#[derive(Default)]
+pub struct ServerTransaction {
+    state: ServerState,
+}
+
+impl ServerTransaction {
+    pub fn success(&self) -> bool {
+        matches!(self.state, ServerState::Success)
+    }
+
+    pub fn process_message(&mut self, message: &[u8], env: &impl ServerEnvironment) -> Result<Option<Vec<u8>>, SCRAMError> {
+        match &self.state {
+            ServerState::Success => {
+                Err(SCRAMError::ProtocolError)
+            }
+            ServerState::Initial => {
+                let message = ClientFirstMessage::decode(message)?;
+                if message.channel_binding != ChannelBinding::NotSupported("".into()) {
+                    return Err(SCRAMError::ProtocolError);
+                }
+                if message.nonce.len() < MINIMUM_NONCE_LENGTH {
+                    return Err(SCRAMError::ProtocolError);
+                }
+                let (salt, iterations) = env.get_password_parameters(&message.username);
+                let mut nonce = message.nonce.to_string();
+                nonce += &env.generate_nonce();
+                let response = ServerFirstResponse {
+                    combined_nonce: nonce.to_string().into(),
+                    salt,
+                    iterations,
+                };
+                self.state = ServerState::SentChallenge(message.to_owned_bare(), response.to_owned());
+                Ok(Some(response.encode().into_bytes()))
+            },
+            ServerState::SentChallenge(first_message, first_response) => {
+                let message = ClientFinalMessage::decode(message)?;
+                if message.combined_nonce != first_response.combined_nonce {
+                    return Err(SCRAMError::ProtocolError);
+                }
+                if message.channel_binding != CHANNEL_BINDING_ENCODED {
+                    return Err(SCRAMError::ProtocolError);
+                }
+                let salted_password = env.get_salted_password(&first_message.username);
+                let (client_proof, server_verifier) = generate_proof(
+                    &first_message.encode().as_bytes(), 
+                    &first_response.encode().as_bytes(), 
+                    &message.channel_binding.as_bytes(), 
+                    &message.combined_nonce.as_bytes(),
+                    &salted_password);
+                let mut proof = vec![];
+                BASE64_STANDARD
+                .decode_vec(message.proof.as_bytes(), &mut proof).map_err(|_| SCRAMError::ProtocolError)?;
+                if proof != client_proof {
+                    return Err(SCRAMError::ProtocolError);
+                }
+                self.state = ServerState::Success;
+                let verifier = BASE64_STANDARD.encode(server_verifier).into();
+                Ok(Some(ServerFinalResponse {
+                    verifier,
+                }.encode().into_bytes()))
+            },
+        }
+    }
+}
+
+#[derive(Default)]
+enum ServerState {
+    #[default]
+    Initial,
+    SentChallenge(ClientFirstMessage<'static>, ServerFirstResponse<'static>),
+    Success,
+}
+
+pub trait ClientEnvironment {
+    fn get_salted_password(&self, username: &str, salt: &[u8], iterations: usize) -> Sha256Out;
+    fn generate_nonce(&self) -> String;
+}
+
+pub struct ClientTransaction {
+    state: ClientState,
+}
+
+impl ClientTransaction {
+    pub fn new(username: Cow<'static, str>) -> Self {
+        Self {
+            state: ClientState::Initial(username),
+        }
+    }
+
+    pub fn success(&self) -> bool {
+        matches!(self.state, ClientState::Success)
+    }
+
+    pub fn process_message(&mut self, message: &[u8], env: &impl ClientEnvironment) -> Result<Option<Vec<u8>>, SCRAMError> {
+        match &self.state {
+            ClientState::Success => {
+                Err(SCRAMError::ProtocolError)
+            }
+            ClientState::Initial(username) => {
+                if !message.is_empty() {
+                    return Err(SCRAMError::ProtocolError);
+                }
+                let nonce = env.generate_nonce().into();
+                let message = ClientFirstMessage {
+                    channel_binding: ChannelBinding::NotSupported("".into()),
+                    username: username.to_owned(),
+                    nonce
+                };
+                self.state = ClientState::SentFirst(message.to_owned_bare());
+                Ok(Some(message.encode().into_bytes()))
+            },
+            ClientState::SentFirst(first_message) => {
+                let message = ServerFirstResponse::decode(message)?;
+                // Ensure the client nonce was concatenated with the server's nonce
+                if !message.combined_nonce.starts_with(first_message.nonce.as_ref()) {
+                    return Err(SCRAMError::ProtocolError);
+                }
+                if message.combined_nonce.len() - first_message.nonce.len() < MINIMUM_NONCE_LENGTH {
+                    return Err(SCRAMError::ProtocolError);
+                }
+                let mut buffer = [0; 1024];
+                let salt = decode_salt(&message.salt, &mut buffer)?;
+                let salted_password = env.get_salted_password(&first_message.username, &salt, message.iterations);
+                let (client_proof, server_verifier) = generate_proof(
+                    &first_message.encode().as_bytes(), 
+                    &message.encode().as_bytes(), 
+                    CHANNEL_BINDING_ENCODED.as_bytes(), 
+                    &message.combined_nonce.as_bytes(),
+                    &salted_password);
+                let message = ClientFinalMessage {
+                    channel_binding: CHANNEL_BINDING_ENCODED.into(),
+                    combined_nonce: message.combined_nonce.to_string().into(),
+                    proof: BASE64_STANDARD.encode(client_proof).into(),
+                };
+                self.state = ClientState::ExpectingVerifier(ServerFinalResponse {
+                    verifier: BASE64_STANDARD.encode(server_verifier).into(),
+                });
+                Ok(Some(message.encode().into_bytes()))
+            },
+            ClientState::ExpectingVerifier(server_final_response) => {
+                let message = ServerFinalResponse::decode(message)?;
+                if message.verifier != server_final_response.verifier {
+                    return Err(SCRAMError::ProtocolError);
+                }
+                self.state = ClientState::Success;
+                Ok(None)
+            }
+        }
+
+    }
+}
+
+
+enum ClientState {
+    Initial(Cow<'static, str>),
+    SentFirst(ClientFirstMessage<'static>),
+    ExpectingVerifier(ServerFinalResponse<'static>),
+    Success,
 }
 
 trait Encode {
@@ -98,6 +264,17 @@ pub struct ClientFirstMessage<'a> {
     channel_binding: ChannelBinding<'a>,
     username: Cow<'a, str>,
     nonce: Cow<'a, str>,
+}
+
+impl ClientFirstMessage<'_> {
+    /// Get the bare first message
+    pub fn to_owned_bare(&self) -> ClientFirstMessage<'static> {
+        ClientFirstMessage {
+            channel_binding: ChannelBinding::NotSpecified,
+            username: self.username.to_string().into(),
+            nonce: self.nonce.to_string().into(),
+        }
+    }
 }
 
 impl Encode for ClientFirstMessage<'_> {
@@ -161,6 +338,16 @@ pub struct ServerFirstResponse<'a> {
     iterations: usize,
 }
 
+impl ServerFirstResponse<'_> {
+    pub fn to_owned(&self) -> ServerFirstResponse<'static> {
+        ServerFirstResponse {
+            combined_nonce: self.combined_nonce.to_string().into(),
+            salt: self.salt.to_string().into(),
+            iterations: self.iterations,
+        }
+    }
+}
+
 impl Encode for ServerFirstResponse<'_> {
     fn encode(&self) -> String {
         format!(
@@ -190,15 +377,66 @@ pub struct ClientFinalMessage<'a> {
     proof: Cow<'a, str>,
 }
 
+
+impl Encode for ClientFinalMessage<'_> {
+    fn encode(&self) -> String {
+        format!("c={},r={},p={}", self.channel_binding, self.combined_nonce, self.proof)
+    }
+}
+
+impl<'a> Decode<'a> for ClientFinalMessage<'a> {
+    fn decode(buf: &'a [u8]) -> Result<Self, SCRAMError> {
+        let mut parts = buf.split(|&b| b == b',');
+        let channel_binding = extract(inext(&mut parts)?, "c=")?.into();
+        let combined_nonce = extract(inext(&mut parts)?, "r=")?.into();
+        let proof = extract(inext(&mut parts)?, "p=")?.into();
+        Ok(ClientFinalMessage {
+            channel_binding,
+            combined_nonce,
+            proof,
+        })
+    }
+}
+
+
 pub struct ServerFinalResponse<'a> {
     verifier: Cow<'a, str>,
 }
 
+impl<'a> Encode for ServerFinalResponse<'a> {
+    fn encode(&self) -> String {
+        format!("v={}", self.verifier)
+    }
+}
+
+impl<'a> Decode<'a> for ServerFinalResponse<'a> {
+    fn decode(buf: &'a [u8]) -> Result<Self, SCRAMError> {
+        let mut parts = buf.split(|&b| b == b',');
+        let verifier = extract(inext(&mut parts)?, "v=")?.into();
+        Ok(ServerFinalResponse { verifier })
+    }
+}
+
+pub fn decode_salt<'a>(salt: &str, buffer: &'a mut [u8]) -> Result<Cow<'a, [u8]>, SCRAMError> {
+    // The salt needs to be base64 decoded -- full binary must be used
+    if let Ok(n) = BASE64_STANDARD.decode_slice(salt, buffer) {
+        Ok(Cow::Borrowed(&buffer[..n]))
+    } else {
+        // In the unlikely case the salt is large -- note that we also fall back to this
+        // path for invalid base64 strings!
+        let mut buffer = vec![];
+        BASE64_STANDARD
+            .decode_vec(salt, &mut buffer)
+            .map_err(|_| SCRAMError::ProtocolError)?;
+        Ok(Cow::Owned(buffer))
+    }    
+}
+
 pub fn generate_salted_password(
     password: &str,
-    salt: &str,
+    salt: &[u8],
     iterations: usize,
-) -> Result<Sha256Out, SCRAMError> {
+) -> Sha256Out {
     // Convert the password to a binary string - UTF8 is safe for SASL
     let p = password.as_bytes();
 
@@ -208,19 +446,7 @@ pub fn generate_salted_password(
     // The initial signature is the salt with a terminator of a 32-bit string ending in 1
     let mut ui = ui_p.clone();
 
-    // The salt needs to be base64 decoded -- full binary must be used
-    let mut buffer = [0; 1024];
-    if let Ok(n) = BASE64_STANDARD.decode_slice(salt, &mut buffer) {
-        ui.update(&buffer[..n]);
-    } else {
-        // In the unlikely case the salt is large -- note that we also fall back to this
-        // path for invalid base64 strings!
-        let mut buffer = vec![];
-        BASE64_STANDARD
-            .decode_vec(salt, &mut buffer)
-            .map_err(|_| SCRAMError::ProtocolError)?;
-        ui.update(&buffer);
-    }
+    ui.update(salt);
     ui.update(&[0, 0, 0, 1]);
 
     // Grab the initial digest
@@ -238,7 +464,7 @@ pub fn generate_salted_password(
         }
     }
 
-    Ok(u.as_slice().try_into().unwrap())
+    u.as_slice().try_into().unwrap()
 }
 
 fn generate_proof(
@@ -295,9 +521,9 @@ fn generate_proof(
 
 #[cfg(test)]
 mod tests {
-    use hex_literal::hex;
-
     use super::*;
+    use hex_literal::hex;
+    use rstest::rstest;
 
     // Define a set of test parameters
     const CLIENT_NONCE: &str = "2XendqvQOa6cl0+Q7Y6UU0gw";
@@ -309,63 +535,70 @@ mod tests {
     const CLIENT_PROOF: &[u8] = "p/HmDcOziQQnyF8fbVnJnlvwoLp1kZY4xsI9cCJhzCE=".as_bytes();
     const SERVER_VERIFY: &[u8] = "g/X0codOryF0nCOWh7KkIab23ZFPX99iLzN5Ghn3nNc=".as_bytes();
 
-    /// Various salted password testcases
-    #[test]
-    fn test_generate_salted_password() {
-        let hash = generate_salted_password("1234", "1234", 1).unwrap();
-        assert_eq!(
-            hash,
-            hex!("EBE7E5BA4BF5A4D178D3BADAADD4C49A98C72FCFF4FB357DA7090D584990FCAA")
-        );
-        let hash = generate_salted_password("1234", "1234", 2).unwrap();
-        assert_eq!(
-            hash,
-            hex!("F9271C334EE6CD7FEE63BBC86FAF951A4ED9E293BDD72AC33663BAE662D31953")
-        );
-        let hash = generate_salted_password("1234", "1234", 4096).unwrap();
-        assert_eq!(
-            hash,
-            hex!("4FF8D6443278AB43209DF5A1327949AAC99A5AA23921E5C9199626524776F751")
-        );
-        let hash = generate_salted_password(
-            "password",
-            "480I9uIaXEU9oB2RRcenOxN/RsOCy0BKJvyRSeuOtQ0cF0hu",
-            4096,
-        )
-        .unwrap();
-        assert_eq!(
-            hash,
-            hex!("E118A9AD43C87938659AD736E63F26BA2EBAF079AA351DB44AE29228FB4F7EF0")
-        );
-        let hash = generate_salted_password(
-            "secret",
-            "480I9uIaXEU9oB2RRcenOxN/RsOCy0BKJvyRSeuOtQ0cF0hu",
-            4096,
-        )
-        .unwrap();
-        assert_eq!(
-            hash,
-            hex!("77DFD8E62A4379296C9769F9BA2F77D503C4647DE7919B47D6CF121986981BCC")
-        );
-        let hash = generate_salted_password("secret", "t5YekvL6lgy4RyPnsiyqsg==", 4096).unwrap();
-        assert_eq!(
-            hash,
-            hex!("9FB413FE9F1D0C8020400A3D49CFBC47FBFB1251CEA9297630BD025DB2B65171")
-        );
-        let hash = generate_salted_password("😀", "t5YekvL6lgy4RyPnsiyqsg==", 4096).unwrap();
-        assert_eq!(
-            hash,
-            hex!("AF490CE1BEA2DDB585DAF9C3842D1528AB091EF6FAB2A92489870523A98835EE")
-        );
+    #[rstest]
+    #[case(
+        "1234",
+        "1234",
+        1,
+        hex!("EBE7E5BA4BF5A4D178D3BADAADD4C49A98C72FCFF4FB357DA7090D584990FCAA")
+    )]
+    #[case(
+        "1234",
+        "1234",
+        2,
+        hex!("F9271C334EE6CD7FEE63BBC86FAF951A4ED9E293BDD72AC33663BAE662D31953")
+    )]
+    #[case(
+        "1234",
+        "1234",
+        4096,
+        hex!("4FF8D6443278AB43209DF5A1327949AAC99A5AA23921E5C9199626524776F751")
+    )]
+    #[case(
+        "password",
+        "480I9uIaXEU9oB2RRcenOxN/RsOCy0BKJvyRSeuOtQ0cF0hu",
+        4096,
+        hex!("E118A9AD43C87938659AD736E63F26BA2EBAF079AA351DB44AE29228FB4F7EF0")
+    )]
+    #[case(
+        "secret",
+        "480I9uIaXEU9oB2RRcenOxN/RsOCy0BKJvyRSeuOtQ0cF0hu",
+        4096,
+        hex!("77DFD8E62A4379296C9769F9BA2F77D503C4647DE7919B47D6CF121986981BCC")
+    )]
+    #[case(
+        "secret",
+        "t5YekvL6lgy4RyPnsiyqsg==",
+        4096,
+        hex!("9FB413FE9F1D0C8020400A3D49CFBC47FBFB1251CEA9297630BD025DB2B65171")
+    )]
+    #[case(
+        "😀",
+        "t5YekvL6lgy4RyPnsiyqsg==",
+        4096,
+        hex!("AF490CE1BEA2DDB585DAF9C3842D1528AB091EF6FAB2A92489870523A98835EE")
+    )]
+    fn test_generate_salted_password(
+        #[case] password: &str,
+        #[case] salt: &str,
+        #[case] iterations: usize,
+        #[case] expected_hash: Sha256Out,
+    ) {
+        let mut buffer = [0; 128];
+        let salt = decode_salt(salt, &mut buffer).unwrap();
+        let hash = generate_salted_password(password, &salt, iterations);
+        assert_eq!(hash, expected_hash);
     }
 
     #[test]
     fn test_client_proof() {
-        let salted_password = generate_salted_password(PASSWORD, SALT, ITERATIONS).unwrap();
+        let mut buffer = [0; 128];
+        let salt = decode_salt(SALT, &mut buffer).unwrap();
+        let salted_password = generate_salted_password(PASSWORD, &salt, ITERATIONS);
         let (client, server) = generate_proof(
             format!("n={USERNAME},r={CLIENT_NONCE}").as_bytes(),
             format!("r={CLIENT_NONCE}{SERVER_NONCE},s={SALT},i={ITERATIONS}").as_bytes(),
-            b"biws",
+            CHANNEL_BINDING_ENCODED.as_bytes(),
             format!("{CLIENT_NONCE}{SERVER_NONCE}").as_bytes(),
             &salted_password,
         );
@@ -415,11 +648,65 @@ mod tests {
 
     #[test]
     fn test_client_final_message() {
-        b"c=biws,r=480I9uIaXEU9oB2RRcenOxN/RsOCy0BKJvyRSeuOtQ0cF0hu,p=7Vkz4SfWTNhB3hNdhTucC+3MaGmg3+PrAG3xfuepjP4=";
+        let message = b"c=biws,r=480I9uIaXEU9oB2RRcenOxN/RsOCy0BKJvyRSeuOtQ0cF0hu,p=7Vkz4SfWTNhB3hNdhTucC+3MaGmg3+PrAG3xfuepjP4=";
+        let decoded = ClientFinalMessage::decode(message).unwrap();
+        assert_eq!(decoded.channel_binding, "biws");
+        assert_eq!(decoded.combined_nonce, "480I9uIaXEU9oB2RRcenOxN/RsOCy0BKJvyRSeuOtQ0cF0hu");
+        assert_eq!(decoded.proof, "7Vkz4SfWTNhB3hNdhTucC+3MaGmg3+PrAG3xfuepjP4=");
+        let encoded = decoded.encode();
+        assert_eq!(encoded, "c=biws,r=480I9uIaXEU9oB2RRcenOxN/RsOCy0BKJvyRSeuOtQ0cF0hu,p=7Vkz4SfWTNhB3hNdhTucC+3MaGmg3+PrAG3xfuepjP4=");
     }
 
     #[test]
     fn test_server_final_response() {
-        b"v=a4quhtfOscMX9fUWUEiORZidZRSP8Z1e1S1NrtHe124=";
+        let message = b"v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=";
+        let decoded: ServerFinalResponse = ServerFinalResponse::decode(message).unwrap();
+        assert_eq!(decoded.verifier, "6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=");
+        let encoded = decoded.encode();
+        assert_eq!(encoded, "v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=");
+    }
+    
+    /// Run a SCRAM conversation with a fixed set of parameters
+    #[test]
+    fn test_transaction() {
+        let mut server = ServerTransaction::default();
+        let mut client = ClientTransaction::new("username".into());
+        
+        struct Env {}
+        impl ClientEnvironment for Env {
+            fn generate_nonce(&self) -> String {
+                "<<<client nonce>>>".into()
+            }
+            fn get_salted_password(&self, username: &str, salt: &[u8], iterations: usize) -> Sha256Out {
+                assert_eq!(username, "username");
+                generate_salted_password("password", salt, iterations)
+            }
+        }
+        impl ServerEnvironment for Env {
+            fn get_salted_password(&self, username: &str) -> Sha256Out {
+                assert_eq!(username, "username");
+                generate_salted_password("password", b"hello", 4096)
+            }
+            fn generate_nonce(&self) -> String {
+                "<<<server nonce>>>".into()
+            }
+            fn get_password_parameters(&self, username: &str) -> (Cow<'static, str>, usize) {
+                assert_eq!(username, "username");
+                (Cow::Borrowed("aGVsbG8="), 4096)
+            }
+        }
+        let env = Env {};
+
+        let message = client.process_message(&[], &env).unwrap().unwrap();
+        eprintln!("client: {:?}", String::from_utf8(message.clone()).unwrap());
+        let message = server.process_message(&message, &env).unwrap().unwrap();
+        eprintln!("server: {:?}", String::from_utf8(message.clone()).unwrap());
+        let message = client.process_message(&message, &env).unwrap().unwrap();
+        eprintln!("client: {:?}", String::from_utf8(message.clone()).unwrap());
+        let message = server.process_message(&message, &env).unwrap().unwrap();
+        eprintln!("server: {:?}", String::from_utf8(message.clone()).unwrap());
+        assert!(client.process_message(&message, &env).unwrap().is_none());
+        assert!(client.success());
+        assert!(server.success());
     }
 }

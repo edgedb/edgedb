@@ -328,6 +328,7 @@ macro_rules! basic_types {
                     if !buf.test(size) {
                         return;
                     }
+                    buf.write(&<$len>::to_be_bytes(value.len() as _));
                     for n in value {
                         buf.write(&<$ty>::to_be_bytes(*n));
                     }

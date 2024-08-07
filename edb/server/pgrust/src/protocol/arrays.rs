@@ -262,3 +262,9 @@ macro_rules! array_access {
     };
 }
 pub(crate) use array_access;
+
+impl <T> AsRef<[u8]> for Array<'_, T, u8> {
+    fn as_ref(&self) -> &[u8] {
+        &self.buf[..self.len as _]
+    }
+}

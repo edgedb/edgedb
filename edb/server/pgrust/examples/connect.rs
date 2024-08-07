@@ -14,6 +14,18 @@ struct Args {
     /// Unix socket path
     #[clap(short = 'u', long = "unix", value_parser, conflicts_with = "tcp")]
     unix: Option<String>,
+
+    /// Username to use for the connection
+    #[clap(short = 'U', long = "username", value_parser, default_value = "postgres")]
+    username: String,
+
+    /// Username to use for the connection
+    #[clap(short = 'P', long = "password", value_parser, default_value = "")]
+    password: String,
+
+    /// Database to use for the connection
+    #[clap(short = 'd', long = "database", value_parser, default_value = "postgres")]
+    database: String,
 }
 
 #[tokio::main]
@@ -29,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Connect to the unix stream socket
             let socket = UnixSocket::new_stream()?;
             let client = socket.connect(path).await?;
-            let mut conn = PGConn::new(client);
+            let mut conn = PGConn::new(client, args.username, args.password, args.database);
             conn.connect().await?;
         }
         _ => return Err("Must specify either a TCP address or a Unix socket path".into()),
