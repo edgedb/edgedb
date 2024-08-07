@@ -294,7 +294,7 @@ def _build_insert_stmt(n: Node, c: Context) -> pgast.InsertStmt:
     return pgast.InsertStmt(
         relation=_build_rel_range_var(n["relation"], c),
         returning_list=(
-            _maybe_list(n, c, "returningList", _build_res_target) or None
+            _maybe_list(n, c, "returningList", _build_res_target) or []
         ),
         cols=_maybe_list(n, c, "cols", _build_insert_target),
         select_stmt=_maybe(n, c, "selectStmt", _build_stmt),
@@ -1074,7 +1074,6 @@ def _build_res_target(n: Node, c: Context) -> pgast.ResTarget:
     n = _unwrap(n, "ResTarget")
     return pgast.ResTarget(
         name=_maybe(n, c, "name", _build_str),
-        indirection=_maybe_list(n, c, "indirection", _build_indirection_op),
         val=_build_base_expr(n["val"], c),
         span=_build_span(n, c),
     )
