@@ -408,6 +408,7 @@ VALUE_FUNC_USER = frozenset({
     val_func_op.SESSION_USER,
 })
 
+
 @eval.register
 def eval_SQLValueFunction(
     expr: pgast.SQLValueFunction,
