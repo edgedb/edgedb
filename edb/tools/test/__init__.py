@@ -111,6 +111,8 @@ __all__ = ('async_timeout', 'not_implemented', 'xerror', 'xfail', '_xfail',
               help='attempt to use a cache of the test databases (unsound!)')
 @click.option('--data-dir', type=str,
               help='use a specified data dir')
+@click.option('--use-data-dir-dbs', is_flag=True,
+              help='attempt to use setup databases in the data-dir')
 def test(
     *,
     files: typing.Sequence[str],
@@ -132,6 +134,7 @@ def test(
     backend_dsn: typing.Optional[str],
     use_db_cache: bool,
     data_dir: typing.Optional[str],
+    use_data_dir_dbs: bool,
     result_log: str,
     include_unsuccessful: bool,
 ):
@@ -211,6 +214,7 @@ def test(
         backend_dsn=backend_dsn,
         try_cached_db=use_db_cache,
         data_dir=data_dir,
+        use_data_dir_dbs=use_data_dir_dbs,
         result_log=result_log,
         include_unsuccessful=include_unsuccessful,
     )
@@ -305,6 +309,7 @@ def _run(
     backend_dsn: typing.Optional[str],
     try_cached_db: bool,
     data_dir: typing.Optional[str],
+    use_data_dir_dbs: bool,
     result_log: str,
     include_unsuccessful: bool,
 ):
@@ -376,7 +381,10 @@ def _run(
             verbosity=verbosity, output_format=output_format,
             warnings=warnings, num_workers=jobs,
             failfast=failfast, shuffle=shuffle, backend_dsn=backend_dsn,
-            try_cached_db=try_cached_db, data_dir=data_dir)
+            try_cached_db=try_cached_db,
+            data_dir=data_dir,
+            use_data_dir_dbs=use_data_dir_dbs,
+        )
 
         result = test_runner.run(
             suite, selected_shard, total_shards, running_times_log_file,

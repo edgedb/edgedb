@@ -2029,13 +2029,21 @@ def test_cases_use_server(cases: Iterable[unittest.TestCase]) -> bool:
 
 
 async def setup_test_cases(
-        cases, conn, num_jobs, try_cached_db=False, verbose=False):
+    cases,
+    conn,
+    num_jobs,
+    try_cached_db=False,
+    skip_empty_databases=False,
+    verbose=False,
+):
     setup = get_test_cases_setup(cases)
 
     stats = []
     if num_jobs == 1:
         # Special case for --jobs=1
         for _case, dbname, setup_script in setup:
+            if skip_empty_databases and not setup_script:
+                continue
             await _setup_database(
                 dbname, setup_script, conn, stats, try_cached_db)
             if verbose:
@@ -2055,6 +2063,9 @@ async def setup_test_cases(
                         print(f' -> {dbname}: OK', flush=True)
 
             for _case, dbname, setup_script in setup:
+                if skip_empty_databases and not setup_script:
+                    continue
+
                 g.create_task(controller(
                     _setup_database, dbname, setup_script, conn, stats,
                     try_cached_db))
