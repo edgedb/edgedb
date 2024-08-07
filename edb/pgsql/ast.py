@@ -627,9 +627,10 @@ class Query(ReturningQuery):
 
 class DMLQuery(Query):
     """Generic superclass for INSERT/UPDATE/DELETE statements."""
+    __abstract_node__ = True
 
     # Target relation to perform the operation on.
-    relation: typing.Optional[PathRangeVar] = None
+    relation: RelRangeVar
     # List of expressions returned
     returning_list: typing.List[ResTarget] = ast.field(factory=list)
 

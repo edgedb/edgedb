@@ -292,7 +292,7 @@ def _build_select_stmt(n: Node, c: Context) -> pgast.SelectStmt:
 
 def _build_insert_stmt(n: Node, c: Context) -> pgast.InsertStmt:
     return pgast.InsertStmt(
-        relation=_maybe(n, c, "relation", _build_rel_range_var),
+        relation=_build_rel_range_var(n["relation"], c),
         returning_list=(
             _maybe_list(n, c, "returningList", _build_res_target) or []
         ),
@@ -305,7 +305,7 @@ def _build_insert_stmt(n: Node, c: Context) -> pgast.InsertStmt:
 
 def _build_update_stmt(n: Node, c: Context) -> pgast.UpdateStmt:
     return pgast.UpdateStmt(
-        relation=_maybe(n, c, "relation", _build_rel_range_var),
+        relation=_build_rel_range_var(n["relation"], c),
         targets=_build_targets(n, c, "targetList") or [],
         where_clause=_maybe(n, c, "whereClause", _build_base_expr),
         from_clause=(
@@ -317,7 +317,7 @@ def _build_update_stmt(n: Node, c: Context) -> pgast.UpdateStmt:
 
 def _build_delete_stmt(n: Node, c: Context) -> pgast.DeleteStmt:
     return pgast.DeleteStmt(
-        relation=_maybe(n, c, "relation", _build_rel_range_var),
+        relation=_build_rel_range_var(n["relation"], c),
         returning_list=(
             _maybe_list(n, c, "returningList", _build_res_target) or []
         ),
