@@ -663,6 +663,11 @@ class TestSQLParse(tb.BaseDocTest):
         (board[1:3][1:3], finished) = ('{{,,},{,,},{,,}}', FALSE)
         """
 
+    def test_sql_parse_update_13(self):
+        """
+        UPDATE tictactoe SET a = a RETURNING *
+        """
+
     def test_sql_parse_delete(self):
         """
         DELETE FROM dataset USING table_one

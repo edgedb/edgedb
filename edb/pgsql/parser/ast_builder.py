@@ -311,6 +311,9 @@ def _build_update_stmt(n: Node, c: Context) -> pgast.UpdateStmt:
         from_clause=(
             _maybe_list(n, c, "fromClause", _build_base_range_var) or []
         ),
+        returning_list=(
+            _maybe_list(n, c, "returningList", _build_res_target) or []
+        ),
         ctes=_maybe(n, c, "withClause", _build_ctes),
     )
 
