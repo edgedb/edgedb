@@ -1787,9 +1787,12 @@ def process_update_body(
             ),
             from_clause=[contents_rvar],
             targets=[
-                pgast.UpdateTarget(
-                    name=[not_none(value.name) for value, _ in values],
-                    val=pgast.SelectStmt(
+                pgast.MultiAssignRef(
+                    columns=[
+                        pgast.ColumnRef(name=not_none(value.name))
+                        for value, _ in values
+                    ],
+                    source=pgast.SelectStmt(
                         target_list=[
                             pgast.ResTarget(
                                 val=pgast.ColumnRef(

@@ -513,7 +513,7 @@ class UpdateTarget(ImmutableBaseExpr):
     """Query update target."""
 
     # column names
-    name: str | typing.List[str]
+    name: str
     # value expression to assign
     val: BaseExpr
     # subscripts, field names and '*'
