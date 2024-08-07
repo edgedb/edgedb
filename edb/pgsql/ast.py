@@ -893,7 +893,7 @@ class MultiAssignRef(ImmutableBase):
     # row-valued expression
     source: BaseExpr
     # list of columns to assign to
-    columns: typing.List[ColumnRef]
+    columns: typing.List[str]
 
 
 class SortBy(ImmutableBase):

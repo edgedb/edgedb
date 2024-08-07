@@ -162,7 +162,7 @@ def compile_ConfigSet(
                 ),
                 target_list=[
                     pgast.MultiAssignRef(
-                        columns=[pgast.ColumnRef(name=['value'])],
+                        columns=['value'],
                         source=pgast.RowExpr(
                             args=[
                                 val,
@@ -227,7 +227,7 @@ def compile_ConfigSet(
                 ),
                 target_list=[
                     pgast.MultiAssignRef(
-                        columns=[pgast.ColumnRef(name=['value'])],
+                        columns=['value'],
                         source=pgast.RowExpr(
                             args=[
                                 val,
@@ -785,7 +785,7 @@ def top_output_as_config_op(
                 ),
                 target_list=[
                     pgast.MultiAssignRef(
-                        columns=[pgast.ColumnRef(name=['value'])],
+                        columns=['value'],
                         source=pgast.RowExpr(
                             args=[
                                 upd_val,

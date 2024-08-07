@@ -1096,7 +1096,7 @@ def _build_update_targets(
         if first_mar := val.get("MultiAssignRef", None):
             ncolumns = first_mar['ncolumns']
 
-            columns: List[pgast.ColumnRef] = []
+            columns: List[str] = []
             for _ in range(ncolumns):
                 target = target_list.pop(0)
                 mar = target['ResTarget']
@@ -1106,7 +1106,7 @@ def _build_update_targets(
                         val, f"multi-assign SET with indirection"
                     )
 
-                columns.append(_as_column_ref(mar['name']))
+                columns.append(mar['name'])
 
             targets.append(_build_multi_assign_ref(first_mar, columns, c))
         else:
@@ -1117,7 +1117,7 @@ def _build_update_targets(
 
 
 def _build_multi_assign_ref(
-    n: Node, columns: List[pgast.ColumnRef], c: Context
+    n: Node, columns: List[str], c: Context
 ) -> pgast.MultiAssignRef:
     return pgast.MultiAssignRef(
         source=_build_base_expr(n['source'], c),

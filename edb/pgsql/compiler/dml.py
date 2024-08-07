@@ -1788,10 +1788,7 @@ def process_update_body(
             from_clause=[contents_rvar],
             targets=[
                 pgast.MultiAssignRef(
-                    columns=[
-                        pgast.ColumnRef(name=not_none(value.name))
-                        for value, _ in values
-                    ],
+                    columns=[not_none(value.name) for value, _ in values],
                     source=pgast.SelectStmt(
                         target_list=[
                             pgast.ResTarget(
@@ -2779,9 +2776,9 @@ def process_link_update(
         ]
 
         target_cols = [
-            col
+            col.name[0]
             for col in cols
-            if col.name[0] not in conflict_cols
+            if isinstance(col.name[0], str) and col.name[0] not in conflict_cols
         ]
 
         if len(target_cols) == 0:
@@ -2794,7 +2791,7 @@ def process_link_update(
         else:
             conflict_data = pgast.RowExpr(
                 args=[
-                    pgast.ColumnRef(name=['excluded', col.name[0]])
+                    pgast.ColumnRef(name=['excluded', col])
                     for col in target_cols
                 ],
             )

@@ -563,7 +563,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_MultiAssignRef(self, node: pgast.MultiAssignRef) -> None:
         self.write('(')
-        self.visit_list(node.columns, newlines=False)
+        for index, col in enumerate(node.columns):
+            if index > 0:
+                self.write(', ')
+            self.write(common.quote_col(col))
         self.write(') = ')
         self.visit(node.source)
 
