@@ -2458,22 +2458,19 @@ class _EdgeDBServer:
             nonlocal output
             # Tee the log temporarily to a tempfile that exists as long as the
             # test is running. This helps debug hanging tests.
-            with tempfile.NamedTemporaryFile(mode='w+t',
-                                             prefix='edgedb-test-log-',
-                                             delete=False) as temp_file:
+            with tempfile.NamedTemporaryFile(
+                mode='w+t',
+                prefix='edgedb-test-log-') as temp_file:
                 if self.debug:
                     print(f"Logging to {temp_file.name}")
-                try:
-                    while True:
-                        line = await self.proc.stdout.readline()
-                        if not line:
-                            break
-                        output += line
-                        temp_file.write(line.decode(errors='ignore'))
-                        if self.debug:
-                            print(line.decode(errors='ignore'), end='')
-                finally:
-                    os.remove(temp_file.name)
+                while True:
+                    line = await self.proc.stdout.readline()
+                    if not line:
+                        break
+                    output += line
+                    temp_file.write(line.decode(errors='ignore'))
+                    if self.debug:
+                        print(line.decode(errors='ignore'), end='')
 
         stdout_task = asyncio.create_task(read_stdout())
 
