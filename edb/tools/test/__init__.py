@@ -36,6 +36,7 @@ from edb.common import devmode
 from edb.testbase.server import get_test_cases
 from edb.tools.edb import edbcommands
 
+from .decorators import async_timeout
 from .decorators import not_implemented
 from .decorators import _xfail
 from .decorators import xfail
@@ -49,7 +50,8 @@ from . import styles
 from . import results
 
 
-__all__ = ('not_implemented', 'xerror', 'xfail', '_xfail', 'skip')
+__all__ = ('async_timeout', 'not_implemented', 'xerror', 'xfail', '_xfail',
+           'skip')
 
 
 @edbcommands.command()
