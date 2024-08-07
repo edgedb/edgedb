@@ -54,6 +54,7 @@ import unittest.mock
 
 from edb.server import connpool
 from edb.server.connpool import pool as pool_impl
+from edb.tools.test import async_timeout
 
 # TIME_SCALE is used to run the simulation for longer time, the default is 1x.
 TIME_SCALE = int(os.environ.get("TIME_SCALE", '1'))
@@ -1331,6 +1332,7 @@ class TestServerConnectionPool(unittest.TestCase):
             event.set()
             pool.release('aaa', conn)
 
+        @async_timeout(timeout=5)
         async def test(delay: float):
             event = asyncio.Event()
 
@@ -1348,8 +1350,8 @@ class TestServerConnectionPool(unittest.TestCase):
                 g.create_task(q2(pool, event))
 
         async def main():
-            await asyncio.wait_for(test(0.05), timeout=5)
-            await asyncio.wait_for(test(0.000001), timeout=5)
+            await test(0.05)
+            await test(0.000001)
 
         asyncio.run(main())
 
@@ -1364,6 +1366,7 @@ class TestServerConnectionPool(unittest.TestCase):
             # print('RELEASE', db)
             pool.release(db, conn)
 
+        @async_timeout(timeout=5)
         async def test(delay: float):
             e1 = asyncio.Event()
             e2 = asyncio.Event()
@@ -1388,7 +1391,7 @@ class TestServerConnectionPool(unittest.TestCase):
                 e1.set()
 
         async def main():
-            await asyncio.wait_for(test(0.05), timeout=5)
+            await test(0.05)
 
         asyncio.run(main())
 
@@ -1410,6 +1413,7 @@ class TestServerConnectionPool(unittest.TestCase):
     @unittest.mock.patch('edb.server.connpool.pool.MIN_LOG_TIME_THRESHOLD',
                          0.2)
     def test_connpool_log_batching(self, logger: MockLogger):
+        @async_timeout(timeout=5)
         async def test():
             pool = connpool.Pool(
                 connect=self.make_fake_connect(),
@@ -1446,7 +1450,7 @@ class TestServerConnectionPool(unittest.TestCase):
 
         async def main():
             logger.logs = asyncio.Queue()
-            await asyncio.wait_for(test(), timeout=5)
+            await test()
 
         asyncio.run(main())
 
@@ -1465,6 +1469,7 @@ class TestServerConnectionPool(unittest.TestCase):
             nonlocal disconnect_called_num
             disconnect_called_num += 1
 
+        @async_timeout(timeout=1)
         async def test():
             pool = connpool.Pool(
                 connect=fake_connect,
@@ -1481,7 +1486,7 @@ class TestServerConnectionPool(unittest.TestCase):
             self.assertEqual(disconnect_called_num, 0)
 
         async def main():
-            await asyncio.wait_for(test(), timeout=1)
+            await test()
 
         asyncio.run(main())
 
@@ -1526,6 +1531,7 @@ class TestServerConnectionPool(unittest.TestCase):
                 else:
                     return await connect(dbname)
 
+        @async_timeout(timeout=5)
         async def test():
             pool = connpool.Pool(
                 connect=fake_connect,
@@ -1552,7 +1558,7 @@ class TestServerConnectionPool(unittest.TestCase):
 
         async def main():
             logger.logs = asyncio.Queue()
-            await asyncio.wait_for(test(), timeout=5)
+            await test()
 
         asyncio.run(main())
 
@@ -1561,6 +1567,7 @@ class TestServerConnectionPool(unittest.TestCase):
             # very fast connect
             return FakeConnection(dbname)
 
+        @async_timeout(timeout=3)
         async def test():
             pool = connpool.Pool(
                 connect=fake_connect,
@@ -1585,7 +1592,7 @@ class TestServerConnectionPool(unittest.TestCase):
                     g.create_task(job(f"block_{n}"))
 
         async def main():
-            await asyncio.wait_for(test(), timeout=3)
+            await test()
 
         asyncio.run(main())
 
