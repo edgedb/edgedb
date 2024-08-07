@@ -706,6 +706,10 @@ class TestEdgeQLVector(tb.QueryTestCase):
             else:
                 return False
 
+        await self.con.query_single(
+            'select _set_config("enable_seqscan", "off")'
+        )
+
         plan = await self.con.query_json(f'analyze {query}', *args)
         if not look(json.loads(plan)):
             raise AssertionError(f'query did not use {index_type} index')

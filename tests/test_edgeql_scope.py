@@ -2462,7 +2462,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                         name,
                         owners: {
                             name
-                        },
+                        } ORDER BY .name,
                     } ORDER BY .name
                 } FILTER .name = 'Alice';
             """,
@@ -3929,10 +3929,10 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 filter .name = 'Djinn';
             ''',
             [
-                {"name": "Djinn", "owners": [
-                    {"name": "Carol"}, {"name": "Dave"}]},
-                {"name": "Djinn", "owners": [
-                    {"name": "Carol"}, {"name": "Dave"}]}
+                {"name": "Djinn", "owners": tb.bag([
+                    {"name": "Carol"}, {"name": "Dave"}])},
+                {"name": "Djinn", "owners": tb.bag([
+                    {"name": "Carol"}, {"name": "Dave"}])},
             ],
         )
 

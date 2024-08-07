@@ -57,7 +57,9 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         con = (con or self.con)
         # Disable sequential scan so that we hit the index even on small
         # datasets.
-        await con.query_single('select _set_seqscan("off")')
+        await self.con.query_single(
+            'select _set_config("enable_seqscan", "off")'
+        )
         no_ex = '(execute := False) ' if not execute else ''
         return json.loads(await con.query_single(
             f'analyze {no_ex}{query}'

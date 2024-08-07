@@ -338,7 +338,9 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                 return False
 
         async with self._run_and_rollback():
-            await self.con.execute('select _set_seqscan("off");')
+            await self.con.query_single(
+                'select _set_config("enable_seqscan", "off")'
+            )
             plan = await self.con.query_json(f'analyze {query};', *args)
         if not look(json.loads(plan)):
             raise AssertionError(f'query did not use ext::ai::index index')

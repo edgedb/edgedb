@@ -3979,27 +3979,27 @@ class TestUpdate(tb.QueryTestCase):
             [
                 {
                     'name': 'update-test1',
-                    'weighted_tags': [
+                    'weighted_tags': tb.bag([
                         {'name': 'fun', '@note': 'a'},
                         {'name': 'boring', '@note': 'a'},
                         {'name': 'wow', '@note': 'a'}
-                    ],
+                    ]),
                 },
                 {
                     'name': 'update-test2',
-                    'weighted_tags': [
+                    'weighted_tags': tb.bag([
                         {'name': 'fun', '@note': 'a'},
                         {'name': 'boring', '@note': 'a'},
                         {'name': 'wow', '@note': 'a'}
-                    ],
+                    ]),
                 },
                 {
                     'name': 'update-test3',
-                    'weighted_tags': [
+                    'weighted_tags': tb.bag([
                         {'name': 'fun', '@note': 'a'},
                         {'name': 'boring', '@note': 'a'},
                         {'name': 'wow', '@note': 'a'}
-                    ],
+                    ]),
                 },
             ],
         )
