@@ -307,7 +307,7 @@ def _preprocess_insert_object_stmt(
     """
 
     # handle DEFAULT and prepare the value relation
-    value_relation, expected_columns = _preprocess_insert_value(
+    value_relation, expected_columns = _preprocess_default_value(
         stmt.select_stmt, stmt.ctes, expected_columns
     )
 
@@ -360,7 +360,7 @@ def _preprocess_insert_object_stmt(
 
         # prepare insert shape that will use the paths from source_outputs
         insert_shape.append(
-            _construct_insert_element_for_ptr(
+            _construct_assign_element_for_ptr(
                 value_ql,
                 ptr_name,
                 ptr,
@@ -429,7 +429,7 @@ def _preprocess_insert_object_stmt(
     )
 
 
-def _construct_insert_element_for_ptr(
+def _construct_assign_element_for_ptr(
     source_ql: qlast.PathElement,
     ptr_name: str,
     ptr: s_pointers.Pointer,
@@ -494,7 +494,7 @@ def _preprocess_insert_pointer_stmt(
     assert sub_target
 
     # handle DEFAULT and prepare the value relation
-    value_relation, expected_columns = _preprocess_insert_value(
+    value_relation, expected_columns = _preprocess_default_value(
         stmt.select_stmt, stmt.ctes, expected_columns
     )
 
@@ -703,7 +703,7 @@ def _has_at_most_one_row(query: pgast.Query | None) -> bool:
     )
 
 
-def _preprocess_insert_value(
+def _preprocess_default_value(
     value_query: Optional[pgast.Query],
     value_ctes: Optional[List[pgast.CommonTableExpr]],
     expected_columns: List[context.Column],
@@ -1099,6 +1099,245 @@ def _preprocess_delete_pointer_stmt(
     )
 
 
+@_preprocess_dml_stmt.register
+def _preprocess_update_stmt(
+    stmt: pgast.UpdateStmt, *, ctx: Context
+) -> PreprocessedDML:
+    # determine the subject object
+    sub_table, sub = _preprocess_dml_subject(stmt.relation, ctx=ctx)
+
+    # convert the general repr of SET clause into a list of columns
+    update_targets: List[pgast.UpdateTarget] = []
+    for target in stmt.targets:
+        if isinstance(target, pgast.UpdateTarget):
+            if target.indirection:
+                raise errors.QueryError(
+                    'indirections in UPDATE SET not supported',
+                    pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
+                    span=stmt.span,
+                )
+
+            update_targets.append(target)
+        elif isinstance(target, pgast.MultiAssignRef):
+
+            if not isinstance(
+                target.source, (pgast.ImplicitRowExpr, pgast.RowExpr)
+            ):
+                raise errors.QueryError(
+                    'multi-assigns UPDATE SET are supported only for plain row '
+                    'literals (`ROW(...)`)',
+                    pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
+                    span=stmt.span,
+                )
+
+            update_targets.extend(
+                pgast.UpdateTarget(name=c, val=v, span=v.span)
+                for (c, v) in zip(target.columns, target.source.args)
+            )
+        else:
+            raise NotImplementedError()
+
+    set_columns = _pull_columns_from_table(
+        sub_table,
+        ((c.name, c.span) for c in update_targets),
+    )
+    column_updates = list(zip(set_columns, (c.val for c in update_targets)))
+
+    res: PreprocessedDML
+    if isinstance(sub, s_objtypes.ObjectType):
+        res = _preprocess_update_object_stmt(
+            stmt, sub, sub_table, column_updates, ctx=ctx
+        )
+    elif isinstance(sub, (s_links.Link, s_properties.Property)):
+        raise errors.QueryError(
+            f'UPDATE of link tables is not supported',
+            pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
+            span=stmt.span,
+        )
+    else:
+        raise NotImplementedError()
+
+    if stmt.returning_list:
+        _preprocess_subject_columns(sub, sub_table, res, ctx=ctx)
+    return res
+
+
+def _preprocess_update_object_stmt(
+    stmt: pgast.UpdateStmt,
+    sub: s_objtypes.ObjectType,
+    sub_table: context.Table,
+    column_updates: List[Tuple[context.Column, pgast.BaseExpr]],
+    *,
+    ctx: Context,
+) -> PreprocessedDML:
+    """
+    Translates a 'SQL UPDATE into an object type table' to an EdgeQL update.
+    """
+
+    for _c, v in column_updates:
+        if isinstance(v, pgast.Keyword):
+            raise errors.QueryError(
+                f'Keyword {v.name} within UPDATE is not supported',
+                pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
+                span=v.span,
+            )
+
+    # prepare value relation
+
+    # For updates, value relation contains:
+    # - `id` column, that contains the id of the subject,
+    # - one column for each of the pointers on the subject to be updated,
+    # We construct this relation from WHERE and FROM clauses of UPDATE.
+
+    assert isinstance(stmt.relation, pgast.RelRangeVar)
+    val_sub_rvar = stmt.relation.alias.aliasname or stmt.relation.relation.name
+    assert val_sub_rvar
+    value_relation = pgast.SelectStmt(
+        ctes=stmt.ctes,
+        target_list=[
+            pgast.ResTarget(
+                val=pgast.ColumnRef(
+                    name=(val_sub_rvar, 'id'),
+                )
+            )
+        ]
+        + [pgast.ResTarget(val=val, name=c.name) for c, val in column_updates],
+        from_clause=[
+            pgast.RelRangeVar(
+                relation=stmt.relation.relation,
+                alias=pgast.Alias(aliasname=val_sub_rvar),
+            )
+        ]
+        + stmt.from_clause,
+        where_clause=stmt.where_clause,
+    )
+    stmt.ctes = []
+
+    # prepare anchors for inserted value columns
+    value_name = ctx.alias_generator.get('upd_val')
+    value_id = irast.PathId.from_type(
+        ctx.schema,
+        sub,
+        typename=sn.QualName('__derived__', value_name),
+        env=None,
+    )
+
+    # TODO: handle DEFAULT and prepare the value relation
+
+    # prepare anchors for inserted value columns
+    value_name = ctx.alias_generator.get('ins_val')
+    iterator_name = ctx.alias_generator.get('ins_iter')
+    value_id = irast.PathId.from_type(
+        ctx.schema,
+        sub,
+        typename=sn.QualName('__derived__', value_name),
+        env=None,
+    )
+
+    value_ql: qlast.PathElement = qlast.ObjectRef(name=iterator_name)
+
+    # a phantom relation that is supposed to hold the inserted value
+    # (in the resolver, this will be replaced by the real value relation)
+    value_cte_name = ctx.alias_generator.get('ins_value')
+    value_rel = pgast.Relation(name=value_cte_name)
+
+    output_var = pgast.ColumnRef(name=('id',))
+    value_rel.path_outputs[(value_id, pgce.PathAspect.ITERATOR)] = output_var
+    value_rel.path_outputs[(value_id, pgce.PathAspect.VALUE)] = output_var
+
+    value_columns = [('id', False)]
+    update_shape = []
+    for index, (col, _val) in enumerate(column_updates):
+        ptr, ptr_name, is_link = _get_pointer_for_column(col, sub, ctx)
+        value_columns.append((ptr_name, is_link))
+
+        # inject type annotation into value relation
+        if is_link:
+            _try_inject_type_cast(
+                value_relation, index + 1, pgast.TypeName(name=('uuid',))
+            )
+
+        # prepare the outputs of the source CTE
+        ptr_id = _get_ptr_id(value_id, ptr, ctx)
+        output_var = pgast.ColumnRef(name=(ptr_name,), nullable=True)
+        if is_link:
+            value_rel.path_outputs[(ptr_id, pgce.PathAspect.IDENTITY)] = (
+                output_var
+            )
+            value_rel.path_outputs[(ptr_id, pgce.PathAspect.VALUE)] = output_var
+        else:
+            value_rel.path_outputs[(ptr_id, pgce.PathAspect.VALUE)] = output_var
+
+        # prepare insert shape that will use the paths from source_outputs
+        update_shape.append(
+            _construct_assign_element_for_ptr(
+                value_ql,
+                ptr_name,
+                ptr,
+                is_link,
+                ctx,
+            )
+        )
+
+    # construct the EdgeQL DML AST
+    sub_name = sub.get_name(ctx.schema)
+    ql_sub_ref = s_utils.name_to_ast_ref(sub_name)
+
+    ql_stmt: qlast.Expr = qlast.UpdateQuery(
+        subject=qlast.Path(steps=[ql_sub_ref]),
+        where=qlast.BinOp(  # ObjectType == value.source
+            left=qlast.Path(steps=[ql_sub_ref]),
+            op='=',
+            right=qlast.Path(steps=[value_ql]),
+        ),
+        shape=update_shape,
+    )
+
+    # value relation might contain multiple rows
+    # to express this in EdgeQL, we must wrap `update` into a `for` query
+    ql_stmt = qlast.ForQuery(
+        iterator=qlast.Path(steps=[qlast.IRAnchor(name=value_name)]),
+        iterator_alias=iterator_name,
+        result=ql_stmt,
+    )
+
+    ql_returning_shape: List[qlast.ShapeElement] = []
+    if stmt.returning_list:
+        # construct the shape that will extract all needed column of the subject
+        # table (because they might be be used by RETURNING clause)
+        for column in sub_table.columns:
+            if column.hidden:
+                continue
+            _, ptr_name, _ = _get_pointer_for_column(column, sub, ctx)
+            ql_returning_shape.append(
+                qlast.ShapeElement(
+                    expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
+                )
+            )
+
+    return PreprocessedDML(
+        input=stmt,
+        subject=sub,
+        ql_stmt=ql_stmt,
+        ql_returning_shape=ql_returning_shape,
+        ql_singletons={value_id},
+        ql_anchors={value_name: value_id},
+        external_rels={value_id: (value_rel, ('source', 'identity'))},
+        early_result=context.CompiledDML(
+            value_cte_name=value_cte_name,
+            value_relation_input=value_relation,
+            value_columns=value_columns,
+            value_iterator_name=None,
+            # these will be populated after compilation
+            output_ctes=[],
+            output_relation_name='',
+            output_namespace={},
+        ),
+        # these will be populated by _preprocess_dml_stmt
+        subject_columns=[],
+    )
+
+
 def _compile_preprocessed_dml(
     stmts: List[PreprocessedDML], ctx: context.ResolverContextLevel
 ) -> Tuple[
@@ -1314,8 +1553,8 @@ def _merge_and_prepare_external_rels(
 
 
 @dispatch._resolve_relation.register
-def resolve_InsertStmt(
-    stmt: pgast.InsertStmt, *, include_inherited: bool, ctx: Context
+def resolve_DMLQuery(
+    stmt: pgast.DMLQuery, *, include_inherited: bool, ctx: Context
 ) -> Tuple[pgast.Query, context.Table]:
     assert stmt.relation
 
@@ -1329,6 +1568,14 @@ def resolve_InsertStmt(
 
     compiled_dml = ctx.compiled_dml[stmt]
 
+    _resolve_dml_value_rel(compiled_dml, ctx=ctx)
+
+    ctx.ctes_buffer.extend(compiled_dml.output_ctes)
+
+    return _fini_resolve_dml(stmt, compiled_dml, ctx=ctx)
+
+
+def _resolve_dml_value_rel(compiled_dml: context.CompiledDML, *, ctx: Context):
     # resolve the value relation
     with ctx.child() as sctx:
         # this subctx is needed so it is not deemed as top-level which would
@@ -1341,139 +1588,71 @@ def resolve_InsertStmt(
         val_rel, val_table = dispatch.resolve_relation(
             compiled_dml.value_relation_input, ctx=sctx
         )
+        assert isinstance(val_rel, pgast.Query)
+
     if len(compiled_dml.value_columns) != len(val_table.columns):
         col_names = ', '.join(c for c, _ in compiled_dml.value_columns)
         raise errors.QueryError(
-            f'INSERT expected {len(compiled_dml.value_columns)} columns, '
-            f'but got {len(val_table.columns)} (expecting {col_names})',
+            f'INSERT expected {len(compiled_dml.value_columns)} columns '
+            f'({col_names}), but got {len(val_table.columns)}',
             span=compiled_dml.value_relation_input.span,
         )
 
-    # wrap the value relation, to we can add type casts for link ids
-    value_target_list: List[pgast.ResTarget] = []
-    for val_col, (ptr_name, cast_to_uuid) in zip(
-        val_table.columns, compiled_dml.value_columns
-    ):
-
-        # prepare pre-projection of this pointer value
-        val_col_pg = pg_res_expr.resolve_column_kind(
-            val_table, val_col.kind, ctx=ctx
-        )
-        if cast_to_uuid:
-            val_col_pg = pgast.TypeCast(
-                arg=val_col_pg, type_name=pgast.TypeName(name=('uuid',))
-            )
-        value_target_list.append(pgast.ResTarget(name=ptr_name, val=val_col_pg))
-
-    # source needs an iterator column, so we need to invent one
-    # The name of the column was invented before (in pre-processing) so it could
-    # be used in DML CTEs.
-    assert compiled_dml.value_iterator_name
-    value_target_list.append(
-        pgast.ResTarget(
-            name=compiled_dml.value_iterator_name,
-            val=pgast.FuncCall(
-                name=('edgedb', 'uuid_generate_v4'),
-                args=(),
-            ),
-        )
-    )
-
-    assert isinstance(val_rel, pgast.Query)
     if val_rel.ctes:
         ctx.ctes_buffer.extend(val_rel.ctes)
         val_rel.ctes = None
-    value_cte = pgast.CommonTableExpr(
-        name=compiled_dml.value_cte_name,
-        query=pgast.SelectStmt(
+
+    # wrap the value relation into a "pre-projection",
+    # so we can add type casts for link ids and an iterator column
+    pre_projection_needed = compiled_dml.value_iterator_name or (
+        any(cast_to_uuid for _, cast_to_uuid in compiled_dml.value_columns)
+    )
+    if pre_projection_needed:
+        value_target_list: List[pgast.ResTarget] = []
+        for val_col, (ptr_name, cast_to_uuid) in zip(
+            val_table.columns, compiled_dml.value_columns
+        ):
+            # prepare pre-projection of this pointer value
+            val_col_pg = pg_res_expr.resolve_column_kind(
+                val_table, val_col.kind, ctx=ctx
+            )
+            if cast_to_uuid:
+                val_col_pg = pgast.TypeCast(
+                    arg=val_col_pg, type_name=pgast.TypeName(name=('uuid',))
+                )
+            value_target_list.append(
+                pgast.ResTarget(name=ptr_name, val=val_col_pg)
+            )
+
+        if compiled_dml.value_iterator_name:
+            # source needs an iterator column, so we need to invent one
+            # The name of the column was invented before (in pre-processing) so
+            # it could be used in DML CTEs.
+            value_target_list.append(
+                pgast.ResTarget(
+                    name=compiled_dml.value_iterator_name,
+                    val=pgast.FuncCall(
+                        name=('edgedb', 'uuid_generate_v4'),
+                        args=(),
+                    ),
+                )
+            )
+
+        val_rel = pgast.SelectStmt(
             from_clause=[pgast.RangeSubselect(subquery=val_rel)],
             target_list=value_target_list,
-        ),
-    )
-    ctx.ctes_buffer.append(value_cte)
-    ctx.ctes_buffer.extend(compiled_dml.output_ctes)
-
-    if stmt.returning_list:
-        res_query, res_table = _resolve_returning_rows(
-            stmt.returning_list,
-            compiled_dml.output_relation_name,
-            compiled_dml.output_namespace,
-            stmt.relation.alias.aliasname,
-            ctx,
-        )
-    else:
-        if ctx.subquery_depth == 0:
-            # when a top-level DML query have a RETURNING clause,
-            # we inject a COUNT(*) clause so we can efficiently count
-            # modified rows which will be converted into CommandComplete tag.
-            res_query = pgast.SelectStmt(
-                target_list=[
-                    pgast.ResTarget(
-                        val=pgast.FuncCall(
-                            name=('count',), agg_star=True, args=[]
-                        ),
-                    )
-                ],
-                from_clause=[
-                    pgast.RelRangeVar(
-                        relation=pgast.Relation(
-                            name=compiled_dml.output_relation_name
-                        )
-                    )
-                ],
-            )
-        else:
-            # nested DML queries without RETURNING does not need any result
-            res_query = pgast.SelectStmt()
-        res_table = context.Table()
-
-    if not res_query.ctes:
-        res_query.ctes = []
-    res_query.ctes.extend(pg_res_rel.extract_ctes_from_ctx(ctx))
-    return res_query, res_table
-
-
-@dispatch._resolve_relation.register
-def resolve_DeleteStmt(
-    stmt: pgast.DeleteStmt, *, include_inherited: bool, ctx: Context
-) -> Tuple[pgast.Query, context.Table]:
-    assert stmt.relation
-
-    if ctx.subquery_depth >= 2:
-        raise errors.QueryError(
-            'WITH clause containing a data-modifying statement must be at '
-            'the top level',
-            span=stmt.span,
-            pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
         )
 
-    compiled_dml = ctx.compiled_dml[stmt]
-
-    # resolve the value relation
-    with ctx.child() as sctx:
-        # this subctx is needed so it is not deemed as top-level which would
-        # extract and attach CTEs, but not make the available to all
-        # following CTEs
-
-        # but it is not a "real" subquery context
-        sctx.subquery_depth -= 1
-
-        val_rel, val_table = dispatch.resolve_relation(
-            compiled_dml.value_relation_input, ctx=sctx
-        )
-    assert len(val_table.columns) == len(compiled_dml.value_columns)
-
-    assert isinstance(val_rel, pgast.Query)
-    if val_rel.ctes:
-        ctx.ctes_buffer.extend(val_rel.ctes)
-        val_rel.ctes = None
     value_cte = pgast.CommonTableExpr(
         name=compiled_dml.value_cte_name,
         query=val_rel,
     )
     ctx.ctes_buffer.append(value_cte)
-    ctx.ctes_buffer.extend(compiled_dml.output_ctes)
 
+
+def _fini_resolve_dml(
+    stmt: pgast.DMLQuery, compiled_dml: context.CompiledDML, *, ctx: Context
+) -> Tuple[pgast.Query, context.Table]:
     if stmt.returning_list:
         res_query, res_table = _resolve_returning_rows(
             stmt.returning_list,
@@ -1511,6 +1690,7 @@ def resolve_DeleteStmt(
     if not res_query.ctes:
         res_query.ctes = []
     res_query.ctes.extend(pg_res_rel.extract_ctes_from_ctx(ctx))
+
     return res_query, res_table
 
 
@@ -1619,24 +1799,13 @@ def _try_inject_type_cast(
 
     if rel.values:
         for row_i, row in enumerate(rel.values):
-            if isinstance(row, pgast.ImplicitRowExpr):
+            if isinstance(row, pgast.ImplicitRowExpr) and pos < len(row.args):
                 args = list(row.args)
                 args[pos] = pgast.TypeCast(arg=args[pos], type_name=ty)
                 rel.values[row_i] = row.replace(args=args)
 
-    elif rel.target_list:
+    elif rel.target_list and pos < len(rel.target_list):
         target = rel.target_list[pos]
         rel.target_list[pos] = target.replace(
             val=pgast.TypeCast(arg=target.val, type_name=ty)
         )
-
-
-@dispatch._resolve_relation.register
-def resolve_DMLQuery(
-    query: pgast.DMLQuery, *, include_inherited: bool, ctx: Context
-) -> Tuple[pgast.DMLQuery, context.Table]:
-    raise errors.QueryError(
-        'DML queries (UPDATE/DELETE) are not supported',
-        span=query.span,
-        pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
-    )
