@@ -66,8 +66,8 @@ pub fn quote_string(s: &str) -> String {
 pub fn unquote_string(value: &str) -> Result<Cow<str>, UnquoteError> {
     if value.starts_with('r') {
         Ok(value[2..value.len() - 1].into())
-    } else if value.starts_with('$') {
-        let msize = 2 + value[1..]
+    } else if let Some(stripped) = value.strip_prefix('$') {
+        let msize = 2 + stripped
             .find('$')
             .ok_or_else(|| "invalid dollar-quoted string".to_string())
             .map_err(UnquoteError)?;
