@@ -1,7 +1,9 @@
 use crate::{
     auth::{self, generate_salted_password, ClientEnvironment, ClientTransaction, Sha256Out},
     protocol::{
-        builder, match_message, measure, AuthenticationMessage, AuthenticationOk, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, ErrorResponse, Message, ParameterStatus, ReadyForQuery
+        builder, match_message, measure, AuthenticationMessage, AuthenticationOk,
+        AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData,
+        ErrorResponse, Message, ParameterStatus, ReadyForQuery,
     },
 };
 use base64::Engine;
@@ -116,12 +118,7 @@ impl<S: Stream> PGConn<S> {
                         let Some(initial_message) = tx.process_message(&[], &mut env)? else {
                             return Err(auth::SCRAMError::ProtocolError.into());
                         };
-                        let mlen = (measure::SASLInitialResponse {
-                                    mechanism: "SCRAM-SHA-256",
-                                    response: &initial_message,
-                                }.measure() - 1) as _;
                         send = builder::SASLInitialResponse {
-                            mlen,
                             mechanism: "SCRAM-SHA-256",
                             response: &initial_message,
                         }.to_vec();
@@ -139,11 +136,7 @@ impl<S: Stream> PGConn<S> {
                         let Some(message) = tx.process_message(&sasl.data(), env)? else {
                             return Err(auth::SCRAMError::ProtocolError.into());
                         };
-                        let mlen = (measure::SASLResponse {
-                            response: &message,
-                        }.measure() - 1) as _;
                         send = builder::SASLResponse {
-                            mlen,
                             response: &message,
                         }.to_vec();
                     },
@@ -203,21 +196,7 @@ impl<S: Stream> PGConn<S> {
             }
         };
 
-        let mlen = measure::StartupMessage {
-            params: &[
-                measure::StartupNameValue {
-                    name: "user",
-                    value: &credentials.username,
-                },
-                measure::StartupNameValue {
-                    name: "database",
-                    value: &credentials.database,
-                },
-            ],
-        }
-        .measure() as _;
         let startup = builder::StartupMessage {
-            mlen,
             params: &[
                 builder::StartupNameValue {
                     name: "user",
@@ -251,7 +230,7 @@ impl<S: Stream> PGConn<S> {
             while messages.len() > 5 {
                 let message = Message::new(&messages);
                 if message.mlen() as usize <= messages.len() + 1 {
-                    let n = (message.mlen() + 1) as _;
+                    let n = (message.mlen() + 1);
                     let message = self.process_message(&messages[..n])?;
                     messages = messages[n..].to_vec();
                     if !message.is_empty() {

@@ -7,6 +7,7 @@ use super::{
 
 pub mod meta {
     pub use super::EncodedMeta as Encoded;
+    pub use super::LengthMeta as Length;
     pub use super::RestMeta as Rest;
     pub use super::ZTStringMeta as ZTString;
 }
@@ -211,6 +212,43 @@ impl FieldAccess<EncodedMeta> {
     }
 }
 
+// We alias usize here. Note that if this causes trouble in the future we can
+// probably work around this by adding a new "const value" function to
+// FieldAccess. For now it works!
+pub struct LengthMeta(i32);
+impl<'a> Enliven<'a> for LengthMeta {
+    type WithLifetime = usize;
+    type ForMeasure = usize;
+    type ForBuilder = usize;
+}
+
+impl FieldAccess<LengthMeta> {
+    #[inline(always)]
+    pub const fn constant(value: usize) -> LengthMeta {
+        LengthMeta(value as i32)
+    }
+    #[inline(always)]
+    pub const fn size_of_field_at(buf: &[u8]) -> usize {
+        FieldAccess::<i32>::size_of_field_at(buf)
+    }
+    #[inline(always)]
+    pub const fn extract(buf: &[u8]) -> usize {
+        FieldAccess::<i32>::extract(buf) as _
+    }
+    #[inline(always)]
+    pub const fn measure(value: usize) -> usize {
+        FieldAccess::<i32>::measure(value as i32)
+    }
+    #[inline(always)]
+    pub fn copy_to_buf(buf: &mut BufWriter, value: usize) {
+        FieldAccess::<i32>::copy_to_buf(buf, value as i32)
+    }
+    #[inline(always)]
+    pub fn copy_to_buf_rewind(buf: &mut BufWriter, rewind: usize, value: usize) {
+        FieldAccess::<i32>::copy_to_buf_rewind(buf, rewind, value as i32)
+    }
+}
+
 macro_rules! basic_types {
     ($($ty:ty)*) => {
         $(
@@ -231,6 +269,10 @@ macro_rules! basic_types {
         #[allow(unused)]
         impl FieldAccess<$ty> {
             #[inline(always)]
+            pub const fn constant(value: usize) -> $ty {
+                value as _
+            }
+            #[inline(always)]
             pub const fn size_of_field_at(_: &[u8]) -> usize {
                 std::mem::size_of::<$ty>()
             }
@@ -249,6 +291,10 @@ macro_rules! basic_types {
             #[inline(always)]
             pub fn copy_to_buf(buf: &mut BufWriter, value: $ty) {
                 buf.write(&<$ty>::to_be_bytes(value));
+            }
+            #[inline(always)]
+            pub fn copy_to_buf_rewind(buf: &mut BufWriter, rewind: usize, value: $ty) {
+                buf.write_rewind(rewind, &<$ty>::to_be_bytes(value));
             }
         }
 

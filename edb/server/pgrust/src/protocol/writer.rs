@@ -27,6 +27,19 @@ impl<'a> BufWriter<'a> {
     }
 
     #[inline]
+    pub fn size(&self) -> usize {
+        self.size
+    }
+
+    #[inline]
+    pub fn write_rewind(&mut self, offset: usize, buf: &[u8]) {
+        if self.error {
+            return;
+        }
+        self.buf[offset..offset + buf.len()].copy_from_slice(buf);
+    }
+
+    #[inline]
     pub fn write(&mut self, buf: &[u8]) {
         let len = buf.len();
         self.size += len;
@@ -37,10 +50,7 @@ impl<'a> BufWriter<'a> {
             self.error = true;
             return;
         }
-        let b = std::mem::take(&mut self.buf);
-        let (write, rest) = b.split_at_mut(len);
-        write.copy_from_slice(buf);
-        self.buf = rest;
+        self.buf[self.size - len..self.size].copy_from_slice(buf);
     }
 
     #[inline]
@@ -53,10 +63,7 @@ impl<'a> BufWriter<'a> {
             self.error = true;
             return;
         }
-        let b = std::mem::take(&mut self.buf);
-        let (write, rest) = b.split_at_mut(1);
-        write[0] = value;
-        self.buf = rest;
+        self.buf[self.size - 1] = value;
     }
 
     pub const fn finish(self) -> Result<usize, usize> {
@@ -65,5 +72,26 @@ impl<'a> BufWriter<'a> {
         } else {
             Ok(self.size)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_buf_writer() {
+        let mut buf = [0u8; 10];
+        let mut writer = BufWriter::new(&mut buf);
+        writer.write(b"hello");
+        assert_eq!(writer.size(), 5);
+    }
+
+    #[test]
+    fn test_buf_writer_too_large() {
+        let mut buf = [0u8; 10];
+        let mut writer = BufWriter::new(&mut buf);
+        writer.write(b"hello world");
+        assert_eq!(writer.size(), 11);
+        assert!(writer.error);
     }
 }

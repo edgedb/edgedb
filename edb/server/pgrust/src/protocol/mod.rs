@@ -140,7 +140,6 @@ mod tests {
     #[test]
     fn test_sasl_initial_response_builder() {
         let buf = builder::SASLInitialResponse {
-            mlen: 0x36,
             mechanism: "SCRAM-SHA-256",
             response: b"n,,n=,r=pEkPLQu29GEvwNeVJt72arQI",
         }
@@ -163,7 +162,7 @@ mod tests {
             0x73, 0x74, 0x67, 0x72, 0x65, 0x73, 0, 0,
         ];
         let message = StartupMessage::new(&buf);
-        assert_eq!(message.mlen() as usize, buf.len());
+        assert_eq!(message.mlen(), buf.len());
         assert_eq!(message.protocol(), 196608);
         let arr = message.params();
         let mut vals = vec![];
@@ -184,7 +183,7 @@ mod tests {
         ];
         assert!(RowDescription::is(&buf));
         let message = RowDescription::new(&buf);
-        assert_eq!(message.mlen() as usize, buf.len() - 1);
+        assert_eq!(message.mlen(), buf.len() - 1);
         assert_eq!(message.fields().len(), 2);
         let mut iter = message.fields().into_iter();
         let f1 = iter.next().unwrap();
@@ -208,7 +207,6 @@ mod tests {
     #[test]
     fn test_row_description_builder() {
         let builder = builder::RowDescription {
-            mlen: 49,
             fields: &[
                 builder::RowField {
                     name: "F1",
@@ -261,25 +259,21 @@ mod tests {
 
     #[test]
     fn test_message_polymorphism_rest() {
-        let mlen = measure::AuthenticationGSSContinue {
-            data: &[1, 2, 3, 4, 5],
-        }
-        .measure() as _;
         let auth = builder::AuthenticationGSSContinue {
-            mlen,
             data: &[1, 2, 3, 4, 5],
         };
         let buf = auth.to_vec();
+        assert_eq!(14, buf.len());
         // Read it as a Message
         assert!(Message::is(&buf));
         let message = Message::new(&buf);
-        assert_eq!(message.mlen(), 14);
+        assert_eq!(message.mlen(), 13);
         assert_eq!(message.mtype(), b'R');
         assert_eq!(message.data(), &[0, 0, 0, 8, 1, 2, 3, 4, 5]);
         // And also a AuthenticationGSSContinue
         assert!(AuthenticationGSSContinue::is(&buf));
         let message = AuthenticationGSSContinue::new(&buf);
-        assert_eq!(message.mlen(), 14);
+        assert_eq!(message.mlen(), 13);
         assert_eq!(message.mtype(), b'R');
         assert_eq!(message.data(), &[1, 2, 3, 4, 5]);
     }

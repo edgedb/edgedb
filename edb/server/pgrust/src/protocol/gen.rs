@@ -173,7 +173,7 @@ macro_rules! protocol {
             #[allow(unused)]
             impl <'a> $name<'a> {
                 paste::paste!($(
-                    $(pub const [<$field:upper>]: $type = $value as _;)?
+                    $(pub const [<$field:upper>]: $type = FieldAccess::<$type>::constant($value as usize);)?
                 )*);
 
                 /// Checks the constant values for this struct to determine whether
@@ -195,7 +195,7 @@ macro_rules! protocol {
                 }
 
                 #[inline]
-                pub const fn new(mut buf: &'a [u8]) -> Self{
+                pub const fn new(mut buf: &'a [u8]) -> Self {
                     let mut fields = [0; FIELD_COUNT + 1];
                     let mut offset = 0;
                     let mut index = 0;
@@ -262,6 +262,11 @@ macro_rules! protocol {
             + std::mem::size_of::<i32>()
         ] [$($body)*]);
     };
+    (__measure__ $name:ident $lt:lifetime [$($accum:tt)*] [$($accum2:tt)*] [[$field:ident, (Length)], $($body:tt)*]) => {
+        $crate::protocol::gen::protocol!(__measure__ $name $lt [$($accum)*] [$($accum2)*
+            + std::mem::size_of::<Length>()
+        ] [$($body)*]);
+    };
     (__measure__ $name:ident $lt:lifetime [$($accum:tt)*] [$($accum2:tt)*] [[$field:ident, ($($type:tt)*)], $($body:tt)*]) => {
         $crate::protocol::gen::protocol!(__measure__ $name $lt [$($accum)*
             pub $field: <$($type)* as $crate::protocol::Enliven<$lt>>::ForMeasure,
@@ -305,14 +310,14 @@ macro_rules! protocol {
     ) => {
         // paste! is necessary here because it allows us to re-interpret a "ty"
         // as a "tt".
-        paste::paste!($crate::protocol::gen::protocol!(__builder__ $name 'a [] [] [
+        paste::paste!($crate::protocol::gen::protocol!(__builder__ $name 'a [] [] [] [
             $(
                 [$field, ($type) $( , ($value) )?],
             )*
         ]););
     };
 
-    (__builder__ $name:ident $lt:lifetime [$($accum:tt)*] [$($accum2:tt)*] [[$field:ident, ($($type:tt)*), ($($value:tt)*)], $($body:tt)*]) => {
+    (__builder__ $name:ident $lt:lifetime [$($accum:tt)*] [$($accum2:tt)*] [$($accum3:tt)*] [[$field:ident, ($($type:tt)*), ($($value:tt)*)], $($body:tt)*]) => {
         $crate::protocol::gen::protocol!(__builder__ $name $lt [$($accum)*
 
         ] [$($accum2)*
@@ -321,9 +326,25 @@ macro_rules! protocol {
                 let val = $($value)* as usize as _;
                 $crate::protocol::FieldAccess::<$($type)*>::copy_to_buf(buf, val);
             }
+        ] [$($accum3)*] [$($body)*]);
+    };
+    (__builder__ $name:ident $lt:lifetime [$($accum:tt)*] [$($accum2:tt)*] [$($accum3:tt)*] [[$field:ident, (Length)], $($body:tt)*]) => {
+        $crate::protocol::gen::protocol!(__builder__ $name $lt [$($accum)*
+        ] [$($accum2)*
+            let length_buf = $name.1.size();
+            {
+                let (this, buf) = &mut $name;
+                $crate::protocol::FieldAccess::<Length>::copy_to_buf(buf, 0);
+            }
+        ] [$($accum3)*
+            {
+                let len = $name.1.size() - length_buf;
+                let (this, buf) = &mut $name;
+                $crate::protocol::FieldAccess::<Length>::copy_to_buf_rewind(buf, length_buf, len);
+            }
         ] [$($body)*]);
     };
-    (__builder__ $name:ident $lt:lifetime [$($accum:tt)*] [$($accum2:tt)*] [[$field:ident, ($($type:tt)*)], $($body:tt)*]) => {
+    (__builder__ $name:ident $lt:lifetime [$($accum:tt)*] [$($accum2:tt)*] [$($accum3:tt)*] [[$field:ident, ($($type:tt)*)], $($body:tt)*]) => {
         $crate::protocol::gen::protocol!(__builder__ $name $lt [$($accum)*
             pub $field: <$($type)* as $crate::protocol::Enliven<$lt>>::ForBuilder,
         ] [$($accum2)*
@@ -331,15 +352,15 @@ macro_rules! protocol {
                 let (this, buf) = &mut $name;
                 $crate::protocol::FieldAccess::<$($type)*>::copy_to_buf(buf, this.$field);
             }
-        ] [$($body)*]);
+        ] [$($accum3)*] [$($body)*]);
     };
     // If we end the struct and there are no fields, add a phantom one
-    (__builder__ $name:ident $lt:lifetime [] [$($accum2:tt)*] []) => {
+    (__builder__ $name:ident $lt:lifetime [] [$($accum2:tt)*] [$($accum3:tt)*] []) => {
         $crate::protocol::gen::protocol!(__builder__ $name $lt [
             phantom: std::marker::PhantomData<&$lt ()>,
-        ] [$($accum2)*] []);
+        ] [$($accum3)*] [$($accum2)*] []);
     };
-    (__builder__ $name:ident $lt:lifetime [$($accum:tt)+] [$($accum2:tt)*] []) => {
+    (__builder__ $name:ident $lt:lifetime [$($accum:tt)+] [$($accum2:tt)*] [$($accum3:tt)*] []) => {
         #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
         pub struct $name<$lt> {
             $($accum)*
@@ -349,6 +370,7 @@ macro_rules! protocol {
             pub fn copy_to_buf(&self, buf: &mut $crate::protocol::writer::BufWriter) {
                 let mut $name = (self, buf);
                 $($accum2)*
+                $($accum3)*
             }
 
             /// Convert this builder into a vector of bytes. This is generally
