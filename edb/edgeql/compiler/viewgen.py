@@ -268,7 +268,7 @@ def _process_view(
     if elements is None:
         elements = []
 
-    shape_desc = []
+    shape_desc: List[ShapeElementDesc] = []
     # First, find all explicit pointers (i.e. non-splat elements)
     for shape_el in elements:
         if isinstance(shape_el.expr.steps[0], qlast.Splat):
@@ -444,10 +444,10 @@ def _process_view(
                     if compexpr_uses_default:
                         break
 
-                if compexpr_uses_default and compexpr_default_span is not None:
+                if compexpr_uses_default:
                     def make_error(
-                            span: parsing.Span, hint: str
-                        ) -> errors.InvalidReferenceError:
+                        span: Optional[parsing.Span], hint: str
+                    ) -> errors.InvalidReferenceError:
                         return errors.InvalidReferenceError(
                             f'__default__ cannot be used in this expression',
                             span=span,
