@@ -1,20 +1,16 @@
 use crate::{
     algo::{
-        AcquireOp, PoolAlgoTargetData, PoolAlgorithmDataBlock, PoolAlgorithmDataMetrics,
-        PoolConstraints, RebalanceOp, ReleaseOp, ReleaseType, ShutdownOp, VisitPoolAlgoData,
+        AcquireOp, AlgoState, PoolAlgoTargetData, PoolAlgorithmDataMetrics, PoolConstraints,
+        RebalanceOp, ReleaseOp, ReleaseType,
     },
-    block::{Blocks, Name},
+    block::Blocks,
     conn::{ConnError, ConnHandle, ConnResult, Connector},
+    drain::Drain,
     metrics::{MetricVariant, PoolMetrics},
 };
 use consume_on_drop::{Consume, ConsumeOnDrop};
 use derive_more::Debug;
-use std::{
-    cell::{Cell, RefCell},
-    collections::HashMap,
-    rc::Rc,
-    time::Duration,
-};
+use std::{cell::Cell, rc::Rc, time::Duration};
 use tracing::trace;
 
 #[derive(Debug)]
@@ -131,12 +127,20 @@ impl<C: Connector> Pool<C> {
             blocks: Default::default(),
             connector,
             dirty: Default::default(),
-            drain: Default::default(),
+            drain: Drain::default(),
         })
     }
 }
 
 impl<C: Connector> Pool<C> {
+    fn algo(&self) -> AlgoState<'_, Blocks<C, PoolAlgoTargetData>> {
+        AlgoState {
+            drain: &self.drain,
+            blocks: &self.blocks,
+            constraints: &self.config.constraints,
+        }
+    }
+
     /// Runs the required async task that takes care of quota management, garbage collection,
     /// and other important async tasks. This should happen only if something has changed in
     /// the pool.
@@ -154,27 +158,8 @@ impl<C: Connector> Pool<C> {
             return;
         }
 
-        if self.drain.shutdown.get() {
-            for op in self.config.constraints.plan_shutdown(&self.blocks) {
-                trace!("Shutdown: {op:?}");
-                match op {
-                    ShutdownOp::Close(name) => {
-                        tokio::task::spawn_local(
-                            self.blocks.task_close_one(&self.connector, &name),
-                        );
-                    }
-                }
-            }
-            return;
-        }
-
-        self.config.constraints.adjust(&self.blocks);
-        let mut s = String::new();
-        self.blocks.with_all(|name, block| {
-            s += &format!("{name}={}/{} ", block.target(), block.len());
-        });
-        trace!("Targets: {s}");
-        for op in self.config.constraints.plan_rebalance(&self.blocks) {
+        self.algo().adjust();
+        for op in self.algo().plan_rebalance() {
             trace!("Rebalance: {op:?}");
             match op {
                 RebalanceOp::Transfer { from, to } => {
@@ -194,11 +179,8 @@ impl<C: Connector> Pool<C> {
     /// controls the lock for the connection and may be dropped to release it
     /// back into the pool.
     pub async fn acquire(self: &Rc<Self>, db: &str) -> ConnResult<PoolHandle<C>, C::Error> {
-        if self.drain.shutdown.get() {
-            return Err(ConnError::Shutdown);
-        }
         self.dirty.set(true);
-        let plan = self.config.constraints.plan_acquire(db, &self.blocks);
+        let plan = self.algo().plan_acquire(db);
         trace!("Acquire {db}: {plan:?}");
         match plan {
             AcquireOp::Create => {
@@ -208,6 +190,9 @@ impl<C: Connector> Pool<C> {
                 tokio::task::spawn_local(self.blocks.task_steal(&self.connector, db, &from));
             }
             AcquireOp::Wait => {}
+            AcquireOp::FailInShutdown => {
+                return Err(ConnError::Shutdown);
+            }
         };
         let conn = self.blocks.queue(db).await?;
 
@@ -218,17 +203,12 @@ impl<C: Connector> Pool<C> {
     fn release(self: Rc<Self>, conn: ConnHandle<C>, poison: bool) {
         let db = &conn.state.db_name;
         self.dirty.set(true);
-        let release_type = if self.drain.is_draining(db) {
-            ReleaseType::Drain
-        } else if poison {
+        let release_type = if poison {
             ReleaseType::Poison
         } else {
             ReleaseType::Normal
         };
-        let plan = self
-            .config
-            .constraints
-            .plan_release(db, release_type, &self.blocks);
+        let plan = self.algo().plan_release(db, release_type);
         trace!("Release: {conn:?} {plan:?}");
         match plan {
             ReleaseOp::Release => {}
@@ -272,6 +252,29 @@ impl<C: Connector> Pool<C> {
 
         let lock = Drain::lock(self.clone(), name);
         while self.blocks.metrics(db).total() > 0 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        drop(lock);
+    }
+
+    /// Drain all idle connections to the given database. All connections will be
+    /// poisoned on return and this method will return when the given database
+    /// is idle. Multiple calls to this method with the same database are valid,
+    /// and the drain operation will be kept alive as long as one future has not
+    /// been dropped.
+    ///
+    /// It is valid, though unadvisable, to request a connection during this
+    /// period. The connection will be poisoned on return as well.
+    ///
+    /// Dropping this future cancels the drain operation.
+    pub async fn drain_idle(self: Rc<Self>, db: &str) {
+        // If the block doesn't exist, we can return
+        let Some(name) = self.blocks.name(db) else {
+            return;
+        };
+
+        let lock = Drain::lock(self.clone(), name);
+        while self.blocks.metrics(db).get(MetricVariant::Idle) > 0 {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
         drop(lock);
@@ -330,73 +333,6 @@ impl<C: Connector> Pool<C> {
 impl<C: Connector> AsRef<Drain> for Rc<Pool<C>> {
     fn as_ref(&self) -> &Drain {
         &self.drain
-    }
-}
-
-/// Holds the current drainage and shutdown state for the `Pool`.
-#[derive(Default, Debug)]
-struct Drain {
-    drain_all: Cell<usize>,
-    drain: RefCell<HashMap<Name, usize>>,
-    shutdown: Cell<bool>,
-}
-
-impl Drain {
-    pub fn shutdown(&self) {
-        self.shutdown.set(true)
-    }
-
-    /// Lock all connections for draining.
-    pub fn lock_all<T: AsRef<Drain>>(this: T) -> DrainLock<T> {
-        let drain = this.as_ref();
-        drain.drain_all.set(drain.drain_all.get() + 1);
-        DrainLock {
-            db: None,
-            has_drain: this,
-        }
-    }
-
-    // Lock a specific connection for draining.
-    pub fn lock<T: AsRef<Drain>>(this: T, db: Name) -> DrainLock<T> {
-        {
-            let mut drain = this.as_ref().drain.borrow_mut();
-            drain.entry(db.clone()).and_modify(|v| *v += 1).or_default();
-        }
-        DrainLock {
-            db: Some(db),
-            has_drain: this,
-        }
-    }
-
-    /// Is this connection draining?
-    fn is_draining(&self, db: &str) -> bool {
-        self.drain_all.get() > 0 || self.drain.borrow().contains_key(db) || self.shutdown.get()
-    }
-}
-
-/// Provides a RAII lock for a db- or whole-pool drain operation.
-struct DrainLock<T: AsRef<Drain>> {
-    db: Option<Name>,
-    has_drain: T,
-}
-
-impl<T: AsRef<Drain>> Drop for DrainLock<T> {
-    fn drop(&mut self) {
-        if let Some(name) = self.db.take() {
-            let mut drain = self.has_drain.as_ref().drain.borrow_mut();
-            if let Some(count) = drain.get_mut(&name) {
-                if *count > 1 {
-                    *count -= 1;
-                } else {
-                    drain.remove(&name);
-                }
-            } else {
-                unreachable!()
-            }
-        } else {
-            let this = self.has_drain.as_ref();
-            this.drain_all.set(this.drain_all.get() - 1);
-        }
     }
 }
 
@@ -570,10 +506,10 @@ mod tests {
         let connect_cost = spec.disconn_cost;
         let conn_failure_percentage = spec.conn_failure_percentage;
         let connector = BasicConnector::delay(move |disconnect| {
-            if conn_failure_percentage > 0 {
-                if thread_rng().gen_range(0..100) > conn_failure_percentage {
-                    return std::result::Result::Err(());
-                }
+            if conn_failure_percentage > 0
+                && thread_rng().gen_range(0..100) > conn_failure_percentage
+            {
+                return std::result::Result::Err(());
             }
             std::result::Result::Ok(if disconnect {
                 disconnect_cost.random_duration()

@@ -256,9 +256,7 @@ class Tenant(ha_base.ClusterProtocol):
             )
 
     def get_active_pgcon_num(self) -> int:
-        return (
-            self._pg_pool.current_capacity - self._pg_pool.get_pending_conns()
-        )
+        return self._pg_pool.active_conns
 
     @property
     def client_id(self) -> int:
@@ -531,6 +529,7 @@ class Tenant(ha_base.ClusterProtocol):
             tg = self._task_group
             self._task_group = None
             await tg.__aexit__(*sys.exc_info())
+        await self._pg_pool.close()
 
     def terminate_sys_pgcon(self) -> None:
         if self.__sys_pgcon is not None:

@@ -1,9 +1,9 @@
-use scopeguard::defer;
 use std::cell::{Cell, RefCell};
 use tracing::trace;
 
 use crate::{
     block::Name,
+    drain::Drain,
     metrics::{MetricVariant, RollingAverageU32},
 };
 
@@ -199,13 +199,6 @@ pub enum RebalanceOp {
     Close(Name),
 }
 
-/// Determines the shutdown plan based on the current pool state.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ShutdownOp {
-    /// Garbage collect a block.
-    Close(Name),
-}
-
 /// Determines the acquire plan based on the current pool state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AcquireOp {
@@ -215,6 +208,8 @@ pub enum AcquireOp {
     Steal(Name),
     /// Wait for a connection.
     Wait,
+    /// A connection cannot be established due to shutdown.
+    FailInShutdown,
 }
 
 /// Determines the release plan based on the current pool state.
@@ -238,8 +233,6 @@ pub enum ReleaseType {
     Normal,
     /// A release of a poisoned connection.
     Poison,
-    /// A release of a drained connection.
-    Drain,
 }
 
 /// Generic trait to decouple the algorithm from the underlying pool blocks.
@@ -384,6 +377,7 @@ pub trait PoolAlgorithmDataBlock: PoolAlgorithmDataMetrics {
     /// estimated database time statistic we can use for relative
     /// weighting.
     fn demand_score(&self) -> usize {
+        // This gives us an approximate count of incoming connection load during the last period
         let active = self.max(MetricVariant::Active);
         let active_ms = self.avg_ms(MetricVariant::Active).max(MIN_TIME.get());
         let waiting = self.max(MetricVariant::Waiting);
@@ -434,23 +428,42 @@ pub struct PoolConstraints {
     pub max: usize,
 }
 
-impl PoolConstraints {
+/// The algorithm runs against these data structures.
+pub struct AlgoState<'a, V: VisitPoolAlgoData> {
+    pub drain: &'a Drain,
+    pub blocks: &'a V,
+    pub constraints: &'a PoolConstraints,
+}
+
+impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
     /// Recalculate the quota targets for each block within the pool/
-    pub fn recalculate_shares(&self, it: &impl VisitPoolAlgoData) {
+    fn recalculate_shares(&self, update_demand: bool) {
         // First, compute the overall request load and number of backend targets
         let mut total_demand = 0;
         let mut total_target = 0;
         let mut s = "".to_owned();
 
-        it.with_all(|name, data| {
-            let demand_avg = data.demand();
-
-            if tracing::enabled!(tracing::Level::TRACE) {
-                s += &format!("{name}={demand_avg} ",);
+        self.blocks.with_all(|name, data| {
+            // Draining targets act like they have demand zero
+            if self.drain.is_draining(name) {
+                if tracing::enabled!(tracing::Level::TRACE) {
+                    s += &format!("{name}=drain ");
+                }
+                return;
             }
 
-            total_demand += demand_avg as usize;
-            if demand_avg > 0 {
+            if update_demand {
+                let demand = data.demand_score();
+                data.insert_demand(demand as _);
+            }
+            let demand = data.demand();
+
+            if tracing::enabled!(tracing::Level::TRACE) {
+                s += &format!("{name}={demand} ");
+            }
+
+            total_demand += demand as usize;
+            if demand > 0 {
                 total_target += 1;
             } else {
                 data.set_target(0);
@@ -461,70 +474,44 @@ impl PoolConstraints {
             trace!("Demand: {total_target} {}", s);
         }
 
-        self.allocate_demand(it, total_target, total_demand);
+        self.allocate_demand(total_target, total_demand);
     }
 
     /// Adjust the quota targets for each block within the pool.
-    pub fn adjust(&self, it: &impl VisitPoolAlgoData) {
+    pub fn adjust(&self) {
+        self.recalculate_shares(true);
+
         // Once we've adjusted the constraints, reset the max settings
-        defer!(it.reset_max());
-
-        // First, compute the overall request load and number of backend targets
-        let mut total_demand = 0_usize;
-        let mut total_target = 0;
-        let mut s = "".to_owned();
-
-        it.with_all(|name, data| {
-            let demand = data.demand_score();
-            data.insert_demand(demand as _);
-            let demand_avg = data.demand();
-
-            if tracing::enabled!(tracing::Level::TRACE) {
-                s += &format!("{name}={demand_avg}/{demand}",);
-            }
-
-            total_demand += demand_avg as usize;
-            if demand_avg > 0 {
-                total_target += 1;
-            } else {
-                data.set_target(0);
-            }
-        });
-
-        if tracing::enabled!(tracing::Level::TRACE) {
-            trace!("Demand: {total_target} {}", s);
-        }
-
-        self.allocate_demand(it, total_target, total_demand);
+        self.blocks.reset_max();
     }
 
     /// Allocate the calculated demand to target quotas.
-    fn allocate_demand(
-        &self,
-        it: &impl VisitPoolAlgoData,
-        total_target: usize,
-        total_demand: usize,
-    ) {
+    fn allocate_demand(&self, total_target: usize, total_demand: usize) {
         // Empty pool, no math
         if total_target == 0 || total_demand == 0 {
+            self.blocks.with_all(|_name, data| {
+                data.set_target(0);
+            });
             return;
         }
 
         let mut allocated = 0;
+        let max = self.constraints.max;
         // This is the minimum number of connections we'll allocate to any particular
         // backend regardless of demand if there are less backends than the capacity.
-        let min = (self.max / total_target).min(MAXIMUM_SHARED_TARGET.get());
+        let min = (max / total_target).min(MAXIMUM_SHARED_TARGET.get());
         // The remaining capacity after we allocated the `min` value above.
-        let capacity = self.max - min * total_target;
+        let capacity = max - min * total_target;
 
         if min == 0 {
-            it.with_all(|_name, data| {
+            self.blocks.with_all(|_name, data| {
                 data.set_target(0);
             });
         } else {
-            it.with_all(|_name, data| {
+            self.blocks.with_all(|name, data| {
                 let demand = data.demand();
-                if demand == 0 {
+                if demand == 0 || self.drain.is_draining(name) {
+                    data.set_target(0);
                     return;
                 }
 
@@ -539,23 +526,31 @@ impl PoolConstraints {
             });
         }
 
+        if tracing::enabled!(tracing::Level::TRACE) {
+            let mut s = String::new();
+            self.blocks.with_all(|name, block| {
+                s += &format!("{name}={}/{} ", block.target(), block.total());
+            });
+            trace!("Targets: {s}");
+        }
+
         debug_assert!(
-            allocated <= self.max,
+            allocated <= max,
             "Attempted to allocate more than we were allowed: {allocated} > {} \
                 (req={total_demand}, target={total_target})",
-            self.max
+            max
         );
     }
 
     /// Plan a shutdown.
-    pub fn plan_shutdown(&self, it: &impl VisitPoolAlgoData) -> Vec<ShutdownOp> {
+    fn plan_shutdown(&self) -> Vec<RebalanceOp> {
         let mut ops = vec![];
-        it.with_all(|name, block| {
+        self.blocks.with_all(|name, block| {
             let idle = block.count(MetricVariant::Idle);
             let failed = block.count(MetricVariant::Failed);
 
             for _ in 0..(idle + failed) {
-                ops.push(ShutdownOp::Close(name.clone()));
+                ops.push(RebalanceOp::Close(name.clone()));
             }
         });
         ops
@@ -563,18 +558,41 @@ impl PoolConstraints {
 
     /// Plan a rebalance to better match the target quotas of the blocks in the
     /// pool.
-    pub fn plan_rebalance(&self, it: &impl VisitPoolAlgoData) -> Vec<RebalanceOp> {
-        let mut current_pool_size = it.total();
-        let max_pool_size = self.max;
+    pub fn plan_rebalance(&self) -> Vec<RebalanceOp> {
+        // In shutdown, we just want to close all idle connections where possible.
+        if self.drain.in_shutdown() {
+            return self.plan_shutdown();
+        }
+
+        let mut current_pool_size = self.blocks.total();
+        let max_pool_size = self.constraints.max;
+        let mut tasks = vec![];
+
+        // TODO: These could potentially be transferred instead, but
+        // drain/shutdown are pretty unlikely.
+        if self.drain.are_any_draining() {
+            self.blocks.with_all(|name, data| {
+                if self.drain.is_draining(name) {
+                    for _ in 0..data.count(MetricVariant::Idle) + data.count(MetricVariant::Failed)
+                    {
+                        tasks.push(RebalanceOp::Close(name.clone()))
+                    }
+                }
+            })
+        }
 
         // If there's room in the pool, we can be more aggressive in
         // how we allocate.
         if current_pool_size < max_pool_size {
-            let mut changes = vec![];
             let mut made_changes = false;
 
             for i in 0..MAX_REBALANCE_OPS.get() {
-                it.with_all(|name, block| {
+                self.blocks.with_all(|name, block| {
+                    // Drains are handled at the start of this function
+                    if self.drain.is_draining(name) {
+                        return;
+                    }
+
                     // If there's room in the block, and room in the pool, and
                     // the block is bumping up against its current headroom, we'll grab
                     // another one.
@@ -584,7 +602,7 @@ impl PoolConstraints {
                             > (block.total() + i)
                                 .saturating_sub(MIN_REBALANCE_HEADROOM_TO_CREATE.get())
                     {
-                        changes.push(RebalanceOp::Create(name.clone()));
+                        tasks.push(RebalanceOp::Create(name.clone()));
                         current_pool_size += 1;
                         made_changes = true;
                     } else if block.total() > block.target()
@@ -596,7 +614,7 @@ impl PoolConstraints {
                         // around, we'll try to keep a few excess connections if
                         // nobody else wants them. Otherwise, we'll just try to close
                         // all the idle connections over time.
-                        changes.push(RebalanceOp::Close(name.clone()));
+                        tasks.push(RebalanceOp::Close(name.clone()));
                         made_changes = true;
                     }
                 });
@@ -605,7 +623,7 @@ impl PoolConstraints {
                 }
             }
 
-            return changes;
+            return tasks;
         }
 
         // For any block with less connections than its quota that has
@@ -617,7 +635,12 @@ impl PoolConstraints {
         let mut s1 = "".to_owned();
         let mut s2 = "".to_owned();
 
-        it.with_all(|name, block| {
+        self.blocks.with_all(|name, block| {
+            // Drains are handled at the start of this function
+            if self.drain.is_draining(name) {
+                return;
+            }
+
             if let Some(value) = block.hunger_score(false) {
                 if tracing::enabled!(tracing::Level::TRACE) {
                     s1 += &format!("{name}={value} ");
@@ -641,8 +664,6 @@ impl PoolConstraints {
         }
         overloaded.sort();
         hungriest.sort();
-
-        let mut tasks = vec![];
 
         for _ in 0..MAX_REBALANCE_OPS.get() {
             let Some((_, to)) = hungriest.pop() else {
@@ -668,17 +689,24 @@ impl PoolConstraints {
     }
 
     /// Plan a connection acquisition.
-    pub fn plan_acquire(&self, db: &str, it: &impl VisitPoolAlgoData) -> AcquireOp {
-        // If the block is new, we need to perform an initial adjustment to
-        // ensure this block gets some capacity.
-        if it.ensure_block(db, DEMAND_MINIMUM.get() * DEMAND_HISTORY_LENGTH) {
-            self.recalculate_shares(it);
+    pub fn plan_acquire(&self, db: &str) -> AcquireOp {
+        if self.drain.in_shutdown() {
+            return AcquireOp::FailInShutdown;
         }
 
-        let target_block_size = it.target(db);
-        let current_block_size = it.with(db, |data| data.total()).unwrap_or_default();
-        let current_pool_size = it.total();
-        let max_pool_size = self.max;
+        // If the block is new, we need to perform an initial adjustment to
+        // ensure this block gets some capacity.
+        if self
+            .blocks
+            .ensure_block(db, DEMAND_MINIMUM.get() * DEMAND_HISTORY_LENGTH)
+        {
+            self.recalculate_shares(false);
+        }
+
+        let target_block_size = self.blocks.target(db);
+        let current_block_size = self.blocks.with(db, |data| data.total()).unwrap_or_default();
+        let current_pool_size = self.blocks.total();
+        let max_pool_size = self.constraints.max;
 
         let pool_is_full = current_pool_size >= max_pool_size;
         if !pool_is_full {
@@ -691,7 +719,7 @@ impl PoolConstraints {
         if pool_is_full && block_has_room {
             let mut max = isize::MIN;
             let mut which = None;
-            it.with_all(|name, block| {
+            self.blocks.with_all(|name, block| {
                 if let Some(overfullness) = block.overfull_score(false) {
                     if overfullness > max {
                         which = Some(name.clone());
@@ -711,33 +739,29 @@ impl PoolConstraints {
     }
 
     /// Plan a connection release.
-    pub fn plan_release(
-        &self,
-        db: &str,
-        release_type: ReleaseType,
-        it: &impl VisitPoolAlgoData,
-    ) -> ReleaseOp {
-        if release_type == ReleaseType::Poison {
-            return ReleaseOp::Reopen;
-        }
-        if release_type == ReleaseType::Drain {
+    pub fn plan_release(&self, db: &str, release_type: ReleaseType) -> ReleaseOp {
+        if self.drain.is_draining(db) {
             return ReleaseOp::Discard;
         }
 
-        let current_pool_size = it.total();
-        let max_pool_size = self.max;
+        if release_type == ReleaseType::Poison {
+            return ReleaseOp::Reopen;
+        }
+
+        let current_pool_size = self.blocks.total();
+        let max_pool_size = self.constraints.max;
         if current_pool_size < max_pool_size {
             trace!("Pool has room, keeping connection");
             return ReleaseOp::Release;
         }
 
         // We only want to consider a release elsewhere if this block is overfull
-        if let Some(Some(overfull)) = it.with(db, |block| block.overfull_score(true)) {
+        if let Some(Some(overfull)) = self.blocks.with(db, |block| block.overfull_score(true)) {
             trace!("Block {db} is overfull ({overfull}), trying to release");
             let mut max = isize::MIN;
             let mut which = None;
             let mut s = "".to_owned();
-            it.with_all(|name, block| {
+            self.blocks.with_all(|name, block| {
                 let is_self = &**name == db;
                 if let Some(mut hunger) = block.hunger_score(is_self) {
                     // Penalize switching by boosting the current database's relative hunger here
@@ -792,29 +816,34 @@ mod tests {
             let connector = BasicConnector::no_delay();
             let config = PoolConfig::suggested_default_for(10);
             let blocks = Blocks::default();
-            let algo = &config.constraints;
+            let drain = Drain::default();
+            let algo = AlgoState {
+                constraints: &config.constraints,
+                drain: &drain,
+                blocks: &blocks,
+            };
 
             let futures = FuturesUnordered::new();
-            for i in (0..algo.max).map(Name::from) {
-                assert_eq!(algo.plan_acquire(&i, &blocks), AcquireOp::Create);
+            for i in (0..algo.constraints.max).map(Name::from) {
+                assert_eq!(algo.plan_acquire(&i), AcquireOp::Create);
                 futures.push(blocks.create_if_needed(&connector, &i));
             }
             let conns: Vec<_> = futures.collect().await;
             let futures = FuturesUnordered::new();
-            for i in (0..algo.max).map(Name::from) {
-                assert_eq!(algo.plan_acquire(&i, &blocks), AcquireOp::Wait);
+            for i in (0..algo.constraints.max).map(Name::from) {
+                assert_eq!(algo.plan_acquire(&i), AcquireOp::Wait);
                 futures.push(blocks.queue(&i));
             }
             for conn in conns {
                 assert_eq!(
-                    algo.plan_release(&conn?.state.db_name, ReleaseType::Normal, &blocks),
+                    algo.plan_release(&conn?.state.db_name, ReleaseType::Normal),
                     ReleaseOp::Release
                 );
             }
             let conns: Vec<_> = futures.collect().await;
             for conn in conns {
                 assert_eq!(
-                    algo.plan_release(&conn?.state.db_name, ReleaseType::Normal, &blocks),
+                    algo.plan_release(&conn?.state.db_name, ReleaseType::Normal),
                     ReleaseOp::Release
                 );
             }
@@ -831,25 +860,30 @@ mod tests {
         let future = async {
             let connector = BasicConnector::no_delay();
             let config = PoolConfig::suggested_default_for(10);
-            let algo = &config.constraints;
             let blocks = Blocks::default();
+            let drain = Drain::default();
+            let algo = AlgoState {
+                constraints: &config.constraints,
+                drain: &drain,
+                blocks: &blocks,
+            };
 
             // Room for these
             let futures = FuturesUnordered::new();
             for db in (0..5).map(Name::from) {
-                assert_eq!(algo.plan_acquire(&db, &blocks), AcquireOp::Create);
+                assert_eq!(algo.plan_acquire(&db), AcquireOp::Create);
                 futures.push(blocks.create_if_needed(&connector, &db));
             }
             // ... and these
             let futures2 = FuturesUnordered::new();
             for db in (5..10).map(Name::from) {
-                assert_eq!(algo.plan_acquire(&db, &blocks), AcquireOp::Create);
+                assert_eq!(algo.plan_acquire(&db), AcquireOp::Create);
                 futures2.push(blocks.create_if_needed(&connector, &db));
             }
             // But not these (yet)
             let futures3 = FuturesUnordered::new();
             for db in (10..15).map(Name::from) {
-                assert_eq!(algo.plan_acquire(&db, &blocks), AcquireOp::Wait);
+                assert_eq!(algo.plan_acquire(&db), AcquireOp::Wait);
                 futures3.push(blocks.queue(&db));
             }
             let conns: Vec<_> = futures.collect().await;
@@ -857,7 +891,7 @@ mod tests {
             // These are released to 10..15
             for conn in conns {
                 let conn = conn?;
-                let res = algo.plan_release(&conn.state.db_name, ReleaseType::Normal, &blocks);
+                let res = algo.plan_release(&conn.state.db_name, ReleaseType::Normal);
                 let ReleaseOp::ReleaseTo(to) = res else {
                     panic!("Wrong release: {res:?}");
                 };
@@ -866,7 +900,7 @@ mod tests {
             // These don't have anywhere to go
             for conn in conns2 {
                 let conn = conn?;
-                let res = algo.plan_release(&conn.state.db_name, ReleaseType::Normal, &blocks);
+                let res = algo.plan_release(&conn.state.db_name, ReleaseType::Normal);
                 let ReleaseOp::Release = res else {
                     panic!("Wrong release: {res:?}");
                 };

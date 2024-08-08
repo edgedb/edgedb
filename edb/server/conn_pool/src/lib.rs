@@ -1,6 +1,7 @@
 pub(crate) mod algo;
 pub(crate) mod block;
 pub(crate) mod conn;
+pub(crate) mod drain;
 pub(crate) mod metrics;
 pub(crate) mod pool;
 pub(crate) mod waitqueue;

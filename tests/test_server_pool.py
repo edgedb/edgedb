@@ -405,6 +405,9 @@ class SingleBlockPool(pool_impl.BasePool[C]):
         )
         self._queue = asyncio.Queue(max_capacity)
 
+    async def close(self) -> None:
+        pass
+
     async def _async_connect(self, dbname: str) -> None:
         self.release(dbname, await self._connect_cb(dbname))
 
@@ -483,27 +486,35 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
                 raise
         return query()
 
-    async def simulate_db(self, sim, pool, g, db):
-        await asyncio.sleep(db.start_at)
-        spq = 1.0 / db.qps
-        queries = int((db.end_at - db.start_at) * db.qps)
-        queries_per_tick = 1
-        while spq < 0.001:
-            spq *= 2.0
-            queries_per_tick *= 2
+    async def simulate_db(self, sim, pool, db):
+        async with asyncio.TaskGroup() as g:
+            await asyncio.sleep(db.start_at)
+            len = int((db.end_at - db.start_at) * 1000.0)
+            completed = 0
+            for t in range(0, len):
+                expected = int(t * db.qps / 1000.0)
+                diff = expected - completed
+                completed += diff
+                if diff > 0:
+                    g.create_task(self.simulate_queries(sim, pool, g, db,
+                                                        t / 1000.0, diff))
+            diff = int((db.end_at - db.start_at) * db.qps - completed)
+            if diff > 0:
+                g.create_task(self.simulate_queries(sim, pool, g, db,
+                                                    t / 1000.0, diff))
 
-        for _ in range(0, queries, queries_per_tick):
-            for _ in range(queries_per_tick):
-                dur = max(
-                    db.query_cost_base +
-                    random.triangular(
-                        -db.query_cost_var, db.query_cost_var),
-                    0.001
-                )
-                g.create_task(
-                    self.make_fake_query(sim, pool, db.db, dur)
-                )
-            await asyncio.sleep(spq)
+    async def simulate_queries(self, sim, pool, g, db, delay, n):
+        await asyncio.sleep(delay)
+        for _ in range(n):
+            dur = max(
+                db.query_cost_base +
+                random.triangular(
+                    -db.query_cost_var, db.query_cost_var),
+                0.001
+            )
+            g.create_task(
+                self.make_fake_query(sim, pool, db.db, dur)
+            )
 
     async def simulate_once(self, spec, pool_cls, *, collect_stats=False):
         sim = Simulation()
@@ -520,13 +531,14 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
             stats_collector=on_stats if collect_stats else None,
             max_capacity=spec.capacity,
         )
+        print(f"Simulating {pool.__class__}")
         if hasattr(pool, '_gc_interval'):
             pool._gc_interval = 0.1 * TIME_SCALE
 
         started_at = time.monotonic()
         async with asyncio.TaskGroup() as g:
             for db in spec.dbs:
-                g.create_task(self.simulate_db(sim, pool, g, db))
+                g.create_task(self.simulate_db(sim, pool, db))
 
         self.assertEqual(sim.failed_disconnects, 0)
         self.assertEqual(sim.failed_queries, 0)
@@ -541,6 +553,8 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
             key_func = lambda x: x
         else:
             key_func = lambda x: int(x[0][1:])
+
+        await pool.close()
 
         if collect_stats:
             pn = f'{type(pool).__module__}.{type(pool).__qualname__}'
@@ -579,7 +593,7 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
             )
 
     async def simulate_and_collect_stats(self, testname, spec):
-        pools = [connpool.Pool, connpool._NaivePool]
+        pools = [connpool.Pool, connpool.Pool2, connpool._NaivePool]
 
         js_data = []
         for pool_cls in pools:
@@ -611,7 +625,7 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
         async with asyncio.TaskGroup() as g:
             db = DBSpec(db='', start_at=0, end_at=total_duration, qps=qps,
                         query_cost_base=query_duration, query_cost_var=0)
-            task = g.create_task(self.simulate_db(sim, pool, g, db))
+            task = g.create_task(self.simulate_db(sim, pool, db))
             while not task.done():
                 await asyncio.sleep(TICK_EVERY)
                 getters = max(getters, pool.count_waiters())
@@ -1410,7 +1424,7 @@ class TestServerConnectionPool(unittest.TestCase):
 
     @unittest.mock.patch('edb.server.connpool.pool.logger',
                          new_callable=MockLogger)
-    @unittest.mock.patch('edb.server.connpool.pool.MIN_LOG_TIME_THRESHOLD',
+    @unittest.mock.patch('edb.server.connpool.config.MIN_LOG_TIME_THRESHOLD',
                          0.2)
     def test_connpool_log_batching(self, logger: MockLogger):
         @async_timeout(timeout=5)
@@ -1490,7 +1504,8 @@ class TestServerConnectionPool(unittest.TestCase):
 
         asyncio.run(main())
 
-    @unittest.mock.patch('edb.server.connpool.pool.CONNECT_FAILURE_RETRIES', 2)
+    @unittest.mock.patch('edb.server.connpool.config.CONNECT_FAILURE_RETRIES',
+                         2)
     def test_connpool_connect_error(self):
         from edb.server.pgcon import errors
 
@@ -1505,7 +1520,8 @@ class TestServerConnectionPool(unittest.TestCase):
 
         self._test_connpool_connect_error(ConnectError, 3)
 
-    @unittest.mock.patch('edb.server.connpool.pool.CONNECT_FAILURE_RETRIES', 0)
+    @unittest.mock.patch('edb.server.connpool.config.CONNECT_FAILURE_RETRIES',
+                         0)
     def test_connpool_connect_error_zero_retry(self):
         class ConnectError(Exception):
             pass
@@ -1514,8 +1530,9 @@ class TestServerConnectionPool(unittest.TestCase):
 
     @unittest.mock.patch('edb.server.connpool.pool.logger',
                          new_callable=MockLogger)
-    @unittest.mock.patch('edb.server.connpool.pool.MIN_LOG_TIME_THRESHOLD', 0)
-    @unittest.mock.patch('edb.server.connpool.pool.CONNECT_FAILURE_RETRIES', 5)
+    @unittest.mock.patch('edb.server.connpool.config.MIN_LOG_TIME_THRESHOLD', 0)
+    @unittest.mock.patch('edb.server.connpool.config.CONNECT_FAILURE_RETRIES',
+                         5)
     def test_connpool_steal_connect_error(self, logger: MockLogger):
         count = 0
         connect = self.make_fake_connect()
