@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use crate::{auth::{self, generate_salted_password, ClientEnvironment, ClientTransaction, Sha256Out}, protocol::{
     builder, match_message, measure, AuthenticationOk, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, ErrorResponse, Message, ParameterStatus, ReadyForQuery
 }};
@@ -11,34 +13,114 @@ impl<T> Stream for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
 
 #[derive(Debug, thiserror::Error)]
 pub enum PGError {
-    #[error("io error: {0}")]
+    #[error("Invalid state")]
+    InvalidState,
+    #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
     #[error("SCRAM: {0}")]
     SCRAM(#[from] auth::SCRAMError),
 }
 
 pub struct PGConn<S: Stream> {
-    stm: S,
-    username: String,
-    password: String,
-    database: String,
+    stm: RefCell<S>,
+    state: RefCell<ConnState>
+}
+
+enum ConnState {
+    Initial {
+        username: String,
+        password: String,
+        database: String,
+    },
+    Connecting,
+    SCRAM(ClientTransaction),
+    Connected,
+    Ready,
+    Transition,
 }
 
 impl<S: Stream> PGConn<S> {
     pub fn new(stm: S, username: String, password: String, database: String) -> Self {
-        Self { stm, username, password, database }
+        Self { stm: stm.into(), state: ConnState::Initial { username, password, database } }
+    }
+
+    fn process_message(&mut self, message: &[u8]) -> Result<(), PGError> {
+        match self.state {
+            ConnState::Connecting => {
+                match_message!(message_buf, Backend {
+                    (AuthenticationOk) => {
+                        eprintln!("auth ok");
+                        self.state.borrow_mut() = ConnState::Connected;
+                    },
+                    (AuthenticationSASL as sasl) => {
+                        for mech in sasl.mechanisms() {
+                            eprintln!("sasl: {:?}", mech);
+                        }
+                        self.state.borrow_mut() = ConnState::SCRAM(());
+                    },
+                });
+            }
+            ConnState::SCRAM(mut client) => {
+                match_message!(message_buf, Backend {
+                    (AuthenticationSASLContinue as sasl) => {
+                        sasl_message = client.process_message(&sasl.data(), &env)?;
+                    },
+                    (AuthenticationSASLFinal as sasl) => {
+                        let None = client.process_message(&sasl.data(), &env)? else {
+                            return Err(auth::SCRAMError::ProtocolError.into());
+                        };
+                        break;
+                    },
+                    (ErrorResponse as error) => {
+                        for field in error.fields() {
+                            eprintln!("error: {} {:?}", field.etype(), field.value());
+                        }
+                    }
+                });
+            }
+            ConnState::Connected => {
+                match_message!(message_buf, Backend {
+                    (ParameterStatus as param) => {
+                        eprintln!("param: {:?}={:?}", param.name(), param.value());
+                    }
+                    (BackendKeyData as key_data) => {
+                        eprintln!("key={:?} pid={:?}", key_data.key(), key_data.pid());
+                    }
+                    (ReadyForQuery as ready) => {
+                        eprintln!("ready: {:?}", ready.status());
+                    }
+                });
+            }
+            ConnState::Ready => {
+
+            }
+            _ => {}
+        }
+
+        Ok(())
     }
 
     pub async fn connect(&mut self) -> Result<(), PGError> {
+        // Only allow connection in the initial state
+        let (username, password, database) = match std::mem::replace(&mut self.state, ConnState::Transition) {
+            ConnState::Initial { username, password, database } => {
+                (username, password, database)
+            },
+            x => {
+                self.state = x;
+                return Err(PGError::InvalidState);
+            }
+        };
+
         let mlen = measure::StartupMessage {
             params: &[
                 measure::StartupNameValue {
                     name: "user",
-                    value: &self.username,
+                    value: &username,
                 },
                 measure::StartupNameValue {
                     name: "database",
-                    value: &self.database,
+                    value: &database,
                 },
             ],
         }
@@ -48,17 +130,20 @@ impl<S: Stream> PGConn<S> {
             params: &[
                 builder::StartupNameValue {
                     name: "user",
-                    value: &self.username,
+                    value: &username,
                 },
                 builder::StartupNameValue {
                     name: "database",
-                    value: &self.database,
+                    value: &database,
                 },
             ],
         }
         .to_vec();
-        eprintln!("{startup:?}");
+
         self.stm.write_all(&startup).await?;
+
+
+
         self.stm.flush().await?;
         let mut buffer = [0; 65000];
         let r = self.stm.read(&mut buffer).await?;
@@ -169,14 +254,26 @@ impl<S: Stream> PGConn<S> {
                 if client.success() {
                     break;
                 }
-                eprintln!("Reading");
                 n = self.stm.read(&mut buffer).await?;
-                eprintln!("{:?}", &buffer[..n]);
             }
 
         }
 
         Ok(())
+    }
+
+    pub async fn task(&self) -> Result<(), PGError> {
+        let mut messages = vec![];
+
+        loop {
+            let mut buffer = [0; 1024];
+            let n = reader.read(&mut buffer).await?;
+            messages.extend_from_slice(&buffer[..n]);
+            let message = Message::new(messages);
+            if message.mlen() as _ > messages.len() + 1 {
+                self.process_message(messages.as_slice())?;
+            }
+        }
     }
 }
 
