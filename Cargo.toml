@@ -5,6 +5,7 @@ members = [
     "edb/edgeql-parser/edgeql-parser-python",
     "edb/graphql-rewrite",
     "edb/server/conn_pool",
+    "edb/server/pgrust",
 ]
 resolver = "2"
 
