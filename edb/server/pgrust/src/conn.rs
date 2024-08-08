@@ -26,7 +26,7 @@ pub enum PGError {
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
     #[error("SCRAM: {0}")]
-    SCRAM(#[from] auth::SCRAMError),
+    Scram(#[from] auth::SCRAMError),
 }
 
 pub struct PGConn<S: Stream> {
@@ -43,7 +43,7 @@ struct Credentials {
 
 enum ConnState {
     Connecting(Credentials),
-    SCRAM(ClientTransaction, ClientEnvironmentImpl),
+    Scram(ClientTransaction, ClientEnvironmentImpl),
     Connected,
     Ready,
 }
@@ -57,7 +57,7 @@ impl ClientEnvironment for ClientEnvironmentImpl {
         let nonce: [u8; 32] = rand::thread_rng().r#gen();
         base64::engine::general_purpose::STANDARD.encode(nonce)
     }
-    fn get_salted_password(&self, username: &str, salt: &[u8], iterations: usize) -> Sha256Out {
+    fn get_salted_password(&self, salt: &[u8], iterations: usize) -> Sha256Out {
         generate_salted_password(&self.credentials.password, salt, iterations)
     }
 }
@@ -113,15 +113,15 @@ impl<S: Stream> PGConn<S> {
                         }
                         let credentials = credentials.clone();
                         let mut tx = ClientTransaction::new("".into());
-                        let mut env = ClientEnvironmentImpl { credentials };
-                        let Some(initial_message) = tx.process_message(&[], &mut env)? else {
+                        let env = ClientEnvironmentImpl { credentials };
+                        let Some(initial_message) = tx.process_message(&[], &env)? else {
                             return Err(auth::SCRAMError::ProtocolError.into());
                         };
                         send = builder::SASLInitialResponse {
                             mechanism: "SCRAM-SHA-256",
                             response: &initial_message,
                         }.to_vec();
-                        *state = ConnState::SCRAM(tx, env);
+                        *state = ConnState::Scram(tx, env);
                     },
                     (Message as message) => {
                         let mlen = message.mlen();
@@ -129,7 +129,7 @@ impl<S: Stream> PGConn<S> {
                     },
                 });
             }
-            ConnState::SCRAM(tx, env) => {
+            ConnState::Scram(tx, env) => {
                 match_message!(message, Backend {
                     (AuthenticationSASLContinue as sasl) => {
                         let Some(message) = tx.process_message(&sasl.data(), env)? else {
@@ -228,7 +228,7 @@ impl<S: Stream> PGConn<S> {
             messages.extend_from_slice(&buffer[..n]);
             while messages.len() > 5 {
                 let message = Message::new(&messages);
-                if message.mlen() as usize <= messages.len() + 1 {
+                if message.mlen() <= messages.len() + 1 {
                     let n = message.mlen() + 1;
                     let message = self.process_message(&messages[..n])?;
                     messages = messages[n..].to_vec();

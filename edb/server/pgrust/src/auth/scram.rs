@@ -106,10 +106,10 @@ impl ServerTransaction {
                 }
                 let salted_password = env.get_salted_password(&first_message.username);
                 let (client_proof, server_verifier) = generate_proof(
-                    &first_message.encode().as_bytes(),
-                    &first_response.encode().as_bytes(),
-                    &message.channel_binding.as_bytes(),
-                    &message.combined_nonce.as_bytes(),
+                    first_message.encode().as_bytes(),
+                    first_response.encode().as_bytes(),
+                    message.channel_binding.as_bytes(),
+                    message.combined_nonce.as_bytes(),
                     &salted_password,
                 );
                 let mut proof = vec![];
@@ -136,7 +136,7 @@ enum ServerState {
 }
 
 pub trait ClientEnvironment {
-    fn get_salted_password(&self, username: &str, salt: &[u8], iterations: usize) -> Sha256Out;
+    fn get_salted_password(&self, salt: &[u8], iterations: usize) -> Sha256Out;
     fn generate_nonce(&self) -> String;
 }
 
@@ -169,7 +169,7 @@ impl ClientTransaction {
                 let nonce = env.generate_nonce().into();
                 let message = ClientFirstMessage {
                     channel_binding: ChannelBinding::NotSupported("".into()),
-                    username: username.to_owned(),
+                    username: username.clone(),
                     nonce,
                 };
                 self.state = ClientState::SentFirst(message.to_owned_bare());
@@ -189,13 +189,12 @@ impl ClientTransaction {
                 }
                 let mut buffer = [0; 1024];
                 let salt = decode_salt(&message.salt, &mut buffer)?;
-                let salted_password =
-                    env.get_salted_password(&first_message.username, &salt, message.iterations);
+                let salted_password = env.get_salted_password(&salt, message.iterations);
                 let (client_proof, server_verifier) = generate_proof(
-                    &first_message.encode().as_bytes(),
-                    &message.encode().as_bytes(),
+                    first_message.encode().as_bytes(),
+                    message.encode().as_bytes(),
                     CHANNEL_BINDING_ENCODED.as_bytes(),
-                    &message.combined_nonce.as_bytes(),
+                    message.combined_nonce.as_bytes(),
                     &salted_password,
                 );
                 let message = ClientFinalMessage {
@@ -291,7 +290,7 @@ impl Encode for ClientFirstMessage<'_> {
             ChannelBinding::NotSpecified => "".to_string(),
             ChannelBinding::NotSupported(ref s) => format!("n,{},", s),
             ChannelBinding::Supported(ref s) => format!("y,{},", s),
-            ChannelBinding::Required(ref s, ref t) => format!("p={},{},", s, t),
+            ChannelBinding::Required(ref s, ref t) => format!("p={},{},", t, s),
         };
         format!("{channel_binding}n={},r={}", self.username, self.nonce)
     }
@@ -304,10 +303,22 @@ impl<'a> Decode<'a> for ClientFirstMessage<'a> {
         // Check for channel binding
         let mut next = inext(&mut parts)?;
         let mut channel_binding = ChannelBinding::NotSpecified;
-        match (next.len(), next.get(0)) {
+        match (next.len(), next.first()) {
             (_, Some(b'p')) => {
-                // TODO
-                return Err(SCRAMError::ProtocolError);
+                // p=(cb-name),(authz-id),
+                let Some(cb_name) = next.strip_prefix(b"p=") else {
+                    return Err(SCRAMError::ProtocolError);
+                };
+                let cb_name =
+                    std::str::from_utf8(cb_name).map_err(|_| SCRAMError::ProtocolError)?;
+                let param = inext(&mut parts)?;
+                channel_binding = ChannelBinding::Required(
+                    Cow::Borrowed(
+                        std::str::from_utf8(param).map_err(|_| SCRAMError::ProtocolError)?,
+                    ),
+                    cb_name.into(),
+                );
+                next = inext(&mut parts)?;
             }
             (1, Some(b'n')) => {
                 let param = inext(&mut parts)?;
@@ -515,7 +526,7 @@ fn generate_proof(
         client_signature[i] ^= client_key[i];
     }
 
-    let mut server_proof = hmac(&&server_key);
+    let mut server_proof = hmac(&server_key);
     for chunk in auth_message {
         server_proof.update(chunk);
     }
@@ -633,6 +644,22 @@ mod tests {
     }
 
     #[test]
+    fn test_client_first_message_required() {
+        let message =
+            ClientFirstMessage::decode(b"p=cb-name,,n=,r=480I9uIaXEU9oB2RRcenOxN/").unwrap();
+        assert_eq!(
+            message.channel_binding,
+            ChannelBinding::Required(Cow::Borrowed(""), Cow::Borrowed("cb-name"))
+        );
+        assert_eq!(message.username, "");
+        assert_eq!(message.nonce, "480I9uIaXEU9oB2RRcenOxN/");
+        assert_eq!(
+            message.encode(),
+            "p=cb-name,,n=,r=480I9uIaXEU9oB2RRcenOxN/".to_owned()
+        );
+    }
+
+    #[test]
     fn test_server_first_response() {
         let message = ServerFirstResponse::decode(
             b"r=480I9uIaXEU9oB2RRcenOxN/RsOCy0BKJvyRSeuOtQ0cF0hu,s=t5YekvL6lgy4RyPnsiyqsg==,i=4096",
@@ -691,13 +718,7 @@ mod tests {
             fn generate_nonce(&self) -> String {
                 "<<<client nonce>>>".into()
             }
-            fn get_salted_password(
-                &self,
-                username: &str,
-                salt: &[u8],
-                iterations: usize,
-            ) -> Sha256Out {
-                assert_eq!(username, "username");
+            fn get_salted_password(&self, salt: &[u8], iterations: usize) -> Sha256Out {
                 generate_salted_password("password", salt, iterations)
             }
         }

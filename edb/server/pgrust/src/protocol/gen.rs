@@ -186,7 +186,7 @@ macro_rules! protocol {
                     // that they all exist before variable-sized fields.
 
                     $(
-                        $(if FieldAccess::<$type>::extract(buf.split_at(offset).1) != $value as _ { return false;})?
+                        $(if FieldAccess::<$type>::extract(buf.split_at(offset).1) != $value as usize as _ { return false;})?
 
                         offset += std::mem::size_of::<$type>();
                     )*
@@ -407,7 +407,7 @@ macro_rules! message_group {
         pub struct $group {
         }
 
-        trait [<$group Match>] {
+        pub trait [<$group Match>] {
             $(
                 fn [<$message:snake>]<'a>(&mut self) -> Option<impl FnMut(self::struct_defs::$message::$message<'a>)> {
                     // No implementation by default

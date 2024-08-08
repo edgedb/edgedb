@@ -45,7 +45,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match (args.tcp, args.unix) {
         (Some(addr), None) => {
             // Connect to the port with tokio
-            let client = TcpStream::connect(addr).await?;
+            let _client = TcpStream::connect(addr).await?;
+            unimplemented!()
         }
         (None, Some(path)) => {
             // Connect to the unix stream socket
