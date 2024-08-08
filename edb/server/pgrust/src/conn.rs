@@ -1,21 +1,21 @@
 use crate::{
     auth::{self, generate_salted_password, ClientEnvironment, ClientTransaction, Sha256Out},
     protocol::{
-        builder, match_message, measure, AuthenticationMessage, AuthenticationOk,
-        AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData,
-        ErrorResponse, Message, ParameterStatus, ReadyForQuery,
+        builder, match_message, AuthenticationMessage, AuthenticationOk, AuthenticationSASL,
+        AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, ErrorResponse,
+        Message, ParameterStatus, ReadyForQuery,
     },
 };
 use base64::Engine;
 use rand::Rng;
-use std::future::{poll_fn, ready};
+use std::future::poll_fn;
 use std::{
     cell::RefCell,
     task::{ready, Poll},
 };
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
+use tokio::io::ReadBuf;
 
-trait Stream: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin {}
+pub trait Stream: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin {}
 
 impl<T> Stream for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin {}
 
@@ -46,7 +46,6 @@ enum ConnState {
     SCRAM(ClientTransaction, ClientEnvironmentImpl),
     Connected,
     Ready,
-    Transition,
 }
 
 struct ClientEnvironmentImpl {
@@ -145,7 +144,7 @@ impl<S: Stream> PGConn<S> {
                             return Err(auth::SCRAMError::ProtocolError.into());
                         };
                     },
-                    (AuthenticationOk as auth) => {
+                    (AuthenticationOk) => {
                         eprintln!("auth ok");
                         *state = ConnState::Connected;
                     },
@@ -173,6 +172,7 @@ impl<S: Stream> PGConn<S> {
                     },
                     (ReadyForQuery as ready) => {
                         eprintln!("ready: {:?}", ready.status());
+                        *state = ConnState::Ready;
                     },
                     (Message as message) => {
                         let mlen = message.mlen();
@@ -181,7 +181,6 @@ impl<S: Stream> PGConn<S> {
                 });
             }
             ConnState::Ready => {}
-            _ => {}
         }
 
         Ok(send)
@@ -230,7 +229,7 @@ impl<S: Stream> PGConn<S> {
             while messages.len() > 5 {
                 let message = Message::new(&messages);
                 if message.mlen() as usize <= messages.len() + 1 {
-                    let n = (message.mlen() + 1);
+                    let n = message.mlen() + 1;
                     let message = self.process_message(&messages[..n])?;
                     messages = messages[n..].to_vec();
                     if !message.is_empty() {

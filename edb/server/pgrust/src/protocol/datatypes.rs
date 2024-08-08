@@ -215,7 +215,7 @@ impl FieldAccess<EncodedMeta> {
 // We alias usize here. Note that if this causes trouble in the future we can
 // probably work around this by adding a new "const value" function to
 // FieldAccess. For now it works!
-pub struct LengthMeta(i32);
+pub struct LengthMeta(#[allow(unused)] i32);
 impl<'a> Enliven<'a> for LengthMeta {
     type WithLifetime = usize;
     type ForMeasure = usize;

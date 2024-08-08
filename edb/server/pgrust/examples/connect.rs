@@ -1,4 +1,4 @@
-use clap::{builder, Parser};
+use clap::Parser;
 use clap_derive::Parser;
 use pgrust::PGConn;
 use std::net::SocketAddr;
@@ -45,13 +45,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match (args.tcp, args.unix) {
         (Some(addr), None) => {
             // Connect to the port with tokio
-            let mut client = TcpStream::connect(addr).await?;
+            let client = TcpStream::connect(addr).await?;
         }
         (None, Some(path)) => {
             // Connect to the unix stream socket
             let socket = UnixSocket::new_stream()?;
             let client = socket.connect(path).await?;
-            let mut conn = PGConn::new(client, args.username, args.password, args.database);
+            let conn = PGConn::new(client, args.username, args.password, args.database);
             conn.task().await?;
         }
         _ => return Err("Must specify either a TCP address or a Unix socket path".into()),
