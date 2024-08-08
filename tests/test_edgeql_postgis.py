@@ -21,10 +21,23 @@ import functools
 import os
 import re
 import typing
+import unittest
+
 
 import edgedb
 
 from edb.testbase import server as tb
+
+
+BOX2D_BIN = (
+    b'\x01\x03\x00\x00\x00\x01\x00\x00\x00\x05\x00\x00\x00\x00'
+    b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf0'
+    b'?\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+    b'\x08@\x00\x00\x00\x00\x00\x00\x00@\x00\x00\x00\x00\x00\x00'
+    b'\x08@\x00\x00\x00\x00\x00\x00\x00@\x00\x00\x00\x00\x00\x00'
+    b'\xf0?\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+    b'\x00\xf0?'
+)
 
 
 class value(typing.NamedTuple):
@@ -1137,3 +1150,78 @@ class TestEdgeQLPostgis(tb.QueryTestCase):
     async def test_edgeql_postgis_bulk_ops_03(self):
         '''Test postgis operators in filters w.r.t. spgist index.'''
         await self._test_edgeql_postgis_bulk_ops('GeoTest2', 'pg::spgist')
+
+    @unittest.skip('needs latest Python bindings to work')
+    async def test_edgeql_postgis_box2d_01(self):
+        # Make sure box2d data can be received
+        await self.assert_query_result(
+            '''
+                with module ext::postgis,
+                select <box2d>'box(0 1, 2 3)';
+            ''',
+            ['BOX(0 1,2 3)'],
+            [[{'wkb': BOX2D_BIN}]],
+        )
+
+    @unittest.skip('needs latest Python bindings to work')
+    async def test_edgeql_postgis_box2d_02(self):
+        # Make sure box2d data can be received
+        await self.assert_query_result(
+            '''
+                with module ext::postgis,
+                select [<box2d>'box(0 1, 2 3)'];
+            ''',
+            [['BOX(0 1,2 3)']],
+            [[{'wkb': BOX2D_BIN}]],
+        )
+
+    @unittest.skip('needs latest Python bindings to work')
+    async def test_edgeql_postgis_box2d_03(self):
+        # Make sure box2d data can be received
+        await self.assert_query_result(
+            '''
+                with module ext::postgis,
+                select [(x := <box2d>'box(0 1, 2 3)')];
+            ''',
+            [[{'x': 'BOX(0 1,2 3)'}]],
+            [[{'x': {'wkb': BOX2D_BIN}}]],
+        )
+
+    @unittest.skip('needs latest Python bindings to work')
+    async def test_edgeql_postgis_box2d_04(self):
+        # Make sure box2d data can be received
+        await self.assert_query_result(
+            '''
+                with module ext::postgis,
+                select [(x := <box2d>'box(0 1, 2 3)')][0];
+            ''',
+            [{'x': 'BOX(0 1,2 3)'}],
+            [{'x': {'wkb': BOX2D_BIN}}],
+        )
+
+    @unittest.skip('needs latest Python bindings to work')
+    async def test_edgeql_postgis_box2d_05(self):
+        # Make sure box2d data can be received
+        await self.assert_query_result(
+            '''
+                select GeoTest0.tup_b2
+                filter GeoTest0.name = '1st';
+            ''',
+            [['BOX(0 1,2 3)', 'ok']],
+            [({'wkb': BOX2D_BIN}, 'ok')],
+        )
+
+    @unittest.skip('''
+        Needs latest Python bindings.
+
+        Also there's a bug that causes two arrays of boxes fail to be
+        compared, because the underlying box types don't have `=` defined.
+    ''')
+    async def test_edgeql_postgis_box2d_06(self):
+        await self.assert_query_result(
+            '''
+                select [<box2d>'box(0 1, 2 3)'] =
+                       [<box2d>'box(2 3, 0 1)'];
+            ''',
+            [True],
+        )

@@ -21,6 +21,9 @@ type GeoTest0 {
     required name: str;
     geometry: ext::postgis::geometry;
     geography: ext::postgis::geography;
+    b2: ext::postgis::box2d;
+    b3: ext::postgis::box3d;
+    tup_b2: tuple<ext::postgis::box2d, str>;
 
     index pg::gist on (.geometry);
     index pg::gist on (.geography);

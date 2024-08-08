@@ -66,4 +66,8 @@ TYPE_IDS = {
         UUID('00000000-0000-0000-0000-000000000112'),
     sn.name_from_string('cfg::memory'):
         UUID('00000000-0000-0000-0000-000000000130'),
+    sn.name_from_string('ext::postgis::box2d'):
+        UUID('7fae5536-6311-4f60-8eb9-096a5d972f48'),
+    sn.name_from_string('ext::postgis::box3d'):
+        UUID('c1a50ff8-fded-48b0-85c2-4905a8481433'),
 }

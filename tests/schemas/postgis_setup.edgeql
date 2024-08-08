@@ -22,6 +22,9 @@ insert GeoTest0 {
     name := '1st',
     geometry := <gis::geometry>'POINT(0 1)',
     geography := <gis::geography>'POINT(2 3)',
+    b2 := <gis::box2d>'BOX(0 1, 2 3)',
+    b3 := <gis::box3d>'BOX3D(0 1 5, 2 3 9)',
+    tup_b2 := (<gis::box2d>'BOX(0 1, 2 3)', 'ok'),
 };
 
 with gis as module ext::postgis
