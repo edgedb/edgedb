@@ -70,7 +70,7 @@ pub fn full_statement(
                     Some((_, start @ (b'\'' | b'"'))) => {
                         let end = *start;
                         iter.next();
-                        while let Some((_, b)) = iter.next() {
+                        for (_, b) in iter.by_ref() {
                             if b == end {
                                 continue 'outer;
                             }
@@ -84,7 +84,7 @@ pub fn full_statement(
                 }
             }
             b'`' => {
-                while let Some((_, b)) = iter.next() {
+                for (_, b) in iter.by_ref() {
                     match b {
                         b'`' => continue 'outer,
                         _ => continue,
@@ -96,7 +96,7 @@ pub fn full_statement(
                 });
             }
             b'#' => {
-                while let Some((_, &b)) = iter.next() {
+                for (_, &b) in iter.by_ref() {
                     if b == b'\n' {
                         continue 'outer;
                     }
@@ -193,7 +193,7 @@ pub fn is_empty(text: &str) -> bool {
             '\u{feff}' | '\r' | '\t' | '\n' | ' ' | ';' => continue,
             // Comment
             '#' => {
-                while let Some(c) = iter.next() {
+                for c in iter.by_ref() {
                     if c == '\r' || c == '\n' {
                         break;
                     }

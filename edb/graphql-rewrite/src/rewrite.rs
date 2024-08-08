@@ -66,7 +66,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
             match def {
                 Definition::Operation(ref op) => {
                     if oper.is_some() {
-                        return Err(Error::NotFound(
+                        Err(Error::NotFound(
                             "Multiple operations \
                             found. Please specify operation name"
                                 .into(),
@@ -179,19 +179,15 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                 continue;
             }
             IntValue => {
-                if token.value == "1" {
-                    if pos.token > 2
+                if token.value == "1" && pos.token > 2
                         && all_src_tokens[pos.token - 1].0.kind == Punctuator
                         && all_src_tokens[pos.token - 1].0.value == ":"
-                        && all_src_tokens[pos.token - 2].0.kind == Name
-                        && all_src_tokens[pos.token - 2].0.value == "first"
-                    {
-                        // skip `first: 1` as this is used to fetch singleton
-                        // properties from queries where literal `LIMIT 1`
-                        // should be present
-                        tmp.push(PyToken::new(&(*token, *pos))?);
-                        continue;
-                    }
+                        && all_src_tokens[pos.token - 2].0.kind == Name && all_src_tokens[pos.token - 2].0.value == "first" {
+                    // skip `first: 1` as this is used to fetch singleton
+                    // properties from queries where literal `LIMIT 1`
+                    // should be present
+                    tmp.push(PyToken::new(&(*token, *pos))?);
+                    continue;
                 }
                 let var_name = format!("_edb_arg__{}", variables.len());
                 tmp.push(PyToken {

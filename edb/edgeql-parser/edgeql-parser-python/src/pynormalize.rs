@@ -125,7 +125,7 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
             }
             Value::Float(ref v) => {
                 codec::Float64
-                    .encode(&mut buf, &P::Float64(v.clone()))
+                    .encode(&mut buf, &P::Float64(*v))
                     .map_err(|e| format!("float cannot be encoded: {}", e))?;
             }
             Value::BigInt(ref v) => {

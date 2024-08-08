@@ -870,7 +870,7 @@ impl<'a> Tokenizer<'a> {
                 }
                 //comment
                 '#' => {
-                    while let Some((idx, cur_char)) = iter.next() {
+                    for (idx, cur_char) in iter.by_ref() {
                         if check_prohibited(cur_char, false).is_err() {
                             // can't return error from skip_whitespace
                             // but we return up to this char, so the tokenizer

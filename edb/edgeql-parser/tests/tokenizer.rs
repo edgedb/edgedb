@@ -33,7 +33,7 @@ fn tok_err(s: &str) -> String {
         match s.next() {
             Some(Ok(_)) => {}
             None => break,
-            Some(Err(e)) => return format!("{}", e.message),
+            Some(Err(e)) => return e.message.to_string(),
         }
     }
     panic!("No error, where error expected");

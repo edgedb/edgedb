@@ -29,27 +29,27 @@ pub struct PackedEntry {
     pub first_arg: Option<usize>,
 }
 
-impl Into<PackedEntry> for Entry {
-    fn into(self) -> PackedEntry {
+impl From<Entry> for PackedEntry {
+    fn from(val: Entry) -> Self {
         PackedEntry {
-            tokens: self.tokens,
-            variables: self.variables,
-            named_args: self.named_args,
-            first_arg: self.first_arg,
+            tokens: val.tokens,
+            variables: val.variables,
+            named_args: val.named_args,
+            first_arg: val.first_arg,
         }
     }
 }
 
-impl Into<Entry> for PackedEntry {
-    fn into(self) -> Entry {
-        let processed_source = serialize_tokens(&self.tokens[..]);
+impl From<PackedEntry> for Entry {
+    fn from(val: PackedEntry) -> Self {
+        let processed_source = serialize_tokens(&val.tokens[..]);
         Entry {
             hash: hash(&processed_source),
             processed_source,
-            tokens: self.tokens,
-            variables: self.variables,
-            named_args: self.named_args,
-            first_arg: self.first_arg,
+            tokens: val.tokens,
+            variables: val.variables,
+            named_args: val.named_args,
+            first_arg: val.first_arg,
         }
     }
 }

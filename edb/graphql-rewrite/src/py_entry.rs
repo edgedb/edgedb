@@ -52,7 +52,7 @@ pub fn convert_entry(py: Python<'_>, entry: rewrite::Entry) -> PyResult<Entry> {
     }
     let key_vars = PyList::new(
         py,
-        &entry
+        entry
             .key_vars
             .iter()
             .map(|v| v.into_py(py))
