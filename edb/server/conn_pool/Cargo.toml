@@ -26,7 +26,7 @@ smart-default = "0"
 
 [dependencies.tokio]
 version = "1"
-features = ["rt", "time", "sync"]
+features = ["rt", "time", "sync", "net"]
 
 [dependencies.derive_more]
 version = "1.0.0-beta.6"

@@ -26,7 +26,7 @@ pub struct ConnState {
 pub enum ConnError<E: Clone> {
     #[error("Shutdown")]
     Shutdown,
-    #[error("Underlying")]
+    #[error("{0}")]
     Underlying(E),
     #[error("Task failed, but error was re-routed")]
     TaskFailed,
@@ -270,6 +270,9 @@ impl<C: Connector> Conn<C> {
     }
 }
 
+#[allow(type_alias_bounds)]
+type ConnFuture<C: Connector, T> = dyn Future<Output = ConnResult<T, <C as Connector>::Error>>;
+
 /// Connection state diagram:
 ///
 /// ```text
@@ -279,20 +282,11 @@ impl<C: Connector> Conn<C> {
 /// ```
 enum ConnInner<C: Connector> {
     /// Connecting connections hold a spot in the pool as they count towards quotas
-    Connecting(
-        Instant,
-        Pin<Box<dyn Future<Output = ConnResult<C::Conn, C::Error>>>>,
-    ),
+    Connecting(Instant, Pin<Box<ConnFuture<C, C::Conn>>>),
     /// Reconnecting connections hold a spot in the pool as they count towards quotas
-    Reconnecting(
-        Instant,
-        Pin<Box<dyn Future<Output = ConnResult<C::Conn, C::Error>>>>,
-    ),
+    Reconnecting(Instant, Pin<Box<ConnFuture<C, C::Conn>>>),
     /// Disconnecting connections hold a spot in the pool as they count towards quotas
-    Disconnecting(
-        Instant,
-        Pin<Box<dyn Future<Output = ConnResult<(), C::Error>>>>,
-    ),
+    Disconnecting(Instant, Pin<Box<ConnFuture<C, ()>>>),
     /// The connection is alive, but it is not being held.
     Idle(Instant, C::Conn),
     /// The connection is alive, and is being held.
