@@ -23,7 +23,6 @@ from typing import (
     Optional,
     Tuple,
     Type,
-    AbstractSet,
     Iterable,
     Mapping,
     Sequence,
@@ -3291,57 +3290,7 @@ class CompositeMetaCommand(MetaCommand):
         cls,
         schema: s_schema.Schema,
         obj: CompositeObject,
-        ptrnames: Dict[sn.UnqualName, Tuple[str, Tuple[str, ...]]],
     ) -> Optional[str]:
-
-        cols = []
-
-        special_cols = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
-        if not irtyputils.is_cfg_view(obj, schema):
-            cols.extend([(col, col, True) for col in special_cols])
-        else:
-            cols.extend([('NULL', col, False) for col in special_cols])
-
-        if isinstance(obj, s_sources.Source):
-            ptrs = dict(obj.get_pointers(schema).items(schema))
-
-            for ptrname, (alias, pgtype) in ptrnames.items():
-                ptr = ptrs.get(ptrname)
-                if ptrname == sn.UnqualName('__type__'):
-                    # __type__ is special cased: since it is uniquely
-                    # determined by the type, we directly insert it
-                    # into the views instead of storing it (to save space)
-                    cols.append((f"'{obj.id}'::uuid", alias, False))
-                elif ptr is not None:
-                    ptr_stor_info = types.get_pointer_storage_info(
-                        ptr,
-                        link_bias=isinstance(obj, s_links.Link),
-                        schema=schema,
-                    )
-                    if ptr_stor_info.column_type != pgtype:
-                        return None
-                    col_name: str = ptr_stor_info.column_name
-                    cols.append((col_name, alias, True))
-                elif ptrname == sn.UnqualName('source'):
-                    cols.append(('NULL::uuid', alias, False))
-                elif ptrname == sn.UnqualName('__fts_document__'):
-                    # an addon column
-                    cols.append((ptrname.name, alias, True))
-                elif (
-                    ptrname.name.startswith('__ext_ai_')
-                    and ptrname.name.endswith('__')
-                ):
-                    # an addon column
-                    cols.append((ptrname.name, alias, True))
-                else:
-                    return None
-
-        else:
-            cols.extend(
-                (str(ptrname), alias, True)
-                for ptrname, (alias, _) in ptrnames.items()
-            )
-
         tabname = common.get_backend_name(
             schema,
             obj,
@@ -3351,15 +3300,8 @@ class CompositeMetaCommand(MetaCommand):
 
         talias = qi(tabname[1])
 
-        coltext = ',\n'.join(
-            f'{f"{talias}.{qi(col)}"} AS {qi(alias)}' if is_col else
-            f'{col} AS {qi(alias)}'
-            for col, alias, is_col in cols
-        )
-
         return textwrap.dedent(f'''\
             (SELECT
-               {coltext}
              FROM
                {q(*tabname)} AS {talias}
             )
@@ -3370,85 +3312,13 @@ class CompositeMetaCommand(MetaCommand):
         cls,
         schema: s_schema.Schema,
         obj: CompositeObject,
-        exclude_children: AbstractSet[CompositeObject] = frozenset(),
-        exclude_ptrs: AbstractSet[s_pointers.Pointer] = frozenset(),
     ) -> dbops.View:
         inhview_name = common.get_backend_name(
             schema, obj, catenate=False, aspect='inhview')
 
-        ptrs: Dict[sn.UnqualName, Tuple[str, Tuple[str, ...]]] = {}
-
-        if isinstance(obj, s_sources.Source):
-            pointers = list(obj.get_pointers(schema).items(schema))
-            # Sort by UUID timestamp for stable VIEW column order.
-            pointers.sort(key=lambda p: p[1].id.time)
-
-            for ptrname, ptr in pointers:
-                if ptr in exclude_ptrs:
-                    continue
-                if ptr.is_pure_computable(schema):
-                    continue
-                ptr_stor_info = types.get_pointer_storage_info(
-                    ptr,
-                    link_bias=isinstance(obj, s_links.Link),
-                    schema=schema,
-                )
-                if (
-                    isinstance(obj, s_links.Link)
-                    or ptr_stor_info.table_type == 'ObjectType'
-                ):
-                    ptrs[ptrname] = (
-                        ptr_stor_info.column_name,
-                        ptr_stor_info.column_type,
-                    )
-
-            for name, alias, type in obj.get_addon_columns(schema):
-                ptrs[sn.UnqualName(name)] = (alias, type)
-
-        else:
-            # MULTI PROPERTY
-            ptrs[sn.UnqualName('source')] = ('source', ('uuid',))
-            lp_info = types.get_pointer_storage_info(
-                obj,
-                link_bias=True,
-                schema=schema,
-            )
-            ptrs[sn.UnqualName('target')] = ('target', lp_info.column_type)
-
-        descendants = [
-            child for child in obj.descendants(schema)
-            if types.has_table(child, schema)
-            and child not in exclude_children
-            # XXX: Exclude sys/cfg tables from non sys/cfg views. This
-            # probably isn't *really* what we want to do, but until we
-            # figure that out, do *something* so that DDL isn't
-            # excruciatingly slow because of the cost of explicit id
-            # checks. See #5168.
-            and (
-                not irtyputils.is_cfg_view(child, schema)
-                or irtyputils.is_cfg_view(obj, schema)
-            )
-        ]
-
-        # Hackily force 'source' to appear in abstract links. We need
-        # source present in the code we generate to enforce newly
-        # created exclusive constraints across types.
-        if (
-            ptrs
-            and isinstance(obj, s_links.Link)
-            and sn.UnqualName('source') not in ptrs
-            and obj.is_non_concrete(schema)
-        ):
-            ptrs[sn.UnqualName('source')] = ('source', ('uuid',))
-
         components = []
         components.append(
-            cls._get_select_from(schema, obj, ptrs))
-
-        components.extend(
-            cls._get_select_from(schema, child, ptrs)
-            for child in descendants
-        )
+            cls._get_select_from(schema, obj))
 
         query = '\nUNION ALL\n'.join(filter(None, components))
 
@@ -3494,8 +3364,6 @@ class CompositeMetaCommand(MetaCommand):
         schema: s_schema.Schema,
         context: sd.CommandContext,
         obj: CompositeObject,
-        *,
-        exclude_children: AbstractSet[CompositeObject] = frozenset(),
     ) -> None:
         for base in obj.get_ancestors(schema).objects(schema):
             if types.has_table(base, schema) and not context.is_deleting(base):
@@ -3503,7 +3371,6 @@ class CompositeMetaCommand(MetaCommand):
                     schema,
                     context,
                     base,
-                    exclude_children=exclude_children,
                     alter_ancestors=False,
                 )
 
@@ -3512,8 +3379,6 @@ class CompositeMetaCommand(MetaCommand):
         schema: s_schema.Schema,
         context: sd.CommandContext,
         obj: s_pointers.Pointer,
-        *,
-        exclude_children: AbstractSet[s_sources.Source] = frozenset(),
     ) -> None:
         for base in obj.get_ancestors(schema).objects(schema):
             src = base.get_source(schema)
@@ -3528,7 +3393,6 @@ class CompositeMetaCommand(MetaCommand):
                     schema,
                     context,
                     src,
-                    exclude_children=exclude_children,
                     alter_ancestors=False,
                 )
 
@@ -3538,7 +3402,6 @@ class CompositeMetaCommand(MetaCommand):
         context: sd.CommandContext,
         obj: CompositeObject,
         *,
-        exclude_ptrs: AbstractSet[s_pointers.Pointer] = frozenset(),
         alter_ancestors: bool = True,
     ) -> None:
         assert types.has_table(obj, schema)
@@ -3546,15 +3409,8 @@ class CompositeMetaCommand(MetaCommand):
         if irtyputils.is_cfg_view(obj, schema):
             self._refresh_fake_cfg_view(obj, schema, context)
 
-        inhview = self.get_inhview(schema, obj, exclude_ptrs=exclude_ptrs)
-        self.pgops.add(dbops.CreateView(view=inhview))
-        self.pgops.add(dbops.Comment(
-            object=inhview,
-            text=(
-                f"{obj.get_verbosename(schema, with_parent=True)} "
-                f"and descendants"
-            )
-        ))
+        inhview = self.get_inhview(schema, obj)
+        self.pgops.add(dbops.CreateView(view=inhview, or_replace=True))
         if alter_ancestors:
             self.alter_ancestor_inhviews(schema, context, obj)
 
@@ -3564,7 +3420,6 @@ class CompositeMetaCommand(MetaCommand):
         context: sd.CommandContext,
         obj: CompositeObject,
         *,
-        exclude_children: AbstractSet[CompositeObject] = frozenset(),
         alter_ancestors: bool = True,
     ) -> None:
         assert types.has_table(obj, schema)
@@ -3575,19 +3430,11 @@ class CompositeMetaCommand(MetaCommand):
         inhview = self.get_inhview(
             schema,
             obj,
-            exclude_children=exclude_children,
         )
         self.pgops.add(dbops.CreateView(view=inhview, or_replace=True))
-        self.pgops.add(dbops.Comment(
-            object=inhview,
-            text=(
-                f"{obj.get_verbosename(schema, with_parent=True)} "
-                f"and descendants"
-            )
-        ))
         if alter_ancestors:
             self.alter_ancestor_inhviews(
-                schema, context, obj, exclude_children=exclude_children)
+                schema, context, obj)
 
     def recreate_inhview(
         self,
@@ -3595,7 +3442,6 @@ class CompositeMetaCommand(MetaCommand):
         context: sd.CommandContext,
         obj: CompositeObject,
         *,
-        exclude_ptrs: AbstractSet[s_pointers.Pointer] = frozenset(),
         alter_ancestors: bool = True,
     ) -> None:
         # We cannot use the regular CREATE OR REPLACE VIEW flow
@@ -3606,7 +3452,6 @@ class CompositeMetaCommand(MetaCommand):
             schema,
             context,
             obj,
-            exclude_ptrs=exclude_ptrs,
             alter_ancestors=alter_ancestors,
         )
 
@@ -4807,7 +4652,7 @@ class PointerMetaCommand(
             self.drop_inhview(schema, context, source)
             self.alter_ancestor_source_inhviews(
                 schema, context, pointer,
-                exclude_children=frozenset((source,)))
+            )
 
         if is_link:
             old_lb_ptr_stor_info = types.get_pointer_storage_info(
@@ -5513,7 +5358,6 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                     schema,
                     context,
                     objtype.scls,
-                    exclude_ptrs=frozenset((link,)),
                     alter_ancestors=False,
                 )
                 self.alter_ancestor_source_inhviews(
@@ -5535,7 +5379,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
             self.drop_inhview(orig_schema, context, link, conditional=True)
             self.alter_ancestor_inhviews(
                 orig_schema, context, link,
-                exclude_children=frozenset((link,)))
+            )
             condition = dbops.TableExists(name=old_table_name)
             self.pgops.add(
                 dbops.DropTable(name=old_table_name, conditions=[condition]))
@@ -5981,7 +5825,6 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
                     schema,
                     context,
                     source,
-                    exclude_ptrs=frozenset((prop,)),
                     alter_ancestors=is_endpoint_ptr,
                 )
                 if not is_endpoint_ptr:
@@ -6003,14 +5846,15 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
             self.drop_inhview(orig_schema, context, source)
             self.alter_ancestor_inhviews(
                 orig_schema, context, source,
-                exclude_children=frozenset((source,)))
+            )
             old_table_name = self._get_table_name(source, orig_schema)
             self.pgops.add(dbops.DropTable(name=old_table_name))
 
         if types.has_table(prop, orig_schema):
             self.drop_inhview(orig_schema, context, prop)
             self.alter_ancestor_inhviews(
-                schema, context, prop, exclude_children={prop})
+                schema, context, prop,
+            )
             old_table_name = self._get_table_name(prop, orig_schema)
             self.pgops.add(dbops.DropTable(name=old_table_name))
             self.schedule_endpoint_delete_action_update(
