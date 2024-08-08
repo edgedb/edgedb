@@ -136,7 +136,7 @@ impl<C: Connector> Pool<C> {
     fn algo(&self) -> AlgoState<'_, Blocks<C, PoolAlgoTargetData>> {
         AlgoState {
             drain: &self.drain,
-            it: &self.blocks,
+            blocks: &self.blocks,
             constraints: &self.config.constraints,
         }
     }

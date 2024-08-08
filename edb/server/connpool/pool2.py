@@ -176,7 +176,6 @@ class Pool(typing.Generic[C]):
 
         finally:
             transport.close()
-            fd.close()
 
     # Allow readers to skip the self-pipe for performing reads which may reduce
     # latency a small degree. We'll still need to eventually pick up a self-pipe

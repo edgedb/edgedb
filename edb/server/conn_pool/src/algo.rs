@@ -431,7 +431,7 @@ pub struct PoolConstraints {
 /// The algorithm runs against these data structures.
 pub struct AlgoState<'a, V: VisitPoolAlgoData> {
     pub drain: &'a Drain,
-    pub it: &'a V,
+    pub blocks: &'a V,
     pub constraints: &'a PoolConstraints,
 }
 
@@ -443,7 +443,7 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
         let mut total_target = 0;
         let mut s = "".to_owned();
 
-        self.it.with_all(|name, data| {
+        self.blocks.with_all(|name, data| {
             // Draining targets act like they have demand zero
             if self.drain.is_draining(name) {
                 if tracing::enabled!(tracing::Level::TRACE) {
@@ -482,14 +482,14 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
         self.recalculate_shares(true);
 
         // Once we've adjusted the constraints, reset the max settings
-        self.it.reset_max();
+        self.blocks.reset_max();
     }
 
     /// Allocate the calculated demand to target quotas.
     fn allocate_demand(&self, total_target: usize, total_demand: usize) {
         // Empty pool, no math
         if total_target == 0 || total_demand == 0 {
-            self.it.with_all(|_name, data| {
+            self.blocks.with_all(|_name, data| {
                 data.set_target(0);
             });
             return;
@@ -504,11 +504,11 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
         let capacity = max - min * total_target;
 
         if min == 0 {
-            self.it.with_all(|_name, data| {
+            self.blocks.with_all(|_name, data| {
                 data.set_target(0);
             });
         } else {
-            self.it.with_all(|name, data| {
+            self.blocks.with_all(|name, data| {
                 let demand = data.demand();
                 if demand == 0 || self.drain.is_draining(name) {
                     data.set_target(0);
@@ -528,7 +528,7 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
 
         if tracing::enabled!(tracing::Level::TRACE) {
             let mut s = String::new();
-            self.it.with_all(|name, block| {
+            self.blocks.with_all(|name, block| {
                 s += &format!("{name}={}/{} ", block.target(), block.total());
             });
             trace!("Targets: {s}");
@@ -545,7 +545,7 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
     /// Plan a shutdown.
     fn plan_shutdown(&self) -> Vec<RebalanceOp> {
         let mut ops = vec![];
-        self.it.with_all(|name, block| {
+        self.blocks.with_all(|name, block| {
             let idle = block.count(MetricVariant::Idle);
             let failed = block.count(MetricVariant::Failed);
 
@@ -564,14 +564,14 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
             return self.plan_shutdown();
         }
 
-        let mut current_pool_size = self.it.total();
+        let mut current_pool_size = self.blocks.total();
         let max_pool_size = self.constraints.max;
         let mut tasks = vec![];
 
         // TODO: These could potentially be transferred instead, but
         // drain/shutdown are pretty unlikely.
         if self.drain.are_any_draining() {
-            self.it.with_all(|name, data| {
+            self.blocks.with_all(|name, data| {
                 if self.drain.is_draining(name) {
                     for _ in 0..data.count(MetricVariant::Idle) + data.count(MetricVariant::Failed)
                     {
@@ -587,7 +587,7 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
             let mut made_changes = false;
 
             for i in 0..MAX_REBALANCE_OPS.get() {
-                self.it.with_all(|name, block| {
+                self.blocks.with_all(|name, block| {
                     // Drains are handled at the start of this function
                     if self.drain.is_draining(name) {
                         return;
@@ -635,7 +635,7 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
         let mut s1 = "".to_owned();
         let mut s2 = "".to_owned();
 
-        self.it.with_all(|name, block| {
+        self.blocks.with_all(|name, block| {
             // Drains are handled at the start of this function
             if self.drain.is_draining(name) {
                 return;
@@ -697,15 +697,15 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
         // If the block is new, we need to perform an initial adjustment to
         // ensure this block gets some capacity.
         if self
-            .it
+            .blocks
             .ensure_block(db, DEMAND_MINIMUM.get() * DEMAND_HISTORY_LENGTH)
         {
             self.recalculate_shares(false);
         }
 
-        let target_block_size = self.it.target(db);
-        let current_block_size = self.it.with(db, |data| data.total()).unwrap_or_default();
-        let current_pool_size = self.it.total();
+        let target_block_size = self.blocks.target(db);
+        let current_block_size = self.blocks.with(db, |data| data.total()).unwrap_or_default();
+        let current_pool_size = self.blocks.total();
         let max_pool_size = self.constraints.max;
 
         let pool_is_full = current_pool_size >= max_pool_size;
@@ -719,7 +719,7 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
         if pool_is_full && block_has_room {
             let mut max = isize::MIN;
             let mut which = None;
-            self.it.with_all(|name, block| {
+            self.blocks.with_all(|name, block| {
                 if let Some(overfullness) = block.overfull_score(false) {
                     if overfullness > max {
                         which = Some(name.clone());
@@ -748,7 +748,7 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
             return ReleaseOp::Reopen;
         }
 
-        let current_pool_size = self.it.total();
+        let current_pool_size = self.blocks.total();
         let max_pool_size = self.constraints.max;
         if current_pool_size < max_pool_size {
             trace!("Pool has room, keeping connection");
@@ -756,12 +756,12 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
         }
 
         // We only want to consider a release elsewhere if this block is overfull
-        if let Some(Some(overfull)) = self.it.with(db, |block| block.overfull_score(true)) {
+        if let Some(Some(overfull)) = self.blocks.with(db, |block| block.overfull_score(true)) {
             trace!("Block {db} is overfull ({overfull}), trying to release");
             let mut max = isize::MIN;
             let mut which = None;
             let mut s = "".to_owned();
-            self.it.with_all(|name, block| {
+            self.blocks.with_all(|name, block| {
                 let is_self = &**name == db;
                 if let Some(mut hunger) = block.hunger_score(is_self) {
                     // Penalize switching by boosting the current database's relative hunger here
@@ -820,7 +820,7 @@ mod tests {
             let algo = AlgoState {
                 constraints: &config.constraints,
                 drain: &drain,
-                it: &blocks,
+                blocks: &blocks,
             };
 
             let futures = FuturesUnordered::new();
@@ -865,7 +865,7 @@ mod tests {
             let algo = AlgoState {
                 constraints: &config.constraints,
                 drain: &drain,
-                it: &blocks,
+                blocks: &blocks,
             };
 
             // Room for these

@@ -268,45 +268,43 @@ impl ConnPool {
     /// Create the connection pool and automatically boot a tokio runtime on a
     /// new thread. When this [`ConnPool`] is GC'd, the thread will be torn down.
     #[new]
-    fn new(py: Python, max_capacity: usize) -> Self {
-        py.allow_threads(|| {
-            info!("ConnPool::new(max_capacity={max_capacity})");
-            let (txrp, rxrp) = std::sync::mpsc::channel();
-            let (txpr, rxpr) = tokio::sync::mpsc::unbounded_channel();
-            let (txfd, rxfd) = std::sync::mpsc::channel();
+    fn new(max_capacity: usize) -> Self {
+        info!("ConnPool::new(max_capacity={max_capacity})");
+        let (txrp, rxrp) = std::sync::mpsc::channel();
+        let (txpr, rxpr) = tokio::sync::mpsc::unbounded_channel();
+        let (txfd, rxfd) = std::sync::mpsc::channel();
 
-            thread::spawn(move || {
-                info!("Rust-side ConnPool thread booted");
-                let rt = tokio::runtime::Builder::new_current_thread()
-                    .enable_time()
-                    .enable_io()
-                    .build()
-                    .unwrap();
-                let _guard = rt.enter();
-                let (txn, rxn) = tokio::net::unix::pipe::pipe().unwrap();
-                let fd = rxn.into_nonblocking_fd().unwrap().into_raw_fd() as u64;
-                txfd.send(fd).unwrap();
-                let local = LocalSet::new();
+        thread::spawn(move || {
+            info!("Rust-side ConnPool thread booted");
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .enable_io()
+                .build()
+                .unwrap();
+            let _guard = rt.enter();
+            let (txn, rxn) = tokio::net::unix::pipe::pipe().unwrap();
+            let fd = rxn.into_nonblocking_fd().unwrap().into_raw_fd() as u64;
+            txfd.send(fd).unwrap();
+            let local = LocalSet::new();
 
-                let rpc_pipe = RpcPipe {
-                    python_to_rust: rxpr.into(),
-                    rust_to_python: txrp,
-                    rust_to_python_notify: txn.into(),
-                    next_id: Default::default(),
-                    handles: Default::default(),
-                    async_ops: Default::default(),
-                };
+            let rpc_pipe = RpcPipe {
+                python_to_rust: rxpr.into(),
+                rust_to_python: txrp,
+                rust_to_python_notify: txn.into(),
+                next_id: Default::default(),
+                handles: Default::default(),
+                async_ops: Default::default(),
+            };
 
-                local.block_on(&rt, run_and_block(max_capacity, rpc_pipe));
-            });
+            local.block_on(&rt, run_and_block(max_capacity, rpc_pipe));
+        });
 
-            let notify_fd = rxfd.recv().unwrap();
-            ConnPool {
-                python_to_rust: txpr,
-                rust_to_python: rxrp,
-                notify_fd,
-            }
-        })
+        let notify_fd = rxfd.recv().unwrap();
+        ConnPool {
+            python_to_rust: txpr,
+            rust_to_python: rxrp,
+            notify_fd,
+        }
     }
 
     #[getter]
