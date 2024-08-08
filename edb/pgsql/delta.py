@@ -225,18 +225,6 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         assert isinstance(ctx.op, CompositeMetaCommand)
         return ctx.op
 
-    def schedule_inhview_update(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        source: s_sources.Source,
-        ctxcls: Type[sd.CommandContextToken[sd.Command]],
-    ) -> None:
-        op = self._get_topmost_command_op(context, ctxcls)
-        op.inhview_updates.add((source, True))
-        for anc in source.get_ancestors(schema).objects(schema):
-            op.inhview_updates.add((anc, False))
-
     def schedule_inhview_source_update(
         self,
         schema: s_schema.Schema,
@@ -3873,14 +3861,6 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         with errors.ensure_span(self.span):
             self.pgops.add(self.create_index(index, schema, context))
 
-        if s_indexes.is_object_scope_index(schema, index):
-            # update inhviews
-            subject = index.get_subject(schema)
-            assert isinstance(subject, s_objtypes.ObjectType)
-            self.schedule_inhview_update(
-                schema, context, subject, s_objtypes.ObjectTypeCommandContext
-            )
-
         return schema
 
 
@@ -3971,13 +3951,6 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
                 # The object is not getting dropped, so we need to update the
                 # inh view *before* the __fts_document__ is dropped.
 
-                # schedule inh view update
-                subject = index.get_subject(orig_schema)
-                assert isinstance(subject, s_objtypes.ObjectType)
-                self.schedule_inhview_update(
-                    schema, context, subject, s_sources.SourceCommandContext
-                )
-
                 # schedule the index to be dropped after
                 self.schedule_post_inhview_update_command(
                     schema, context, drop_ops, s_sources.SourceCommandContext
@@ -4001,13 +3974,6 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
             if not isinstance(drop_index, dbops.NoOpCommand):
                 # The object is not getting dropped, so we need to update the
                 # inh view *before* the __ext_ai_* cols are dropped.
-
-                # schedule inh view update
-                subject = index.get_subject(orig_schema)
-                assert isinstance(subject, s_objtypes.ObjectType)
-                self.schedule_inhview_update(
-                    schema, context, subject, s_sources.SourceCommandContext
-                )
 
                 # schedule the index to be dropped after
                 self.schedule_post_inhview_update_command(
@@ -5486,13 +5452,6 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                 self.pgops.add(ci)
 
                 self.schedule_inhview_source_update(
-                    schema,
-                    context,
-                    link,
-                    s_objtypes.ObjectTypeCommandContext,
-                )
-            else:
-                self.schedule_inhview_update(
                     schema,
                     context,
                     link,
