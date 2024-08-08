@@ -1,7 +1,7 @@
+use edgeql_parser::tokenizer::Token;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-use edgeql_parser::tokenizer::Token;
 
 use crate::normalize::PackedEntry;
 use crate::pynormalize::Entry;
@@ -22,6 +22,9 @@ pub fn unpack(py: Python<'_>, serialized: &PyBytes) -> PyResult<PyObject> {
             let entry = Entry::new(py, pack.into())?;
             Ok(entry.into_py(py))
         }
-        _ => Err(PyValueError::new_err(format!("Invalid type/version byte: {}", buf[0]))),
+        _ => Err(PyValueError::new_err(format!(
+            "Invalid type/version byte: {}",
+            buf[0]
+        ))),
     }
 }

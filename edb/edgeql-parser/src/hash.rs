@@ -1,11 +1,11 @@
 use sha2::digest::Digest;
 
-use crate::tokenizer::Tokenizer;
 use crate::position::Pos;
+use crate::tokenizer::Tokenizer;
 
 #[derive(Debug, Clone)]
 pub struct Hasher {
-    hasher: sha2::Sha256
+    hasher: sha2::Sha256,
 }
 
 #[derive(Debug)]
@@ -30,8 +30,7 @@ impl Hasher {
             let token = match token {
                 Ok(t) => t,
                 Err(crate::tokenizer::Error { message, .. }) => {
-                    return Err(Error::Tokenizer(
-                        message, parser.current_pos()));
+                    return Err(Error::Tokenizer(message, parser.current_pos()));
                 }
             };
             self.hasher.update(token.text.as_bytes());
@@ -43,7 +42,8 @@ impl Hasher {
         self.hasher.update(b"}\0");
         let hash = base32::encode(
             base32::Alphabet::RFC4648 { padding: false },
-            &self.hasher.finalize());
+            &self.hasher.finalize(),
+        );
         format!("m1{}", hash.to_ascii_lowercase())
     }
 }
@@ -60,49 +60,58 @@ mod test {
 
     #[test]
     fn empty() {
-        assert_eq!(hash("initial", "    \n   "),
-          "m1tjyzfl33vvzwjd5izo5nyp4zdsekyvxpdm7zhtt5ufmqjzczopdq");
+        assert_eq!(
+            hash("initial", "    \n   "),
+            "m1tjyzfl33vvzwjd5izo5nyp4zdsekyvxpdm7zhtt5ufmqjzczopdq"
+        );
     }
-
 
     #[test]
     fn hash_1() {
         assert_eq!(
-          hash(
-            "m1g3qzqdr57pp3w2mdwdkq4g7dq4oefawqdavzgeiov7fiwntpb3lq",
-            r###"
+            hash(
+                "m1g3qzqdr57pp3w2mdwdkq4g7dq4oefawqdavzgeiov7fiwntpb3lq",
+                r###"
                 CREATE TYPE Type1;
-            "###),
-          "m1fvpcra5cxntkss3k2to2yfu7pit3t3owesvdw2nysqvvpihdiszq");
+            "###
+            ),
+            "m1fvpcra5cxntkss3k2to2yfu7pit3t3owesvdw2nysqvvpihdiszq"
+        );
     }
 
     #[test]
     fn tokens_arent_normalized() {
         assert_eq!(
-          hash(
-            "m1g3qzqdr57pp3w2mdwdkq4g7dq4oefawqdavzgeiov7fiwntpb3lq",
-            r###"
+            hash(
+                "m1g3qzqdr57pp3w2mdwdkq4g7dq4oefawqdavzgeiov7fiwntpb3lq",
+                r###"
                 CREATE type Type1;
-            "###),
-          "m1ddghtidugdk3mazwfzpfblqzuoqvsxpivgy2fbq4vywykab7z5rq");
+            "###
+            ),
+            "m1ddghtidugdk3mazwfzpfblqzuoqvsxpivgy2fbq4vywykab7z5rq"
+        );
 
         assert_eq!(
-          hash(
-            "m1g3qzqdr57pp3w2mdwdkq4g7dq4oefawqdavzgeiov7fiwntpb3lq",
-            r###"
+            hash(
+                "m1g3qzqdr57pp3w2mdwdkq4g7dq4oefawqdavzgeiov7fiwntpb3lq",
+                r###"
                 creATE TyPe Type1;
-            "###),
-          "m1oc32ytxeqlvxeyps3ozqiqazy2duuz5bcqog7nkhubmkbsjgf4vq");
+            "###
+            ),
+            "m1oc32ytxeqlvxeyps3ozqiqazy2duuz5bcqog7nkhubmkbsjgf4vq"
+        );
     }
 
     #[test]
     fn hash_parent() {
         assert_eq!(
-          hash(
-            "initial",
-            r###"
+            hash(
+                "initial",
+                r###"
                 CREATE TYPE Type1;
-            "###),
-          "m1q3jjfe7zjl74v3n2vxjwzneousdas6vvd4qwrfd6j6xmhmktyada");
+            "###
+            ),
+            "m1q3jjfe7zjl74v3n2vxjwzneousdas6vvd4qwrfd6j6xmhmktyada"
+        );
     }
 }
