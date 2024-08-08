@@ -72,7 +72,6 @@ def _get_exclusive_refs(tree: irast.Statement) -> Sequence[irast.Base] | None:
 class PGConstrData:
     subject_db_name: Optional[Tuple[str, str]]
     expressions: list[ExprData]
-    origin_expressions: list[ExprData]
     relative_expressions: list[ExprData]
     table_type: str
     except_data: Optional[ExprDataSources]
@@ -395,7 +394,6 @@ def compile_constraint(
     pg_constr_data = PGConstrData(
         subject_db_name=constraint_data.subject_db_name,
         expressions=[],
-        origin_expressions=[],
         relative_expressions=[],
         table_type=constraint_data.subject_table_type,
         except_data=constraint_data.except_data,
@@ -430,13 +428,6 @@ def compile_constraint(
             )
 
         pg_constr_data.expressions.extend(expressions)
-
-        # Set origin expressions
-        origin_expressions: list[ExprData] = []
-        for origin in constraint_origins:
-            origin_expressions.extend(origin_expr_datas[origin])
-
-        pg_constr_data.origin_expressions.extend(origin_expressions)
 
         # Set relative expressions
         # These are only needed for constraint triggers.
@@ -583,7 +574,6 @@ class SchemaTableConstraint:
 
         table_name = pg_c.subject_db_name
         expressions = pg_c.expressions
-        origin_expressions = pg_c.origin_expressions
         relative_expressions = pg_c.relative_expressions
         assert table_name
 
@@ -591,7 +581,6 @@ class SchemaTableConstraint:
             table_name,
             constraint=constr.constraint,
             exprdata=expressions,
-            origin_exprdata=origin_expressions,
             relative_exprdata=relative_expressions,
             except_data=pg_c.except_data,
             scope=pg_c.scope,
@@ -652,23 +641,23 @@ class SchemaTableConstraint:
         constr_name = tabconstr.constraint_name()
         raw_constr_name = tabconstr.constraint_name(quote=False)
 
-        for expr, origin_expr in zip(
+        for expr, relative_expr in zip(
             itertools.cycle(tabconstr._exprdata),
-            tabconstr._origin_exprdata
+            tabconstr._relative_exprdata
         ):
             exprdata = expr.exprdata
-            origin_exprdata = origin_expr.exprdata
-            old_expr = origin_exprdata.old
+            relative_exprdata = relative_expr.exprdata
+            old_expr = relative_exprdata.old
             new_expr = exprdata.new
 
-            assert origin_expr.subject_db_name
-            schemaname, tablename = origin_expr.subject_db_name
+            assert relative_expr.subject_db_name
+            schemaname, tablename = relative_expr.subject_db_name
             real_tablename = tabconstr.get_subject_name(quote=False)
 
             errmsg = 'duplicate key value violates unique ' \
                      'constraint {constr}'.format(constr=constr_name)
             detail = common.quote_literal(
-                f"Key ({origin_exprdata.plain}) already exists."
+                f"Key ({relative_exprdata.plain}) already exists."
             )
 
             if (
@@ -680,12 +669,12 @@ class SchemaTableConstraint:
                 key = "id"
 
             except_data = tabconstr._except_data
-            origin_except_data = origin_expr.except_data
+            relative_except_data = relative_expr.except_data
 
             if except_data:
-                assert origin_except_data
+                assert relative_except_data
                 except_part = f'''
-                    AND ({origin_except_data.old} is not true)
+                    AND ({relative_except_data.old} is not true)
                     AND ({except_data.new} is not true)
                 '''
             else:
@@ -703,7 +692,7 @@ class SchemaTableConstraint:
                         "schema" => '{schemaname}',
                         detail => {detail}
                     )
-                FROM {common.qname(schemaname, tablename + "_t")} AS OLD
+                FROM {common.qname(schemaname, tablename)} AS OLD
                 CROSS JOIN {common.qname(*real_tablename)} AS NEW
                 WHERE {old_expr} = {new_expr} and OLD.{key} != NEW.{key}
                 {except_part}
