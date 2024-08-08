@@ -3199,34 +3199,6 @@ class CompositeMetaCommand(MetaCommand):
             if table_name is None:
                 self.table_name = tabname
 
-        # HACK: See issue #6304.
-        # There are a lot of opportunities for deadlocks between DDL
-        # (which can take a lot of full locks on things) and
-        # long-running queries.  One place this comes up is with views,
-        # since recreating a view requires a lock. When adding things to
-        # tables, our DDL must modify the table, then modify the view.
-        # This poses a deadlock risk with queries, which nearly always
-        # will access the view before accessing the table (since the table
-        # is how they get to the view).
-        #
-        # Put a hacky and hopefully temporary bandage around this particular
-        # deadlock case by injecting a no-op ALTER VIEW before the first
-        # ALTER of some table.  This ensures that DDL locks the inhview
-        # before the real table, making the lock order match the typical
-        # query lock order.
-        #
-        # By putting the hook to insert the ALTER VIEW here, we cover
-        # both the object and link cases and avoid doing it when the
-        # table is not actually modified (which is important, since
-        # doing that could induce the sort of deadlock we are trying
-        # to avoid).
-        if dbops.AlterTable not in self._multicommands:
-            mod, name = common.get_backend_name(
-                schema, self.scls, aspect='inhview', catenate=False)
-            self.pgops.add(dbops.Query(textwrap.dedent(f'''\
-                ALTER VIEW IF EXISTS {mod}."{name}" SET SCHEMA {mod};
-            ''')))
-
         return self._get_multicommand(
             context, dbops.AlterTable, tabname,
             force_new=force_new, manual=manual,
@@ -3325,27 +3297,6 @@ class CompositeMetaCommand(MetaCommand):
             return trampoline.make_table_trampoline(versioned_name)
         else:
             return None
-
-    @classmethod
-    def drop_type_trampoline(
-        cls,
-        schema: s_schema.Schema,
-        obj: CompositeObject,
-        aspect: str='table',
-    ) -> dbops.Command:
-        versioned_name = common.get_backend_name(
-            schema, obj, aspect=aspect, catenate=False
-        )
-        trampolined_name = common.get_backend_name(
-            schema, obj, aspect=aspect, catenate=False, versioned=False
-        )
-        if versioned_name != trampolined_name:
-            return dbops.DropView(
-                trampolined_name,
-                conditions=[dbops.ViewExists(trampolined_name)],
-            )
-        else:
-            return dbops.CommandGroup()
 
     @classmethod
     def _get_select_from(
@@ -3678,9 +3629,6 @@ class CompositeMetaCommand(MetaCommand):
         obj: CompositeObject,
         conditional: bool = False,
     ) -> None:
-        # XXX: I would prefer to not do this!
-        self.pgops.add(self.drop_type_trampoline(schema, obj, aspect='inhview'))
-
         inhview_name = common.get_backend_name(
             schema, obj, catenate=False, aspect='inhview')
         conditions = []
@@ -6345,10 +6293,6 @@ class CreateTrampolines(MetaCommand):
                 continue
             if tramp := CompositeMetaCommand.create_type_trampoline(
                 schema, obj
-            ):
-                self.trampolines.append(tramp)
-            if tramp := CompositeMetaCommand.create_type_trampoline(
-                schema, obj, aspect='inhview',
             ):
                 self.trampolines.append(tramp)
 
