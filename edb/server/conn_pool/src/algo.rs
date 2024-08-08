@@ -704,7 +704,10 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
         }
 
         let target_block_size = self.blocks.target(db);
-        let current_block_size = self.blocks.with(db, |data| data.total()).unwrap_or_default();
+        let current_block_size = self
+            .blocks
+            .with(db, |data| data.total())
+            .unwrap_or_default();
         let current_pool_size = self.blocks.total();
         let max_pool_size = self.constraints.max;
 
