@@ -298,7 +298,7 @@ def _build_insert_stmt(n: Node, c: Context) -> pgast.InsertStmt:
         ),
         cols=_maybe_list(n, c, "cols", _build_insert_target),
         select_stmt=_maybe(n, c, "selectStmt", _build_stmt),
-        on_conflict=_maybe(n, c, "on_conflict", _build_on_conflict),
+        on_conflict=_maybe(n, c, "onConflictClause", _build_on_conflict),
         ctes=_maybe(n, c, "withClause", _build_ctes),
     )
 
@@ -306,10 +306,13 @@ def _build_insert_stmt(n: Node, c: Context) -> pgast.InsertStmt:
 def _build_update_stmt(n: Node, c: Context) -> pgast.UpdateStmt:
     return pgast.UpdateStmt(
         relation=_build_rel_range_var(n["relation"], c),
-        targets=_build_targets(n, c, "targetList") or [],
+        targets=_maybe(n, c, "targetList", _build_update_targets) or [],
         where_clause=_maybe(n, c, "whereClause", _build_base_expr),
         from_clause=(
             _maybe_list(n, c, "fromClause", _build_base_range_var) or []
+        ),
+        returning_list=(
+            _maybe_list(n, c, "returningList", _build_res_target) or []
         ),
         ctes=_maybe(n, c, "withClause", _build_ctes),
     )
@@ -1074,7 +1077,6 @@ def _build_res_target(n: Node, c: Context) -> pgast.ResTarget:
     n = _unwrap(n, "ResTarget")
     return pgast.ResTarget(
         name=_maybe(n, c, "name", _build_str),
-        indirection=_maybe_list(n, c, "indirection", _build_indirection_op),
         val=_build_base_expr(n["val"], c),
         span=_build_span(n, c),
     )
@@ -1088,7 +1090,48 @@ def _build_insert_target(n: Node, c: Context) -> pgast.InsertTarget:
     )
 
 
-def _build_update_target(n: Node, c: Context) -> pgast.UpdateTarget:
+def _build_update_targets(
+    target_list: List[Node], c: Context
+) -> List[pgast.UpdateTarget | pgast.MultiAssignRef]:
+    targets: List[pgast.UpdateTarget | pgast.MultiAssignRef] = []
+    while len(target_list) > 0:
+        val: dict = target_list[0]["ResTarget"]["val"]
+        if first_mar := val.get("MultiAssignRef", None):
+            ncolumns = first_mar['ncolumns']
+
+            columns: List[str] = []
+            for _ in range(ncolumns):
+                target = target_list.pop(0)
+                mar = target['ResTarget']
+
+                if 'indirection' in mar:
+                    raise PSqlUnsupportedError(
+                        val, f"multi-assign SET with indirection"
+                    )
+
+                columns.append(mar['name'])
+
+            targets.append(_build_multi_assign_ref(first_mar, columns, c))
+        else:
+            target = target_list.pop(0)
+            targets.append(_build_update_target(target, c))
+
+    return targets
+
+
+def _build_multi_assign_ref(
+    n: Node, columns: List[str], c: Context
+) -> pgast.MultiAssignRef:
+    return pgast.MultiAssignRef(
+        source=_build_base_expr(n['source'], c),
+        columns=columns,
+        span=_build_span(n, c),
+    )
+
+
+def _build_update_target(
+    n: Node, c: Context
+) -> pgast.UpdateTarget | pgast.MultiAssignRef:
     n = _unwrap(n, "ResTarget")
     return pgast.UpdateTarget(
         name=_build_str(n['name'], c),
@@ -1133,29 +1176,6 @@ def _build_sort_order(n: Node, _c: Context) -> qlast.SortOrder:
     return qlast.SortOrder.Asc
 
 
-def _build_targets(
-    n: Node, c: Context, key: str
-) -> Optional[List[pgast.UpdateTarget | pgast.MultiAssignRef]]:
-    if _probe(n, [key, 0, "ResTarget", "val", "MultiAssignRef"]):
-        return [_build_multi_assign_ref(n[key], c)]
-    else:
-        return _maybe_list(n, c, key, _build_update_target)
-
-
-def _build_multi_assign_ref(
-    targets: List[Node], c: Context
-) -> pgast.MultiAssignRef:
-    mar = targets[0]['ResTarget']['val']['MultiAssignRef']
-
-    return pgast.MultiAssignRef(
-        source=_build_base_expr(mar['source'], c),
-        columns=[
-            _as_column_ref(target['ResTarget']['name']) for target in targets
-        ],
-        span=_build_span(targets[0]['ResTarget'], c),
-    )
-
-
 def _build_column_ref(n: Node, c: Context) -> pgast.ColumnRef:
     return pgast.ColumnRef(
         name=_list(n, c, "fields", _build_string_or_star),
@@ -1175,21 +1195,12 @@ def _build_infer_clause(n: Node, c: Context) -> pgast.InferClause:
 
 def _build_on_conflict(n: Node, c: Context) -> pgast.OnConflictClause:
     return pgast.OnConflictClause(
-        action=_build_str(n["action"], c),
+        action=_build_str(n["action"], c).removeprefix('ONCONFLICT_'),
         infer=_maybe(n, c, "infer", _build_infer_clause),
-        target_list=_build_on_conflict_targets(n, c, "targetList"),
+        target_list=_maybe(n, c, "targetList", _build_update_targets) or [],
         where=_maybe(n, c, "where", _build_base_expr),
         span=_build_span(n, c),
     )
-
-
-def _build_on_conflict_targets(
-    n: Node, c: Context, key: str
-) -> Optional[List[pgast.InsertTarget | pgast.MultiAssignRef]]:
-    if _probe(n, [key, 0, "ResTarget", "val", "MultiAssignRef"]):
-        return [_build_multi_assign_ref(n[key], c)]
-    else:
-        return _maybe_list(n, c, key, _build_insert_target)
 
 
 def _build_star(_n: Node, _c: Context) -> pgast.Star | str:

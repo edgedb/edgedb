@@ -442,6 +442,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 self.write('(')
                 self.visit(node.select_stmt)
                 self.write(')')
+        else:
+            self.write('DEFAULT VALUES')
 
         if node.on_conflict:
             self.new_lines = 1
@@ -561,7 +563,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_MultiAssignRef(self, node: pgast.MultiAssignRef) -> None:
         self.write('(')
-        self.visit_list(node.columns, newlines=False)
+        for index, col in enumerate(node.columns):
+            if index > 0:
+                self.write(', ')
+            self.write(common.quote_col(col))
         self.write(') = ')
         self.visit(node.source)
 
@@ -570,8 +575,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_ResTarget(self, node: pgast.ResTarget) -> None:
         self.visit(node.val)
-        if node.indirection:
-            self._visit_indirection_ops(node.indirection)
         if node.name:
             self.write(' AS ' + common.quote_col(node.name))
 

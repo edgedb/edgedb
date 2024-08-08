@@ -498,8 +498,6 @@ class ResTarget(ImmutableBaseExpr):
 
     # Column name (optional)
     name: typing.Optional[str] = None
-    # subscripts, field names and '*'
-    indirection: typing.Optional[typing.List[IndirectionOp]] = None
     # value expression to compute
     val: BaseExpr
 
@@ -515,7 +513,7 @@ class UpdateTarget(ImmutableBaseExpr):
     """Query update target."""
 
     # column names
-    name: str | typing.List[str]
+    name: str
     # value expression to assign
     val: BaseExpr
     # subscripts, field names and '*'
@@ -617,6 +615,8 @@ class Query(ReturningQuery):
 
     @property
     def ser_safe(self):
+        if not self.target_list:
+            return False
         return all(t.ser_safe for t in self.target_list)
 
     def append_cte(self, cte: CommonTableExpr) -> None:
@@ -893,7 +893,7 @@ class MultiAssignRef(ImmutableBase):
     # row-valued expression
     source: BaseExpr
     # list of columns to assign to
-    columns: typing.List[ColumnRef]
+    columns: typing.List[str]
 
 
 class SortBy(ImmutableBase):

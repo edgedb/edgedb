@@ -269,8 +269,7 @@ def _preprocess_subject_columns(
 def _preprocess_insert_stmt(
     stmt: pgast.InsertStmt, *, ctx: Context
 ) -> PreprocessedDML:
-    # determine the subject object we are inserting into
-    # (this can either be an ObjectType or a Pointer for link tables)
+    # determine the subject object
     sub_table, sub = _preprocess_dml_subject(stmt.relation, ctx=ctx)
 
     expected_columns = _pull_columns_from_table(
