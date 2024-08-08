@@ -163,7 +163,7 @@ pub fn parse_value(token: &Token) -> Result<Option<Value>, String> {
                 .parse::<f64>()
                 .map_err(|e| format!("can't parse std::float64: {}", e))
                 .and_then(|num| {
-                    if num == f64::INFINITY || num == -f64::INFINITY {
+                    if num.is_infinite() {
                         return Err("number is out of range for std::float64".to_string());
                     }
                     if num == 0.0 {

@@ -3,7 +3,6 @@ members = [
     "edb/edgeql-parser",
     "edb/edgeql-parser/edgeql-parser-derive",
     "edb/edgeql-parser/edgeql-parser-python",
-    "edb/graphql-rewrite",
     "edb/server/conn_pool",
 ]
 resolver = "2"
@@ -12,4 +11,5 @@ resolver = "2"
 debug = true
 lto = true
 
-[workspace.lints]
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(never)'] }

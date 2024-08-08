@@ -1,7 +1,7 @@
 use edgeql_parser::preparser::{full_statement, is_empty};
 
 fn test_statement(data: &[u8], len: usize) {
-    for i in 0..len-1 {
+    for i in 0..len - 1 {
         let c = full_statement(&data[..i], None).unwrap_err();
         let parsed_len = full_statement(data, Some(c)).unwrap();
         assert_eq!(len, parsed_len, "at {}", i);
@@ -11,7 +11,6 @@ fn test_statement(data: &[u8], len: usize) {
         assert_eq!(len, parsed_len);
     }
 }
-
 
 #[test]
 fn test_simple() {
@@ -48,7 +47,6 @@ fn test_single_quoted_semicolon() {
 fn test_backtick_quoted_semicolon() {
     test_statement(b"select `a;`; some trailer", 12);
 }
-
 
 #[test]
 fn test_commented_semicolon() {
@@ -114,7 +112,8 @@ fn test_after_variable() {
 
 #[test]
 fn test_schema() {
-    test_statement(br###"
+    test_statement(
+        br###"
         START MIGRATION TO {
             module default {
                 type Movie {
@@ -130,7 +129,9 @@ fn test_schema() {
                 }
             }
         };
-        "###, 532);
+        "###,
+        532,
+    );
 }
 
 #[test]

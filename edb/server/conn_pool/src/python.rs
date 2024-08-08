@@ -114,7 +114,9 @@ impl RpcPipe {
     ) -> ConnResult<T, ConnHandleId> {
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.async_ops.borrow_mut().insert(conn_id, tx);
-        self.write(msg).await.map_err(|_| ConnError::Underlying(conn_id))?;
+        self.write(msg)
+            .await
+            .map_err(|_| ConnError::Underlying(conn_id))?;
         if let Ok(_) = rx.await {
             Err(ConnError::Underlying(conn_id))
         } else {
