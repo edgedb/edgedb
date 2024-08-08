@@ -1,2 +1,5 @@
 mod scram;
-pub use scram::{SCRAMError, ServerTransaction, ServerEnvironment, ClientTransaction, ClientEnvironment, generate_salted_password, Sha256Out};
+pub use scram::{
+    generate_salted_password, ClientEnvironment, ClientTransaction, SCRAMError, ServerEnvironment,
+    ServerTransaction, Sha256Out,
+};

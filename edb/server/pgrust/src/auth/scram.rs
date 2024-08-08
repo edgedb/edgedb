@@ -69,11 +69,13 @@ impl ServerTransaction {
         matches!(self.state, ServerState::Success)
     }
 
-    pub fn process_message(&mut self, message: &[u8], env: &impl ServerEnvironment) -> Result<Option<Vec<u8>>, SCRAMError> {
+    pub fn process_message(
+        &mut self,
+        message: &[u8],
+        env: &impl ServerEnvironment,
+    ) -> Result<Option<Vec<u8>>, SCRAMError> {
         match &self.state {
-            ServerState::Success => {
-                Err(SCRAMError::ProtocolError)
-            }
+            ServerState::Success => Err(SCRAMError::ProtocolError),
             ServerState::Initial => {
                 let message = ClientFirstMessage::decode(message)?;
                 if message.channel_binding != ChannelBinding::NotSupported("".into()) {
@@ -90,9 +92,10 @@ impl ServerTransaction {
                     salt,
                     iterations,
                 };
-                self.state = ServerState::SentChallenge(message.to_owned_bare(), response.to_owned());
+                self.state =
+                    ServerState::SentChallenge(message.to_owned_bare(), response.to_owned());
                 Ok(Some(response.encode().into_bytes()))
-            },
+            }
             ServerState::SentChallenge(first_message, first_response) => {
                 let message = ClientFinalMessage::decode(message)?;
                 if message.combined_nonce != first_response.combined_nonce {
@@ -103,23 +106,23 @@ impl ServerTransaction {
                 }
                 let salted_password = env.get_salted_password(&first_message.username);
                 let (client_proof, server_verifier) = generate_proof(
-                    &first_message.encode().as_bytes(), 
-                    &first_response.encode().as_bytes(), 
-                    &message.channel_binding.as_bytes(), 
+                    &first_message.encode().as_bytes(),
+                    &first_response.encode().as_bytes(),
+                    &message.channel_binding.as_bytes(),
                     &message.combined_nonce.as_bytes(),
-                    &salted_password);
+                    &salted_password,
+                );
                 let mut proof = vec![];
                 BASE64_STANDARD
-                .decode_vec(message.proof.as_bytes(), &mut proof).map_err(|_| SCRAMError::ProtocolError)?;
+                    .decode_vec(message.proof.as_bytes(), &mut proof)
+                    .map_err(|_| SCRAMError::ProtocolError)?;
                 if proof != client_proof {
                     return Err(SCRAMError::ProtocolError);
                 }
                 self.state = ServerState::Success;
                 let verifier = BASE64_STANDARD.encode(server_verifier).into();
-                Ok(Some(ServerFinalResponse {
-                    verifier,
-                }.encode().into_bytes()))
-            },
+                Ok(Some(ServerFinalResponse { verifier }.encode().into_bytes()))
+            }
         }
     }
 }
@@ -152,11 +155,13 @@ impl ClientTransaction {
         matches!(self.state, ClientState::Success)
     }
 
-    pub fn process_message(&mut self, message: &[u8], env: &impl ClientEnvironment) -> Result<Option<Vec<u8>>, SCRAMError> {
+    pub fn process_message(
+        &mut self,
+        message: &[u8],
+        env: &impl ClientEnvironment,
+    ) -> Result<Option<Vec<u8>>, SCRAMError> {
         match &self.state {
-            ClientState::Success => {
-                Err(SCRAMError::ProtocolError)
-            }
+            ClientState::Success => Err(SCRAMError::ProtocolError),
             ClientState::Initial(username) => {
                 if !message.is_empty() {
                     return Err(SCRAMError::ProtocolError);
@@ -165,15 +170,18 @@ impl ClientTransaction {
                 let message = ClientFirstMessage {
                     channel_binding: ChannelBinding::NotSupported("".into()),
                     username: username.to_owned(),
-                    nonce
+                    nonce,
                 };
                 self.state = ClientState::SentFirst(message.to_owned_bare());
                 Ok(Some(message.encode().into_bytes()))
-            },
+            }
             ClientState::SentFirst(first_message) => {
                 let message = ServerFirstResponse::decode(message)?;
                 // Ensure the client nonce was concatenated with the server's nonce
-                if !message.combined_nonce.starts_with(first_message.nonce.as_ref()) {
+                if !message
+                    .combined_nonce
+                    .starts_with(first_message.nonce.as_ref())
+                {
                     return Err(SCRAMError::ProtocolError);
                 }
                 if message.combined_nonce.len() - first_message.nonce.len() < MINIMUM_NONCE_LENGTH {
@@ -181,13 +189,15 @@ impl ClientTransaction {
                 }
                 let mut buffer = [0; 1024];
                 let salt = decode_salt(&message.salt, &mut buffer)?;
-                let salted_password = env.get_salted_password(&first_message.username, &salt, message.iterations);
+                let salted_password =
+                    env.get_salted_password(&first_message.username, &salt, message.iterations);
                 let (client_proof, server_verifier) = generate_proof(
-                    &first_message.encode().as_bytes(), 
-                    &message.encode().as_bytes(), 
-                    CHANNEL_BINDING_ENCODED.as_bytes(), 
+                    &first_message.encode().as_bytes(),
+                    &message.encode().as_bytes(),
+                    CHANNEL_BINDING_ENCODED.as_bytes(),
                     &message.combined_nonce.as_bytes(),
-                    &salted_password);
+                    &salted_password,
+                );
                 let message = ClientFinalMessage {
                     channel_binding: CHANNEL_BINDING_ENCODED.into(),
                     combined_nonce: message.combined_nonce.to_string().into(),
@@ -197,7 +207,7 @@ impl ClientTransaction {
                     verifier: BASE64_STANDARD.encode(server_verifier).into(),
                 });
                 Ok(Some(message.encode().into_bytes()))
-            },
+            }
             ClientState::ExpectingVerifier(server_final_response) => {
                 let message = ServerFinalResponse::decode(message)?;
                 if message.verifier != server_final_response.verifier {
@@ -207,10 +217,8 @@ impl ClientTransaction {
                 Ok(None)
             }
         }
-
     }
 }
-
 
 enum ClientState {
     Initial(Cow<'static, str>),
@@ -377,10 +385,12 @@ pub struct ClientFinalMessage<'a> {
     proof: Cow<'a, str>,
 }
 
-
 impl Encode for ClientFinalMessage<'_> {
     fn encode(&self) -> String {
-        format!("c={},r={},p={}", self.channel_binding, self.combined_nonce, self.proof)
+        format!(
+            "c={},r={},p={}",
+            self.channel_binding, self.combined_nonce, self.proof
+        )
     }
 }
 
@@ -397,7 +407,6 @@ impl<'a> Decode<'a> for ClientFinalMessage<'a> {
         })
     }
 }
-
 
 pub struct ServerFinalResponse<'a> {
     verifier: Cow<'a, str>,
@@ -429,14 +438,10 @@ pub fn decode_salt<'a>(salt: &str, buffer: &'a mut [u8]) -> Result<Cow<'a, [u8]>
             .decode_vec(salt, &mut buffer)
             .map_err(|_| SCRAMError::ProtocolError)?;
         Ok(Cow::Owned(buffer))
-    }    
+    }
 }
 
-pub fn generate_salted_password(
-    password: &str,
-    salt: &[u8],
-    iterations: usize,
-) -> Sha256Out {
+pub fn generate_salted_password(password: &str, salt: &[u8], iterations: usize) -> Sha256Out {
     // Convert the password to a binary string - UTF8 is safe for SASL
     let p = password.as_bytes();
 
@@ -651,8 +656,14 @@ mod tests {
         let message = b"c=biws,r=480I9uIaXEU9oB2RRcenOxN/RsOCy0BKJvyRSeuOtQ0cF0hu,p=7Vkz4SfWTNhB3hNdhTucC+3MaGmg3+PrAG3xfuepjP4=";
         let decoded = ClientFinalMessage::decode(message).unwrap();
         assert_eq!(decoded.channel_binding, "biws");
-        assert_eq!(decoded.combined_nonce, "480I9uIaXEU9oB2RRcenOxN/RsOCy0BKJvyRSeuOtQ0cF0hu");
-        assert_eq!(decoded.proof, "7Vkz4SfWTNhB3hNdhTucC+3MaGmg3+PrAG3xfuepjP4=");
+        assert_eq!(
+            decoded.combined_nonce,
+            "480I9uIaXEU9oB2RRcenOxN/RsOCy0BKJvyRSeuOtQ0cF0hu"
+        );
+        assert_eq!(
+            decoded.proof,
+            "7Vkz4SfWTNhB3hNdhTucC+3MaGmg3+PrAG3xfuepjP4="
+        );
         let encoded = decoded.encode();
         assert_eq!(encoded, "c=biws,r=480I9uIaXEU9oB2RRcenOxN/RsOCy0BKJvyRSeuOtQ0cF0hu,p=7Vkz4SfWTNhB3hNdhTucC+3MaGmg3+PrAG3xfuepjP4=");
     }
@@ -661,23 +672,31 @@ mod tests {
     fn test_server_final_response() {
         let message = b"v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=";
         let decoded: ServerFinalResponse = ServerFinalResponse::decode(message).unwrap();
-        assert_eq!(decoded.verifier, "6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=");
+        assert_eq!(
+            decoded.verifier,
+            "6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4="
+        );
         let encoded = decoded.encode();
         assert_eq!(encoded, "v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=");
     }
-    
+
     /// Run a SCRAM conversation with a fixed set of parameters
     #[test]
     fn test_transaction() {
         let mut server = ServerTransaction::default();
         let mut client = ClientTransaction::new("username".into());
-        
+
         struct Env {}
         impl ClientEnvironment for Env {
             fn generate_nonce(&self) -> String {
                 "<<<client nonce>>>".into()
             }
-            fn get_salted_password(&self, username: &str, salt: &[u8], iterations: usize) -> Sha256Out {
+            fn get_salted_password(
+                &self,
+                username: &str,
+                salt: &[u8],
+                iterations: usize,
+            ) -> Sha256Out {
                 assert_eq!(username, "username");
                 generate_salted_password("password", salt, iterations)
             }

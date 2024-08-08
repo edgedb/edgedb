@@ -1,11 +1,17 @@
-use std::cell::RefCell;
-
-use crate::{auth::{self, generate_salted_password, ClientEnvironment, ClientTransaction, Sha256Out}, protocol::{
-    builder, match_message, measure, AuthenticationOk, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, ErrorResponse, Message, ParameterStatus, ReadyForQuery
-}};
+use crate::{
+    auth::{self, generate_salted_password, ClientEnvironment, ClientTransaction, Sha256Out},
+    protocol::{
+        builder, match_message, measure, AuthenticationMessage, AuthenticationOk, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, ErrorResponse, Message, ParameterStatus, ReadyForQuery
+    },
+};
 use base64::Engine;
 use rand::Rng;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use std::future::{poll_fn, ready};
+use std::{
+    cell::RefCell,
+    task::{ready, Poll},
+};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 
 trait Stream: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin {}
 
@@ -23,91 +29,176 @@ pub enum PGError {
 
 pub struct PGConn<S: Stream> {
     stm: RefCell<S>,
-    state: RefCell<ConnState>
+    state: RefCell<ConnState>,
+}
+
+#[derive(Clone)]
+struct Credentials {
+    username: String,
+    password: String,
+    database: String,
 }
 
 enum ConnState {
-    Initial {
-        username: String,
-        password: String,
-        database: String,
-    },
-    Connecting,
-    SCRAM(ClientTransaction),
+    Connecting(Credentials),
+    SCRAM(ClientTransaction, ClientEnvironmentImpl),
     Connected,
     Ready,
     Transition,
 }
 
+struct ClientEnvironmentImpl {
+    credentials: Credentials,
+}
+
+impl ClientEnvironment for ClientEnvironmentImpl {
+    fn generate_nonce(&self) -> String {
+        let nonce: [u8; 32] = rand::thread_rng().r#gen();
+        base64::engine::general_purpose::STANDARD.encode(nonce)
+    }
+    fn get_salted_password(&self, username: &str, salt: &[u8], iterations: usize) -> Sha256Out {
+        generate_salted_password(&self.credentials.password, salt, iterations)
+    }
+}
+
 impl<S: Stream> PGConn<S> {
     pub fn new(stm: S, username: String, password: String, database: String) -> Self {
-        Self { stm: stm.into(), state: ConnState::Initial { username, password, database } }
+        Self {
+            stm: stm.into(),
+            state: ConnState::Connecting(Credentials {
+                username,
+                password,
+                database,
+            })
+            .into(),
+        }
     }
 
-    fn process_message(&mut self, message: &[u8]) -> Result<(), PGError> {
-        match self.state {
-            ConnState::Connecting => {
-                match_message!(message_buf, Backend {
+    async fn write(&self, mut buf: &[u8]) -> Result<(), PGError> {
+        println!("Write:");
+        hexdump::hexdump(buf);
+        loop {
+            let n = poll_fn(|cx| {
+                let mut stm = self.stm.borrow_mut();
+                let stm = std::pin::Pin::new(&mut *stm);
+                let n = match ready!(stm.poll_write(cx, buf)) {
+                    Ok(n) => n,
+                    Err(e) => return Poll::Ready(Err(e)),
+                };
+                Poll::Ready(Ok(n))
+            })
+            .await?;
+            if n == buf.len() {
+                break;
+            }
+            buf = &buf[n..];
+        }
+        Ok(())
+    }
+
+    fn process_message(&self, message: &[u8]) -> Result<Vec<u8>, PGError> {
+        let state = &mut *self.state.borrow_mut();
+        let mut send = vec![];
+        match state {
+            ConnState::Connecting(credentials) => {
+                match_message!(message, Backend {
                     (AuthenticationOk) => {
                         eprintln!("auth ok");
-                        self.state.borrow_mut() = ConnState::Connected;
+                        *state = ConnState::Connected;
                     },
                     (AuthenticationSASL as sasl) => {
                         for mech in sasl.mechanisms() {
                             eprintln!("sasl: {:?}", mech);
                         }
-                        self.state.borrow_mut() = ConnState::SCRAM(());
+                        let credentials = credentials.clone();
+                        let mut tx = ClientTransaction::new("".into());
+                        let mut env = ClientEnvironmentImpl { credentials };
+                        let Some(initial_message) = tx.process_message(&[], &mut env)? else {
+                            return Err(auth::SCRAMError::ProtocolError.into());
+                        };
+                        let mlen = (measure::SASLInitialResponse {
+                                    mechanism: "SCRAM-SHA-256",
+                                    response: &initial_message,
+                                }.measure() - 1) as _;
+                        send = builder::SASLInitialResponse {
+                            mlen,
+                            mechanism: "SCRAM-SHA-256",
+                            response: &initial_message,
+                        }.to_vec();
+                        *state = ConnState::SCRAM(tx, env);
+                    },
+                    (Message as message) => {
+                        let mlen = message.mlen();
+                        eprintln!("Connecting Unknown message: {} (len {mlen})", message.mtype() as char)
                     },
                 });
             }
-            ConnState::SCRAM(mut client) => {
-                match_message!(message_buf, Backend {
+            ConnState::SCRAM(tx, env) => {
+                match_message!(message, Backend {
                     (AuthenticationSASLContinue as sasl) => {
-                        sasl_message = client.process_message(&sasl.data(), &env)?;
-                    },
-                    (AuthenticationSASLFinal as sasl) => {
-                        let None = client.process_message(&sasl.data(), &env)? else {
+                        let Some(message) = tx.process_message(&sasl.data(), env)? else {
                             return Err(auth::SCRAMError::ProtocolError.into());
                         };
-                        break;
+                        let mlen = (measure::SASLResponse {
+                            response: &message,
+                        }.measure() - 1) as _;
+                        send = builder::SASLResponse {
+                            mlen,
+                            response: &message,
+                        }.to_vec();
+                    },
+                    (AuthenticationSASLFinal as sasl) => {
+                        let None = tx.process_message(&sasl.data(), env)? else {
+                            return Err(auth::SCRAMError::ProtocolError.into());
+                        };
+                    },
+                    (AuthenticationOk as auth) => {
+                        eprintln!("auth ok");
+                        *state = ConnState::Connected;
+                    },
+                    (AuthenticationMessage as auth) => {
+                        eprintln!("SCRAM Unknown auth message: {}", auth.status())
                     },
                     (ErrorResponse as error) => {
                         for field in error.fields() {
                             eprintln!("error: {} {:?}", field.etype(), field.value());
                         }
-                    }
+                    },
+                    (Message as message) => {
+                        let mlen = message.mlen();
+                        eprintln!("SCRAM Unknown message: {} (len {mlen})", message.mtype() as char)
+                    },
                 });
             }
             ConnState::Connected => {
-                match_message!(message_buf, Backend {
+                match_message!(message, Backend {
                     (ParameterStatus as param) => {
                         eprintln!("param: {:?}={:?}", param.name(), param.value());
-                    }
+                    },
                     (BackendKeyData as key_data) => {
                         eprintln!("key={:?} pid={:?}", key_data.key(), key_data.pid());
-                    }
+                    },
                     (ReadyForQuery as ready) => {
                         eprintln!("ready: {:?}", ready.status());
-                    }
+                    },
+                    (Message as message) => {
+                        let mlen = message.mlen();
+                        eprintln!("Connected Unknown message: {} (len {mlen})", message.mtype() as char)
+                    },
                 });
             }
-            ConnState::Ready => {
-
-            }
+            ConnState::Ready => {}
             _ => {}
         }
 
-        Ok(())
+        Ok(send)
     }
 
-    pub async fn connect(&mut self) -> Result<(), PGError> {
+    pub async fn task(&self) -> Result<(), PGError> {
         // Only allow connection in the initial state
-        let (username, password, database) = match std::mem::replace(&mut self.state, ConnState::Transition) {
-            ConnState::Initial { username, password, database } => {
-                (username, password, database)
-            },
-            x => {
-                self.state = x;
+        let credentials = match &*self.state.borrow() {
+            ConnState::Connecting(credentials) => credentials.clone(),
+            _ => {
                 return Err(PGError::InvalidState);
             }
         };
@@ -116,11 +207,11 @@ impl<S: Stream> PGConn<S> {
             params: &[
                 measure::StartupNameValue {
                     name: "user",
-                    value: &username,
+                    value: &credentials.username,
                 },
                 measure::StartupNameValue {
                     name: "database",
-                    value: &database,
+                    value: &credentials.database,
                 },
             ],
         }
@@ -130,150 +221,53 @@ impl<S: Stream> PGConn<S> {
             params: &[
                 builder::StartupNameValue {
                     name: "user",
-                    value: &username,
+                    value: &credentials.username,
                 },
                 builder::StartupNameValue {
                     name: "database",
-                    value: &database,
+                    value: &credentials.database,
                 },
             ],
         }
         .to_vec();
+        self.write(&startup).await?;
 
-        self.stm.write_all(&startup).await?;
-
-
-
-        self.stm.flush().await?;
-        let mut buffer = [0; 65000];
-        let r = self.stm.read(&mut buffer).await?;
-
-        let mut buffer = &buffer[..r];
-        let mut use_sasl = false;
-        while !buffer.is_empty() {
-            let message = Message::new(buffer);
-            let message_buf = &buffer[..(message.mlen() + 1) as _];
-            buffer = &buffer[((message.mlen() + 1) as _)..];
-
-            match_message!(message_buf, Backend {
-                (AuthenticationOk) => {
-                    eprintln!("auth ok");
-                },
-                (AuthenticationSASL as sasl) => {
-                    for mech in sasl.mechanisms() {
-                        eprintln!("sasl: {:?}", mech);
-                        use_sasl = true;
-                    }
-                },
-                (ParameterStatus as param) => {
-                    eprintln!("param: {:?}={:?}", param.name(), param.value());
-                },
-                (BackendKeyData as key_data) => {
-                    eprintln!("key={:?} pid={:?}", key_data.key(), key_data.pid());
-                },
-                (ReadyForQuery as ready) => {
-                    eprintln!("ready: {:?}", ready.status());
-                },
-                (Message) => {
-                    let mlen = message.mlen();
-                    eprintln!("Unknown message: {} (len {mlen})", message.mtype() as char)
-                },
-            });
-        }
-        if use_sasl {
-            let mut client = ClientTransaction::new("".into());
-            struct Env {
-                username: String,
-                password: String,
-            }
-            impl ClientEnvironment for Env {
-                fn get_salted_password(&self, username: &str, salt: &[u8], iterations: usize) -> Sha256Out {
-                    generate_salted_password(&self.password, salt, iterations)
-                }
-                fn generate_nonce(&self) -> String {
-                    let nonce: [u8; 32] = rand::thread_rng().r#gen();
-                    base64::engine::general_purpose::STANDARD.encode(nonce)
-                }
-            }
-
-            let env = Env {
-                username: self.username.clone(),
-                password: self.password.clone(),
-            };
-
-            let mut buffer = [0; 1024];
-            let mut n = 0;
-            loop {
-                let mut sasl_message = None;
-                if n == 0 {
-                    sasl_message = client.process_message(&[], &env)?;
-                } else {
-                    let message = Message::new(&buffer);
-                    let message_buf = &buffer[..(message.mlen() + 1) as _];
-        
-                    match_message!(message_buf, Backend {
-                        (AuthenticationSASLContinue as sasl) => {
-                            sasl_message = client.process_message(&sasl.data(), &env)?;
-                        },
-                        (AuthenticationSASLFinal as sasl) => {
-                            let None = client.process_message(&sasl.data(), &env)? else {
-                                return Err(auth::SCRAMError::ProtocolError.into());
-                            };
-                            break;
-                        },
-                        (ErrorResponse as error) => {
-                            for field in error.fields() {
-                                eprintln!("error: {} {:?}", field.etype(), field.value());
-                            }
-                        }
-                    });
-                }
-                if let Some(message) = sasl_message {
-                    if n == 0 {
-                        let mlen = (measure::SASLInitialResponse {
-                            mechanism: "SCRAM-SHA-256",
-                            response: &message,
-                        }.measure() - 1) as _;
-                        let message = builder::SASLInitialResponse {
-                            mlen,
-                            mechanism: "SCRAM-SHA-256",
-                            response: &message,
-                        }.to_vec();
-                        self.stm.write_all(&message).await?;
-                    } else {
-                        let mlen = (measure::SASLResponse {
-                            response: &message,
-                        }.measure() - 1) as _;
-                        let message = builder::SASLResponse {
-                            mlen,
-                            response: &message,
-                        }.to_vec();
-                        self.stm.write_all(&message).await?;
-                    }
-                }
-                if client.success() {
-                    break;
-                }
-                n = self.stm.read(&mut buffer).await?;
-            }
-
-        }
-
-        Ok(())
-    }
-
-    pub async fn task(&self) -> Result<(), PGError> {
         let mut messages = vec![];
 
         loop {
             let mut buffer = [0; 1024];
-            let n = reader.read(&mut buffer).await?;
+            let n = poll_fn(|cx| {
+                let mut stm = self.stm.borrow_mut();
+                let stm = std::pin::Pin::new(&mut *stm);
+                let mut buf = ReadBuf::new(&mut buffer);
+                ready!(stm.poll_read(cx, &mut buf))
+                    .map(|_| buf.filled().len())
+                    .into()
+            })
+            .await?;
+            println!("Read:");
+            hexdump::hexdump(&buffer[..n]);
             messages.extend_from_slice(&buffer[..n]);
-            let message = Message::new(messages);
-            if message.mlen() as _ > messages.len() + 1 {
-                self.process_message(messages.as_slice())?;
+            while messages.len() > 5 {
+                let message = Message::new(&messages);
+                if message.mlen() as usize <= messages.len() + 1 {
+                    let n = (message.mlen() + 1) as _;
+                    let message = self.process_message(&messages[..n])?;
+                    messages = messages[n..].to_vec();
+                    if !message.is_empty() {
+                        self.write(&message).await?;
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            if n == 0 {
+                break;
             }
         }
+
+        Ok(())
     }
 }
 

@@ -16,7 +16,12 @@ struct Args {
     unix: Option<String>,
 
     /// Username to use for the connection
-    #[clap(short = 'U', long = "username", value_parser, default_value = "postgres")]
+    #[clap(
+        short = 'U',
+        long = "username",
+        value_parser,
+        default_value = "postgres"
+    )]
     username: String,
 
     /// Username to use for the connection
@@ -24,7 +29,12 @@ struct Args {
     password: String,
 
     /// Database to use for the connection
-    #[clap(short = 'd', long = "database", value_parser, default_value = "postgres")]
+    #[clap(
+        short = 'd',
+        long = "database",
+        value_parser,
+        default_value = "postgres"
+    )]
     database: String,
 }
 
@@ -42,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let socket = UnixSocket::new_stream()?;
             let client = socket.connect(path).await?;
             let mut conn = PGConn::new(client, args.username, args.password, args.database);
-            conn.connect().await?;
+            conn.task().await?;
         }
         _ => return Err("Must specify either a TCP address or a Unix socket path".into()),
     }
