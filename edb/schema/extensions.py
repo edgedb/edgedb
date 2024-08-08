@@ -507,6 +507,7 @@ class DeleteExtension(
         # types, which means that if we have a cast between ext::a::T
         # and ext::b::S, we wouldn't have a way to distinguish which
         # is should be.)
+        casts_cleanup: List[sd.Command] = []
         for obj in schema.get_objects(
             included_modules=(sn.UnqualName('__ext_casts__'),),
             type=s_casts.Cast,
@@ -519,7 +520,7 @@ class DeleteExtension(
                     schema,
                     sd.DeleteObject,
                 )
-                self.add(drop)
+                casts_cleanup.append(drop)
 
         def filt(schema: s_schema.Schema, obj: so.Object) -> bool:
             return not _name_in_mod(obj.get_name(schema)) or obj == self.scls
@@ -543,6 +544,14 @@ class DeleteExtension(
         # around codepaths that are heavily tested.
         from . import ddl
         for subast in ddl.ddlast_from_delta(None, schema, delta):
+            # We want to clean the casts right before we're cleaning the
+            # scalar types. Cleaning casts earlier may cause issues with
+            # functions that use casts in their signatures as part of the
+            # default expression.
+            if isinstance(subast, qlast.DropScalarType) and casts_cleanup:
+                self.update(casts_cleanup)
+                casts_cleanup.clear()
+
             self.add(sd.compile_ddl(schema, subast, context=context))
 
         return schema
