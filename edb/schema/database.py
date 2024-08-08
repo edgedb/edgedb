@@ -32,11 +32,13 @@ from . import annos as s_anno
 from . import delta as sd
 from . import objects as so
 from . import schema as s_schema
+from .generated import database as sg_database
 
 from typing import cast
 
 
 class Database(
+    sg_database.DatabaseMixin,
     so.ExternalObject,
     s_anno.AnnotationSubject,
     s_abc.Database,

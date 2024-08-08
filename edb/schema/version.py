@@ -22,14 +22,17 @@ import uuid
 
 from . import delta as sd
 from . import objects as so
+from .generated import version as sg_version
 
 
-class BaseSchemaVersion(so.Object):
+class BaseSchemaVersion(sg_version.BaseSchemaVersionMixin, so.Object):
 
     version = so.SchemaField(uuid.UUID)
 
 
-class SchemaVersion(BaseSchemaVersion, so.InternalObject):
+class SchemaVersion(
+    sg_version.SchemaVersionMixin, BaseSchemaVersion, so.InternalObject,
+):
     pass
 
 
@@ -59,7 +62,10 @@ class AlterSchemaVersion(
 
 
 class GlobalSchemaVersion(
-    BaseSchemaVersion, so.InternalObject, so.GlobalObject
+    sg_version.GlobalSchemaVersionMixin,
+    BaseSchemaVersion,
+    so.InternalObject,
+    so.GlobalObject,
 ):
     pass
 

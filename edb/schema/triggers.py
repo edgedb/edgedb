@@ -35,12 +35,14 @@ from . import referencing
 from . import schema as s_schema
 from . import sources as s_sources
 from . import types as s_types
+from .generated import triggers as sg_triggers
 
 if TYPE_CHECKING:
     from . import objtypes as s_objtypes
 
 
 class Trigger(
+    sg_triggers.TriggerMixin,
     referencing.NamedReferencedInheritingObject,
     so.InheritingObject,  # Help reflection figure out the right db MRO
     qlkind=qltypes.SchemaObjectClass.TRIGGER,

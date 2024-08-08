@@ -39,9 +39,11 @@ from . import delta as sd
 from . import name as sn
 from . import objects as so
 from . import schema as s_schema
+from .generated import extensions as sg_extensions
 
 
 class ExtensionPackage(
+    sg_extensions.ExtensionPackageMixin,
     so.GlobalObject,
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.EXTENSION_PACKAGE,
@@ -108,6 +110,7 @@ class ExtensionPackage(
 
 
 class Extension(
+    sg_extensions.ExtensionMixin,
     so.Object,
     qlkind=qltypes.SchemaObjectClass.EXTENSION,
     data_safe=False,
