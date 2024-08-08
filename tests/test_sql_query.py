@@ -1463,15 +1463,3 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             SELECT similar_to FROM "Movie"
             """
         )
-
-    async def test_sql_dml_update(self):
-        with self.assertRaisesRegex(
-            asyncpg.FeatureNotSupportedError,
-            "UpdateStmt are not supported",
-            position="25",
-        ):
-            await self.scon.fetch(
-                """
-                UPDATE "Movie" SET title = 'A man called Ove'
-                """
-            )

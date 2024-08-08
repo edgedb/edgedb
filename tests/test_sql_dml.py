@@ -708,6 +708,19 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
+    async def test_sql_dml_insert_33(self):
+        # TODO: error message should say `owner_id` not `owner`
+        with self.assertRaisesRegex(
+            asyncpg.PostgresError,
+            'INSERT expected 2 columns \\(title, owner\\), but got 1',
+        ):
+            await self.squery_values(
+                '''
+                INSERT INTO "Document" (title, owner_id)
+                VALUES ('Report'), ('Report'), ('Briefing')
+                '''
+            )
+
     async def test_sql_dml_delete_01(self):
         # delete, inspect CommandComplete tag
 
@@ -975,3 +988,293 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             user2[0],
         )
         self.assertEqual(deleted, [[document[0], user1[0]]])
+
+    async def test_sql_dml_delete_10(self):
+        # delete from a single link table
+
+        [user1] = await self.squery_values(
+            'INSERT INTO "User" DEFAULT VALUES RETURNING id'
+        )
+        [user2] = await self.squery_values(
+            'INSERT INTO "User" DEFAULT VALUES RETURNING id'
+        )
+        [doc1, _doc2] = await self.squery_values(
+            '''
+            INSERT INTO "Document" (owner_id) VALUES ($1), ($2) RETURNING id
+            ''',
+            user1[0],
+            user2[0],
+        )
+
+        deleted = await self.squery_values(
+            '''
+            DELETE FROM "Document.owner"
+            WHERE source = $1
+            RETURNING source, target, is_author
+            ''',
+            doc1[0],
+        )
+        self.assertEqual(deleted, [[doc1[0], user1[0], None]])
+
+    async def test_sql_dml_delete_11(self):
+        # delete from a single link table
+
+        [document] = await self.squery_values(
+            '''
+            INSERT INTO "Document" (title) VALUES ('Report') RETURNING id
+            '''
+        )
+        await self.squery_values(
+            '''
+            INSERT INTO "Document.keywords"
+            VALUES ($1, 'notes'), ($1, 'priority')
+            ''',
+            document[0],
+        )
+
+        deleted = await self.squery_values(
+            '''
+            DELETE FROM "Document.keywords"
+            WHERE target = 'priority'
+            RETURNING source, target
+            '''
+        )
+        self.assertEqual(deleted, [[document[0], 'priority']])
+
+        deleted = await self.squery_values(
+            '''
+            DELETE FROM "Document.keywords"
+            WHERE source = $1
+            RETURNING source, target
+            ''',
+            document[0],
+        )
+        self.assertEqual(deleted, [[document[0], 'notes']])
+
+    async def test_sql_dml_update_01(self):
+        # update, inspect CommandComplete tag
+
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document" (title)
+            VALUES ('Report'), ('Report'), ('Briefing')
+            '''
+        )
+        res = await self.scon.execute(
+            '''
+            UPDATE "Document"
+            SET title = '[REDACTED]'
+            WHERE title LIKE 'Report%'
+            ''',
+        )
+        self.assertEqual(res, 'UPDATE 2')
+
+        res = await self.squery_values(
+            '''
+            SELECT title FROM "Document" ORDER BY title
+            ''',
+        )
+        self.assertEqual(
+            res,
+            [
+                ['Briefing (new)'],
+                ['[REDACTED] (updated)'],
+                ['[REDACTED] (updated)'],
+            ],
+        )
+
+    async def test_sql_dml_update_02(self):
+        # update with returning clause, inspect CommandComplete tag
+
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document" (title)
+            VALUES ('Report'), ('Report'), ('Briefing')
+            '''
+        )
+        res = await self.scon.execute(
+            '''
+            UPDATE "Document"
+            SET title = '[REDACTED]'
+            WHERE title LIKE 'Report%'
+            RETURNING id
+            ''',
+        )
+        self.assertEqual(res, 'UPDATE 2')
+
+    async def test_sql_dml_update_03(self):
+        # update with returning clause
+
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document" (title) VALUES ('Report'), ('Briefing')
+            '''
+        )
+        res = await self.squery_values(
+            '''
+            UPDATE "Document" SET title = title RETURNING title
+            ''',
+        )
+        self.assertEqual(
+            res, [['Report (new) (updated)'], ['Briefing (new) (updated)']]
+        )
+
+    async def test_sql_dml_update_04(self):
+        # update with using clause
+
+        users = await self.squery_values(
+            '''
+            INSERT INTO "User" (id) VALUES (DEFAULT), (DEFAULT) RETURNING id
+            '''
+        )
+        await self.squery_values(
+            '''
+            WITH u(id) as (VALUES ($1), ($2))
+            INSERT INTO "Document" (title, owner_id)
+            SELECT 'Report', u.id FROM u
+            RETURNING title, owner_id
+            ''',
+            str(users[0][0]),
+            str(users[1][0]),
+        )
+
+        res = await self.squery_values(
+            '''
+            UPDATE "Document"
+            SET owner_id = owner_id
+            FROM "User" u
+            WHERE "Document".owner_id = u.id AND title = 'Report (new)'
+            RETURNING title, owner_id
+            ''',
+        )
+        self.assertEqual(
+            res,
+            [
+                ['Report (new) (updated)', res[0][1]],
+                ['Report (new) (updated)', res[1][1]],
+            ],
+        )
+
+    async def test_sql_dml_update_05(self):
+        # update where current of
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            'unsupported SQL feature `CurrentOfExpr`',
+        ):
+            await self.scon.execute(
+                '''
+                UPDATE films SET kind = 'Dramatic' WHERE CURRENT OF c_films;
+                ''',
+            )
+
+    async def test_sql_dml_update_06(self):
+        # update returning *
+
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document" (title) VALUES ('Report')
+            '''
+        )
+        res = await self.squery_values(
+            '''
+            UPDATE "Document" SET owner_id = NULL RETURNING *
+            ''',
+        )
+        self.assertIsInstance(res[0][0], uuid.UUID)
+        self.assertIsInstance(res[0][1], uuid.UUID)
+        self.assertEqual(
+            res, [[res[0][0], res[0][1], None, 'Report (new) (updated)']]
+        )
+
+    async def test_sql_dml_update_07(self):
+        # update with CTEs
+
+        await self.scon.execute(
+            '''
+            INSERT INTO "User" DEFAULT VALUES
+            '''
+        )
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document" (title, owner_id)
+            VALUES
+              ('Report', NULL),
+              ('Briefing', (SELECT id FROM "User" LIMIT 1))
+            '''
+        )
+        res = await self.squery_values(
+            '''
+            WITH
+              users as (SELECT id FROM "User"),
+              not_owned as (
+                SELECT d.id
+                FROM "Document" d
+                LEFT JOIN users u ON d.owner_id = u.id
+                WHERE u.id IS NULL
+              )
+            UPDATE "Document"
+            SET title = title
+            FROM not_owned
+            WHERE not_owned.id = "Document".id
+            RETURNING title
+            ''',
+        )
+        self.assertEqual(res, [['Report (new) (updated)']])
+
+    async def test_sql_dml_update_08(self):
+        # update with a trivial multi-ref
+
+        [user] = await self.squery_values(
+            '''
+            INSERT INTO "User" DEFAULT VALUES RETURNING id
+            '''
+        )
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document" (title, owner_id)
+            VALUES (NULL, NULL)
+            '''
+        )
+        res = await self.squery_values(
+            '''
+            UPDATE "Document"
+            SET (title, owner_id) = ROW('hello', $1::uuid)
+            RETURNING title, owner_id
+            ''',
+            user[0]
+        )
+        self.assertEqual(res, [['hello (updated)', user[0]]])
+
+    @test.xerror('unsupported')
+    async def test_sql_dml_update_09(self):
+        # update with a non-trivial multi-ref
+
+        await self.squery_values(
+            '''
+            WITH x AS (SELECT ROW('Report', $1::uuid) as y)
+            UPDATE "Document"
+            SET (title, owner_id) = x.y
+            FROM x;
+            ''',
+        )
+
+    async def test_sql_dml_update_10(self):
+        # update set link id to uuid
+
+        [user] = await self.squery_values(
+            '''
+            INSERT INTO "User" DEFAULT VALUES RETURNING id
+            '''
+        )
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document" DEFAULT VALUES
+            '''
+        )
+        res = await self.squery_values(
+            '''
+            UPDATE "Document" SET owner_id = $1 RETURNING owner_id
+            ''',
+            user[0]
+        )
+        self.assertEqual(res, [[user[0]]])

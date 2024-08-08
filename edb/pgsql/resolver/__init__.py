@@ -59,21 +59,21 @@ def resolve(
     # Since our resolved SQL does not have a top-level DML stmt, we need to
     # override that tag.
     command_complete_tag: Optional[dbstate.CommandCompleteTag] = None
-    if isinstance(query, pgast.InsertStmt):
+    if isinstance(query, pgast.DMLQuery):
+        prefix: str
+        if isinstance(query, pgast.InsertStmt):
+            prefix = 'INSERT 0 '
+        elif isinstance(query, pgast.DeleteStmt):
+            prefix = 'DELETE '
+        elif isinstance(query, pgast.UpdateStmt):
+            prefix = 'UPDATE '
+
         if query.returning_list:
             # resolved SQL will return a result, we count those rows
-            command_complete_tag = dbstate.TagCountMessages(prefix='INSERT 0 ')
+            command_complete_tag = dbstate.TagCountMessages(prefix=prefix)
         else:
             # resolved SQL will contain an injected COUNT clause
             # we instruct io process to unpack that
-            command_complete_tag = dbstate.TagUnpackRow(prefix='INSERT 0 ')
-    elif isinstance(query, pgast.DeleteStmt):
-        if query.returning_list:
-            # resolved SQL will return a result, we count those rows
-            command_complete_tag = dbstate.TagCountMessages(prefix='DELETE ')
-        else:
-            # resolved SQL will contain an injected COUNT clause
-            # we instruct io process to unpack that
-            command_complete_tag = dbstate.TagUnpackRow(prefix='DELETE ')
+            command_complete_tag = dbstate.TagUnpackRow(prefix=prefix)
 
     return (resolved, command_complete_tag)
