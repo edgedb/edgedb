@@ -1213,20 +1213,11 @@ def _preprocess_update_object_stmt(
     )
     stmt.ctes = []
 
-    # prepare anchors for inserted value columns
-    value_name = ctx.alias_generator.get('upd_val')
-    value_id = irast.PathId.from_type(
-        ctx.schema,
-        sub,
-        typename=sn.QualName('__derived__', value_name),
-        env=None,
-    )
-
     # TODO: handle DEFAULT and prepare the value relation
 
     # prepare anchors for inserted value columns
-    value_name = ctx.alias_generator.get('ins_val')
-    iterator_name = ctx.alias_generator.get('ins_iter')
+    value_name = ctx.alias_generator.get('upd_val')
+    iterator_name = ctx.alias_generator.get('upd_iter')
     value_id = irast.PathId.from_type(
         ctx.schema,
         sub,
