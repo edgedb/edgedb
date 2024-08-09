@@ -23,6 +23,7 @@ from typing import (
     Any,
     AsyncIterator,
     ClassVar,
+    Literal,
     NoReturn,
     Optional,
     Sequence,
@@ -471,6 +472,11 @@ class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
             self.provider_name,
             context.provider_models,
             self.model_excluded_ids,
+            tokens_rate_limit=(
+                self.service.limits['tokens'].total
+                if self.service.limits['tokens'] is not None else
+                None
+            ),
         )
 
     def finalize(self, execution_report: rs.ExecutionReport) -> None:
@@ -566,6 +572,8 @@ async def _generate_embeddings_params(
     provider_name: str,
     provider_models: list[str],
     model_excluded_ids: dict[str, list[str]],
+    *,
+    tokens_rate_limit: Optional[int | Literal['unlimited']],
 ) -> Optional[list[EmbeddingsParams]]:
     task_name = _task_name.get()
 
@@ -723,32 +731,38 @@ async def _generate_embeddings_params(
                 inputs.append(input)
 
             if model_name in model_tokenizers:
-                # Trim the inputs so that they fit into the batch size
+                max_batch_tokens = model_max_batch_tokens[model_name]
+                if isinstance(tokens_rate_limit, int):
+                    # If the rate limit is lower than the batch limit, use that
+                    # instead.
+                    max_batch_tokens = min(max_batch_tokens, tokens_rate_limit)
+
+                # Group the input into batches based on token count
                 batches = _batch_embeddings_inputs(
-                    tokenizer, inputs, model_max_batch_tokens[model_name]
+                    tokenizer, inputs, max_batch_tokens
                 )
-                if batches:
-                    # The request scheduler is not designed to handle multiple
-                    # batches for a single provider. Just take the first one,
-                    # and the rest can be processed next time. If the limits are
-                    # not exceeded, this will happen "immediately".
-                    inputs, total_token_count = batches[0]
-                else:
-                    inputs = []
-                    total_token_count = 0
 
-            if not inputs:
-                continue
+                for batch, batch_token_count in batches:
+                    embeddings_params.append(EmbeddingsParams(
+                        pgconn=pgconn,
+                        provider=provider_cfg,
+                        model_name=model_name,
+                        inputs=batch,
+                        token_count=batch_token_count,
+                        shortening=shortening,
+                        entries=part,
+                    ))
 
-            embeddings_params.append(EmbeddingsParams(
-                pgconn=pgconn,
-                provider=provider_cfg,
-                model_name=model_name,
-                inputs=inputs,
-                token_count=total_token_count,
-                shortening=shortening,
-                entries=part,
-            ))
+            else:
+                embeddings_params.append(EmbeddingsParams(
+                    pgconn=pgconn,
+                    provider=provider_cfg,
+                    model_name=model_name,
+                    inputs=inputs,
+                    token_count=total_token_count,
+                    shortening=shortening,
+                    entries=part,
+                ))
 
     return embeddings_params
 
