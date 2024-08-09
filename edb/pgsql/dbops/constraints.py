@@ -40,7 +40,7 @@ class Constraint(base.DBObject):
     def get_subject_type(self):
         raise NotImplementedError
 
-    def generate_extra(self, block: base.PLBlock):
+    def generate_extra(self, block: base.PLBlock) -> None:
         raise NotImplementedError
 
     def get_subject_name(self, quote=True):

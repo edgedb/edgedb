@@ -32,7 +32,7 @@ class SchemaExists(base.Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                 oid
@@ -52,7 +52,7 @@ class CreateSchema(ddl.DDLOperation):
         self.opid = name
         self.conditional = conditional
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         condition = "IF NOT EXISTS " if self.conditional else ''
         return f'CREATE SCHEMA {condition}{qi(self.name)}'
 
@@ -65,7 +65,7 @@ class DropSchema(ddl.DDLOperation):
         super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.name = name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'DROP SCHEMA {qi(self.name)}'
 
     def __repr__(self):

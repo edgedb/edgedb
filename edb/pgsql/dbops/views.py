@@ -55,7 +55,7 @@ class CreateView(ddl.SchemaObjectOperation):
         self.view = view
         self.or_replace = or_replace
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         query = textwrap.indent(textwrap.dedent(self.view.query), '    ')
         return (
             f'CREATE {"OR REPLACE" if self.or_replace else ""}'
@@ -80,7 +80,7 @@ class DropView(ddl.SchemaObjectOperation):
         )
         self.conditional = conditional
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         if self.conditional:
             return f'DROP VIEW IF EXISTS {qn(*self.name)}'
         else:
@@ -92,7 +92,7 @@ class ViewExists(base.Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                 viewname

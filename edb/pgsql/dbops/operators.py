@@ -50,7 +50,7 @@ class CreateOperatorAlias(ddl.SchemaObjectOperation):
         self.commutator = commutator
         self.negator = negator
 
-    def code(self, block: base.PLBlock) -> str:
+    def code_with_block(self, block: base.PLBlock) -> str:
         oper_var = block.declare_var(('pg_catalog', 'pg_operator%ROWTYPE'))
         oper_cond = []
 
@@ -227,7 +227,7 @@ class CreateOperator(ddl.SchemaObjectOperation):
         self.args = args
         self.procedure = procedure
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         if self.args[0] is not None:
             left_type_desc = qt(self.args[0])
             left_type = f", LEFTARG = {left_type_desc}"
@@ -254,7 +254,7 @@ class DropOperator(ddl.SchemaObjectOperation):
         super().__init__(name=name, **kwargs)
         self.args = args
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         if self.args[0] is not None:
             left_type = qt(self.args[0])
         else:

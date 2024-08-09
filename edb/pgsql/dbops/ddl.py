@@ -18,7 +18,6 @@
 
 
 from __future__ import annotations
-from typing import Optional
 
 import json
 import textwrap
@@ -36,14 +35,17 @@ class DDLOperation(base.Command):
 
 
 class NonTransactionalDDLOperation(DDLOperation):
-    def generate_self_block(
+    def generate(
         self,
-        block: base.PLBlock,
-    ) -> Optional[base.PLBlock]:
-        block.add_command(self.code(block))
+        block: base.SQLBlock,
+    ) -> None:
+        block.add_command(self.code())
         block.set_non_transactional()
         self_block = block.add_block()
-        return self_block
+
+        self.generate_extra(self_block)
+        self_block.conditions = self.conditions
+        self_block.neg_conditions = self.neg_conditions
 
 
 class SchemaObjectOperation(DDLOperation):
@@ -63,7 +65,7 @@ class Comment(DDLOperation):
         self.object = object
         self.text = text
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         object_type = self.object.get_type()
         object_id = self.object.get_id()
 
@@ -86,7 +88,7 @@ class ReassignOwned(DDLOperation):
         else:
             return qi(ident)
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return (
             f'REASSIGN OWNED BY {self.qi(self.old_role)} '
             f'TO {self.qi(self.new_role)}'
@@ -98,7 +100,7 @@ class GetMetadata(base.Command):
         super().__init__()
         self.object = object
 
-    def code(self, block: base.PLBlock) -> str:
+    def code_with_block(self, block: base.PLBlock) -> str:
         from .. import trampoline
 
         oid = self.object.get_oid()
@@ -146,7 +148,7 @@ class GetSingleDBMetadata(base.Command):
         super().__init__(**kwargs)
         self.dbname = dbname
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         from .. import trampoline
 
         key = f'{self.dbname}metadata'
@@ -195,7 +197,7 @@ class PutSingleDBMetadata(DDLOperation):
 
 
 class SetMetadata(PutMetadata):
-    def creation_code(self, block: base.PLBlock) -> str:
+    def creation_code(self) -> str:
         metadata = self.metadata
 
         object_type = self.object.get_type()
@@ -210,12 +212,12 @@ class SetMetadata(PutMetadata):
             || quote_literal({comment})
         ''')
 
-    def code(self, block: base.PLBlock) -> str:
-        return 'EXECUTE ' + self.creation_code(block) + ';'
+    def code(self) -> str:
+        return 'EXECUTE ' + self.creation_code() + ';'
 
 
 class SetSingleDBMetadata(PutSingleDBMetadata):
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         from .. import trampoline
 
         metadata = ql(json.dumps(self.metadata))
@@ -230,8 +232,8 @@ class SetSingleDBMetadata(PutSingleDBMetadata):
 
 
 class UpdateMetadata(PutMetadata):
-    def code(self, block: base.PLBlock) -> str:
-        metadata_qry = GetMetadata(self.object).code(block)
+    def code_with_block(self, block: base.PLBlock) -> str:
+        metadata_qry = GetMetadata(self.object).code_with_block(block)
         prefix = ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)
         json_v = block.declare_var('jsonb')
         upd_v = block.declare_var('text')
@@ -260,10 +262,10 @@ class UpdateMetadata(PutMetadata):
 
 
 class UpdateSingleDBMetadata(PutSingleDBMetadata):
-    def code(self, block: base.PLBlock) -> str:
+    def code_with_block(self, block: base.PLBlock) -> str:
         from .. import trampoline
 
-        metadata_qry = GetSingleDBMetadata(self.dbname).code(block)
+        metadata_qry = GetSingleDBMetadata(self.dbname).code_with_block(block)
         json_v = block.declare_var('jsonb')
         meta_v = block.declare_var('jsonb')
         block.add_command(f'{json_v} := ({metadata_qry});')
@@ -289,7 +291,7 @@ class UpdateMetadataSectionMixin:
         raise NotImplementedError
 
     def _merge(self, block):
-        metadata_qry = self._metadata_query().code(block)
+        metadata_qry = self._metadata_query().code_with_block(block)
         json_v = block.declare_var('jsonb')
         meta_v = block.declare_var('jsonb')
         block.add_command(f'{json_v} := ({metadata_qry});')
@@ -308,7 +310,7 @@ class UpdateMetadataSection(UpdateMetadataSectionMixin, PutMetadata):
     def _metadata_query(self) -> base.Command:
         return GetMetadata(self.object)
 
-    def code(self, block: base.PLBlock) -> str:
+    def code_with_block(self, block: base.PLBlock) -> str:
         json_v, meta_v = self._merge(block)
         upd_v = block.declare_var('text')
         prefix = ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)
@@ -337,7 +339,7 @@ class UpdateSingleDBMetadataSection(
     def _metadata_query(self) -> base.Command:
         return GetSingleDBMetadata(self.dbname)
 
-    def code(self, block: base.PLBlock) -> str:
+    def code_with_block(self, block: base.PLBlock) -> str:
         from .. import trampoline
 
         json_v, meta_v = self._merge(block)
@@ -361,7 +363,7 @@ class CreateObject(SchemaObjectOperation):
         super().generate_extra(block)
         if self.object.metadata:
             mdata = SetMetadata(self.object, self.object.metadata)
-            block.add_command(mdata.code(block))
+            block.add_command(mdata.code_with_block(block))
 
 
 class AlterObject(SchemaObjectOperation):
@@ -373,7 +375,7 @@ class AlterObject(SchemaObjectOperation):
         super().generate_extra(block)
         if self.object.metadata:
             mdata = SetMetadata(self.object, self.object.metadata)
-            block.add_command(mdata.code(block))
+            block.add_command(mdata.code_with_block(block))
 
 
 class DropObject(SchemaObjectOperation):

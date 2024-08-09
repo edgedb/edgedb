@@ -36,7 +36,7 @@ class TriggerExists(base.Condition):
         self.trigger_name = trigger_name
         self.table_name = table_name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(
             f'''\
             SELECT
@@ -152,7 +152,7 @@ class CreateTrigger(ddl.CreateObject):
                 TriggerExists(self.trigger.name, self.trigger.table_name)
             )
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(
             '''\
             CREATE {constr}TRIGGER {trigger_name} {timing} {events}
@@ -192,7 +192,7 @@ class DropTrigger(ddl.DropObject):
                 TriggerExists(self.trigger.name, self.trigger.table_name)
             )
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         ifexists = ' IF EXISTS' if self.conditional else ''
         return (
             f'DROP TRIGGER{ifexists} {qi(self.trigger.name)} '
@@ -206,7 +206,7 @@ class DisableTrigger(ddl.DDLOperation):
         self.trigger = trigger
         self.self_only = self_only
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         only = ' ONLY' if self.self_only else ''
         return (
             f'ALTER TABLE{only} {qn(*self.trigger.table_name)} '
@@ -226,7 +226,7 @@ class EnableTrigger(ddl.DDLOperation):
         super().__init__(**kwargs)
         self.trigger = trigger
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return (
             f'ALTER TABLE {qn(*self.trigger.table_name)} '
             f'ENABLE TRIGGER {qi(self.trigger.name)}'

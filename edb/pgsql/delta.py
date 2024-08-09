@@ -3785,7 +3785,7 @@ def get_reindex_sql(
     if fts_index and '__fts_document__' not in restore_desc.fields:
         options = get_index_compile_options(fts_index, schema, {}, None)
         cmd = deltafts.update_fts_document(fts_index, options, schema)
-        return cmd.code(None)
+        return cmd.code()
 
     return None
 

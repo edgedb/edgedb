@@ -34,7 +34,7 @@ class DomainExists(base.Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                 domain_name
@@ -61,7 +61,7 @@ class CreateDomain(ddl.SchemaObjectOperation):
             domain.name, conditions=conditions, neg_conditions=neg_conditions)
         self.domain = domain
 
-    def code(self, block: base.PLBlock) -> str:
+    def code_with_block(self, block: base.PLBlock) -> str:
         extra = []
         for constraint in self.domain.constraints:
             extra.append(constraint.constraint_code(block))
@@ -90,7 +90,7 @@ class AlterDomainAlterDefault(AlterDomain):
         super().__init__(name)
         self.default = default
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         code = self.prefix_code()
         if self.default is None:
             code += ' DROP DEFAULT '
@@ -108,7 +108,7 @@ class AlterDomainAlterNull(AlterDomain):
         super().__init__(name)
         self.null = null
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         code = self.prefix_code()
         if self.null:
             code += ' DROP NOT NULL '
@@ -155,7 +155,7 @@ class DomainCheckConstraint(DomainConstraint):
 
 
 class AlterDomainAddConstraint(AlterDomainAlterConstraint):
-    def code(self, block: base.PLBlock) -> str:
+    def code_with_block(self, block: base.PLBlock) -> str:
         code = self.prefix_code()
         constr_name = self._constraint.constraint_name()
         constr_code = self._constraint.constraint_code(block)
@@ -166,17 +166,17 @@ class AlterDomainAddConstraint(AlterDomainAlterConstraint):
             code += f' ADD CONSTRAINT {constr_name} {constr_code}'
         return code
 
-    def generate_extra(self, block: base.PLBlock):
+    def generate_extra(self, block: base.PLBlock) -> None:
         return self._constraint.generate_extra(block)
 
 
 class AlterDomainDropConstraint(AlterDomainAlterConstraint):
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         code = super().prefix_code()
         code += f' DROP CONSTRAINT {self._constraint.constraint_name()}'
         return code
 
 
 class DropDomain(ddl.SchemaObjectOperation):
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'DROP DOMAIN {qn(*self.name)}'

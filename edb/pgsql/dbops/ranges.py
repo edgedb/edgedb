@@ -32,7 +32,7 @@ class RangeExists(base.Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                 t.typname
@@ -61,7 +61,7 @@ class CreateRange(ddl.SchemaObjectOperation):
             range.name, conditions=conditions, neg_conditions=neg_conditions)
         self.range = range
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         subs = [f'subtype = {qn(*self.range.subtype)}']
         if self.range.subtype_diff is not None:
             subs.append(f'subtype_diff = {qn(*self.range.subtype_diff)}')
@@ -72,5 +72,5 @@ class CreateRange(ddl.SchemaObjectOperation):
 
 
 class DropRange(ddl.SchemaObjectOperation):
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'DROP TYPE {qn(*self.name)}'

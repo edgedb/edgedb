@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from ..common import qname as qn
 
-from . import base
 from . import ddl
 
 
@@ -29,7 +28,7 @@ class CreateSequence(ddl.SchemaObjectOperation):
     def __init__(self, name):
         super().__init__(name)
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'CREATE SEQUENCE {qn(*self.name)}'
 
 
@@ -37,5 +36,5 @@ class DropSequence(ddl.SchemaObjectOperation):
     def __init__(self, name):
         super().__init__(name)
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'DROP SEQUENCE {qn(*self.name)}'

@@ -49,7 +49,7 @@ class TypeExists(base.Condition):
     def __init__(self, name: Tuple[str, str]):
         self.name = name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                 typname
@@ -93,7 +93,7 @@ class CompositeTypeAttributeExists(base.Condition):
         self.type_name = type_name
         self.attribute_name = attribute_name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                 attribute_name
@@ -115,8 +115,8 @@ class CreateCompositeType(ddl.SchemaObjectOperation):
         )
         self.type = type
 
-    def code(self, block: base.PLBlock) -> str:
-        elems = [c.code(block, short=True) for c in self.type.iter_columns()]
+    def code(self) -> str:
+        elems = [c.code(short=True) for c in self.type.iter_columns()]
         name = qn(*self.type.name)
         cols = ', '.join(c for c in elems)
         return f'CREATE TYPE {name} AS ({cols})'
@@ -158,9 +158,9 @@ class AlterCompositeType(
 class AlterCompositeTypeAddAttribute(  # type: ignore
     composites.AlterCompositeAddAttribute, AlterCompositeTypeFragment
 ):
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return 'ADD {} {}'.format(
-            self.get_attribute_term(), self.attribute.code(block, short=True))
+            self.get_attribute_term(), self.attribute.code(short=True))
 
 
 class AlterCompositeTypeDropAttribute(
@@ -187,6 +187,6 @@ class DropCompositeType(ddl.SchemaObjectOperation):
             name, conditions=conditions, neg_conditions=neg_conditions)
         self.cascade = cascade
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         cascade = ' CASCADE' if self.cascade else ''
         return f'DROP TYPE {qn(*self.name)}{cascade}'

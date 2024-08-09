@@ -32,5 +32,5 @@ class Set(base.Command):
         self.key = key
         self.val = val
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'SET {qi(self.key)} = {ql(self.val)}'

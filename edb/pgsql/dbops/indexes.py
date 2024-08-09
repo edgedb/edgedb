@@ -175,7 +175,7 @@ class IndexExists(base.Condition):
     def __init__(self, index_name):
         self.index_name = index_name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                    i.indexrelid
@@ -200,7 +200,7 @@ class CreateIndex(ddl.CreateObject):
                 IndexExists((index.table_name[0], index.name_in_catalog))
             )
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return self.index.creation_code()
 
 
@@ -212,6 +212,6 @@ class DropIndex(ddl.DropObject):
                 IndexExists((index.table_name[0], index.name_in_catalog))
             )
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         name = qn(self.object.table_name[0], self.object.name_in_catalog)
         return f'DROP INDEX {name}'
