@@ -23,6 +23,7 @@ from typing import (
     Any,
     AsyncIterator,
     ClassVar,
+    Literal,
     NoReturn,
     Optional,
     Sequence,
@@ -393,7 +394,10 @@ def _prepare_provider_contexts(
         if provider_name not in provider_schedulers:
             # Create new schedulers if necessary
             provider_schedulers[provider_name] = ProviderScheduler(
-                provider_name=provider_name
+                service=rs.Service(
+                    limits={'requests': None, 'tokens': None},
+                ),
+                provider_name=provider_name,
             )
         provider_scheduler = provider_schedulers[provider_name]
 
@@ -468,6 +472,11 @@ class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
             self.provider_name,
             context.provider_models,
             self.model_excluded_ids,
+            tokens_rate_limit=(
+                self.service.limits['tokens'].total
+                if self.service.limits['tokens'] is not None else
+                None
+            ),
         )
 
     def finalize(self, execution_report: rs.ExecutionReport) -> None:
@@ -487,12 +496,16 @@ class EmbeddingsParams(rs.Params[EmbeddingsData]):
     provider: ProviderConfig
     model_name: str
     inputs: list[str]
+    token_count: int
     shortening: Optional[int]
 
     entries: list[tuple[bytes, ...]]
 
-    def cost(self) -> int:
-        return 1
+    def costs(self) -> dict[str, int]:
+        return {
+            'requests': 1,
+            'tokens': self.token_count,
+        }
 
     def create_request(self) -> EmbeddingsRequest:
         return EmbeddingsRequest(self)
@@ -559,6 +572,8 @@ async def _generate_embeddings_params(
     provider_name: str,
     provider_models: list[str],
     model_excluded_ids: dict[str, list[str]],
+    *,
+    tokens_rate_limit: Optional[int | Literal['unlimited']],
 ) -> Optional[list[EmbeddingsParams]]:
     task_name = _task_name.get()
 
@@ -681,6 +696,7 @@ async def _generate_embeddings_params(
             part = list(part_iter)
 
             inputs: list[str] = []
+            total_token_count: int = 0
             for entry in part:
                 input = entry[1].decode("utf-8")
                 truncate_to_max = bool.from_bytes(entry[5])
@@ -696,42 +712,57 @@ async def _generate_embeddings_params(
                         input = tokenizer.shorten_to_token_length(
                             input, truncate_length
                         )
-                    elif len(tokenizer.encode(input)) > truncate_length:
-                        # If the text is too long, mark it as excluded and skip.
-                        if model_name not in model_excluded_ids:
-                            model_excluded_ids[model_name] = []
-                        model_excluded_ids[model_name].append(
-                            uuidgen.from_bytes(entry[0]).hex
-                        )
-                        continue
+                        total_token_count += truncate_length
+                    else:
+                        current_token_count = len(tokenizer.encode(input))
+
+                        if current_token_count > truncate_length:
+                            # If the text is too long, mark it as excluded and
+                            # skip.
+                            if model_name not in model_excluded_ids:
+                                model_excluded_ids[model_name] = []
+                            model_excluded_ids[model_name].append(
+                                uuidgen.from_bytes(entry[0]).hex
+                            )
+                            continue
+
+                        total_token_count += current_token_count
 
                 inputs.append(input)
 
             if model_name in model_tokenizers:
-                # Trim the inputs so that they fit into the batch size
+                max_batch_tokens = model_max_batch_tokens[model_name]
+                if isinstance(tokens_rate_limit, int):
+                    # If the rate limit is lower than the batch limit, use that
+                    # instead.
+                    max_batch_tokens = min(max_batch_tokens, tokens_rate_limit)
+
+                # Group the input into batches based on token count
                 batches = _batch_embeddings_inputs(
-                    tokenizer, inputs, model_max_batch_tokens[model_name]
+                    tokenizer, inputs, max_batch_tokens
                 )
-                if batches:
-                    # The request scheduler is not designed to handle multiple
-                    # batches for a single provider. Just take the first one,
-                    # and the rest can be processed next time. If the limits are
-                    # not exceeded, this will happen "immediately".
-                    inputs = batches[0]
-                else:
-                    inputs = []
 
-            if not inputs:
-                continue
+                for batch, batch_token_count in batches:
+                    embeddings_params.append(EmbeddingsParams(
+                        pgconn=pgconn,
+                        provider=provider_cfg,
+                        model_name=model_name,
+                        inputs=batch,
+                        token_count=batch_token_count,
+                        shortening=shortening,
+                        entries=part,
+                    ))
 
-            embeddings_params.append(EmbeddingsParams(
-                pgconn=pgconn,
-                provider=provider_cfg,
-                model_name=model_name,
-                inputs=inputs,
-                shortening=shortening,
-                entries=part,
-            ))
+            else:
+                embeddings_params.append(EmbeddingsParams(
+                    pgconn=pgconn,
+                    provider=provider_cfg,
+                    model_name=model_name,
+                    inputs=inputs,
+                    token_count=total_token_count,
+                    shortening=shortening,
+                    entries=part,
+                ))
 
     return embeddings_params
 
@@ -740,8 +771,13 @@ def _batch_embeddings_inputs(
     tokenizer: Tokenizer,
     inputs: list[str],
     max_batch_tokens: int,
-) -> list[list[str]]:
-    """Create batches of embeddings inputs."""
+) -> list[tuple[list[str], int]]:
+    """Create batches of embeddings inputs.
+
+    Returns batches which are a tuple of:
+    - Input strings grouped to avoid exceeding the max_batch_token
+    - The batch's token count
+    """
 
     # Get token counts
     input_token_counts = [
@@ -769,7 +805,7 @@ def _batch_embeddings_inputs(
     ):
         unbatched_input_indexes.pop()
 
-    batches: list[list[str]] = []
+    batches: list[tuple[list[str], int]] = []
     while unbatched_input_indexes:
         # Start with the largest available input
         batch = [unbatched_input(-1)]
@@ -791,7 +827,7 @@ def _batch_embeddings_inputs(
                 else:
                     unbatched_index += 1
 
-        batches.append(batch)
+        batches.append((batch, batch_token_count))
 
     return batches
 
@@ -916,41 +952,71 @@ async def _generate_openai_embeddings(
 
     return EmbeddingsResult(
         data=(error if error else EmbeddingsData(result.content)),
-        request_limits=_read_openai_limits(result),
+        limits=_read_openai_limits(result),
     )
+
+
+def _read_openai_header_field(
+    result: Any,
+    field_names: list[str],
+) -> Optional[int]:
+    # Return the value of the first requested field available
+    try:
+        for field_name in field_names:
+            if field_name in result.headers:
+                header_value = result.headers[field_name]
+                return int(header_value) if header_value is not None else None
+
+    except (ValueError, TypeError):
+        pass
+
+    return None
 
 
 def _read_openai_limits(
     result: Any,
-) -> rs.Limits:
-    try:
-        header = (
-            result.headers['x-ratelimit-limit-project-requests']
-            if 'x-ratelimit-limit-project-requests' in result.headers else
-            result.headers['x-ratelimit-limit-requests']
-            if 'x-ratelimit-limit-requests' in result.headers else
-            None
-        )
-        request_limit = int(header) if header is not None else None
-    except Exception:
-        request_limit = None
-
-    try:
-        header = (
-            result.headers['x-ratelimit-remaining-project-requests']
-            if 'x-ratelimit-remaining-project-requests' in result.headers else
-            result.headers['x-ratelimit-remaining-requests']
-            if 'x-ratelimit-remaining-requests' in result.headers else
-            None
-        )
-        request_remaining = int(header) if header is not None else None
-    except Exception:
-        request_remaining = None
-
-    return rs.Limits(
-        total=request_limit,
-        remaining=request_remaining
+) -> dict[str, rs.Limits]:
+    request_limit = _read_openai_header_field(
+        result,
+        [
+            'x-ratelimit-limit-project-requests',
+            'x-ratelimit-limit-requests',
+        ],
     )
+    request_remaining = _read_openai_header_field(
+        result,
+        [
+            'x-ratelimit-remaining-project-requests',
+            'x-ratelimit-remaining-requests',
+        ],
+    )
+
+    token_limit = _read_openai_header_field(
+        result,
+        [
+            'x-ratelimit-limit-project-tokens',
+            'x-ratelimit-limit-tokens',
+        ],
+    )
+
+    token_remaining = _read_openai_header_field(
+        result,
+        [
+            'x-ratelimit-remaining-project-tokens',
+            'x-ratelimit-remaining-tokens',
+        ],
+    )
+
+    return {
+        'requests': rs.Limits(
+            total=request_limit,
+            remaining=request_remaining,
+        ),
+        'tokens': rs.Limits(
+            total=token_limit,
+            remaining=token_remaining,
+        ),
+    }
 
 
 async def _start_chat(
