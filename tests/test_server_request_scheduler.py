@@ -429,7 +429,7 @@ class TestRequests(unittest.TestCase):
 
         # No base delay, use naptime
         self.assertEqual(
-            rs.Service(request_limits=rs.Limits(total=True)).next_delay(
+            rs.Service(request_limits=rs.Limits(total='unlimited')).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
             rs.Timer(1030, False),
@@ -505,7 +505,7 @@ class TestRequests(unittest.TestCase):
 
         # No base delay, run immediately
         self.assertEqual(
-            rs.Service(request_limits=rs.Limits(total=True)).next_delay(
+            rs.Service(request_limits=rs.Limits(total='unlimited')).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
             rs.Timer(None, True),
@@ -532,7 +532,7 @@ class TestRequests(unittest.TestCase):
 
         # No base delay, run immediately
         self.assertEqual(
-            rs.Service(request_limits=rs.Limits(total=True)).next_delay(
+            rs.Service(request_limits=rs.Limits(total='unlimited')).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
             rs.Timer(None, True),
@@ -558,7 +558,7 @@ class TestRequests(unittest.TestCase):
 
         # No base delay, take a nap
         self.assertEqual(
-            rs.Service(request_limits=rs.Limits(total=True)).next_delay(
+            rs.Service(request_limits=rs.Limits(total='unlimited')).next_delay(
                 success_count, deferred_count, error_count, naptime=30,
             ),
             rs.Timer(1030, False),
@@ -595,8 +595,8 @@ class TestRequests(unittest.TestCase):
         )
 
         self.assertEqual(
-            rs.Limits(total=None).update_total(rs.Limits(total=True)),
-            rs.Limits(total=True),
+            rs.Limits(total=None).update_total(rs.Limits(total='unlimited')),
+            rs.Limits(total='unlimited'),
         )
 
         self.assertEqual(
@@ -610,22 +610,24 @@ class TestRequests(unittest.TestCase):
         )
 
         self.assertEqual(
-            rs.Limits(total=10).update_total(rs.Limits(total=True)),
-            rs.Limits(total=True),
+            rs.Limits(total=10).update_total(rs.Limits(total='unlimited')),
+            rs.Limits(total='unlimited'),
         )
 
         self.assertEqual(
-            rs.Limits(total=True).update_total(rs.Limits(total=None)),
-            rs.Limits(total=True),
+            rs.Limits(total='unlimited').update_total(rs.Limits(total=None)),
+            rs.Limits(total='unlimited'),
         )
 
         self.assertEqual(
-            rs.Limits(total=True).update_total(rs.Limits(total=True)),
-            rs.Limits(total=True),
+            rs.Limits(total='unlimited').update_total(rs.Limits(total='unlimited')),
+            rs.Limits(total='unlimited'),
         )
 
         self.assertEqual(
-            rs.Limits(total=True).update_total(rs.Limits(total=10)),
+            rs.Limits(total='unlimited').update_total(
+                rs.Limits(total=10)
+            ),
             rs.Limits(total=10),
         )
 
@@ -668,21 +670,21 @@ class TestRequests(unittest.TestCase):
 
         # Check that a remaining value resets an unlimited total
         self.assertEqual(
-            rs.Limits(total=True, remaining=10).update_remaining(
+            rs.Limits(total='unlimited', remaining=10).update_remaining(
                 rs.Limits()
             ),
             rs.Limits(remaining=10),
         )
 
         self.assertEqual(
-            rs.Limits(total=True).update_remaining(
+            rs.Limits(total='unlimited').update_remaining(
                 rs.Limits(remaining=10)
             ),
             rs.Limits(remaining=10),
         )
 
         self.assertEqual(
-            rs.Limits(total=True, remaining=20).update_remaining(
+            rs.Limits(total='unlimited', remaining=20).update_remaining(
                 rs.Limits(remaining=10)
             ),
             rs.Limits(remaining=10),
@@ -713,7 +715,7 @@ class TestRequests(unittest.TestCase):
     def test_limits_base_delay_01(self):
         # Unlimited limit has no delay.
         self.assertIsNone(
-            rs.Limits(total=True).base_delay(1, guess=60),
+            rs.Limits(total='unlimited').base_delay(1, guess=60),
         )
 
         # If number of requests is less than remaining limit, no delay needed.
@@ -744,7 +746,7 @@ class TestRequests(unittest.TestCase):
     @with_fake_event_loop
     async def test_execute_no_sleep_01(self):
         # Unlimited total
-        request_limits = rs.Limits(total=True, delay_factor=1)
+        request_limits = rs.Limits(total='unlimited', delay_factor=1)
 
         # All tasks return a valid result
         finalize_target: dict[int, float] = {}
@@ -807,7 +809,7 @@ class TestRequests(unittest.TestCase):
     @with_fake_event_loop
     async def test_execute_no_sleep_02(self):
         # Unlimited total
-        request_limits = rs.Limits(total=True, delay_factor=2)
+        request_limits = rs.Limits(total='unlimited', delay_factor=2)
 
         # A mix of successes and failures
         finalize_target: dict[int, float] = {}

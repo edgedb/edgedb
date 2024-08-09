@@ -308,8 +308,7 @@ class Limits:
     """Information about a service's rate limits."""
 
     # Total limit of a resource per minute for a service.
-    # A True value represents a unlimited total
-    total: Optional[int | Literal[True]] = None
+    total: Optional[int | Literal['unlimited']] = None
 
     # Remaining resources before the limit is hit.
     # It is assumed to be decreasing during a call to execute_no_sleep.
@@ -331,13 +330,14 @@ class Limits:
         *,
         guess: float,
     ) -> Optional[float]:
-        if self.total is True:
+        if self.total == 'unlimited':
             return None
 
         if self.remaining is not None and request_cost <= self.remaining:
             return None
 
         if self.total is not None:
+            assert isinstance(self.total, int)
             return 60.0 / self.total * 1.1  # 10% buffer just in case
 
         # guess the delay
@@ -365,7 +365,7 @@ class Limits:
         elif latest.remaining is not None:
             self.remaining = min(self.remaining, latest.remaining)
 
-        if self.total is True and self.remaining:
+        if self.total == 'unlimited' and self.remaining:
             # If there is a remaining value, the total is not actually
             # unlimited.
             self.total = None
@@ -455,7 +455,7 @@ async def execute_no_sleep(
     if service.request_limits is None:
         # If no other information is available, for the first attempt assume
         # there is no limit.
-        request_limits = Limits(total=True)
+        request_limits = Limits(total='unlimited')
 
     else:
         request_limits = copy.copy(service.request_limits)
