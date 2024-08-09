@@ -485,7 +485,46 @@ async def execute_no_sleep(
     # If any requests fail and can be retried, retry them up to a maximum number
     # of times.
     retry_count: int = 0
-    pending_request_indexes: list[int] = list(range(len(params)))
+
+    # If the costs are larger than a total limit, set aside the excess to be
+    # processed later.
+    # This prevents wasting resources, and allows the delays to increase
+    # specifically when an unexpected deferral happens.
+    pending_request_indexes: list[int]
+    excess_request_indexes: list[int]
+
+    initial_pending_cost = {
+        limit_name: 0
+        for limit_name in service.limits.keys()
+    }
+    for request_index in range(len(params)):
+        for limit_name, cost in params[request_index].costs().items():
+            initial_pending_cost[limit_name] += cost
+
+        if (
+            # If the pending cost exceeds a known limit, set aside some
+            # requests.
+            any(
+                limit.total < initial_pending_cost[limit_name]
+                for limit_name, limit in service.limits.items()
+                if limit is not None and isinstance(limit.total, int)
+            )
+
+            # Always include at least 1 request
+            and request_index != 0
+        ):
+            pending_request_indexes = (
+                list(range(request_index))
+            )
+            excess_request_indexes = (
+                list(range(request_index, len(params)))
+            )
+            break
+
+    else:
+        # All inputs can be processed
+        pending_request_indexes = list(range(len(params)))
+        excess_request_indexes = []
 
     while pending_request_indexes and retry_count < service.max_retry_count:
         # Find the highest delay required by any of the service's limits
@@ -551,19 +590,20 @@ async def execute_no_sleep(
             retry_request_indexes + inactive_request_indexes
         )
 
-    # Determine which limits require additional delays
+    # Determine which limits cause unexpected deferrals and require additional
+    # delays.
     limit_base_delays = _get_limit_base_delays(
         params, execute_limits, pending_request_indexes, service.guess_delay
     )
-    delayed_limits = {
+    expected_pending_cost = {
         limit_name
         for limit_name in service.limits.keys()
         if limit_base_delays[limit_name] is not None
     }
-    if len(delayed_limits) == 0:
+    if len(expected_pending_cost) == 0:
         # If requests were deferred, but no limit appears to be the cause, delay
         # them all just in case.
-        delayed_limits = set(service.limits.keys())
+        expected_pending_cost = set(service.limits.keys())
 
     # Update deferred costs and any resulting limits.
     report.deferred_costs = {
@@ -571,17 +611,24 @@ async def execute_no_sleep(
         for limit_name in service.limits
     }
     for limit_name in service.limits.keys():
-        report.deferred_costs[limit_name] = sum(
+        unexpected_deferred_costs = sum(
             params[i].costs()[limit_name]
             for i in pending_request_indexes
         )
+        excess_deferred_costs = sum(
+            params[i].costs()[limit_name]
+            for i in excess_request_indexes
+        )
+        report.deferred_costs[limit_name] = (
+            unexpected_deferred_costs + excess_deferred_costs
+        )
 
         if (
-            report.deferred_costs[limit_name] != 0
+            unexpected_deferred_costs != 0
 
             # If the limit was not a cause of delays, don't increase the delay
             # factor.
-            and limit_name in delayed_limits
+            and limit_name in expected_pending_cost
         ):
             # If there are deferred requests, gradually increase the delay
             # factor
@@ -592,6 +639,7 @@ async def execute_no_sleep(
         elif (
             len(report.known_error_messages) == 0
             and report.unknown_error_count == 0
+            and excess_deferred_costs == 0
         ):
             # If there are no errors, gradually decrease the delay factor over
             # time.
