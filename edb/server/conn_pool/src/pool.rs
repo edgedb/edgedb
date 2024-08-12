@@ -7,6 +7,7 @@ use crate::{
     conn::{ConnError, ConnHandle, ConnResult, Connector},
     drain::Drain,
     metrics::{MetricVariant, PoolMetrics},
+    time::Instant,
 };
 use consume_on_drop::{Consume, ConsumeOnDrop};
 use derive_more::Debug;
@@ -17,6 +18,7 @@ use tracing::trace;
 pub struct PoolConfig {
     pub constraints: PoolConstraints,
     pub adjustment_interval: Duration,
+    pub gc_interval: Duration,
 }
 
 impl PoolConfig {
@@ -36,8 +38,18 @@ impl PoolConfig {
         assert!(databases > 0);
         Self {
             adjustment_interval: Duration::from_millis(10),
-            constraints: PoolConstraints { max: connections },
+            gc_interval: Duration::from_secs(1),
+            constraints: PoolConstraints {
+                max: connections,
+                min_idle_time_for_gc: Duration::from_secs(120),
+            },
         }
+    }
+
+    pub fn with_min_idle_time_for_gc(mut self, min_idle_time_for_gc: Duration) -> Self {
+        self.constraints.min_idle_time_for_gc = min_idle_time_for_gc;
+        self.gc_interval = (min_idle_time_for_gc / 120).max(Duration::from_secs(1));
+        self
     }
 }
 
@@ -117,6 +129,7 @@ pub struct Pool<C: Connector> {
     drain: Drain,
     /// If the pool has been dirtied by acquiring or releasing a connection
     dirty: Rc<Cell<bool>>,
+    last_gc: Cell<Instant>,
 }
 
 impl<C: Connector> Pool<C> {
@@ -128,6 +141,7 @@ impl<C: Connector> Pool<C> {
             connector,
             dirty: Default::default(),
             drain: Drain::default(),
+            last_gc: Instant::now().into(),
         })
     }
 }
@@ -154,12 +168,22 @@ impl<C: Connector> Pool<C> {
     /// Runs the required async task that takes care of quota management, garbage collection,
     /// and other important async tasks. This should happen only if we have live blocks.
     pub fn run_once(&self) {
+        // No need to run if we have no blocks
         if self.blocks.is_empty() {
             return;
         }
 
         self.algo().adjust();
-        for op in self.algo().plan_rebalance() {
+
+        // Run a garbage collection if we're due
+        let gc = if self.last_gc.get().elapsed() > self.config.gc_interval {
+            self.last_gc.set(Instant::now());
+            true
+        } else {
+            false
+        };
+
+        for op in self.algo().plan_rebalance(gc) {
             trace!("Rebalance: {op:?}");
             match op {
                 RebalanceOp::Transfer { from, to } => {
@@ -374,7 +398,8 @@ mod tests {
     #[test(tokio::test(flavor = "current_thread", start_paused = true))]
     async fn test_pool_eventually_idles() -> Result<()> {
         let future = async {
-            let config = PoolConfig::suggested_default_for(10);
+            let config = PoolConfig::suggested_default_for(10)
+                .with_min_idle_time_for_gc(Duration::from_secs(1));
 
             let pool = Pool::new(config, BasicConnector::no_delay());
             let conn = pool.acquire("1").await?;
@@ -391,6 +416,38 @@ mod tests {
             Ok(())
         };
         tokio::time::timeout(Duration::from_secs(120), LocalSet::new().run_until(future)).await?
+    }
+
+    #[test(tokio::test(flavor = "current_thread", start_paused = true))]
+    #[rstest]
+    #[case(1)]
+    #[case(3)]
+    #[case(10)]
+    async fn test_pool_gc_from_max(
+        #[case] dbs: usize,
+        #[values(10, 100)] pool_size: usize,
+    ) -> Result<()> {
+        let future = async {
+            let config = PoolConfig::suggested_default_for(pool_size)
+                .with_min_idle_time_for_gc(Duration::from_secs(1));
+
+            let pool = Pool::new(config, BasicConnector::no_delay());
+            let mut conns = vec![];
+            for i in 0..10 {
+                conns.push(pool.acquire(&format!("{}", i % dbs)).await?);
+            }
+            drop(conns);
+
+            while !pool.idle() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                pool.run_once();
+            }
+            trace!("Pool idle, shutting down");
+
+            pool.shutdown().await;
+            Ok(())
+        };
+        tokio::time::timeout(Duration::from_secs(10), LocalSet::new().run_until(future)).await?
     }
 
     #[test(tokio::test(flavor = "current_thread", start_paused = true))]
@@ -501,7 +558,8 @@ mod tests {
     async fn run_local(spec: Spec) -> std::result::Result<QoS, anyhow::Error> {
         let start = Instant::now();
         let real_time = std::time::Instant::now();
-        let config = PoolConfig::suggested_default_for(spec.capacity);
+        let config = PoolConfig::suggested_default_for(spec.capacity)
+            .with_min_idle_time_for_gc(Duration::from_secs_f64(spec.duration / 10.0));
         let disconnect_cost = spec.disconn_cost;
         let connect_cost = spec.disconn_cost;
         let conn_failure_percentage = spec.conn_failure_percentage;

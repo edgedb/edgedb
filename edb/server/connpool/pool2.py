@@ -105,12 +105,15 @@ class Pool(typing.Generic[C]):
     def __init__(self, *, connect: Connector[C],
                  disconnect: Disconnector[C],
                  max_capacity: int,
-                 stats_collector: typing.Optional[StatsCollector]=None) -> None:
+                 stats_collector: typing.Optional[StatsCollector]=None,
+                 min_idle_time_before_gc: float = config.MIN_IDLE_TIME_BEFORE_GC
+        ) -> None:
         logger.info(f'Creating a connection pool with \
                     max_capacity={max_capacity}')
         self._connect = connect
         self._disconnect = disconnect
-        self._pool = edb.server._conn_pool.ConnPool(max_capacity)
+        self._pool = edb.server._conn_pool.ConnPool(max_capacity,
+                                                    min_idle_time_before_gc)
         self._max_capacity = max_capacity
         self._cur_capacity = 0
         self._next_conn_id = 0
