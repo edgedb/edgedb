@@ -530,7 +530,7 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
                 sim, spec.disconn_cost_base, spec.disconn_cost_var),
             stats_collector=on_stats if collect_stats else None,
             max_capacity=spec.capacity,
-            min_idle_time_before_gc= 0.1 * TIME_SCALE,
+            min_idle_time_before_gc = 0.1 * TIME_SCALE,
         )
         print(f"Simulating {pool.__class__}")
 
