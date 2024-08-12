@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+from typing import Any
 
 import json
 import pathlib
@@ -99,26 +100,26 @@ class TestExtAI(tb.BaseHttpExtensionTest):
     def mock_api_embeddings(
         cls,
         handler: tb.MockHttpServerHandler,
+        request_details: dict[str, Any],
     ) -> tb.ResponseType:
+        inputs: list[str] = json.loads(request_details['body'])['input']
+        # Produce a dummy embedding as the number of occurences of the first ten
+        # letters of the alphabet.
+        response_data = [
+            {
+                "object": "embedding",
+                "index": 0,
+                "embedding": [
+                    input.count(chr(ord('a') + c))
+                    for c in range(10)
+                ],
+            }
+            for input in inputs
+        ]
         return (
             json.dumps({
                 "object": "list",
-                "data": [{
-                    "object": "embedding",
-                    "index": 0,
-                    "embedding": [
-                        1.0,
-                        -2.0,
-                        3.0,
-                        -4.0,
-                        5.0,
-                        -6.0,
-                        7.0,
-                        -8.0,
-                        9.0,
-                        -10.0,
-                    ],
-                }],
+                "data": response_data,
             }),
             200,
         )
@@ -133,6 +134,17 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                 content := 'Skies on Earth are blue'
             };
             """,
+        )
+
+        await self.assert_query_result(
+            '''
+            select _ := ext::ai::to_context((select Astronomy))
+            order by _
+            ''',
+            [
+                'Skies on Earth are blue',
+                'Skies on Mars are red',
+            ],
         )
 
         async for tr in self.try_until_succeeds(
@@ -157,26 +169,15 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                     [
                         {
                             'content': 'Skies on Earth are blue',
-                            'distance': 0,
+                            'distance': 0.3675444679663241,
                         },
                         {
                             'content': 'Skies on Mars are red',
-                            'distance': 0,
+                            'distance': 0.4284523933505918,
                         },
                     ],
                     variables={
-                        "qv": [
-                            1.0,
-                            -2.0,
-                            3.0,
-                            -4.0,
-                            5.0,
-                            -6.0,
-                            7.0,
-                            -8.0,
-                            9.0,
-                            -10.0,
-                        ],
+                        "qv": [1 for i in range(10)],
                     }
                 )
 
@@ -195,7 +196,7 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                 result.distance asc empty last
                 then result.object.content;
         '''
-        qv = [1.0, -2.0, 3.0, -4.0, 5.0, -6.0, 7.0, -8.0, 9.0, -10.0]
+        qv = [1 for i in range(10)]
 
         await self.assert_query_result(
             """
@@ -234,12 +235,12 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                         {
                             'content': 'Skies on Earth',
                             'content2': ' are blue',
-                            'distance': 0,
+                            'distance': 0.3675444679663241,
                         },
                         {
                             'content': 'Skies on Mars',
                             'content2': ' are red',
-                            'distance': 0,
+                            'distance': 0.4284523933505918,
                         },
                     ],
                     variables=dict(qv=qv),
@@ -257,7 +258,7 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                 {
                     'content': 'Skies on Mars',
                     'content2': ' are red',
-                    'distance': 0,
+                    'distance': 0.4284523933505918,
                 },
             ],
             variables=dict(qv=qv),
@@ -308,26 +309,15 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                     [
                         {
                             'content': 'Skies on Earth are blue',
-                            'distance': 0,
+                            'distance': 0.3675444679663241,
                         },
                         {
                             'content': 'Skies on Mars are red',
-                            'distance': 0,
+                            'distance': 0.4284523933505918,
                         },
                     ],
                     variables={
-                        "qv": [
-                            1.0,
-                            -2.0,
-                            3.0,
-                            -4.0,
-                            5.0,
-                            -6.0,
-                            7.0,
-                            -8.0,
-                            9.0,
-                            -10.0,
-                        ],
+                        "qv": [1 for i in range(10)],
                     }
                 )
 
