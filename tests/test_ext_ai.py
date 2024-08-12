@@ -110,7 +110,7 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                 "object": "embedding",
                 "index": 0,
                 "embedding": [
-                    input.count(chr(ord('a')+c))
+                    input.count(chr(ord('a') + c))
                     for c in range(10)
                 ],
             }
