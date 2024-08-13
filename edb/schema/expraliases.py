@@ -174,8 +174,17 @@ class AliasLikeCommand(
         return obj
 
     @classmethod
-    def _mangle_name(cls, type_name: sn.QualName) -> sn.QualName:
-        base_name = type_name
+    def _mangle_name(
+        cls,
+        type_name: sn.QualName,
+        *,
+        include_module_in_name: bool,
+    ) -> sn.QualName:
+        base_name = (
+            type_name
+            if include_module_in_name else
+            type_name.get_local_name()
+        )
         quals = (cls.get_schema_metaclass().get_schema_class_displayname(),)
         pnn = sn.get_specialized_name(base_name, str(type_name), *quals)
         name = sn.QualName(name=pnn, module=type_name.module)
@@ -271,7 +280,7 @@ class AliasCommand(
         context: sd.CommandContext,
     ) -> sn.QualName:
         type_name = super()._classname_from_ast(schema, astnode, context)
-        return cls._mangle_name(type_name)
+        return cls._mangle_name(type_name, include_module_in_name=True)
 
     def compile_expr_field(
         self,

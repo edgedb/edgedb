@@ -121,7 +121,7 @@ class GlobalCommand(
 
     @classmethod
     def _get_alias_name(cls, type_name: sn.QualName) -> sn.QualName:
-        return cls._mangle_name(type_name)
+        return cls._mangle_name(type_name, include_module_in_name=False)
 
     @classmethod
     def _is_computable(cls, obj: Global, schema: s_schema.Schema) -> bool:
