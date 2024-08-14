@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import functools
 import unittest
 
 
@@ -54,4 +56,20 @@ def not_implemented(reason):
         test_item.__et_xfail_allow_error__ = True
         return unittest.expectedFailure(test_item)
 
+    return decorator
+
+
+def async_timeout(timeout: int):
+    def decorator(test_func):
+        @functools.wraps(test_func)
+        async def wrapper(*args, **kwargs):
+            try:
+                await asyncio.wait_for(test_func(*args, **kwargs), timeout)
+            except asyncio.TimeoutError:
+                raise AssertionError(
+                    f"Test failed due to timeout after {timeout} seconds")
+            except asyncio.CancelledError as e:
+                raise AssertionError(
+                    f"Test failed due to timeout after {timeout} seconds", e)
+        return wrapper
     return decorator

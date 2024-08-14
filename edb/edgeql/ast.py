@@ -857,6 +857,7 @@ class BranchType(s_enum.StrEnum):
     EMPTY = 'EMPTY'
     SCHEMA = 'SCHEMA'
     DATA = 'DATA'
+    TEMPLATE = 'TEMPLATE'
 
 
 class DatabaseCommand(ExternalObjectCommand):

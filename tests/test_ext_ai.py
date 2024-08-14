@@ -16,10 +16,13 @@
 # limitations under the License.
 #
 
+from typing import Any
 
 import json
 import pathlib
+import unittest
 
+from edb.server.protocol import ai_ext
 from edb.testbase import http as tb
 
 
@@ -67,6 +70,7 @@ class TestExtAI(tb.BaseHttpExtensionTest):
     @classmethod
     def tearDownClass(cls):
         cls.mock_server.stop()
+        super().tearDownClass()
 
     @classmethod
     def get_setup_script(cls):
@@ -96,26 +100,26 @@ class TestExtAI(tb.BaseHttpExtensionTest):
     def mock_api_embeddings(
         cls,
         handler: tb.MockHttpServerHandler,
+        request_details: dict[str, Any],
     ) -> tb.ResponseType:
+        inputs: list[str] = json.loads(request_details['body'])['input']
+        # Produce a dummy embedding as the number of occurences of the first ten
+        # letters of the alphabet.
+        response_data = [
+            {
+                "object": "embedding",
+                "index": 0,
+                "embedding": [
+                    input.count(chr(ord('a') + c))
+                    for c in range(10)
+                ],
+            }
+            for input in inputs
+        ]
         return (
             json.dumps({
                 "object": "list",
-                "data": [{
-                    "object": "embedding",
-                    "index": 0,
-                    "embedding": [
-                        1.0,
-                        -2.0,
-                        3.0,
-                        -4.0,
-                        5.0,
-                        -6.0,
-                        7.0,
-                        -8.0,
-                        9.0,
-                        -10.0,
-                    ],
-                }],
+                "data": response_data,
             }),
             200,
         )
@@ -130,6 +134,17 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                 content := 'Skies on Earth are blue'
             };
             """,
+        )
+
+        await self.assert_query_result(
+            '''
+            select _ := ext::ai::to_context((select Astronomy))
+            order by _
+            ''',
+            [
+                'Skies on Earth are blue',
+                'Skies on Mars are red',
+            ],
         )
 
         async for tr in self.try_until_succeeds(
@@ -154,26 +169,15 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                     [
                         {
                             'content': 'Skies on Earth are blue',
-                            'distance': 0,
+                            'distance': 0.3675444679663241,
                         },
                         {
                             'content': 'Skies on Mars are red',
-                            'distance': 0,
+                            'distance': 0.4284523933505918,
                         },
                     ],
                     variables={
-                        "qv": [
-                            1.0,
-                            -2.0,
-                            3.0,
-                            -4.0,
-                            5.0,
-                            -6.0,
-                            7.0,
-                            -8.0,
-                            9.0,
-                            -10.0,
-                        ],
+                        "qv": [1 for i in range(10)],
                     }
                 )
 
@@ -192,7 +196,7 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                 result.distance asc empty last
                 then result.object.content;
         '''
-        qv = [1.0, -2.0, 3.0, -4.0, 5.0, -6.0, 7.0, -8.0, 9.0, -10.0]
+        qv = [1 for i in range(10)]
 
         await self.assert_query_result(
             """
@@ -209,6 +213,17 @@ class TestExtAI(tb.BaseHttpExtensionTest):
             variables=dict(qv=qv),
         )
 
+        await self.assert_query_result(
+            '''
+            select _ := ext::ai::to_context((select Stuff))
+            order by _
+            ''',
+            [
+                'Skies on Earth are blue',
+                'Skies on Mars are red',
+            ],
+        )
+
         async for tr in self.try_until_succeeds(
             ignore=(AssertionError,),
             timeout=10.0,
@@ -220,12 +235,12 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                         {
                             'content': 'Skies on Earth',
                             'content2': ' are blue',
-                            'distance': 0,
+                            'distance': 0.3675444679663241,
                         },
                         {
                             'content': 'Skies on Mars',
                             'content2': ' are red',
-                            'distance': 0,
+                            'distance': 0.4284523933505918,
                         },
                     ],
                     variables=dict(qv=qv),
@@ -243,7 +258,7 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                 {
                     'content': 'Skies on Mars',
                     'content2': ' are red',
-                    'distance': 0,
+                    'distance': 0.4284523933505918,
                 },
             ],
             variables=dict(qv=qv),
@@ -259,6 +274,17 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                 content := 'Skies on Earth are blue'
             };
             """,
+        )
+
+        await self.assert_query_result(
+            '''
+            select _ := ext::ai::to_context((select Star))
+            order by _
+            ''',
+            [
+                'Skies on Earth are blue',
+                'Skies on Mars are red',
+            ],
         )
 
         async for tr in self.try_until_succeeds(
@@ -283,26 +309,15 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                     [
                         {
                             'content': 'Skies on Earth are blue',
-                            'distance': 0,
+                            'distance': 0.3675444679663241,
                         },
                         {
                             'content': 'Skies on Mars are red',
-                            'distance': 0,
+                            'distance': 0.4284523933505918,
                         },
                     ],
                     variables={
-                        "qv": [
-                            1.0,
-                            -2.0,
-                            3.0,
-                            -4.0,
-                            5.0,
-                            -6.0,
-                            7.0,
-                            -8.0,
-                            9.0,
-                            -10.0,
-                        ],
+                        "qv": [1 for i in range(10)],
                     }
                 )
 
@@ -364,4 +379,82 @@ class TestExtAI(tb.BaseHttpExtensionTest):
             select ext::ai::search(Stuff, <array<float32>><json>$0) limit 5;
             ''',
             json.dumps(qv),
+        )
+
+
+class CharacterTokenizer(ai_ext.Tokenizer):
+    def encode(self, text: str) -> list[int]:
+        return [ord(c) for c in text]
+
+    def encode_padding(self) -> int:
+        return 0
+
+    def decode(self, tokens: list[int]) -> str:
+        return str(chr(t) for t in tokens)
+
+
+class TestExtAIUtils(unittest.TestCase):
+
+    def test_batch_embeddings_inputs_01(self):
+        self.assertEqual(
+            ai_ext._batch_embeddings_inputs(
+                CharacterTokenizer(),
+                [],
+                10
+            ),
+            [],
+        )
+        self.assertEqual(
+            ai_ext._batch_embeddings_inputs(
+                CharacterTokenizer(),
+                ['1', '22', '333', '4444'],
+                10
+            ),
+            [(['4444', '1', '22', '333'], 10)],
+        )
+        self.assertEqual(
+            ai_ext._batch_embeddings_inputs(
+                CharacterTokenizer(),
+                ['1', '22', '333', '4444', '55555'],
+                10
+            ),
+            [
+                (['55555', '1', '22'], 8),
+                (['4444', '333'], 7),
+            ],
+        )
+        self.assertEqual(
+            ai_ext._batch_embeddings_inputs(
+                CharacterTokenizer(),
+                ['1', '22', '333', '4444', '55555', '666666'],
+                10
+            ),
+            [
+                (['666666', '1', '22'], 9),
+                (['55555', '333'], 8),
+                (['4444'], 4),
+            ],
+        )
+        self.assertEqual(
+            ai_ext._batch_embeddings_inputs(
+                CharacterTokenizer(),
+                ['1', '22', '333', '4444', '55555', '666666'],
+                10
+            ),
+            [
+                (['666666', '1', '22'], 9),
+                (['55555', '333'], 8),
+                (['4444'], 4),
+            ],
+        )
+        self.assertEqual(
+            ai_ext._batch_embeddings_inputs(
+                CharacterTokenizer(),
+                ['1', '22', '333', '4444', '55555', '121212121212'],
+                10
+            ),
+            [
+                (['55555', '1', '22'], 8),
+                (['4444', '333'], 7),
+            ],
         )

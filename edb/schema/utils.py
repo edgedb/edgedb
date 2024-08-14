@@ -1262,12 +1262,12 @@ def ensure_intersection_type(
     *,
     transient: bool = False,
     module: Optional[str] = None,
-) -> Tuple[s_schema.Schema, s_types.Type, bool]:
+) -> Tuple[s_schema.Schema, s_types.Type]:
 
     from edb.schema import objtypes as s_objtypes
 
     if len(types) == 1:
-        return schema, next(iter(types)), False
+        return schema, next(iter(types))
 
     seen_scalars = False
     seen_objtypes = False

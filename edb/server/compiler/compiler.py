@@ -50,8 +50,9 @@ from edb import errors
 
 from edb.common.typeutils import not_none
 
-from edb.server import defines
 from edb.server import config
+from edb.server import defines
+from edb.server import instdata
 
 from edb import edgeql
 from edb.common import debug
@@ -134,8 +135,9 @@ class CompileContext:
     schema_object_ids: Optional[
         Mapping[tuple[s_name.Name, Optional[str]], uuid.UUID]] = None
     source: Optional[edgeql.Source] = None
-    backend_runtime_params: pg_params.BackendRuntimeParams = (
-        pg_params.get_default_runtime_params())
+    backend_runtime_params: pg_params.BackendRuntimeParams = dataclasses.field(
+        default_factory=pg_params.get_default_runtime_params
+    )
     compat_ver: Optional[verutils.Version] = None
     bootstrap_mode: bool = False
     internal_schema_mode: bool = False
@@ -201,7 +203,7 @@ class CompileContext:
 
 
 DEFAULT_MODULE_ALIASES_MAP: immutables.Map[Optional[str], str] = (
-    immutables.Map({None: defines.DEFAULT_MODULE_ALIAS}))
+    immutables.Map({None: s_mod.DEFAULT_MODULE_ALIAS}))
 
 
 def compile_edgeql_script(
@@ -285,6 +287,7 @@ def new_compiler_context(
     internal_schema_mode: bool = False,
     protocol_version: defines.ProtocolVersion = defines.CURRENT_PROTOCOL,
     backend_runtime_params: Optional[pg_params.BackendRuntimeParams] = None,
+    log_ddl_as_migrations: bool = True,
 ) -> CompileContext:
     """Create and return an ad-hoc compiler context."""
 
@@ -311,6 +314,7 @@ def new_compiler_context(
         backend_runtime_params=(
             backend_runtime_params or pg_params.get_default_runtime_params()
         ),
+        log_ddl_as_migrations=log_ddl_as_migrations,
     )
 
     return ctx
@@ -318,12 +322,8 @@ def new_compiler_context(
 
 async def get_patch_count(backend_conn: metaschema.PGConnection) -> int:
     """Get the number of applied patches."""
-    num_patches = await backend_conn.sql_fetch_val(
-        b'''
-            SELECT json::json from edgedbinstdata.instdata
-            WHERE key = 'num_patches';
-        ''',
-    )
+    num_patches = await instdata.get_instdata(
+        backend_conn, 'num_patches', 'json')
     res: int = json.loads(num_patches) if num_patches else 0
     return res
 
@@ -336,13 +336,7 @@ async def load_std_and_reflection_schema(
 
     # stdschema and reflschema are combined in one pickle to preserve sharing.
     key = f"std_and_reflection_schema{vkey}"
-    data = await backend_conn.sql_fetch_val(
-        b"""
-        SELECT bin FROM edgedbinstdata.instdata
-        WHERE key = $1
-        """,
-        args=[key.encode("utf-8")],
-    )
+    data = await instdata.get_instdata(backend_conn, key, 'bin')
     try:
         std_schema: s_schema.FlatSchema
         refl_schema: s_schema.FlatSchema
@@ -362,13 +356,9 @@ async def load_schema_intro_query(
     kind: str,
 ) -> str:
     kind += pg_patches.get_version_key(patches)
-    return (await backend_conn.sql_fetch_val(
-        b"""
-        SELECT text FROM edgedbinstdata.instdata
-        WHERE key = $1::text;
-        """,
-        args=[kind.encode("utf-8")],
-    )).decode('utf-8')
+    return (
+        await instdata.get_instdata(backend_conn, kind, 'text')
+    ).decode('utf-8')
 
 
 async def load_schema_class_layout(
@@ -376,13 +366,7 @@ async def load_schema_class_layout(
     patches: int,
 ) -> s_refl.SchemaClassLayout:
     key = f'classlayout{pg_patches.get_version_key(patches)}'
-    data = await backend_conn.sql_fetch_val(
-        b"""
-        SELECT bin FROM edgedbinstdata.instdata
-        WHERE key = $1::text;
-        """,
-        args=[key.encode("utf-8")],
-    )
+    data = await instdata.get_instdata(backend_conn, key, 'bin')
     try:
         return cast(s_refl.SchemaClassLayout, pickle.loads(data))
     except Exception as e:
@@ -574,7 +558,9 @@ class Compiler:
                 if isinstance(arg, pgast.StringConstant)
             ]
 
-        def translate_query(stmt: pgast.Base) -> pg_codegen.SQLSource:
+        def translate_query(
+            stmt: pgast.Base
+        ) -> Tuple[pg_codegen.SQLSource, Optional[dbstate.CommandCompleteTag]]:
             args = {}
             try:
                 search_path = tx_state.get("search_path")
@@ -588,9 +574,14 @@ class Compiler:
                 current_query=query_str,
                 **args
             )
-            resolved = pg_resolver.resolve(stmt, schema, options)
-            return pg_codegen.generate(
-                resolved, with_translation_data=True
+            resolved, complete_tag = pg_resolver.resolve(
+                stmt, schema, options
+            )
+            return (
+                pg_codegen.generate(
+                    resolved, with_translation_data=True
+                ),
+                complete_tag,
             )
 
         def compute_stmt_name(text: str) -> str:
@@ -614,7 +605,7 @@ class Compiler:
             'server_version': False,
             'server_version_num': False,
         }
-        stmts = pg_parser.parse(query_str)
+        stmts = pg_parser.parse(query_str, propagate_spans=True)
         sql_units = []
         for stmt in stmts:
             orig_text = pg_gen_source(stmt)
@@ -736,7 +727,7 @@ class Compiler:
                 )
             elif isinstance(stmt, pgast.PrepareStmt):
                 # Translate the underlying query.
-                stmt_source = translate_query(stmt.query)
+                stmt_source, complete_tag = translate_query(stmt.query)
                 if stmt.argtypes:
                     param_types = []
                     for pt in stmt.argtypes:
@@ -765,6 +756,7 @@ class Compiler:
                         translation_data=stmt_source.translation_data,
                     ),
                     command_tag=b"PREPARE",
+                    command_complete_tag=complete_tag,
                 )
             elif isinstance(stmt, pgast.ExecuteStmt):
                 orig_name = stmt.name
@@ -810,10 +802,11 @@ class Compiler:
                 # just ignore
                 unit = unit_ctor(query="DO $$ BEGIN END $$;")
             else:
-                source = translate_query(stmt)
+                source, complete_tag = translate_query(stmt)
                 unit = unit_ctor(
                     query=source.text,
                     translation_data=source.translation_data,
+                    command_complete_tag=complete_tag,
                 )
 
             if debug.flags.sql_output:
@@ -1699,11 +1692,7 @@ def _get_compile_options(
             ctx, 'apply_access_policies'),
         allow_user_specified_id=_get_config_val(
             ctx, 'allow_user_specified_id') or ctx.schema_reflection_mode,
-        expand_inhviews=(
-            debug.flags.edgeql_expand_inhviews
-            and not ctx.bootstrap_mode
-            and not ctx.schema_reflection_mode
-        ) or is_explain,
+        is_explain=is_explain,
         testmode=_get_config_val(ctx, '__internal_testmode'),
         schema_reflection_mode=(
             ctx.schema_reflection_mode
@@ -1888,22 +1877,25 @@ def _compile_ql_query(
         expected_cardinality_one=ctx.expected_cardinality_one,
         output_format=_convert_format(ctx.output_format),
         backend_runtime_params=ctx.backend_runtime_params,
-        expand_inhviews=options.expand_inhviews,
+        is_explain=options.is_explain,
         detach_params=(use_persistent_cache
                        and cache_mode is config.QueryCacheMode.PgFunc),
+        versioned_stdlib=True,
     )
+
+    sql_text = pg_codegen.generate_source(sql_res.ast)
+    func_call_sql = None
 
     pg_debug.dump_ast_and_query(sql_res.ast, ir)
 
     if use_persistent_cache and cache_mode is config.QueryCacheMode.PgFunc:
-        cache_sql, sql_ast = _build_cache_function(ctx, ir, sql_res)
+        cache_sql, func_call_ast = _build_cache_function(ctx, ir, sql_res)
+        func_call_sql = pg_codegen.generate_source(func_call_ast)
     elif (
         use_persistent_cache and cache_mode is config.QueryCacheMode.RegInline
     ):
-        sql_ast = sql_res.ast
         cache_sql = (b"", b"")
     else:
-        sql_ast = sql_res.ast
         cache_sql = None
 
     if (
@@ -1917,11 +1909,13 @@ def _compile_ql_query(
 
         return dbstate.NullQuery()
 
-    sql_text = pg_codegen.generate_source(sql_ast)
     # If requested, embed the EdgeQL text in the SQL.
     if debug.flags.edgeql_text_in_sql and source:
         sql_debug_obj = dict(edgeql=source.text())
-        sql_text = '-- ' + json.dumps(sql_debug_obj) + '\n' + sql_text
+        sql_debug_prefix = '-- ' + json.dumps(sql_debug_obj) + '\n'
+        sql_text = sql_debug_prefix + sql_text
+        if func_call_sql is not None:
+            func_call_sql = sql_debug_prefix + func_call_sql
     sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
     globals = None
@@ -1959,6 +1953,17 @@ def _compile_ql_query(
         intype=in_type_id.bytes,
         outtype=out_type_id.bytes)
 
+    cache_func_call = None
+    if func_call_sql is not None:
+        func_call_sql_bytes = func_call_sql.encode(defines.EDGEDB_ENCODING)
+        func_call_sql_hash = _hash_sql(
+            func_call_sql_bytes,
+            mode=str(ctx.output_format).encode(),
+            intype=in_type_id.bytes,
+            outtype=out_type_id.bytes,
+        )
+        cache_func_call = (func_call_sql_bytes, func_call_sql_hash)
+
     if is_explain:
         if isinstance(ir.schema, s_schema.ChainedSchema):
             # Strip the std schema out
@@ -1975,6 +1980,7 @@ def _compile_ql_query(
         sql=(sql_bytes,),
         sql_hash=sql_hash,
         cache_sql=cache_sql,
+        cache_func_call=cache_func_call,
         cardinality=result_cardinality,
         globals=globals,
         in_type_id=in_type_id.bytes,
@@ -2001,7 +2007,15 @@ def _build_cache_function(
     return_type: tuple[str, ...] = ("unknown",)
     match ctx.output_format:
         case enums.OutputFormat.NONE:
-            return_type = ("void",)
+            # CONFIGURE commands are never cached; other queries are actually
+            # wrapped with a count() call in top_output_as_value(), so set the
+            # return_type to reflect that fact. This was set to `void`, leading
+            # to issues that certain exceptions are not raised as expected when
+            # wrapped with a function returning (setof) void - reproducible
+            # with test_edgeql_casts_json_12() and EDGEDB_TEST_REPEATS=1.
+            return_type = ("int",)
+            if ir.stype.is_object_type() or ir.stype.is_tuple(ir.schema):
+                returns_record = True
 
         case enums.OutputFormat.BINARY:
             if ir.stype.is_object_type():
@@ -2011,6 +2025,8 @@ def _build_cache_function(
                 return_type = pg_types.pg_type_from_ir_typeref(
                     ir.expr.typeref.base_type or ir.expr.typeref
                 )
+                if ir.stype.is_tuple(ir.schema):
+                    returns_record = return_type == ('record',)
 
         case enums.OutputFormat.JSON:
             return_type = ("json",)
@@ -2235,7 +2251,7 @@ def _compile_ql_sess_state(
         aliases = aliases.set(ql.decl.alias, ql.decl.module)
 
     elif isinstance(ql, qlast.SessionResetModule):
-        aliases = aliases.set(None, defines.DEFAULT_MODULE_ALIAS)
+        aliases = aliases.set(None, s_mod.DEFAULT_MODULE_ALIAS)
 
     elif isinstance(ql, qlast.SessionResetAllAliases):
         aliases = DEFAULT_MODULE_ALIASES_MAP
@@ -2699,6 +2715,7 @@ def _try_compile(
         if isinstance(comp, dbstate.Query):
             unit.sql = comp.sql
             unit.cache_sql = comp.cache_sql
+            unit.cache_func_call = comp.cache_func_call
             unit.globals = comp.globals
             unit.in_type_args = comp.in_type_args
 
@@ -3149,7 +3166,7 @@ def _describe_object(
         # and include them in the dump.
         nschema = schema
         for (name, col, _type) in source.get_addon_columns(schema):
-            nschema, fake_ptr = _add_fake_property(source, name, schema)
+            nschema, fake_ptr = _add_fake_property(source, name, nschema)
             cols.append(col)
             shape.append(fake_ptr)
 

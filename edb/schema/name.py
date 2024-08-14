@@ -50,6 +50,9 @@ if TYPE_CHECKING:
         def get_local_name(self) -> UnqualName:
             ...
 
+        def get_root_module_name(self) -> UnqualName:
+            ...
+
         def __lt__(self, other: Any) -> bool:
             ...
 
@@ -147,6 +150,9 @@ else:
         def get_module_name(self) -> Name:
             return UnqualName(self.module)
 
+        def get_root_module_name(self) -> UnqualName:
+            return UnqualName(self.module.partition('::')[0])
+
         def __str__(self) -> str:
             return f'{self.module}::{self.name}'
 
@@ -166,6 +172,9 @@ else:
 
         def get_local_name(self) -> UnqualName:
             return self
+
+        def get_root_module_name(self) -> UnqualName:
+            return UnqualName(self.name.partition('::')[0])
 
         def __str__(self) -> str:
             return self.name

@@ -40,6 +40,7 @@ from edb.common.log import current_tenant
 from edb.pgsql.parser import exceptions as parser_errors
 from edb.server import args as srvargs
 from edb.server import defines, metrics
+from edb.server import tenant as edbtenant
 from edb.server.compiler import dbstate
 from edb.server.pgcon import errors as pgerror
 from edb.server.pgcon.pgcon cimport PGAction, PGMessage
@@ -491,9 +492,12 @@ cdef class PgConnection(frontend.FrontendConnection):
                         self.sslctx,
                         server_side=True,
                     )
-                    self.tenant = self.server.retrieve_tenant(
+                    tenant = self.server.retrieve_tenant(
                         self._transport.get_extra_info("ssl_object")
                     )
+                    if tenant is edbtenant.host_tenant:
+                        tenant = None
+                    self.tenant = tenant
                     if self.tenant is not None:
                         current_tenant.set(self.tenant.get_instance_name())
                     self.is_tls = True
@@ -710,8 +714,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         if self.debug:
             self.debug_print("BackendKeyData")
 
-        conn = await self.get_pgcon()
-        try:
+        async with self.with_pgcon() as conn:
             for name, value in conn.parameter_status.items():
                 msg_buf = WriteBuffer.new_message(b'S')
                 msg_buf.write_str(name, "utf-8")
@@ -731,8 +734,6 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.write(buf)
             # Try to sync the settings, especially client_encoding.
             await conn.sql_apply_state(self._dbview)
-        finally:
-            self.maybe_release_pgcon(conn)
 
         self.write(self.ready_for_query())
         self.flush()
@@ -805,13 +806,10 @@ cdef class PgConnection(frontend.FrontendConnection):
                 self.debug_print("Sync")
             if dbv._in_tx_implicit:
                 actions = [PGMessage(PGAction.SYNC)]
-                conn = await self.get_pgcon()
-                try:
+                async with self.with_pgcon() as conn:
                     success, _ = await conn.sql_extended_query(
                         actions, self, self.database.dbver, dbv)
                     self.ignore_till_sync = not success
-                finally:
-                    self.maybe_release_pgcon(conn)
             else:
                 self.ignore_till_sync = False
                 self.write(self.ready_for_query())
@@ -845,23 +843,20 @@ cdef class PgConnection(frontend.FrontendConnection):
                 self.flush()
 
             else:
-                conn = await self.get_pgcon()
-                try:
-                    _, rq_sent = await conn.sql_extended_query(
-                        actions,
-                        self,
-                        self.database.dbver,
-                        dbv,
-                        send_sync_on_error=True,
-                    )
-                except Exception as ex:
-                    self.write_error(ex)
-                    self.write(self.ready_for_query())
-                else:
-                    if not rq_sent:
+                async with self.with_pgcon() as conn:
+                    try:
+                        _, rq_sent = await conn.sql_extended_query(
+                            actions,
+                            self,
+                            self.database.dbver,
+                            dbv,
+                        )
+                    except Exception as ex:
+                        self.write_error(ex)
                         self.write(self.ready_for_query())
-                finally:
-                    self.maybe_release_pgcon(conn)
+                    else:
+                        if not rq_sent:
+                            self.write(self.ready_for_query())
 
                 self.flush()
 
@@ -877,17 +872,15 @@ cdef class PgConnection(frontend.FrontendConnection):
                 self.flush()
                 self.ignore_till_sync = True
             else:
-                conn = await self.get_pgcon()
-                try:
-                    success, _ = await conn.sql_extended_query(
-                        actions, self, self.database.dbver, dbv)
-                    self.ignore_till_sync = not success
-                except Exception as ex:
-                    self.write_error(ex)
-                    self.flush()
-                    self.ignore_till_sync = True
-                finally:
-                    self.maybe_release_pgcon(conn)
+                async with self.with_pgcon() as conn:
+                    try:
+                        success, _ = await conn.sql_extended_query(
+                            actions, self, self.database.dbver, dbv)
+                        self.ignore_till_sync = not success
+                    except Exception as ex:
+                        self.write_error(ex)
+                        self.flush()
+                        self.ignore_till_sync = True
 
         elif mtype == b'H':  # Flush
             self.buffer.finish_message()

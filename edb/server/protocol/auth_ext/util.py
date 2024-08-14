@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 import base64
 import urllib.parse
 import datetime
@@ -25,17 +27,20 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
 from cryptography.hazmat.backends import default_backend
 
 from jwcrypto import jwt, jwk
-from typing import TypeVar, Type, overload, Any, cast, Optional
+from typing import TypeVar, Type, overload, Any, cast, Optional, TYPE_CHECKING
 
 from edb.server import config as edb_config
 from edb.server.config.types import CompositeConfigType
 
 from . import errors, config
 
+if TYPE_CHECKING:
+    from edb.server import tenant as edbtenant
+
 T = TypeVar("T")
 
 
-def maybe_get_config_unchecked(db: Any, key: str) -> Any:
+def maybe_get_config_unchecked(db: edbtenant.dbview.Database, key: str) -> Any:
     return edb_config.lookup(key, db.db_config, spec=db.user_config_spec)
 
 
@@ -122,7 +127,7 @@ def get_app_details_config(db: Any) -> config.AppDetailsConfig:
     )
 
 
-def join_url_params(url: str, params: dict[str, str]):
+def join_url_params(url: str, params: dict[str, str]) -> str:
     parsed_url = urllib.parse.urlparse(url)
     query_params = {
         **urllib.parse.parse_qs(parsed_url.query),
@@ -162,7 +167,7 @@ def make_token(
     )
     token.make_signed_token(signing_key)
 
-    return token.serialize()
+    return cast(str, token.serialize())
 
 
 def derive_key(key: jwk.JWK, info: str) -> jwk.JWK:

@@ -5139,6 +5139,100 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             );
         ''')
 
+    async def test_edgeql_ddl_function_39(self):
+        '''
+        Creating a function operating on or returning an array of valid
+        scalars.
+        '''
+
+        await self.con.execute('''
+            create function get_singleton(
+                a: array<range<int64>>
+            ) -> array<range<int64>> using(
+                a[:1]
+            );
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                select get_singleton([range(1, 3), range(1, 2)]) =
+                    [range(1, 3)];
+            ''',
+            [True]
+        )
+
+    async def test_edgeql_ddl_function_inh_01(self):
+        await self.con.execute("""
+            create abstract type T;
+            create function countall() -> int64 USING (count(T));
+        """)
+
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [0],
+        )
+        await self.con.execute("""
+            create type S1 extending T;
+            insert S1;
+        """)
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [1],
+        )
+        await self.con.execute("""
+            create type S2 extending T;
+            insert S2;
+            insert S2;
+        """)
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [3],
+        )
+        await self.con.execute("""
+            drop type S2;
+        """)
+
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [1],
+        )
+
+    async def test_edgeql_ddl_function_inh_02(self):
+        await self.con.execute("""
+            create abstract type T { create multi property n -> int64 };
+            create function countall() -> int64 USING (sum(T.n));
+        """)
+
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [0],
+        )
+        await self.con.execute("""
+            create type S1 extending T;
+            insert S1 { n := {3, 4} };
+        """)
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [7],
+        )
+        await self.con.execute("""
+            create type S2 extending T;
+            insert S2 { n := 1 };
+            insert S2 { n := {2, 2, 2} };
+        """)
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [14],
+        )
+        await self.con.execute("""
+            drop type S2;
+        """)
+
+        await self.assert_query_result(
+            """SELECT countall()""",
+            [7],
+        )
+
     async def test_edgeql_ddl_function_rename_01(self):
         await self.con.execute("""
             CREATE FUNCTION foo(s: str) -> str {
@@ -9092,11 +9186,11 @@ type default::Foo {
 
                 create module ext::auth;
 
-                create type ext::auth::Identity {
+                create type ext::auth::Identity extending std::BaseObject {
                     create required property provider: std::str;
                 };
 
-                create type ext::auth::Email {
+                create type ext::auth::Email extending std::BaseObject {
                     create required property primary: std::bool;
                     create required link identity: ext::auth::Identity;
                     create constraint exclusive on ((.identity, .primary));
@@ -9122,6 +9216,30 @@ type default::Foo {
 
         await self.con.execute(r"""
             DROP EXTENSION TestAuthExtension;
+        """)
+
+    async def test_edgeql_ddl_all_extensions_01(self):
+        # Install all extensions and then delete them all
+        exts = await self.con.query('''
+            select distinct sys::ExtensionPackage.name
+        ''')
+
+        ext_commands = ''.join(f'using extension {ext};\n' for ext in exts)
+        await self.con.execute(f"""
+            START MIGRATION TO {{
+                {ext_commands}
+                module default {{ }}
+            }};
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.con.execute(f"""
+            START MIGRATION TO {{
+                module default {{ }}
+            }};
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
         """)
 
     async def test_edgeql_ddl_role_01(self):
@@ -10110,6 +10228,24 @@ type default::Foo {
                 create alias Z := 2;
                 """
             )
+
+    async def test_edgeql_ddl_alias_13(self):
+        '''
+        Creating an alias of an array of valid scalars should be possible.
+
+        (Related to #6456.)
+        '''
+
+        await self.con.execute(r"""
+            create alias ArrAlias := [range(0, 1)];
+        """)
+
+        await self.assert_query_result(
+            r'''
+                select ArrAlias = [range(0, 1)];
+            ''',
+            [True]
+        )
 
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
@@ -13632,6 +13768,8 @@ type default::Foo {
         )
 
     async def test_edgeql_ddl_create_migration_02(self):
+        await self.con.execute('reset schema to initial')
+
         await self.con.execute('''
 CREATE MIGRATION m1kmv2mcizpj2twxlxxerkgngr2fkto7wnjd6uig3aa3x67dykvspq
     ONTO initial
@@ -14515,7 +14653,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         self.assertEqual(
             await self.con.query_single(count_query),
-            orig_count + 1,
+            orig_count + 2,  # one for tuple<str, str>, one for TupleExprAlias
         )
 
         await self.con.execute(r"""
@@ -14524,7 +14662,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         self.assertEqual(
             await self.con.query_single(count_query),
-            orig_count + 1,
+            orig_count + 2,
         )
 
         await self.con.execute(r"""
@@ -16915,3 +17053,42 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         )
         self.assertEqual(cnt, 1)
         self.assertEqual(len(objs), 1)
+
+    async def test_edgeql_ddl_single_index(self):
+        # Test that types only have a single index for id
+        await self.con.execute('''
+            create type DDLSingleIndex;
+        ''')
+
+        objid = await self.con.query_single('''
+            select (introspect DDLSingleIndex).id
+        ''')
+        async with self.with_backend_sql_connection() as scon:
+            res = await scon.fetch(
+                f'''
+                select indexname, tablename, indexdef from pg_indexes
+                where tablename = $1::text
+                ''',
+                str(objid),
+            )
+            self.assertEqual(
+                len(res),
+                1,
+                f"Too many indexes on .id: {res}",
+            )
+
+    async def test_edgeql_ddl_function_drop_tuple_cache(self):
+        await self.con.execute('''
+            create function lol() -> SET OF tuple<str, str> using (('x', 'y'));
+        ''')
+        # Run many times to wait for the func cache creation
+        for _ in range(64):
+            await self.assert_query_result(
+                'select lol()',
+                [('x', 'y')]
+            )
+        # This drop should succeed, even when the func cache depends on the
+        # returning tuple type; the cache should be evicted.
+        await self.con.execute('''
+            drop function lol();
+        ''')

@@ -254,12 +254,11 @@ for production), or rely on ``edgedb project`` (recommended for development).
 
    .. code-block:: javascript
 
-      import * as edgedb from "edgedb";
+      import { createClient } from "edgedb";
 
-      const pool = edgedb.connect();
-      pool.query(`select 2 + 2;`).then(result => {
-        // do stuff
-      })
+      const client = createClient();
+      const result = await client.querySingle("select 2 + 2;");
+      console.log(result); // 4
 
    .. warning::
 

@@ -22,7 +22,7 @@ import hashlib
 import base64
 import dataclasses
 
-from typing import Any
+from typing import Any, Optional
 from edb.errors import ConstraintViolationError
 from edb.server.protocol import execute
 
@@ -42,7 +42,7 @@ class Client(local.Client):
         super().__init__(db)
         self.config = self._get_provider_config("builtin::local_emailpassword")
 
-    async def register(self, input: dict[str, Any]):
+    async def register(self, input: dict[str, Any]) -> data.LocalIdentity:
         match (input.get("email"), input.get("password")):
             case (str(e), str(p)):
                 email = e
@@ -88,7 +88,7 @@ class Client(local.Client):
 
         return data.LocalIdentity(**result_json[0])
 
-    async def authenticate(self, input: dict[str, Any]):
+    async def authenticate(self, input: dict[str, Any]) -> data.LocalIdentity:
         if 'email' not in input or 'password' not in input:
             raise errors.InvalidData("Missing 'email' or 'password' in data")
 
@@ -143,7 +143,9 @@ set { password_hash := new_hash };""",
 
         return local_identity
 
-    async def get_identity_and_secret(self, input: dict[str, Any]):
+    async def get_identity_and_secret(
+        self, input: dict[str, Any],
+    ) -> tuple[data.LocalIdentity, str]:
         if 'email' not in input:
             raise errors.InvalidData("Missing 'email' in data")
 
@@ -175,7 +177,9 @@ select ext::auth::EmailPasswordFactor {
 
         return (local_identity, secret)
 
-    async def validate_reset_secret(self, identity_id: str, secret: str):
+    async def validate_reset_secret(
+        self, identity_id: str, secret: str,
+    ) -> Optional[data.LocalIdentity]:
         r = await execute.parse_execute_json(
             db=self.db,
             query="""\
@@ -204,7 +208,7 @@ filter .identity.id = identity_id;""",
 
     async def update_password(
         self, identity_id: str, secret: str, input: dict[str, Any]
-    ):
+    ) -> data.LocalIdentity:
         if 'password' not in input:
             raise errors.InvalidData("Missing 'password' in data")
 

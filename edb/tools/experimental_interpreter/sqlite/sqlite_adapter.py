@@ -173,6 +173,14 @@ def get_table_view_from_property_view(
         all_single_prop_names = sorted(
             [pname for (pname, pdef) in tdef.items() if pdef.is_singular]
         )
+
+        # add all links to indexes
+        indexes = list(tview.indexes)
+        for pname, pdef in tdef.items():
+            if pname in all_single_prop_names and not pdef.is_primitive:
+                if [pname] not in indexes:
+                    indexes.append([pname])
+
         result_table[tname] = TableSpec(
             columns={
                 "id": ColumnSpec(type="INTEGER", is_nullable=False),
@@ -185,7 +193,7 @@ def get_table_view_from_property_view(
                 },
             },
             primary_key=["id"],
-            indexes=tview.indexes,
+            indexes=indexes,
         )
 
         for pname, pdef in tdef.items():
@@ -211,7 +219,7 @@ def get_table_view_from_property_view(
                     },
                 },
                 primary_key=["source", "target"],
-                indexes=[["target"]],
+                indexes=[["target"], ["source", "target"]],
             )
 
     if (

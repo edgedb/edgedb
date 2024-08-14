@@ -422,6 +422,10 @@ class EdgeQLInterpreter:
         else:
             raise ValueError("Expected a single result")
 
+    def query_json(self, s: str, **kwargs) -> json_like:
+        result = self.run_single_str_get_json_with_cache(s, kwargs)
+        return result
+
     def query_str(self, s: str) -> Sequence[MultiSetVal]:
         q = parse_ql(s)
         res = run_stmts(

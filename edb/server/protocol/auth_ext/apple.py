@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+from typing import Any
 import uuid
 import urllib.parse
 
@@ -23,13 +24,12 @@ import urllib.parse
 from . import base
 
 
-class AppleProvider(base.OpenIDProvider):
-    def __init__(self, *args, **kwargs):
+class AppleProvider(base.OpenIDConnectProvider):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(
             "apple",
             "https://appleid.apple.com",
             *args,
-            content_type=base.ContentType.FORM_ENCODED,
             **kwargs,
         )
 

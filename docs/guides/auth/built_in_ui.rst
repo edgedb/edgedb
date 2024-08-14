@@ -57,6 +57,13 @@ base64url encode the resulting string. This new string is called the
 
 .. note::
 
+   Since ``=`` is not a URL-safe character, if your Base64-URL encoding
+   function adds padding, you should remove the padding before hashing the
+   ``verifier`` to derive the ``challenge`` or when providing the ``verifier``
+   or ``challenge`` in your requests.
+
+.. note::
+
    If you are familiar with PKCE, you will notice some differences from how RFC
    7636 defines PKCE. Our authentication flow is not an OAuth flow, but rather a
    strict server-to-server flow with Proof Key of Code Exchange added for

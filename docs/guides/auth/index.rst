@@ -200,8 +200,7 @@ great for testing in development:
 OAuth
 -----
 
-We currently support four different OAuth providers (with a few more
-coming soon):
+We currently support six different OAuth providers:
 
 .. lint-off
 
@@ -210,6 +209,8 @@ coming soon):
    (Microsoft) <https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc>`__
 -  `GitHub <https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app>`__
 -  `Google <https://developers.google.com/identity/protocols/oauth2>`__
+-  `Discord <https://discord.com/developers/docs/topics/oauth2>`__
+-  `Slack <https://api.slack.com/authentication/sign-in-with-slack>`__
 
 .. lint-on
 

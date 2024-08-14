@@ -244,18 +244,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         else:
             self.write(common.qname(node.schemaname, node.name))
 
-    def _visit_values_expr(self, node: pgast.SelectStmt) -> None:
-        assert node.values
-        self.new_lines = 1
-        self.write('(')
-        self.write('VALUES')
-        self.new_lines = 1
-        self.indentation += 1
-        self.visit_list(node.values)
-        self.indentation -= 1
-        self.new_lines = 1
-        self.write(')')
-
     def visit_NullRelation(self, node: pgast.NullRelation) -> None:
         self.write('(SELECT ')
         if node.target_list:
@@ -271,10 +259,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
     def visit_SelectStmt(self, node: pgast.SelectStmt) -> None:
-        if node.values:
-            self._visit_values_expr(node)
-            return
-
         # This is a very crude detection of whether this SELECT is
         # a top level statement.
         parenthesize = bool(self.result)
@@ -291,6 +275,17 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.ctes:
             self.write('WITH ')
             self.gen_ctes(node.ctes)
+
+        if node.values:
+            self.write('VALUES')
+            self.new_lines = 1
+            self.visit_list(node.values)
+            if parenthesize:
+                self.new_lines = 1
+                if self.reordered and not node.op:
+                    self.indentation -= 1
+                self.write(')')
+            return
 
         # If reordered is True, we try to put the FROM clause *before* SELECT,
         # like it *ought* to be. We do various hokey things to try to make
@@ -447,6 +442,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 self.write('(')
                 self.visit(node.select_stmt)
                 self.write(')')
+        else:
+            self.write('DEFAULT VALUES')
 
         if node.on_conflict:
             self.new_lines = 1
@@ -566,7 +563,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_MultiAssignRef(self, node: pgast.MultiAssignRef) -> None:
         self.write('(')
-        self.visit_list(node.columns, newlines=False)
+        for index, col in enumerate(node.columns):
+            if index > 0:
+                self.write(', ')
+            self.write(common.quote_col(col))
         self.write(') = ')
         self.visit(node.source)
 
@@ -575,8 +575,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_ResTarget(self, node: pgast.ResTarget) -> None:
         self.visit(node.val)
-        if node.indirection:
-            self._visit_indirection_ops(node.indirection)
         if node.name:
             self.write(' AS ' + common.quote_col(node.name))
 

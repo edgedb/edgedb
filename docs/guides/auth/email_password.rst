@@ -60,6 +60,13 @@ base64url encode the resulting string. This new string is called the
 
 .. note::
 
+   Since ``=`` is not a URL-safe character, if your Base64-URL encoding
+   function adds padding, you should remove the padding before hashing the
+   ``verifier`` to derive the ``challenge`` or when providing the ``verifier``
+   or ``challenge`` in your requests.
+
+.. note::
+
    If you are familiar with PKCE, you will notice some differences from how RFC
    7636 defines PKCE. Our authentication flow is not an OAuth flow, but rather a
    strict server-to-server flow with Proof Key of Code Exchange added for
@@ -210,9 +217,27 @@ an existing user.
          return;
        }
 
-       res.writeHead(204, {
-         "Set-Cookie": `edgedb-pkce-verifier=${pkce.verifier}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       const { code } = await registerResponse.json();
+
+       const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+       tokenUrl.searchParams.set("code", code);
+       tokenUrl.searchParams.set("verifier", pkce.verifier);
+       const tokenResponse = await fetch(tokenUrl.href, {
+         method: "get",
        });
+
+       if (!tokenResponse.ok) {
+         const text = await tokenResponse.text();
+         res.status = 400;
+         res.end(`Error from the auth server: ${text}`);
+         return;
+       }
+
+       const { auth_token } = await tokenResponse.json();
+       res.writeHead(204, {
+         "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       });
+
        res.end();
      });
    };
@@ -270,7 +295,7 @@ an existing user.
        });
 
        if (!tokenResponse.ok) {
-         const text = await authenticateResponse.text();
+         const text = await tokenResponse.text();
          res.status = 400;
          res.end(`Error from the auth server: ${text}`);
          return;

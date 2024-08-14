@@ -173,6 +173,8 @@ class TypeRef(ImmutableBase):
     is_scalar: bool = False
     # True, if this describes a view
     is_view: bool = False
+    # True, if this describes a cfg view
+    is_cfg_view: bool = False
     # True, if this describes an abstract type
     is_abstract: bool = False
     # True, if the collection type is persisted in the schema
@@ -787,7 +789,6 @@ class Statement(Command):
     schema_refs: typing.FrozenSet[so.Object]
     schema_ref_exprs: typing.Optional[
         typing.Dict[so.Object, typing.Set[qlast.Base]]]
-    created_schema_types: typing.FrozenSet[s_types.Type]
     scope_tree: ScopeTreeNode
     dml_exprs: typing.List[qlast.Base]
     type_rewrites: typing.Dict[typing.Tuple[uuid.UUID, bool], Set]
@@ -978,6 +979,9 @@ class Call(ImmutableExpr):
     # to this function as a subquery-as-an-expression.
     # See comment in schema/functions.py for more discussion.
     prefer_subquery_args: bool = False
+
+    # If this is a set of call but is allowed in singleton expressions.
+    is_singleton_set_of: typing.Optional[bool] = None
 
 
 class FunctionCall(Call):

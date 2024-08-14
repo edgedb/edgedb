@@ -383,17 +383,16 @@ async def _execute(db, tenant, query, operation_name, variables, globals):
         protocol_version=edbdef.CURRENT_PROTOCOL,
     )
 
-    pgcon = await tenant.acquire_pgcon(db.name)
-    try:
-        return await execute.execute_json(
-            pgcon,
-            dbv,
-            compiled,
-            variables={**gql_op.variables_desc, **vars},
-            globals_=globals or {},
-            fe_conn=None,
-            use_prep_stmt=use_prep_stmt,
-        )
-    finally:
-        tenant.release_pgcon(db.name, pgcon)
-        tenant.remove_dbview(dbv)
+    async with tenant.with_pgcon(db.name) as pgcon:
+        try:
+            return await execute.execute_json(
+                pgcon,
+                dbv,
+                compiled,
+                variables={**gql_op.variables_desc, **vars},
+                globals_=globals or {},
+                fe_conn=None,
+                use_prep_stmt=use_prep_stmt,
+            )
+        finally:
+            tenant.remove_dbview(dbv)

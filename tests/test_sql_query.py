@@ -20,7 +20,9 @@ import csv
 import io
 import os.path
 import unittest
+import uuid
 
+from edb.tools import test
 from edb.testbase import server as tb
 
 try:
@@ -30,7 +32,7 @@ except ImportError:
     pass
 
 
-class TestSQL(tb.SQLQueryTestCase):
+class TestSQLQuery(tb.SQLQueryTestCase):
     EXTENSIONS = ["pgvector", "ai"]
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'movies.esdl')
     SCHEMA_INVENTORY = os.path.join(
@@ -134,7 +136,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM "Movie" JOIN "Genre" ON "Movie".genre_id = "Genre".id
             '''
         )
-        self.assert_shape(res, 2, ['id', 'id'])
+        self.assert_shape(res, 2, ['id', 'col~1'])
 
     async def test_sql_query_09(self):
         # resolve columns without table names
@@ -174,17 +176,21 @@ class TestSQL(tb.SQLQueryTestCase):
             JOIN "Genre" g ON "Movie".genre_id = g.id
             '''
         )
-        self.assert_shape(res, 2, [
-            'id',
-            '__type__',
-            'director_id',
-            'genre_id',
-            'release_year',
-            'title',
-            'id',
-            '__type__',
-            'name'
-        ])
+        self.assert_shape(
+            res,
+            2,
+            [
+                'id',
+                '__type__',
+                'director_id',
+                'genre_id',
+                'release_year',
+                'title',
+                'id',
+                '__type__',
+                'name',
+            ],
+        )
 
     async def test_sql_query_12(self):
         # JOIN USING
@@ -378,13 +384,17 @@ class TestSQL(tb.SQLQueryTestCase):
         await self.scon.fetch('SELECT title FROM "novel" ORDER BY title')
 
         with self.assertRaisesRegex(
-            asyncpg.UndefinedTableError, "unknown table"
+            asyncpg.UndefinedTableError,
+            "unknown table",
+            position="19",
         ):
             await self.scon.fetch('SELECT title FROM "Novel" ORDER BY title')
 
     async def test_sql_query_26(self):
         with self.assertRaisesRegex(
-            asyncpg.UndefinedTableError, "unknown table"
+            asyncpg.UndefinedTableError,
+            "unknown table",
+            position="19",
         ):
             await self.scon.fetch('SELECT title FROM Movie ORDER BY title')
 
@@ -441,7 +451,10 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assert_shape(res, 2, ['c', 'd'])
 
         with self.assertRaisesRegex(
-            asyncpg.InvalidColumnReferenceError, "query resolves to 2"
+            asyncpg.InvalidColumnReferenceError,
+            ", but the query resolves to 2 columns",
+            # this points to `1`, because libpg_query does not give better info
+            position="41",
         ):
             await self.scon.fetch(
                 '''
@@ -650,6 +663,37 @@ class TestSQL(tb.SQLQueryTestCase):
         )
         self.assertEqual(res[0][1], res2[0][1])
 
+    async def test_sql_query_40(self):
+        id: uuid.UUID = uuid.uuid4()
+
+        res = await self.squery_values('SELECT $1::uuid;', id)
+        self.assertEqual(res, [[id]])
+
+        res = await self.squery_values('SELECT CAST($1 as uuid);', id)
+        self.assertEqual(res, [[id]])
+
+        with self.assertRaisesRegex(
+            asyncpg.exceptions.DataError, 'expected str, got UUID'
+        ):
+            res = await self.squery_values('SELECT CAST($1::text as uuid);', id)
+            self.assertEqual(res, [[id]])
+
+        res = await self.squery_values(
+            'SELECT CAST($1::text as uuid);', str(id)
+        )
+        self.assertEqual(res, [[id]])
+
+        with self.assertRaisesRegex(
+            asyncpg.exceptions.DataError, 'expected str, got UUID'
+        ):
+            res = await self.squery_values(
+                'SELECT column1::uuid FROM (VALUES ($1))', id
+            )
+            self.assertEqual(res, [[id]])
+
+        res = await self.squery_values('SELECT $1::uuid;', str(id))
+        self.assertEqual(res, [[id]])
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
@@ -719,8 +763,11 @@ class TestSQL(tb.SQLQueryTestCase):
                 ['Movie.director', 'bar', 'YES', 3],
                 ['Person', 'id', 'NO', 1],
                 ['Person', '__type__', 'NO', 2],
-                ['Person', 'first_name', 'NO', 3],
-                ['Person', 'last_name', 'YES', 4],
+                ['Person', 'favorite_genre_id', 'YES', 3],
+                ['Person', 'first_name', 'NO', 4],
+                ['Person', 'full_name', 'NO', 5],
+                ['Person', 'last_name', 'YES', 6],
+                ['Person', 'username', 'NO', 7],
                 ['novel', 'id', 'NO', 1],
                 ['novel', '__type__', 'NO', 2],
                 ['novel', 'foo', 'YES', 3],
@@ -791,14 +838,18 @@ class TestSQL(tb.SQLQueryTestCase):
             JOIN pg_namespace n ON n.oid = pc.relnamespace
             WHERE n.nspname = 'public' AND pc.relname = 'novel'
             ORDER BY attnum
-            -- skip the system columns
-            OFFSET 6
             '''
         )
 
         self.assertEqual(
             res,
             [
+                ['novel', 'tableoid', True],
+                ['novel', 'cmax', True],
+                ['novel', 'xmax', True],
+                ['novel', 'cmin', True],
+                ['novel', 'xmin', True],
+                ['novel', 'ctid', True],
                 ['novel', 'id', True],
                 ['novel', '__type__', True],
                 ['novel', 'foo', False],
@@ -826,13 +877,17 @@ class TestSQL(tb.SQLQueryTestCase):
 
         await self.scon.execute('SET search_path TO public;')
         with self.assertRaisesRegex(
-            asyncpg.UndefinedTableError, "unknown table"
+            asyncpg.UndefinedTableError,
+            "unknown table",
+            position="16",
         ):
             await self.squery_values('SELECT id FROM "Item"')
 
         await self.scon.execute('SET search_path TO inventory;')
         with self.assertRaisesRegex(
-            asyncpg.UndefinedTableError, "unknown table"
+            asyncpg.UndefinedTableError,
+            "unknown table",
+            position="17",
         ):
             await self.scon.fetch('SELECT id FROM "Person";')
 
@@ -903,6 +958,23 @@ class TestSQL(tb.SQLQueryTestCase):
             '''
         )
         self.assertEqual(res, [[11]])
+
+    async def test_sql_query_static_eval_05(self):
+        # pg_get_serial_sequence always returns NULL, we don't expose sequences
+
+        res = await self.squery_values(
+            '''
+            SELECT
+              CAST(
+                CAST(
+                  pg_catalog.pg_get_serial_sequence('a', 'b')
+                  AS REGCLASS
+                )
+                AS OID
+              )
+            '''
+        )
+        self.assertEqual(res, [[None]])
 
     async def test_sql_query_be_state(self):
         con = await self.connect(database=self.con.dbname)
@@ -988,24 +1060,77 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assertNotEqual(v1, v2)
 
     async def test_sql_query_copy_01(self):
+        # copy without columns should select all columns
+
         out = io.BytesIO()
         await self.scon.copy_from_table(
             "Movie", output=out, format="csv", delimiter="\t"
         )
         out = io.StringIO(out.getvalue().decode("utf-8"))
-        # Get the columns order from the information_schema.
-        res = await self.squery_values(
-            r'''
-            SELECT column_name, ordinal_position
-            FROM information_schema.columns cols
-            WHERE cols.table_name = 'Movie'
-            '''
+        res = list(csv.reader(out, delimiter="\t"))
+
+        # should contain columns:
+        # id, __type__, director_id, genre_id, release_year, title
+        # 0,  1,        2,           3,        4,            5
+
+        self.assertEqual(
+            set(row[5] for row in res), {"Forrest Gump", "Saving Private Ryan"}
         )
-        name_to_pos = {name: num - 1 for name, num in res}
-        titles = set(
-            row[name_to_pos['title']] for row in csv.reader(out, delimiter="\t")
+
+    async def test_sql_query_copy_02(self):
+        # copy of a link table
+
+        out = io.BytesIO()
+        await self.scon.copy_from_table(
+            "Movie.director", output=out, format="csv", delimiter="\t"
         )
-        self.assertEqual(titles, {"Forrest Gump", "Saving Private Ryan"})
+        out = io.StringIO(out.getvalue().decode("utf-8"))
+        res = list(csv.reader(out, delimiter="\t"))
+
+        # should contain columns:
+        # source, target, @bar
+        # 0,      1,      2
+
+        self.assertEqual({row[2] for row in res}, {"bar"})
+
+    async def test_sql_query_copy_03(self):
+        # copy of query
+
+        out = io.BytesIO()
+        await self.scon.copy_from_query(
+            "SELECT 1, 2 UNION ALL SELECT 3, 4",
+            output=out,
+            format="csv",
+            delimiter="\t",
+        )
+        out = io.StringIO(out.getvalue().decode("utf-8"))
+        res = list(csv.reader(out, delimiter="\t"))
+
+        self.assertEqual(res, [['1', '2'], ['3', '4']])
+
+    async def test_sql_query_copy_04(self):
+        # copy of table with columns specified
+
+        out = io.BytesIO()
+        await self.scon.copy_from_table(
+            "Person",
+            columns=['first_name', 'full_name'],
+            output=out,
+            format="csv",
+            delimiter="\t",
+        )
+        out = io.StringIO(out.getvalue().decode("utf-8"))
+        res = list(csv.reader(out, delimiter="\t"))
+        self.assert_data_shape(
+            res,
+            tb.bag(
+                [
+                    ["Robin", "Robin"],
+                    ["Steven", "Steven Spielberg"],
+                    ["Tom", "Tom Hanks"],
+                ]
+            ),
+        )
 
     async def test_sql_query_error_01(self):
         with self.assertRaisesRegex(
@@ -1103,6 +1228,49 @@ class TestSQL(tb.SQLQueryTestCase):
                 'foo' FROM "Movie" ORDER BY id'''
             )
 
+    async def test_sql_query_error_11(self):
+        # extended query protocol
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            'invalid input syntax for type uuid',
+            position="8",
+        ):
+            await self.scon.fetch("""SELECT 'bad uuid'::uuid""")
+
+        # simple query protocol
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            'invalid input syntax for type uuid',
+            position="8",
+        ):
+            await self.scon.execute("""SELECT 'bad uuid'::uuid""")
+
+        # test that the connection has not be spuriously closed
+        res = await self.squery_values("SELECT 1")
+        self.assertEqual(res, [[1]])
+
+    async def test_sql_query_error_12(self):
+        print('tran')
+        tran = self.scon.transaction()
+        print('start')
+        await tran.start()
+
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            'invalid input syntax for type uuid',
+            position="8",
+        ):
+            print('query')
+            await self.scon.fetch("""SELECT 'bad uuid'::uuid""")
+        # await self.scon.fetch("""SELECT 1""")
+
+        print('rollback')
+        await tran.rollback()
+
+        # test that the connection has not be spuriously closed
+        res = await self.squery_values("SELECT 1")
+        self.assertEqual(res, [[1]])
+
     @unittest.skip("this test flakes: #5783")
     async def test_sql_query_prepare_01(self):
         await self.scon.execute(
@@ -1187,3 +1355,111 @@ class TestSQL(tb.SQLQueryTestCase):
             " WHERE name = 'bytea_output'; "
         )
         await self.scon.execute("SET client_encoding='WIN874';")
+
+    async def test_sql_query_computed_01(self):
+        # single property
+        res = await self.squery_values(
+            """
+            SELECT full_name
+            FROM "Person" p
+            ORDER BY first_name
+            """
+        )
+        self.assertEqual(res, [["Robin"], ["Steven Spielberg"], ["Tom Hanks"]])
+
+    async def test_sql_query_computed_02(self):
+        # computeds can only be accessed on the table, not rel vars
+        with self.assertRaisesRegex(
+            asyncpg.PostgresError, "cannot find column `full_name`"
+        ):
+            await self.squery_values(
+                """
+                SELECT t.full_name
+                FROM (
+                    SELECT first_name, last_name
+                    FROM "Person"
+                ) t
+                """
+            )
+
+    async def test_sql_query_computed_03(self):
+        # computed in a sublink
+        res = await self.squery_values(
+            """
+            SELECT (SELECT 'Hello ' || full_name) as hello
+            FROM "Person"
+            ORDER BY first_name DESC
+            LIMIT 1
+            """
+        )
+        self.assertEqual(res, [["Hello Tom Hanks"]])
+
+    async def test_sql_query_computed_04(self):
+        # computed in a lateral
+        res = await self.squery_values(
+            """
+            SELECT t.hello
+            FROM "Person",
+                LATERAL (SELECT ('Hello ' || full_name) as hello) t
+            ORDER BY first_name DESC
+            LIMIT 1
+            """
+        )
+        self.assertEqual(res, [["Hello Tom Hanks"]])
+
+    async def test_sql_query_computed_05(self):
+        # computed in ORDER BY
+        res = await self.squery_values(
+            """
+            SELECT first_name
+            FROM "Person"
+            ORDER BY full_name
+            """
+        )
+        self.assertEqual(res, [["Robin"], ["Steven"], ["Tom"]])
+
+    async def test_sql_query_computed_06(self):
+        # globals are empty
+        res = await self.squery_values(
+            """
+            SELECT username FROM "Person"
+            ORDER BY first_name LIMIT 1
+            """
+        )
+        self.assertEqual(res, [["u_robin"]])
+
+    async def test_sql_query_computed_07(self):
+        # single link
+        res = await self.scon.fetch(
+            """
+            SELECT favorite_genre_id FROM "Person"
+            """
+        )
+        self.assert_shape(res, 3, ['favorite_genre_id'])
+
+        res = await self.squery_values(
+            """
+            SELECT g.name
+            FROM "Person" p
+            LEFT JOIN "Genre" g ON (p.favorite_genre_id = g.id)
+            """
+        )
+        self.assertEqual(res, [["Drama"], ["Drama"], ["Drama"]])
+
+    @test.not_implemented("multi computed properties are not implemented")
+    async def test_sql_query_computed_08(self):
+        # multi property
+        await self.scon.fetch(
+            """
+            SELECT actor_names FROM "Movie"
+            """
+        )
+
+    @test.not_implemented("multi computed links are not implemented")
+    async def test_sql_query_computed_09(self):
+        # multi link
+        await self.scon.fetch(
+            """
+            SELECT similar_to FROM "Movie"
+            """
+        )

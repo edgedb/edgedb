@@ -488,6 +488,43 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             finally:
                 await cluster.stop()
 
+    async def test_server_ops_postgres_multitenant_env(self):
+        async def test(pgdata_path, tenant):
+            async with tb.start_edgedb_server(
+                reset_auth=True,
+                backend_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
+                runstate_dir=None if devmode.is_in_dev_mode() else pgdata_path,
+                env={"EDGEDB_SERVER_TENANT_ID": tenant},
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.execute(f'CREATE DATABASE {tenant}')
+                    await con.execute(f'CREATE SUPERUSER ROLE {tenant}')
+                    databases = await con.query('SELECT sys::Database.name')
+                    self.assertEqual(set(databases), {'main', tenant})
+                    roles = await con.query('SELECT sys::Role.name')
+                    self.assertEqual(set(roles), {'edgedb', tenant})
+                finally:
+                    await con.aclose()
+
+        with tempfile.TemporaryDirectory() as td:
+            cluster = await pgcluster.get_local_pg_cluster(td, log_level='s')
+            cluster.set_connection_params(
+                pgconnparams.ConnectionParameters(
+                    user='postgres',
+                    database='template1',
+                ),
+            )
+            self.assertTrue(await cluster.ensure_initialized())
+
+            await cluster.start()
+            try:
+                async with asyncio.TaskGroup() as tg:
+                    tg.create_task(test(td, 'tenant1'))
+                    tg.create_task(test(td, 'tenant2'))
+            finally:
+                await cluster.stop()
+
     async def test_server_ops_postgres_multitenant(self):
         async def test(pgdata_path, tenant):
             async with tb.start_edgedb_server(
@@ -671,6 +708,84 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             protocol.ReadyForCommand,
             transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
         )
+
+    async def test_server_ops_cache_recompile_01(self):
+        ckey = (
+            'edgedb_server_edgeql_query_compilations_total'
+            '{tenant="localtest",path="compiler"}'
+        )
+        qry = 'select schema::Object { name }'
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            async with tb.start_edgedb_server(
+                data_dir=temp_dir,
+                default_auth_method=args.ServerAuthMethod.Trust,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query(qry)
+
+                    # Querying a second time should hit the cache
+                    cnt1 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    await con.query(qry)
+                    cnt2 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    self.assertEqual(cnt1, cnt2)
+
+                    await con.query('''
+                        create type X
+                    ''')
+
+                    # We should have recompiled the cache when we created
+                    # the type, so doing the query shouldn't cause another
+                    # compile!
+                    cnt1 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    await con.query(qry)
+                    cnt2 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    self.assertEqual(cnt1, cnt2)
+
+                    # Set the compilation timeout to 2ms.
+                    #
+                    # This should prevent recompilation from
+                    # succeeding. If we ever make the compiler fast
+                    # enough, we might need to change this :)
+                    #
+                    # We do 2ms instead of 1ms or something even smaller
+                    # because uvloop's timer has ms granularity, and
+                    # setting it to 2ms should typically ensure that it
+                    # manages to start the compilation.
+                    await con.execute(
+                        "configure current database "
+                        "set auto_rebuild_query_cache_timeout := "
+                        "<duration>'2ms'"
+                    )
+
+                    await con.query('''
+                        drop type X
+                    ''')
+
+                    cnt1 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    await con.query(qry)
+                    cnt2 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    self.assertEqual(cnt1 + 1, cnt2)
+
+                finally:
+                    await con.aclose()
+
+            # Now restart the server to test the cache persistence.
+            async with tb.start_edgedb_server(
+                data_dir=temp_dir,
+                default_auth_method=args.ServerAuthMethod.Trust,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    # It should hit the cache no problem.
+                    cnt1 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    await con.query(qry)
+                    cnt2 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
+                    self.assertEqual(cnt1, cnt2)
+
+                finally:
+                    await con.aclose()
 
     async def test_server_ops_downgrade_to_cleartext(self):
         async with tb.start_edgedb_server(
@@ -1134,9 +1249,10 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
         try:
             # Dump and restore should trigger a re-introspection in sd2
-            with tempfile.NamedTemporaryFile() as f:
+            with tempfile.TemporaryDirectory() as f:
+                fname = os.path.join(f, 'dump')
                 await asyncio.to_thread(
-                    self.run_cli_on_connection, conn_args, "dump", f.name
+                    self.run_cli_on_connection, conn_args, "dump", fname
                 )
                 await asyncio.to_thread(
                     self.run_cli_on_connection,
@@ -1144,7 +1260,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     "-d",
                     "restore_signal",
                     "restore",
-                    f.name
+                    fname
                 )
 
             # The re-introspection has a delay, but should eventually happen

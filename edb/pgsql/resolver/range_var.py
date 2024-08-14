@@ -45,7 +45,7 @@ def resolve_BaseRangeVar(
         return _resolve_JoinExpr(range_var, ctx=ctx)
 
     # generate internal alias
-    internal_alias = ctx.names.get('relation')
+    internal_alias = ctx.alias_generator.get('rel')
     alias = pgast.Alias(
         aliasname=internal_alias, colnames=range_var.alias.colnames
     )
@@ -81,12 +81,12 @@ def _resolve_RelRangeVar(
     ctx: Context,
 ) -> Tuple[pgast.BaseRangeVar, context.Table]:
     with ctx.child() as subctx:
-        subctx.include_inherited = range_var.include_inherited
-
         relation: Union[pgast.BaseRelation, pgast.CommonTableExpr]
         if isinstance(range_var.relation, pgast.BaseRelation):
             relation, table = dispatch.resolve_relation(
-                range_var.relation, ctx=subctx
+                range_var.relation,
+                include_inherited=range_var.include_inherited,
+                ctx=subctx,
             )
         else:
             relation, cte = resolve_CommonTableExpr(
@@ -101,9 +101,10 @@ def _resolve_RelRangeVar(
     table.columns = [
         context.Column(
             name=alias or col.name,
-            reference_as=alias or col.reference_as,
             hidden=col.hidden,
-            static_val=col.static_val,
+            kind=(
+                context.ColumnByName(reference_as=alias) if alias else col.kind
+            ),
         )
         for col, alias in _zip_column_alias(
             table.columns, alias, ctx=range_var.span
@@ -132,7 +133,9 @@ def _resolve_RangeSubselect(
             columns=[
                 context.Column(
                     name=alias or col.name,
-                    reference_as=alias or col.name,
+                    kind=context.ColumnByName(
+                        reference_as=alias if alias else col.name
+                    ),
                 )
                 for col, alias in _zip_column_alias(
                     subtable.columns, alias, ctx=range_var.span
@@ -141,11 +144,16 @@ def _resolve_RangeSubselect(
         )
         alias = pgast.Alias(
             aliasname=alias.aliasname,
-            colnames=[cast(str, c.reference_as) for c in result.columns],
+            colnames=[
+                cast(context.ColumnByName, c.kind).reference_as
+                for c in result.columns
+            ],
         )
 
     node = pgast.RangeSubselect(
-        subquery=subquery, alias=alias, lateral=range_var.lateral
+        subquery=cast(pgast.Query, subquery),
+        alias=alias,
+        lateral=range_var.lateral,
     )
     return node, result
 
@@ -159,8 +167,9 @@ def _resolve_JoinExpr(
     larg = resolve_BaseRangeVar(range_var.larg, ctx=ctx)
     ltable = ctx.scope.tables[len(ctx.scope.tables) - 1]
 
-    assert len(range_var.joins) == 1, (
-        "pg resolver should always produce non-flattened joins")
+    assert (
+        len(range_var.joins) == 1
+    ), "pg resolver should always produce non-flattened joins"
     join = range_var.joins[0]
 
     rarg = resolve_BaseRangeVar(join.rarg, ctx=ctx)
@@ -189,11 +198,13 @@ def _resolve_JoinExpr(
 
     return pgast.JoinExpr(
         larg=larg,
-        joins=[pgast.JoinClause(
-            type=join.type,
-            rarg=rarg,
-            quals=quals,
-        )],
+        joins=[
+            pgast.JoinClause(
+                type=join.type,
+                rarg=rarg,
+                quals=quals,
+            )
+        ],
     )
 
 
@@ -221,9 +232,13 @@ def resolve_CommonTableExpr(
                         aliascolnames = res
 
         if cte.recursive and aliascolnames:
-            reference_as = [subctx.names.get('col') for _ in aliascolnames]
+            reference_as = [
+                subctx.alias_generator.get('col') for _ in aliascolnames
+            ]
             columns = [
-                context.Column(name=col, reference_as=ref_as)
+                context.Column(
+                    name=col, kind=context.ColumnByName(reference_as=ref_as)
+                )
                 for col, ref_as in zip(aliascolnames, reference_as)
             ]
             subctx.scope.ctes.append(
@@ -240,19 +255,19 @@ def resolve_CommonTableExpr(
             result.columns.append(
                 context.Column(
                     name=al or col.name,
-                    reference_as=col.name,
+                    kind=context.ColumnByName(reference_as=col.name),
                 )
             )
 
         if reference_as:
             for col, ref_as in zip(result.columns, reference_as):
-                col.reference_as = ref_as
+                col.kind = context.ColumnByName(reference_as=ref_as)
 
     node = pgast.CommonTableExpr(
         name=cte.name,
         span=cte.span,
         aliascolnames=reference_as,
-        query=query,
+        query=cast(pgast.Query, query),
         recursive=cte.recursive,
         materialized=cte.materialized,
     )
@@ -289,18 +304,28 @@ def _resolve_RangeFunction(
 
             functions.append(dispatch.resolve(function, ctx=subctx))
 
-        inferred_columns = [context.Column(name=name) for name in col_names]
+        inferred_columns = [
+            context.Column(
+                name=name, kind=context.ColumnByName(reference_as='')
+            )
+            for name in col_names
+        ]
 
         if range_var.with_ordinality:
             inferred_columns.append(
-                context.Column(name='ordinality', reference_as='ordinality')
+                context.Column(
+                    name='ordinality',
+                    kind=context.ColumnByName(reference_as='ordinality'),
+                )
             )
 
         table = context.Table(
             columns=[
                 context.Column(
                     name=al or col.name,
-                    reference_as=al or ctx.names.get('col'),
+                    kind=context.ColumnByName(
+                        reference_as=al or ctx.alias_generator.get('col')
+                    ),
                 )
                 for col, al in _zip_column_alias(
                     inferred_columns, alias, ctx=range_var.span
@@ -311,7 +336,7 @@ def _resolve_RangeFunction(
         alias = pgast.Alias(
             aliasname=alias.aliasname,
             colnames=[
-                cast(str, c.reference_as)
+                cast(context.ColumnByName, c.kind).reference_as
                 for c in table.columns
                 if not c.hidden
             ],

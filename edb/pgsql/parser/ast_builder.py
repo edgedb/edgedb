@@ -31,6 +31,7 @@ from typing import (
     cast,
 )
 
+from edb.common import span
 from edb.common.parsing import Span
 
 from edb.pgsql import ast as pgast
@@ -52,12 +53,12 @@ Builder = Callable[[Node, Context], T]
 
 
 def build_stmts(
-    node: Node, source_sql: str
+    node: Node, source_sql: str, propagate_spans: bool
 ) -> List[pgast.Query | pgast.Statement]:
     ctx = Context(source_sql=source_sql)
 
     try:
-        return [_build_stmt(node["stmt"], ctx) for node in node["stmts"]]
+        res = [_build_stmt(node["stmt"], ctx) for node in node["stmts"]]
     except IndexError:
         raise PSqlUnsupportedError()
     except PSqlUnsupportedError as e:
@@ -67,6 +68,13 @@ def build_stmts(
             e.message += f" near location {e.location}:"
             e.message += source_sql[e.location : (e.location + 50)]
         raise
+
+    if propagate_spans:
+        # we need to do a full pass of span propagation, because some
+        # nodes (CommonTableExpr) have span, but their children don't (Insert).
+        span.SpanPropagator(full_pass=True).container_visit(res)
+
+    return res
 
 
 def _maybe(
@@ -284,34 +292,43 @@ def _build_select_stmt(n: Node, c: Context) -> pgast.SelectStmt:
 
 def _build_insert_stmt(n: Node, c: Context) -> pgast.InsertStmt:
     return pgast.InsertStmt(
-        relation=_maybe(n, c, "relation", _build_rel_range_var),
-        returning_list=_maybe_list(n, c, "returningList", _build_res_target)
-        or [],
+        relation=_build_rel_range_var(n["relation"], c),
+        returning_list=(
+            _maybe_list(n, c, "returningList", _build_res_target) or []
+        ),
         cols=_maybe_list(n, c, "cols", _build_insert_target),
         select_stmt=_maybe(n, c, "selectStmt", _build_stmt),
-        on_conflict=_maybe(n, c, "on_conflict", _build_on_conflict),
+        on_conflict=_maybe(n, c, "onConflictClause", _build_on_conflict),
         ctes=_maybe(n, c, "withClause", _build_ctes),
     )
 
 
 def _build_update_stmt(n: Node, c: Context) -> pgast.UpdateStmt:
     return pgast.UpdateStmt(
-        relation=_maybe(n, c, "relation", _build_rel_range_var),
-        targets=_build_targets(n, c, "targetList") or [],
+        relation=_build_rel_range_var(n["relation"], c),
+        targets=_maybe(n, c, "targetList", _build_update_targets) or [],
         where_clause=_maybe(n, c, "whereClause", _build_base_expr),
-        from_clause=_maybe_list(n, c, "fromClause", _build_base_range_var)
-        or [],
+        from_clause=(
+            _maybe_list(n, c, "fromClause", _build_base_range_var) or []
+        ),
+        returning_list=(
+            _maybe_list(n, c, "returningList", _build_res_target) or []
+        ),
+        ctes=_maybe(n, c, "withClause", _build_ctes),
     )
 
 
 def _build_delete_stmt(n: Node, c: Context) -> pgast.DeleteStmt:
     return pgast.DeleteStmt(
-        relation=_maybe(n, c, "relation", _build_rel_range_var),
-        returning_list=_maybe_list(n, c, "returningList", _build_res_target)
-        or [],
+        relation=_build_rel_range_var(n["relation"], c),
+        returning_list=(
+            _maybe_list(n, c, "returningList", _build_res_target) or []
+        ),
         where_clause=_maybe(n, c, "whereClause", _build_base_expr),
-        using_clause=_maybe_list(n, c, "usingClause", _build_base_range_var)
-        or [],
+        using_clause=(
+            _maybe_list(n, c, "usingClause", _build_base_range_var) or []
+        ),
+        ctes=_maybe(n, c, "withClause", _build_ctes),
     )
 
 
@@ -343,9 +360,11 @@ def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
     if n["kind"] == "VAR_RESET":
         return pgast.VariableResetStmt(
             name=n["name"],
-            scope=pgast.OptionsScope.TRANSACTION
-            if n["name"] in tx_only_vars
-            else pgast.OptionsScope.SESSION,
+            scope=(
+                pgast.OptionsScope.TRANSACTION
+                if n["name"] in tx_only_vars
+                else pgast.OptionsScope.SESSION
+            ),
             span=_build_span(n, c),
         )
 
@@ -361,27 +380,35 @@ def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
         if name == "TRANSACTION" or name == "SESSION CHARACTERISTICS":
             return pgast.SetTransactionStmt(
                 options=_build_transaction_options(n["args"], c),
-                scope=pgast.OptionsScope.TRANSACTION
-                if name == "TRANSACTION"
-                else pgast.OptionsScope.SESSION,
+                scope=(
+                    pgast.OptionsScope.TRANSACTION
+                    if name == "TRANSACTION"
+                    else pgast.OptionsScope.SESSION
+                ),
             )
 
     if n["kind"] == "VAR_SET_VALUE":
         return pgast.VariableSetStmt(
             name=n["name"],
             args=pgast.ArgsList(args=_list(n, c, "args", _build_base_expr)),
-            scope=pgast.OptionsScope.TRANSACTION
-            if n["name"] in tx_only_vars or "is_local" in n and n["is_local"]
-            else pgast.OptionsScope.SESSION,
+            scope=(
+                pgast.OptionsScope.TRANSACTION
+                if n["name"] in tx_only_vars
+                or ("is_local" in n and n["is_local"])
+                else pgast.OptionsScope.SESSION
+            ),
             span=_build_span(n, c),
         )
 
     if n["kind"] == "VAR_SET_DEFAULT":
         return pgast.VariableResetStmt(
             name=n["name"],
-            scope=pgast.OptionsScope.TRANSACTION
-            if n["name"] in tx_only_vars or "is_local" in n and n["is_local"]
-            else pgast.OptionsScope.SESSION,
+            scope=(
+                pgast.OptionsScope.TRANSACTION
+                if n["name"] in tx_only_vars
+                or ("is_local" in n and n["is_local"])
+                else pgast.OptionsScope.SESSION
+            ),
             span=_build_span(n, c),
         )
 
@@ -893,14 +920,16 @@ def _build_join_expr(n: Node, c: Context) -> pgast.JoinExpr:
     return pgast.JoinExpr(
         alias=_maybe(n, c, "alias", _build_alias) or pgast.Alias(aliasname=""),
         larg=_build_base_range_var(n["larg"], c),
-        joins=[pgast.JoinClause(
-            type=n["jointype"][5:],
-            rarg=_build_base_range_var(n["rarg"], c),
-            using_clause=_maybe_list(
-                n, c, "usingClause", _build_str, _as_column_ref
-            ),
-            quals=_maybe(n, c, "quals", _build_base_expr),
-        )],
+        joins=[
+            pgast.JoinClause(
+                type=n["jointype"][5:],
+                rarg=_build_base_range_var(n["rarg"], c),
+                using_clause=_maybe_list(
+                    n, c, "usingClause", _build_str, _as_column_ref
+                ),
+                quals=_maybe(n, c, "quals", _build_base_expr),
+            )
+        ],
     )
 
 
@@ -1048,7 +1077,6 @@ def _build_res_target(n: Node, c: Context) -> pgast.ResTarget:
     n = _unwrap(n, "ResTarget")
     return pgast.ResTarget(
         name=_maybe(n, c, "name", _build_str),
-        indirection=_maybe_list(n, c, "indirection", _build_indirection_op),
         val=_build_base_expr(n["val"], c),
         span=_build_span(n, c),
     )
@@ -1062,7 +1090,48 @@ def _build_insert_target(n: Node, c: Context) -> pgast.InsertTarget:
     )
 
 
-def _build_update_target(n: Node, c: Context) -> pgast.UpdateTarget:
+def _build_update_targets(
+    target_list: List[Node], c: Context
+) -> List[pgast.UpdateTarget | pgast.MultiAssignRef]:
+    targets: List[pgast.UpdateTarget | pgast.MultiAssignRef] = []
+    while len(target_list) > 0:
+        val: dict = target_list[0]["ResTarget"]["val"]
+        if first_mar := val.get("MultiAssignRef", None):
+            ncolumns = first_mar['ncolumns']
+
+            columns: List[str] = []
+            for _ in range(ncolumns):
+                target = target_list.pop(0)
+                mar = target['ResTarget']
+
+                if 'indirection' in mar:
+                    raise PSqlUnsupportedError(
+                        val, f"multi-assign SET with indirection"
+                    )
+
+                columns.append(mar['name'])
+
+            targets.append(_build_multi_assign_ref(first_mar, columns, c))
+        else:
+            target = target_list.pop(0)
+            targets.append(_build_update_target(target, c))
+
+    return targets
+
+
+def _build_multi_assign_ref(
+    n: Node, columns: List[str], c: Context
+) -> pgast.MultiAssignRef:
+    return pgast.MultiAssignRef(
+        source=_build_base_expr(n['source'], c),
+        columns=columns,
+        span=_build_span(n, c),
+    )
+
+
+def _build_update_target(
+    n: Node, c: Context
+) -> pgast.UpdateTarget | pgast.MultiAssignRef:
     n = _unwrap(n, "ResTarget")
     return pgast.UpdateTarget(
         name=_build_str(n['name'], c),
@@ -1076,9 +1145,7 @@ def _build_window_def(n: Node, c: Context) -> pgast.WindowDef:
     return pgast.WindowDef(
         name=_maybe(n, c, "name", _build_str),
         refname=_maybe(n, c, "refname", _build_str),
-        partition_clause=_maybe_list(
-            n, c, "partitionClause", _build_base_expr
-        ),
+        partition_clause=_maybe_list(n, c, "partitionClause", _build_base_expr),
         order_clause=_maybe_list(n, c, "orderClause", _build_sort_by),
         frame_options=None,
         start_offset=_maybe(n, c, "startOffset", _build_base_expr),
@@ -1109,29 +1176,6 @@ def _build_sort_order(n: Node, _c: Context) -> qlast.SortOrder:
     return qlast.SortOrder.Asc
 
 
-def _build_targets(
-    n: Node, c: Context, key: str
-) -> Optional[List[pgast.UpdateTarget | pgast.MultiAssignRef]]:
-    if _probe(n, [key, 0, "ResTarget", "val", "MultiAssignRef"]):
-        return [_build_multi_assign_ref(n[key], c)]
-    else:
-        return _maybe_list(n, c, key, _build_update_target)
-
-
-def _build_multi_assign_ref(
-    targets: List[Node], c: Context
-) -> pgast.MultiAssignRef:
-    mar = targets[0]['ResTarget']['val']['MultiAssignRef']
-
-    return pgast.MultiAssignRef(
-        source=_build_base_expr(mar['source'], c),
-        columns=[
-            _as_column_ref(target['ResTarget']['name']) for target in targets
-        ],
-        span=_build_span(targets[0]['ResTarget'], c),
-    )
-
-
 def _build_column_ref(n: Node, c: Context) -> pgast.ColumnRef:
     return pgast.ColumnRef(
         name=_list(n, c, "fields", _build_string_or_star),
@@ -1151,21 +1195,12 @@ def _build_infer_clause(n: Node, c: Context) -> pgast.InferClause:
 
 def _build_on_conflict(n: Node, c: Context) -> pgast.OnConflictClause:
     return pgast.OnConflictClause(
-        action=_build_str(n["action"], c),
+        action=_build_str(n["action"], c).removeprefix('ONCONFLICT_'),
         infer=_maybe(n, c, "infer", _build_infer_clause),
-        target_list=_build_on_conflict_targets(n, c, "targetList"),
+        target_list=_maybe(n, c, "targetList", _build_update_targets) or [],
         where=_maybe(n, c, "where", _build_base_expr),
         span=_build_span(n, c),
     )
-
-
-def _build_on_conflict_targets(
-    n: Node, c: Context, key: str
-) -> Optional[List[pgast.InsertTarget | pgast.MultiAssignRef]]:
-    if _probe(n, [key, 0, "ResTarget", "val", "MultiAssignRef"]):
-        return [_build_multi_assign_ref(n[key], c)]
-    else:
-        return _maybe_list(n, c, key, _build_insert_target)
 
 
 def _build_star(_n: Node, _c: Context) -> pgast.Star | str:

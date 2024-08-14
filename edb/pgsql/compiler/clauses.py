@@ -34,6 +34,7 @@ from edb.pgsql import types as pg_types
 from . import astutils
 from . import context
 from . import dispatch
+from . import enums as pgce
 from . import output
 from . import pathctx
 from . import relctx
@@ -48,13 +49,13 @@ def get_volatility_ref(
     """Produce an appropriate volatility_ref from a path_id."""
 
     ref: Optional[pgast.BaseExpr] = relctx.maybe_get_path_var(
-        stmt, path_id, aspect='iterator', ctx=ctx)
+        stmt, path_id, aspect=pgce.PathAspect.ITERATOR, ctx=ctx)
     if not ref:
         ref = relctx.maybe_get_path_var(
-            stmt, path_id, aspect='identity', ctx=ctx)
+            stmt, path_id, aspect=pgce.PathAspect.IDENTITY, ctx=ctx)
     if not ref:
         rvar = relctx.maybe_get_path_rvar(
-            stmt, path_id, aspect='value', ctx=ctx)
+            stmt, path_id, aspect=pgce.PathAspect.VALUE, ctx=ctx)
         if (
             rvar
             and isinstance(rvar.query, pgast.ReturningQuery)
@@ -78,7 +79,7 @@ def get_volatility_ref(
             ref = pgast.ColumnRef(name=[rvar.alias.aliasname, name])
         else:
             ref = relctx.maybe_get_path_var(
-                stmt, path_id, aspect='value', ctx=ctx)
+                stmt, path_id, aspect=pgce.PathAspect.VALUE, ctx=ctx)
 
     return ref
 
@@ -185,7 +186,11 @@ def compile_iterator_expr(
 
         dispatch.visit(iterator_expr, ctx=subctx)
         iterator_rvar = relctx.get_path_rvar(
-            query, iterator_expr.path_id, aspect='value', ctx=ctx)
+            query,
+            iterator_expr.path_id,
+            aspect=pgce.PathAspect.VALUE,
+            ctx=ctx,
+        )
         iterator_query = iterator_rvar.query
 
         # If the iterator value is nullable, add a null test. This
@@ -214,7 +219,7 @@ def compile_iterator_expr(
         # iterator expression in order maintain correct correlation
         # for the state of iteration in DML statements, even when
         # there are duplicates in the iterator.  This gets tracked as
-        # a special 'iterator' aspect in order to distinguish it from
+        # a special ITERATOR aspect in order to distinguish it from
         # actual object identity.
         #
         # We also do this for optional iterators, since object
@@ -227,8 +232,11 @@ def compile_iterator_expr(
                 ctx=subctx)
 
             pathctx.put_path_rvar(
-                query, iterator_expr.path_id, iterator_rvar,
-                aspect='iterator')
+                query,
+                iterator_expr.path_id,
+                iterator_rvar,
+                aspect=pgce.PathAspect.ITERATOR,
+            )
 
     return iterator_rvar
 
@@ -401,19 +409,25 @@ def scan_check_ctes(
     ))
 
 
+def insert_ctes(
+    stmt: pgast.Query, ctx: context.CompilerContextLevel
+) -> None:
+    if stmt.ctes is None:
+        stmt.ctes = []
+    stmt.ctes[:0] = [
+        *ctx.param_ctes.values(),
+        *ctx.ptr_inheritance_ctes.values(),
+        *ctx.ordered_type_ctes,
+    ]
+
+
 def fini_toplevel(
         stmt: pgast.Query, ctx: context.CompilerContextLevel) -> None:
 
     scan_check_ctes(stmt, ctx.env.check_ctes, ctx=ctx)
 
-    # Type rewrites go first.
-    if stmt.ctes is None:
-        stmt.ctes = []
-    stmt.ctes[:0] = [
-        *ctx.param_ctes.values(),
-        *ctx.ptr_ctes.values(),
-        *ctx.type_ctes.values(),
-    ]
+    # Type rewrites and inheritance CTEs go first.
+    insert_ctes(stmt, ctx)
 
     if ctx.env.named_param_prefix is None:
         # Adding unused parameters into a CTE

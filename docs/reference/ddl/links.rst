@@ -52,6 +52,7 @@ Create link
       create property <property-name> ...
       create constraint <constraint-name> ...
       on target delete <action>
+      on source delete <action>
       reset on target delete
       create index on <index-expr>
 
@@ -211,6 +212,7 @@ Change the definition of a :ref:`link <ref_datamodel_links>`.
       alter constraint <constraint-name> ...
       drop constraint <constraint-name> ...
       on target delete <action>
+      on source delete <action>
       create index on <index-expr>
       drop index on <index-expr>
 

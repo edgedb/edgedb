@@ -42,6 +42,7 @@ from .common import qname as q
 from .common import quote_literal as ql
 from .common import quote_ident as qi
 from .compiler import astutils
+from .compiler import enums as pgce
 
 
 def create_fts_index(
@@ -121,7 +122,7 @@ def _compile_ir_index_exprs(
         index_expr,
         singleton_mode=True,
         external_rvars={
-            (subject_id, 'source'): pgast.RelRangeVar(
+            (subject_id, pgce.PathAspect.SOURCE): pgast.RelRangeVar(
                 alias=pgast.Alias(aliasname='NEW'),
                 relation=pgast.Relation(name='NEW'),
             )

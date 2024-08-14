@@ -42,6 +42,7 @@ cdef class CompiledQuery:
     cdef public object extra_blobs
     cdef public object request
     cdef public object recompiled_cache
+    cdef public bint use_pending_func_cache
 
 
 cdef class DatabaseIndex:
@@ -78,6 +79,10 @@ cdef class Database:
         object _cache_notify_task
         object _cache_notify_queue
 
+        uint64_t _tx_seq
+        object _active_tx_list
+        object _func_cache_gt_tx_seq
+
         readonly str name
         readonly object schema_version
         readonly object dbver
@@ -109,6 +114,8 @@ cdef class Database:
     cpdef start_stop_extensions(self)
     cdef get_state_serializer(self, protocol_version)
     cpdef set_state_serializer(self, protocol_version, serializer)
+    cdef inline uint64_t tx_seq_begin_tx(self)
+    cdef inline tx_seq_end_tx(self, uint64_t seq)
 
 
 cdef class DatabaseConnectionView:
@@ -154,6 +161,7 @@ cdef class DatabaseConnectionView:
         bint _in_tx_with_dbconfig
         bint _in_tx_with_set
         bint _tx_error
+        uint64_t _in_tx_seq
 
         uint64_t _capability_mask
 

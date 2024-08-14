@@ -44,14 +44,16 @@ import uuid
 import immutables as immu
 
 from edb.common import compiler
+from edb.common import enum as s_enum
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import params as pgparams
 
-from . import aliases
+from . import aliases as pg_aliases
 
 if TYPE_CHECKING:
     from edb.ir import ast as irast
+    from . import enums as pgce
 
 
 class ContextSwitchMode(enum.Enum):
@@ -87,8 +89,15 @@ class OutputFormat(enum.Enum):
 NO_STMT = pgast.SelectStmt()
 
 
+class OverlayOp(s_enum.StrEnum):
+    UNION = 'union'
+    REPLACE = 'replace'
+    FILTER = 'filter'
+    EXCEPT = 'except'
+
+
 OverlayEntry = tuple[
-    str,
+    OverlayOp,
     Union[pgast.BaseRelation, pgast.CommonTableExpr],
     'irast.PathId',
 ]
@@ -186,7 +195,7 @@ class RelOverlays:
             Tuple[uuid.UUID, str],
             Tuple[
                 Tuple[
-                    str,
+                    OverlayOp,
                     Union[pgast.BaseRelation, pgast.CommonTableExpr],
                     irast.PathId,
                 ], ...
@@ -233,15 +242,21 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: CTEs representing decoded parameters
     param_ctes: Dict[str, pgast.CommonTableExpr]
 
-    #: CTEs representing pointer tables that we need to force to be
-    #: materialized for performance reasons.
-    ptr_ctes: Dict[uuid.UUID, pgast.CommonTableExpr]
+    #: CTEs representing pointers and their inherited pointers
+    ptr_inheritance_ctes: Dict[uuid.UUID, pgast.CommonTableExpr]
 
     #: CTEs representing types, when rewritten based on access policy
-    type_ctes: Dict[FullRewriteKey, pgast.CommonTableExpr]
+    type_rewrite_ctes: Dict[FullRewriteKey, pgast.CommonTableExpr]
 
     #: A set of type CTEs currently being generated
-    pending_type_ctes: Set[RewriteKey]
+    pending_type_rewrite_ctes: Set[RewriteKey]
+
+    #: CTEs representing types and their inherited types
+    type_inheritance_ctes: Dict[uuid.UUID, pgast.CommonTableExpr]
+
+    # Type and type inheriance CTEs in creation order. This ensures type CTEs
+    # referring to other CTEs are in the correct order.
+    ordered_type_ctes: list[pgast.CommonTableExpr]
 
     #: The logical parent of the current query in the
     #: query hierarchy
@@ -305,7 +320,10 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: Mapping from path ids to "external" rels given by a particular relation
     external_rels: Mapping[
         irast.PathId,
-        Tuple[pgast.BaseRelation | pgast.CommonTableExpr, Tuple[str, ...]]
+        Tuple[
+            pgast.BaseRelation | pgast.CommonTableExpr,
+            Tuple[pgce.PathAspect, ...]
+        ]
     ]
 
     #: The CTE and some metadata of any enclosing iterator-like
@@ -339,9 +357,11 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.rel = NO_STMT
             self.rel_hierarchy = {}
             self.param_ctes = {}
-            self.ptr_ctes = {}
-            self.type_ctes = {}
-            self.pending_type_ctes = set()
+            self.ptr_inheritance_ctes = {}
+            self.type_rewrite_ctes = {}
+            self.pending_type_rewrite_ctes = set()
+            self.type_inheritance_ctes = {}
+            self.ordered_type_ctes = []
             self.dml_stmts = {}
             self.parent_rel = None
             self.pending_query = None
@@ -379,9 +399,11 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.rel = prevlevel.rel
             self.rel_hierarchy = prevlevel.rel_hierarchy
             self.param_ctes = prevlevel.param_ctes
-            self.ptr_ctes = prevlevel.ptr_ctes
-            self.type_ctes = prevlevel.type_ctes
-            self.pending_type_ctes = prevlevel.pending_type_ctes
+            self.ptr_inheritance_ctes = prevlevel.ptr_inheritance_ctes
+            self.type_rewrite_ctes = prevlevel.type_rewrite_ctes
+            self.pending_type_rewrite_ctes = prevlevel.pending_type_rewrite_ctes
+            self.type_inheritance_ctes = prevlevel.type_inheritance_ctes
+            self.ordered_type_ctes = prevlevel.ordered_type_ctes
             self.dml_stmts = prevlevel.dml_stmts
             self.parent_rel = prevlevel.parent_rel
             self.pending_query = prevlevel.pending_query
@@ -444,10 +466,17 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.disable_semi_join = frozenset()
                 self.force_optional = frozenset()
                 self.intersection_narrowing = {}
-                self.pending_type_ctes = set(prevlevel.pending_type_ctes)
+                self.pending_type_rewrite_ctes = set(
+                    prevlevel.pending_type_rewrite_ctes
+                )
 
             elif mode == ContextSwitchMode.NEWSCOPE:
                 self.path_scope = prevlevel.path_scope.new_child()
+
+    def get_current_dml_stmt(self) -> Optional[irast.MutatingLikeStmt]:
+        if len(self.dml_stmt_stack) == 0:
+            return None
+        return self.dml_stmt_stack[-1]
 
     def subrel(
         self,
@@ -494,7 +523,7 @@ FullRewriteKey = Tuple[
 class Environment:
     """Static compilation environment."""
 
-    aliases: aliases.AliasGenerator
+    aliases: pg_aliases.AliasGenerator
     output_format: Optional[OutputFormat]
     named_param_prefix: Optional[tuple[str, ...]]
     ptrref_source_visibility: Dict[irast.BasePointerRef, bool]
@@ -505,9 +534,12 @@ class Environment:
     query_params: List[irast.Param]
     type_rewrites: Dict[RewriteKey, irast.Set]
     scope_tree_nodes: Dict[int, irast.ScopeTreeNode]
-    external_rvars: Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
+    external_rvars: Mapping[
+        Tuple[irast.PathId, pgce.PathAspect], pgast.PathRangeVar
+    ]
     materialized_views: Dict[uuid.UUID, irast.Set]
     backend_runtime_params: pgparams.BackendRuntimeParams
+    versioned_stdlib: bool
 
     #: A list of CTEs that implement constraint validation at the
     #: query level.
@@ -516,29 +548,32 @@ class Environment:
     def __init__(
         self,
         *,
+        alias_generator: Optional[pg_aliases.AliasGenerator] = None,
         output_format: Optional[OutputFormat],
         named_param_prefix: Optional[tuple[str, ...]],
         expected_cardinality_one: bool,
         ignore_object_shapes: bool,
         singleton_mode: bool,
-        expand_inhviews: bool,
+        is_explain: bool,
         explicit_top_cast: Optional[irast.TypeRef],
         query_params: List[irast.Param],
         type_rewrites: Dict[RewriteKey, irast.Set],
         scope_tree_nodes: Dict[int, irast.ScopeTreeNode],
         external_rvars: Optional[
-            Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
+            Mapping[Tuple[irast.PathId, pgce.PathAspect], pgast.PathRangeVar]
         ] = None,
         backend_runtime_params: pgparams.BackendRuntimeParams,
+        # XXX: TRAMPOLINE: THIS IS WRONG
+        versioned_stdlib: bool = True,
     ) -> None:
-        self.aliases = aliases.AliasGenerator()
+        self.aliases = alias_generator or pg_aliases.AliasGenerator()
         self.output_format = output_format
         self.named_param_prefix = named_param_prefix
         self.ptrref_source_visibility = {}
         self.expected_cardinality_one = expected_cardinality_one
         self.ignore_object_shapes = ignore_object_shapes
         self.singleton_mode = singleton_mode
-        self.expand_inhviews = expand_inhviews
+        self.is_explain = is_explain
         self.explicit_top_cast = explicit_top_cast
         self.query_params = query_params
         self.type_rewrites = type_rewrites
@@ -547,6 +582,7 @@ class Environment:
         self.materialized_views = {}
         self.check_ctes = []
         self.backend_runtime_params = backend_runtime_params
+        self.versioned_stdlib = versioned_stdlib
 
 
 # XXX: this context hack is necessary until pathctx is converted

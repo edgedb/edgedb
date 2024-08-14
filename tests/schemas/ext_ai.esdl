@@ -23,6 +23,7 @@ type TestEmbeddingModel
     annotation ext::ai::model_name := "text-embedding-test";
     annotation ext::ai::model_provider := "custom::test";
     annotation ext::ai::embedding_model_max_input_tokens := "8191";
+    annotation ext::ai::embedding_model_max_batch_tokens := "16384";
     annotation ext::ai::embedding_model_max_output_dimensions := "10";
     annotation ext::ai::embedding_model_supports_shortening := "true";
 };
@@ -36,7 +37,7 @@ type Astronomy {
 type Stuff extending Astronomy {
     content2: str;
     deferred index ext::ai::index(embedding_model := 'text-embedding-test')
-        on (.content ++ .content2);
+        on ({.content} ++ {.content2});
 };
 
 type Star extending Astronomy;

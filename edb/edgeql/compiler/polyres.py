@@ -623,7 +623,7 @@ def compile_arg(
                 result=arg_ql, span=arg_ql.span,
                 implicit=True, rptr_passthrough=True)
 
-        argctx.inhibit_implicit_limit = True
+        argctx.implicit_limit = 0
 
         arg_ir = dispatch.compile(arg_ql, ctx=argctx)
 

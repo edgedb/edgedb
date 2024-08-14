@@ -23,7 +23,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
 
     create module ext::auth;
 
-    create abstract type ext::auth::Auditable {
+    create abstract type ext::auth::Auditable extending std::BaseObject {
         create required property created_at: std::datetime {
             set default := std::datetime_current();
             set readonly := true;
@@ -51,6 +51,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
     create abstract type ext::auth::Factor extending ext::auth::Auditable {
         create required link identity: ext::auth::LocalIdentity {
             create constraint exclusive;
+            on target delete delete source;
         };
     };
 
@@ -113,6 +114,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
         create required multi link factors: ext::auth::WebAuthnFactor {
             create constraint exclusive;
+            on target delete delete source;
         };
     };
 
@@ -128,7 +130,9 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             create annotation std::description :=
                 "Identity provider's refresh token.";
         };
-        create link identity: ext::auth::Identity;
+        create link identity: ext::auth::Identity {
+            on target delete delete source;
+        };
     };
 
     create abstract type ext::auth::ProviderConfig
@@ -171,6 +175,29 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 "Space-separated list of scopes to be included in the \
                 authorize request to the OAuth provider.";
         };
+    };
+
+    create type ext::auth::OpenIDConnectProvider
+        extending ext::auth::OAuthProviderConfig {
+        alter property name {
+            set protected := false;
+        };
+
+        alter property display_name {
+            set protected := false;
+        };
+
+        create required property issuer_url: std::str {
+            create annotation std::description :=
+                "The issuer URL of the provider.";
+        };
+
+        create property logo_url: std::str {
+            create annotation std::description :=
+                "A url to an image of the provider's logo.";
+        };
+
+        create constraint exclusive on ((.issuer_url, .client_id));
     };
 
     create type ext::auth::AppleOAuthProvider

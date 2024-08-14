@@ -69,7 +69,7 @@ std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
         WHEN "el" = 'epochseconds'
         THEN date_part('epoch', "dt")
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::float,
                 'invalid_datetime_format',
                 msg => (
@@ -100,12 +100,12 @@ std::datetime_truncate(dt: std::datetime, unit: std::str) -> std::datetime
             'microseconds', 'milliseconds', 'seconds',
             'minutes', 'hours', 'days', 'weeks', 'months',
             'years', 'decades', 'centuries')
-        THEN date_trunc("unit", "dt")::edgedb.timestamptz_t
+        THEN date_trunc("unit", "dt")::edgedbt.timestamptz_t
         WHEN "unit" = 'quarters'
-        THEN date_trunc('quarter', "dt")::edgedb.timestamptz_t
+        THEN date_trunc('quarter', "dt")::edgedbt.timestamptz_t
         ELSE
-            edgedb.raise(
-                NULL::edgedb.timestamptz_t,
+            edgedb_VER.raise(
+                NULL::edgedbt.timestamptz_t,
                 'invalid_datetime_format',
                 msg => (
                     'invalid unit for std::datetime_truncate: '
@@ -135,7 +135,7 @@ std::duration_get(dt: std::duration, el: std::str) -> std::float64
         WHEN "el" = 'totalseconds'
         THEN date_part('epoch', "dt")
         ELSE
-            edgedb.raise(
+            edgedb_VER.raise(
                 NULL::float,
                 'invalid_datetime_format',
                 msg => (
@@ -162,10 +162,10 @@ std::duration_truncate(dt: std::duration, unit: std::str) -> std::duration
     USING SQL $$
     SELECT CASE WHEN "unit" in ('microseconds', 'milliseconds',
                                 'seconds', 'minutes', 'hours')
-        THEN date_trunc("unit", "dt")::edgedb.duration_t
+        THEN date_trunc("unit", "dt")::edgedbt.duration_t
         ELSE
-            edgedb.raise(
-                NULL::edgedb.duration_t,
+            edgedb_VER.raise(
+                NULL::edgedbt.duration_t,
                 'invalid_datetime_format',
                 msg => (
                     'invalid unit for std::duration_truncate: '
@@ -295,7 +295,7 @@ std::`+` (l: std::datetime, r: std::duration) -> std::datetime {
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
-        SELECT ("l" + "r")::edgedb.timestamptz_t
+        SELECT ("l" + "r")::edgedbt.timestamptz_t
     $$
 };
 
@@ -310,7 +310,7 @@ std::`+` (l: std::duration, r: std::datetime) -> std::datetime {
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
-        SELECT ("l" + "r")::edgedb.timestamptz_t
+        SELECT ("l" + "r")::edgedbt.timestamptz_t
     $$
 };
 
@@ -324,7 +324,7 @@ std::`-` (l: std::datetime, r: std::duration) -> std::datetime {
     # should affect this.
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT ("l" - "r")::edgedb.timestamptz_t
+        SELECT ("l" - "r")::edgedbt.timestamptz_t
     $$
 };
 
@@ -337,7 +337,7 @@ std::`-` (l: std::datetime, r: std::datetime) -> std::duration {
     # should affect this.
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT EXTRACT(epoch FROM "l" - "r")::text::edgedb.duration_t
+        SELECT EXTRACT(epoch FROM "l" - "r")::text::edgedbt.duration_t
     $$
 };
 
@@ -441,7 +441,7 @@ std::`+` (l: std::duration, r: std::duration) -> std::duration {
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
-    SELECT ("l"::interval + "r"::interval)::edgedb.duration_t;
+    SELECT ("l"::interval + "r"::interval)::edgedbt.duration_t;
     $$;
 };
 
@@ -453,7 +453,7 @@ std::`-` (l: std::duration, r: std::duration) -> std::duration {
         'Time interval subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT ("l"::interval - "r"::interval)::edgedb.duration_t;
+    SELECT ("l"::interval - "r"::interval)::edgedbt.duration_t;
     $$;
 };
 
@@ -465,7 +465,7 @@ std::`-` (v: std::duration) -> std::duration {
         'Time interval negation.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT (-"v"::interval)::edgedb.duration_t;
+    SELECT (-"v"::interval)::edgedbt.duration_t;
     $$;
 };
 

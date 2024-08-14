@@ -222,7 +222,13 @@ class TestProtocol(ProtocolTestCase):
 
     async def test_proto_state(self):
         await self.con.connect()
+        try:
+            await self._test_proto_state()
+        finally:
+            await self.con.execute('DROP GLOBAL state_desc_1')
+            await self.con.execute('DROP GLOBAL state_desc_2')
 
+    async def _test_proto_state(self):
         # Create initial state schema
         await self._execute('CREATE GLOBAL state_desc_1 -> int32')
         sdd1 = await self.con.recv_match(protocol.StateDataDescription)
@@ -359,6 +365,7 @@ class TestProtocol(ProtocolTestCase):
             protocol.ReadyForCommand,
             transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
         )
+        await self.con.execute('DROP GLOBAL state_desc_in_script')
 
     async def test_proto_desc_id_cardinality(self):
         await self.con.connect()
@@ -371,6 +378,13 @@ class TestProtocol(ProtocolTestCase):
             status='CREATE TYPE'
         )
         await self.con.recv_match(protocol.ReadyForCommand)
+
+        try:
+            await self._test_proto_desc_id_cardinality()
+        finally:
+            await self.con.execute('DROP TYPE CardTest')
+
+    async def _test_proto_desc_id_cardinality(self):
 
         await self._execute('SELECT CardTest { prop }', data=True)
         cdd1 = await self.con.recv_match(protocol.CommandDataDescription)
@@ -442,17 +456,20 @@ class TestProtocol(ProtocolTestCase):
         )
         await self.con.recv_match(protocol.ReadyForCommand)
 
-        await self._parse("SELECT ParseCardTest")
-        await self.con.recv_match(
-            protocol.CommandDataDescription,
-            result_cardinality=compiler.Cardinality.MANY,
-        )
+        try:
+            await self._parse("SELECT ParseCardTest")
+            await self.con.recv_match(
+                protocol.CommandDataDescription,
+                result_cardinality=compiler.Cardinality.MANY,
+            )
 
-        await self._parse("SELECT ParseCardTest LIMIT 1")
-        await self.con.recv_match(
-            protocol.CommandDataDescription,
-            result_cardinality=compiler.Cardinality.AT_MOST_ONE,
-        )
+            await self._parse("SELECT ParseCardTest LIMIT 1")
+            await self.con.recv_match(
+                protocol.CommandDataDescription,
+                result_cardinality=compiler.Cardinality.AT_MOST_ONE,
+            )
+        finally:
+            await self.con.execute("DROP TYPE ParseCardTest")
 
     async def test_proto_state_concurrent_alter(self):
         con2 = await protocol.protocol.new_connection(
@@ -509,6 +526,7 @@ class TestProtocol(ProtocolTestCase):
 
         finally:
             await con2.aclose()
+            await self.con.execute("DROP GLOBAL state_desc_3")
 
     async def _parse_execute(self, query, args):
         output_format = protocol.OutputFormat.BINARY
@@ -693,6 +711,15 @@ class TestProtocol(ProtocolTestCase):
         )
         await self.con.recv_match(protocol.ReadyForCommand)
 
+        try:
+            await self._test_proto_state_change_in_tx()
+        finally:
+            await self.con.execute('ROLLBACK')
+            await self.con.execute(
+                'DROP TYPE TestStateChangeInTx::StateChangeInTx')
+            await self.con.execute('DROP MODULE TestStateChangeInTx')
+
+    async def _test_proto_state_change_in_tx(self):
         # Collect states
         await self._execute('''
             SET MODULE TestStateChangeInTx
@@ -726,6 +753,62 @@ class TestProtocol(ProtocolTestCase):
             status='INSERT'
         )
         await self.con.recv_match(protocol.ReadyForCommand)
+
+    async def test_proto_discard_prepared_statement_in_script(self):
+        await self.con.connect()
+
+        try:
+            await self._test_proto_discard_prepared_statement_in_script()
+        finally:
+            await self.con.execute("drop type DiscardStmtInScript")
+
+    async def _test_proto_discard_prepared_statement_in_script(self):
+        # Context: we don't want to jump around cache function calls
+        await self._execute(
+            "configure session set query_cache_mode"
+            " := <cfg::QueryCacheMode>'InMemory'"
+        )
+        state = await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # First, run a query that is known to use a prepared statement
+        await self._execute("select 42", cc=state)
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # Then, bump dbver by modifying the schema to invalidate the statement
+        await self.con.execute("create type DiscardStmtInScript")
+
+        # Now here comes the key. We execute a script that is meant to fail at
+        # the first command. The second command, `select 42` again, is never
+        # executed living in an aborted transaction, but we didn't know that
+        # before executing the first command; we sent messages of both commands
+        # altogether. Because dbver is bumped, we need to rebuild the prepared
+        # statement for `select 42`, involving a `CLOSE` message followed by a
+        # `PARSE` message. The problem was, `CLOSE` was placed *after* the
+        # `EXECUTE` message of the first command so `CLOSE` was simply skipped
+        # because the first command failed; but we still removed the prepared
+        # statement from the in-memory registry of PGConnection, leading to an
+        # inconsistency of memory state.
+        await self._execute('select 1/0; select 42', cc=state)
+        await self.con.recv_match(
+            protocol.ErrorResponse,
+            message='division by zero'
+        )
+        await self.con.recv_match(
+            protocol.ReadyForCommand,
+            transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
+        )
+
+        # With such inconsistency, the next `select 42` was failing trying to
+        # create its prepared statement, because the memory registry showed we
+        # didn't have a prepared statement for `select 42`, but it was actually
+        # not closed in the PG session due the issue mentioned above.
+        await self._execute("select 42", cc=state)
+        try:
+            await self.con.recv_match(protocol.CommandComplete)
+        finally:
+            await self.con.recv_match(protocol.ReadyForCommand)
 
 
 class TestServerCancellation(tb.TestCase):

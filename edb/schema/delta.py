@@ -1425,6 +1425,19 @@ class CommandContext:
                    and getattr(ctx.op, 'scls', None) == obj
                    for ctx in self.stack)
 
+    def is_altering(self, obj: so.Object) -> bool:
+        """Return True if *obj* is being altered in this context.
+
+        :param obj:
+            The object in question.
+
+        :returns:
+            True if *obj* is being altered in this context.
+        """
+        return any(isinstance(ctx.op, AlterObject)
+                   and getattr(ctx.op, 'scls', None) == obj
+                   for ctx in self.stack)
+
     def push(self, token: CommandContextToken[Command]) -> None:
         self.stack.append(token)
 
@@ -2088,6 +2101,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         context: CommandContext,
         *,
         action: str,
+        include_self: bool=True,
         include_ancestors: bool=False,
         extra_refs: Optional[Dict[so.Object, List[str]]]=None,
         filter: Type[so.Object] | Tuple[Type[so.Object], ...] | None = None,
@@ -2104,7 +2118,9 @@ class ObjectCommand(Command, Generic[so.Object_T]):
             fixer = None
 
         scls = self.scls
-        expr_refs = s_expr.get_expr_referrers(schema, scls)
+        expr_refs: dict[so.Object, list[str]] = {}
+        if include_self:
+            expr_refs.update(s_expr.get_expr_referrers(schema, scls))
         if include_ancestors and isinstance(scls, so.InheritingObject):
             for anc in scls.get_ancestors(schema).objects(schema):
                 expr_refs.update(s_expr.get_expr_referrers(schema, anc))
@@ -2542,11 +2558,8 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
             if (
                 isinstance(self.classname, sn.QualName)
-                and (modname := self.classname.get_module_name())
-                and (
-                    (modroot := sn.UnqualName(modname.name.partition('::')[0]))
-                    in s_schema.STD_MODULES
-                )
+                and (modroot := self.classname.get_root_module_name())
+                and modroot in s_schema.STD_MODULES
                 and not (
                     modroot == s_schema.EXT_MODULE
                     and context.transient_derivation
@@ -3206,6 +3219,8 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         context: CommandContext,
     ) -> s_schema.Schema:
         if not context.canonical:
+            # This is rarely triggered.
+            schema = self._finalize_affected_refs(schema, context)
             self.validate_object(schema, context)
         return schema
 

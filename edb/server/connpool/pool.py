@@ -27,13 +27,7 @@ import dataclasses
 import time
 
 from . import rolavg
-
-
-MIN_CONN_TIME_THRESHOLD = 0.01
-MIN_QUERY_TIME_THRESHOLD = 0.001
-MIN_LOG_TIME_THRESHOLD = 1
-CONNECT_FAILURE_RETRIES = 3
-MIN_IDLE_TIME_BEFORE_GC = 120
+from . import config
 
 logger = logging.getLogger("edb.server")
 
@@ -318,7 +312,8 @@ class Block(typing.Generic[C]):
             self._log_events[event] = self._log_events.setdefault(event, 0) + 1
 
         # Time check only if we're not in batching
-        elif timestamp - self._last_log_timestamp > MIN_LOG_TIME_THRESHOLD:
+        elif timestamp - self._last_log_timestamp > \
+            config.MIN_LOG_TIME_THRESHOLD:
             logger.info(
                 "Connection %s to backend database: %s", event, self.dbname
             )
@@ -329,7 +324,7 @@ class Block(typing.Generic[C]):
             self._is_log_batching = True
             self._log_events = {event: 1}
             self.loop.call_later(
-                MIN_LOG_TIME_THRESHOLD, self._log_batched_conns,
+                config.MIN_LOG_TIME_THRESHOLD, self._log_batched_conns,
             )
 
     def _log_batched_conns(self) -> None:
@@ -341,7 +336,7 @@ class Block(typing.Generic[C]):
                 f'{num} were {event}'
                 for event, num in self._log_events.items()
             ),
-            MIN_LOG_TIME_THRESHOLD,
+            config.MIN_LOG_TIME_THRESHOLD,
         )
         self._is_log_batching = False
         self._last_log_timestamp = time.monotonic()
@@ -403,6 +398,9 @@ class BasePool(typing.Generic[C]):
 
         self._conntime_avg = rolavg.RollingAverage(history_size=10)
 
+    async def close(self) -> None:
+        pass
+
     @property
     def max_capacity(self) -> int:
         return self._max_capacity
@@ -419,7 +417,11 @@ class BasePool(typing.Generic[C]):
     def failed_disconnects(self) -> int:
         return self._failed_disconnects
 
-    def get_pending_conns(self) -> int:
+    @property
+    def active_conns(self) -> int:
+        return self.current_capacity - self._get_pending_conns()
+
+    def _get_pending_conns(self) -> int:
         return sum(
             block.count_pending_conns() for block in self._blocks.values()
         )
@@ -536,10 +538,11 @@ class BasePool(typing.Generic[C]):
             if getattr(e, 'fields', {}).get('C') == '3D000':
                 # 3D000 - INVALID CATALOG NAME, database does not exist
                 # Skip retry and propagate the error immediately
-                if block.connect_failures_num <= CONNECT_FAILURE_RETRIES:
-                    block.connect_failures_num = CONNECT_FAILURE_RETRIES + 1
+                if block.connect_failures_num <= config.CONNECT_FAILURE_RETRIES:
+                    block.connect_failures_num = (
+                        config.CONNECT_FAILURE_RETRIES + 1)
 
-            if block.connect_failures_num > CONNECT_FAILURE_RETRIES:
+            if block.connect_failures_num > config.CONNECT_FAILURE_RETRIES:
                 # Abort all waiters on this block and propagate the error, as
                 # we don't have a mapping between waiters and _connect() tasks
                 block.abort_waiters(e)
@@ -685,7 +688,7 @@ class Pool(BasePool[C]):
         disconnect: Disconnector[C],
         max_capacity: int,
         stats_collector: typing.Optional[StatsCollector]=None,
-        min_idle_time_before_gc: float = MIN_IDLE_TIME_BEFORE_GC,
+        min_idle_time_before_gc: float = config.MIN_IDLE_TIME_BEFORE_GC,
     ) -> None:
         super().__init__(
             connect=connect,
@@ -716,7 +719,7 @@ class Pool(BasePool[C]):
             return
 
         self._htick = self._get_loop().call_later(
-            max(self._conntime_avg.avg(), MIN_CONN_TIME_THRESHOLD),
+            max(self._conntime_avg.avg(), config.MIN_CONN_TIME_THRESHOLD),
             self._tick
         )
 
@@ -772,7 +775,7 @@ class Pool(BasePool[C]):
 
             demand = (
                 max(nwaiters_avg, nwaiters) *
-                max(block.querytime_avg.avg(), MIN_QUERY_TIME_THRESHOLD)
+                max(block.querytime_avg.avg(), config.MIN_QUERY_TIME_THRESHOLD)
             )
             total_calibrated_demand += demand
             block._cached_calibrated_demand = demand
@@ -821,7 +824,7 @@ class Pool(BasePool[C]):
                     if (
                         now - block.last_connect_timestamp <
                             max(self._conntime_avg.avg(),
-                                MIN_CONN_TIME_THRESHOLD)
+                                config.MIN_CONN_TIME_THRESHOLD)
                     ):
                         # let it keep its connection
                         block.quota = 1
@@ -980,7 +983,7 @@ class Pool(BasePool[C]):
             from_block_size == 1 and
             from_block.count_waiters() and
             (time.monotonic() - from_block.last_connect_timestamp) <
-                max(self._conntime_avg.avg(), MIN_CONN_TIME_THRESHOLD)
+                max(self._conntime_avg.avg(), config.MIN_CONN_TIME_THRESHOLD)
         ):
             return False
 

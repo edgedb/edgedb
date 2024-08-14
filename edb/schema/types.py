@@ -1453,13 +1453,14 @@ class Array(
         # One-dimensional unbounded array.
         dimensions = [-1]
 
-        return cls.create(
+        schema, ty = cls.create(
             schema,
             element_type=stype,
             dimensions=dimensions,
             name=name,
             **kwargs,
         )
+        return schema, ty
 
     @classmethod
     def create_shell(
@@ -1792,8 +1793,9 @@ class Tuple(
             types = subtypes
         else:
             types = {str(i): type for i, type in enumerate(subtypes)}
-        return cls.create(
+        schema, ty = cls.create(
             schema, element_types=types, named=named, name=name, **kwargs)
+        return schema, ty
 
     @classmethod
     def create_shell(

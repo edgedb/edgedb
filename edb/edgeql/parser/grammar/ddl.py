@@ -833,6 +833,16 @@ class CreateBranchStmt(Nonterm):
             branch_type=qlast.BranchType.DATA,
         )
 
+    def reduce_create_template_branch(self, *kids):
+        """%reduce
+            CREATE TEMPLATE BRANCH DatabaseName FROM DatabaseName
+        """
+        self.val = qlast.CreateDatabase(
+            name=kids[3].val,
+            template=kids[5].val,
+            branch_type=qlast.BranchType.TEMPLATE,
+        )
+
 
 #
 # DROP BRANCH
@@ -914,7 +924,8 @@ class CreateExtensionPackageBodyBlock(NestedQLBlock):
     @property
     def allowed_fields(self) -> typing.FrozenSet[str]:
         return frozenset(
-            {'internal', 'ext_module', 'sql_extensions', 'dependencies'}
+            {'internal', 'ext_module', 'sql_extensions', 'dependencies',
+             'sql_setup_script', 'sql_teardown_script'}
         )
 
     @property

@@ -1,4 +1,5 @@
 #
+#
 # This source file is part of the EdgeDB open source project.
 #
 # Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
@@ -19,12 +20,22 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import Optional, Tuple, Iterator, Sequence, Dict, List, cast
+from typing import Optional, Tuple, Iterator, Sequence, Dict, List, cast, Set
 import uuid
 
 from edb import errors
 
 from edb.pgsql import ast as pgast
+from edb.pgsql import common
+from edb.pgsql import compiler as pgcompiler
+from edb.pgsql.compiler import enums as pgce
+
+from edb.schema import types as s_types
+
+from edb.ir import ast as irast
+
+
+from edb.edgeql import compiler as qlcompiler
 
 from . import dispatch
 from . import context
@@ -37,9 +48,20 @@ def infer_alias(res_target: pgast.ResTarget) -> Optional[str]:
     if res_target.name:
         return res_target.name
 
+    val = res_target.val
+
+    if isinstance(val, pgast.TypeCast):
+        val = val.arg
+
+    if isinstance(val, pgast.FuncCall):
+        return val.name[-1]
+
+    if isinstance(val, pgast.ImplicitRowExpr):
+        return 'row'
+
     # if just name has been selected, use it as the alias
-    if isinstance(res_target.val, pgast.ColumnRef):
-        name = res_target.val.name
+    if isinstance(val, pgast.ColumnRef):
+        name = val.name
         if isinstance(name[-1], str):
             return name[-1]
 
@@ -49,7 +71,10 @@ def infer_alias(res_target: pgast.ResTarget) -> Optional[str]:
 # this function cannot go though dispatch,
 # because it may return multiple nodes, due to * notation
 def resolve_ResTarget(
-    res_target: pgast.ResTarget, *, ctx: Context
+    res_target: pgast.ResTarget,
+    *,
+    existing_names: Optional[Set[str]] = None,
+    ctx: Context,
 ) -> Tuple[Sequence[pgast.ResTarget], Sequence[context.Column]]:
     alias = infer_alias(res_target)
 
@@ -61,19 +86,9 @@ def resolve_ResTarget(
         columns = []
         for table, column in col_res:
             columns.append(column)
-
-            assert table.reference_as
-            if column.static_val:
-                # special case: __type__ static value
-                val = _uuid_const(column.static_val)
-            else:
-                assert column.reference_as
-                val = pgast.ColumnRef(
-                    name=(table.reference_as, column.reference_as)
-                )
             res.append(
                 pgast.ResTarget(
-                    val=val,
+                    val=resolve_column_kind(table, column.kind, ctx=ctx),
                     name=column.name,
                 )
             )
@@ -90,11 +105,76 @@ def resolve_ResTarget(
     ):
         alias = static.name_in_pg_catalog(res_target.val.name)
 
-    col = context.Column(name=alias, reference_as=alias)
-    new_target = pgast.ResTarget(
-        val=val, name=alias, span=res_target.span
+    if not res_target.name and existing_names and alias in existing_names:
+        # when a name already exists, don't infer the same name
+        # this behavior is technically different than Postgres, but it is also
+        # not documented and users should not be relying on it.
+        # It does help us in some cases (passing `SELECT a.id, b.id` into DML).
+        alias = None
+
+    name: str = alias or ctx.alias_generator.get('col')
+    col = context.Column(
+        name=name, kind=context.ColumnByName(reference_as=name)
     )
+    new_target = pgast.ResTarget(val=val, name=name, span=res_target.span)
     return (new_target,), (col,)
+
+
+def resolve_column_kind(
+    table: context.Table, column: context.ColumnKind, *, ctx: Context
+) -> pgast.BaseExpr:
+    match column:
+        case context.ColumnByName(reference_as=reference_as):
+            if table.reference_as:
+                return pgast.ColumnRef(name=(table.reference_as, reference_as))
+            else:
+                # In some cases tables might not have an assigned alias
+                # because that is not syntactically possible (COPY), or because
+                # the table being referenced is currently being assembled
+                # (e.g. ORDER BY refers to a newly defined column).
+
+                # So we make an assumption that in such cases, this will not
+                # be ambiguous. I think this is not strictly correct.
+                return pgast.ColumnRef(name=(reference_as,))
+
+        case context.ColumnStaticVal(val=val):
+            # special case: __type__ static value
+            return _uuid_const(val)
+        case context.ColumnComputable(pointer=pointer):
+
+            expr = pointer.get_expr(ctx.schema)
+            assert expr
+
+            source = pointer.get_source(ctx.schema)
+            assert isinstance(source, s_types.Type)
+            source_id = irast.PathId.from_type(ctx.schema, source, env=None)
+
+            singletons = [source]
+            options = qlcompiler.CompilerOptions(
+                modaliases={None: 'default'},
+                anchors={'__source__': source},
+                path_prefix_anchor='__source__',
+                singletons=singletons,
+                make_globals_empty=True,  # TODO: globals in SQL
+            )
+            compiled = expr.compiled(ctx.schema, options=options)
+
+            sql_tree = pgcompiler.compile_ir_to_sql_tree(
+                compiled.irast,
+                external_rvars={
+                    (source_id, pgce.PathAspect.SOURCE): pgast.RelRangeVar(
+                        alias=pgast.Alias(
+                            aliasname=table.reference_as,
+                        ),
+                        relation=pgast.Relation(name=table.reference_as),
+                    ),
+                },
+                output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
+            )
+            assert isinstance(sql_tree.ast, pgast.BaseExpr)
+            return sql_tree.ast
+        case _:
+            raise NotImplementedError(column)
 
 
 @dispatch._resolve.register
@@ -109,17 +189,7 @@ def resolve_ColumnRef(
         assert table.reference_as
         return pgast.ColumnRef(name=(table.reference_as, pgast.Star()))
 
-    if column.static_val:
-        return _uuid_const(column.static_val)
-
-    assert column.reference_as
-
-    if table.name:
-        assert table.reference_as
-        return pgast.ColumnRef(name=(table.reference_as, column.reference_as))
-    else:
-        # this is a reference to a local column, so it doesn't need table name
-        return pgast.ColumnRef(name=(column.reference_as,))
+    return resolve_column_kind(table, column.kind, ctx=ctx)
 
 
 def _uuid_const(val: uuid.UUID):
@@ -157,7 +227,11 @@ def _lookup_column(
             # is it a reference to a rel var?
             try:
                 tab = _lookup_table(col_name, ctx)
-                col = context.Column(reference_as=tab.reference_as)
+                assert tab.reference_as
+                col = context.Column(
+                    name=tab.reference_as,
+                    kind=context.ColumnByName(reference_as=tab.reference_as),
+                )
                 return [(context.Table(), col)]
             except errors.QueryError:
                 pass
@@ -319,8 +393,14 @@ def resolve_SortBy(
 
 
 func_calls_remapping: Dict[Tuple[str, ...], Tuple[str, ...]] = {
-    ('information_schema', '_pg_truetypid'): ('edgedbsql', '_pg_truetypid'),
-    ('information_schema', '_pg_truetypmod'): ('edgedbsql', '_pg_truetypmod'),
+    ('information_schema', '_pg_truetypid'): (
+        common.versioned_schema('edgedbsql'),
+        '_pg_truetypid',
+    ),
+    ('information_schema', '_pg_truetypmod'): (
+        common.versioned_schema('edgedbsql'),
+        '_pg_truetypmod',
+    ),
     ('pg_catalog', 'format_type'): ('edgedb', '_format_type'),
 }
 

@@ -26,6 +26,7 @@ import textwrap
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql
 
+
 from . import base
 from . import ddl
 
@@ -148,16 +149,18 @@ class AlterRole(ddl.AlterObject, RoleCommand):
             return ''
 
     def generate_extra(self, block: base.PLBlock) -> None:
+        from .. import trampoline
+
         super().generate_extra(block)
         if getattr(self.object, 'single_role_metadata', None):
             value = json.dumps(self.object.single_role_metadata)
-            query = base.Query(
+            query = base.Query(trampoline.fixup_query(
                 f'''
-                UPDATE edgedbinstdata.instdata
+                UPDATE edgedbinstdata_VER.instdata
                 SET json = {ql(value)}::jsonb
                 WHERE key = 'single_role_metadata'
                 '''
-            )
+            ))
             block.add_command(query.code(block))
 
 

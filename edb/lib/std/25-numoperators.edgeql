@@ -1751,6 +1751,7 @@ std::`+` (l: std::bigint, r: std::bigint) -> std::bigint {
     CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
+    SET force_return_cast := true;
     USING SQL OPERATOR r'+(numeric,numeric)';
 };
 
@@ -1817,6 +1818,7 @@ std::`+` (l: std::bigint) -> std::bigint {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL OPERATOR r'+(,numeric)';
 };
 
@@ -1883,6 +1885,7 @@ std::`-` (l: std::bigint, r: std::bigint) -> std::bigint {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL OPERATOR r'-(numeric,numeric)';
 };
 
@@ -1948,6 +1951,7 @@ std::`-` (l: std::bigint) -> std::bigint {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL OPERATOR r'-(,numeric)';
 };
 
@@ -2019,6 +2023,7 @@ std::`*` (l: std::bigint, r: std::bigint) -> std::bigint {
     CREATE ANNOTATION std::description := 'Arithmetic multiplication.';
     SET volatility := 'Immutable';
     SET commutator := 'std::*';
+    SET force_return_cast := true;
     USING SQL OPERATOR r'*(numeric,numeric)';
 };
 
@@ -2161,7 +2166,7 @@ std::`//` (n: std::bigint, d: std::bigint) -> std::bigint
     USING SQL $$
         SELECT floor(
             1.0::numeric * "n"::numeric / "d"::numeric
-        )::edgedb.bigint_t;
+        )::edgedbt.bigint_t;
     $$;
 };
 
@@ -2292,7 +2297,7 @@ std::`%` (n: std::bigint, d: std::bigint) -> std::bigint
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'%(numeric,numeric)';
     USING SQL $$
-        SELECT (((n % d) + d) % d)::edgedb.bigint_t;
+        SELECT (((n % d) + d) % d)::edgedbt.bigint_t;
     $$;
 };
 
@@ -2359,6 +2364,7 @@ std::`^` (n: std::bigint, p: std::bigint) -> std::decimal {
     CREATE ANNOTATION std::identifier := 'pow';
     CREATE ANNOTATION std::description := 'Power operation.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL OPERATOR '^(numeric,numeric)';
 };
 
@@ -2502,7 +2508,7 @@ CREATE CAST FROM std::decimal TO std::float32 {
 
 CREATE CAST FROM std::decimal TO std::bigint {
     SET volatility := 'Immutable';
-    USING SQL 'SELECT round($1)::edgedb.bigint_t';
+    USING SQL 'SELECT round($1)::edgedbt.bigint_t';
 };
 
 
@@ -2526,7 +2532,7 @@ CREATE CAST FROM std::float32 TO std::int64 {
 
 CREATE CAST FROM std::float32 TO std::bigint {
     SET volatility := 'Immutable';
-    USING SQL 'SELECT round($1)::edgedb.bigint_t';
+    USING SQL 'SELECT round($1)::edgedbt.bigint_t';
 };
 
 
@@ -2543,7 +2549,7 @@ CREATE CAST FROM std::float32 TO std::decimal {
             THEN
                 NULL::numeric
             ELSE
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::numeric,
                     'invalid_text_representation',
                     msg => 'invalid value for numeric: ' || quote_literal(val)
@@ -2574,7 +2580,7 @@ CREATE CAST FROM std::float64 TO std::int64 {
 
 CREATE CAST FROM std::float64 TO std::bigint {
     SET volatility := 'Immutable';
-    USING SQL 'SELECT round($1)::edgedb.bigint_t';
+    USING SQL 'SELECT round($1)::edgedbt.bigint_t';
 };
 
 
@@ -2591,7 +2597,7 @@ CREATE CAST FROM std::float64 TO std::decimal {
             THEN
                 NULL::numeric
             ELSE
-                edgedb.raise(
+                edgedb_VER.raise(
                     NULL::numeric,
                     'invalid_text_representation',
                     msg => 'invalid value for numeric: ' || quote_literal(val)

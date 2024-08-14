@@ -158,9 +158,7 @@ def init_context(
 
 
 def fini_expression(
-    ir: irast.Set,
-    *,
-    ctx: context.ContextLevel,
+    ir: irast.Set, *, ctx: context.ContextLevel
 ) -> irast.Statement | irast.ConfigCommand:
 
     ctx.path_scope = ctx.env.path_scope
@@ -291,12 +289,14 @@ def fini_expression(
         view_shapes_metadata=ctx.env.view_shapes_metadata,
         schema=ctx.env.schema,
         schema_refs=frozenset(
-            ctx.env.schema_refs - ctx.env.created_schema_objects),
-        schema_ref_exprs=ctx.env.schema_ref_exprs,
-        created_schema_types=frozenset(
-            t for t in ctx.env.created_schema_objects
-            if isinstance(t, s_types.Type)
+            {
+                r
+                for r in ctx.env.schema_refs
+                # filter out newly derived objects
+                if ctx.env.orig_schema.has_object(r.id)
+            }
         ),
+        schema_ref_exprs=ctx.env.schema_ref_exprs,
         type_rewrites={
             (typ.id, not skip_subtypes): s
             for (typ, skip_subtypes), s in ctx.env.type_rewrites.items()

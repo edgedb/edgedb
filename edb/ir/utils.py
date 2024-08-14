@@ -31,6 +31,7 @@ from typing import (
     Sequence,
     Dict,
     List,
+    Iterable,
     Set,
     cast,
     TYPE_CHECKING,
@@ -48,7 +49,6 @@ from edb.common import ast
 from edb.common import ordered
 
 from edb.edgeql import qltypes as ft
-from edb.schema import name as sn
 
 from . import ast as irast
 from . import typeutils
@@ -322,10 +322,17 @@ class ContainsDMLVisitor(ast.NodeVisitor):
         return bool(self.generic_visit(node))
 
 
-def contains_dml(stmt: irast.Base, *, skip_bindings: bool = False) -> bool:
+def contains_dml(
+    stmt: irast.Base,
+    *,
+    skip_bindings: bool = False,
+    skip_nodes: Iterable[irast.Base] = (),
+) -> bool:
     """Check whether a statement contains any DML in a subtree."""
     # TODO: Make this caching.
     visitor = ContainsDMLVisitor(skip_bindings=skip_bindings)
+    for node in skip_nodes:
+        visitor._memo[node] = False
     res = visitor.visit(stmt) is True
     return res
 
@@ -496,13 +503,7 @@ def is_singleton_set_of_call(
     # Some set functions and operators are allowed in singleton mode
     # as long as their inputs are singletons
 
-    return call.func_shortname in {
-        sn.QualName('std', 'IN'),
-        sn.QualName('std', 'NOT IN'),
-        sn.QualName('std', 'EXISTS'),
-        sn.QualName('std', '??'),
-        sn.QualName('std', 'IF'),
-    }
+    return bool(call.is_singleton_set_of)
 
 
 def has_set_of_param(
@@ -533,10 +534,13 @@ def find_set_of_op(
     return next(iter(calls or []), None)
 
 
-T = TypeVar('T')
+ExprT = TypeVar('ExprT', bound=irast.Expr)
 
 
-def is_set_instance(ir: irast.Set, typ: Type[T]) -> TypeGuard[irast.SetE[T]]:
+def is_set_instance(
+    ir: irast.Set,
+    typ: Type[ExprT],
+) -> TypeGuard[irast.SetE[ExprT]]:
     return isinstance(ir.expr, typ)
 
 
@@ -568,3 +572,23 @@ def sub_expr(ir: irast.Set) -> Optional[irast.Expr]:
         return ir.expr.expr
     else:
         return ir.expr
+
+
+class CollectSchemaTypesVisitor(ast.NodeVisitor):
+    types: Set[uuid.UUID]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.types = set()
+
+    def visit_Set(self, node: irast.Set) -> None:
+        self.types.add(node.typeref.id)
+        self.generic_visit(node)
+
+
+def collect_schema_types(stmt: irast.Base) -> Set[uuid.UUID]:
+    """Collect ids of all types referenced in the statement."""
+
+    visitor = CollectSchemaTypesVisitor()
+    visitor.visit(stmt)
+    return visitor.types

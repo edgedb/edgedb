@@ -285,8 +285,9 @@ def new_array_set(
 
     if stype is None:
         assert element_type
-        ctx.env.schema, stype = s_types.Array.from_subtypes(
-            ctx.env.schema, [element_type])
+        ctx.env.schema, stype = s_types.Array.create(
+            ctx.env.schema, element_type=element_type, dimensions=[-1]
+        )
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
     arr = irast.Array(elements=elements, typeref=typeref)
     return ensure_set(arr, type_override=stype, ctx=ctx)
@@ -594,6 +595,10 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             computables.append(path_tip)
 
         if pathctx.path_is_inserting(path_tip.path_id, ctx=ctx):
+            stype = ctx.env.schema.get_by_id(
+                path_tip.typeref.id, type=s_types.Type
+            )
+            assert stype
             raise_self_insert_error(stype, step.span, ctx=ctx)
 
         # Don't track this step of the path if it didn't change the set

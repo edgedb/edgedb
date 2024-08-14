@@ -357,6 +357,9 @@ def __infer_func_call(
         for g_arg in ir.global_args:
             _infer_set(g_arg, scope_tree=scope_tree, ctx=ctx)
 
+    if ir.body:
+        infer_multiplicity(ir.body, scope_tree=scope_tree, ctx=ctx)
+
     if card.is_single():
         return UNIQUE
     elif str(ir.func_shortname) == 'std::assert_distinct':

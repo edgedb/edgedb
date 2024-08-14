@@ -16,10 +16,15 @@
 # limitations under the License.
 #
 
+global username_prefix: str;
 
 type Person {
     required first_name: str;
     last_name: str;
+
+    full_name := __source__.first_name ++ ((' ' ++ .last_name) ?? '');
+    favorite_genre := (select Genre filter .name = 'Drama' limit 1);
+    username := (global username_prefix ?? 'u_') ++ str_lower(.first_name);
 }
 
 type Genre {
@@ -39,11 +44,14 @@ type Movie extending Content {
     director: Person {
         bar: str;
     };
+
+    multi actor_names := __source__.actors.first_name;
+    multi similar_to := (select Content);
 }
 
 type Book extending Content {
     required pages: int16;
-    multi chapters: str;
+multi chapters: str;
 }
 
 type novel extending Book {

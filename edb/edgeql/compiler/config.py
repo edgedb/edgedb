@@ -292,10 +292,19 @@ def _validate_config_object(
 def _validate_global_op(
     expr: qlast.ConfigOp, *, ctx: context.ContextLevel
 ) -> SettingInfo:
+    glob_name = s_utils.ast_ref_to_name(expr.name)
     glob = ctx.env.get_schema_object_and_track(
-        s_utils.ast_ref_to_name(expr.name), expr.name,
+        glob_name, expr.name,
         modaliases=ctx.modaliases, type=s_globals.Global)
     assert isinstance(glob, s_globals.Global)
+
+    if isinstance(expr, (qlast.ConfigSet, qlast.ConfigReset)):
+        if glob.get_expr(ctx.env.schema):
+            raise errors.ConfigurationError(
+                f"global '{glob_name}' is computed from an expression and "
+                f"cannot be modified",
+                span=expr.name.span
+            )
 
     param_type = glob.get_target(ctx.env.schema)
 

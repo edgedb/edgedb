@@ -61,7 +61,8 @@ jobs:
       if: steps.requirements-cache.outputs.cache-hit != 'true'
       run: |
         python -m pip install pip-tools
-        pip-compile --no-strip-extras --all-build-deps --extra test \
+        pip-compile --no-strip-extras --all-build-deps \
+          --extra test,language-server \
           --output-file requirements.txt pyproject.toml
 
     - name: Install Python dependencies
@@ -117,9 +118,9 @@ jobs:
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
         restore-keys: |
-          edb-rust-v3-
+          edb-rust-v4-
 
     - name: Handle cached Cython extensions
       uses: actions/cache@v4
@@ -166,7 +167,7 @@ jobs:
       if: |
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true'
-      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      uses: dtolnay/rust-toolchain@d0e72ca3bfdc51937a4f81431ccbed269ef9f2a2
       with:
         components: "cargo,rustc,rust-std"
         toolchain: "stable"
@@ -406,7 +407,7 @@ jobs:
         key: edb-rust-build-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Install rust toolchain
-      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      uses: dtolnay/rust-toolchain@d0e72ca3bfdc51937a4f81431ccbed269ef9f2a2
       with:
         components: "cargo,rustc,rust-std"
         toolchain: "stable"
@@ -504,7 +505,7 @@ jobs:
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
       uses: actions/cache@v4
@@ -575,19 +576,23 @@ jobs:
     - name: Test
       env:
         SHARD: ${{ matrix.shard }}
+        EDGEDB_TEST_REPEATS: 1
       run: |
         mkdir -p .results/
-        cp .tmp/time_stats.csv .results/shard_${SHARD}.csv
-        edb test -j2 -v -s ${SHARD}/16 --running-times-log=.results/shard_${SHARD}.csv
+        cp .tmp/time_stats.csv .results/running_times_${SHARD}.csv
+        edb test --jobs 2 --verbose --shard ${SHARD}/16 \
+          --running-times-log=.results/running_times_${SHARD}.csv \
+          --result-log=.results/result_${SHARD}.json
 
     - name: Upload test results
       uses: actions/upload-artifact@v4
+      if: ${{ always() }}
       with:
         name: python-test-results-${{ matrix.shard }}
         path: .results
         retention-days: 1
 
-  collect:
+  python-test-list:
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -663,7 +668,7 @@ jobs:
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
       uses: actions/cache@v4
@@ -729,11 +734,12 @@ jobs:
         # and don't want them to be reinstalled in an "isolated env".
         pip install --no-build-isolation --no-deps -e .[test,docs]
 
-    # Collect tests and upload
+    # List tests and upload
 
     - name: Generate complete list of tests for verification
       env:
         SHARD: ${{ matrix.shard }}
+        EDGEDB_TEST_REPEATS: 1
       run: |
         edb test --list > .tmp/all_tests.txt
 
@@ -745,8 +751,9 @@ jobs:
         retention-days: 1
 
   test-conclusion:
-    needs: [cargo-test, python-test, collect]
+    needs: [cargo-test, python-test, python-test-list]
     runs-on: ubuntu-latest
+    if: ${{ always() }}
     steps:
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -755,7 +762,23 @@ jobs:
 
       - name: Install Python deps
         run: |
-          python -m pip install requests
+          python -m pip install requests click
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Download python-test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: python-test-results-*
+          merge-multiple: true
+          path: .results
+
+      # Render results and exit if they were unsuccessful
+      - name: Render results
+        run: |
+          python edb/tools/test/results.py '.results/result_*.json'
 
       - name: Download shared artifacts
         uses: actions/download-artifact@v4
@@ -768,13 +791,6 @@ jobs:
         with:
           name: test-list
           path: .tmp
-
-      - name: Download python-test results
-        uses: actions/download-artifact@v4
-        with:
-          pattern: python-test-results-*
-          merge-multiple: true
-          path: .results
 
       - name: Merge stats and verify tests completion
         shell: python
@@ -801,7 +817,7 @@ jobs:
                   assert line not in all_tests, "duplicate test name in this run!"
                   all_tests.add(line.strip())
 
-          for new_file in glob.glob(".results/*.csv"):
+          for new_file in glob.glob(".results/running_times_*.csv"):
               with open(new_file) as f:
                   for name, t, c in csv.reader(f):
                       if int(c) > orig.get(name, (0, 0))[1]:

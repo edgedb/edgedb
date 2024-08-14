@@ -363,7 +363,7 @@ CREATE FUNCTION std::sequence_reset(
                 true
             )
         FROM
-            ROWS FROM (edgedb.get_user_sequence_backend_name("seq"))
+            ROWS FROM (edgedb_VER.get_user_sequence_backend_name("seq"))
                 AS sn(schema text, name text)
     $$;
 };
@@ -383,7 +383,7 @@ CREATE FUNCTION std::sequence_reset(
                 false
             )
         FROM
-            ROWS FROM (edgedb.get_user_sequence_backend_name("seq"))
+            ROWS FROM (edgedb_VER.get_user_sequence_backend_name("seq"))
                 AS sn(schema text, name text),
             LATERAL (
                 SELECT start_value
@@ -406,7 +406,7 @@ CREATE FUNCTION std::sequence_next(
                     || '.' || pg_catalog.quote_ident(sn.name)
             )
         FROM
-            ROWS FROM (edgedb.get_user_sequence_backend_name("seq"))
+            ROWS FROM (edgedb_VER.get_user_sequence_backend_name("seq"))
                 AS sn(schema text, name text)
     $$;
 };

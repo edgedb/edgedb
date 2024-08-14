@@ -767,7 +767,7 @@ def compile_TypeCast(
         if target_stype.contains_json(subctx.env.schema):
             # JSON wants type shapes and acts as an output sink.
             subctx.expr_exposed = context.Exposure.EXPOSED
-            subctx.inhibit_implicit_limit = True
+            subctx.implicit_limit = 0
             subctx.implicit_id_in_shapes = False
             subctx.implicit_tid_in_shapes = False
             subctx.implicit_tname_in_shapes = False

@@ -213,9 +213,6 @@ class Environment:
 
     This is used for rewriting expressions in the schema after a rename. """
 
-    created_schema_objects: Set[s_obj.Object]
-    """A set of all schema objects derived by this compilation."""
-
     # Caches for costly operations in edb.ir.typeutils
     ptr_ref_cache: PointerRefCache
     type_ref_cache: Dict[irtyputils.TypeRefCacheKey, irast.TypeRef]
@@ -310,7 +307,6 @@ class Environment:
             irast.ViewShapeMetadata)
         self.schema_refs = set()
         self.schema_ref_exprs = {} if options.track_schema_ref_exprs else None
-        self.created_schema_objects = set()
         self.ptr_ref_cache = PointerRefCache()
         self.type_ref_cache = {}
         self.dml_exprs = []
@@ -533,9 +529,6 @@ class ContextLevel(compiler.ContextLevel):
     implicit_limit: int
     """Implicit LIMIT clause in SELECT statements."""
 
-    inhibit_implicit_limit: bool
-    """Whether implicit limit injection should be inhibited."""
-
     special_computables_in_mutation_shape: FrozenSet[str]
     """A set of "special" computable pointers allowed in mutation shape."""
 
@@ -626,7 +619,6 @@ class ContextLevel(compiler.ContextLevel):
             self.implicit_tid_in_shapes = False
             self.implicit_tname_in_shapes = False
             self.implicit_limit = 0
-            self.inhibit_implicit_limit = False
             self.special_computables_in_mutation_shape = frozenset()
             self.empty_result_type_hint = None
             self.defining_view = None
@@ -671,7 +663,6 @@ class ContextLevel(compiler.ContextLevel):
             self.implicit_tid_in_shapes = prevlevel.implicit_tid_in_shapes
             self.implicit_tname_in_shapes = prevlevel.implicit_tname_in_shapes
             self.implicit_limit = prevlevel.implicit_limit
-            self.inhibit_implicit_limit = prevlevel.inhibit_implicit_limit
             self.special_computables_in_mutation_shape = \
                 prevlevel.special_computables_in_mutation_shape
             self.empty_result_type_hint = prevlevel.empty_result_type_hint

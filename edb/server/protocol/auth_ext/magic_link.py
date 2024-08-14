@@ -61,7 +61,7 @@ class Client(local.Client):
             provider_name, f"Provider is not configured"
         )
 
-    async def register(self, email: str):
+    async def register(self, email: str) -> data.LocalIdentity:
         try:
             result = await execute.parse_execute_json(
                 self.db,
@@ -102,7 +102,7 @@ select identity { * };""",
         link_url: str,
         challenge: str,
         redirect_on_failure: str,
-    ):
+    ) -> None:
         initial_key_material = self._get_signing_key()
         identity_id = await self.get_identity_id_by_email(
             email, factor_type='MagicLinkFactor'

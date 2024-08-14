@@ -247,6 +247,8 @@ cdef class CompilationRequest:
 
         out.write_len_prefixed_bytes(self.source.serialize())
         out.write_bytes(cache_key_bytes)
+        out.write_bytes(self.schema_version.bytes)
+
         self.serialized_cache = bytes(out)
 
     cdef _deserialize_v0(self, bytes data, str query_text):
@@ -280,6 +282,11 @@ cdef class CompilationRequest:
         #    * Except that the serialized session config is replaced by
         #      serialized combined config (session -> database -> system)
         #      that only affects compilation.
+        #    * The schema version
+        #  * OPTIONALLY, the schema version. We wanted to bump the protocol
+        #    version to include this, but 5.x hard crashes when it reads a
+        #    persistent cache with entries it doesn't understand, so instead
+        #    we stick it on the end where it will be ignored by old versions.
 
         cdef char flags
 
@@ -344,6 +351,9 @@ cdef class CompilationRequest:
             buf.read_len_prefixed_bytes(), query_text
         )
         self.cache_key = uuidgen.from_bytes(buf.read_bytes(16))
+
+        if buf._length >= 16:
+            self.schema_version = uuidgen.from_bytes(buf.read_bytes(16))
 
     def __hash__(self):
         return hash(self.get_cache_key())

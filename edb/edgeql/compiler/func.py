@@ -337,6 +337,7 @@ def compile_FunctionCall(
         tuple_path_ids=tuple_path_ids,
         impl_is_strict=func.get_impl_is_strict(env.schema),
         prefer_subquery_args=func.get_prefer_subquery_args(env.schema),
+        is_singleton_set_of=func.get_is_singleton_set_of(env.schema),
         global_args=global_args,
         span=expr.span,
     )
@@ -346,6 +347,18 @@ def compile_FunctionCall(
         res = special_func(fcall, ctx=ctx)
     else:
         res = fcall
+
+    if isinstance(res, irast.FunctionCall) and res.body:
+        # If we are generating a special-cased inlined function call,
+        # make sure to register all the arguments in the scope tree
+        # to ensure that the compiled arguments get picked up when
+        # compiling the body.
+        for arg in res.args.values():
+            pathctx.register_set_in_scope(
+                arg.expr,
+                optional=arg.param_typemod == ft.TypeModifier.OptionalType,
+                ctx=ctx,
+            )
 
     ir_set = setgen.ensure_set(res, typehint=rtype, path_id=path_id, ctx=ctx)
     return stmt.maybe_add_view(ir_set, ctx=ctx)
@@ -593,6 +606,8 @@ def compile_operator(
     oper_name = oper.get_shortname(env.schema)
     str_oper_name = str(oper_name)
 
+    is_singleton_set_of = oper.get_is_singleton_set_of(env.schema)
+
     matched_params = oper.get_params(env.schema)
     rtype = matched_call.return_type
     matched_rtype = oper.get_return_type(env.schema)
@@ -632,9 +647,11 @@ def compile_operator(
 
     from_op = oper.get_from_operator(env.schema)
     sql_operator = None
-    if (from_op is not None and oper.get_code(env.schema) is None and
-            oper.get_from_function(env.schema) is None and
-            not in_polymorphic_func):
+    if (
+        from_op is not None
+        and oper.get_code(env.schema) is None
+        and oper.get_from_function(env.schema) is None
+    ):
         sql_operator = tuple(from_op)
 
     origin_name: Optional[sn.QualName]
@@ -644,6 +661,7 @@ def compile_operator(
         origin_module_id = env.schema.get_global(
             s_mod.Module, origin_name.module).id
         oper_name = derivative_op.get_shortname(env.schema)
+        is_singleton_set_of = derivative_op.get_is_singleton_set_of(env.schema)
     else:
         origin_name = None
         origin_module_id = None
@@ -671,6 +689,7 @@ def compile_operator(
         tuple_path_ids=[],
         impl_is_strict=oper.get_impl_is_strict(env.schema),
         prefer_subquery_args=oper.get_prefer_subquery_args(env.schema),
+        is_singleton_set_of=is_singleton_set_of,
         span=qlexpr.span,
     )
 
@@ -920,7 +939,6 @@ def finalize_args(
                 and ctx.implicit_limit
                 and isinstance(arg_val.expr, irast.SelectStmt)
                 and arg_val.expr.limit is None
-                and not ctx.inhibit_implicit_limit
             ):
                 arg_val.expr.limit = dispatch.compile(
                     qlast.Constant.integer(ctx.implicit_limit),

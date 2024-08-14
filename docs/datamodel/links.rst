@@ -730,8 +730,8 @@ property allows us to modify the link property of the existing link.
             },
             for actor in actors union (
               select Person {
-                @character_name := character.0
-              } filter .name = character.1
+                @character_name := actor.0
+              } filter .name = actor.1
             )
           ))
         };
@@ -853,6 +853,16 @@ Source deletion
 Source deletion policies determine what action should be taken when the
 *source* of a given link is deleted. They are declared with the ``on source
 delete`` clause.
+
+There are 3 available source deletion policies:
+
+- ``allow`` - the source object is deleted and is removed from the set of the
+  link's source objects.
+- ``delete target`` - when the source of a link is deleted, the target
+  is unconditionally deleted.
+- ``delete target if orphan`` - the source object is deleted and the target
+  object is unconditionally deleted unless the target object is linked to by
+  another source object via the same link.
 
 .. code-block:: sdl
     :version-lt: 3.0

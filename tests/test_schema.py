@@ -1641,6 +1641,21 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    def test_schema_rewrite_order_02(self):
+        # One of the properties is going to reference the other property
+        # before it is created in its rewrite via __specified__.
+        # Ensure that this gets ordered correctly.
+        """
+            type User {
+              property foo -> bool {
+                rewrite insert using (__specified__.bar);
+              };
+              property bar -> bool {
+                rewrite insert using (__specified__.foo);
+              };
+            };
+        """
+
     def test_schema_scalar_order_01(self):
         # Make sure scalar types account for base types when tracing SDL
         # dependencies.
@@ -2962,6 +2977,89 @@ class TestSchema(tb.BaseSchemaLoadTest):
         }
         """
 
+    @tb.must_fail(
+        errors.SchemaError,
+        "query parameters are not allowed in schemas",
+    )
+    def test_schema_query_parameter_01(self):
+        """
+        type Foo { foo := <int64>$0 }
+        """
+
+    @tb.must_fail(
+        errors.SchemaError,
+        "query parameters are not allowed in schemas",
+    )
+    def test_schema_query_parameter_02(self):
+        """
+        global foo := <int64>$0
+        """
+
+    @tb.must_fail(
+        errors.InvalidReferenceError,
+        "type 'test::C' does not exist",
+    )
+    def test_schema_unknown_typename_01(self):
+        """
+        type A;
+        type B {
+            link a -> A;
+            property x := <C>.a;
+        }
+        """
+
+    @tb.must_fail(
+        errors.InvalidReferenceError,
+        "type 'test::C' does not exist",
+    )
+    def test_schema_unknown_typename_02(self):
+        """
+        type A;
+        type B {
+            link a -> A;
+            property x := .a is C;
+        }
+        """
+
+    @tb.must_fail(
+        errors.InvalidReferenceError,
+        "type 'test::null' does not exist",
+        hint='Did you mean to use `exists` to check if a set is empty?'
+    )
+    def test_schema_unknown_typename_03(self):
+        """
+        type A;
+        type B {
+            link a -> A;
+            property x := .a is null;
+        }
+        """
+
+    @tb.must_fail(
+        errors.InvalidReferenceError,
+        "type 'test::NONE' does not exist",
+        hint='Did you mean to use `exists` to check if a set is empty?'
+    )
+    def test_schema_unknown_typename_04(self):
+        """
+        type A;
+        type B {
+            link a -> A;
+            property x := .a is NONE;
+        }
+        """
+
+    @tb.must_fail(
+        errors.InvalidReferenceError,
+        "type 'test::C' does not exist",
+    )
+    def test_schema_unknown_typename_05(self):
+        """
+        type B {
+            property x := (introspect C).name;
+        }
+        """
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.
@@ -4088,6 +4186,23 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_55(self):
+        # In Bar, `.foo.b` refers to `.a`. Ensure that when tracing, `.a` is
+        # correctly `Foo.a`, otherwise a recurisve definition is found.
+        schema = r'''
+            type Foo {
+                property a -> str;
+                property b := .a;
+            }
+
+            type Bar {
+                property a := .foo.b;
+                link foo -> Foo;
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
@@ -4994,26 +5109,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             );
         """])
 
-    @test.xerror(
-        '''
-        This wants to transmute an object type into an alias. It
-        produces DDL, but the DDL doesn't really make any sense. We
-        are going to probably need to add DDL syntax to accomplish
-        this.
-
-        Before we do that, we could just improve the error:
-        cannot produce migration because of a dependency cycle:
-          create alias 'default::Base' depends on
-          alter object type 'default::Alias01' depends on
-          create object type 'default::Base' depends on
-          drop object type 'default::Base' depends on
-          drop link '__type__' of object type 'default::Base' depends on
-          alter link '__type__' of link '__type__' depends on
-          alter object type 'default::Alias01' of
-            object type 'default::Alias01' depends on
-          create alias 'default::Base'
-        '''
-    )
     def test_schema_migrations_equivalence_23(self):
         self._assert_migration_equivalence([r"""
             type Child {
@@ -6007,6 +6102,39 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             ]
         )
 
+    def test_schema_migrations_equivalence_constr_rebase_01(self):
+        self._assert_migration_equivalence(
+            [
+            r"""
+            abstract type Foo;
+
+            type Bar {
+              required property baz -> str {
+                constraint max_len_value(280);
+              }
+            }
+            """,
+            r"""
+            abstract type Foo;
+
+            type Bar extending Foo {
+              required property baz -> str {
+                constraint max_len_value(280);
+              }
+            }
+            """,
+            r"""
+            abstract type Foo;
+
+            type Bar {
+              required property baz -> str {
+                constraint max_len_value(280);
+              }
+            }
+            """,
+            ]
+        )
+
     def test_schema_migrations_equivalence_compound_01(self):
         # Check that union types can be referenced in computables
         # Bug #2002.
@@ -6322,8 +6450,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         with self.assertRaisesRegex(
             errors.InvalidDefinitionError,
             "definition dependency cycle between "
-            "property 'val' of object type 'default::Bar' and "
-            "property 'val' of object type 'default::Foo'"
+            "property 'val' of object type 'default::Foo' and "
+            "property 'val' of object type 'default::Bar'"
         ):
             self._assert_migration_equivalence([r"""
                 type Foo {
@@ -9105,6 +9233,44 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     name: str {
                         rewrite update, insert using (.name ++ "!")
                     }
+                };
+            """,
+            r"""
+            """,
+        ])
+
+    def test_schema_migrations_rewrites_02(self):
+        self._assert_migration_equivalence([
+            r"""
+                type User {
+                    property foo -> bool;
+                    property bar -> bool;
+                };
+            """,
+            r"""
+                type User {
+                    property foo -> bool {
+                        rewrite insert using (
+                            __specified__.bar and __specified__.baz
+                        );
+                    };
+                    property bar -> bool {
+                        rewrite insert using (
+                            __specified__.foo and __specified__.baz
+                        );
+                    };
+                    property baz -> bool {
+                        rewrite insert using (
+                            __specified__.foo and __specified__.bar
+                        );
+                    };
+                };
+            """,
+            r"""
+                type User {
+                    property foo -> bool;
+                    property bar -> bool;
+                    property baz -> bool;
                 };
             """,
             r"""

@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Tuple, Mapping, Dict, List
+from typing import Optional, Tuple, Mapping, Dict, List, TYPE_CHECKING
 from dataclasses import dataclass
 
 from edb import errors
@@ -39,8 +39,12 @@ from . import context
 from . import dispatch
 from . import dml
 from . import pathctx
+from . import aliases
 
 from .context import OutputFormat as OutputFormat # NOQA
+
+if TYPE_CHECKING:
+    import enums as pgce
 
 
 @dataclass(kw_only=True, slots=True, repr=False, eq=False, frozen=True)
@@ -63,19 +67,29 @@ def compile_ir_to_sql_tree(
     singleton_mode: bool = False,
     named_param_prefix: Optional[tuple[str, ...]] = None,
     expected_cardinality_one: bool = False,
-    expand_inhviews: bool = False,
+    is_explain: bool = False,
     external_rvars: Optional[
-        Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
+        Mapping[Tuple[irast.PathId, pgce.PathAspect], pgast.PathRangeVar]
     ] = None,
     external_rels: Optional[
         Mapping[
             irast.PathId,
-            Tuple[pgast.BaseRelation | pgast.CommonTableExpr, Tuple[str, ...]],
+            Tuple[
+                pgast.BaseRelation | pgast.CommonTableExpr,
+                Tuple[pgce.PathAspect, ...]
+            ],
         ]
     ] = None,
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
     detach_params: bool = False,
+    alias_generator: Optional[aliases.AliasGenerator] = None,
+    versioned_stdlib: bool = True,
+    # HACK?
+    versioned_singleton: bool = False,
 ) -> CompileResult:
+    if singleton_mode and not versioned_singleton:
+        versioned_stdlib = False
+
     try:
         # Transform to sql tree
         query_params = []
@@ -110,6 +124,7 @@ def compile_ir_to_sql_tree(
             backend_runtime_params = pgparams.get_default_runtime_params()
 
         env = context.Environment(
+            alias_generator=alias_generator,
             output_format=output_format,
             expected_cardinality_one=expected_cardinality_one,
             named_param_prefix=named_param_prefix,
@@ -117,11 +132,12 @@ def compile_ir_to_sql_tree(
             type_rewrites=type_rewrites,
             ignore_object_shapes=ignore_shapes,
             explicit_top_cast=explicit_top_cast,
-            expand_inhviews=expand_inhviews,
+            is_explain=is_explain,
             singleton_mode=singleton_mode,
             scope_tree_nodes=scope_tree_nodes,
             external_rvars=external_rvars,
             backend_runtime_params=backend_runtime_params,
+            versioned_stdlib=versioned_stdlib,
         )
 
         ctx = context.CompilerContextLevel(
@@ -145,9 +161,15 @@ def compile_ir_to_sql_tree(
         qtree = dispatch.compile(ir_expr, ctx=ctx)
         dml.compile_triggers(triggers, qtree, ctx=ctx)
 
-        if isinstance(ir_expr, irast.Set) and not singleton_mode:
-            assert isinstance(qtree, pgast.Query)
-            clauses.fini_toplevel(qtree, ctx)
+        if not singleton_mode:
+            if isinstance(ir_expr, irast.Set):
+                assert isinstance(qtree, pgast.Query)
+                clauses.fini_toplevel(qtree, ctx)
+
+            elif isinstance(qtree, pgast.Query):
+                # Other types of expressions may compile to queries which may
+                # use inheritance CTEs. Ensure they are added here.
+                clauses.insert_ctes(qtree, ctx)
 
         if detach_params:
             detached_params_idx = {
@@ -182,7 +204,7 @@ def new_external_rvar(
     *,
     rel_name: Tuple[str, ...],
     path_id: irast.PathId,
-    outputs: Mapping[Tuple[irast.PathId, Tuple[str, ...]], str],
+    outputs: Mapping[Tuple[irast.PathId, Tuple[pgce.PathAspect, ...]], str],
 ) -> pgast.RelRangeVar:
     """Construct a ``RangeVar`` instance given a relation name and a path id.
 
@@ -222,7 +244,7 @@ def new_external_rvar_as_subquery(
     *,
     rel_name: tuple[str, ...],
     path_id: irast.PathId,
-    aspects: tuple[str, ...],
+    aspects: tuple[pgce.PathAspect, ...],
 ) -> pgast.SelectStmt:
     rvar = new_external_rvar(
         rel_name=rel_name,

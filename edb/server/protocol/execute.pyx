@@ -259,6 +259,7 @@ async def execute(
             await tenant.on_before_create_db_from_template(
                 query_unit.create_db_template,
                 dbv.dbname,
+                query_unit.create_db_mode,
             )
         if query_unit.drop_db:
             await tenant.on_before_drop_db(
@@ -294,6 +295,7 @@ async def execute(
                         use_prep_stmt=use_prep_stmt,
                         state=state,
                         dbver=dbv.dbver,
+                        use_pending_func_cache=compiled.use_pending_func_cache,
                     )
 
                     if query_unit.needs_readback and data:
@@ -700,18 +702,17 @@ async def parse_execute_json(
     )
 
     tenant = db.tenant
-    pgcon = await tenant.acquire_pgcon(db.name)
-    try:
-        return await execute_json(
-            pgcon,
-            dbv,
-            compiled,
-            variables=variables,
-            globals_=globals_,
-        )
-    finally:
-        tenant.release_pgcon(db.name, pgcon)
-        tenant.remove_dbview(dbv)
+    async with tenant.with_pgcon(db.name) as pgcon:
+        try:
+            return await execute_json(
+                pgcon,
+                dbv,
+                compiled,
+                variables=variables,
+                globals_=globals_,
+            )
+        finally:
+            tenant.remove_dbview(dbv)
 
 
 async def execute_json(

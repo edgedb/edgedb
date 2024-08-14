@@ -1470,6 +1470,162 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         # Auto-complete migration
         await self.fast_forward_describe_migration()
 
+    async def test_edgeql_migration_describe_index_01(self):
+        # Migration that creates index.
+        await self.con.execute(r'''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        property a -> int64;
+                    };
+                };
+            };
+        ''')
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        property a -> int64;
+                        index on (.a)
+                    };
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'prompt': (
+                    "did you create index on (.a) "
+                    "of object type 'test::Foo'?"
+                )
+            }
+        })
+
+    async def test_edgeql_migration_describe_index_02(self):
+        # Migration that drops index expression.
+        await self.con.execute(r'''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        property a -> int64;
+                        index on (.a)
+                    };
+                };
+            };
+        ''')
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        property a -> int64;
+                    };
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'prompt': (
+                    "did you drop index on (.a) "
+                    "of object type 'test::Foo'?"
+                )
+            }
+        })
+
+    async def test_edgeql_migration_describe_index_03(self):
+        # Migration that creates index on link property
+        await self.con.execute(r'''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        link bar -> Bar {
+                            baz -> int64;
+                        }
+                    };
+                    type Bar;
+                };
+            };
+        ''')
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        link bar -> Bar {
+                            baz -> int64;
+                            index on (@baz);
+                        }
+                    };
+                    type Bar;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'prompt': (
+                    "did you create index on (@baz) "
+                    "of link 'bar'?"
+                )
+            }
+        })
+
+    async def test_edgeql_migration_describe_index_04(self):
+        # Migration that drops index on link property
+        await self.con.execute(r'''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        link bar -> Bar {
+                            baz -> int64;
+                            index on (@baz);
+                        }
+                    };
+                    type Bar;
+                };
+            };
+        ''')
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Foo {
+                        link bar -> Bar {
+                            baz -> int64;
+                        }
+                    };
+                    type Bar;
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'prompt': (
+                    "did you drop index on (@baz) "
+                    "of link 'bar'?"
+                )
+            }
+        })
+
     async def test_edgeql_migration_describe_scalar_01(self):
         # Migration that renames a type.
         await self.con.execute('''
@@ -4488,18 +4644,6 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }],
         )
 
-    @test.xerror('''
-        edgedb.errors.SchemaError: ObjectType 'test::Base' is already
-        present in the schema <Schema gen:3757 at 0x7fc3319fa820>
-
-        Exception: Error while processing
-        'CREATE ALIAS test::Base := (
-            SELECT
-                test::Child {
-                    bar := test::Child
-                }
-        );'
-    ''')
     async def test_edgeql_migration_eq_23(self):
         await self.migrate(r"""
             type Child {
@@ -11975,15 +12119,21 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
             ['wontfix'],
         )
 
-        await self.migrate('''
-            scalar type Status extending enum<
-                pending, in_progress, wontfix, again>;
-            scalar type ImportStatus extending Status;
-            scalar type ImportAnalyticsStatus extending Status;
+        # Retry for https://github.com/edgedb/edgedb/issues/7553
+        async for tr in self.try_until_succeeds(
+            ignore_regexp="cannot drop type .* "
+                          "because other objects depend on it",
+        ):
+            async with tr:
+                await self.migrate('''
+                    scalar type Status extending enum<
+                        pending, in_progress, wontfix, again>;
+                    scalar type ImportStatus extending Status;
+                    scalar type ImportAnalyticsStatus extending Status;
 
-            type Foo { property x -> ImportStatus };
-            function f(x: Status) -> str USING (<str>x);
-        ''')
+                    type Foo { property x -> ImportStatus };
+                    function f(x: Status) -> str USING (<str>x);
+                ''')
 
         await self.migrate('')
 
@@ -12293,6 +12443,7 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
             {
                 annotation ext::ai::model_name := "text-embedding-test";
                 annotation ext::ai::model_provider := "custom::test";
+                annotation ext::ai::embedding_model_max_batch_tokens := "16384";
                 annotation ext::ai::embedding_model_max_output_dimensions
                   := "10";
                 annotation ext::ai::embedding_model_supports_shortening
@@ -12335,6 +12486,8 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
                     annotation ext::ai::model_provider := "custom::test";
                     annotation ext::ai::embedding_model_max_input_tokens
                       := "8191";
+                    annotation ext::ai::embedding_model_max_batch_tokens
+                      := "16384";
                     annotation ext::ai::embedding_model_max_output_dimensions
                       := "10";
                     annotation ext::ai::embedding_model_supports_shortening
@@ -12361,6 +12514,8 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
                     annotation ext::ai::model_provider := "custom::test";
                     annotation ext::ai::embedding_model_max_input_tokens
                       := "8191";
+                    annotation ext::ai::embedding_model_max_batch_tokens
+                      := "16384";
                     annotation ext::ai::embedding_model_max_output_dimensions
                       := "20";
                     annotation ext::ai::embedding_model_supports_shortening
@@ -12395,6 +12550,8 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
                     annotation ext::ai::model_provider := "custom::test";
                     annotation ext::ai::embedding_model_max_input_tokens
                       := "8191";
+                    annotation ext::ai::embedding_model_max_batch_tokens
+                      := "16384";
                     annotation ext::ai::embedding_model_max_output_dimensions
                       := "10";
                     annotation ext::ai::embedding_model_supports_shortening
@@ -12421,6 +12578,8 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
                     annotation ext::ai::model_provider := "custom::test";
                     annotation ext::ai::embedding_model_max_input_tokens
                       := "8191";
+                    annotation ext::ai::embedding_model_max_batch_tokens
+                      := "16384";
                     annotation ext::ai::embedding_model_max_output_dimensions
                       := "10";
                     annotation ext::ai::embedding_model_supports_shortening
@@ -12458,6 +12617,8 @@ class EdgeQLAIMigrationTestCase(EdgeQLDataMigrationTestCase):
                     annotation ext::ai::model_provider := "custom::test";
                     annotation ext::ai::embedding_model_max_input_tokens
                       := "8191";
+                    annotation ext::ai::embedding_model_max_batch_tokens
+                      := "16384";
                     annotation ext::ai::embedding_model_max_output_dimensions
                       := "10";
                     annotation ext::ai::embedding_model_supports_shortening

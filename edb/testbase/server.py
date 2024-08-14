@@ -90,25 +90,40 @@ if TYPE_CHECKING:
 
 
 def _add_test(result, test):
-    cls = type(test)
+    # test is a tuple of the same test method that may zREPEAT
+    cls = type(test[0])
     try:
-        methods = result[cls]
+        methods, repeat_methods = result[cls]
     except KeyError:
-        methods = result[cls] = []
+        # put zREPEAT tests in a separate list
+        methods = []
+        repeat_methods = []
+        result[cls] = methods, repeat_methods
 
-    methods.append(test)
+    methods.append(test[0])
+    if len(test) > 1:
+        repeat_methods.extend(test[1:])
 
 
-def get_test_cases(tests):
+def _merge_results(result):
+    # make sure all the zREPEAT tests comes in the end
+    return {k: v[0] + v[1] for k, v in result.items()}
+
+
+def _get_test_cases(tests):
     result = {}
 
     for test in tests:
         if isinstance(test, unittest.TestSuite):
-            result.update(get_test_cases(test._tests))
+            result.update(_get_test_cases(test._tests))
         elif not getattr(test, '__unittest_skip__', False):
-            _add_test(result, test)
+            _add_test(result, (test,))
 
     return result
+
+
+def get_test_cases(tests):
+    return _merge_results(_get_test_cases(tests))
 
 
 bag = assert_data_shape.bag
@@ -176,11 +191,15 @@ class TestCaseMeta(type(unittest.TestCase)):
             yield methname, meth
 
     @classmethod
-    def wrap(mcls, meth):
+    def wrap(mcls, meth, is_repeat=False):
         @functools.wraps(meth)
         def wrapper(self, *args, __meth__=meth, **kwargs):
             try_no = 1
 
+            if is_repeat and not getattr(self, 'TRANSACTION_ISOLATION', False):
+                raise unittest.SkipTest()
+
+            self.is_repeat = is_repeat
             while True:
                 try:
                     # There might be unobvious serializability
@@ -216,6 +235,16 @@ class TestCaseMeta(type(unittest.TestCase)):
     def add_method(mcls, methname, ns, meth):
         ns[methname] = mcls.wrap(meth)
 
+        # If EDGEDB_TEST_REPEATS is set, duplicate all the tests.
+        # This is valuable because it should exercise the function
+        # cache.
+        if (
+            os.environ.get('EDGEDB_TEST_REPEATS', None)
+            and methname.startswith('test_')
+        ):
+            new = methname.replace('test_', 'test_zREPEAT_', 1)
+            ns[new] = mcls.wrap(meth, is_repeat=True)
+
     def __new__(mcls, name, bases, ns):
         for methname, meth in mcls._iter_methods(bases, ns.copy()):
             if methname in ns:
@@ -236,6 +265,7 @@ class TestCaseMeta(type(unittest.TestCase)):
 
 
 class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
+    is_repeat: bool = False
 
     @classmethod
     def setUpClass(cls):
@@ -285,7 +315,8 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
     @staticmethod
     def try_until_succeeds(
         *,
-        ignore: Union[Type[Exception], Tuple[Type[Exception]]],
+        ignore: Union[Type[Exception], Tuple[Type[Exception]]] | None = None,
+        ignore_regexp: str | None = None,
         delay: float=0.5,
         timeout: float=5
     ):
@@ -299,16 +330,20 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
                     await edgedb.connect(...)
 
         """
+        if ignore is None and ignore_regexp is None:
+            raise ValueError('Expect at least one of ignore or ignore_regexp')
         return retryloop.RetryLoop(
             backoff=retryloop.const_backoff(delay),
             timeout=timeout,
             ignore=ignore,
+            ignore_regexp=ignore_regexp,
         )
 
     @staticmethod
     def try_until_fails(
         *,
-        wait_for: Union[Type[Exception], Tuple[Type[Exception]]],
+        wait_for: Union[Type[Exception], Tuple[Type[Exception]]] | None = None,
+        wait_for_regexp: str | None = None,
         delay: float=0.5,
         timeout: float=5
     ):
@@ -322,10 +357,15 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
                     await edgedb.connect(...)
 
         """
+        if wait_for is None and wait_for_regexp is None:
+            raise ValueError(
+                'Expect at least one of wait_for or wait_for_regexp'
+            )
         return retryloop.RetryLoop(
             backoff=retryloop.const_backoff(delay),
             timeout=timeout,
             wait_for=wait_for,
+            wait_for_regexp=wait_for_regexp,
         )
 
     def addCleanup(self, func, *args, **kwargs):
@@ -660,16 +700,23 @@ def _shutdown_cluster(cluster, *, destroy=True):
             cluster.destroy()
 
 
-def _fetch_metrics(host: str, port: int) -> str:
-    return _call_system_api(host, port, '/metrics', return_json=False)
+def _fetch_metrics(host: str, port: int, sslctx=None) -> str:
+    return _call_system_api(
+        host, port, '/metrics', return_json=False, sslctx=sslctx
+    )
 
 
 def _fetch_server_info(host: str, port: int) -> dict[str, Any]:
     return _call_system_api(host, port, '/server-info')
 
 
-def _call_system_api(host: str, port: int, path: str, return_json=True):
-    con = http.client.HTTPConnection(host, port)
+def _call_system_api(
+    host: str, port: int, path: str, return_json=True, sslctx=None
+):
+    if sslctx is None:
+        con = http.client.HTTPConnection(host, port)
+    else:
+        con = http.client.HTTPSConnection(host, port, context=sslctx)
     con.connect()
     try:
         con.request(
@@ -690,13 +737,21 @@ def _call_system_api(host: str, port: int, path: str, return_json=True):
         con.close()
 
 
+def parse_metrics(metrics: str) -> dict[str, float]:
+    res = {}
+    for line in metrics.splitlines():
+        if line.startswith('#') or ' ' not in line:
+            continue
+        key, _, val = line.partition(' ')
+        res[key] = float(val)
+    return res
+
+
 def _extract_background_errors(metrics: str) -> str | None:
     non_zero = []
 
-    for line in metrics.splitlines():
-        if line.startswith('edgedb_server_background_errors_total'):
-            label, _, total = line.rpartition(' ')
-            total = float(total)
+    for label, total in parse_metrics(metrics).items():
+        if label.startswith('edgedb_server_background_errors_total'):
             if total:
                 non_zero.append(
                     f'non-zero {label!r} metric: {total}'
@@ -773,7 +828,9 @@ class ClusterTestCase(BaseHTTPTestCase):
         assert cls.cluster is not None
         conargs = cls.cluster.get_connect_args()
         host, port = conargs['host'], conargs['port']
-        return _fetch_metrics(host, port)
+        ctx = ssl.create_default_context()
+        ctx.load_verify_locations(conargs['tls_ca_file'])
+        return _fetch_metrics(host, port, sslctx=ctx)
 
     @classmethod
     def get_connect_args(
@@ -1124,6 +1181,60 @@ class ConnectedTestCase(ClusterTestCase):
         if not look(json.loads(plan)):
             raise AssertionError(f"query did not use the {index_type!r} index")
 
+    @classmethod
+    def get_backend_sql_dsn(cls, dbname=None):
+        settings = cls.con.get_settings()
+        pgaddr = settings.get('pgaddr')
+        if pgaddr is None:
+            raise unittest.SkipTest('raw SQL test skipped: not in devmode')
+        pgaddr = json.loads(pgaddr)
+
+        # Try to grab a password from the specified DSN, if one is
+        # present, since the pgaddr won't have a real one. (The non
+        # specified DSN test suite setup doesn't have one, so it is
+        # fine.)
+        password = None
+        spec_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
+        if spec_dsn:
+            _, params = pgconnparams.parse_dsn(spec_dsn)
+            password = params.password
+
+        if dbname is None:
+            dbname = pgaddr["database"]
+
+        pgdsn = (
+            f'postgres:///{dbname}?user={pgaddr["user"]}'
+            f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
+        )
+        if password is not None:
+            pgdsn += f'&password={password}'
+        return pgdsn
+
+    @classmethod
+    async def get_backend_sql_connection(cls, dbname=None):
+        """Get a raw connection to the underlying SQL server, if possible
+
+        This is useful when we want to do things like querying the pg_catalog
+        of the underlying database.
+        """
+        try:
+            import asyncpg
+        except ImportError:
+            raise unittest.SkipTest(
+                'SQL test skipped: asyncpg not installed')
+
+        pgdsn = cls.get_backend_sql_dsn(dbname=dbname)
+        return await asyncpg.connect(pgdsn)
+
+    @classmethod
+    @contextlib.asynccontextmanager
+    async def with_backend_sql_connection(cls, dbname=None):
+        con = await cls.get_backend_sql_connection(dbname=dbname)
+        try:
+            yield con
+        finally:
+            await con.close()
+
 
 class DatabaseTestCase(ConnectedTestCase):
 
@@ -1161,9 +1272,13 @@ class DatabaseTestCase(ConnectedTestCase):
             base_db_name, _, _ = dbname.rpartition('_')
 
             if cls.get_setup_script():
+                await admin_conn.execute('''
+                    configure session set __internal_testmode := true;
+                ''')
+
                 create_command = (
-                    f'CREATE DATA BRANCH {qlquote.quote_ident(dbname)}'
-                    f' FROM {qlquote.quote_ident(base_db_name)}'
+                    f'CREATE TEMPLATE BRANCH {qlquote.quote_ident(dbname)}'
+                    f' FROM {qlquote.quote_ident(base_db_name)};'
                 )
             else:
                 create_command = (
@@ -1379,6 +1494,8 @@ class SQLQueryTestCase(BaseQueryTestCase):
 
     BASE_TEST_CLASS = True
 
+    scon: asyncpg.Connection
+
     @classmethod
     def setUpClass(cls):
         try:
@@ -1423,8 +1540,8 @@ class SQLQueryTestCase(BaseQueryTestCase):
         finally:
             super().tearDown()
 
-    async def squery_values(self, query):
-        res = await self.scon.fetch(query)
+    async def squery_values(self, query, *args):
+        res = await self.scon.fetch(query, *args)
         return [list(r.values()) for r in res]
 
     def assert_shape(self, res: Any, rows: int, columns: int | List[str]):
@@ -1570,18 +1687,18 @@ class DumpCompatTestCase(
 class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
 
     BASE_TEST_CLASS = True
-    ISOLATED_METHODS = False
     STABLE_DUMP = True
     TRANSACTION_ISOLATION = False
     PARALLELISM_GRANULARITY = 'suite'
 
     async def check_dump_restore_single_db(self, check_method):
-        with tempfile.NamedTemporaryFile() as f:
+        with tempfile.TemporaryDirectory() as f:
+            fname = os.path.join(f, 'dump')
             dbname = edgedb_defines.EDGEDB_SUPERUSER_DB
-            await asyncio.to_thread(self.run_cli, '-d', dbname, 'dump', f.name)
+            await asyncio.to_thread(self.run_cli, '-d', dbname, 'dump', fname)
             await self.tearDownSingleDB()
             await asyncio.to_thread(
-                self.run_cli, '-d', dbname, 'restore', f.name
+                self.run_cli, '-d', dbname, 'restore', fname
             )
 
         # Cycle the connection to avoid state mismatches
@@ -1597,15 +1714,16 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
         src_dbname = self.get_database_name()
         tgt_dbname = f'{src_dbname}_restored'
         q_tgt_dbname = qlquote.quote_ident(tgt_dbname)
-        with tempfile.NamedTemporaryFile() as f:
+        with tempfile.TemporaryDirectory() as f:
+            fname = os.path.join(f, 'dump')
             await asyncio.to_thread(
-                self.run_cli, '-d', src_dbname, 'dump', f.name
+                self.run_cli, '-d', src_dbname, 'dump', fname
             )
 
             await self.con.execute(f'CREATE DATABASE {q_tgt_dbname}')
             try:
                 await asyncio.to_thread(
-                    self.run_cli, '-d', tgt_dbname, 'restore', f.name
+                    self.run_cli, '-d', tgt_dbname, 'restore', fname
                 )
                 con2 = await self.connect(database=tgt_dbname)
             except Exception:
@@ -1675,7 +1793,6 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
 class StablePGDumpTestCase(BaseQueryTestCase):
 
     BASE_TEST_CLASS = True
-    ISOLATED_METHODS = False
     TRANSACTION_ISOLATION = False
 
     def run_pg_dump(self, *args, input: Optional[str] = None) -> None:
@@ -1726,32 +1843,8 @@ class StablePGDumpTestCase(BaseQueryTestCase):
         cls._pg_bin_dir = cls.loop.run_until_complete(
             pgcluster.get_pg_bin_dir())
 
-        # Get the connection to the Postgres backend
-        settings = cls.con.get_settings()
-        pgaddr = settings.get('pgaddr')
-        if pgaddr is None:
-            raise unittest.SkipTest('SQL tests skipped: not in devmode')
-        pgaddr = json.loads(pgaddr)
-
-        # Try to grab a password from the specified DSN, if one is
-        # present, since the pgaddr won't have a real one. (The non
-        # specified DSN test suite setup doesn't have one, so it is
-        # fine.)
-        password = None
-        spec_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
-        if spec_dsn:
-            _, params = pgconnparams.parse_dsn(spec_dsn)
-            password = params.password
-
-        pgparams = (
-            f'?user={pgaddr["user"]}'
-            f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
-        )
-        if password is not None:
-            pgparams += f'&password={password}'
-
         cls.backend = cls.loop.run_until_complete(
-            asyncpg.connect(f'postgres:///{pgaddr["database"]}' + pgparams))
+            cls.get_backend_sql_connection())
 
         # Run pg_dump to create the dump data for an existing EdgeDB database.
         with tempfile.NamedTemporaryFile() as f:
@@ -1772,7 +1865,7 @@ class StablePGDumpTestCase(BaseQueryTestCase):
                 cls.backend.execute(f'create database {tgt_dbname}')
             )
 
-            newdsn = f'postgres:///{tgt_dbname}' + pgparams
+            newdsn = cls.get_backend_sql_dsn(dbname=tgt_dbname)
             # Populate the new database using the dump
             cmd = [
                 cls._pg_bin_dir / 'psql',
@@ -1798,7 +1891,7 @@ class StablePGDumpTestCase(BaseQueryTestCase):
 
         # Connect to the newly created database.
         cls.scon = cls.loop.run_until_complete(
-            asyncpg.connect(f'postgres:///{tgt_dbname}' + pgparams))
+            asyncpg.connect(newdsn))
 
     @classmethod
     def tearDownClass(cls):
@@ -2060,7 +2153,9 @@ class _EdgeDBServerData(NamedTuple):
         return conn_args
 
     def fetch_metrics(self) -> str:
-        return _fetch_metrics(self.host, self.port)
+        ctx = ssl.create_default_context()
+        ctx.load_verify_locations(self.tls_cert_file)
+        return _fetch_metrics(self.host, self.port, sslctx=ctx)
 
     def fetch_server_info(self) -> dict[str, Any]:
         return _fetch_server_info(self.host, self.port)
@@ -2323,6 +2418,9 @@ class _EdgeDBServer:
             cmd += ['--jwt-revocation-list-file',
                     self.jwt_revocation_list_file]
 
+        if not self.multitenant_config:
+            cmd += ['--instance-name=localtest']
+
         if self.extra_args:
             cmd.extend(self.extra_args)
 
@@ -2342,7 +2440,7 @@ class _EdgeDBServer:
         self.proc: asyncio.Process = await asyncio.create_subprocess_exec(
             *cmd,
             env=env,
-            stdout=subprocess.PIPE if not self.debug else None,
+            stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             pass_fds=(status_w.fileno(),),
         )
@@ -2353,6 +2451,29 @@ class _EdgeDBServer:
                 timeout=240,
             ),
         )
+
+        output = b''
+
+        async def read_stdout():
+            nonlocal output
+            # Tee the log temporarily to a tempfile that exists as long as the
+            # test is running. This helps debug hanging tests.
+            with tempfile.NamedTemporaryFile(
+                mode='w+t',
+                prefix='edgedb-test-log-') as temp_file:
+                if self.debug:
+                    print(f"Logging to {temp_file.name}")
+                while True:
+                    line = await self.proc.stdout.readline()
+                    if not line:
+                        break
+                    output += line
+                    temp_file.write(line.decode(errors='ignore'))
+                    if self.debug:
+                        print(line.decode(errors='ignore'), end='')
+
+        stdout_task = asyncio.create_task(read_stdout())
+
         try:
             _, pending = await asyncio.wait(
                 [
@@ -2378,8 +2499,8 @@ class _EdgeDBServer:
             await asyncio.wait(pending, timeout=10)
 
         if self.proc.returncode is not None:
-            output = (await self.proc.stdout.read()).decode().strip()
-            raise edgedb_cluster.ClusterError(output)
+            await stdout_task
+            raise edgedb_cluster.ClusterError(output.decode(errors='ignore'))
         else:
             assert status_task.done()
             data = status_task.result()
@@ -2552,15 +2673,31 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
     # Prepare the source heaps
     setup_count = 0
     for case, tests in cases.items():
+        # Extract zREPEAT tests and attach them to their first runs
+        combined = {}
+        for test in tests:
+            test_name = str(test)
+            orig_name = test_name.replace('test_zREPEAT', 'test')
+            if orig_name == test_name:
+                if test_name in combined:
+                    combined[test_name] = (test, *combined[test_name])
+                else:
+                    combined[test_name] = (test,)
+            else:
+                if orig_name in combined:
+                    combined[orig_name] = (*combined[orig_name], test)
+                else:
+                    combined[orig_name] = (test,)
+
         setup_script_getter = getattr(case, 'get_setup_script', None)
-        if setup_script_getter and tests:
+        if setup_script_getter and combined:
             tests_per_setup = []
             est_per_setup = setup_est = stats.get(
                 'setup::' + case.get_database_name(), (new_setup_est, 0),
             )[0]
-            for test in tests:
-                total_tests += 1
-                est = stats.get(str(test), (new_test_est, 0))[0]
+            for test_name, test in combined.items():
+                total_tests += len(test)
+                est = stats.get(test_name, (new_test_est, 0))[0] * len(test)
                 est_per_setup += est
                 tests_per_setup.append((est, test))
             heapq.heappush(
@@ -2570,9 +2707,9 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
             setup_count += 1
             total_est += est_per_setup
         else:
-            for test in tests:
-                total_tests += 1
-                est = stats.get(str(test), (new_test_est, 0))[0]
+            for test_name, test in combined.items():
+                total_tests += len(test)
+                est = stats.get(test_name, (new_test_est, 0))[0] * len(test)
                 total_est += est
                 heapq.heappush(tests_with_est, (-est, total_tests, test))
 
@@ -2609,7 +2746,7 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
             if current == selected_shard:
                 # Add the test to the result
                 _add_test(cases, test)
-                selected_tests += 1
+                selected_tests += len(test)
                 selected_est += est
 
             if est_acc >= target_est and -remaining_est > setup_est * 2:
@@ -2634,7 +2771,7 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
         if current == selected_shard:
             # Add the test to the result
             _add_test(cases, test)
-            selected_tests += 1
+            selected_tests += len(test)
             selected_est -= est
 
         if est_acc >= target_est:
@@ -2653,7 +2790,7 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
             if current == selected_shard:
                 for est, _, test in tests_with_est:
                     _add_test(cases, test)
-                    selected_tests += 1
+                    selected_tests += len(test)
                     selected_est -= est
                 break
             tests_with_est.clear()  # should always be empty already here
@@ -2664,7 +2801,7 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
               f'estimate: {int(selected_est / 60)}m {int(selected_est % 60)}s'
               f' / {int(total_est / 60)}m {int(total_est % 60)}s, '
               f'{len(setups)}/{setup_count} databases to setup.')
-    return cases
+    return _merge_results(cases)
 
 
 def find_available_port(max_value=None) -> int:

@@ -434,6 +434,113 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
                 my_param='1 sec',
             )
 
+    async def test_edgeql_globals_14(self):
+        with self.assertRaisesRegex(
+            edgedb.ConfigurationError,
+            "global 'def_cur_user_excited' is computed from an expression "
+            "and cannot be modified",
+        ):
+            await self.con.execute(
+                '''
+                set global def_cur_user_excited := 'yay!'
+                ''',
+            )
+
+    async def test_edgeql_globals_15(self):
+        await self.con.execute('''
+            create global foo := 1;
+        ''')
+
+        with self.assertRaisesRegex(
+            edgedb.ConfigurationError,
+            "global 'def_cur_user_excited' is computed from an expression "
+            "and cannot be modified",
+        ):
+            await self.con.execute(
+                '''
+                reset global def_cur_user_excited
+                ''',
+            )
+
+    async def test_edgeql_globals_client_01(self):
+        con = edgedb.create_async_client(
+            **self.get_connect_args(database=self.con.dbname)
+        )
+        try:
+            globs = dict(
+                cur_user='Alice',
+            )
+            scon = con.with_globals(**globs)
+            res = await scon.query_single(
+                f'select {{ cur_user := global cur_user }}'
+            )
+            dres = dataclasses.asdict(res)
+            self.assertEqual(dres, {'cur_user': 'Alice'})
+        finally:
+            await con.aclose()
+
+    async def test_edgeql_globals_client_02(self):
+        con = edgedb.create_async_client(
+            **self.get_connect_args(database=self.con.dbname)
+        )
+        try:
+            globs = dict(
+                cur_user=1,  # wrong type
+            )
+            scon = con.with_globals(**globs)
+            with self.assertRaisesRegex(
+                edgedb.InvalidArgumentError,
+                r"invalid input for state argument  default::cur_user := 1 "
+                r"\(expected str, got int\)",
+            ):
+                await scon.query_single(
+                    f'select {{ cur_user := global cur_user }}'
+                )
+        finally:
+            await con.aclose()
+
+    async def test_edgeql_globals_client_03(self):
+        con = edgedb.create_async_client(
+            **self.get_connect_args(database=self.con.dbname)
+        )
+        try:
+            globs = dict(
+                def_cur_user_excited='yay!',  # computed
+            )
+            scon = con.with_globals(**globs)
+            with self.assertRaisesRegex(
+                edgedb.QueryArgumentError,
+                r"got {'default::def_cur_user_excited'}, "
+                r"extra {'default::def_cur_user_excited'}",
+            ):
+                await scon.query_single(
+                    f'select {{'
+                    f'    def_cur_user_excited := global def_cur_user_excited'
+                    f'}}'
+                )
+        finally:
+            await con.aclose()
+
+    async def test_edgeql_globals_client_04(self):
+        con = edgedb.create_async_client(
+            **self.get_connect_args(database=self.con.dbname)
+        )
+        try:
+            globs = dict(
+                imaginary='!',  # doesn't exist
+            )
+            scon = con.with_globals(**globs)
+            with self.assertRaisesRegex(
+                edgedb.QueryArgumentError,
+                r"got {'default::imaginary'}, "
+                r"extra {'default::imaginary'}",
+            ):
+                await scon.query_single(
+                    f'select {{ imaginary := global imaginary }}'
+                )
+        finally:
+            await con.aclose()
+
     async def test_edgeql_globals_state_cardinality(self):
         await self.con.execute('''
             set global cur_user := {};

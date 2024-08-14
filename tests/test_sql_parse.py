@@ -22,7 +22,7 @@ from edb.testbase import lang as tb
 from edb.tools import test
 
 
-class TestEdgeQLSelect(tb.BaseDocTest):
+class TestSQLParse(tb.BaseDocTest):
 
     def run_test(self, *, source, spec, expected):
         def inline(text):
@@ -41,7 +41,7 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         else:
             expected = source
 
-        ast = parser.parse(source)
+        ast = parser.parse(source, propagate_spans=True)
         sql_stmts = [
             codegen.generate_source(stmt, pretty=False) for stmt in ast
         ]
@@ -464,6 +464,13 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SELECT -1; SELECT 0; SELECT 1
         """
 
+    def test_sql_parse_select_61(self):
+        """
+        SELECT a[1:3], b.x
+% OK %
+        SELECT (a)[1:3], b.x
+        """
+
     def test_sql_parse_insert_00(self):
         """
         INSERT INTO my_table (id, name) VALUES (1, 'some')
@@ -539,6 +546,22 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_insert_10(self):
         """
         INSERT INTO films (code, title, did) VALUES ($1, $2, $3)
+        """
+
+    def test_sql_parse_insert_11(self):
+        """
+        INSERT INTO films DEFAULT VALUES
+        ON CONFLICT DO UPDATE
+        SET (a, b) = ('a', 'b'), c = 'c', (d, e) = ('d', 'e')
+        """
+
+    def test_sql_parse_insert_12(self):
+        """
+        INSERT INTO foo DEFAULT VALUES
+        RETURNING a[1:3] AS a, b.x AS b
+% OK %
+        INSERT INTO foo DEFAULT VALUES
+        RETURNING (a)[1:3] AS a, b.x AS b
         """
 
     def test_sql_parse_update_00(self):
@@ -626,6 +649,23 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_update_10(self):
         """
         UPDATE x SET z = now()
+        """
+
+    def test_sql_parse_update_11(self):
+        """
+        UPDATE x SET (a, b) = ('a', 'b'), c = 'c', (d, e) = ('d', 'e')
+        """
+
+    @test.xerror('unsupported')
+    def test_sql_parse_update_12(self):
+        """
+        UPDATE tictactoe SET
+        (board[1:3][1:3], finished) = ('{{,,},{,,},{,,}}', FALSE)
+        """
+
+    def test_sql_parse_update_13(self):
+        """
+        UPDATE tictactoe SET a = a RETURNING *
         """
 
     def test_sql_parse_delete(self):

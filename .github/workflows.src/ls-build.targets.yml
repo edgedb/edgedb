@@ -1,0 +1,47 @@
+publications:
+  - name: prod
+    suffix: ""
+    server: sftp://uploader@package-upload.edgedb.net:22/
+
+targets:
+  linux:
+    - name: linux-x86_64
+      arch: x86_64
+      platform: linux
+      platform_version: x86_64
+      family: generic
+      runs_on: [self-hosted, linux, x64]
+    - name: linux-aarch64
+      arch: aarch64
+      platform: linux
+      platform_version: aarch64
+      family: generic
+      runs_on: [self-hosted, linux, arm64]
+    - name: linuxmusl-x86_64
+      arch: x86_64
+      platform: linux
+      platform_version: x86_64
+      platform_libc: musl
+      family: generic
+      runs_on: [self-hosted, linux, x64]
+    - name: linuxmusl-aarch64
+      arch: aarch64
+      platform: linux
+      platform_version: aarch64
+      platform_libc: musl
+      family: generic
+      runs_on: [self-hosted, linux, arm64]
+
+  macos:
+    - name: macos-x86_64
+      arch: x86_64
+      platform: macos
+      platform_version: x86_64
+      family: generic
+      runs_on: [macos-13]
+    - name: macos-aarch64
+      arch: aarch64
+      platform: macos
+      platform_version: aarch64
+      family: generic
+      runs_on: [macos-14]

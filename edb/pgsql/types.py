@@ -37,6 +37,7 @@ from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 from edb.schema import pointers as s_pointers
+from edb.schema import properties as s_properties
 
 from . import common
 
@@ -47,25 +48,25 @@ base_type_name_map = {
     s_obj.get_known_type_id('std::int32'): ('int4',),
     s_obj.get_known_type_id('std::int16'): ('int2',),
     s_obj.get_known_type_id('std::decimal'): ('numeric',),
-    s_obj.get_known_type_id('std::bigint'): ('edgedb', 'bigint_t'),
+    s_obj.get_known_type_id('std::bigint'): ('edgedbt', 'bigint_t'),
     s_obj.get_known_type_id('std::bool'): ('bool',),
     s_obj.get_known_type_id('std::float64'): ('float8',),
     s_obj.get_known_type_id('std::float32'): ('float4',),
     s_obj.get_known_type_id('std::uuid'): ('uuid',),
-    s_obj.get_known_type_id('std::datetime'): ('edgedb', 'timestamptz_t'),
-    s_obj.get_known_type_id('std::duration'): ('edgedb', 'duration_t',),
+    s_obj.get_known_type_id('std::datetime'): ('edgedbt', 'timestamptz_t'),
+    s_obj.get_known_type_id('std::duration'): ('edgedbt', 'duration_t',),
     s_obj.get_known_type_id('std::bytes'): ('bytea',),
     s_obj.get_known_type_id('std::json'): ('jsonb',),
 
-    s_obj.get_known_type_id('cal::local_datetime'): ('edgedb', 'timestamp_t'),
-    s_obj.get_known_type_id('cal::local_date'): ('edgedb', 'date_t'),
+    s_obj.get_known_type_id('cal::local_datetime'): ('edgedbt', 'timestamp_t'),
+    s_obj.get_known_type_id('cal::local_date'): ('edgedbt', 'date_t'),
     s_obj.get_known_type_id('cal::local_time'): ('time',),
     s_obj.get_known_type_id('cal::relative_duration'):
-        ('edgedb', 'relative_duration_t'),
+        ('edgedbt', 'relative_duration_t'),
     s_obj.get_known_type_id('cal::date_duration'):
-        ('edgedb', 'date_duration_t'),
+        ('edgedbt', 'date_duration_t'),
 
-    s_obj.get_known_type_id('cfg::memory'): ('edgedb', 'memory_t'),
+    s_obj.get_known_type_id('cfg::memory'): ('edgedbt', 'memory_t'),
 }
 
 type_to_range_name_map = {
@@ -74,15 +75,15 @@ type_to_range_name_map = {
     ('numeric',): ('numrange',),
     ('float4',): ('edgedb', 'float32_range_t'),
     ('float8',): ('edgedb', 'float64_range_t'),
-    ('edgedb', 'timestamptz_t'): ('edgedb', 'datetime_range_t'),
-    ('edgedb', 'timestamp_t'): ('edgedb', 'local_datetime_range_t'),
+    ('edgedbt', 'timestamptz_t'): ('edgedb', 'datetime_range_t'),
+    ('edgedbt', 'timestamp_t'): ('edgedb', 'local_datetime_range_t'),
     # cal::local_date uses the built-in daterange instead of a custom
-    # one that actually uses edgedb.date_t as its subtype. This is
+    # one that actually uses edgedbt.date_t as its subtype. This is
     # because cal::local_date is discrete, and its range type should
     # get canonicalized. Defining a canonicalization function for a
     # custom range is a big hassle, and daterange already has the
     # correct canonicalization function
-    ('edgedb', 'date_t'): ('daterange',),
+    ('edgedbt', 'date_t'): ('daterange',),
 }
 
 # Construct a multirange map based on type_to_range_name_map by replacing
@@ -102,7 +103,7 @@ base_type_name_map_r = {
     'character': sn.QualName('std', 'str'),
     'text': sn.QualName('std', 'str'),
     'numeric': sn.QualName('std', 'decimal'),
-    'edgedb.bigint_t': sn.QualName('std', 'bigint'),
+    'edgedbt.bigint_t': sn.QualName('std', 'bigint'),
     'bigint_t': sn.QualName('std', 'bigint'),
     'int4': sn.QualName('std', 'int32'),
     'integer': sn.QualName('std', 'int32'),
@@ -118,28 +119,28 @@ base_type_name_map_r = {
     'float4': sn.QualName('std', 'float32'),
     'uuid': sn.QualName('std', 'uuid'),
     'timestamp with time zone': sn.QualName('std', 'datetime'),
-    'edgedb.timestamptz_t': sn.QualName('std', 'datetime'),
+    'edgedbt.timestamptz_t': sn.QualName('std', 'datetime'),
     'timestamptz_t': sn.QualName('std', 'datetime'),
     'timestamptz': sn.QualName('std', 'datetime'),
     'duration_t': sn.QualName('std', 'duration'),
-    'edgedb.duration_t': sn.QualName('std', 'duration'),
+    'edgedbt.duration_t': sn.QualName('std', 'duration'),
     'interval': sn.QualName('std', 'duration'),
     'bytea': sn.QualName('std', 'bytes'),
     'jsonb': sn.QualName('std', 'json'),
 
     'timestamp': sn.QualName('cal', 'local_datetime'),
     'timestamp_t': sn.QualName('cal', 'local_datetime'),
-    'edgedb.timestamp_t': sn.QualName('cal', 'local_datetime'),
+    'edgedbt.timestamp_t': sn.QualName('cal', 'local_datetime'),
     'date': sn.QualName('cal', 'local_date'),
     'date_t': sn.QualName('cal', 'local_date'),
-    'edgedb.date_t': sn.QualName('cal', 'local_date'),
+    'edgedbt.date_t': sn.QualName('cal', 'local_date'),
     'time': sn.QualName('cal', 'local_time'),
     'relative_duration_t': sn.QualName('cal', 'relative_duration'),
-    'edgedb.relative_duration_t': sn.QualName('cal', 'relative_duration'),
+    'edgedbt.relative_duration_t': sn.QualName('cal', 'relative_duration'),
     'date_duration_t': sn.QualName('cal', 'date_duration'),
-    'edgedb.date_duration_t': sn.QualName('cal', 'date_duration'),
+    'edgedbt.date_duration_t': sn.QualName('cal', 'date_duration'),
 
-    'edgedb.memory_t': sn.QualName('cfg', 'memory'),
+    'edgedbt.memory_t': sn.QualName('cfg', 'memory'),
     'memory_t': sn.QualName('cfg', 'memory'),
 }
 
@@ -451,10 +452,12 @@ TableInfo = Tuple[Tuple[str, str], str, str]
 
 
 def _source_table_info(
-    schema: s_schema.Schema, pointer: s_pointers.Pointer
+    schema: s_schema.Schema, pointer: s_pointers.Pointer,
+    versioned: bool,
 ) -> TableInfo:
     table = common.get_backend_name(
-        schema, not_none(pointer.get_source(schema)), catenate=False
+        schema, not_none(pointer.get_source(schema)),
+        catenate=False, versioned=versioned,
     )
     ptr_name = pointer.get_shortname(schema).name
     if ptr_name.startswith('__') or ptr_name == 'id':
@@ -467,9 +470,11 @@ def _source_table_info(
 
 
 def _pointer_table_info(
-    schema: s_schema.Schema, pointer: s_pointers.Pointer
+    schema: s_schema.Schema, pointer: s_pointers.Pointer,
+    versioned: bool,
 ) -> TableInfo:
-    table = common.get_backend_name(schema, pointer, catenate=False)
+    table = common.get_backend_name(
+        schema, pointer, catenate=False, versioned=versioned)
     col_name = 'target'
     table_type = 'link'
 
@@ -522,6 +527,7 @@ def get_pointer_storage_info(
     schema: s_schema.Schema,
     source: Optional[s_obj.InheritingObject] = None,
     resolve_type: bool = True,
+    versioned: bool = True,
     link_bias: bool = False,
 ) -> PointerStorageInfo:
     assert not pointer.is_non_concrete(
@@ -557,7 +563,8 @@ def get_pointer_storage_info(
         col_name = pointer.get_shortname(schema).name
     elif is_lprop:
         assert source
-        table = common.get_backend_name(schema, source, catenate=False)
+        table = common.get_backend_name(
+            schema, source, catenate=False, versioned=versioned)
         table_type = 'link'
         if pointer.get_shortname(schema).name == 'source':
             col_name = 'source'
@@ -570,9 +577,13 @@ def get_pointer_storage_info(
             table_type = 'ObjectType'
             col_name = None
         elif _pointer_storable_in_source(schema, pointer) and not link_bias:
-            table, table_type, col_name = _source_table_info(schema, pointer)
+            table, table_type, col_name = _source_table_info(
+                schema, pointer, versioned=versioned
+            )
         elif _pointer_storable_in_pointer(schema, pointer):
-            table, table_type, col_name = _pointer_table_info(schema, pointer)
+            table, table_type, col_name = _pointer_table_info(
+                schema, pointer, versioned=versioned,
+            )
         else:
             return None  # type: ignore
 
@@ -605,6 +616,7 @@ def get_ptrref_storage_info(
     resolve_type: bool = ...,
     link_bias: Literal[False] = False,
     allow_missing: Literal[False] = False,
+    versioned: bool = True,
 ) -> PointerStorageInfo: ...
 
 
@@ -615,6 +627,7 @@ def get_ptrref_storage_info(
     resolve_type: bool = ...,
     link_bias: bool = ...,
     allow_missing: bool = ...,
+    versioned: bool = True,
 ) -> Optional[PointerStorageInfo]: ...
 
 
@@ -624,6 +637,8 @@ def get_ptrref_storage_info(
     resolve_type: bool = True,
     link_bias: bool = False,
     allow_missing: bool = False,
+    # XXX
+    versioned: bool = True,
 ) -> Optional[PointerStorageInfo]:
     # We wrap the real version because of bad mypy interactions
     # with lru_cache.
@@ -632,6 +647,7 @@ def get_ptrref_storage_info(
         resolve_type=resolve_type,
         link_bias=link_bias,
         allow_missing=allow_missing,
+        versioned=versioned,
     )
 
 
@@ -642,6 +658,7 @@ def _get_ptrref_storage_info(
     resolve_type: bool = True,
     link_bias: bool = False,
     allow_missing: bool = False,
+    versioned: bool = False,
 ) -> Optional[PointerStorageInfo]:
 
     if ptrref.material_ptr:
@@ -669,7 +686,8 @@ def _get_ptrref_storage_info(
         source_ptr = ptrref.source_ptr
 
         table = common.get_pointer_backend_name(
-            source_ptr.id, source_ptr.name.module, catenate=False
+            source_ptr.id, source_ptr.name.module, catenate=False,
+            versioned=versioned,
         )
         table_type = 'link'
         if ptrref.shortname.name in ('source', 'target'):
@@ -688,8 +706,11 @@ def _get_ptrref_storage_info(
 
         elif _ptrref_storable_in_source(ptrref) and not link_bias:
             assert isinstance(source.name_hint, sn.QualName)
+            # XXX: TRAMPOLINE
             table = common.get_objtype_backend_name(
-                source.id, source.name_hint.module, catenate=False
+                source.id, source.name_hint.module, catenate=False,
+                versioned=versioned,
+
             )
             ptrname = ptrref.shortname.name
             if ptrname.startswith('__') or ptrname == 'id':
@@ -700,7 +721,8 @@ def _get_ptrref_storage_info(
 
         elif _ptrref_storable_in_pointer(ptrref):
             table = common.get_pointer_backend_name(
-                ptrref.id, ptrref.name.module, catenate=False)
+                ptrref.id, ptrref.name.module, catenate=False,
+                versioned=versioned)
             col_name = 'target'
             table_type = 'link'
 
@@ -743,4 +765,40 @@ def _ptrref_storable_in_pointer(ptrref: irast.BasePointerRef) -> bool:
         return (
             ptrref.out_cardinality.is_multi()
             or ptrref.has_properties
+        )
+
+
+def has_table(
+    obj: Optional[s_obj.InheritingObject], schema: s_schema.Schema
+) -> bool:
+    """Returns True for all schema objects that need a postgres table"""
+    assert obj
+
+    if isinstance(obj, s_objtypes.ObjectType):
+        return not (
+            obj.is_compound_type(schema) or
+            obj.get_is_derived(schema) or
+            obj.is_view(schema)
+        )
+
+    assert isinstance(obj, s_pointers.Pointer)
+
+    if obj.is_pure_computable(schema) or obj.get_is_derived(schema):
+        return False
+    elif obj.is_non_concrete(schema):
+        return (
+            not isinstance(obj, s_properties.Property)
+            and str(obj.get_name(schema)) != 'std::link'
+        )
+    elif obj.is_link_property(schema):
+        return not obj.singular(schema)
+    elif not has_table(obj.get_source(schema), schema):
+        return False
+    else:
+        ptr_stor_info = get_pointer_storage_info(
+            obj, resolve_type=False, schema=schema, link_bias=True)
+
+        return (
+            ptr_stor_info is not None
+            and ptr_stor_info.table_type == 'link'
         )

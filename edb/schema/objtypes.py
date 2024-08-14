@@ -32,6 +32,7 @@ from . import abc as s_abc
 from . import annos as s_anno
 from . import constraints
 from . import delta as sd
+from . import functions as s_func
 from . import inheriting
 from . import links
 from . import properties
@@ -417,7 +418,7 @@ def get_or_create_intersection_type(
     *,
     module: Optional[str] = None,
     transient: bool = False,
-) -> Tuple[s_schema.Schema, ObjectType, bool]:
+) -> Tuple[s_schema.Schema, ObjectType]:
 
     name = s_types.get_intersection_type_name(
         (c.get_name(schema) for c in components),
@@ -425,7 +426,6 @@ def get_or_create_intersection_type(
     )
 
     objtype = schema.get(name, default=None, type=ObjectType)
-    created = objtype is None
     if objtype is None:
         components = list(components)
 
@@ -469,7 +469,7 @@ def get_or_create_intersection_type(
                 schema = objtype.add_pointer(schema, ptr)
 
     assert isinstance(objtype, ObjectType)
-    return schema, objtype, created
+    return schema, objtype
 
 
 class ObjectTypeCommandContext(
@@ -514,6 +514,22 @@ class ObjectTypeCommand(
                         span=self.span,
                     )
 
+        # Internal consistency check: our stdlib and extension types
+        # shouldn't extend std::Object, which is reserved for user
+        # types.
+        if (
+            self.scls.is_material_object_type(schema)
+            and self.classname.get_root_module_name() in s_schema.STD_MODULES
+        ):
+            for base in self.scls.get_bases(schema).objects(schema):
+                name = base.get_name(schema)
+                if name == sn.QualName('std', 'Object'):
+                    raise errors.SchemaDefinitionError(
+                        f"standard lib/extension type '{self.classname}' "
+                        f"cannot extend std::Object",
+                        hint="try BaseObject",
+                    )
+
 
 class CreateObjectType(
     ObjectTypeCommand,
@@ -544,6 +560,28 @@ class CreateObjectType(
             return qlast.CreateAlias
         else:
             return super()._get_ast_node(schema, context)
+
+    def _create_finalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if (
+            not context.canonical
+            and self.scls.is_material_object_type(schema)
+        ):
+            # Propagate changes to any functions that depend on
+            # ancestor types in order to recompute the inheritance
+            # situation.
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action='creating an object type',
+                include_ancestors=True,
+                filter=s_func.Function,
+            )
+
+        return super()._create_finalize(schema, context)
 
 
 class RenameObjectType(
@@ -686,3 +724,26 @@ class DeleteObjectType(
             return None
         else:
             return super()._get_ast(schema, context, parent_node=parent_node)
+
+    def _delete_finalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if (
+            not context.canonical
+            and self.scls.is_material_object_type(schema)
+        ):
+            # Propagate changes to any functions that depend on
+            # ancestor types in order to recompute the inheritance
+            # situation.
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action='deleting an object type',
+                include_self=False,
+                include_ancestors=True,
+                filter=s_func.Function,
+            )
+
+        return super()._delete_finalize(schema, context)

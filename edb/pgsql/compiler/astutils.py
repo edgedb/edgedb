@@ -27,6 +27,7 @@ from typing import Optional, Union, Iterator, Sequence, List, TYPE_CHECKING
 from edb.ir import typeutils as irtyputils
 
 from edb.pgsql import ast as pgast
+from edb.pgsql import common
 from edb.pgsql import types as pg_types
 
 if TYPE_CHECKING:
@@ -275,6 +276,7 @@ def safe_array_expr(
     elements: List[pgast.BaseExpr],
     *,
     ser_safe: bool = False,
+    ctx: context.CompilerContextLevel,
 ) -> pgast.BaseExpr:
     result: pgast.BaseExpr = pgast.ArrayExpr(
         elements=elements,
@@ -282,7 +284,7 @@ def safe_array_expr(
     )
     if any(el.nullable for el in elements):
         result = pgast.FuncCall(
-            name=('edgedb', '_nullif_array_nulls'),
+            name=edgedb_func('_nullif_array_nulls', ctx=ctx),
             args=[result],
             ser_safe=ser_safe,
         )
@@ -566,3 +568,14 @@ def maybe_unpack_row(expr: pgast.Base) -> Sequence[pgast.BaseExpr]:
         case pgast.RowExpr():
             return expr.args
     return (expr,)
+
+
+def edgedb_func(
+    name: str,
+    *,
+    ctx: context.CompilerContextLevel
+) -> tuple[str, ...]:
+    return common.maybe_versioned_name(
+        ('edgedb', name),
+        versioned=ctx.env.versioned_stdlib,
+    )

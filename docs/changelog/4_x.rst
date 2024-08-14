@@ -755,3 +755,12 @@ Bug fixes
 
 * Fix update rewrites on types that are children of updated type
   (:eql:gh:`#7073`)
+
+4.8
+===
+
+* Use SQL's ``ON CONFLICT`` to implement ``UNLESS CONFLICT`` more often
+  (:eql:gh:`#7472`)
+
+* Prevent dump hangups from leaving stray Postgres queries.
+  (:eql:gh:`#7262`)

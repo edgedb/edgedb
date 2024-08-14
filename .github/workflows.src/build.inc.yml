@@ -30,25 +30,29 @@
 <% if tgt.family == "debian" %>
         idx_file=<< tgt.platform_version >>.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing << tgt.name >>'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing << tgt.name >>'
+            val=false
+          fi
         fi
 <% elif tgt.family == "redhat" %>
         idx_file=el<< tgt.platform_version >>.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing << tgt.name >>'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing << tgt.name >>'
+            val=false
+          fi
         fi
 <% elif tgt.family == "generic" %>
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-unknown-linux-<< "{}".format(tgt.platform_libc) if tgt.platform_libc else "gnu" >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-unknown-linux-<< "{}".format(tgt.platform_libc) if tgt.platform_libc else "gnu" >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter" || true)
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing << tgt.name >>'
           val=false
@@ -59,13 +63,13 @@
 <% for tgt in targets.macos %>
         val=true
 <% if tgt.platform == "macos" %>
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter" || true)
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing << tgt.platform >>-<< tgt.platform_version >>'
           val=false
         fi
 <% elif tgt.platform == "win" %>
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-pc-windows-msvc.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-pc-windows-msvc.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter" || true)
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing << tgt.platform >>-<< tgt.platform_version >>'
           val=false
@@ -131,8 +135,18 @@
         ref: master
         path: edgedb-pkg
 
+    - name: Update Homebrew before installing Rust toolchain
+      run: |
+        # Homebrew renamed `rustup-init` to `rustup`:
+        #   https://github.com/Homebrew/homebrew-core/pull/177840
+        # But the GitHub Action runner is not updated with this change yet.
+        # This caused the later `brew update` in step `Build` to relink Rust
+        # toolchain executables, overwriting the custom toolchain installed by
+        # `dtolnay/rust-toolchain`. So let's just run `brew update` early.
+        brew update
+
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      uses: dtolnay/rust-toolchain@d0e72ca3bfdc51937a4f81431ccbed269ef9f2a2
       if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
       with:
         components: "cargo,rustc,rust-std"

@@ -289,7 +289,8 @@ def _process_view(
     }
 
     # Now look for any splats and expand them.
-    splat_descs: dict[str, ShapeElementDesc] = {}
+    # Track descriptions by name and whether they are link properties.
+    splat_descs: dict[Tuple[str, bool], ShapeElementDesc] = {}
     for shape_el in elements:
         if not isinstance(shape_el.expr.steps[0], qlast.Splat):
             continue
@@ -369,7 +370,8 @@ def _process_view(
             desc = _shape_el_ql_to_shape_el_desc(
                 splat_el, source=view_scls, s_ctx=s_ctx, ctx=ctx
             )
-            if old_desc := splat_descs.get(desc.ptr_name):
+            desc_key: Tuple[str, bool] = (desc.ptr_name, desc.is_linkprop)
+            if old_desc := splat_descs.get(desc_key):
                 # If pointers appear in multiple splats, we take the
                 # one from the ancestor class. If neither class is an
                 # ancestor, we reject it.
@@ -390,7 +392,7 @@ def _process_view(
                     pass
                 elif old_source.issubclass(ctx.env.schema, new_source):
                     # Take the new one
-                    splat_descs[desc.ptr_name] = desc
+                    splat_descs[desc_key] = desc
                 else:
                     vn1 = old_source.get_verbosename(schema=ctx.env.schema)
                     vn2 = new_source.get_verbosename(schema=ctx.env.schema)
@@ -401,7 +403,7 @@ def _process_view(
                     )
 
             else:
-                splat_descs[desc.ptr_name] = desc
+                splat_descs[desc_key] = desc
 
     shape_desc.extend(splat_descs.values())
 
@@ -1531,8 +1533,7 @@ def _normalize_view_ptr_expr(
                 qlexpr.limit = shape_el.limit
 
             if (
-                (ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
-                and not qlexpr.limit
+                ctx.expr_exposed
                 and ctx.implicit_limit
                 and not base_is_singleton
             ):
@@ -1655,12 +1656,8 @@ def _normalize_view_ptr_expr(
             qlexpr = astutils.ensure_ql_select(qlexpr)
 
         if (
-            (ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
+            ctx.expr_exposed
             and ctx.implicit_limit
-            and isinstance(qlexpr, (
-                qlast.SelectQuery, qlast.DeleteQuery, qlast.ShapeElement
-            ))
-            and not qlexpr.limit
         ):
             qlexpr = qlast.SelectQuery(result=qlexpr, implicit=True)
             qlexpr.limit = qlast.Constant.integer(ctx.implicit_limit)
@@ -2642,7 +2639,5 @@ def _record_created_collection_types(
     if isinstance(
         type, s_types.Collection
     ) and not ctx.env.orig_schema.get_by_id(type.id, default=None):
-        ctx.env.created_schema_objects.add(type)
-
         for sub_type in type.get_subtypes(ctx.env.schema):
             _record_created_collection_types(sub_type, ctx)

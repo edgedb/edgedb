@@ -21,7 +21,7 @@ import urllib.parse
 import json
 import enum
 
-from typing import Callable
+from typing import Any, Callable
 from jwcrypto import jwt, jwk
 from datetime import datetime
 
@@ -70,17 +70,15 @@ class ContentType(enum.StrEnum):
     FORM_ENCODED = "application/x-www-form-urlencoded"
 
 
-class OpenIDProvider(BaseProvider):
+class OpenIDConnectProvider(BaseProvider):
     def __init__(
         self,
         name: str,
         issuer_url: str,
-        *args,
-        content_type: ContentType = ContentType.JSON,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ):
         super().__init__(name, issuer_url, *args, **kwargs)
-        self.content_type = content_type
 
     async def get_code_url(
         self, state: str, redirect_uri: str, additional_scope: str
@@ -114,23 +112,16 @@ class OpenIDProvider(BaseProvider):
                 "redirect_uri": redirect_uri,
             }
             headers = {"Accept": ContentType.JSON.value}
-            if self.content_type == ContentType.JSON:
-                resp = await client.post(
-                    token_endpoint.path,
-                    json=request_body,
-                    headers=headers,
-                )
-            else:
-                resp = await client.post(
-                    token_endpoint.path,
-                    data=request_body,
-                    headers=headers,
-                )
+            resp = await client.post(
+                token_endpoint.path,
+                data=request_body,
+                headers=headers,
+            )
             if resp.status_code >= 400:
                 raise errors.OAuthProviderFailure(
                     f"Failed to exchange code: {resp.text}"
                 )
-            content_type = resp.headers.get('Content-Type', self.content_type)
+            content_type = resp.headers.get('Content-Type')
             if content_type.startswith(str(ContentType.JSON)):
                 response_body = resp.json()
             else:
@@ -183,7 +174,7 @@ class OpenIDProvider(BaseProvider):
             picture=payload.get("picture"),
         )
 
-    async def _get_oidc_config(self):
+    async def _get_oidc_config(self) -> data.OpenIDConfig:
         client = self.http_factory(base_url=self.issuer_url)
         response = await client.get('/.well-known/openid-configuration')
         config = response.json()

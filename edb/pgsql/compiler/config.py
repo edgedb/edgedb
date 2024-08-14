@@ -69,7 +69,7 @@ def compile_ConfigSet(
             )
 
         fcall = pgast.FuncCall(
-            name=('edgedb', '_alter_current_database_set'),
+            name=astutils.edgedb_func('_alter_current_database_set', ctx=ctx),
             args=[pgast.StringConstant(val=op.backend_setting), val],
         )
 
@@ -162,7 +162,7 @@ def compile_ConfigSet(
                 ),
                 target_list=[
                     pgast.MultiAssignRef(
-                        columns=[pgast.ColumnRef(name=['value'])],
+                        columns=['value'],
                         source=pgast.RowExpr(
                             args=[
                                 val,
@@ -227,7 +227,7 @@ def compile_ConfigSet(
                 ),
                 target_list=[
                     pgast.MultiAssignRef(
-                        columns=[pgast.ColumnRef(name=['value'])],
+                        columns=['value'],
                         source=pgast.RowExpr(
                             args=[
                                 val,
@@ -260,7 +260,7 @@ def compile_ConfigReset(
 
     elif op.scope is qltypes.ConfigScope.DATABASE and op.backend_setting:
         fcall = pgast.FuncCall(
-            name=('edgedb', '_alter_current_database_set'),
+            name=astutils.edgedb_func('_alter_current_database_set', ctx=ctx),
             args=[
                 pgast.StringConstant(val=op.backend_setting),
                 pgast.NullConstant(),
@@ -565,7 +565,7 @@ def _rewrite_config_insert(
 
     overwrite_query = pgast.SelectStmt()
     id_expr = pgast.FuncCall(
-        name=('edgedb', 'uuid_generate_v1mc'),
+        name=astutils.edgedb_func('uuid_generate_v1mc', ctx=ctx),
         args=[],
     )
     pathctx.put_path_identity_var(
@@ -582,7 +582,7 @@ def _rewrite_config_insert(
 
     relctx.add_type_rel_overlay(
         ir_set.typeref,
-        'replace',
+        context.OverlayOp.REPLACE,
         overwrite_query,
         path_id=ir_set.path_id,
         ctx=ctx,
@@ -683,7 +683,11 @@ def _compile_config_value(
         cast_name = s_casts.get_cast_fullname_from_names(
             sn.QualName('std', 'bytes'), sn.QualName('std', 'json'))
         val = pgast.FuncCall(
-            name=common.get_cast_backend_name(cast_name, aspect='function'),
+            name=common.get_cast_backend_name(
+                cast_name,
+                aspect='function',
+                versioned=ctx.env.versioned_stdlib,
+            ),
             args=[val],
         )
 
@@ -781,7 +785,7 @@ def top_output_as_config_op(
                 ),
                 target_list=[
                     pgast.MultiAssignRef(
-                        columns=[pgast.ColumnRef(name=['value'])],
+                        columns=['value'],
                         source=pgast.RowExpr(
                             args=[
                                 upd_val,

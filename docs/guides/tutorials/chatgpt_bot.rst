@@ -404,7 +404,7 @@ message we send to OpenAI later.)
     Its input token limit is 8,191 tokens. Later, when answering a user's
     questions we will use the `chat completions
     <https://platform.openai.com/docs/guides/gpt/chat-completions-api>`_ model
-    ``pt-3.5-turbo``. Its token limit is 4,096 tokens. This limit covers not
+    ``gpt-3.5-turbo``. Its token limit is 4,096 tokens. This limit covers not
     only our input, but also the API's response.
 
     Later, when we send the user's question, we will also send related sections
@@ -766,7 +766,7 @@ generate the embeddings. Let's walk through it one piece at a time.
         contents.push(contentTrimmed);
         sections.push({
           content,
-          tokens: encode(content).length
+          tokens: encode(content).length,
           embedding: [],
         });
       }
@@ -879,7 +879,7 @@ Here's the entire function assembled:
         contents.push(contentTrimmed);
         sections.push({
           content,
-          tokens: encode(content).length
+          tokens: encode(content).length,
           embedding: [],
         });
       }
@@ -951,9 +951,9 @@ Next, we'll store this data.
       const query = e.params({ sections: e.json }, ({ sections }) => {
         return e.for(e.json_array_unpack(sections), (section) => {
           return e.insert(e.Section, {
-            content: e.cast(e.str, section.content),
-            tokens: e.cast(e.int16, section.tokens),
-            embedding: e.cast(e.OpenAIEmbedding, section.embedding),
+            content: e.cast(e.str, section.content!),
+            tokens: e.cast(e.int16, section.tokens!),
+            embedding: e.cast(e.OpenAIEmbedding, section.embedding!),
           });
         });
       });
@@ -991,9 +991,9 @@ Here's what the whole function looks like:
       const query = e.params({ sections: e.json }, ({ sections }) => {
         return e.for(e.json_array_unpack(sections), (section) => {
           return e.insert(e.Section, {
-            content: e.cast(e.str, section.content),
-            tokens: e.cast(e.int16, section.tokens),
-            embedding: e.cast(e.OpenAIEmbedding, section.embedding),
+            content: e.cast(e.str, section.content!),
+            tokens: e.cast(e.int16, section.tokens!),
+            embedding: e.cast(e.OpenAIEmbedding, section.embedding!),
           });
         });
       });
@@ -1094,9 +1094,9 @@ into your ``generate-embeddings.ts`` file.
       const query = e.params({ sections: e.json }, ({ sections }) => {
         return e.for(e.json_array_unpack(sections), (section) => {
           return e.insert(e.Section, {
-            content: e.cast(e.str, section.content),
-            tokens: e.cast(e.int16, section.tokens),
-            embedding: e.cast(e.OpenAIEmbedding, section.embedding),
+            content: e.cast(e.str, section.content!),
+            tokens: e.cast(e.int16, section.tokens!),
+            embedding: e.cast(e.OpenAIEmbedding, section.embedding!),
           });
         });
       });

@@ -90,6 +90,16 @@ class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Database]):
         assert isinstance(astnode, qlast.CreateDatabase)
         if astnode.template is not None:
             cmd.template = astnode.template.name
+
+        if (
+            astnode.branch_type == qlast.BranchType.TEMPLATE
+            and not context.testmode
+        ):
+            raise errors.EdgeQLSyntaxError(
+                f'unexpected TEMPLATE',
+                span=astnode.span,
+            )
+
         cmd.branch_type = astnode.branch_type
 
         return cmd

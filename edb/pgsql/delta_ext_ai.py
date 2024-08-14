@@ -75,6 +75,7 @@
 
 from __future__ import annotations
 from typing import (
+    cast,
     Optional,
 )
 
@@ -108,6 +109,7 @@ from .common import qname as q
 from .common import quote_literal as ql
 from .common import quote_ident as qi
 from .compiler import astutils
+from .compiler import enums as pgce
 
 
 ai_index_base_name = sn.QualName("ext::ai", "index")
@@ -230,7 +232,11 @@ def _compile_ai_embeddings_source_view_expr(
 
     idx_id = _get_index_root_id(schema, index)
     table_name = common.get_index_table_backend_name(index, schema)
-    aspects = ("identity", "value", "source")
+    aspects = (
+        pgce.PathAspect.IDENTITY,
+        pgce.PathAspect.VALUE,
+        pgce.PathAspect.SOURCE
+    )
     qry = compiler.new_external_rvar_as_subquery(
         rel_name=table_name,
         path_id=subject_id,
@@ -637,11 +643,12 @@ def pg_rebuild_all_pending_embeddings_views(
         else:
             query = textwrap.dedent("""\
                 SELECT
-                    NULL::uuid AS "id",
-                    NULL::text AS "text",
-                    NULL::text AS "target_rel",
-                    NULL::text AS "target_attr",
-                    NULL::int  AS "target_dims_shortening"
+                    NULL::uuid    AS "id",
+                    NULL::text    AS "text",
+                    NULL::text    AS "target_rel",
+                    NULL::text    AS "target_attr",
+                    NULL::int     AS "target_dims_shortening",
+                    NULL::boolean AS "truncate_to_max"
                 WHERE
                     FALSE
             """)
@@ -749,6 +756,16 @@ def _pg_create_ai_embeddings_source_view(
     else:
         target_dims_shortening = "NULL"
 
+    kwargs = index.get_concrete_kwargs(schema)
+    truncate_to_max_arg = kwargs.get("truncate_to_max")
+    if truncate_to_max_arg is not None:
+        truncate_to_max = cast(
+            bool,
+            truncate_to_max_arg.assert_compiled().as_python_value()
+        )
+    else:
+        truncate_to_max = False
+
     table_name = common.get_index_table_backend_name(index, schema)
     expr_sql = codegen.generate_source(expr)
     document_sql = textwrap.dedent(f"""\
@@ -757,7 +774,8 @@ def _pg_create_ai_embeddings_source_view(
             (q.val).f2 AS "text",
             {ql(q(*table_name))} AS "target_rel",
             {ql(qi(target_col))} AS "target_attr",
-            {target_dims_shortening}::int AS "target_dims_shortening"
+            {target_dims_shortening}::int AS "target_dims_shortening",
+            {truncate_to_max}::boolean AS "truncate_to_max"
         FROM
             ({expr_sql}) AS q(val)
     """)

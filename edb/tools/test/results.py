@@ -16,27 +16,26 @@
 # limitations under the License.
 #
 
+# Warning: this file is ran in GHA tests/test-conclusion, with (almost) no
+# dependencies installed.
 
 from __future__ import annotations
 
+import binascii
+import dataclasses
+import datetime
+import functools
+import json
+import pathlib
+import sys
+import traceback
 import typing
 import unittest
-import dataclasses
-import json
-import datetime
-import pathlib
-import traceback
-import sys
-
+import glob
 import shutil
 from unittest.result import STDERR_LINE, STDOUT_LINE
+
 import click
-import binascii
-
-import edgedb
-
-from edb.common import typing_inspect
-from edb.common import traceback as edb_traceback
 
 if typing.TYPE_CHECKING:
     from . import runner
@@ -60,6 +59,7 @@ def _collect_case_data(
     err: typing.Any,
 ) -> TestCase:
     from . import runner
+    import edgedb
 
     py_HashSecret = None
     py_random_seed = None
@@ -96,6 +96,8 @@ def _exc_info_to_string(
     test: unittest.TestCase,
 ):
     """Converts a sys.exc_info()-style tuple of values into a string."""
+    from edb.common import traceback as edb_traceback
+
     # Copied from unittest.TestResult._exc_info_to_string
 
     exctype, value, tb = err
@@ -138,6 +140,26 @@ class TestResult:
     skipped: typing.List[TestCase]
     not_implemented: typing.List[TestCase]
     expected_failures: typing.List[TestCase]
+
+
+def _combine_test_results(a: TestResult, b: TestResult) -> TestResult:
+    return TestResult(
+        was_successful=a.was_successful and b.was_successful,
+        testsRun=a.testsRun + b.testsRun,
+        # this assumes each result comes from a parallel run
+        boot_time_taken=max(a.boot_time_taken, b.boot_time_taken),
+        # this assumes each result comes from a parallel run
+        tests_time_taken=max(a.tests_time_taken, b.tests_time_taken),
+        # negative
+        failures=a.failures + b.failures,
+        errors=a.errors + b.errors,
+        unexpected_successes=a.unexpected_successes + b.unexpected_successes,
+        # positive
+        warnings=a.warnings + b.warnings,
+        skipped=a.skipped + b.skipped,
+        not_implemented=a.not_implemented + b.not_implemented,
+        expected_failures=a.expected_failures + b.expected_failures,
+    )
 
 
 def collect_result_data(
@@ -274,39 +296,33 @@ def render_result(
     _echo(file)
 
 
-def _result_log_dir() -> typing.Optional[pathlib.Path]:
+def _result_log_path(path_template: str) -> typing.Optional[pathlib.Path]:
+    now = str(datetime.datetime.now()).replace(' ', '_')
+    path = pathlib.Path(path_template.replace('%TIMESTAMP%', now))
+
+    dir = path.parent
     try:
-        build_dir = pathlib.Path('.') / 'build'
-        build_dir.mkdir(exist_ok=True)
-        dir = build_dir / 'test-results'
-        dir.mkdir(exist_ok=True)
-        return dir
-    except Exception:
+        dir.mkdir(parents=True, exist_ok=True)
+        return path
+    except OSError:
         # this might happen when the process is running in readonly mode
         return None
 
 
-def _result_log_file() -> typing.Optional[typing.IO]:
-    dir = _result_log_dir()
-    if not dir:
+def write_result(path_template: str, res: TestResult):
+    path = _result_log_path(path_template)
+    if not path:
         return None
-    now = str(datetime.datetime.now()).replace(' ', '_')
-    return open(dir / f'{now}.json', 'w')
-
-
-def write_result(res: TestResult):
-    log_file = _result_log_file()
-    if not log_file:
-        return
+    log_file = open(path, 'w')
 
     json.dump(dataclasses.asdict(res), log_file, indent=4)
 
 
-def read_unsuccessful() -> typing.List[str]:
-    dir = _result_log_dir()
-    if not dir:
+def read_unsuccessful(path_template: str) -> typing.List[str]:
+    log_path = _result_log_path(path_template)
+    if not log_path:
         return []
-    results = list(dir.iterdir())
+    results = list(log_path.parent.iterdir())
     if not results:
         return []
 
@@ -330,8 +346,8 @@ def _dataclass_from_dict(cls: typing.Type | None, data: typing.Any):
     if not cls:
         return data
 
-    if typing_inspect.get_origin(cls) is list:
-        args = typing_inspect.get_args(cls)
+    if hasattr(cls, '__origin__') and cls.__origin__ is list:
+        args = cls.__args__
         return [_dataclass_from_dict(args[0], e) for e in data]
 
     if not dataclasses.is_dataclass(cls):
@@ -346,3 +362,28 @@ def _dataclass_from_dict(cls: typing.Type | None, data: typing.Any):
             for k, v in data.items()
         }
     )
+
+
+# if this file is invoked directly
+if __name__ == '__main__':
+    # read result JSON files, concat them into a single result and render
+    result_path_glob = sys.argv[1]
+
+    results: typing.List[TestResult] = []
+    for new_file in glob.glob(result_path_glob):
+        with open(new_file) as f:
+            result_dict = json.load(f)
+            results.append(_dataclass_from_dict(TestResult, result_dict))
+
+    result = functools.reduce(
+        lambda acc, r: _combine_test_results(acc, r) if acc else r,
+        results,
+        typing.cast(typing.Optional[TestResult], None),
+    )
+    if not result:
+        raise ValueError(
+            f'no result files were found at glob {result_path_glob}'
+        )
+
+    render_result(sys.stdout, result)
+    sys.exit(0 if result.was_successful else 1)

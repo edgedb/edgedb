@@ -823,6 +823,10 @@ class CallableObject(
     prefer_subquery_args = so.SchemaField(
         bool, default=False, compcoef=0.9)
 
+    # Some set of calls are allowed in singleton expressions
+    is_singleton_set_of = so.SchemaField(
+        bool, default=False, compcoef=0.4)
+
     def as_create_delta(
         self: CallableObjectT,
         schema: s_schema.Schema,

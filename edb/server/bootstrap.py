@@ -51,6 +51,7 @@ from edb import errors
 
 from edb import edgeql
 from edb.ir import statypes
+from edb.ir import typeutils as irtyputils
 from edb.edgeql import ast as qlast
 
 from edb.common import debug
@@ -84,8 +85,8 @@ from edb.pgsql import delta as delta_cmds
 from edb.pgsql import metaschema
 from edb.pgsql import params
 from edb.pgsql import patches
+from edb.pgsql import trampoline
 from edb.pgsql.common import quote_ident as qi
-from edb.pgsql.common import quote_literal as ql
 
 from edgedb import scram
 
@@ -396,15 +397,15 @@ async def _get_cluster_mode(ctx: BootstrapContext) -> ClusterMode:
 
     # Then, check if the current database was bootstrapped in single-db mode.
     has_instdata = await ctx.conn.sql_fetch_val(
-        b'''
+        trampoline.fixup_query('''
             SELECT
                 tablename
             FROM
                 pg_catalog.pg_tables
             WHERE
-                schemaname = 'edgedbinstdata'
+                schemaname = 'edgedbinstdata_VER'
                 AND tablename = 'instdata'
-        ''',
+        ''').encode('utf-8'),
     )
     if has_instdata:
         return ClusterMode.single_database
@@ -489,13 +490,13 @@ async def _store_static_bin_cache_conn(
     data: bytes,
 ) -> None:
 
-    text = f"""\
-        INSERT INTO edgedbinstdata.instdata (key, bin)
+    text = trampoline.fixup_query(f"""\
+        INSERT INTO edgedbinstdata_VER.instdata (key, bin)
         VALUES(
             {pg_common.quote_literal(key)},
             {pg_common.quote_bytea_literal(data)}::bytea
         )
-    """
+    """)
 
     await _execute(conn, text)
 
@@ -514,13 +515,13 @@ async def _store_static_text_cache(
     data: str,
 ) -> None:
 
-    text = f"""\
-        INSERT INTO edgedbinstdata.instdata (key, text)
+    text = trampoline.fixup_query(f"""\
+        INSERT INTO edgedbinstdata_VER.instdata (key, text)
         VALUES(
             {pg_common.quote_literal(key)},
             {pg_common.quote_literal(data)}::text
         )
-    """
+    """)
 
     await _execute(ctx.conn, text)
 
@@ -531,18 +532,22 @@ async def _store_static_json_cache(
     data: str,
 ) -> None:
 
-    text = f"""\
-        INSERT INTO edgedbinstdata.instdata (key, json)
+    text = trampoline.fixup_query(f"""\
+        INSERT INTO edgedbinstdata_VER.instdata (key, json)
         VALUES(
             {pg_common.quote_literal(key)},
             {pg_common.quote_literal(data)}::jsonb
         )
-    """
+    """)
 
     await _execute(ctx.conn, text)
 
 
-def _process_delta_params(delta, schema, params):
+def _process_delta_params(delta, schema: s_schema.Schema, params) -> tuple[
+    s_schema.ChainedSchema,
+    delta_cmds.MetaCommand,
+    delta_cmds.CreateTrampolines,
+]:
     """Adapt and process the delta command."""
 
     if debug.flags.delta_plan:
@@ -566,10 +571,20 @@ def _process_delta_params(delta, schema, params):
         debug.header('PgSQL Delta Plan')
         debug.dump(delta, schema=schema)
 
-    return schema, delta
+    assert isinstance(schema, s_schema.ChainedSchema)
+    if isinstance(delta, delta_cmds.DeltaRoot):
+        out = delta.create_trampolines
+    else:
+        out = delta_cmds.CreateTrampolines()
+
+    return schema, delta, out
 
 
-def _process_delta(ctx, delta, schema):
+def _process_delta(ctx, delta, schema) -> tuple[
+    s_schema.ChainedSchema,
+    delta_cmds.MetaCommand,
+    delta_cmds.CreateTrampolines,
+]:
     """Adapt and process the delta command."""
     return _process_delta_params(
         delta, schema, ctx.cluster.get_runtime_params()
@@ -581,6 +596,7 @@ def compile_bootstrap_script(
     schema: s_schema.Schema,
     eql: str,
     *,
+    bootstrap_mode: bool = True,
     expected_cardinality_one: bool = False,
     output_format: edbcompiler.OutputFormat = edbcompiler.OutputFormat.JSON,
 ) -> Tuple[s_schema.Schema, str]:
@@ -591,7 +607,8 @@ def compile_bootstrap_script(
         expected_cardinality_one=expected_cardinality_one,
         json_parameters=True,
         output_format=output_format,
-        bootstrap_mode=True,
+        bootstrap_mode=bootstrap_mode,
+        log_ddl_as_migrations=False,
     )
 
     return edbcompiler.compile_edgeql_script(ctx, eql)
@@ -750,12 +767,12 @@ def prepare_patch(
     val = f'{pg_common.quote_literal(json.dumps(num + 1))}::jsonb'
     # TODO: This is an INSERT because 2.0 shipped without num_patches.
     # We can just make this an UPDATE for 3.0
-    update = f"""\
-        INSERT INTO edgedbinstdata.instdata (key, json)
+    update = trampoline.fixup_query(f"""\
+        INSERT INTO edgedbinstdata_VER.instdata (key, json)
         VALUES('num_patches', {val})
         ON CONFLICT (key)
         DO UPDATE SET json = {val};
-    """
+    """)
 
     existing_view_columns = patch_info
 
@@ -807,7 +824,7 @@ def prepare_patch(
             # stdschema
             delta_command = s_ddl.delta_from_ddl(
                 ddl_cmd, modaliases={}, schema=schema, stdmode=True)
-            schema, _ = _process_delta_params(
+            schema, _, _ = _process_delta_params(
                 delta_command, schema, backend_params)
 
             # We need to extract all ids of new objects created when
@@ -820,10 +837,11 @@ def prepare_patch(
             delta_command = s_ddl.delta_from_ddl(
                 ddl_cmd, modaliases={}, schema=reflschema,
                 schema_object_ids=schema_object_ids, stdmode=True)
-            reflschema, plan = _process_delta_params(
+            reflschema, plan, tplan = _process_delta_params(
                 delta_command, reflschema, backend_params)
             std_plans.append(delta_command)
             plan.generate(subblock)
+            tplan.generate(subblock)
 
         metadata_user_schema = reflschema
 
@@ -859,10 +877,11 @@ def prepare_patch(
                 stdmode=False,
                 testmode=True,
             )
-            cschema, plan = _process_delta_params(
+            cschema, plan, tplan = _process_delta_params(
                 delta_command, cschema, backend_params)
             std_plans.append(delta_command)
             plan.generate(subblock)
+            tplan.generate(subblock)
 
         if '+config' in kind:
             views = metaschema.get_config_views(cschema, existing_view_columns)
@@ -892,9 +911,10 @@ def prepare_patch(
             reflschema, make_funcs=False,
         )
 
-        reflschema, plan = _process_delta_params(
+        reflschema, plan, tplan = _process_delta_params(
             reflection.intro_schema_delta, reflschema, backend_params)
         plan.generate(subblock)
+        tplan.generate(subblock)
 
         compiler = edbcompiler.new_compiler(
             std_schema=schema,
@@ -1021,21 +1041,21 @@ def prepare_patch(
             if k not in rawbin:
                 v = pickle.dumps(v, protocol=pickle.HIGHEST_PROTOCOL)
             val = f'{pg_common.quote_bytea_literal(v)}::bytea'
-            sys_updates += (f'''
-                INSERT INTO edgedbinstdata.instdata (key, bin)
+            sys_updates += (trampoline.fixup_query(f'''
+                INSERT INTO edgedbinstdata_VER.instdata (key, bin)
                 VALUES({key}, {val})
                 ON CONFLICT (key)
                 DO UPDATE SET bin = {val};
-            ''',)
+            '''),)
         else:
             typ, col = ('jsonb', 'json') if k in jsons else ('text', 'text')
             val = f'{pg_common.quote_literal(v.decode("utf-8"))}::{typ}'
-            sys_updates += (f'''
-                INSERT INTO edgedbinstdata.instdata (key, {col})
+            sys_updates += (trampoline.fixup_query(f'''
+                INSERT INTO edgedbinstdata_VER.instdata (key, {col})
                 VALUES({key}, {val})
                 ON CONFLICT (key)
                 DO UPDATE SET {col} = {val};
-            ''',)
+            '''),)
         if k in unversioned:
             spatches += (sys_updates[-1],)
 
@@ -1134,16 +1154,16 @@ async def create_branch(
     multi_properties = {
         prop for prop in schema.get_objects(type=s_props.Property)
         if prop.get_cardinality(schema).is_multi()
-        and prop.get_name(schema).module not in delta_cmds.VIEW_MODULES
+        and prop.get_name(schema).module not in irtyputils.VIEW_MODULES
     }
 
     for mprop in multi_properties:
         name = pg_common.get_backend_name(schema, mprop, catenate=True)
         await conn.sql_execute(f'delete from {name}'.encode('utf-8'))
 
-    await conn.sql_execute(f'''
-        delete from edgedbinstdata.instdata where key = 'configspec_ext'
-    '''.encode('utf-8'))
+    await conn.sql_execute(trampoline.fixup_query(f'''
+        delete from edgedbinstdata_VER.instdata where key = 'configspec_ext'
+    ''').encode('utf-8'))
 
     # Do the dump/restore for the data. We always need to copy over
     # edgedbstd, since it has the reflected schema. We copy over
@@ -1152,8 +1172,9 @@ async def create_branch(
     dump_args = [
         '--data-only',
         '--table=edgedbstd.*',
+        f'--table={pg_common.versioned_schema("edgedbstd")}.*',
         '--table=edgedb._db_config',
-        '--table=edgedbinstdata.instdata',
+        f'--table={pg_common.versioned_schema("edgedbinstdata")}.instdata',
         *data_arg,
         '--disable-triggers',
         # We need to use --inserts so that we can use --on-conflict-do-nothing.
@@ -1184,6 +1205,8 @@ class StdlibBits(NamedTuple):
     global_schema: s_schema.Schema
     #: SQL text of the procedure to initialize `std` in Postgres.
     sqltext: str
+    #: Descriptors of all the needed trampolines
+    trampolines: list[trampoline.Trampoline]
     #: A set of ids of all types in std.
     types: Set[uuid.UUID]
     #: Schema class reflection layout.
@@ -1218,6 +1241,8 @@ async def _make_stdlib(
 
     current_block = dbops.PLTopBlock()
 
+    trampolines = []
+
     std_texts = []
     for modname in s_schema.STD_SOURCES:
         std_texts.append(s_std.get_std_module_text(modname))
@@ -1237,16 +1262,19 @@ async def _make_stdlib(
 
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.
-        schema, plan = _process_delta(ctx, delta_command, schema)
+        schema, plan, tplan = _process_delta(ctx, delta_command, schema)
+        assert isinstance(plan, delta_cmds.DeltaRoot)
         std_plans.append(delta_command)
 
         types.update(plan.new_types)
         plan.generate(current_block)
+        trampolines.extend(tplan.trampolines)
 
     _, schema_version = s_std.make_schema_version(schema)
-    schema, plan = _process_delta(ctx, schema_version, schema)
+    schema, plan, tplan = _process_delta(ctx, schema_version, schema)
     std_plans.append(schema_version)
     plan.generate(current_block)
+    trampolines.extend(tplan.trampolines)
 
     stdglobals = '\n'.join([
         f'''CREATE SUPERUSER ROLE {edbdef.EDGEDB_SUPERUSER} {{
@@ -1257,12 +1285,13 @@ async def _make_stdlib(
     schema = await _execute_edgeql_ddl(schema, stdglobals)
 
     _, global_schema_version = s_std.make_global_schema_version(schema)
-    schema, plan = _process_delta(ctx, global_schema_version, schema)
+    schema, plan, tplan = _process_delta(ctx, global_schema_version, schema)
     std_plans.append(global_schema_version)
     plan.generate(current_block)
+    trampolines.extend(tplan.trampolines)
 
     reflection = s_refl.generate_structure(schema)
-    reflschema, reflplan = _process_delta(
+    reflschema, reflplan, treflplan = _process_delta(
         ctx, reflection.intro_schema_delta, schema)
 
     # Any collection types that made it into reflschema need to get
@@ -1277,6 +1306,7 @@ async def _make_stdlib(
 
     assert current_block is not None
     reflplan.generate(current_block)
+    trampolines.extend(treflplan.trampolines)
     subblock = current_block.add_block()
 
     compiler = edbcompiler.new_compiler(
@@ -1329,6 +1359,7 @@ async def _make_stdlib(
         reflschema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         sqltext=sqltext,
+        trampolines=trampolines,
         types=types,
         classlayout=reflection.class_layout,
         local_intro_query=local_intro_sql,
@@ -1341,7 +1372,7 @@ async def _amend_stdlib(
     ctx: BootstrapContext,
     ddl_text: str,
     stdlib: StdlibBits,
-) -> Tuple[StdlibBits, str]:
+) -> Tuple[StdlibBits, str, list[trampoline.Trampoline]]:
     schema = s_schema.ChainedSchema(
         s_schema.EMPTY_SCHEMA,
         stdlib.stdschema,
@@ -1351,6 +1382,7 @@ async def _amend_stdlib(
 
     topblock = dbops.PLTopBlock()
     plans = []
+    trampolines = []
 
     context = sd.CommandContext(stdmode=True)
 
@@ -1361,10 +1393,11 @@ async def _amend_stdlib(
 
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.
-        schema, plan = _process_delta(ctx, delta_command, schema)
+        schema, plan, tplan = _process_delta(ctx, delta_command, schema)
         reflschema = delta_command.apply(reflschema, context)
         plan.generate(topblock)
         plans.append(plan)
+        trampolines.extend(tplan.trampolines)
 
     compiler = edbcompiler.new_compiler(
         std_schema=schema.get_top_schema(),
@@ -1390,7 +1423,7 @@ async def _amend_stdlib(
         stdschema=schema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         reflschema=reflschema,
-    ), sqltext
+    ), sqltext, trampolines
 
 
 def compile_intro_queries_stdlib(
@@ -1501,31 +1534,50 @@ async def _init_stdlib(
         cache_dir=cache_dir,
     )
 
+    stdlib_was_none = stdlib is None
     if stdlib is None:
         logger.info('Compiling the standard library...')
-        stdlib = await _make_stdlib(ctx, in_dev_mode or testmode, global_ids)
+        stdlib = await _make_stdlib(
+            ctx, in_dev_mode or testmode, global_ids)
+
+    config_spec = config.load_spec_from_schema(stdlib.stdschema)
+
+    # If we recompiled the stdlib or need to generate a tpldbdump, we
+    # need to generate bootstrap commands and trampolines, and update
+    # the stdlib's trampolines if we compiled it.
+    bootstrap_commands = None
+    if stdlib_was_none or tpldbdump is None:
+        bootstrap_commands, bootstrap_trampolines = (
+            metaschema.get_bootstrap_commands(config_spec)
+        )
+        if stdlib_was_none:
+            stdlib = stdlib._replace(
+                trampolines=bootstrap_trampolines + stdlib.trampolines
+            )
 
     logger.info('Creating the necessary PostgreSQL extensions...')
     backend_params = cluster.get_runtime_params()
     await metaschema.create_pg_extensions(conn, backend_params)
 
-    config_spec = config.load_spec_from_schema(stdlib.stdschema)
+    trampolines = []
+    trampolines.extend(stdlib.trampolines)
 
     if tpldbdump is None:
         logger.info('Populating internal SQL structures...')
-        await metaschema.bootstrap(conn, config_spec)
+        assert bootstrap_commands is not None
+        block = dbops.PLTopBlock()
+        bootstrap_commands.generate(block)
+        await _execute_block(conn, block)
         logger.info('Executing the standard library...')
         await _execute(conn, stdlib.sqltext)
 
         if in_dev_mode or cache_dir:
             tpl_db_name = edbdef.EDGEDB_TEMPLATE_DB
             tpl_pg_db_name = cluster.get_db_name(tpl_db_name)
-            tpl_pg_db_name_dyn = (
-                f"edgedb.get_database_backend_name({ql(tpl_db_name)})")
             tpldbdump = await cluster.dump_database(
                 tpl_pg_db_name,
                 exclude_schemas=[
-                    'edgedbinstdata',
+                    pg_common.versioned_schema('edgedbinstdata'),
                     'edgedbext',
                     backend_params.instance_params.ext_schema,
                 ],
@@ -1552,8 +1604,12 @@ async def _init_stdlib(
                 flags=re.MULTILINE,
             )
 
+            # The instance metadata doesn't go in the dump, so collect
+            # it ourselves.
             global_metadata = await conn.sql_fetch_val(
-                b"SELECT edgedb.get_database_metadata($1)::json",
+                trampoline.fixup_query(
+                    "SELECT edgedb_VER.get_database_metadata($1)::json"
+                ).encode("utf-8"),
                 args=[tpl_db_name.encode("utf-8")],
             )
             global_metadata = json.loads(global_metadata)
@@ -1561,27 +1617,23 @@ async def _init_stdlib(
             pl_block = dbops.PLTopBlock()
 
             set_metadata_text = dbops.SetMetadata(
-                dbops.Database(name='__dummy_placeholder_database__'),
+                dbops.DatabaseWithTenant(name=tpl_db_name),
                 global_metadata,
             ).code(pl_block)
-            set_metadata_text = set_metadata_text.replace(
-                '__dummy_placeholder_database__',
-                f"' || quote_ident({tpl_pg_db_name_dyn}) || '",
-            )
 
             set_single_db_metadata_text = dbops.SetSingleDBMetadata(
                 edbdef.EDGEDB_TEMPLATE_DB, global_metadata
             ).code(pl_block)
 
-            pl_block.add_command(textwrap.dedent(f"""\
-                IF (edgedb.get_backend_capabilities()
+            pl_block.add_command(textwrap.dedent(trampoline.fixup_query(f"""\
+                IF (edgedb_VER.get_backend_capabilities()
                     & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
                 THEN
                 {textwrap.indent(set_metadata_text, '    ')}
                 ELSE
                 {textwrap.indent(set_single_db_metadata_text, '    ')}
                 END IF
-                """))
+                """)))
 
             text = pl_block.to_string()
 
@@ -1611,12 +1663,13 @@ async def _init_stdlib(
     if not in_dev_mode and testmode:
         # Running tests on a production build.
         for modname in s_schema.TESTMODE_SOURCES:
-            stdlib, testmode_sql = await _amend_stdlib(
+            stdlib, testmode_sql, new_trampolines = await _amend_stdlib(
                 ctx,
                 s_std.get_std_module_text(modname),
                 stdlib,
             )
             await conn.sql_execute(testmode_sql.encode("utf-8"))
+            trampolines.extend(new_trampolines)
         # _testmode includes extra config settings, so make sure
         # those are picked up.
         config_spec = config.load_spec_from_schema(stdlib.stdschema)
@@ -1692,10 +1745,12 @@ async def _init_stdlib(
         stdlib.global_intro_query,
     )
 
-    await metaschema.generate_support_views(
+    trampolines.extend(await metaschema.generate_support_views(
         conn, stdlib.reflschema, cluster.get_runtime_params()
+    ))
+    trampolines.extend(
+        await metaschema.generate_support_functions(conn, stdlib.reflschema)
     )
-    await metaschema.generate_support_functions(conn, stdlib.reflschema)
 
     compiler = edbcompiler.new_compiler(
         std_schema=schema,
@@ -1705,8 +1760,11 @@ async def _init_stdlib(
         local_intro_query=stdlib.local_intro_query,
     )
 
-    await metaschema.generate_more_support_functions(
-        conn, compiler, stdlib.reflschema, testmode)
+    trampolines.extend(
+        await metaschema.generate_more_support_functions(
+            conn, compiler, stdlib.reflschema, testmode
+        )
+    )
 
     await _store_static_json_cache(
         ctx,
@@ -1719,6 +1777,13 @@ async def _init_stdlib(
         json.dumps({}),
     )
 
+    # Create all the trampolines
+    tramps = dbops.CommandGroup()
+    tramps.add_commands([t.make() for t in trampolines])
+    block = dbops.PLTopBlock()
+    tramps.generate(block)
+    await _execute_block(conn, block)
+
     return stdlib, config_spec, compiler
 
 
@@ -1727,7 +1792,9 @@ async def _init_defaults(schema, compiler, conn):
         CREATE MODULE default;
     '''
 
-    schema, sql = compile_bootstrap_script(compiler, schema, script)
+    schema, sql = compile_bootstrap_script(
+        compiler, schema, script, bootstrap_mode=False
+    )
     await _execute(conn, sql)
     return schema
 
@@ -1745,9 +1812,7 @@ async def _configure(
     metadata = {'sysconfig': json.loads(config_json)}
     if ctx.cluster.get_runtime_params().has_create_database:
         dbops.UpdateMetadata(
-            dbops.Database(
-                name=ctx.cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB)
-            ),
+            dbops.DatabaseWithTenant(name=edbdef.EDGEDB_SYSTEM_DB),
             metadata,
         ).generate(block)
     else:
@@ -1977,11 +2042,12 @@ async def _populate_misc_instance_data(
     ctx: BootstrapContext,
 ) -> Dict[str, Any]:
 
+    sname = pg_common.versioned_schema('edgedbinstdata')
     commands = dbops.CommandGroup()
     commands.add_commands([
-        dbops.CreateSchema(name='edgedbinstdata'),
+        dbops.CreateSchema(name=sname),
         dbops.CreateTable(dbops.Table(
-            name=('edgedbinstdata', 'instdata'),
+            name=(sname, 'instdata'),
             columns=[
                 dbops.Column(
                     name='key',
@@ -2002,7 +2068,7 @@ async def _populate_misc_instance_data(
             ],
             constraints=[
                 dbops.PrimaryKey(
-                    table_name=('edgedbinstdata', 'instdata'),
+                    table_name=(sname, 'instdata'),
                     columns=['key'],
                 ),
             ],
@@ -2134,11 +2200,11 @@ def _pg_log_listener(severity, message):
 
 async def _get_instance_data(conn: metaschema.PGConnection) -> Dict[str, Any]:
     data = await conn.sql_fetch_val(
-        b"""
+        trampoline.fixup_query("""
         SELECT json::json
-        FROM edgedbinstdata.instdata
+        FROM edgedbinstdata_VER.instdata
         WHERE key = 'instancedata'
-        """,
+        """).encode('utf-8'),
     )
     return json.loads(data)
 
@@ -2149,11 +2215,11 @@ async def _check_catalog_compatibility(
     tenant_id = ctx.cluster.get_runtime_params().tenant_id
     if ctx.mode == ClusterMode.single_database:
         sys_db = await ctx.conn.sql_fetch_val(
-            b"""
+            trampoline.fixup_query("""
             SELECT current_database()
-            FROM edgedbinstdata.instdata
+            FROM edgedbinstdata_VER.instdata
             WHERE key = $1 AND json->>'tenant_id' = $2
-            """,
+            """).encode('utf-8'),
             args=[
                 f"{edbdef.EDGEDB_TEMPLATE_DB}metadata".encode("utf-8"),
                 tenant_id.encode("utf-8"),

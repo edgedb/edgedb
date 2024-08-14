@@ -186,14 +186,16 @@ class DropTrigger(ddl.DropObject):
     def __init__(self, object, *, conditional=False, **kwargs):
         super().__init__(object, **kwargs)
         self.trigger = object
+        self.conditional = conditional
         if conditional:
             self.conditions.add(
                 TriggerExists(self.trigger.name, self.trigger.table_name)
             )
 
     def code(self, block: base.PLBlock) -> str:
+        ifexists = ' IF EXISTS' if self.conditional else ''
         return (
-            f'DROP TRIGGER {qi(self.trigger.name)} '
+            f'DROP TRIGGER{ifexists} {qi(self.trigger.name)} '
             f'ON {qn(*self.trigger.table_name)}'
         )
 

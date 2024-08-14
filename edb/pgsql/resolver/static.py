@@ -25,11 +25,15 @@ from typing import Optional, Sequence, List
 from edb import errors
 
 from edb.pgsql import ast as pgast
+from edb.pgsql.ast import SQLValueFunctionOP as val_func_op
+from edb.pgsql import common
 from edb.pgsql import parser as pgparser
 from edb.server import defines
 
 from . import context
 from . import dispatch
+
+V = common.versioned_schema
 
 Context = context.ResolverContextLevel
 
@@ -113,7 +117,10 @@ def eval_TypeCast(
     return None
 
 
-privilege_inquiry_functions_args = {
+# Functions that are inquiring about privileges of users or schemas.
+# Dict from function name into number of trailing arguments that are passed
+# trough.
+PRIVILEGE_INQUIRY_FUNCTIONS_ARGS = {
     'has_any_column_privilege': 2,
     'has_column_privilege': 3,
     'has_database_privilege': 2,
@@ -217,6 +224,10 @@ def eval_FuncCall(
             span=expr.span,
         )
 
+    if fn_name == "pg_get_serial_sequence":
+        # we do not expose sequences, so any calls to this function returns NULL
+        return pgast.NullConstant()
+
     if fn_name == "to_regclass":
         arg = require_a_string_literal(expr, fn_name, ctx)
         return to_regclass(arg, ctx=ctx)
@@ -233,7 +244,7 @@ def eval_FuncCall(
             name=('pg_catalog', fn_name), args=[regclass_oid]
         )
 
-    if fn_name in privilege_inquiry_functions_args:
+    if num_allowed_args := PRIVILEGE_INQUIRY_FUNCTIONS_ARGS.get(fn_name, None):
         # For privilege inquiry functions, we strip the leading user (role),
         # so the inquiry refers to current user's privileges.
         # This is needed because the exposed username is not necessarily the
@@ -243,8 +254,7 @@ def eval_FuncCall(
         # See: https://www.postgresql.org/docs/15/functions-info.html
 
         # TODO: deny INSERT, UPDATE and all other unsupported functions
-        allowed_args = privilege_inquiry_functions_args[fn_name]
-        fn_args = expr.args[-allowed_args:]
+        fn_args = expr.args[-num_allowed_args:]
         fn_args = dispatch.resolve_list(fn_args, ctx=ctx)
 
         # schema and table names need to be remapped. This is accomplished
@@ -255,7 +265,7 @@ def eval_FuncCall(
             'has_column_privilege',
         }
         if fn_name in has_wrapper:
-            return pgast.FuncCall(name=('edgedbsql', fn_name), args=fn_args)
+            return pgast.FuncCall(name=(V('edgedbsql'), fn_name), args=fn_args)
 
         return pgast.FuncCall(name=('pg_catalog', fn_name), args=fn_args)
 
@@ -271,7 +281,7 @@ def eval_FuncCall(
         )
 
         return pgast.FuncCall(
-            name=('edgedbsql', fn_name),
+            name=(V('edgedbsql'), fn_name),
             args=[arg_0, arg_1]
         )
 
@@ -303,6 +313,8 @@ def cast_to_regclass(param: pgast.BaseExpr, ctx: Context) -> pgast.BaseExpr:
     """
 
     expr = eval(param, ctx=ctx)
+    if isinstance(expr, pgast.NullConstant):
+        return pgast.NullConstant()
     if isinstance(expr, pgast.StringConstant):
         return to_regclass(expr.val, ctx=ctx)
     if isinstance(expr, pgast.NumericConstant):
@@ -343,8 +355,8 @@ def to_regclass(reg_class_name: str, ctx: Context) -> pgast.BaseExpr:
     [stmt] = pgparser.parse(
         f'''
         SELECT pc.oid
-        FROM edgedbsql.pg_class pc
-        JOIN edgedbsql.pg_namespace pn ON pn.oid = pc.relnamespace
+        FROM {V('edgedbsql')}.pg_class pc
+        JOIN {V('edgedbsql')}.pg_namespace pn ON pn.oid = pc.relnamespace
         WHERE {ql(namespace)} = pn.nspname AND pc.relname = {ql(rel_name)}
         '''
     )
@@ -377,41 +389,42 @@ def eval_current_schemas(
     return pgast.ArrayExpr(elements=[pgast.StringConstant(val=r) for r in res])
 
 
+VALUE_FUNC_PASS_THROUGH = frozenset({
+    val_func_op.CURRENT_DATE,
+    val_func_op.CURRENT_TIME,
+    val_func_op.CURRENT_TIME_N,
+    val_func_op.CURRENT_TIMESTAMP,
+    val_func_op.CURRENT_TIMESTAMP_N,
+    val_func_op.LOCALTIME,
+    val_func_op.LOCALTIME_N,
+    val_func_op.LOCALTIMESTAMP,
+    val_func_op.LOCALTIMESTAMP_N,
+})
+
+VALUE_FUNC_USER = frozenset({
+    val_func_op.CURRENT_ROLE,
+    val_func_op.CURRENT_USER,
+    val_func_op.USER,
+    val_func_op.SESSION_USER,
+})
+
+
 @eval.register
 def eval_SQLValueFunction(
     expr: pgast.SQLValueFunction,
     *,
     ctx: Context,
 ) -> pgast.BaseExpr:
-    from edb.pgsql.ast import SQLValueFunctionOP as op
-
-    pass_through = [
-        op.CURRENT_DATE,
-        op.CURRENT_TIME,
-        op.CURRENT_TIME_N,
-        op.CURRENT_TIMESTAMP,
-        op.CURRENT_TIMESTAMP_N,
-        op.LOCALTIME,
-        op.LOCALTIME_N,
-        op.LOCALTIMESTAMP,
-        op.LOCALTIMESTAMP_N,
-    ]
-    if expr.op in pass_through:
+    if expr.op in VALUE_FUNC_PASS_THROUGH:
         return expr
 
-    user = [
-        op.CURRENT_ROLE,
-        op.CURRENT_USER,
-        op.USER,
-        op.SESSION_USER,
-    ]
-    if expr.op in user:
+    if expr.op in VALUE_FUNC_USER:
         return pgast.StringConstant(val=ctx.options.current_user)
 
-    if expr.op == op.CURRENT_CATALOG:
+    if expr.op == val_func_op.CURRENT_CATALOG:
         return pgast.StringConstant(val=ctx.options.current_database)
 
-    if expr.op == op.CURRENT_SCHEMA:
+    if expr.op == val_func_op.CURRENT_SCHEMA:
         # note: PG also does a check that this schema exists and proceeds to
         # the next one in the search path
         return pgast.StringConstant(val=ctx.options.search_path[0])

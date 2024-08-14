@@ -40,6 +40,7 @@ from . import astutils
 from . import config
 from . import context
 from . import dispatch
+from . import enums as pgce
 from . import expr as expr_compiler  # NOQA
 from . import output
 from . import pathctx
@@ -228,7 +229,8 @@ def compile_TypeCast(
         assert expr.cast_name
 
         func_name = common.get_cast_backend_name(
-            expr.cast_name, aspect="function"
+            expr.cast_name, aspect="function",
+            versioned=ctx.env.versioned_stdlib,
         )
 
         args = [pg_expr]
@@ -261,7 +263,7 @@ def compile_TypeCast(
         if detail is not None:
             args.append(detail)
         res = pgast.FuncCall(
-            name=('edgedb', 'raise_on_null'),
+            name=astutils.edgedb_func('raise_on_null', ctx=ctx),
             args=args
         )
 
@@ -293,7 +295,7 @@ def compile_IndexIndirection(
         index = dispatch.compile(expr.index, ctx=subctx)
 
     result = pgast.FuncCall(
-        name=('edgedb', '_index'),
+        name=astutils.edgedb_func('_index', ctx=ctx),
         args=[subj, index, span]
     )
 
@@ -328,22 +330,25 @@ def compile_SliceIndirection(
         )
 
         if inline_array_slicing:
-            return _inline_array_slicing(subj, start, stop)
+            return _inline_array_slicing(subj, start, stop, ctx=ctx)
         else:
             return pgast.FuncCall(
-                name=("edgedb", "_slice"), args=[subj, start, stop]
+                name=astutils.edgedb_func('_slice', ctx=ctx),
+                args=[subj, start, stop]
             )
 
 
 def _inline_array_slicing(
-    subj: pgast.BaseExpr, start: pgast.BaseExpr, stop: pgast.BaseExpr
+    subj: pgast.BaseExpr, start: pgast.BaseExpr, stop: pgast.BaseExpr,
+    ctx: context.CompilerContextLevel
 ) -> pgast.BaseExpr:
     return pgast.Indirection(
         arg=subj,
         indirection=[
             pgast.Slice(
                 lidx=pgast.FuncCall(
-                    name=("edgedb", "_normalize_array_slice_index"),
+                    name=astutils.edgedb_func(
+                        '_normalize_array_slice_index', ctx=ctx),
                     args=[
                         start,
                         pgast.FuncCall(
@@ -353,7 +358,8 @@ def _inline_array_slicing(
                 ),
                 ridx=astutils.new_binop(
                     lexpr=pgast.FuncCall(
-                        name=("edgedb", "_normalize_array_slice_index"),
+                        name=astutils.edgedb_func(
+                            '_normalize_array_slice_index', ctx=ctx),
                         args=[
                             stop,
                             pgast.FuncCall(
@@ -481,18 +487,38 @@ def compile_operator(
         assert rexpr
         result = pgast.NullTest(arg=rexpr, negated=True)
 
+    elif expr.func_shortname in common.operator_map:
+        sql_oper = common.operator_map[expr.func_shortname]
+
     elif expr.sql_operator:
         sql_oper = expr.sql_operator[0]
         if len(expr.sql_operator) > 1:
             # Explicit operand types given in FROM SQL OPERATOR
             lexpr, rexpr = _cast_operands(lexpr, rexpr, expr.sql_operator[1:])
 
-    elif expr.sql_function:
-        sql_func = expr.sql_function[0]
-        func_name = tuple(sql_func.split('.', 1))
-        if len(expr.sql_function) > 1:
-            # Explicit operand types given in FROM SQL FUNCTION
-            lexpr, rexpr = _cast_operands(lexpr, rexpr, expr.sql_function[1:])
+    elif expr.origin_name is not None:
+        sql_oper = common.get_operator_backend_name(
+            expr.origin_name)[1]
+
+    else:
+        if expr.sql_function:
+            sql_func, *cast_types = expr.sql_function
+
+            func_name = common.maybe_versioned_name(
+                tuple(sql_func.split('.', 1)),
+                versioned=(
+                    ctx.env.versioned_stdlib
+                    and expr.func_shortname.get_root_module_name().name != 'ext'
+                ),
+            )
+
+            if cast_types:
+                # Explicit operand types given in FROM SQL FUNCTION
+                lexpr, rexpr = _cast_operands(lexpr, rexpr, cast_types)
+        else:
+            func_name = common.get_operator_backend_name(
+                expr.func_shortname, aspect='function',
+                versioned=ctx.env.versioned_stdlib)
 
         args = []
         if lexpr is not None:
@@ -501,14 +527,6 @@ def compile_operator(
             args.append(rexpr)
 
         result = pgast.FuncCall(name=func_name, args=args)
-
-    elif expr.origin_name is not None:
-        sql_oper = common.get_operator_backend_name(
-            expr.origin_name)[1]
-
-    else:
-        sql_oper = common.get_operator_backend_name(
-            expr.func_shortname)[1]
 
     # If result was not already computed, it's going to be a generic Expr.
     if result is None:
@@ -535,7 +553,7 @@ def compile_operator(
 def _cast_operands(
     lexpr: Optional[pgast.BaseExpr],
     rexpr: Optional[pgast.BaseExpr],
-    sql_types: Tuple[str, ...],
+    sql_types: Sequence[str],
 ) -> Tuple[Optional[pgast.BaseExpr], Optional[pgast.BaseExpr]]:
 
     if lexpr is not None:
@@ -578,6 +596,27 @@ def _cast_operands(
     return lexpr, rexpr
 
 
+def get_func_call_backend_name(
+    expr: irast.FunctionCall, *,
+    ctx: context.CompilerContextLevel
+) -> Tuple[str, ...]:
+    if expr.func_sql_function:
+        # The name might contain a "." if it's one of our
+        # metaschema helpers.
+        func_name = common.maybe_versioned_name(
+            tuple(expr.func_sql_function.split('.', 1)),
+            versioned=(
+                ctx.env.versioned_stdlib
+                and expr.func_shortname.get_root_module_name().name != 'ext'
+            ),
+        )
+    else:
+        func_name = common.get_function_backend_name(
+            expr.func_shortname, expr.backend_name,
+            versioned=ctx.env.versioned_stdlib)
+    return func_name
+
+
 @dispatch.compile.register(irast.TypeCheckOp)
 def compile_TypeCheckOp(
         expr: irast.TypeCheckOp, *,
@@ -608,7 +647,7 @@ def compile_TypeCheckOp(
                 right = dispatch.compile(expr.right, ctx=newctx)
 
             result = pgast.FuncCall(
-                name=('edgedb', 'issubclass'),
+                name=astutils.edgedb_func('issubclass', ctx=ctx),
                 args=[left, right])
 
             if negated:
@@ -711,7 +750,7 @@ def compile_FunctionCall(
 
         args.append(pgast.VariadicArgument(expr=var))
 
-    name = relgen.get_func_call_backend_name(expr, ctx=ctx)
+    name = get_func_call_backend_name(expr, ctx=ctx)
 
     result: pgast.BaseExpr = pgast.FuncCall(name=name, args=args)
 
@@ -759,7 +798,10 @@ def _compile_set(
         shape_tuple = shapecomp.compile_shape(ir_set, ir_set.shape, ctx=ctx)
         for element in shape_tuple.elements:
             pathctx.put_path_var_if_not_exists(
-                ctx.rel, element.path_id, element.val, aspect='value'
+                ctx.rel,
+                element.path_id,
+                element.val,
+                aspect=pgce.PathAspect.VALUE,
             )
 
 
@@ -849,7 +891,9 @@ def compile_Pointer(
     # will be only one in scope), but sometimes we do (for example NEW
     # in trigger functions).
     rvar_name = []
-    if src := ctx.env.external_rvars.get((source.path_id, 'source')):
+    if src := ctx.env.external_rvars.get(
+        (source.path_id, pgce.PathAspect.SOURCE)
+    ):
         rvar_name = [src.alias.aliasname]
 
     # compile column name

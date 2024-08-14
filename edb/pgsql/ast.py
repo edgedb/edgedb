@@ -29,6 +29,12 @@ from edb.common import typeutils
 from edb.edgeql import ast as qlast
 from edb.ir import ast as irast
 
+if typing.TYPE_CHECKING:
+    # PathAspect is imported without qualifiers here because otherwise in
+    # base.AST._collect_direct_fields, typing.get_type_hints will not correctly
+    # locate the type.
+    from .compiler.enums import PathAspect
+
 
 # The structure of the nodes mostly follows that of Postgres'
 # parsenodes.h and primnodes.h, but only with fields that are
@@ -58,7 +64,7 @@ class Base(ast.AST):
 
 
 class ImmutableBase(ast.ImmutableASTMixin, Base):
-    pass
+    __ast_mutable_fields__ = frozenset(['span'])
 
 
 class Alias(ImmutableBase):
@@ -169,18 +175,18 @@ class EdgeQLPathInfo(Base):
 
     # Map of res target names corresponding to paths.
     path_outputs: typing.Dict[
-        typing.Tuple[irast.PathId, str], OutputVar
+        typing.Tuple[irast.PathId, PathAspect], OutputVar
     ] = ast.field(factory=dict)
 
     # Map of res target names corresponding to materialized paths.
     packed_path_outputs: typing.Optional[typing.Dict[
-        typing.Tuple[irast.PathId, str],
+        typing.Tuple[irast.PathId, PathAspect],
         OutputVar,
     ]] = None
 
     def get_path_outputs(
         self, flavor: str
-    ) -> typing.Dict[typing.Tuple[irast.PathId, str], OutputVar]:
+    ) -> typing.Dict[typing.Tuple[irast.PathId, PathAspect], OutputVar]:
         if flavor == 'packed':
             if self.packed_path_outputs is None:
                 self.packed_path_outputs = {}
@@ -194,12 +200,13 @@ class EdgeQLPathInfo(Base):
 
     # Map of col refs corresponding to paths.
     path_namespace: typing.Dict[
-        typing.Tuple[irast.PathId, str], BaseExpr
+        typing.Tuple[irast.PathId, PathAspect],
+        BaseExpr,
     ] = ast.field(factory=dict)
 
     # Same, but for packed.
     packed_path_namespace: typing.Optional[typing.Dict[
-        typing.Tuple[irast.PathId, str],
+        typing.Tuple[irast.PathId, PathAspect],
         BaseExpr,
     ]] = None
 
@@ -212,7 +219,7 @@ class BaseRangeVar(ImmutableBaseExpr):
     """
 
     __ast_meta__ = {'schema_object_id', 'tag', 'ir_origins'}
-    __ast_mutable_fields__ = frozenset(['ir_origins'])
+    __ast_mutable_fields__ = frozenset(['ir_origins', 'span'])
 
     # This is a hack, since there is some code that relies on not
     # having an alias on a range var (to refer to a CTE directly, for
@@ -277,6 +284,9 @@ class CommonTableExpr(Base):
     recursive: bool = False
     # If specified, determines if CTE is [NOT] MATERIALIZED
     materialized: typing.Optional[bool] = None
+
+    # the dml stmt that this CTE was generated for
+    for_dml_stmt: typing.Optional[irast.MutatingLikeStmt] = None
 
     def __repr__(self):
         return (
@@ -488,8 +498,6 @@ class ResTarget(ImmutableBaseExpr):
 
     # Column name (optional)
     name: typing.Optional[str] = None
-    # subscripts, field names and '*'
-    indirection: typing.Optional[typing.List[IndirectionOp]] = None
     # value expression to compute
     val: BaseExpr
 
@@ -505,7 +513,7 @@ class UpdateTarget(ImmutableBaseExpr):
     """Query update target."""
 
     # column names
-    name: str | typing.List[str]
+    name: str
     # value expression to assign
     val: BaseExpr
     # subscripts, field names and '*'
@@ -569,11 +577,11 @@ class Query(ReturningQuery):
     ] = ast.field(factory=dict)
     # Map of RangeVars corresponding to paths.
     path_rvar_map: typing.Dict[
-        typing.Tuple[irast.PathId, str], PathRangeVar
+        typing.Tuple[irast.PathId, PathAspect], PathRangeVar
     ] = ast.field(factory=dict)
     # Map of materialized RangeVars corresponding to paths.
     path_packed_rvar_map: typing.Optional[typing.Dict[
-        typing.Tuple[irast.PathId, str],
+        typing.Tuple[irast.PathId, PathAspect],
         PathRangeVar,
     ]] = None
 
@@ -583,7 +591,7 @@ class Query(ReturningQuery):
 
     def get_rvar_map(
         self, flavor: str
-    ) -> typing.Dict[typing.Tuple[irast.PathId, str], PathRangeVar]:
+    ) -> typing.Dict[typing.Tuple[irast.PathId, PathAspect], PathRangeVar]:
         if flavor == 'packed':
             if self.path_packed_rvar_map is None:
                 self.path_packed_rvar_map = {}
@@ -596,7 +604,7 @@ class Query(ReturningQuery):
     def maybe_get_rvar_map(
         self, flavor: str
     ) -> typing.Optional[
-        typing.Dict[typing.Tuple[irast.PathId, str], PathRangeVar]
+        typing.Dict[typing.Tuple[irast.PathId, PathAspect], PathRangeVar]
     ]:
         if flavor == 'packed':
             return self.path_packed_rvar_map
@@ -607,6 +615,8 @@ class Query(ReturningQuery):
 
     @property
     def ser_safe(self):
+        if not self.target_list:
+            return False
         return all(t.ser_safe for t in self.target_list)
 
     def append_cte(self, cte: CommonTableExpr) -> None:
@@ -617,9 +627,10 @@ class Query(ReturningQuery):
 
 class DMLQuery(Query):
     """Generic superclass for INSERT/UPDATE/DELETE statements."""
+    __abstract_node__ = True
 
     # Target relation to perform the operation on.
-    relation: typing.Optional[PathRangeVar] = None
+    relation: RelRangeVar
     # List of expressions returned
     returning_list: typing.List[ResTarget] = ast.field(factory=list)
 
@@ -882,7 +893,7 @@ class MultiAssignRef(ImmutableBase):
     # row-valued expression
     source: BaseExpr
     # list of columns to assign to
-    columns: typing.List[ColumnRef]
+    columns: typing.List[str]
 
 
 class SortBy(ImmutableBase):
@@ -1098,12 +1109,17 @@ class IteratorCTE(ImmutableBase):
 
     # A list of other paths to *also* register the iterator rvar as
     # providing when it is merged into a statement.
-    other_paths: tuple[tuple[irast.PathId, str], ...] = ()
+    other_paths: tuple[tuple[irast.PathId, PathAspect], ...] = ()
     iterator_bond: bool = False
 
     @property
-    def aspect(self) -> str:
-        return 'iterator' if self.iterator_bond else 'identity'
+    def aspect(self) -> PathAspect:
+        from .compiler import enums as pgce
+        return (
+            pgce.PathAspect.ITERATOR
+            if self.iterator_bond else
+            pgce.PathAspect.IDENTITY
+        )
 
 
 class Statement(Base):

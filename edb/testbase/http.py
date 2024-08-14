@@ -55,15 +55,6 @@ class BaseHttpExtensionTest(server.QueryTestCase):
         return f'/branch/{dbname}/{extpath}'
 
     @classmethod
-    def tearDownClass(cls):
-        # This isn't really necessary but helps test extension dropping
-        for extname in reversed(cls.EXTENSIONS):
-            cls.loop.run_until_complete(
-                cls.con.execute(f'DROP EXTENSION {extname};')
-            )
-        super().tearDownClass()
-
-    @classmethod
     async def _wait_for_db_config(
         cls, config_key, *, server=None, instance_config=False, value=None
     ):
@@ -349,7 +340,12 @@ class MockHttpServer:
         self.has_started = threading.Event()
         self.routes: dict[
             tuple[str, str, str],
-            ResponseType | Callable[[MockHttpServerHandler], ResponseType],
+            (
+                ResponseType
+                | Callable[
+                    [MockHttpServerHandler, dict[str, Any]], ResponseType
+                ]
+            ),
         ] = {}
         self.requests: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
         self.url: Optional[str] = None
@@ -368,7 +364,10 @@ class MockHttpServer:
     ):
         def wrapper(
             handler: (
-                ResponseType | Callable[[MockHttpServerHandler], ResponseType]
+                ResponseType
+                | Callable[
+                    [MockHttpServerHandler, dict[str, Any]], ResponseType
+                ]
             )
         ):
             self.routes[(method, server, path)] = handler
@@ -413,7 +412,7 @@ class MockHttpServer:
 
         if callable(registered_handler):
             try:
-                handler_result = registered_handler(handler)
+                handler_result = registered_handler(handler, request_details)
                 if len(handler_result) == 2:
                     response, status = handler_result
                     additional_headers = None

@@ -293,7 +293,7 @@ sys::_advisory_lock(key: std::int64) -> std::bool
     SET volatility := 'Volatile';
     USING SQL $$
     SELECT CASE WHEN "key" < 0 THEN
-        edgedb.raise(NULL::bool, msg => 'lock key cannot be negative')
+        edgedb_VER.raise(NULL::bool, msg => 'lock key cannot be negative')
     ELSE
         pg_advisory_lock("key") IS NOT NULL
     END;
@@ -310,7 +310,7 @@ sys::_advisory_unlock(key: std::int64) -> std::bool
     SET volatility := 'Volatile';
     USING SQL $$
     SELECT CASE WHEN "key" < 0 THEN
-        edgedb.raise(NULL::bool, msg => 'lock key cannot be negative')
+        edgedb_VER.raise(NULL::bool, msg => 'lock key cannot be negative')
     ELSE
         pg_advisory_unlock("key")
     END;
@@ -345,8 +345,8 @@ std::_datetime_range_buckets(
     SET volatility := 'Stable';
     USING SQL $$
     SELECT
-        lo::edgedb.timestamptz_t,
-        hi::edgedb.timestamptz_t
+        lo::edgedbt.timestamptz_t,
+        hi::edgedbt.timestamptz_t
     FROM
         (SELECT
             series AS lo,

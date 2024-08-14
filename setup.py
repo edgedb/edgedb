@@ -56,6 +56,8 @@ else:
     SAFE_EXT_CFLAGS += ['-O2']
 
 EXT_CFLAGS: list[str] = list(SAFE_EXT_CFLAGS)
+# See also: https://github.com/cython/cython/issues/5240
+EXT_CFLAGS += ['-Wno-error=incompatible-pointer-types']
 EXT_LDFLAGS: list[str] = []
 
 ROOT_PATH = pathlib.Path(__file__).parent.resolve()
@@ -560,14 +562,22 @@ class ci_helper(setuptools.Command):
             print(binascii.hexlify(bootstrap_hash).decode())
 
         elif self.type == 'rust':
-            rust_hash = hash_dirs([
-                (pkg_dir / 'edgeql-parser', '.rs'),
-                (pkg_dir / 'graphql-rewrite', '.rs'),
-            ], extra_files=[
-                pkg_dir / 'edgeql-parser/Cargo.toml',
-                pkg_dir / 'edgeql-parser/edgeql-parser-python/Cargo.toml',
-                pkg_dir / 'graphql-rewrite/Cargo.toml',
-            ])
+            dirs = []
+            # HACK: For annoying reasons, metapkg invokes setup.py
+            # with an ancient version of Python, and that doesn't have
+            # tomllib.  It doesn't invoke *this* code path, though, so
+            # import it here.
+            import tomllib
+
+            # Read the list of Rust projects from Cargo.toml
+            with open(pkg_dir.parent / 'Cargo.toml', 'rb') as f:
+                root = tomllib.load(f)
+                for member in root['workspace']['members']:
+                    dirs.append(pkg_dir.parent / member)
+            rust_hash = hash_dirs(
+                [(dir, '.rs') for dir in dirs],
+                extra_files=[dir / 'Cargo.toml' for dir in dirs] +
+                  [pkg_dir.parent / 'Cargo.lock'])
             print(binascii.hexlify(rust_hash).decode())
 
         elif self.type == 'ext':
@@ -1114,6 +1124,12 @@ setuptools.setup(
         setuptools_rust.RustExtension(
             "edb._graphql_rewrite",
             path="edb/graphql-rewrite/Cargo.toml",
+            binding=setuptools_rust.Binding.PyO3,
+        ),
+        setuptools_rust.RustExtension(
+            "edb.server._conn_pool",
+            path="edb/server/conn_pool/Cargo.toml",
+            features=["python_extension"],
             binding=setuptools_rust.Binding.PyO3,
         ),
     ],

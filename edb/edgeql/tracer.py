@@ -27,6 +27,8 @@ from typing import (Dict, FrozenSet, Generator, List, Mapping, Optional,
 import functools
 
 from contextlib import contextmanager
+from edb import errors
+from edb.common import parsing
 from edb.schema import links as s_links
 from edb.schema import name as sn
 from edb.schema import objects as so
@@ -592,6 +594,14 @@ def trace_Constant(node: qlast.BaseConstant, *, ctx: TracerContext) -> None:
 
 
 @trace.register
+def trace_Parameter(node: qlast.Parameter, *, ctx: TracerContext) -> None:
+    raise errors.SchemaError(
+        'query parameters are not allowed in schemas',
+        span=node.span,
+    )
+
+
+@trace.register
 def trace_Array(node: qlast.Array, *, ctx: TracerContext) -> None:
     for el in node.elements:
         trace(el, ctx=ctx)
@@ -647,12 +657,33 @@ def trace_Global(
     return tip
 
 
+def check_type_exists(
+    typename: sn.QualName,
+    ctx: TracerContext,
+    span: Optional[parsing.Span],
+    *,
+    hint: Optional[str] = None,
+) -> None:
+    if typename in ctx.objects:
+        return
+
+    try:
+        # Check if the typename is already in the schema
+        ctx.schema.get(typename, type=s_types.Type, sourcectx=span)
+    except errors.InvalidReferenceError as e:
+        if hint and not e.hint:
+            e.set_hint_and_details(hint, e.details)
+        raise e
+
+
 @trace.register
 def trace_TypeCast(node: qlast.TypeCast, *, ctx: TracerContext) -> None:
     trace(node.expr, ctx=ctx)
     if isinstance(node.type, qlast.TypeName):
         if not node.type.subtypes:
-            ctx.refs.add(ctx.get_ref_name(node.type.maintype))
+            typename: sn.QualName = ctx.get_ref_name(node.type.maintype)
+            check_type_exists(typename, ctx, node.type.span)
+            ctx.refs.add(typename)
 
 
 @trace.register
@@ -660,14 +691,25 @@ def trace_IsOp(node: qlast.IsOp, *, ctx: TracerContext) -> None:
     trace(node.left, ctx=ctx)
     if isinstance(node.right, qlast.TypeName):
         if not node.right.subtypes:
-            ctx.refs.add(ctx.get_ref_name(node.right.maintype))
+            typename: sn.QualName = ctx.get_ref_name(node.right.maintype)
+
+            hint: Optional[str] = None
+            if typename.name.lower() in ['null', 'none']:
+                hint = (
+                    'Did you mean to use `exists` to check if a set is empty?'
+                )
+            check_type_exists(typename, ctx, node.right.span, hint=hint)
+
+            ctx.refs.add(typename)
 
 
 @trace.register
 def trace_Introspect(node: qlast.Introspect, *, ctx: TracerContext) -> None:
     if isinstance(node.type, qlast.TypeName):
         if not node.type.subtypes:
-            ctx.refs.add(ctx.get_ref_name(node.type.maintype))
+            typename: sn.QualName = ctx.get_ref_name(node.type.maintype)
+            check_type_exists(typename, ctx, node.type.span)
+            ctx.refs.add(typename)
 
 
 @trace.register
@@ -843,7 +885,13 @@ def trace_Path(
                                 # We haven't computed the target yet,
                                 # so try computing it now.
                                 ctx.visited.add(ptr)
-                                ptr_target = trace(ptr.target_expr, ctx=ctx)
+
+                                target_ctx = _fork_context(ctx)
+                                target_ctx.path_prefix = sname
+                                ptr_target = trace(
+                                    ptr.target_expr, ctx=target_ctx
+                                )
+
                                 if isinstance(ptr_target, (Type,
                                                            s_types.Type)):
                                     tip = ptr.target = ptr_target
