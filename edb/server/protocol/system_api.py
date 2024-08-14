@@ -218,15 +218,18 @@ async def handle_readiness_query(
         _response_ok(response, await _ping(tenant))
 
 
-def handle_list_branches(tenant, schema_version=False):
+def handle_list_branches(
+    tenant: edbtenant.Tenant, schema_version: bool = False
+) -> list[dict[str, str | None]]:
     rv = []
     for db in tenant.iter_dbs():
         if db.name == edbdef.EDGEDB_SYSTEM_DB:
             continue
-        row = {"name": db.name}
+        row: dict[str, str | None] = {"name": db.name}
         if schema_version:
-            row["schema_version"] = (
-                db.schema_version and str(db.schema_version)
-            )
+            if db.schema_version is None:
+                row["schema_version"] = None
+            else:
+                row["schema_version"] = str(db.schema_version)
         rv.append(row)
     return rv
