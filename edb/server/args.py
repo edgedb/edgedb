@@ -1253,8 +1253,8 @@ def parse_args(**kwargs: Any):
 
             if not all(
                 m is ServerAuthMethod.Trust
-                  or m is ServerAuthMethod.mTLS
-                  or m is ServerAuthMethod.JWT
+                or m is ServerAuthMethod.mTLS
+                or m is ServerAuthMethod.JWT
                 for m in methods
             ):
                 abort(

@@ -978,7 +978,7 @@ cdef class HttpProtocol:
                         )
                         auth_helpers.auth_jwt(
                             self.tenant, auth_payload,
-                            username, '__edgedbsys__'
+                            username, edbdef.EDGEDB_SYSTEM_DB,
                         )
                     elif authmethod_name == 'Trust':
                         pass
