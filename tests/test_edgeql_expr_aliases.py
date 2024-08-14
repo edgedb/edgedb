@@ -1127,3 +1127,164 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                 );
             """
         )
+
+    async def test_edgeql_aliases_schema_types_01(self):
+        # Scalar alias adds a type
+        await self.con.execute('''
+            create alias best_card := 'Dragon';
+        ''')
+        await self.assert_query_result(
+            r'''
+            with module schema select Type { name }
+            filter .name ilike "%best_card%";
+            ''',
+            [{'name': 'default::best_card'}]
+        )
+
+        await self.con.execute('''
+            drop alias best_card;
+        ''')
+        await self.assert_query_result(
+            r'''
+            with module schema select Type { name }
+            filter .name ilike "%best_card%";
+            ''',
+            []
+        )
+
+        await self.con.execute('''
+            create module my_mod;
+            create alias my_mod::best_card := 'Dragon';
+        ''')
+        await self.assert_query_result(
+            r'''
+            with module schema select Type { name }
+            filter .name ilike "%best_card%";
+            ''',
+            [{'name': 'my_mod::best_card'}]
+        )
+
+        await self.con.execute('''
+            drop alias my_mod::best_card;
+        ''')
+        await self.assert_query_result(
+            r'''
+            with module schema select Type { name }
+            filter .name ilike "%best_card%";
+            ''',
+            []
+        )
+
+    async def test_edgeql_aliases_schema_types_02(self):
+        # Object alias adds a type
+        await self.con.execute('''
+            create alias best_card := (
+                select Card filter .name = 'Dragon' limit 1
+            );
+        ''')
+        await self.assert_query_result(
+            r'''
+            with module schema select Type { name }
+            filter .name ilike "%best_card%";
+            ''',
+            [{'name': 'default::best_card'}]
+        )
+
+        await self.con.execute('''
+            drop alias best_card;
+        ''')
+        await self.assert_query_result(
+            r'''
+            with module schema select Type { name }
+            filter .name ilike "%best_card%";
+            ''',
+            []
+        )
+
+        await self.con.execute('''
+            create module my_mod;
+            create alias my_mod::best_card := (
+                select Card filter .name = 'Dragon' limit 1
+            );
+        ''')
+        await self.assert_query_result(
+            r'''
+            with module schema select Type { name }
+            filter .name ilike "%best_card%";
+            ''',
+            [{'name': 'my_mod::best_card'}]
+        )
+
+        await self.con.execute('''
+            drop alias my_mod::best_card;
+        ''')
+        await self.assert_query_result(
+            r'''
+            with module schema select Type { name }
+            filter .name ilike "%best_card%";
+            ''',
+            []
+        )
+
+    async def test_edgeql_aliases_schema_types_03(self):
+        # Object alias with shape adds two types:
+        # - one for the alias
+        # - one for the shape
+        await self.con.execute('''
+            create alias best_card := (
+                select Card {name}
+                filter .name = 'Dragon' limit 1
+            );
+        ''')
+        await self.assert_query_result(
+            r'''
+            with module schema select Type { name }
+            filter .name ilike "%best_card%"
+            order by .name;
+            ''',
+            [
+                {'name': 'default::__best_card__Card'},
+                {'name': 'default::best_card'},
+            ]
+        )
+
+        await self.con.execute('''
+            drop alias best_card;
+        ''')
+        await self.assert_query_result(
+            r'''
+            with module schema select Type { name }
+            filter .name ilike "%best_card%";
+            ''',
+            []
+        )
+
+        await self.con.execute('''
+            create module my_mod;
+            create alias my_mod::best_card := (
+                select Card {name}
+                filter .name = 'Dragon' limit 1
+            );
+        ''')
+        await self.assert_query_result(
+            r'''
+            with module schema select Type { name }
+            filter .name ilike "%best_card%"
+            order by .name;
+            ''',
+            [
+                {'name': 'my_mod::__best_card__Card'},
+                {'name': 'my_mod::best_card'},
+            ]
+        )
+
+        await self.con.execute('''
+            drop alias my_mod::best_card;
+        ''')
+        await self.assert_query_result(
+            r'''
+            with module schema select Type { name }
+            filter .name ilike "%best_card%";
+            ''',
+            []
+        )
