@@ -694,8 +694,10 @@ def _preprocess_insert_pointer_stmt(
 
 
 def _has_at_most_one_row(query: pgast.Query | None) -> bool:
+    if not query:
+        return True
     return isinstance(query, pgast.SelectStmt) and (
-        (query.values and len(query.values) == 1)
+        (query.values and len(query.values) <= 1)
         or (
             isinstance(query.limit_count, pgast.NumericConstant)
             and query.limit_count.val == '1'
