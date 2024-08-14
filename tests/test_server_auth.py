@@ -654,6 +654,81 @@ class TestServerAuth(tb.ConnectedTestCase):
                 sd, password="wrong password")
             self.assertEqual(code, 401, f"Wrong result: {body}")
 
+    async def test_server_auth_list_branches(self):
+        # Prepare mTLS auth files
+        certs = pathlib.Path(__file__).parent / 'certs'
+        client_ca_cert_file = certs / 'client_ca.cert.pem'
+        client_ssl_cert_file = certs / 'client.cert.pem'
+        client_ssl_key_file = certs / 'client.key.pem'
+
+        # Prepare JWT auth files
+        jwk_fd, jwk_file = tempfile.mkstemp()
+        key = jwcrypto.jwk.JWK(generate='EC')
+        with open(jwk_fd, "wb") as f:
+            f.write(key.export_to_pem(private_key=True, password=None))
+        jwk = secretkey.load_secret_key(pathlib.Path(jwk_file))
+
+        # Start server with all 3 auth methods for /server endpoint.
+        # /server/branches would not take Trust per design.
+        async with tb.start_edgedb_server(
+            tls_client_ca_file=client_ca_cert_file,
+            jws_key_file=pathlib.Path(jwk_file),
+            default_auth_method=args.ServerAuthMethods({
+                args.ServerConnTransport.HTTP_HEALTH: [
+                    args.ServerAuthMethod.JWT,
+                    args.ServerAuthMethod.mTLS,
+                    args.ServerAuthMethod.Trust,
+                ],
+            }),
+        ) as sd:
+
+            # Create an empty branch for test
+            conn = await sd.connect()
+            try:
+                await conn.execute("CREATE EMPTY BRANCH auth_list_branches")
+            finally:
+                await conn.aclose()
+
+            # Cannot access /server/branches without authentication
+            with self.http_con(sd) as con:
+                _, _, status = self.http_con_request(
+                    con,
+                    path="/server/branches",
+                )
+            self.assertEqual(status, 401)
+
+            # But /server/status/alive should be fine without authentication
+            with self.http_con(sd) as con:
+                _, _, status = self.http_con_request(
+                    con,
+                    path="/server/status/alive",
+                )
+            self.assertEqual(status, 200)
+
+            # JWT auth works
+            sk = secretkey.generate_secret_key(jwk)
+            with self.http_con(sd) as con:
+                resp, _, status = self.http_con_request(
+                    con,
+                    path="/server/branches",
+                    headers={'Authorization': f'bearer {sk}'},
+                )
+            self.assertEqual(status, 200)
+            self.assertIn(b"auth_list_branches", resp)
+
+            # mTLS auth works
+            with self.http_con(
+                sd,
+                client_cert_file=client_ssl_cert_file,
+                client_key_file=client_ssl_key_file,
+            ) as con:
+                resp, _, status = self.http_con_request(
+                    con,
+                    path="/server/branches",
+                )
+            self.assertEqual(status, 200)
+            self.assertIn(b"auth_list_branches", resp)
+
     async def test_server_auth_in_transaction(self):
         if not self.has_create_role:
             self.skipTest('create role is not supported by the backend')
