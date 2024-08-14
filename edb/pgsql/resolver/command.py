@@ -1593,6 +1593,8 @@ def _resolve_dml_value_rel(compiled_dml: context.CompiledDML, *, ctx: Context):
         ctx.ctes_buffer.extend(val_rel.ctes)
         val_rel.ctes = None
 
+    val_table.alias = ctx.alias_generator.get('rel')
+
     # wrap the value relation into a "pre-projection",
     # so we can add type casts for link ids and an iterator column
     pre_projection_needed = compiled_dml.value_iterator_name or (
@@ -1630,7 +1632,12 @@ def _resolve_dml_value_rel(compiled_dml: context.CompiledDML, *, ctx: Context):
             )
 
         val_rel = pgast.SelectStmt(
-            from_clause=[pgast.RangeSubselect(subquery=val_rel)],
+            from_clause=[
+                pgast.RangeSubselect(
+                    subquery=val_rel,
+                    alias=pgast.Alias(aliasname=val_table.alias)
+                )
+            ],
             target_list=value_target_list,
         )
 
