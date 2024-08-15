@@ -3285,48 +3285,6 @@ class CompositeMetaCommand(MetaCommand):
         else:
             return None
 
-    @classmethod
-    def _get_select_from(
-        cls,
-        schema: s_schema.Schema,
-        obj: CompositeObject,
-    ) -> Optional[str]:
-        tabname = common.get_backend_name(
-            schema,
-            obj,
-            catenate=False,
-            aspect='table',
-        )
-
-        talias = qi(tabname[1])
-
-        return textwrap.dedent(f'''\
-            (SELECT
-             FROM
-               {q(*tabname)} AS {talias}
-            )
-        ''')
-
-    @classmethod
-    def get_inhview(
-        cls,
-        schema: s_schema.Schema,
-        obj: CompositeObject,
-    ) -> dbops.View:
-        inhview_name = common.get_backend_name(
-            schema, obj, catenate=False, aspect='inhview')
-
-        components = []
-        components.append(
-            cls._get_select_from(schema, obj))
-
-        query = '\nUNION ALL\n'.join(filter(None, components))
-
-        return dbops.View(
-            name=inhview_name,
-            query=query,
-        )
-
     def update_base_inhviews_on_rebase(
         self,
         schema: s_schema.Schema,
@@ -3409,8 +3367,6 @@ class CompositeMetaCommand(MetaCommand):
         if irtyputils.is_cfg_view(obj, schema):
             self._refresh_fake_cfg_view(obj, schema, context)
 
-        inhview = self.get_inhview(schema, obj)
-        self.pgops.add(dbops.CreateView(view=inhview, or_replace=True))
         if alter_ancestors:
             self.alter_ancestor_inhviews(schema, context, obj)
 
@@ -3427,11 +3383,6 @@ class CompositeMetaCommand(MetaCommand):
         if irtyputils.is_cfg_view(obj, schema):
             self._refresh_fake_cfg_view(obj, schema, context)
 
-        inhview = self.get_inhview(
-            schema,
-            obj,
-        )
-        self.pgops.add(dbops.CreateView(view=inhview, or_replace=True))
         if alter_ancestors:
             self.alter_ancestor_inhviews(
                 schema, context, obj)
@@ -3462,12 +3413,7 @@ class CompositeMetaCommand(MetaCommand):
         obj: CompositeObject,
         conditional: bool = False,
     ) -> None:
-        inhview_name = common.get_backend_name(
-            schema, obj, catenate=False, aspect='inhview')
-        conditions = []
-        if conditional:
-            conditions.append(dbops.ViewExists(inhview_name))
-        self.pgops.add(dbops.DropView(inhview_name, conditions=conditions))
+        ...
 
     def apply_scheduled_inhview_updates(
         self,

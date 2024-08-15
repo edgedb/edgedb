@@ -4282,7 +4282,7 @@ class GetPgTypeForEdgeDBTypeFunction2(trampoline.VersionedFunction):
                         "kind" = 'schema::Array'
                          AND (
                             typ.typname = "elemid"::text || '_domain'
-                            OR typ.typname = "elemid"::text || '_t'
+                            OR typ.typname = "elemid"::text
                             OR typ.oid = (
                                 SELECT
                                     st.backend_id
