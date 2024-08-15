@@ -3398,22 +3398,12 @@ class CompositeMetaCommand(MetaCommand):
         # We cannot use the regular CREATE OR REPLACE VIEW flow
         # when removing or altering VIEW columns, because postgres
         # does not allow that.
-        self.drop_inhview(schema, context, obj, conditional=True)
         self.create_inhview(
             schema,
             context,
             obj,
             alter_ancestors=alter_ancestors,
         )
-
-    def drop_inhview(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        obj: CompositeObject,
-        conditional: bool = False,
-    ) -> None:
-        ...
 
     def apply_scheduled_inhview_updates(
         self,
@@ -4031,7 +4021,6 @@ class DeleteObjectType(
 
         if types.has_table(objtype, orig_schema):
             self.attach_alter_table(context)
-            self.drop_inhview(orig_schema, context, objtype)
             self.pgops.add(dbops.DropTable(name=old_table_name))
 
         self._fixup_configs(schema, context)
@@ -4270,7 +4259,6 @@ class PointerMetaCommand(
 
             # A link might still own a table if it has properties.
             if not types.has_table(ptr, schema):
-                self.drop_inhview(orig_schema, context, ptr)
                 otabname = common.get_backend_name(
                     orig_schema, ptr, catenate=False)
                 condition = dbops.TableExists(name=otabname)
@@ -4595,7 +4583,6 @@ class PointerMetaCommand(
         )
 
         if changing_col_type:
-            self.drop_inhview(schema, context, source)
             self.alter_ancestor_source_inhviews(
                 schema, context, pointer,
             )
@@ -5322,7 +5309,6 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
             self.attach_alter_table(context)
 
         if types.has_table(link, orig_schema):
-            self.drop_inhview(orig_schema, context, link, conditional=True)
             self.alter_ancestor_inhviews(
                 orig_schema, context, link,
             )
@@ -5789,7 +5775,6 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
             prop.is_link_property(schema)
             and types.has_table(source, orig_schema)
         ):
-            self.drop_inhview(orig_schema, context, source)
             self.alter_ancestor_inhviews(
                 orig_schema, context, source,
             )
@@ -5797,7 +5782,6 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
             self.pgops.add(dbops.DropTable(name=old_table_name))
 
         if types.has_table(prop, orig_schema):
-            self.drop_inhview(orig_schema, context, prop)
             self.alter_ancestor_inhviews(
                 schema, context, prop,
             )
