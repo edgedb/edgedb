@@ -3332,28 +3332,6 @@ class CompositeMetaCommand(MetaCommand):
                     alter_ancestors=False,
                 )
 
-    def alter_ancestor_source_inhviews(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        obj: s_pointers.Pointer,
-    ) -> None:
-        for base in obj.get_ancestors(schema).objects(schema):
-            src = base.get_source(schema)
-            if (
-                src
-                and types.has_table(src, schema)
-                and not context.is_deleting(base)
-                and not context.is_deleting(src)
-            ):
-                assert isinstance(src, s_sources.Source)
-                self.alter_inhview(
-                    schema,
-                    context,
-                    src,
-                    alter_ancestors=False,
-                )
-
     def create_inhview(
         self,
         schema: s_schema.Schema,
@@ -4295,8 +4273,6 @@ class PointerMetaCommand(
             assert isinstance(ref_op.scls, s_sources.Source)
             self.recreate_inhview(
                 schema, context, ref_op.scls, alter_ancestors=False)
-            self.alter_ancestor_source_inhviews(
-                schema, context, ptr)
 
             ref_op = self.get_referrer_context_or_die(context).op
             assert isinstance(ref_op, CompositeMetaCommand)
@@ -4582,11 +4558,6 @@ class PointerMetaCommand(
             (is_multi and expr_is_nullable) or changing_col_type
         )
 
-        if changing_col_type:
-            self.alter_ancestor_source_inhviews(
-                schema, context, pointer,
-            )
-
         if is_link:
             old_lb_ptr_stor_info = types.get_pointer_storage_info(
                 pointer, link_bias=True, schema=orig_schema)
@@ -4716,7 +4687,6 @@ class PointerMetaCommand(
 
         if changing_col_type:
             self.create_inhview(schema, context, source, alter_ancestors=False)
-            self.alter_ancestor_source_inhviews(schema, context, pointer)
 
     def _compile_conversion_expr(
         self,
@@ -5293,9 +5263,6 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                     objtype.scls,
                     alter_ancestors=False,
                 )
-                self.alter_ancestor_source_inhviews(
-                    schema, context, link
-                )
                 assert isinstance(objtype.op, CompositeMetaCommand)
                 alter_table = objtype.op.get_alter_table(
                     schema, context, manual=True)
@@ -5759,10 +5726,6 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
                     source,
                     alter_ancestors=is_endpoint_ptr,
                 )
-                if not is_endpoint_ptr:
-                    self.alter_ancestor_source_inhviews(
-                        schema, context, prop
-                    )
 
                 col = dbops.AlterTableDropColumn(
                     dbops.Column(name=ptr_stor_info.column_name,
