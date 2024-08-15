@@ -240,11 +240,6 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
                 CompositeMetaCommand._refresh_fake_cfg_view_cmd(
                     src, schema, context))
 
-        op.inhview_updates.add((src, True))
-        for anc in ptr.get_ancestors(schema).objects(schema):
-            if src := anc.get_source(schema):
-                op.inhview_updates.add((src, False))
-
     def schedule_post_inhview_update_command(
         self,
         schema: s_schema.Schema,
@@ -3294,28 +3289,6 @@ class CompositeMetaCommand(MetaCommand):
     ) -> None:
         if irtyputils.is_cfg_view(obj, schema):
             self._refresh_fake_cfg_view(obj, schema, context)
-
-        bases = set(obj.get_bases(schema).objects(schema))
-        orig_bases = set(obj.get_bases(orig_schema).objects(orig_schema))
-
-        base_ancestors = set()
-        for base in bases.symmetric_difference(orig_bases):
-            base_ancestors.add(base)
-            base_ancestors.update(base.get_ancestors(schema).objects(schema))
-
-        # Now filter out any ancestors where the relationship did not
-        # actually change. (This should always get Object and
-        # BaseObject, at least.)
-        base_ancestors = {
-            b for b in base_ancestors
-            if obj.issubclass(schema, b) != obj.issubclass(orig_schema, b)
-        }
-
-        for base in base_ancestors:
-            if types.has_table(base, schema) and not context.is_deleting(base):
-                assert isinstance(base, (s_sources.Source, s_props.Property))
-                self.alter_inhview(
-                    schema, context, base, alter_ancestors=False)
 
     def create_inhview(
         self,
