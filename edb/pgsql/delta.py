@@ -224,22 +224,6 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         assert isinstance(ctx.op, CompositeMetaCommand)
         return ctx.op
 
-    def schedule_inhview_source_update(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        ptr: s_pointers.Pointer,
-        ctxcls: Type[sd.CommandContextToken[sd.Command]],
-    ) -> None:
-        op = self._get_topmost_command_op(context, ctxcls)
-
-        src = ptr.get_source(schema)
-        if src and irtyputils.is_cfg_view(src, schema):
-            assert isinstance(src, s_sources.Source)
-            self.pgops.add(
-                CompositeMetaCommand._refresh_fake_cfg_view_cmd(
-                    src, schema, context))
-
     def schedule_post_inhview_update_command(
         self,
         schema: s_schema.Schema,
@@ -3234,15 +3218,25 @@ class CompositeMetaCommand(MetaCommand):
         view = dbops.View(name=orig_name, query=query)
         return dbops.CreateView(view, or_replace=True)
 
-    def _refresh_fake_cfg_view(
+    def update_if_cfg_view(
         self,
-        obj: CompositeObject,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> None:
-        if not context.in_deletion():
+        obj: CompositeObject,
+    ):
+        if irtyputils.is_cfg_view(obj, schema) and not context.in_deletion():
             self.pgops.add(
                 self._refresh_fake_cfg_view_cmd(obj, schema, context))
+
+    def update_source_if_cfg_view(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        ptr: s_pointers.Pointer,
+    ) -> None:
+        if src := ptr.get_source(schema):
+            assert isinstance(src, s_sources.Source)
+            self.update_if_cfg_view(schema, context, src)
 
     @classmethod
     def get_source_and_pointer_ctx(cls, schema, context):
@@ -3280,60 +3274,6 @@ class CompositeMetaCommand(MetaCommand):
         else:
             return None
 
-    def update_base_inhviews_on_rebase(
-        self,
-        schema: s_schema.Schema,
-        orig_schema: s_schema.Schema,
-        context: sd.CommandContext,
-        obj: CompositeObject,
-    ) -> None:
-        if irtyputils.is_cfg_view(obj, schema):
-            self._refresh_fake_cfg_view(obj, schema, context)
-
-    def create_inhview(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        obj: CompositeObject,
-        *,
-        alter_ancestors: bool = True,
-    ) -> None:
-        assert types.has_table(obj, schema)
-
-        if irtyputils.is_cfg_view(obj, schema):
-            self._refresh_fake_cfg_view(obj, schema, context)
-
-    def alter_inhview(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        obj: CompositeObject,
-        *,
-        alter_ancestors: bool = True,
-    ) -> None:
-        assert types.has_table(obj, schema)
-
-        if irtyputils.is_cfg_view(obj, schema):
-            self._refresh_fake_cfg_view(obj, schema, context)
-
-    def recreate_inhview(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        obj: CompositeObject,
-        *,
-        alter_ancestors: bool = True,
-    ) -> None:
-        # We cannot use the regular CREATE OR REPLACE VIEW flow
-        # when removing or altering VIEW columns, because postgres
-        # does not allow that.
-        self.create_inhview(
-            schema,
-            context,
-            obj,
-            alter_ancestors=alter_ancestors,
-        )
-
     def apply_scheduled_inhview_updates(
         self,
         schema: s_schema.Schema,
@@ -3346,13 +3286,11 @@ class CompositeMetaCommand(MetaCommand):
 
             for s in to_recreate:
                 if types.has_table(s, schema):
-                    self.recreate_inhview(
-                        schema, context, s, alter_ancestors=False)
+                    self.update_if_cfg_view(schema, context, s)
 
             for s in to_alter:
                 if types.has_table(s, schema):
-                    self.alter_inhview(
-                        schema, context, s, alter_ancestors=False)
+                    self.update_if_cfg_view(schema, context, s)
 
         for post_cmd in self.post_inhview_update_commands:
             if callable(post_cmd):
@@ -3824,7 +3762,7 @@ class CreateObjectType(
         # the type yet, so this type won't actually be added to any
         # ancestor views. We'll fix up the ancestors in
         # _create_finalize.
-        self.create_inhview(schema, context, objtype, alter_ancestors=False)
+        self.update_if_cfg_view(schema, context, objtype)
         return schema
 
     def _create_finalize(self, schema, context):
@@ -3850,8 +3788,7 @@ class RebaseObjectType(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         if types.has_table(self.scls, schema):
-            self.update_base_inhviews_on_rebase(
-                schema, context.current().original_schema, context, self.scls)
+            self.update_if_cfg_view(schema, context, self.scls)
 
         schema = super()._alter_innards(schema, context)
         self.schedule_endpoint_delete_action_update(self.scls, schema, context)
@@ -4048,7 +3985,7 @@ class PointerMetaCommand(
         if types.has_table(ptr, schema):
             c = self._create_table(ptr, schema, context, conditional=True)
             self.pgops.add(c)
-            self.alter_inhview(schema, context, ptr)
+            self.update_if_cfg_view(schema, context, ptr)
             return True
         else:
             return False
@@ -4194,9 +4131,9 @@ class PointerMetaCommand(
                 dt = dbops.DropTable(name=otabname, conditions=[condition])
                 self.pgops.add(dt)
 
-            self.schedule_inhview_source_update(
+            self.update_source_if_cfg_view(
                 schema, context, ptr,
-                s_objtypes.ObjectTypeCommandContext,)
+            )
         else:
             # Moving from source table to pointer table.
             self.create_table(ptr, schema, context)
@@ -4222,8 +4159,7 @@ class PointerMetaCommand(
             self.pgops.add(dbops.Query(update_qry))
 
             assert isinstance(ref_op.scls, s_sources.Source)
-            self.recreate_inhview(
-                schema, context, ref_op.scls, alter_ancestors=False)
+            self.update_if_cfg_view(schema, context, ref_op.scls)
 
             ref_op = self.get_referrer_context_or_die(context).op
             assert isinstance(ref_op, CompositeMetaCommand)
@@ -4637,7 +4573,7 @@ class PointerMetaCommand(
         self._recreate_constraints(pointer, schema, context)
 
         if changing_col_type:
-            self.create_inhview(schema, context, source, alter_ancestors=False)
+            self.update_if_cfg_view(schema, context, source)
 
     def _compile_conversion_expr(
         self,
@@ -5100,11 +5036,8 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
             # We optimize away __type__ and don't store it.
             # Nothing to do except make sure the inhviews get updated.
             if link.get_shortname(schema).name == '__type__':
-                self.schedule_inhview_source_update(
-                    schema,
-                    context,
-                    link,
-                    s_objtypes.ObjectTypeCommandContext,
+                self.update_source_if_cfg_view(
+                    schema, context, link
                 )
                 return
 
@@ -5150,11 +5083,8 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                 ci = dbops.CreateIndex(pg_index)
                 self.pgops.add(ci)
 
-                self.schedule_inhview_source_update(
-                    schema,
-                    context,
-                    link,
-                    s_objtypes.ObjectTypeCommandContext,
+                self.update_source_if_cfg_view(
+                    schema, context, link
                 )
 
             if (
@@ -5208,12 +5138,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
 
             if (not isinstance(objtype.op, s_objtypes.DeleteObjectType)
                     and ptr_stor_info.table_type == 'ObjectType'):
-                self.recreate_inhview(
-                    schema,
-                    context,
-                    objtype.scls,
-                    alter_ancestors=False,
-                )
+                self.update_if_cfg_view(schema, context, objtype.scls)
                 assert isinstance(objtype.op, CompositeMetaCommand)
                 alter_table = objtype.op.get_alter_table(
                     schema, context, manual=True)
@@ -5271,8 +5196,7 @@ class RebaseLink(LinkMetaCommand, adapts=s_links.RebaseLink):
     ) -> s_schema.Schema:
         orig_schema = context.current().original_schema
         if types.has_table(self.scls, schema):
-            self.update_base_inhviews_on_rebase(
-                schema, orig_schema, context, self.scls)
+            self.update_if_cfg_view(schema, context, self.scls)
 
         schema = super()._alter_innards(schema, context)
 
@@ -5605,11 +5529,8 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
 
                     self.pgops.add(alter_table)
 
-                self.schedule_inhview_source_update(
-                    schema,
-                    context,
-                    prop,
-                    s_sources.SourceCommandContext,
+                self.update_source_if_cfg_view(
+                    schema, context, prop
                 )
 
             if (
@@ -5667,13 +5588,7 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
 
                 # source and target don't have a proper inheritence
                 # hierarchy, so we can't do the source trick for them
-                is_endpoint_ptr = prop.is_endpoint_pointer(schema)
-                self.recreate_inhview(
-                    schema,
-                    context,
-                    source,
-                    alter_ancestors=is_endpoint_ptr,
-                )
+                self.update_if_cfg_view(schema, context, source)
 
                 col = dbops.AlterTableDropColumn(
                     dbops.Column(name=ptr_stor_info.column_name,
@@ -5728,8 +5643,7 @@ class RebaseProperty(PropertyMetaCommand, adapts=s_props.RebaseProperty):
     ) -> s_schema.Schema:
         orig_schema = context.current().original_schema
         if types.has_table(self.scls, schema):
-            self.update_base_inhviews_on_rebase(
-                schema, orig_schema, context, self.scls)
+            self.update_if_cfg_view(schema, context, self.scls)
 
         schema = super()._alter_innards(schema, context)
 
