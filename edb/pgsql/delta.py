@@ -3317,21 +3317,6 @@ class CompositeMetaCommand(MetaCommand):
                 self.alter_inhview(
                     schema, context, base, alter_ancestors=False)
 
-    def alter_ancestor_inhviews(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        obj: CompositeObject,
-    ) -> None:
-        for base in obj.get_ancestors(schema).objects(schema):
-            if types.has_table(base, schema) and not context.is_deleting(base):
-                self.alter_inhview(
-                    schema,
-                    context,
-                    base,
-                    alter_ancestors=False,
-                )
-
     def create_inhview(
         self,
         schema: s_schema.Schema,
@@ -3345,9 +3330,6 @@ class CompositeMetaCommand(MetaCommand):
         if irtyputils.is_cfg_view(obj, schema):
             self._refresh_fake_cfg_view(obj, schema, context)
 
-        if alter_ancestors:
-            self.alter_ancestor_inhviews(schema, context, obj)
-
     def alter_inhview(
         self,
         schema: s_schema.Schema,
@@ -3360,10 +3342,6 @@ class CompositeMetaCommand(MetaCommand):
 
         if irtyputils.is_cfg_view(obj, schema):
             self._refresh_fake_cfg_view(obj, schema, context)
-
-        if alter_ancestors:
-            self.alter_ancestor_inhviews(
-                schema, context, obj)
 
     def recreate_inhview(
         self,
@@ -5276,9 +5254,6 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
             self.attach_alter_table(context)
 
         if types.has_table(link, orig_schema):
-            self.alter_ancestor_inhviews(
-                orig_schema, context, link,
-            )
             condition = dbops.TableExists(name=old_table_name)
             self.pgops.add(
                 dbops.DropTable(name=old_table_name, conditions=[condition]))
@@ -5738,16 +5713,10 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
             prop.is_link_property(schema)
             and types.has_table(source, orig_schema)
         ):
-            self.alter_ancestor_inhviews(
-                orig_schema, context, source,
-            )
             old_table_name = self._get_table_name(source, orig_schema)
             self.pgops.add(dbops.DropTable(name=old_table_name))
 
         if types.has_table(prop, orig_schema):
-            self.alter_ancestor_inhviews(
-                schema, context, prop,
-            )
             old_table_name = self._get_table_name(prop, orig_schema)
             self.pgops.add(dbops.DropTable(name=old_table_name))
             self.schedule_endpoint_delete_action_update(
