@@ -500,7 +500,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 try:
                     await con.execute(f'CREATE DATABASE {tenant}')
                     await con.execute(f'CREATE SUPERUSER ROLE {tenant}')
-                    databases = await con.query('SELECT sys::Database.name')
+                    databases = await con.query('SELECT sys::Branch.name')
                     self.assertEqual(set(databases), {'main', tenant})
                     roles = await con.query('SELECT sys::Role.name')
                     self.assertEqual(set(roles), {'edgedb', tenant})
@@ -537,7 +537,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 try:
                     await con.execute(f'CREATE DATABASE {tenant}')
                     await con.execute(f'CREATE SUPERUSER ROLE {tenant}')
-                    databases = await con.query('SELECT sys::Database.name')
+                    databases = await con.query('SELECT sys::Branch.name')
                     self.assertEqual(set(databases), {'main', tenant})
                     roles = await con.query('SELECT sys::Role.name')
                     self.assertEqual(set(roles), {'edgedb', tenant})

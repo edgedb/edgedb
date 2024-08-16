@@ -939,16 +939,18 @@ class TestIntrospection(tb.QueryTestCase):
         )
 
     async def test_edgeql_introspection_meta_01(self):
-        await self.assert_query_result(
-            r'''
-                SELECT count(sys::Database) > 0;
-            ''',
-            [True],
-        )
+        for alias in ["Database", "Branch"]:
+            with self.subTest(alias=alias):
+                await self.assert_query_result(
+                    rf'''
+                        SELECT count(sys::{alias}) > 0;
+                    ''',
+                    [True],
+                )
 
-        # regression test: sys::Database view must have a __tid__ column
-        dbs = await self.con.query('SELECT sys::Database')
-        self.assertTrue(len(dbs))
+                # regression test: sys::Branch view must have a __tid__ column
+                dbs = await self.con.query(f'SELECT sys::{alias}')
+                self.assertTrue(len(dbs))
 
     async def test_edgeql_introspection_meta_02(self):
         await self.assert_query_result(
@@ -1415,7 +1417,7 @@ class TestIntrospection(tb.QueryTestCase):
     async def test_edgeql_introspection_database_01(self):
         res = await self.con.query_single(r"""
             WITH MODULE sys
-            SELECT count(Database.name);
+            SELECT count(Branch.name);
         """)
 
         self.assertGreater(res, 0)
@@ -1542,8 +1544,8 @@ class TestIntrospection(tb.QueryTestCase):
     async def test_edgeql_introspection_cfg_objects_01(self):
         await self.assert_query_result(
             r'''
-                SELECT count(sys::Database)
-                  = count(BaseObject[is sys::Database])
+                SELECT count(sys::Branch)
+                  = count(BaseObject[is sys::Branch])
             ''',
             [True],
         )
@@ -1567,8 +1569,8 @@ class TestIntrospection(tb.QueryTestCase):
     async def test_edgeql_introspection_cfg_objects_02(self):
         await self.assert_query_result(
             r'''
-                SELECT count(sys::Database)
-                  = count(sys::SystemObject[is sys::Database])
+                SELECT count(sys::Branch)
+                  = count(sys::SystemObject[is sys::Branch])
             ''',
             [True],
         )

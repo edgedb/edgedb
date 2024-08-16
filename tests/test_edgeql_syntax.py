@@ -1758,11 +1758,11 @@ aa';
 
     def test_edgeql_syntax_shape_64(self):
         """
-        SELECT sys::Database{};
+        SELECT sys::Branch{};
 
 % OK %
 
-        SELECT sys::Database;
+        SELECT sys::Branch;
         """
 
     def test_edgeql_syntax_shape_65(self):

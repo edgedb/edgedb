@@ -124,7 +124,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         })
 
     async def test_edgeql_explain_introspection_01(self):
-        res = await self.explain('select sys::Database')
+        res = await self.explain('select sys::Branch')
         self.assertIn(
             ('relation_name', 'pg_database'),
             ((p['title'], p['value'])
