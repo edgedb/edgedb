@@ -5702,7 +5702,8 @@ def _generate_schema_alias_views(
     )
 
     for schema_obj in schema_objs:
-        views.append(_generate_schema_alias_view(schema, schema_obj))
+        if not schema_obj.get_from_alias(schema):
+            views.append(_generate_schema_alias_view(schema, schema_obj))
 
     return views
 
