@@ -14,6 +14,7 @@ use std::{
     collections::HashMap,
     future::{poll_fn, ready, Future},
     rc::Rc,
+    time::Duration,
 };
 use tracing::trace;
 
@@ -434,6 +435,10 @@ impl<C: Connector> PoolAlgorithmDataBlock for Block<C, PoolAlgoTargetData> {
     #[inline(always)]
     fn demand(&self) -> u32 {
         self.data.demand()
+    }
+    #[inline(always)]
+    fn count_older(&self, variant: MetricVariant, than: Duration) -> usize {
+        self.conns.count_older(variant, than)
     }
     #[inline(always)]
     fn oldest_ms(&self, variant: MetricVariant) -> usize {

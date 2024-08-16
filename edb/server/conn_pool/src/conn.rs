@@ -268,6 +268,17 @@ impl<C: Connector> Conn<C> {
             _ => unreachable!(),
         }
     }
+
+    fn age(&self) -> Duration {
+        match &*self.inner.borrow() {
+            ConnInner::Connecting(t, _)
+            | ConnInner::Reconnecting(t, _)
+            | ConnInner::Disconnecting(t, _) => t.elapsed(),
+            ConnInner::Idle(t, _) | ConnInner::Active(t, _) => t.elapsed(),
+            ConnInner::Closed | ConnInner::Failed(..) => Duration::ZERO,
+            ConnInner::Transition => unreachable!(),
+        }
+    }
 }
 
 #[allow(type_alias_bounds)]
@@ -414,6 +425,16 @@ impl<C: Connector> Conns<C> {
         }
     }
 
+    pub fn count_older(&self, metric: MetricVariant, than: Duration) -> usize {
+        let mut count = 0;
+        for conn in self.conns.borrow().iter() {
+            if conn.variant() == metric && conn.age() > than {
+                count += 1;
+            }
+        }
+        count
+    }
+
     /// Insert a new connection, in the MRU spot.
     pub fn insert(&self, conn: Conn<C>) {
         self.conns.borrow_mut().push(conn);
@@ -484,7 +505,7 @@ impl<C: Connector> Conns<C> {
             for pos in range {
                 return match lock[pos].variant() {
                     MetricVariant::Idle => {
-                        trace!("Got a connection");
+                        trace!("Got a connection mru={mru}");
                         lock.swap(last_item, pos);
                         let conn = lock[last_item].clone();
                         Some(Ok(conn))

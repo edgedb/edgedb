@@ -114,7 +114,9 @@ impl RpcPipe {
     ) -> ConnResult<T, ConnHandleId> {
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.async_ops.borrow_mut().insert(conn_id, tx);
-        self.write(msg).await.map_err(|_| ConnError::Underlying(conn_id))?;
+        self.write(msg)
+            .await
+            .map_err(|_| ConnError::Underlying(conn_id))?;
         if let Ok(_) = rx.await {
             Err(ConnError::Underlying(conn_id))
         } else {
@@ -180,13 +182,10 @@ fn internal_error(message: &str) -> PyErr {
     InternalError::new_err(())
 }
 
-async fn run_and_block(max_capacity: usize, rpc_pipe: RpcPipe) {
+async fn run_and_block(config: PoolConfig, rpc_pipe: RpcPipe) {
     let rpc_pipe = Rc::new(rpc_pipe);
 
-    let pool = Pool::new(
-        PoolConfig::suggested_default_for(max_capacity),
-        rpc_pipe.clone(),
-    );
+    let pool = Pool::new(config, rpc_pipe.clone());
 
     let pool_task = {
         let pool = pool.clone();
@@ -268,8 +267,9 @@ impl ConnPool {
     /// Create the connection pool and automatically boot a tokio runtime on a
     /// new thread. When this [`ConnPool`] is GC'd, the thread will be torn down.
     #[new]
-    fn new(max_capacity: usize) -> Self {
-        info!("ConnPool::new(max_capacity={max_capacity})");
+    fn new(max_capacity: usize, min_idle_time_before_gc: f64) -> Self {
+        let min_idle_time_before_gc = min_idle_time_before_gc as usize;
+        info!("ConnPool::new(max_capacity={max_capacity}, min_idle_time_before_gc={min_idle_time_before_gc})");
         let (txrp, rxrp) = std::sync::mpsc::channel();
         let (txpr, rxpr) = tokio::sync::mpsc::unbounded_channel();
         let (txfd, rxfd) = std::sync::mpsc::channel();
@@ -296,7 +296,9 @@ impl ConnPool {
                 async_ops: Default::default(),
             };
 
-            local.block_on(&rt, run_and_block(max_capacity, rpc_pipe));
+            let config = PoolConfig::suggested_default_for(max_capacity)
+                .with_min_idle_time_for_gc(Duration::from_secs(min_idle_time_before_gc as _));
+            local.block_on(&rt, run_and_block(config, rpc_pipe));
         });
 
         let notify_fd = rxfd.recv().unwrap();

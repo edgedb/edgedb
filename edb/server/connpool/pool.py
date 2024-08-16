@@ -1292,6 +1292,7 @@ class _NaivePool(BasePool[C]):
         disconnect: Disconnector[C],
         max_capacity: int,
         stats_collector: typing.Optional[StatsCollector]=None,
+        min_idle_time_before_gc: float = config.MIN_IDLE_TIME_BEFORE_GC,
     ) -> None:
         super().__init__(
             connect=connect,

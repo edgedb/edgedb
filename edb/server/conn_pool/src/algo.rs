@@ -1,4 +1,7 @@
-use std::cell::{Cell, RefCell};
+use std::{
+    cell::{Cell, RefCell},
+    time::Duration,
+};
 use tracing::trace;
 
 use crate::{
@@ -136,10 +139,6 @@ constants! {
     /// for us to pre-create connections for it.
     #[range(0..=10)]
     const MIN_REBALANCE_HEADROOM_TO_CREATE: usize = 2;
-    /// The maximum number of excess connections (> target) we'll keep around during
-    /// a rebalance if there is still some demand.
-    #[range(0..=10)]
-    const MAX_REBALANCE_EXCESS_IDLE_CONNECTIONS: usize = 2;
 
     /// The minimum amount of time we'll consider for an active connection.
     #[range(1..=100)]
@@ -269,6 +268,7 @@ pub trait PoolAlgorithmDataBlock: PoolAlgorithmDataMetrics {
     fn insert_demand(&self, demand: u32);
     fn demand(&self) -> u32;
 
+    fn count_older(&self, variant: MetricVariant, age: Duration) -> usize;
     fn oldest_ms(&self, variant: MetricVariant) -> usize;
     fn youngest_ms(&self) -> usize;
 
@@ -426,6 +426,8 @@ impl PoolAlgoTargetData {
 pub struct PoolConstraints {
     /// Maximum pool size.
     pub max: usize,
+    /// The minimum idle time before a connection can be GC'd.
+    pub min_idle_time_for_gc: Duration,
 }
 
 /// The algorithm runs against these data structures.
@@ -558,7 +560,7 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
 
     /// Plan a rebalance to better match the target quotas of the blocks in the
     /// pool.
-    pub fn plan_rebalance(&self) -> Vec<RebalanceOp> {
+    pub fn plan_rebalance(&self, garbage_collect: bool) -> Vec<RebalanceOp> {
         // In shutdown, we just want to close all idle connections where possible.
         if self.drain.in_shutdown() {
             return self.plan_shutdown();
@@ -581,11 +583,34 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
             })
         }
 
+        // If we're garbage collecting, we want to close any idle connections
+        // older than `min_idle_time_for_gc`. If we don't have any, just run a
+        // normal rebalance.
+        if garbage_collect {
+            self.blocks.with_all(|name, block| {
+                // Drains are handled at the start of this function
+                if self.drain.is_draining(name) {
+                    return;
+                }
+
+                let gc_able =
+                    block.count_older(MetricVariant::Idle, self.constraints.min_idle_time_for_gc);
+                if gc_able > 0 {
+                    trace!("GC for {name}: {gc_able} connection(s) to close");
+                }
+                for _ in 0..gc_able {
+                    tasks.push(RebalanceOp::Close(name.clone()));
+                }
+            });
+            if tasks.len() > 0 {
+                return tasks;
+            }
+        }
+
         // If there's room in the pool, we can be more aggressive in
         // how we allocate.
         if current_pool_size < max_pool_size {
             let mut made_changes = false;
-
             for i in 0..MAX_REBALANCE_OPS.get() {
                 self.blocks.with_all(|name, block| {
                     // Drains are handled at the start of this function
@@ -604,17 +629,6 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
                     {
                         tasks.push(RebalanceOp::Create(name.clone()));
                         current_pool_size += 1;
-                        made_changes = true;
-                    } else if block.total() > block.target()
-                        && block.count(MetricVariant::Idle) > i
-                        && (i > MAX_REBALANCE_EXCESS_IDLE_CONNECTIONS.get() || block.demand() == 0)
-                    {
-                        // If we're holding on to too many connections, we'll
-                        // release some of them. If there is still some demand
-                        // around, we'll try to keep a few excess connections if
-                        // nobody else wants them. Otherwise, we'll just try to close
-                        // all the idle connections over time.
-                        tasks.push(RebalanceOp::Close(name.clone()));
                         made_changes = true;
                     }
                 });
@@ -667,10 +681,6 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
 
         for _ in 0..MAX_REBALANCE_OPS.get() {
             let Some((_, to)) = hungriest.pop() else {
-                // TODO: close more than one?
-                if let Some(idle) = idle.pop() {
-                    tasks.push(RebalanceOp::Close(idle.clone()));
-                }
                 break;
             };
 
@@ -704,7 +714,10 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
         }
 
         let target_block_size = self.blocks.target(db);
-        let current_block_size = self.blocks.with(db, |data| data.total()).unwrap_or_default();
+        let current_block_size = self
+            .blocks
+            .with(db, |data| data.total())
+            .unwrap_or_default();
         let current_pool_size = self.blocks.total();
         let max_pool_size = self.constraints.max;
 
