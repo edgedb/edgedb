@@ -3088,7 +3088,6 @@ class CompositeMetaCommand(MetaCommand):
         self.table_name = None
         self._multicommands = {}
         self.update_search_indexes = None
-        self.inhview_updates = set()
         self.post_inhview_update_commands = []
         self.constraint_trigger_updates = set()
 
@@ -3279,19 +3278,6 @@ class CompositeMetaCommand(MetaCommand):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
-        if self.inhview_updates:
-            to_recreate = {k for k, r in self.inhview_updates if r}
-            to_alter = {
-                k for k, _ in self.inhview_updates if k not in to_recreate}
-
-            for s in to_recreate:
-                if types.has_table(s, schema):
-                    self.update_if_cfg_view(schema, context, s)
-
-            for s in to_alter:
-                if types.has_table(s, schema):
-                    self.update_if_cfg_view(schema, context, s)
-
         for post_cmd in self.post_inhview_update_commands:
             if callable(post_cmd):
                 if op := post_cmd(schema, context):
