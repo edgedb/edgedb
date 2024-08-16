@@ -58,7 +58,7 @@ class TestDatabase(tb.ConnectedTestCase):
     async def test_database_create_02(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r'Database names longer than \d+ '
+                r'Branch names longer than \d+ '
                 r'characters are not supported'):
             await self.con.execute(
                 f'CREATE DATABASE mytestdb_{"x" * s_def.MAX_NAME_LENGTH};')
@@ -174,7 +174,7 @@ class TestDatabase(tb.ConnectedTestCase):
     async def test_branch_create_02(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r'Database names longer than \d+ '
+                r'Branch names longer than \d+ '
                 r'characters are not supported'):
             await self.con.execute(
                 f'CREATE EMPTY BRANCH mytestdb_{"x" * s_def.MAX_NAME_LENGTH};')

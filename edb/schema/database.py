@@ -36,22 +36,22 @@ from . import schema as s_schema
 from typing import cast
 
 
-class Database(
+class Branch(
     so.ExternalObject,
     s_anno.AnnotationSubject,
-    s_abc.Database,
+    s_abc.Branch,
     qlkind=qltypes.SchemaObjectClass.DATABASE,
     data_safe=False,
 ):
     pass
 
 
-class DatabaseCommandContext(sd.ObjectCommandContext[Database]):
+class DatabaseCommandContext(sd.ObjectCommandContext[Branch]):
     pass
 
 
 class DatabaseCommand(
-    sd.ExternalObjectCommand[Database],
+    sd.ExternalObjectCommand[Branch],
     context_class=DatabaseCommandContext,
 ):
 
@@ -64,13 +64,13 @@ class DatabaseCommand(
         if len(str(name)) > s_def.MAX_NAME_LENGTH:
             span = self.get_attribute_span('name')
             raise errors.SchemaDefinitionError(
-                f'Database names longer than {s_def.MAX_NAME_LENGTH} '
+                f'Branch names longer than {s_def.MAX_NAME_LENGTH} '
                 f'characters are not supported',
                 span=span,
             )
 
 
-class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Database]):
+class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Branch]):
 
     astnode = qlast.CreateDatabase
     template = struct.Field(str, default=None)
@@ -114,7 +114,7 @@ class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Database]):
         self._validate_name(schema, context)
 
 
-class AlterDatabase(DatabaseCommand, sd.AlterExternalObject[Database]):
+class AlterDatabase(DatabaseCommand, sd.AlterExternalObject[Branch]):
     astnode = qlast.AlterDatabase
 
     def validate_alter(
@@ -126,7 +126,7 @@ class AlterDatabase(DatabaseCommand, sd.AlterExternalObject[Database]):
         self._validate_name(schema, context)
 
 
-class DropDatabase(DatabaseCommand, sd.DeleteExternalObject[Database]):
+class DropDatabase(DatabaseCommand, sd.DeleteExternalObject[Branch]):
     astnode = qlast.DropDatabase
 
     def _validate_legal_command(
@@ -141,7 +141,7 @@ class DropDatabase(DatabaseCommand, sd.DeleteExternalObject[Database]):
             )
 
 
-class RenameDatabase(DatabaseCommand, sd.RenameObject[Database]):
+class RenameDatabase(DatabaseCommand, sd.RenameObject[Branch]):
     # databases are ExternalObjects, so they might not be properly
     # present in the schema, so we can't do a proper rename.
     def apply(
@@ -150,5 +150,5 @@ class RenameDatabase(DatabaseCommand, sd.RenameObject[Database]):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         scls = self.get_parent_op(context).scls
-        self.scls = cast(Database, scls)
+        self.scls = cast(Branch, scls)
         return schema
