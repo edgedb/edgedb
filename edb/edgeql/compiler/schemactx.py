@@ -492,19 +492,17 @@ def concretify(
 def get_all_concrete(
     stype: s_objtypes.ObjectType, *, ctx: context.ContextLevel
 ) -> set[s_objtypes.ObjectType]:
-    if stype.get_intersection_of(ctx.env.schema):
-        # TODO: We should enumerate all object types in the intersection
-        # maybe in concretify, though?
-        raise errors.UnsupportedFeatureError(
-            'DML statements on intersections are not implemented yet',
-        )
-
     if union := stype.get_union_of(ctx.env.schema):
         return {
             x
             for t in union.objects(ctx.env.schema)
             for x in get_all_concrete(t, ctx=ctx)
         }
+    elif intersection := stype.get_intersection_of(ctx.env.schema):
+        return set.intersection(*(
+            get_all_concrete(t, ctx=ctx)
+            for t in intersection.objects(ctx.env.schema)
+        ))
     return {stype} | {
         x for x in stype.descendants(ctx.env.schema)
         if x.is_material_object_type(ctx.env.schema)
