@@ -600,7 +600,7 @@ create extension package postgis version '3.4.2' {
     };
 
 
-    # total functions: 463
+    # total functions: 453
     ##################################################
 
     create function ext::postgis::to_geometry(a0: ext::postgis::box2d) ->  ext::postgis::geometry {
@@ -1813,24 +1813,6 @@ create extension package postgis version '3.4.2' {
         using sql function 'box3d';
     };
 
-    create function ext::postgis::text(a0: ext::postgis::geometry) ->  std::str {
-        set volatility := 'Immutable';
-        set force_return_cast := true;
-        using sql function 'text';
-    };
-
-    create function ext::postgis::bytea(a0: ext::postgis::geometry) ->  std::bytes {
-        set volatility := 'Immutable';
-        set force_return_cast := true;
-        using sql function 'bytea';
-    };
-
-    create function ext::postgis::bytea(a0: ext::postgis::geography) ->  std::bytes {
-        set volatility := 'Immutable';
-        set force_return_cast := true;
-        using sql function 'bytea';
-    };
-
     create function ext::postgis::simplify(a0: ext::postgis::geometry, a1: std::float64) ->  ext::postgis::geometry {
         set volatility := 'Immutable';
         set force_return_cast := true;
@@ -2692,18 +2674,6 @@ create extension package postgis version '3.4.2' {
         using sql $$SELECT st_geomfromgml("a0")$$;
     };
 
-    create function ext::postgis::gmltosql(a0: std::str) ->  ext::postgis::geometry {
-        set volatility := 'Immutable';
-        set force_return_cast := true;
-        using sql $$SELECT st_gmltosql("a0")$$;
-    };
-
-    create function ext::postgis::gmltosql(a0: std::str, a1: std::int64) ->  ext::postgis::geometry {
-        set volatility := 'Immutable';
-        set force_return_cast := true;
-        using sql $$SELECT st_gmltosql("a0", "a1"::int4)$$;
-    };
-
     create function ext::postgis::geomfromkml(a0: std::str) ->  ext::postgis::geometry {
         set volatility := 'Immutable';
         set force_return_cast := true;
@@ -3058,18 +3028,6 @@ create extension package postgis version '3.4.2' {
         using sql $$SELECT st_astext("a0")$$;
     };
 
-    create function ext::postgis::geometryfromtext(a0: std::str) ->  ext::postgis::geometry {
-        set volatility := 'Immutable';
-        set force_return_cast := true;
-        using sql $$SELECT st_geometryfromtext("a0")$$;
-    };
-
-    create function ext::postgis::geometryfromtext(a0: std::str, a1: std::int64) ->  ext::postgis::geometry {
-        set volatility := 'Immutable';
-        set force_return_cast := true;
-        using sql $$SELECT st_geometryfromtext("a0", "a1"::int4)$$;
-    };
-
     create function ext::postgis::geomfromtext(a0: std::str) ->  ext::postgis::geometry {
         set volatility := 'Immutable';
         set force_return_cast := true;
@@ -3080,12 +3038,6 @@ create extension package postgis version '3.4.2' {
         set volatility := 'Immutable';
         set force_return_cast := true;
         using sql $$SELECT st_geomfromtext("a0", "a1"::int4)$$;
-    };
-
-    create function ext::postgis::wkttosql(a0: std::str) ->  ext::postgis::geometry {
-        set volatility := 'Immutable';
-        set force_return_cast := true;
-        using sql function 'st_wkttosql';
     };
 
     create function ext::postgis::pointfromtext(a0: std::str) ->  ext::postgis::geometry {
@@ -3460,12 +3412,6 @@ create extension package postgis version '3.4.2' {
         using sql $$SELECT geography("a0")$$;
     };
 
-    create function ext::postgis::geographyfromtext(a0: std::str) ->  ext::postgis::geography {
-        set volatility := 'Immutable';
-        set force_return_cast := true;
-        using sql function 'st_geographyfromtext';
-    };
-
     create function ext::postgis::geogfromtext(a0: std::str) ->  ext::postgis::geography {
         set volatility := 'Immutable';
         set force_return_cast := true;
@@ -3631,12 +3577,6 @@ create extension package postgis version '3.4.2' {
         set force_return_cast := true;
         create annotation description := 'args: lineString, srid - Creates a Polygon from a LineString with a specified SRID.';
         using sql $$SELECT st_polygon("a0", "a1"::int4)$$;
-    };
-
-    create function ext::postgis::wkbtosql(wkb: std::bytes) ->  ext::postgis::geometry {
-        set volatility := 'Immutable';
-        set force_return_cast := true;
-        using sql function 'st_wkbtosql';
     };
 
     create function ext::postgis::locatebetween(geometry: ext::postgis::geometry, frommeasure: std::float64, tomeasure: std::float64, leftrightoffset: std::float64 = 0.0) ->  ext::postgis::geometry {

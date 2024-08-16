@@ -23,7 +23,10 @@ import click
 import collections
 import json
 import os
+import pathlib
+import re
 import sys
+import xml.etree.ElementTree as ET
 import textwrap
 
 from edb.tools.edb import edbcommands
@@ -33,8 +36,14 @@ from edb.edgeql import qltypes
 from edb.edgeql import codegen as qlcodegen
 from edb.common import assert_data_shape
 
+from .postgis_doc import DESC_REWRITES, FUNC_CATEGORIES
+
 
 BROKEN = []
+EQLINDENT = '.. eql:function:: '
+SIGINDENT = ' ' * len(EQLINDENT)
+INDENT = '    '
+MAXLENGTH = 79
 
 
 def die(msg):
@@ -364,40 +373,42 @@ def get_comment(name, func, comments):
 def parse_postgis_extension(
     path, functions, aggregates, comments, aggcomments, operators
 ):
-    for root, _dirs, files in os.walk(path):
-        for name in files:
-            if name in {'postgis--3.4.2.sql'}:
-                with open(os.path.join(root, name), mode='rt') as f:
-                    sql_query = ''.join(
-                        line for line in f.readlines()
-                        if not line.startswith('\\')
-                    )
-                    ast_json = pg_parse(bytes(sql_query, encoding="UTF8"))
-                    for code in json.loads(ast_json)['stmts']:
-                        if 'stmt' in code:
-                            stmt = code['stmt']
+    root = pathlib.Path(path).resolve()
+    for fpath in root.glob('postgis*.sql'):
+        name = fpath.name
+        # We might scan more postgis extension files
+        if name in {'postgis--3.4.2.sql'}:
+            with open(fpath, mode='rt') as f:
+                sql_query = ''.join(
+                    line for line in f.readlines()
+                    if not line.startswith('\\')
+                )
+                ast_json = pg_parse(bytes(sql_query, encoding="UTF8"))
+                for code in json.loads(ast_json)['stmts']:
+                    if 'stmt' in code:
+                        stmt = code['stmt']
 
-                            if defn := stmt.get('DefineStmt'):
-                                if defn['kind'] == 'OBJECT_OPERATOR':
-                                    operators.append(defn)
-                                elif defn['kind'] == 'OBJECT_AGGREGATE':
-                                    _el = defn['defnames'][0]
-                                    name = _el['String']['sval']
-                                    aggregates[name].append(defn)
+                        if defn := stmt.get('DefineStmt'):
+                            if defn['kind'] == 'OBJECT_OPERATOR':
+                                operators.append(defn)
+                            elif defn['kind'] == 'OBJECT_AGGREGATE':
+                                _el = defn['defnames'][0]
+                                name = _el['String']['sval']
+                                aggregates[name].append(defn)
 
-                            elif func := stmt.get('CreateFunctionStmt'):
-                                name = func['funcname'][0]['String']['sval']
-                                functions[name].append(func)
+                        elif func := stmt.get('CreateFunctionStmt'):
+                            name = func['funcname'][0]['String']['sval']
+                            functions[name].append(func)
 
-                            elif comm := stmt.get('CommentStmt'):
-                                if comm['objtype'] == 'OBJECT_FUNCTION':
-                                    _o = comm['object']['ObjectWithArgs']
-                                    name = _o['objname'][0]['String']['sval']
-                                    comments[name].append(comm)
-                                elif comm['objtype'] == 'OBJECT_AGGREGATE':
-                                    _o = comm['object']['ObjectWithArgs']
-                                    name = _o['objname'][0]['String']['sval']
-                                    aggcomments[name].append(comm)
+                        elif comm := stmt.get('CommentStmt'):
+                            if comm['objtype'] == 'OBJECT_FUNCTION':
+                                _o = comm['object']['ObjectWithArgs']
+                                name = _o['objname'][0]['String']['sval']
+                                comments[name].append(comm)
+                            elif comm['objtype'] == 'OBJECT_AGGREGATE':
+                                _o = comm['object']['ObjectWithArgs']
+                                name = _o['objname'][0]['String']['sval']
+                                aggcomments[name].append(comm)
 
 
 def generate_eqlop(operators, functions):
@@ -617,7 +628,183 @@ def generate_eqlagg(aggregates, functions, comments):
     return eqlagg
 
 
+def read_xml(path):
+    xml_docs = {}
+    func_docs = {}
+
+    root = pathlib.Path(path).resolve()
+    for fpath in root.glob('list_*.xml'):
+        name = fpath.name
+        try:
+            tree = ET.parse(fpath)
+            xml_docs[name] = tree.getroot()
+        except Exception:
+            # read what we can
+            pass
+
+    for xml_root in xml_docs.values():
+        for item in xml_root.iterfind('listitem'):
+            el = item.find('simpara').find('link')
+            desc = el.tail.strip(' -').replace('Aggregate function', 'Function')
+            if m := re.match(r'(.+?)\s+Description', desc):
+                desc = m.group(1)
+
+            fname = el.text.lower()
+            ex_desc = func_docs.get(fname)
+
+            if ex_desc is None:
+                func_docs[fname] = desc
+            elif len(ex_desc) > len(desc):
+                func_docs[fname] = desc
+
+    for fname, desc in DESC_REWRITES.items():
+        func_docs[fname] = desc
+
+    return func_docs
+
+
+def get_group_eqldef(eqlop, eqlfunc, eqlagg):
+    'Group the generated EdgeQL definitions based on the function names.'
+
+    group_eqldef = {
+        'operators': collections.defaultdict(list),
+        'functions': collections.defaultdict(list),
+        'aggregates': collections.defaultdict(list),
+    }
+
+    for key, eqldefs in [('operators', eqlop),
+                         ('functions', eqlfunc),
+                         ('aggregates', eqlagg)]:
+        defs = group_eqldef[key]
+        for func in eqldefs:
+            defs[f'ext::postgis::{func.name.name}'].append(func)
+
+    return group_eqldef
+
+
+def get_sql_name(eqldef):
+    if eqldef.code.from_function:
+        return eqldef.code.from_function
+    else:
+        return re.match(
+            r'SELECT (\w+)', eqldef.code.code).group(1)
+
+
+def get_func_categories(eqlfunc):
+    sql_categories = {}
+    func_categories = {}
+    for key, values in FUNC_CATEGORIES.items():
+        func_categories[key] = set()
+        # We will have all-lowercase normalized SQL function names
+        sql_categories.update({
+          val.lower(): key for val in values
+        })
+    # Functions that didn't necessarily match some clear category, possibly
+    # because they are helper functions.
+    func_categories['Other'] = set()
+
+    for func in eqlfunc:
+        sql_name = get_sql_name(func)
+        cat = sql_categories.get(sql_name, 'Other')
+        func_categories[cat].add(func.name.name)
+
+    # We want to sort all funcitons in a category for a stable result
+    for cat in func_categories:
+        func_categories[cat] = sorted(func_categories[cat])
+
+    return func_categories
+
+
+def rst_make_body(text, indent_level=1):
+    indent = INDENT * indent_level
+
+    if '\n' in text:
+        # assume it's formatted already
+        return text
+
+    else:
+        body = textwrap.indent(
+            '\n'.join(textwrap.wrap(text, MAXLENGTH - len(indent))),
+            indent,
+        )
+        return f'\n{body}'
+
+
+def rst_print_functions(func_dict, func_docs, is_operator=False, file=None):
+    prev_name = ''
+    for _, func_list in sorted(func_dict.items(), key=lambda x: x[0]):
+        func_sigs = []
+        # Also sort the grouped functions by length of signature
+        for ef in func_list:
+            code = qlcodegen.generate_source(ef)
+            name, params, ret = re.match(r'''(?x)
+                create\sfunction\s
+                ([\w:]+)
+                \((.*?)\)\s+
+                (->.+?)
+                \s+{
+            ''', code).groups()
+            func_sigs.append((ef, name, params, ret))
+        func_sigs.sort(key=lambda x: (len(x[2]), x[2]))
+
+        for n, (ef, name, params, ret) in enumerate(func_sigs):
+            if n == 0:
+                print('----------\n\n', file=file)
+                print(f'{EQLINDENT}{name}( \\', file=file)
+            else:
+                print(f'{SIGINDENT}{name}( \\', file=file)
+
+            if ',' in params:
+                for param in params.split(','):
+                    print(f'{SIGINDENT}  {param.strip()}, \\', file=file)
+            else:
+                print(f'{SIGINDENT}  {params.strip()} \\', file=file)
+            print(f'{SIGINDENT}) {ret}', file=file)
+
+        # Write some description
+        if is_operator:
+            sql_name = re.match(
+                r'SELECT a (\S+) b', ef.code.code).group(1)
+            print(
+                rst_make_body(
+                    f'This is exposing the ``{sql_name}`` operator.', 1),
+                file=file,
+            )
+
+        else:
+            sql_name = get_sql_name(ef)
+            if sql_name in func_docs:
+                x = func_docs[sql_name]
+                if '\n' not in x and len(x) > 79:
+                    print(len(x), sql_name, x)
+                else:
+                    print(rst_make_body(x, 1), file=file)
+
+            print(
+                rst_make_body(f'This is exposing ``{sql_name}``.', 1),
+                file=file,
+            )
+
+        print('\n', file=file)
+
+
+def rst_print_categories(func_categories, file=None):
+    for cat, funclist in func_categories.items():
+        print(cat, file=file)
+        print('-' * len(cat), '\n', file=file)
+        print('.. list-table::', file=file)
+        print('    :class: funcoptable\n', file=file)
+
+        for name in funclist:
+            print(
+                f'    * - :eql:func:`ext::postgis::{name}`', file=file)
+            print(
+                f'      - :eql:func-desc:`ext::postgis::{name}`\n', file=file)
+
+
 def main(show_broken=False):
+    base_build = pathlib.Path('build').resolve()
+    # Used to generate both .edgeql and .rst
     functions = collections.defaultdict(list)
     aggregates = collections.defaultdict(list)
     comments = collections.defaultdict(list)
@@ -625,10 +812,13 @@ def main(show_broken=False):
     operators = []
 
     parse_postgis_extension(
-        'build/postgres/install/share/extension/',
+        base_build / 'postgres/install/share/extension',
         functions, aggregates, comments, aggcomments, operators,
     )
     eqlop = generate_eqlop(operators, functions)
+
+    # Specific for .rst
+    func_docs = read_xml(base_build / 'postgis/src/doc')
 
     # remove functions corresponding to operators
     for op in operators:
@@ -647,10 +837,12 @@ def main(show_broken=False):
             name in {
                 # Functions that are reflected manually or otherwise have
                 # special handling.
-                'equals', 'st_letters', 'json', 'jsonb',
+                'equals', 'st_letters', 'json', 'jsonb', 'bytea', 'text',
 
                 # Deprecated and duplicated
                 'geomfromewkb', 'geomfromewkt',
+                'st_gmltosql', 'st_wkbtosql', 'st_wkttosql',
+                'st_geometryfromtext', 'st_geographyfromtext',
 
                 # Functions involving columns, tables or subtypes.
                 'st_geometrytype', 'populate_geometry_columns',
@@ -697,7 +889,14 @@ def main(show_broken=False):
                 code.code = f'SELECT {code.from_function}({sig})'
                 code.from_function = None
 
-    with open('edb/tools/postgis.template.edgeql', mode='rt') as tf:
+    # Create ext_postgis directory in `build` for output files for the
+    # extension and the docs.
+    build_dir = pathlib.Path('build').resolve() / 'ext_postgis'
+    if not build_dir.exists():
+        os.makedirs(build_dir)
+
+    with open('edb/tools/postgis.template.edgeql', mode='rt') as tf,\
+         open(build_dir / 'postgis.edgeql' , mode='wt') as out:
         for line in tf.readlines():
             match line:
                 case '### REFLECT: OPERATORS\n':
@@ -708,7 +907,7 @@ def main(show_broken=False):
                         +
                         '\n'
                     )
-                    print(textwrap.indent(text, '    '))
+                    print(textwrap.indent(text, '    '), file=out)
 
                     for ef in eqlop:
                         print(textwrap.indent(
@@ -717,11 +916,11 @@ def main(show_broken=False):
                             "# strict, and we want it to be inlined so that "
                             "indexes work with it.",
                             '    ',
-                        ))
+                        ), file=out)
                         code = qlcodegen.generate_source(
                             ef, pretty=True
                         ).replace('\n;', ';\n')
-                        print(textwrap.indent(f'{code};\n', '    '))
+                        print(textwrap.indent(f'{code};\n', '    '), file=out)
 
                 case '### REFLECT: FUNCTIONS\n':
                     text = (
@@ -731,12 +930,12 @@ def main(show_broken=False):
                         +
                         '\n'
                     )
-                    print(textwrap.indent(text, '    '))
+                    print(textwrap.indent(text, '    '), file=out)
 
                     for ef in eqlfunc:
                         code = qlcodegen.generate_source(
                             ef, pretty=True).replace('\n;', ';\n')
-                        print(textwrap.indent(f'{code};\n', '    '))
+                        print(textwrap.indent(f'{code};\n', '    '), file=out)
 
                 case '### REFLECT: AGGREGATES\n':
                     text = (
@@ -746,15 +945,57 @@ def main(show_broken=False):
                         +
                         '\n'
                     )
-                    print(textwrap.indent(text, '    '))
+                    print(textwrap.indent(text, '    '), file=out)
 
                     for ef in eqlagg:
                         code = qlcodegen.generate_source(
                             ef, pretty=True).replace('\n;', ';\n')
-                        print(textwrap.indent(f'{code};\n', '    '))
+                        print(textwrap.indent(f'{code};\n', '    '), file=out)
 
                 case _:
-                    print(line, end='')
+                    print(line, end='', file=out)
+
+        print(f'writing {out.name}')
+
+    group_eqldef = get_group_eqldef(eqlop, eqlfunc, eqlagg)
+    func_categories = get_func_categories(eqlfunc)
+
+    with open('edb/tools/postgis.template.rst', mode='rt') as tf,\
+         open(build_dir / 'postgis.rst' , mode='wt') as out:
+        for line in tf.readlines():
+            match line:
+                case '.. REFLECT: OPERATORS\n':
+                    rst_print_functions(
+                        group_eqldef['operators'],
+                        func_docs,
+                        is_operator=True,
+                        file=out,
+                    )
+
+                case '.. REFLECT: FUNCTIONS\n':
+                    rst_print_functions(
+                        group_eqldef['functions'],
+                        func_docs,
+                        file=out,
+                    )
+
+                case '.. REFLECT: AGGREGATES\n':
+                    rst_print_functions(
+                        group_eqldef['aggregates'],
+                        func_docs,
+                        file=out,
+                    )
+
+                case '.. REFLECT: CATEGORIES\n':
+                    rst_print_categories(
+                        func_categories,
+                        file=out,
+                    )
+
+                case _:
+                    print(line, end='', file=out)
+
+        print(f'writing {out.name}')
 
 
 @edbcommands.command('gen-ext-postgis')

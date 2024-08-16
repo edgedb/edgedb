@@ -43,8 +43,8 @@ create extension package postgis version '3.4.2' {
         DROP CAST (edgedb.box3d AS box);
     $$;
     set sql_teardown_script := $$
-        DROP FUNCTION edgedb.geo_neq(l edgedb.geometry, r edgedb.geometry);
         DROP OPERATOR <> (edgedb.geometry, edgedb.geometry);
+        DROP FUNCTION edgedb.geo_neq(l edgedb.geometry, r edgedb.geometry);
     $$;
 
     create module ext::postgis;
