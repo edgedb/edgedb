@@ -5097,6 +5097,7 @@ def _generate_branch_views(schema: s_schema.Schema) -> List[dbops.View]:
         ),
         'computed_fields': 'ARRAY[]::text[]',
         'builtin': "((d.description)->>'builtin')::bool",
+        'last_migration': "(d.description)->>'last_migration'",
     }
 
     view_query = f'''
