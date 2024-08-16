@@ -272,10 +272,11 @@ fn unexpected_reserved_keyword(text: &str, span: Span) -> Error {
     Error {
         message: format!("Unexpected keyword '{text_upper}'"),
         span,
-        details: Some(format!(
+        details: Some(
             "This name is a reserved keyword and cannot be \
             used as an identifier"
-        )),
+                .to_string(),
+        ),
         hint: Some(format!(
             "Use a different identifier or quote the name \
             with backticks: `{text}`"

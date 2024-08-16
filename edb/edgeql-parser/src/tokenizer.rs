@@ -73,45 +73,45 @@ impl Error {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Kind {
-    Assign,          // :=
-    SubAssign,       // -=
-    AddAssign,       // +=
-    Arrow,           // ->
-    Coalesce,        // ??
-    Namespace,       // ::
-    BackwardLink,    // .<
-    FloorDiv,        // //
-    Concat,          // ++
-    GreaterEq,       // >=
-    LessEq,          // <=
-    NotEq,           // !=
-    NotDistinctFrom, // ?=
-    DistinctFrom,    // ?!=
-    Comma,           // ,
-    OpenParen,       // (
-    CloseParen,      // )
-    OpenBracket,     // [
-    CloseBracket,    // ]
-    OpenBrace,       // {
-    CloseBrace,      // }
-    Dot,             // .
-    Semicolon,       // ;
-    Colon,           // :
-    Add,             // +
-    Sub,             // -
-    DoubleSplat,     // **
-    Mul,             // *
-    Div,             // /
-    Modulo,          // %
-    Pow,             // ^
-    Less,            // <
-    Greater,         // >
-    Eq,              // =
-    Ampersand,       // &
-    Pipe,            // |
-    At,              // @
-    Parameter,       // $something, $`something`
-    ParameterAndType,// <lit int>$something
+    Assign,           // :=
+    SubAssign,        // -=
+    AddAssign,        // +=
+    Arrow,            // ->
+    Coalesce,         // ??
+    Namespace,        // ::
+    BackwardLink,     // .<
+    FloorDiv,         // //
+    Concat,           // ++
+    GreaterEq,        // >=
+    LessEq,           // <=
+    NotEq,            // !=
+    NotDistinctFrom,  // ?=
+    DistinctFrom,     // ?!=
+    Comma,            // ,
+    OpenParen,        // (
+    CloseParen,       // )
+    OpenBracket,      // [
+    CloseBracket,     // ]
+    OpenBrace,        // {
+    CloseBrace,       // }
+    Dot,              // .
+    Semicolon,        // ;
+    Colon,            // :
+    Add,              // +
+    Sub,              // -
+    DoubleSplat,      // **
+    Mul,              // *
+    Div,              // /
+    Modulo,           // %
+    Pow,              // ^
+    Less,             // <
+    Greater,          // >
+    Eq,               // =
+    Ampersand,        // &
+    Pipe,             // |
+    At,               // @
+    Parameter,        // $something, $`something`
+    ParameterAndType, // <lit int>$something
     DecimalConst,
     FloatConst,
     IntConst,
@@ -334,21 +334,17 @@ impl<'a> Tokenizer<'a> {
                         ))
                     }
                 }
-                _ => {
-                    Err(Error::new(
-                        "Bare `?` is not an operator, \
+                _ => Err(Error::new(
+                    "Bare `?` is not an operator, \
                             did you mean `?=` or `??` ?",
-                    ))
-                }
+                )),
             },
             '!' => match iter.next() {
                 Some((_, '=')) => Ok((NotEq, 2)),
-                _ => {
-                    Err(Error::new(
-                        "Bare `!` is not an operator, \
+                _ => Err(Error::new(
+                    "Bare `!` is not an operator, \
                             did you mean `!=`?",
-                    ))
-                }
+                )),
             },
             '"' | '\'' => self.parse_string(0, false, false),
             '`' => {
@@ -874,7 +870,7 @@ impl<'a> Tokenizer<'a> {
                 }
                 //comment
                 '#' => {
-                    while let Some((idx, cur_char)) = iter.next() {
+                    for (idx, cur_char) in iter.by_ref() {
                         if check_prohibited(cur_char, false).is_err() {
                             // can't return error from skip_whitespace
                             // but we return up to this char, so the tokenizer

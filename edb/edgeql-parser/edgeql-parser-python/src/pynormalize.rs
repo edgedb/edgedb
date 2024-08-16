@@ -11,7 +11,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyFloat, PyList, PyLong, PyString};
 
 use crate::errors::SyntaxError;
-use crate::normalize::{normalize as _normalize, Error, Variable, PackedEntry};
+use crate::normalize::{normalize as _normalize, Error, PackedEntry, Variable};
 use crate::tokenizer::tokens_to_py;
 
 #[pyfunction]
@@ -19,14 +19,12 @@ pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
     let text = text.to_string();
     match _normalize(&text) {
         Ok(entry) => Entry::new(py, entry),
-        Err(Error::Tokenizer(msg, pos)) => {
-            Err(SyntaxError::new_err((
-                msg,
-                (pos, py.None()),
-                py.None(),
-                py.None(),
-            )))
-        }
+        Err(Error::Tokenizer(msg, pos)) => Err(SyntaxError::new_err((
+            msg,
+            (pos, py.None()),
+            py.None(),
+            py.None(),
+        ))),
         Err(Error::Assertion(msg, pos)) => {
             Err(PyAssertionError::new_err(format!("{}: {}", pos, msg)))
         }
@@ -57,8 +55,7 @@ pub struct Entry {
 
 impl Entry {
     pub fn new(py: Python, entry: crate::normalize::Entry) -> PyResult<Self> {
-        let blobs =
-            serialize_all(py, &entry.variables).map_err(PyAssertionError::new_err)?;
+        let blobs = serialize_all(py, &entry.variables).map_err(PyAssertionError::new_err)?;
         let counts: Vec<_> = entry
             .variables
             .iter()
@@ -98,7 +95,7 @@ impl Entry {
     }
 
     fn pack(&self, py: Python) -> PyResult<PyObject> {
-        let mut buf = vec![1u8];  // type and version
+        let mut buf = vec![1u8]; // type and version
         bincode::serialize_into(&mut buf, &self.entry_pack)
             .map_err(|e| PyValueError::new_err(format!("Failed to pack: {e}")))?;
         Ok(PyBytes::new(py, buf.as_slice()).into())
@@ -128,7 +125,7 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
             }
             Value::Float(ref v) => {
                 codec::Float64
-                    .encode(&mut buf, &P::Float64(v.clone()))
+                    .encode(&mut buf, &P::Float64(*v))
                     .map_err(|e| format!("float cannot be encoded: {}", e))?;
             }
             Value::BigInt(ref v) => {

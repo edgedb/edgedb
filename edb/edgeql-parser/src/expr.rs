@@ -1,5 +1,5 @@
-use crate::position::{Pos, InflatedPos};
-use crate::tokenizer::{Kind, self};
+use crate::position::{InflatedPos, Pos};
+use crate::tokenizer::{self, Kind};
 
 /// Error of expression checking
 ///
@@ -10,7 +10,11 @@ pub enum Error {
     Tokenizer(String, Pos),
     #[error(
         "{}: closing bracket mismatch, opened {:?} at {}, encountered {:?}",
-        closing_pos, opened, opened_pos, encountered)]
+        closing_pos,
+        opened,
+        opened_pos,
+        encountered
+    )]
     BracketMismatch {
         opened: &'static str,
         encountered: &'static str,
@@ -21,8 +25,12 @@ pub enum Error {
     ExtraBracket(&'static str, Pos),
     #[error("{}: bracket {:?} has never been closed", _1, _0)]
     MissingBracket(&'static str, Pos),
-    #[error("{}: token {:?} is not allowed in expression \
-             (try parenthesize the expression)", _1, _0)]
+    #[error(
+        "{}: token {:?} is not allowed in expression \
+             (try parenthesize the expression)",
+        _1,
+        _0
+    )]
     UnexpectedToken(String, Pos),
     #[error("expression is empty")]
     Empty,
@@ -79,7 +87,9 @@ pub fn check(text: &str) -> Result<(), Error> {
             }
         };
         let pos = token.span.start;
-        let pos = InflatedPos::from_offset(text.as_bytes(), pos).unwrap().deflate();
+        let pos = InflatedPos::from_offset(text.as_bytes(), pos)
+            .unwrap()
+            .deflate();
 
         empty = false;
         match token.kind {
@@ -106,7 +116,7 @@ pub fn check(text: &str) -> Result<(), Error> {
             },
             _ => {}
         }
-    };
+    }
     if let Some((bracket, pos)) = brackets.pop() {
         return Err(MissingBracket(bracket_str(bracket), pos));
     }

@@ -91,13 +91,13 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                         let error = Error::new(format!("Missing {injection}")).with_span(gap_span);
                         inject.push_error(error, cost);
 
-                        if inject.error_cost <= ERROR_COST_INJECT_MAX {
-                            if inject.act(ctx, injection).is_ok() {
-                                // println!("   --> [inject {injection}]");
+                        if inject.error_cost <= ERROR_COST_INJECT_MAX
+                            && inject.act(ctx, injection).is_ok()
+                        {
+                            // println!("   --> [inject {injection}]");
 
-                                // insert into parsers, to retry the original token
-                                parsers.push(inject);
-                            }
+                            // insert into parsers, to retry the original token
+                            parsers.push(inject);
                         }
                     }
                 }
@@ -558,7 +558,8 @@ fn injection_cost(kind: &Kind) -> u16 {
 
         // Manual keyword tweaks to encourage some error messages and discourage others.
         Keyword(keywords::Keyword(
-            "delete" | "update" | "migration" | "role" | "global" | "administer" | "future" | "database",
+            "delete" | "update" | "migration" | "role" | "global" | "administer" | "future"
+            | "database",
         )) => 100,
         Keyword(keywords::Keyword("insert" | "module" | "extension" | "branch")) => 20,
         Keyword(keywords::Keyword("select" | "property" | "type")) => 10,

@@ -107,3 +107,54 @@ class TestCodeQuality(unittest.TestCase):
                     output += '\n\n' + ex.stderr.decode()
                 raise AssertionError(
                     f'mypy validation failed:\n{output}') from None
+
+    def test_clippy(self):
+        edgepath = find_edgedb_root()
+        config_path = os.path.join(edgepath, 'Cargo.toml')
+        if not os.path.exists(config_path):
+            raise RuntimeError('could not locate Cargo.toml file')
+
+        try:
+            subprocess.run(
+                [
+                    "cargo",
+                    'clippy',
+                    '--',
+                    '-Dclippy::all',
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=edgepath,
+            )
+        except subprocess.CalledProcessError as ex:
+            output = ex.stdout.decode()
+            if ex.stderr:
+                output += '\n\n' + ex.stderr.decode()
+            raise AssertionError(
+                f'clippy validation failed:\n{output}') from None
+
+    def test_rustfmt(self):
+        edgepath = find_edgedb_root()
+        config_path = os.path.join(edgepath, 'Cargo.toml')
+        if not os.path.exists(config_path):
+            raise RuntimeError('could not locate Cargo.toml file')
+
+        try:
+            subprocess.run(
+                [
+                    "cargo",
+                    'fmt',
+                    '--check',
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=edgepath,
+            )
+        except subprocess.CalledProcessError as ex:
+            output = ex.stdout.decode()
+            if ex.stderr:
+                output += '\n\n' + ex.stderr.decode()
+            raise AssertionError(
+                f'rustfmt validation failed:\n{output}') from None
