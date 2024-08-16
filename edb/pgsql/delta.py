@@ -224,16 +224,6 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         assert isinstance(ctx.op, CompositeMetaCommand)
         return ctx.op
 
-    def schedule_post_inhview_update_command(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        cmd: PostCommand,
-        ctxcls: Type[sd.CommandContextToken[sd.Command]],
-    ) -> None:
-        op = self._get_topmost_command_op(context, ctxcls)
-        op.post_inhview_update_commands.append(cmd)
-
     def schedule_constraint_trigger_update(
         self,
         constraint: s_constr.Constraint,
@@ -2233,13 +2223,9 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
                 subject, (s_objtypes.ObjectType, s_pointers.Pointer))
             and not context.is_creating(subject)
         ):
-            op = self.enforce_constraint(
+            self.pgops.add(self.enforce_constraint(
                 constraint, schema, self.span
-            )
-
-            self.schedule_post_inhview_update_command(
-                schema, context, op, s_sources.SourceCommandContext
-            )
+            ))
 
         return schema
 
@@ -2321,18 +2307,9 @@ class AlterConstraint(
                 and not context.is_creating(subject)
                 and not context.is_deleting(subject)
             ):
-                self.schedule_post_inhview_update_command(
-                    schema,
-                    context,
-                    (
-                        lambda nschema, ncontext:
-                            self.enforce_constraint(
-                                constraint, nschema, self.span
-                            )
-                            if nschema.has_object(constraint.id)
-                            else None
-                    ),
-                    s_sources.SourceCommandContext)
+                self.pgops.add(self.enforce_constraint(
+                    constraint, schema, self.span
+                ))
 
             self.pgops.add(self.schedule_relatives_constraint_trigger_update(
                 constraint, orig_schema, schema, context,
@@ -3080,7 +3057,6 @@ if TYPE_CHECKING:
 
 class CompositeMetaCommand(MetaCommand):
 
-    post_inhview_update_commands: List[PostCommand]
     constraint_trigger_updates: set[uuid.UUID]
 
     def __init__(self, **kwargs):
@@ -3088,7 +3064,6 @@ class CompositeMetaCommand(MetaCommand):
         self.table_name = None
         self._multicommands = {}
         self.update_search_indexes = None
-        self.post_inhview_update_commands = []
         self.constraint_trigger_updates = set()
 
     def schedule_trampoline(self, obj, schema, context):
@@ -3272,18 +3247,6 @@ class CompositeMetaCommand(MetaCommand):
             return trampoline.make_table_trampoline(versioned_name)
         else:
             return None
-
-    def apply_scheduled_inhview_updates(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> None:
-        for post_cmd in self.post_inhview_update_commands:
-            if callable(post_cmd):
-                if op := post_cmd(schema, context):
-                    self.pgops.add(op)
-            else:
-                self.pgops.add(post_cmd)
 
     def apply_constraint_trigger_updates(
         self,
@@ -3573,22 +3536,10 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
                 context.modaliases,
                 self.get_schema_metaclass()
             )
-            drop_ops = deltafts.delete_fts_index(
+            self.pgops.add(deltafts.delete_fts_index(
                 index, drop_index, options, schema, orig_schema, context
-            )
+            ))
 
-            if isinstance(drop_index, dbops.NoOpCommand):
-                # Even though the object type table is getting dropped, we have
-                # to drop the trigger and its function
-                self.pgops.add(drop_ops)
-            else:
-                # The object is not getting dropped, so we need to update the
-                # inh view *before* the __fts_document__ is dropped.
-
-                # schedule the index to be dropped after
-                self.schedule_post_inhview_update_command(
-                    schema, context, drop_ops, s_sources.SourceCommandContext
-                )
         # ext::ai::index
         elif s_indexes.is_ext_ai_index(orig_schema, index):
             # compile commands for index drop
@@ -3605,17 +3556,7 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
             # Even though the object type table is getting dropped, we have
             # to drop the trigger and its function
             self.pgops.add(drop_support_ops)
-            if not isinstance(drop_index, dbops.NoOpCommand):
-                # The object is not getting dropped, so we need to update the
-                # inh view *before* the __ext_ai_* cols are dropped.
-
-                # schedule the index to be dropped after
-                self.schedule_post_inhview_update_command(
-                    schema,
-                    context,
-                    drop_col_ops,
-                    s_sources.SourceCommandContext,
-                )
+            self.pgops.add(drop_col_ops)
         else:
             self.pgops.add(drop_index)
 
@@ -3753,7 +3694,6 @@ class CreateObjectType(
 
     def _create_finalize(self, schema, context):
         schema = super()._create_finalize(schema, context)
-        self.apply_scheduled_inhview_updates(schema, context)
         self.apply_constraint_trigger_updates(schema)
         return schema
 
@@ -3802,7 +3742,6 @@ class AlterObjectType(ObjectTypeMetaCommand, adapts=s_objtypes.AlterObjectType):
         schema = super().apply(schema, context=context)
         objtype = self.scls
 
-        self.apply_scheduled_inhview_updates(schema, context)
         self.apply_constraint_trigger_updates(schema)
 
         self._maybe_do_abstract_test(orig_schema, schema, context)
@@ -3868,7 +3807,6 @@ class DeleteObjectType(
         orig_schema = schema
         schema = super().apply(schema, context)
 
-        self.apply_scheduled_inhview_updates(schema, context)
         self.apply_constraint_trigger_updates(schema)
 
         if types.has_table(objtype, orig_schema):
@@ -5164,7 +5102,6 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
 
     def _create_finalize(self, schema, context):
         schema = super()._create_finalize(schema, context)
-        self.apply_scheduled_inhview_updates(schema, context)
         self.apply_constraint_trigger_updates(schema)
         self.schedule_trampoline(self.scls, schema, context)
         return schema
@@ -5329,7 +5266,6 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
 
     def _alter_finalize(self, schema, context):
         schema = super()._alter_finalize(schema, context)
-        self.apply_scheduled_inhview_updates(schema, context)
         self.apply_constraint_trigger_updates(schema)
         return schema
 
@@ -5355,7 +5291,6 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
     ) -> s_schema.Schema:
         schema = super().apply(schema, context)
 
-        self.apply_scheduled_inhview_updates(schema, context)
         self.apply_constraint_trigger_updates(schema)
 
         return schema
