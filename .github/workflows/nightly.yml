@@ -995,10 +995,6 @@ jobs:
     - name: Install Rust toolchain
       uses: dsherret/rust-toolchain-file@v1
       if: true
-      with:
-        components: "cargo,rustc,rust-std,rustfmt,clippy"
-        toolchain: "1.80.1"
-        targets: "x86_64-apple-darwin"
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -1063,10 +1059,6 @@ jobs:
     - name: Install Rust toolchain
       uses: dsherret/rust-toolchain-file@v1
       if: true
-      with:
-        components: "cargo,rustc,rust-std,rustfmt,clippy"
-        toolchain: "1.80.1"
-        targets: "aarch64-apple-darwin"
 
     - name: Set up Python
       uses: actions/setup-python@v5

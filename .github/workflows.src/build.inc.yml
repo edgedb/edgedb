@@ -148,10 +148,6 @@
     - name: Install Rust toolchain
       uses: dsherret/rust-toolchain-file@v1
       if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
-      with:
-        components: "cargo,rustc,rust-std,rustfmt,clippy"
-        toolchain: "1.80.1"
-        targets: "<< tgt.arch >>-apple-darwin"
 
     - name: Set up Python
       uses: actions/setup-python@v5
