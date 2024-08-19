@@ -557,7 +557,7 @@ jobs:
         brew update
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
+      uses: dsherret/rust-toolchain-file@v1
       if: true
       with:
         components: "cargo,rustc,rust-std,rustfmt,clippy"
@@ -624,7 +624,7 @@ jobs:
         brew update
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
+      uses: dsherret/rust-toolchain-file@v1
       if: true
       with:
         components: "cargo,rustc,rust-std,rustfmt,clippy"
