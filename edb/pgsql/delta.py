@@ -7337,7 +7337,7 @@ class CreateDatabase(MetaCommand, DatabaseMixin, adapts=s_db.CreateBranch):
         return schema
 
 
-class DropDatabase(MetaCommand, DatabaseMixin, adapts=s_db.DropDatabase):
+class DropDatabase(MetaCommand, DatabaseMixin, adapts=s_db.DropBranch):
     def apply(
         self,
         schema: s_schema.Schema,

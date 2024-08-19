@@ -126,7 +126,7 @@ class AlterBranch(BranchCommand, sd.AlterExternalObject[Branch]):
         self._validate_name(schema, context)
 
 
-class DropDatabase(BranchCommand, sd.DeleteExternalObject[Branch]):
+class DropBranch(BranchCommand, sd.DeleteExternalObject[Branch]):
     astnode = qlast.DropDatabase
 
     def _validate_legal_command(
