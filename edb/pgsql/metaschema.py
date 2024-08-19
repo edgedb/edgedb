@@ -4027,6 +4027,7 @@ class GetCachedReflection(trampoline.VersionedFunction):
             INNER JOIN pg_namespace ON (pronamespace = pg_namespace.oid)
         WHERE
             proname LIKE '\\_\\_rh\\_%'
+            AND nspname = 'edgedb_VER'
     '''
 
     def __init__(self) -> None:
@@ -5665,6 +5666,7 @@ def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
 def _make_json_caster(
     schema: s_schema.Schema,
     stype: s_types.Type,
+    versioned: bool,
 ) -> Callable[[str], str]:
     cast_expr = qlast.TypeCast(
         expr=qlast.TypeCast(
@@ -5683,7 +5685,7 @@ def _make_json_caster(
         cast_ir,
         named_param_prefix=(),
         singleton_mode=True,
-        versioned_singleton=True,
+        versioned_singleton=versioned,
     )
     cast_sql = codegen.generate_source(cast_sql_res.ast)
 
@@ -7285,13 +7287,17 @@ def _build_key_source(
     return keysource
 
 
-def _build_key_expr(key_components: List[str]) -> str:
+def _build_key_expr(
+    key_components: List[str],
+    versioned: bool,
+) -> str:
+    prefix = 'edgedb_VER' if versioned else 'edgedb'
     key_expr = ' || '.join(key_components)
     final_keysource = f'''
         (SELECT
             (CASE WHEN array_position(q.v, NULL) IS NULL
              THEN
-                 edgedb_VER.uuid_generate_v5(
+                 {prefix}.uuid_generate_v5(
                      '{DATABASE_ID_NAMESPACE}'::uuid,
                      array_to_string(q.v, ';')
                  )
@@ -7385,6 +7391,11 @@ def _generate_config_type_view(
     if is_ext_cfg:
         rptr = None
     is_rptr_ext_cfg = False
+    # For extension configs, we want to use the trampolined version,
+    # since we know it must exist already and don't want to have to
+    # recreate the views on update.
+    versioned = not is_ext_cfg or stype == ext_cfg
+    prefix = 'edgedb_VER' if versioned else 'edgedb'
 
     if not path:
         if is_ext_cfg:
@@ -7396,7 +7407,7 @@ def _generate_config_type_view(
                 (SELECT
                     (SELECT jsonb_object_agg(
                       substr(name, {len(cfg_name) + 3}), value) AS val
-                    FROM edgedb_VER._read_sys_config(
+                    FROM {prefix}._read_sys_config(
                       NULL, scope::edgedb._sys_config_source_t) cfg
                     WHERE name LIKE {ql(escaped_name + '%')}
                     ) AS val, scope::text AS scope, scope_id AS scope_id
@@ -7411,13 +7422,16 @@ def _generate_config_type_view(
             # This is the root config object.
             source0 = f'''
                 (SELECT jsonb_object_agg(name, value) AS val
-                FROM edgedb_VER._read_sys_config(NULL, {max_source}) cfg)
+                FROM {prefix}._read_sys_config(NULL, {max_source}) cfg)
                 AS q0'''
         else:
             rptr_name = rptr.get_shortname(schema).name
             rptr_source = not_none(rptr.get_source(schema))
             is_rptr_ext_cfg = rptr_source.issubclass(schema, ext_cfg)
             if is_rptr_ext_cfg:
+                versioned = False
+                prefix = 'edgedb'
+
                 cfg_name = str(rptr_source.get_name(schema)) + '::' + rptr_name
                 escaped_name = _escape_like(cfg_name)
 
@@ -7431,7 +7445,7 @@ def _generate_config_type_view(
                      ) AS s(scope, scope_id),
                      LATERAL (
                          SELECT (value::jsonb) AS val
-                         FROM edgedb_VER._read_sys_config(
+                         FROM {prefix}._read_sys_config(
                            NULL, scope::edgedb._sys_config_source_t) cfg
                          WHERE name LIKE {ql(escaped_name + '%')}
                      ) AS cfg,
@@ -7444,7 +7458,7 @@ def _generate_config_type_view(
                     (SELECT el.val
                      FROM
                         (SELECT (value::jsonb) AS val
-                        FROM edgedb_VER._read_sys_config(NULL, {max_source})
+                        FROM {prefix}._read_sys_config(NULL, {max_source})
                         WHERE name = {ql(rptr_name)}) AS cfg,
                         LATERAL jsonb_array_elements(cfg.val) AS el(val)
                     ) AS q0'''
@@ -7473,14 +7487,14 @@ def _generate_config_type_view(
                         (SELECT el.val
                         FROM
                             (SELECT (value::jsonb) AS val
-                            FROM edgedb_VER._read_sys_config(NULL, {max_source})
+                            FROM {prefix}._read_sys_config(NULL, {max_source})
                             WHERE name = {ql(l_name)}) AS cfg,
                             LATERAL jsonb_array_elements(cfg.val) AS el(val)
                         ) AS q{i}'''
                 else:
                     sourceN = f'''
                         (SELECT (value::jsonb) AS val
-                        FROM edgedb_VER._read_sys_config(NULL, {max_source}) cfg
+                        FROM {prefix}._read_sys_config(NULL, {max_source}) cfg
                         WHERE name = {ql(l_name)}) AS q{i}'''
             else:
                 sourceN = _build_data_source(schema, l, i - 1)
@@ -7533,7 +7547,9 @@ def _generate_config_type_view(
             else:
                 single_links.append(pp)
         else:
-            pp_cast = _make_json_caster(schema, pp_type)
+            pp_cast = _make_json_caster(
+                schema, pp_type, versioned=versioned
+            )
 
             if pp_multi:
                 multi_props.append((pp, pp_cast))
@@ -7564,7 +7580,7 @@ def _generate_config_type_view(
             f'ARRAY[{ql(str(stype.get_name(schema)))}]',
             "ARRAY[coalesce(q0.scope, 'session')]"
         ]
-        final_keysource = f'{_build_key_expr(key_components)} AS k'
+        final_keysource = f'{_build_key_expr(key_components, versioned)} AS k'
         sources.append(final_keysource)
 
         key_expr = 'k.key'
@@ -7582,7 +7598,7 @@ def _generate_config_type_view(
                 "ARRAY[coalesce(q0.scope, 'session')]"
             ] + key_components
 
-        final_keysource = f'{_build_key_expr(key_components)} AS k'
+        final_keysource = f'{_build_key_expr(key_components, versioned)} AS k'
         sources.append(final_keysource)
 
         key_expr = 'k.key'
@@ -7651,7 +7667,7 @@ def _generate_config_type_view(
 
         target_key_components = key_components + [f'k{link_name}.key']
 
-        target_key = _build_key_expr(target_key_components)
+        target_key = _build_key_expr(target_key_components, versioned)
         target_cols[link] = f'({X(target_key)}) AS {qi(link_col)}'
 
         views.extend(target_views)
@@ -7760,7 +7776,7 @@ def _generate_config_type_view(
         target_sources.append(target_key_source)
 
         target_key_components = key_components + [f'k{link_name}.key']
-        target_key = _build_key_expr(target_key_components)
+        target_key = _build_key_expr(target_key_components, versioned)
 
         target_fromlist = ',\n'.join(f'LATERAL {X(s)}' for s in target_sources)
 

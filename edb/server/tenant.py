@@ -973,7 +973,7 @@ class Tenant(ha_base.ClusterProtocol):
             )
 
             reflection_cache_json = await conn.sql_fetch_val(
-                b"""
+                trampoline.fixup_query("""
                     SELECT json_agg(o.c)
                     FROM (
                         SELECT
@@ -982,10 +982,10 @@ class Tenant(ha_base.ClusterProtocol):
                                 'argnames', array_to_json(t.argnames)
                             ) AS c
                         FROM
-                            ROWS FROM(edgedb._get_cached_reflection())
+                            ROWS FROM(edgedb_VER._get_cached_reflection())
                                 AS t(eql_hash text, argnames text[])
                     ) AS o;
-                """,
+                """).encode('utf-8'),
             )
 
             reflection_cache = immutables.Map(
