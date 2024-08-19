@@ -12,4 +12,5 @@ resolver = "2"
 debug = true
 lto = true
 
-[workspace.lints]
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(never)'] }

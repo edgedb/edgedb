@@ -166,14 +166,11 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y uuid-dev libreadline-dev bison flex
 
-    - name: Install rust toolchain
+    - name: Install Rust toolchain
       if: |
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true'
-      uses: dtolnay/rust-toolchain@d0e72ca3bfdc51937a4f81431ccbed269ef9f2a2
-      with:
-        components: "cargo,rustc,rust-std"
-        toolchain: "stable"
+      uses: dsherret/rust-toolchain-file@v1
 
     # Build EdgeDB CLI
 

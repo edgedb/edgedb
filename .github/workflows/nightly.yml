@@ -993,12 +993,8 @@ jobs:
         brew update
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@d0e72ca3bfdc51937a4f81431ccbed269ef9f2a2
+      uses: dsherret/rust-toolchain-file@v1
       if: true
-      with:
-        components: "cargo,rustc,rust-std"
-        toolchain: "stable"
-        targets: "x86_64-apple-darwin"
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -1061,12 +1057,8 @@ jobs:
         brew update
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@d0e72ca3bfdc51937a4f81431ccbed269ef9f2a2
+      uses: dsherret/rust-toolchain-file@v1
       if: true
-      with:
-        components: "cargo,rustc,rust-std"
-        toolchain: "stable"
-        targets: "aarch64-apple-darwin"
 
     - name: Set up Python
       uses: actions/setup-python@v5

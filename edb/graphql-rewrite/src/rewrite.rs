@@ -66,7 +66,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
             match def {
                 Definition::Operation(ref op) => {
                     if oper.is_some() {
-                        return Err(Error::NotFound(
+                        Err(Error::NotFound(
                             "Multiple operations \
                             found. Please specify operation name"
                                 .into(),
@@ -102,9 +102,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                 (G::String(ref s), Some("String")) => Str(s.clone()),
                 (G::Int(ref s), Some("Int")) | (G::Int(ref s), Some("Int32")) => {
                     let value = match s.as_i64() {
-                        Some(v) if v <= i32::max_value() as i64 && v >= i32::min_value() as i64 => {
-                            v
-                        }
+                        Some(v) if v <= i32::MAX as i64 && v >= i32::MIN as i64 => v,
                         // Ignore bad values. Let graphql solver handle that
                         _ => continue,
                     };
@@ -179,19 +177,18 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                 continue;
             }
             IntValue => {
-                if token.value == "1" {
-                    if pos.token > 2
-                        && all_src_tokens[pos.token - 1].0.kind == Punctuator
-                        && all_src_tokens[pos.token - 1].0.value == ":"
-                        && all_src_tokens[pos.token - 2].0.kind == Name
-                        && all_src_tokens[pos.token - 2].0.value == "first"
-                    {
-                        // skip `first: 1` as this is used to fetch singleton
-                        // properties from queries where literal `LIMIT 1`
-                        // should be present
-                        tmp.push(PyToken::new(&(*token, *pos))?);
-                        continue;
-                    }
+                if token.value == "1"
+                    && pos.token > 2
+                    && all_src_tokens[pos.token - 1].0.kind == Punctuator
+                    && all_src_tokens[pos.token - 1].0.value == ":"
+                    && all_src_tokens[pos.token - 2].0.kind == Name
+                    && all_src_tokens[pos.token - 2].0.value == "first"
+                {
+                    // skip `first: 1` as this is used to fetch singleton
+                    // properties from queries where literal `LIMIT 1`
+                    // should be present
+                    tmp.push(PyToken::new(&(*token, *pos))?);
+                    continue;
                 }
                 let var_name = format!("_edb_arg__{}", variables.len());
                 tmp.push(PyToken {
@@ -205,7 +202,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                     position: None,
                 });
                 let (value, typ) = if let Ok(val) = token.value.parse::<i64>() {
-                    if val <= i32::max_value() as i64 && val >= i32::min_value() as i64 {
+                    if val <= i32::MAX as i64 && val >= i32::MIN as i64 {
                         (Value::Int32(val as i32), "Int")
                     } else {
                         (Value::Int64(val), "Int64")

@@ -602,7 +602,7 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
                     tasks.push(RebalanceOp::Close(name.clone()));
                 }
             });
-            if tasks.len() > 0 {
+            if !tasks.is_empty() {
                 return tasks;
             }
         }
