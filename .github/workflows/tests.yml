@@ -31,7 +31,7 @@ jobs:
       uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
       with:
         components: "cargo,rustc,rust-std,rustfmt,clippy"
-        toolchain: "stable"
+        toolchain: "1.80.1"
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -176,7 +176,7 @@ jobs:
       uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
       with:
         components: "cargo,rustc,rust-std,rustfmt,clippy"
-        toolchain: "stable"
+        toolchain: "1.80.1"
 
     # Build EdgeDB CLI
 
@@ -367,7 +367,7 @@ jobs:
       uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
       with:
         components: "cargo,rustc,rust-std,rustfmt,clippy"
-        toolchain: "stable"
+        toolchain: "1.80.1"
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -418,11 +418,11 @@ jobs:
         path: ${{ env.BUILD_TEMP }}/rust/extensions
         key: edb-rust-build-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
-    - name: Install rust toolchain
+    - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
       with:
-        components: "cargo,rustc,rust-std"
-        toolchain: "stable"
+        components: "cargo,rustc,rust-std,rustfmt,clippy"
+        toolchain: "1.80.1"
 
     - name: Cargo test
       env:
@@ -459,7 +459,7 @@ jobs:
       uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
       with:
         components: "cargo,rustc,rust-std,rustfmt,clippy"
-        toolchain: "stable"
+        toolchain: "1.80.1"
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -628,7 +628,7 @@ jobs:
       uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
       with:
         components: "cargo,rustc,rust-std,rustfmt,clippy"
-        toolchain: "stable"
+        toolchain: "1.80.1"
 
     - name: Set up Python
       uses: actions/setup-python@v5

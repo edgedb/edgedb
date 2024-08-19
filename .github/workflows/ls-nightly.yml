@@ -235,7 +235,7 @@ jobs:
       if: true
       with:
         components: "cargo,rustc,rust-std,rustfmt,clippy"
-        toolchain: "stable"
+        toolchain: "1.80.1"
         targets: "x86_64-apple-darwin"
 
     - name: Set up Python
@@ -294,7 +294,7 @@ jobs:
       if: true
       with:
         components: "cargo,rustc,rust-std,rustfmt,clippy"
-        toolchain: "stable"
+        toolchain: "1.80.1"
         targets: "aarch64-apple-darwin"
 
     - name: Set up Python
