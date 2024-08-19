@@ -27,6 +27,12 @@ jobs:
         fetch-depth: 50
         submodules: true
 
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
+      with:
+        components: "cargo,rustc,rust-std,rustfmt,clippy"
+        toolchain: "stable"
+
     - name: Set up Python
       uses: actions/setup-python@v5
       id: setup-python
@@ -357,6 +363,12 @@ jobs:
         fetch-depth: 50
         submodules: true
 
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
+      with:
+        components: "cargo,rustc,rust-std,rustfmt,clippy"
+        toolchain: "stable"
+
     - name: Set up Python
       uses: actions/setup-python@v5
       id: setup-python
@@ -442,6 +454,12 @@ jobs:
       with:
         fetch-depth: 50
         submodules: true
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
+      with:
+        components: "cargo,rustc,rust-std,rustfmt,clippy"
+        toolchain: "stable"
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -605,6 +623,12 @@ jobs:
       with:
         fetch-depth: 50
         submodules: true
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
+      with:
+        components: "cargo,rustc,rust-std,rustfmt,clippy"
+        toolchain: "stable"
 
     - name: Set up Python
       uses: actions/setup-python@v5
