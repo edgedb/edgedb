@@ -27,9 +27,6 @@ jobs:
         fetch-depth: 50
         submodules: true
 
-    - name: Install Rust toolchain
-      uses: dsherret/rust-toolchain-file@v1
-
     - name: Set up Python
       uses: actions/setup-python@v5
       id: setup-python
@@ -357,9 +354,6 @@ jobs:
         fetch-depth: 50
         submodules: true
 
-    - name: Install Rust toolchain
-      uses: dsherret/rust-toolchain-file@v1
-
     - name: Set up Python
       uses: actions/setup-python@v5
       id: setup-python
@@ -442,9 +436,6 @@ jobs:
       with:
         fetch-depth: 50
         submodules: true
-
-    - name: Install Rust toolchain
-      uses: dsherret/rust-toolchain-file@v1
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -576,6 +567,9 @@ jobs:
 
     # Run the test
 
+    - name: Install Rust toolchain
+      uses: dsherret/rust-toolchain-file@v1
+
     - name: Test
       env:
         SHARD: ${{ matrix.shard }}
@@ -608,9 +602,6 @@ jobs:
       with:
         fetch-depth: 50
         submodules: true
-
-    - name: Install Rust toolchain
-      uses: dsherret/rust-toolchain-file@v1
 
     - name: Set up Python
       uses: actions/setup-python@v5

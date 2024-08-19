@@ -86,6 +86,9 @@ jobs:
 
     # Run the test
 
+    - name: Install Rust toolchain
+      uses: dsherret/rust-toolchain-file@v1
+
     - name: Test
       env:
         SHARD: ${{ matrix.shard }}
