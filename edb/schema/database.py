@@ -141,7 +141,7 @@ class DropBranch(BranchCommand, sd.DeleteExternalObject[Branch]):
             )
 
 
-class RenameDatabase(BranchCommand, sd.RenameObject[Branch]):
+class RenameBranch(BranchCommand, sd.RenameObject[Branch]):
     # databases are ExternalObjects, so they might not be properly
     # present in the schema, so we can't do a proper rename.
     def apply(

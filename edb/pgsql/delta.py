@@ -7358,7 +7358,7 @@ class AlterDatabase(MetaCommand, DatabaseMixin, adapts=s_db.AlterBranch):
     pass
 
 
-class RenameDatabase(MetaCommand, DatabaseMixin, adapts=s_db.RenameDatabase):
+class RenameDatabase(MetaCommand, DatabaseMixin, adapts=s_db.RenameBranch):
     def apply(
         self,
         schema: s_schema.Schema,
