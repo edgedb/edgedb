@@ -575,7 +575,7 @@ class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
     def generate_extra_composite(
         self, block: base.PLBlock, group: base.CompositeCommandGroup
     ) -> None:
-        return self.constraint.generate_extra_composite(block, group)
+        return self.constraint.generate_extra(block)
 
     def __repr__(self):
         return '<%s.%s %r>' % (
