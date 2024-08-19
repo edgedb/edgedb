@@ -46,13 +46,13 @@ class Branch(
     pass
 
 
-class DatabaseCommandContext(sd.ObjectCommandContext[Branch]):
+class BranchCommandContext(sd.ObjectCommandContext[Branch]):
     pass
 
 
 class DatabaseCommand(
     sd.ExternalObjectCommand[Branch],
-    context_class=DatabaseCommandContext,
+    context_class=BranchCommandContext,
 ):
 
     def _validate_name(
