@@ -58,11 +58,8 @@ jobs:
         path: ${{ env.BUILD_TEMP }}/rust/extensions
         key: edb-rust-build-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
-    - name: Install rust toolchain
-      uses: dtolnay/rust-toolchain@d0e72ca3bfdc51937a4f81431ccbed269ef9f2a2
-      with:
-        components: "cargo,rustc,rust-std"
-        toolchain: "stable"
+    - name: Install Rust toolchain
+      uses: dsherret/rust-toolchain-file@v1
 
     - name: Cargo test
       env:
@@ -88,6 +85,9 @@ jobs:
     <<- restore_cache() >>
 
     # Run the test
+
+    - name: Install Rust toolchain
+      uses: dsherret/rust-toolchain-file@v1
 
     - name: Test
       env:
