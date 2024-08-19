@@ -1129,23 +1129,6 @@ async def create_branch(
     '''.encode('utf-8')
     await conn.sql_execute(copy_cfg_query)
 
-    # std::Object and std::BaseObject depend on user tables, so we
-    # need to dump those and patch them to OR REPLACE, now that we
-    # have created the user tables.
-    std_views = [
-        pg_common.get_backend_name(
-            schema, schema.get(name), catenate=True, aspect='inhview'
-        )
-        for name in ('std::Object', 'std::BaseObject', 'cfg::ExtensionConfig')
-    ]
-    views_dump = await cluster.dump_database(
-        src_dbname,
-        include_tables=std_views,
-        schema_only=True,
-    )
-    views_dump = views_dump.replace(b'CREATE VIEW', b'CREATE OR REPLACE VIEW')
-    await conn.sql_execute(views_dump)
-
     # HACK: Empty out all schema multi property tables. This is
     # because the original template has the stdschema in it, and so we
     # use --on-conflict-do-nothing to avoid conflicts since the dump

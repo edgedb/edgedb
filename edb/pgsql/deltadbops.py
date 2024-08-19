@@ -104,7 +104,6 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         *,
         constraint,
         exprdata: list[schemamech.ExprData],
-        origin_exprdata: list[schemamech.ExprData],
         relative_exprdata: list[schemamech.ExprData],
         scope,
         type,
@@ -115,7 +114,6 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         ConstraintCommon.__init__(self, constraint, schema)
         dbops.TableConstraint.__init__(self, table_name, None)
         self._exprdata = exprdata
-        self._origin_exprdata = origin_exprdata
         self._relative_exprdata = relative_exprdata
         self._scope = scope
         self._type = type
