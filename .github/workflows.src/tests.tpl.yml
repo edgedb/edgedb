@@ -59,7 +59,7 @@ jobs:
         key: edb-rust-build-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Install rust toolchain
-      uses: dtolnay/rust-toolchain@d0e72ca3bfdc51937a4f81431ccbed269ef9f2a2
+      uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
       with:
         components: "cargo,rustc,rust-std"
         toolchain: "stable"

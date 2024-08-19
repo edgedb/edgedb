@@ -231,10 +231,10 @@ jobs:
         path: edgedb-pkg
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@d0e72ca3bfdc51937a4f81431ccbed269ef9f2a2
+      uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
       if: true
       with:
-        components: "cargo,rustc,rust-std"
+        components: "cargo,rustc,rust-std,rustfmt,clippy"
         toolchain: "stable"
         targets: "x86_64-apple-darwin"
 
@@ -290,10 +290,10 @@ jobs:
         path: edgedb-pkg
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@d0e72ca3bfdc51937a4f81431ccbed269ef9f2a2
+      uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
       if: true
       with:
-        components: "cargo,rustc,rust-std"
+        components: "cargo,rustc,rust-std,rustfmt,clippy"
         toolchain: "stable"
         targets: "aarch64-apple-darwin"
 
