@@ -28,7 +28,9 @@ from edb.pgsql import ast as pgast
 from edb.pgsql.ast import SQLValueFunctionOP as val_func_op
 from edb.pgsql import common
 from edb.pgsql import parser as pgparser
+
 from edb.server import defines
+from edb.server.pgcon import errors as pgerror
 
 from . import context
 from . import dispatch
@@ -317,12 +319,53 @@ def cast_to_regclass(param: pgast.BaseExpr, ctx: Context) -> pgast.BaseExpr:
         return pgast.NullConstant()
     if isinstance(expr, pgast.StringConstant):
         return to_regclass(expr.val, ctx=ctx)
+
+    oid: pgast.BaseExpr
     if isinstance(expr, pgast.NumericConstant):
-        return expr
-    raise errors.QueryError(
-        "casting to `regclass` requires a string or number literal",
-        span=param.span,
-    )
+        oid = expr
+    else:
+        # This is a complex expression of unknown type.
+        # If we knew the type is numeric, we could lookup the internal oid by
+        # the public oid.
+        # But if the type if string, we'd have to implement to_regclass in SQL.
+
+        # The problem is that we don't know the type statically.
+        # So let's insert a runtime type check with an 'unsupported' message for
+        # strings.
+        param = dispatch.resolve(param, ctx=ctx)
+        oid = pgast.CaseExpr(
+            args=[
+                pgast.CaseWhen(
+                    expr=pgast.Expr(
+                        lexpr=pgast.FuncCall(
+                            name=('pg_typeof',),
+                            args=[param]
+                        ),
+                        name='IN',
+                        rexpr=pgast.ImplicitRowExpr(
+                            args=[
+                                pgast.StringConstant(val='integer'),
+                                pgast.StringConstant(val='smallint'),
+                                pgast.StringConstant(val='bigint'),
+                                pgast.StringConstant(val='oid'),
+                            ]
+                        )
+                    ),
+                    result=param
+                )
+            ],
+            defresult=pgast.FuncCall(
+                name=(V('edgedb'), 'raise'),
+                args=[
+                    pgast.NumericConstant(val='1'),
+                    pgast.StringConstant(
+                        val=pgerror.ERROR_FEATURE_NOT_SUPPORTED
+                    ),
+                    pgast.StringConstant(val='cannot cast text to regclass'),
+                ]
+            )
+        )
+    return oid
 
 
 def to_regclass(reg_class_name: str, ctx: Context) -> pgast.BaseExpr:
