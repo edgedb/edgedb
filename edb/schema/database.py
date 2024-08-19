@@ -114,7 +114,7 @@ class CreateBranch(BranchCommand, sd.CreateExternalObject[Branch]):
         self._validate_name(schema, context)
 
 
-class AlterDatabase(BranchCommand, sd.AlterExternalObject[Branch]):
+class AlterBranch(BranchCommand, sd.AlterExternalObject[Branch]):
     astnode = qlast.AlterDatabase
 
     def validate_alter(

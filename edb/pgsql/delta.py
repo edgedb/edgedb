@@ -7354,7 +7354,7 @@ class DropDatabase(MetaCommand, DatabaseMixin, adapts=s_db.DropDatabase):
         return schema
 
 
-class AlterDatabase(MetaCommand, DatabaseMixin, adapts=s_db.AlterDatabase):
+class AlterDatabase(MetaCommand, DatabaseMixin, adapts=s_db.AlterBranch):
     pass
 
 
