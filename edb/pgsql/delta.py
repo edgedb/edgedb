@@ -7295,7 +7295,7 @@ class DatabaseMixin:
             )
 
 
-class CreateDatabase(MetaCommand, DatabaseMixin, adapts=s_db.CreateDatabase):
+class CreateDatabase(MetaCommand, DatabaseMixin, adapts=s_db.CreateBranch):
     def apply(
         self,
         schema: s_schema.Schema,

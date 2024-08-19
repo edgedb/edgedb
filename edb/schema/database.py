@@ -70,7 +70,7 @@ class BranchCommand(
             )
 
 
-class CreateDatabase(BranchCommand, sd.CreateExternalObject[Branch]):
+class CreateBranch(BranchCommand, sd.CreateExternalObject[Branch]):
 
     astnode = qlast.CreateDatabase
     template = struct.Field(str, default=None)
@@ -83,9 +83,9 @@ class CreateDatabase(BranchCommand, sd.CreateExternalObject[Branch]):
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> CreateDatabase:
+    ) -> CreateBranch:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        assert isinstance(cmd, CreateDatabase)
+        assert isinstance(cmd, CreateBranch)
 
         assert isinstance(astnode, qlast.CreateDatabase)
         if astnode.template is not None:
