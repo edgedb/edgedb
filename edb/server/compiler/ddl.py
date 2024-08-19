@@ -319,7 +319,7 @@ def _process_delta(
         debug.dump(pgdelta, schema=schema)
 
     db_cmd = any(
-        isinstance(c, s_db.DatabaseCommand) for c in pgdelta.get_subcommands()
+        isinstance(c, s_db.BranchCommand) for c in pgdelta.get_subcommands()
     )
 
     if db_cmd:

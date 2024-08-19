@@ -50,7 +50,7 @@ class BranchCommandContext(sd.ObjectCommandContext[Branch]):
     pass
 
 
-class DatabaseCommand(
+class BranchCommand(
     sd.ExternalObjectCommand[Branch],
     context_class=BranchCommandContext,
 ):
@@ -70,7 +70,7 @@ class DatabaseCommand(
             )
 
 
-class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Branch]):
+class CreateDatabase(BranchCommand, sd.CreateExternalObject[Branch]):
 
     astnode = qlast.CreateDatabase
     template = struct.Field(str, default=None)
@@ -114,7 +114,7 @@ class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Branch]):
         self._validate_name(schema, context)
 
 
-class AlterDatabase(DatabaseCommand, sd.AlterExternalObject[Branch]):
+class AlterDatabase(BranchCommand, sd.AlterExternalObject[Branch]):
     astnode = qlast.AlterDatabase
 
     def validate_alter(
@@ -126,7 +126,7 @@ class AlterDatabase(DatabaseCommand, sd.AlterExternalObject[Branch]):
         self._validate_name(schema, context)
 
 
-class DropDatabase(DatabaseCommand, sd.DeleteExternalObject[Branch]):
+class DropDatabase(BranchCommand, sd.DeleteExternalObject[Branch]):
     astnode = qlast.DropDatabase
 
     def _validate_legal_command(
@@ -141,7 +141,7 @@ class DropDatabase(DatabaseCommand, sd.DeleteExternalObject[Branch]):
             )
 
 
-class RenameDatabase(DatabaseCommand, sd.RenameObject[Branch]):
+class RenameDatabase(BranchCommand, sd.RenameObject[Branch]):
     # databases are ExternalObjects, so they might not be properly
     # present in the schema, so we can't do a proper rename.
     def apply(
