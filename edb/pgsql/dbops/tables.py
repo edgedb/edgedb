@@ -131,7 +131,7 @@ class Column(base.DBObject):
     def add_constraint(self, constraint: ColumnConstraint):
         self.constraints = list(self.constraints) + [constraint]
 
-    def code(self, _context, short: bool = False):
+    def code(self, short: bool = False):
         code = f"{qi(self.name)} {self.type}"
         if not short:
             if self.required:
@@ -144,8 +144,11 @@ class Column(base.DBObject):
                 code += ' ' + c.code()
         return code
 
-    def generate_extra(self, block, alter_table):
+    def generate_extra_composite(
+        self, block: base.PLBlock, alter_table: base.CompositeCommandGroup
+    ) -> None:
         if self.comment is not None:
+            assert isinstance(alter_table, AlterTable)
             col = TableColumn(table_name=alter_table.name, column=self)
             cmd = ddl.Comment(object=col, text=self.comment)
             cmd.generate(block)
@@ -191,7 +194,7 @@ class GeneratedConstraint(ColumnConstraint):
 
 
 class TableConstraint(constraints.Constraint):
-    def generate_extra(self, block):
+    def generate_extra(self, block: base.PLBlock) -> None:
         pass
 
     def get_subject_type(self):
@@ -257,7 +260,7 @@ class TableExists(base.Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                 tablename
@@ -274,7 +277,7 @@ class TableInherits(base.Condition):
         self.name = name
         self.parent_name = parent_name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                 c.relname
@@ -297,7 +300,7 @@ class ColumnExists(base.Condition):
         self.table_name = table_name
         self.column_name = column_name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                 column_name
@@ -315,7 +318,7 @@ class ColumnIsInherited(base.Condition):
         self.table_name = table_name
         self.column_name = column_name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                 True
@@ -345,9 +348,9 @@ class CreateTable(ddl.SchemaObjectOperation):
         self.table = table
         self.temporary = temporary
 
-    def code(self, block: base.PLBlock) -> str:
+    def code_with_block(self, block: base.PLBlock) -> str:
         elems = [
-            c.code(block) for c in self.table.iter_columns(only_self=True)
+            c.code() for c in self.table.iter_columns(only_self=True)
         ]
         for c in self.table.constraints:
             elems.append(c.constraint_code(block))
@@ -417,11 +420,13 @@ class AlterTableBase(AlterTableBaseMixin, ddl.DDLOperation):
         return 'COLUMN'
 
 
-class AlterTableFragment(ddl.DDLOperation):
+class AlterTableFragment(ddl.DDLOperation, base.CompositeCommand):
     def get_attribute_term(self):
         return 'COLUMN'
 
-    def generate_extra(self, block, parent_op) -> None:  # type: ignore
+    def generate_extra_composite(
+        self, block: base.PLBlock, group: base.CompositeCommandGroup
+    ) -> None:
         pass
 
 
@@ -449,7 +454,7 @@ class AlterTableAddParent(AlterTableFragment):
         super().__init__(**kwargs)
         self.parent_name = parent_name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'INHERIT {qn(*self.parent_name)}'
 
     def __repr__(self):
@@ -462,7 +467,7 @@ class AlterTableDropParent(AlterTableFragment):
     def __init__(self, parent_name):
         self.parent_name = parent_name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'NO INHERIT {qn(*self.parent_name)}'
 
     def __repr__(self):
@@ -491,7 +496,7 @@ class AlterTableAlterColumnNull(AlterTableFragment):
         self.column_name = column_name
         self.null = null
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         action = 'DROP' if self.null else 'SET'
         return f'ALTER COLUMN {qi(self.column_name)} {action} NOT NULL'
 
@@ -506,7 +511,7 @@ class AlterTableAlterColumnDefault(AlterTableFragment):
         self.column_name = column_name
         self.default = default
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         if self.default is None:
             return f'ALTER COLUMN {qi(self.column_name)} DROP DEFAULT'
         else:
@@ -529,7 +534,7 @@ class TableConstraintExists(base.Condition):
         self.table_name = table_name
         self.constraint_name = constraint_name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                 True
@@ -551,7 +556,7 @@ class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
         assert not isinstance(constraint, list)
         self.constraint = constraint
 
-    def code(self, block: base.PLBlock) -> str:
+    def code_with_block(self, block: base.PLBlock) -> str:
         code = 'ADD '
         name = self.constraint.constraint_name()
         if name:
@@ -567,7 +572,9 @@ class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
             # Dynamic declaration
             return base.PLExpression(f'{ql(code)} || {constr_code}')
 
-    def generate_extra(self, block, alter_table):
+    def generate_extra_composite(
+        self, block: base.PLBlock, group: base.CompositeCommandGroup
+    ) -> None:
         return self.constraint.generate_extra(block)
 
     def __repr__(self):
@@ -580,7 +587,7 @@ class AlterTableDropConstraint(AlterTableFragment, TableConstraintCommand):
     def __init__(self, constraint):
         self.constraint = constraint
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'DROP CONSTRAINT {self.constraint.constraint_name()}'
 
     def __repr__(self):
@@ -590,5 +597,5 @@ class AlterTableDropConstraint(AlterTableFragment, TableConstraintCommand):
 
 
 class DropTable(ddl.SchemaObjectOperation):
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'DROP TABLE {qn(*self.name)}'

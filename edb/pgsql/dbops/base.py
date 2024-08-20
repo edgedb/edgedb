@@ -21,15 +21,17 @@ from __future__ import annotations
 from typing import (
     Any,
     Final,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
     Optional,
+    Sequence,
+    Set,
     Tuple,
     Union,
-    Iterable,
-    Mapping,
-    Sequence,
-    List,
-    Set,
 )
+from collections.abc import MutableSequence
 
 import collections
 import enum
@@ -165,7 +167,7 @@ class PLBlock(SQLBlock):
             if self.conditions:
                 for cond in self.conditions:
                     if not isinstance(cond, str):
-                        cond_expr = f'EXISTS ({cond.code(self)})'
+                        cond_expr = f'EXISTS ({cond.code()})'
                     else:
                         cond_expr = cond
                     exprs.append(cond_expr)
@@ -173,7 +175,7 @@ class PLBlock(SQLBlock):
             if self.neg_conditions:
                 for cond in self.neg_conditions:
                     if not isinstance(cond, str):
-                        cond_expr = f'EXISTS ({cond.code(self)})'
+                        cond_expr = f'EXISTS ({cond.code()})'
                     else:
                         cond_expr = cond
                     exprs.append(f'NOT {cond_expr}')
@@ -201,7 +203,7 @@ class PLBlock(SQLBlock):
             if conditions:
                 for cond in conditions:
                     if not isinstance(cond, str):
-                        cond_expr = f'EXISTS ({cond.code(self)})'
+                        cond_expr = f'EXISTS ({cond.code()})'
                     else:
                         cond_expr = cond
                     exprs.append(cond_expr)
@@ -209,7 +211,7 @@ class PLBlock(SQLBlock):
             if neg_conditions:
                 for cond in neg_conditions:
                     if not isinstance(cond, str):
-                        cond_expr = f'EXISTS ({cond.code(self)})'
+                        cond_expr = f'EXISTS ({cond.code()})'
                     else:
                         cond_expr = cond
                     exprs.append(f'NOT {cond_expr}')
@@ -277,7 +279,7 @@ class PLTopBlock(PLBlock):
 
 
 class BaseCommand(markup.MarkupCapableMixin):
-    def generate(self, block):
+    def generate(self, block: SQLBlock):
         raise NotImplementedError
 
     @classmethod
@@ -303,7 +305,7 @@ class Command(BaseCommand):
         self.conditions = set(conditions) if conditions else set()
         self.neg_conditions = set(neg_conditions) if neg_conditions else set()
 
-    def generate(self, block) -> None:
+    def generate(self, block: SQLBlock) -> None:
         self_block = self.generate_self_block(block)
         if self_block is None:
             return
@@ -312,20 +314,25 @@ class Command(BaseCommand):
         self_block.conditions = self.conditions
         self_block.neg_conditions = self.neg_conditions
 
-    def generate_self_block(self, block: PLBlock) -> Optional[PLBlock]:
-        # Default implementation simply calls self.code()
+    def generate_self_block(self, block: SQLBlock) -> Optional[PLBlock]:
+        # Default implementation simply calls self.code_with_block()
         self_block = block.add_block()
-        self_block.add_command(self.code(self_block))
+        self_block.add_command(self.code_with_block(self_block))
         return self_block
 
     def generate_extra(self, block: PLBlock) -> None:
         pass
 
-    def code(self, block: PLBlock) -> str:
+    def code(self) -> str:
         raise NotImplementedError
+
+    def code_with_block(self, block: PLBlock) -> str:
+        return self.code()
 
 
 class CommandGroup(Command):
+    commands: MutableSequence[Command]
+
     def __init__(self, *, conditions=None, neg_conditions=None):
         super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.commands = []
@@ -336,7 +343,7 @@ class CommandGroup(Command):
     def add_commands(self, cmds: Sequence[Command]):
         self.commands.extend(cmds)
 
-    def generate_self_block(self, block: PLBlock) -> Optional[PLBlock]:
+    def generate_self_block(self, block: SQLBlock) -> Optional[PLBlock]:
         if not self.commands:
             return None
 
@@ -363,8 +370,33 @@ class CommandGroup(Command):
         return len(self.commands)
 
 
-class CompositeCommandGroup(CommandGroup):
-    def generate_self_block(self, block: PLBlock) -> Optional[PLBlock]:
+class CompositeCommand(Command):
+
+    def generate_extra_composite(
+        self, block: PLBlock, group: CompositeCommandGroup
+    ) -> None:
+        pass
+
+
+class CompositeCommandGroup(Command):
+    commands: MutableSequence[CompositeCommand]
+
+    def __init__(
+        self,
+        *,
+        conditions: Optional[Iterable[str | Condition]] = None,
+        neg_conditions: Optional[Iterable[str | Condition]] = None,
+    ) -> None:
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions)
+        self.commands = []
+
+    def add_command(self, cmd: CompositeCommand):
+        self.commands.append(cmd)
+
+    def add_commands(self, cmds: Sequence[CompositeCommand]):
+        self.commands.extend(cmds)
+
+    def generate_self_block(self, block: SQLBlock) -> Optional[PLBlock]:
         if not self.commands:
             return None
 
@@ -375,7 +407,7 @@ class CompositeCommandGroup(CommandGroup):
 
         for cmd in self.commands:
             if isinstance(cmd, tuple) and (cmd[1] or cmd[2]):
-                action = cmd[0].code(self_block)
+                action = cmd[0].code_with_block(self_block)
                 if isinstance(action, PLExpression):
                     subcommand = \
                         f"EXECUTE {ql(prefix_code)} || ' ' || {action}"
@@ -384,7 +416,7 @@ class CompositeCommandGroup(CommandGroup):
                 self_block.add_command(
                     subcommand, conditions=cmd[1], neg_conditions=cmd[2])
             else:
-                action = cmd.code(self_block)
+                action = cmd.code_with_block(self_block)
                 if isinstance(action, PLExpression):
                     subcommand = \
                         f"EXECUTE {ql(prefix_code)} || ' ' || {action}"
@@ -404,18 +436,26 @@ class CompositeCommandGroup(CommandGroup):
 
         for cmd in self.commands:
             if isinstance(cmd, tuple) and (cmd[1] or cmd[2]):
-                cmd[0].generate_extra(extra_block, self)
+                cmd[0].generate_extra_composite(extra_block, self)
             else:
-                cmd.generate_extra(extra_block, self)
+                cmd.generate_extra_composite(extra_block, self)
 
         return self_block
 
     def prefix_code(self) -> str:
         raise NotImplementedError
 
+    def __iter__(self) -> Iterator[CompositeCommand]:
+        return iter(self.commands)
+
+    def __len__(self) -> int:
+        return len(self.commands)
+
 
 class Condition(BaseCommand):
-    pass
+
+    def code(self) -> str:
+        raise NotImplementedError()
 
 
 class Query(Command):
@@ -437,7 +477,7 @@ class Query(Command):
         else:
             return self.text
 
-    def code(self, block: Any) -> str:
+    def code(self) -> str:
         return self.text
 
     def __repr__(self):
@@ -496,5 +536,5 @@ class InheritableDBObject(DBObject):
 
 
 class NoOpCommand(Command):
-    def generate_self_block(self, block: PLBlock) -> Optional[PLBlock]:
+    def generate_self_block(self, block: SQLBlock) -> Optional[PLBlock]:
         return None

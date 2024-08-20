@@ -80,7 +80,7 @@ class RoleExists(base.Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                 rolname
@@ -125,7 +125,7 @@ class RoleCommand:
 
 class CreateRole(ddl.CreateObject, RoleCommand):
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         if self.object.membership:
             roles = ', '.join(qi(str(m)) for m in self.object.membership)
             membership = f'IN ROLE {roles}'
@@ -141,7 +141,7 @@ class CreateRole(ddl.CreateObject, RoleCommand):
 
 class AlterRole(ddl.AlterObject, RoleCommand):
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         attrs = self._attrs()
         if attrs:
             return f'ALTER {self._role()} {attrs}'
@@ -161,12 +161,12 @@ class AlterRole(ddl.AlterObject, RoleCommand):
                 WHERE key = 'single_role_metadata'
                 '''
             ))
-            block.add_command(query.code(block))
+            block.add_command(query.code_with_block(block))
 
 
 class DropRole(ddl.SchemaObjectOperation):
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'DROP ROLE {qi(self.name)}'
 
 
@@ -178,7 +178,7 @@ class AlterRoleAddMember(ddl.SchemaObjectOperation):
         )
         self.member = member
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'GRANT {qi(self.name)} TO {qi(self.member)}'
 
 
@@ -189,7 +189,7 @@ class AlterRoleDropMember(ddl.SchemaObjectOperation):
             name, conditions=conditions, neg_conditions=neg_conditions)
         self.member = member
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'REVOKE {qi(self.name)} FROM {qi(self.member)}'
 
 
@@ -202,6 +202,6 @@ class AlterRoleAddMembership(ddl.SchemaObjectOperation):
             name, conditions=conditions, neg_conditions=neg_conditions)
         self.membership = membership
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         roles = ', '.join(qi(m) for m in self.membership)
         return f'GRANT {roles} TO {qi(self.name)}'

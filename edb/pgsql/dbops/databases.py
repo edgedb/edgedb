@@ -105,7 +105,7 @@ class DatabaseExists(base.Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                 typname
@@ -122,7 +122,7 @@ class CreateDatabase(ddl.CreateObject, ddl.NonTransactionalDDLOperation):
         super().__init__(object, **kwargs)
         self.template = template
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         extra = ''
 
         if self.object.owner:
@@ -144,7 +144,7 @@ class CreateDatabase(ddl.CreateObject, ddl.NonTransactionalDDLOperation):
 class DropDatabase(ddl.SchemaObjectOperation,
                    ddl.NonTransactionalDDLOperation):
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'DROP DATABASE {qi(self.name)}'
 
 
@@ -154,7 +154,7 @@ class RenameDatabase(ddl.AlterObject,
         super().__init__(object, **kwargs)
         self.old_name = old_name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return (
             f'ALTER DATABASE {qi(self.old_name)} '
             f'RENAME TO {self.object.get_id()}'

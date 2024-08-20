@@ -64,7 +64,7 @@ class ConstraintCommon:
     def raw_constraint_name(self):
         return common.get_constraint_raw_name(self._constr_id)
 
-    def generate_extra(self, block):
+    def generate_extra(self, block: dbops.PLBlock) -> None:
         text = self.raw_constraint_name()
         cmd = dbops.Comment(object=self, text=text)
         cmd.generate(block)
@@ -303,7 +303,7 @@ class MultiConstraintItem:
 
 
 class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
-    def code(self, block: dbops.PLBlock) -> str:
+    def code_with_block(self, block: dbops.PLBlock) -> str:
         exprs = self.constraint.constraint_code(block)
 
         if isinstance(exprs, list) and len(exprs) > 1:
@@ -325,7 +325,9 @@ class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
 
         return code
 
-    def generate_extra(self, block, alter_table):
+    def generate_extra_composite(
+        self, block: dbops.PLBlock, group: dbops.CompositeCommandGroup
+    ) -> None:
         comments = []
 
         exprs = self.constraint.constraint_code(block)
@@ -348,7 +350,7 @@ class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
 
 
 class AlterTableDropMultiConstraint(dbops.AlterTableDropConstraint):
-    def code(self, block: dbops.PLBlock) -> str:
+    def code_with_block(self, block: dbops.PLBlock) -> str:
         exprs = self.constraint.constraint_code(block)
 
         if isinstance(exprs, list) and len(exprs) > 1:
@@ -378,7 +380,7 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
         conditions: Optional[Set[str | dbops.Condition]] = None,
         neg_conditions: Optional[Set[str | dbops.Condition]] = None,
     ):
-        dbops.CompositeCommandGroup.__init__(
+        dbops.CommandGroup.__init__(
             self, conditions=conditions, neg_conditions=neg_conditions
         )
 

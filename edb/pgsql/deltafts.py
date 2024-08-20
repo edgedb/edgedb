@@ -214,8 +214,8 @@ def update_fts_document(
         # to avoid code duplication, we call code for creating triggers and
         # extract the first UPDATE command
         create_trigger_ops = _pg_create_trigger(table_name, exprs)
-        assert isinstance(create_trigger_ops, dbops.CommandGroup)
         update_fts_document_op = create_trigger_ops.commands[0]
+        assert isinstance(update_fts_document_op, dbops.Query)
 
         return update_fts_document_op
 
@@ -317,7 +317,7 @@ def _pg_create_fts_document(
 def _pg_create_trigger(
     table_name: Tuple[str, str],
     exprs: Sequence[pgast.BaseExpr],
-) -> dbops.Command:
+) -> dbops.CommandGroup:
     ops = dbops.CommandGroup()
 
     # prepare the expression to update __fts_document__

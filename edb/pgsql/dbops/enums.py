@@ -33,7 +33,7 @@ class EnumExists(base.Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return textwrap.dedent(f'''\
             SELECT
                 t.typname
@@ -63,7 +63,7 @@ class CreateEnum(ddl.SchemaObjectOperation):
             enum.name, conditions=conditions, neg_conditions=neg_conditions)
         self.values = enum.values
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         vals = ', '.join(ql(v) for v in self.values)
         return f'CREATE TYPE {qn(*self.name)} AS ENUM ({vals})'
 
@@ -90,7 +90,7 @@ class AlterEnumAddValue(AlterEnum):
         self.after = after
         self.conditional = conditional
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         code = self.prefix_code()
         code += ' ADD VALUE'
         if self.conditional:
@@ -105,5 +105,5 @@ class AlterEnumAddValue(AlterEnum):
 
 
 class DropEnum(ddl.SchemaObjectOperation):
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         return f'DROP TYPE {qn(*self.name)}'

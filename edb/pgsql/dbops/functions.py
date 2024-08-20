@@ -72,7 +72,7 @@ class FunctionExists(base.Condition):
         self.name = name
         self.args = args
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         args = f"ARRAY[{','.join(qc(a) for a in self.args)}]"
 
         return textwrap.dedent(f'''\
@@ -136,7 +136,7 @@ class CreateFunction(ddl.DDLOperation, FunctionOperation):
         self.function = function
         self.or_replace = or_replace
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         args = self.format_args(self.function.args, self.function.has_variadic)
 
         code = textwrap.dedent('''
@@ -190,7 +190,7 @@ class DropFunction(ddl.DDLOperation, FunctionOperation):
         self.args = args
         self.has_variadic = has_variadic
 
-    def code(self, block: base.PLBlock) -> str:
+    def code(self) -> str:
         ifexists = ' IF EXISTS' if self.conditional else ''
         args = self.format_args(self.args, self.has_variadic,
                                 include_defaults=False)
