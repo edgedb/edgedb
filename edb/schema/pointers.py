@@ -63,6 +63,7 @@ from . import rewrites as s_rewrites
 from . import schema as s_schema
 from . import types as s_types
 from . import utils
+from .generated import pointers as sg_pointers
 
 
 if TYPE_CHECKING:
@@ -422,10 +423,13 @@ def _get_target_name_in_diff(
 Pointer_T = TypeVar("Pointer_T", bound="Pointer")
 
 
-class Pointer(referencing.NamedReferencedInheritingObject,
-              constraints.ConsistencySubject,
-              s_anno.AnnotationSubject,
-              s_abc.Pointer):
+class Pointer(
+    sg_pointers.PointerMixin,
+    referencing.NamedReferencedInheritingObject,
+    constraints.ConsistencySubject,
+    s_anno.AnnotationSubject,
+    s_abc.Pointer
+):
 
     source = so.SchemaField(
         so.InheritingObject,

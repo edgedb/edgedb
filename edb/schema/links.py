@@ -41,6 +41,7 @@ from . import types as s_types
 from . import unknown_pointers
 from . import utils
 from . import expr as s_expr
+from .generated import links as sg_links
 
 if TYPE_CHECKING:
     from . import objtypes as s_objtypes
@@ -105,6 +106,7 @@ def merge_actions(
 
 
 class Link(
+    sg_links.LinkMixin,
     sources.Source,
     pointers.Pointer,
     s_abc.Link,

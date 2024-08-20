@@ -35,12 +35,14 @@ from . import objects as so
 from . import referencing
 from . import schema as s_schema
 from . import types as s_types
+from .generated import rewrites as sg_rewrites
 
 if TYPE_CHECKING:
     from . import pointers as s_pointers
 
 
 class Rewrite(
+    sg_rewrites.RewriteMixin,
     referencing.NamedReferencedInheritingObject,
     so.InheritingObject,  # Help reflection figure out the right db MRO
     s_anno.AnnotationSubject,

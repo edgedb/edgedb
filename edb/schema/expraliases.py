@@ -34,6 +34,7 @@ from . import delta as sd
 from . import name as sn
 from . import objects as so
 from . import types as s_types
+from .generated import expraliases as sg_expraliases
 
 
 if TYPE_CHECKING:
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
 
 
 class Alias(
+    sg_expraliases.AliasMixin,
     so.QualifiedObject,
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.ALIAS,

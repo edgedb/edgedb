@@ -32,12 +32,14 @@ from . import delta as sd
 from . import inheriting
 from . import objects as so
 from . import utils
+from .generated import roles as sg_roles
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 
 
 class Role(
+    sg_roles.RoleMixin,
     so.GlobalObject,
     so.InheritingObject,
     s_anno.AnnotationSubject,
