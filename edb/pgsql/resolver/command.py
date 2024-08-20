@@ -1176,13 +1176,8 @@ def _uncompile_update_object_stmt(
     Translates a 'SQL UPDATE into an object type table' to an EdgeQL update.
     """
 
-    for _c, v in column_updates:
-        if isinstance(v, pgast.Keyword):
-            raise errors.QueryError(
-                f'Keyword {v.name} within UPDATE is not supported',
-                pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
-                span=v.span,
-            )
+    def is_default(e: pgast.BaseExpr) -> bool:
+        return isinstance(e, pgast.Keyword) and e.name == 'DEFAULT'
 
     # prepare value relation
 
@@ -1203,7 +1198,11 @@ def _uncompile_update_object_stmt(
                 )
             )
         ]
-        + [pgast.ResTarget(val=val, name=c.name) for c, val in column_updates],
+        + [
+            pgast.ResTarget(val=val, name=c.name)
+            for c, val in column_updates
+            if not is_default(val)  # skip DEFAULT column updates
+        ],
         from_clause=[
             pgast.RelRangeVar(
                 relation=stmt.relation.relation,
@@ -1214,8 +1213,6 @@ def _uncompile_update_object_stmt(
         where_clause=stmt.where_clause,
     )
     stmt.ctes = []
-
-    # TODO: handle DEFAULT and prepare the value relation
 
     # prepare anchors for inserted value columns
     value_name = ctx.alias_generator.get('upd_val')
@@ -1231,7 +1228,7 @@ def _uncompile_update_object_stmt(
 
     # a phantom relation that is supposed to hold the inserted value
     # (in the resolver, this will be replaced by the real value relation)
-    value_cte_name = ctx.alias_generator.get('ins_value')
+    value_cte_name = ctx.alias_generator.get('upd_value')
     value_rel = pgast.Relation(name=value_cte_name)
 
     output_var = pgast.ColumnRef(name=('id',))
@@ -1240,9 +1237,10 @@ def _uncompile_update_object_stmt(
 
     value_columns = [('id', False)]
     update_shape = []
-    for index, (col, _val) in enumerate(column_updates):
+    for index, (col, val) in enumerate(column_updates):
         ptr, ptr_name, is_link = _get_pointer_for_column(col, sub, ctx)
-        value_columns.append((ptr_name, is_link))
+        if not is_default(val):
+            value_columns.append((ptr_name, is_link))
 
         # inject type annotation into value relation
         if is_link:
@@ -1262,15 +1260,33 @@ def _uncompile_update_object_stmt(
             value_rel.path_outputs[(ptr_id, pgce.PathAspect.VALUE)] = output_var
 
         # prepare insert shape that will use the paths from source_outputs
-        update_shape.append(
-            _construct_assign_element_for_ptr(
-                value_ql,
-                ptr_name,
-                ptr,
-                is_link,
-                ctx,
+        if is_default(val):
+            # special case: DEFAULT
+            default_ql: qlast.Expr
+            if ptr.get_default(ctx.schema) is None:
+                default_ql = qlast.Set(elements=[])  # NULL
+            else:
+                default_ql = qlast.Path(
+                    steps=[qlast.SpecialAnchor(name='__default__')]
+                )
+            update_shape.append(
+                qlast.ShapeElement(
+                    expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
+                    operation=qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN),
+                    compexpr=default_ql,
+                )
             )
-        )
+        else:
+            # base case
+            update_shape.append(
+                _construct_assign_element_for_ptr(
+                    value_ql,
+                    ptr_name,
+                    ptr,
+                    is_link,
+                    ctx,
+                )
+            )
 
     # construct the EdgeQL DML AST
     sub_name = sub.get_name(ctx.schema)
@@ -1411,6 +1427,8 @@ def _compile_uncompiled_dml(
     except errors.QueryError as e:
         raise errors.QueryError(
             msg=e.args[0],
+            details=e.details,
+            hint=e.hint,
             # not sure if this is ok, but it is better than InternalServerError,
             # which is the default
             pgext_code=pgerror.ERROR_DATA_EXCEPTION,
@@ -1586,7 +1604,7 @@ def _resolve_dml_value_rel(compiled_dml: context.CompiledDML, *, ctx: Context):
     if len(compiled_dml.value_columns) != len(val_table.columns):
         col_names = ', '.join(c for c, _ in compiled_dml.value_columns)
         raise errors.QueryError(
-            f'INSERT expected {len(compiled_dml.value_columns)} columns '
+            f'Expected {len(compiled_dml.value_columns)} columns '
             f'({col_names}), but got {len(val_table.columns)}',
             span=compiled_dml.value_relation_input.span,
         )

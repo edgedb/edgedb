@@ -77,6 +77,13 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             insert Log { line := 'inserted all' }
           );
         };
+
+        create type Post {
+          create property title: str {
+            set default := 'untitled';
+          };
+          create property created_at: datetime;
+        };
     """
     ]
 
@@ -712,7 +719,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         # TODO: error message should say `owner_id` not `owner`
         with self.assertRaisesRegex(
             asyncpg.PostgresError,
-            'INSERT expected 2 columns \\(title, owner\\), but got 1',
+            'Expected 2 columns \\(title, owner\\), but got 1',
         ):
             await self.squery_values(
                 '''
@@ -1241,7 +1248,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             SET (title, owner_id) = ROW('hello', $1::uuid)
             RETURNING title, owner_id
             ''',
-            user[0]
+            user[0],
         )
         self.assertEqual(res, [['hello (updated)', user[0]]])
 
@@ -1275,6 +1282,40 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             '''
             UPDATE "Document" SET owner_id = $1 RETURNING owner_id
             ''',
-            user[0]
+            user[0],
         )
         self.assertEqual(res, [[user[0]]])
+
+    async def test_sql_dml_update_11(self):
+        # update set default
+
+        res = await self.squery_values(
+            '''
+            INSERT INTO "Post" (title, created_at)
+            VALUES (DEFAULT, DEFAULT)
+            RETURNING title, created_at
+            '''
+        )
+        self.assertEqual(res, [['untitled', None]])
+
+        res = await self.squery_values(
+            '''
+            UPDATE "Post" SET
+                title = 'Announcing EdgeDB 1.0',
+                created_at = '2024-08-08T08:08:08.000'::timestamp
+            RETURNING title, created_at::text
+            '''
+        )
+        self.assertEqual(
+            res, [['Announcing EdgeDB 1.0', '2024-08-08 08:08:08+00']]
+        )
+
+        res = await self.squery_values(
+            '''
+            UPDATE "Post" SET
+                title = DEFAULT,
+                created_at = DEFAULT
+            RETURNING title, created_at
+            '''
+        )
+        self.assertEqual(res, [['untitled', None]])
