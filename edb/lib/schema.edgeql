@@ -573,6 +573,7 @@ CREATE TYPE schema::Migration
 {
     CREATE MULTI LINK parents -> schema::Migration;
     CREATE REQUIRED PROPERTY script -> str;
+    CREATE PROPERTY sdl -> str;
     CREATE PROPERTY message -> str;
     CREATE PROPERTY generated_by -> schema::MigrationGeneratedBy;
 };

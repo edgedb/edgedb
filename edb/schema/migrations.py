@@ -70,6 +70,10 @@ class Migration(
         str,
     )
 
+    sdl = so.SchemaField(
+        str,
+    )
+
 
 class MigrationCommandContext(sd.ObjectCommandContext[Migration]):
     pass
@@ -172,6 +176,8 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
 
         cmd = cls(classname=sn.UnqualName(name))
         cmd.set_attribute_value('script', ddl_text)
+        # The sdl will be populated once the final schema is known.
+        cmd.set_attribute_value('sdl', '')
         cmd.set_attribute_value('builtin', False)
         cmd.set_attribute_value('internal', False)
         if parent is not None:
@@ -199,6 +205,19 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         assert isinstance(cmd, CreateMigration)
 
         return cmd
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        from . import ddl as s_ddl
+
+        new_schema = super().apply(schema, context)
+        new_sdl: str = s_ddl.sdl_text_from_schema(new_schema)
+        self.set_attribute_value('sdl', new_sdl)
+
+        return new_schema
 
     def apply_subcommands(
         self,
