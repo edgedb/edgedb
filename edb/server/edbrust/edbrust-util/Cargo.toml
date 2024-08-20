@@ -1,0 +1,20 @@
+[package]
+name = "edbrust-rust"
+version = "0.1.0"
+license = "MIT/Apache-2.0"
+authors = ["MagicStack Inc. <hello@magic.io>"]
+edition = "2021"
+
+[lint]
+workspace = true
+
+[features]
+python_extension = ["pyo3/extension-module", "pyo3/serde"]
+
+[dependencies]
+pyo3 = { workspace = true, optional = true }
+tokio.workspace = true
+
+[lib]
+crate-type = ["lib", "cdylib"]
+path = "src/lib.rs"

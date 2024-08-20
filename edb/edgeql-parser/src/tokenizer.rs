@@ -68,8 +68,6 @@ impl Error {
     }
 }
 
-#[cfg_attr(feature="wasm-bindgen",
-    wasm_bindgen::prelude::wasm_bindgen(js_name=TokenKind))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Kind {

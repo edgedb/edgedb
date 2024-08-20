@@ -39,7 +39,7 @@ anyhow = "1"
 rstest = "0"
 rand = "0"
 statrs = "0"
-genetic_algorithm = "0"
+genetic_algorithm = "0.7.2"
 lru = "0"
 
 [dev-dependencies.tokio]

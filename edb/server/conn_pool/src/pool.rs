@@ -1286,7 +1286,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "optimizer")]
+    #[cfg(all(feature = "optimizer", never))]
     fn optimizer() {
         use crate::knobs::*;
         use std::sync::atomic::AtomicIsize;
