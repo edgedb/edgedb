@@ -9,6 +9,8 @@ edition = "2021"
 workspace = true
 
 [dependencies]
+pyo3 = { workspace = true, optional = true }
+
 base32 = "0.4.0"
 bigdecimal = { version = "0.3.0", features = ["serde"] }
 num-bigint = { version = "0.3.0", features = ["serde"] }
@@ -19,7 +21,6 @@ serde = { version = "1.0.106", features = ["derive"], optional = true }
 thiserror = "1.0.23"
 unicode-width = "0.1.8"
 edgeql-parser-derive = { path = "edgeql-parser-derive", optional = true }
-pyo3 = { workspace = true, optional = true }
 indexmap = "1.9.3"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 bumpalo = { version = "3.13.0", features = ["collections"] }

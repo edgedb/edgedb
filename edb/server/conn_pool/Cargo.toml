@@ -13,9 +13,11 @@ python_extension = ["pyo3/extension-module"]
 optimizer = []
 
 [dependencies]
+pyo3 = { workspace = true, optional = true }
+tokio.workspace = true
+
 futures = "0"
 scopeguard = "1"
-pyo3 = "0"
 itertools = "0"
 thiserror = "1"
 tracing = "0"
@@ -24,15 +26,13 @@ strum = { version = "0.26", features = ["derive"] }
 consume_on_drop = "0"
 smart-default = "0"
 
-[dependencies.tokio]
-version = "1"
-features = ["rt", "time", "sync", "net"]
-
 [dependencies.derive_more]
 version = "1.0.0-beta.6"
 features = ["full"]
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
 pretty_assertions = "1.2.0"
 test-log = { version = "0", features = ["trace"] }
 anyhow = "1"
@@ -41,10 +41,6 @@ rand = "0"
 statrs = "0"
 genetic_algorithm = "0.7.2"
 lru = "0"
-
-[dev-dependencies.tokio]
-version = "1"
-features = ["macros", "rt-multi-thread", "time", "test-util"]
 
 [lib]
 crate-type = ["lib", "cdylib"]
