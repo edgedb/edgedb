@@ -111,18 +111,18 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
                 .bc EMPTY LAST;
             """,
             [
-                {'ba': 'cba0', 'bb': None, 'bc': None, 'tn': 'default::CBa'},
-                {'ba': 'cba1', 'bb': None, 'bc': None, 'tn': 'default::CBa'},
-                {'ba': 'cba2', 'bb': 2, 'bc': None, 'tn': 'default::CBaBb'},
-                {'ba': 'cba3', 'bb': 3, 'bc': None, 'tn': 'default::CBaBb'},
-                {'ba': 'cba4', 'bb': None, 'bc': 4.5, 'tn': 'default::CBaBc'},
-                {'ba': 'cba5', 'bb': None, 'bc': 5.5, 'tn': 'default::CBaBc'},
-                {'ba': 'cba8', 'bb': 8, 'bc': 8.5, 'tn': 'default::CBaBbBc'},
-                {'ba': 'cba9', 'bb': 9, 'bc': 9.5, 'tn': 'default::CBaBbBc'},
-                {'ba': None, 'bb': 0, 'bc': None, 'tn': 'default::CBb'},
-                {'ba': None, 'bb': 1, 'bc': None, 'tn': 'default::CBb'},
-                {'ba': None, 'bb': 6, 'bc': 6.5, 'tn': 'default::CBbBc'},
-                {'ba': None, 'bb': 7, 'bc': 7.5, 'tn': 'default::CBbBc'},
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
             ],
         )
 
@@ -881,4 +881,713 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
             select S[is T] { l_a: {name} }
             """,
             [{"l_a": [{"name": "test"}]}]
+        )
+
+    async def test_edgeql_advtypes_update_complex_type_01(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            with
+                temp := (
+                    update Ba[is Bb] set {
+                        ba := .ba ++ '!',
+                        bb := .bb + 1,
+                    }
+                )
+            select temp {
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBaBb', 'ba': 'cba2!', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3!', 'bb': 4, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 9, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 10, 'bc': 9.5},
+            ],
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2!', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3!', 'bb': 4, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 9, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 10, 'bc': 9.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_update_complex_type_02(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            with
+                temp := (
+                    update Ba[is Bb][is Bc] set {
+                        ba := .ba ++ '!',
+                        bb := .bb + 1,
+                        bc := .bc + 0.1,
+                    }
+                )
+            select temp {
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 9, 'bc': 8.6},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 10, 'bc': 9.6},
+            ],
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 9, 'bc': 8.6},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 10, 'bc': 9.6},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_update_complex_type_03(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            with
+                temp := (
+                    update Ba[is Bb | Bc] set {
+                        ba := .ba ++ '!',
+                    }
+                )
+            select temp {
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBaBb', 'ba': 'cba2!', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3!', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 9, 'bc': 9.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba4!', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5!', 'bb': None, 'bc': 5.5},
+            ],
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2!', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3!', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 9, 'bc': 9.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba4!', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5!', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_update_complex_type_04(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            with
+                temp := (
+                    update Ba[is Bb & Bc] set {
+                        ba := .ba ++ '!',
+                        bb := .bb + 1,
+                        bc := .bc + 0.1,
+                    }
+                )
+            select temp {
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 9, 'bc': 8.6},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 10, 'bc': 9.6},
+            ],
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 9, 'bc': 8.6},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 10, 'bc': 9.6},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_update_complex_type_05(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            with
+                temp := (
+                    update Ba[IS CBa | Bb & Bc] set {
+                        ba := .ba ++ '!',
+                    }
+                )
+            select temp {
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0!', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1!', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 9, 'bc': 9.5},
+            ],
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0!', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1!', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 9, 'bc': 9.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_update_complex_type_06(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            with
+                temp := (
+                    update {CBa, Ba[IS Bb & Bc]} set {
+                        ba := .ba ++ '!',
+                    }
+                )
+            select temp {
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0!', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1!', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 9, 'bc': 9.5},
+            ],
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0!', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1!', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 9, 'bc': 9.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_update_complex_type_07(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            with
+                temp := (
+                    update Object[IS (Ba & Bb) | (Ba & Bc)] set {
+                        ba := .ba ++ '!',
+                    }
+                )
+            select temp {
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBaBb', 'ba': 'cba2!', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3!', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 9, 'bc': 9.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba4!', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5!', 'bb': None, 'bc': 5.5},
+            ],
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2!', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3!', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 9, 'bc': 9.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba4!', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5!', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_update_complex_type_08(self):
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            with
+                temp := (
+                    update {Object[IS Ba & Bb], Object[IS Ba & Bc]} set {
+                        ba := .ba ++ '!',
+                    }
+                )
+            select temp {
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBaBb', 'ba': 'cba2!', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3!', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 9, 'bc': 9.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba4!', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5!', 'bb': None, 'bc': 5.5},
+            ],
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2!', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3!', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8!', 'bb': 8, 'bc': 8.5},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9!', 'bb': 9, 'bc': 9.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba4!', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5!', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_delete_complex_type_01(self):
+        await self._setup_basic_data()
+        await self.con.execute(
+            r"""
+            delete Ba[is Bb];
+            """
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_delete_complex_type_02(self):
+        await self._setup_basic_data()
+        await self.con.execute(
+            r"""
+            delete Ba[is Bb][is Bc];
+            """
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_delete_complex_type_03(self):
+        await self._setup_basic_data()
+        await self.con.execute(
+            r"""
+            delete Ba[is Bb | Bc];
+            """
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_delete_complex_type_04(self):
+        await self._setup_basic_data()
+        await self.con.execute(
+            r"""
+            delete Ba[is Bb & Bc];
+            """
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_delete_complex_type_05(self):
+        await self._setup_basic_data()
+        await self.con.execute(
+            r"""
+            delete Ba[IS CBa | Bb & Bc];
+            """
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_delete_complex_type_06(self):
+        await self._setup_basic_data()
+        await self.con.execute(
+            r"""
+            delete {CBa, Ba[IS Bb & Bc]};
+            """
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBaBb', 'ba': 'cba2', 'bb': 2, 'bc': None},
+                {'tn': 'default::CBaBb', 'ba': 'cba3', 'bb': 3, 'bc': None},
+                {'tn': 'default::CBaBc', 'ba': 'cba4', 'bb': None, 'bc': 4.5},
+                {'tn': 'default::CBaBc', 'ba': 'cba5', 'bb': None, 'bc': 5.5},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_delete_complex_type_07(self):
+        await self._setup_basic_data()
+        await self.con.execute(
+            r"""
+            delete Object[IS (Ba & Bb) | (Ba & Bc)];
+            """
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
+        )
+
+    async def test_edgeql_advtypes_delete_complex_type_08(self):
+        await self._setup_basic_data()
+        await self.con.execute(
+            r"""
+            delete {Object[IS Ba & Bb], Object[IS Ba & Bc]};
+            """
+        )
+
+        # Ensure the rest of the data is unchanged
+        await self.assert_query_result(
+            r"""
+            select (DISTINCT {Ba, Bb, Bc}){
+                tn := .__type__.name,
+                [IS Ba].ba,
+                [IS Bb].bb,
+                [IS Bc].bc,
+            }
+            order by .tn then .ba then .bb then .bc;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0', 'bb': None, 'bc': None},
+                {'tn': 'default::CBa', 'ba': 'cba1', 'bb': None, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 0, 'bc': None},
+                {'tn': 'default::CBb', 'ba': None, 'bb': 1, 'bc': None},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 6, 'bc': 6.5},
+                {'tn': 'default::CBbBc', 'ba': None, 'bb': 7, 'bc': 7.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
+                {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
+            ],
         )
