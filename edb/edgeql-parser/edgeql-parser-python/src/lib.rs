@@ -1,4 +1,4 @@
-#![cfg(feature="python_extension")]
+#![cfg(feature = "python_extension")]
 mod errors;
 mod hash;
 mod keywords;
