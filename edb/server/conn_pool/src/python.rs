@@ -338,7 +338,7 @@ impl ConnPool {
             .map_err(|_| internal_error("In shutdown"))
     }
 
-    fn _failed(&self, id: u64, error: PyObject) -> PyResult<()> {
+    fn _failed(&self, id: u64, _error: PyObject) -> PyResult<()> {
         self.python_to_rust
             .send(PythonToRustMessage::FailedAsync(ConnHandleId(id)))
             .map_err(|_| internal_error("In shutdown"))
