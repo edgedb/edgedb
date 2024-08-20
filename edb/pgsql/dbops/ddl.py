@@ -189,7 +189,7 @@ class PutSingleDBMetadata(DDLOperation):
 
     def __repr__(self):
         return \
-            '<{mod}.{cls} Database({dbname!r}) {metadata!r}>'.format(
+            '<{mod}.{cls} Branch({dbname!r}) {metadata!r}>'.format(
                 mod=self.__class__.__module__,
                 cls=self.__class__.__name__,
                 dbname=self.dbname,

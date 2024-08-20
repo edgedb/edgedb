@@ -48,7 +48,7 @@ class Object:
     pass
 
 
-class Database(Object):
+class Branch(Object):
     pass
 
 

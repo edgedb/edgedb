@@ -6712,7 +6712,7 @@ class DatabaseMixin:
             )
 
 
-class CreateDatabase(MetaCommand, DatabaseMixin, adapts=s_db.CreateDatabase):
+class CreateDatabase(MetaCommand, DatabaseMixin, adapts=s_db.CreateBranch):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -6754,7 +6754,7 @@ class CreateDatabase(MetaCommand, DatabaseMixin, adapts=s_db.CreateDatabase):
         return schema
 
 
-class DropDatabase(MetaCommand, DatabaseMixin, adapts=s_db.DropDatabase):
+class DropDatabase(MetaCommand, DatabaseMixin, adapts=s_db.DropBranch):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -6771,11 +6771,11 @@ class DropDatabase(MetaCommand, DatabaseMixin, adapts=s_db.DropDatabase):
         return schema
 
 
-class AlterDatabase(MetaCommand, DatabaseMixin, adapts=s_db.AlterDatabase):
+class AlterDatabase(MetaCommand, DatabaseMixin, adapts=s_db.AlterBranch):
     pass
 
 
-class RenameDatabase(MetaCommand, DatabaseMixin, adapts=s_db.RenameDatabase):
+class RenameDatabase(MetaCommand, DatabaseMixin, adapts=s_db.RenameBranch):
     def apply(
         self,
         schema: s_schema.Schema,

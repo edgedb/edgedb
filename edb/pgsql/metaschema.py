@@ -5068,11 +5068,11 @@ def format_fields(
     return ',\n'.join(cols)
 
 
-def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
-    Database = schema.get('sys::Database', type=s_objtypes.ObjectType)
-    annos = Database.getptr(
+def _generate_branch_views(schema: s_schema.Schema) -> List[dbops.View]:
+    Branch = schema.get('sys::Branch', type=s_objtypes.ObjectType)
+    annos = Branch.getptr(
         schema, s_name.UnqualName('annotations'), type=s_links.Link)
-    int_annos = Database.getptr(
+    int_annos = Branch.getptr(
         schema, s_name.UnqualName('annotations__internal'), type=s_links.Link)
 
     view_fields = {
@@ -5101,7 +5101,7 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
 
     view_query = f'''
         SELECT
-            {format_fields(schema, Database, view_fields)}
+            {format_fields(schema, Branch, view_fields)}
         FROM
             pg_database dat
             CROSS JOIN LATERAL (
@@ -5163,7 +5163,7 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
     '''
 
     objects = {
-        Database: view_query,
+        Branch: view_query,
         annos: annos_link_query,
         int_annos: int_annos_link_query,
     }
@@ -5702,7 +5702,8 @@ def _generate_schema_alias_views(
     )
 
     for schema_obj in schema_objs:
-        views.append(_generate_schema_alias_view(schema, schema_obj))
+        if not schema_obj.get_from_alias(schema):
+            views.append(_generate_schema_alias_view(schema, schema_obj))
 
     return views
 
@@ -7112,7 +7113,7 @@ def get_synthetic_type_views(
 
     commands.add_command(get_config_views(schema))
 
-    for dbview in _generate_database_views(schema):
+    for dbview in _generate_branch_views(schema):
         commands.add_command(dbops.CreateView(dbview, or_replace=True))
 
     for extview in _generate_extension_views(schema):

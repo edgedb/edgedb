@@ -1881,7 +1881,7 @@ def compile_sys_queries(
         compiler,
         schema,
         f"""SELECT (
-            SELECT sys::Database
+            SELECT sys::Branch
             FILTER .name != "{edbdef.EDGEDB_TEMPLATE_DB}"
         ).name""",
         expected_cardinality_one=False,

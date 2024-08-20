@@ -60,7 +60,7 @@ from edb.common import verutils
 # The merge conflict there is a nice reminder that you probably need
 # to write a patch in edb/pgsql/patches.py, and then you should preserve
 # the old value.
-EDGEDB_CATALOG_VERSION = 2024_07_30_00_00
+EDGEDB_CATALOG_VERSION = 2024_08_16_00_00
 EDGEDB_MAJOR_VERSION = 6
 
 

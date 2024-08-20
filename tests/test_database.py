@@ -58,7 +58,7 @@ class TestDatabase(tb.ConnectedTestCase):
     async def test_database_create_02(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r'Database names longer than \d+ '
+                r'Branch names longer than \d+ '
                 r'characters are not supported'):
             await self.con.execute(
                 f'CREATE DATABASE mytestdb_{"x" * s_def.MAX_NAME_LENGTH};')
@@ -174,7 +174,7 @@ class TestDatabase(tb.ConnectedTestCase):
     async def test_branch_create_02(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r'Database names longer than \d+ '
+                r'Branch names longer than \d+ '
                 r'characters are not supported'):
             await self.con.execute(
                 f'CREATE EMPTY BRANCH mytestdb_{"x" * s_def.MAX_NAME_LENGTH};')
@@ -376,7 +376,7 @@ class TestDatabase(tb.ConnectedTestCase):
         conn = None
         try:
             res_old = await self.con.query('''
-                SELECT sys::Database.id filter sys::Database.name = <str>$0
+                SELECT sys::Branch.id filter sys::Branch.name = <str>$0
             ''', name)
 
             await self.con.execute('''
@@ -385,7 +385,7 @@ class TestDatabase(tb.ConnectedTestCase):
             name = 'mytestdb2'
 
             res_new = await self.con.query('''
-                SELECT sys::Database.id filter sys::Database.name = <str>$0
+                SELECT sys::Branch.id filter sys::Branch.name = <str>$0
             ''', name)
             self.assertEqual(res_old, res_new)
 
@@ -397,4 +397,23 @@ class TestDatabase(tb.ConnectedTestCase):
         finally:
             if conn:
                 await conn.aclose()
+            await tb.drop_db(self.con, name)
+
+    async def test_branch_alias(self):
+        if not self.has_create_database:
+            self.skipTest("create database is not supported by the backend")
+
+        name = 'mydbalias'
+        await self.con.execute(f'CREATE EMPTY BRANCH {name};')
+
+        try:
+            res_old = await self.con.query('''
+                SELECT sys::Database.id filter sys::Database.name = <str>$0
+            ''', name)
+            res_new = await self.con.query('''
+                SELECT sys::Branch.id filter sys::Branch.name = <str>$0
+            ''', name)
+            self.assertEqual(res_old, res_new)
+
+        finally:
             await tb.drop_db(self.con, name)

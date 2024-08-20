@@ -308,7 +308,7 @@ async def _get_dbs_and_roles(
 
     _, get_databases_sql = edbcompiler.compile_edgeql_script(
         compilerctx,
-        'SELECT sys::Database.name',
+        'SELECT sys::Branch.name',
     )
 
     databases = list(sorted(
