@@ -10,6 +10,7 @@ workspace = true
 
 [features]
 python_extension = ["pyo3/extension-module"]
+default = ["python_extension"]
 
 [dependencies]
 pyo3 = { workspace = true, optional = true }

@@ -1,4 +1,3 @@
-#![cfg(feature="python_extension")]
 mod py_entry;
 mod py_exception;
 mod py_token;
