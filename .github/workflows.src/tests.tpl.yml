@@ -66,7 +66,7 @@ jobs:
         CARGO_TARGET_DIR: ${{ env.BUILD_TEMP }}/rust/extensions
         CARGO_HOME: ${{ env.BUILD_TEMP }}/rust/extensions/cargo_home
       run:
-        cargo test
+        cargo test --all-features
 
   python-test:
     needs: build
