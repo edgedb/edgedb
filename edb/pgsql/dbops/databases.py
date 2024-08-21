@@ -30,7 +30,32 @@ from . import base
 from . import ddl
 
 
-class Database(base.DBObject):
+class AbstractDatabase(base.DBObject):
+    def get_type(self):
+        return 'DATABASE'
+
+    def is_shared(self) -> bool:
+        return True
+
+    def _get_id_expr(self) -> str:
+        raise NotImplementedError()
+
+    def get_oid(self) -> base.Query:
+        qry = textwrap.dedent(f'''\
+            SELECT
+                'pg_database'::regclass::oid AS classoid,
+                pg_database.oid AS objectoid,
+                0
+            FROM
+                pg_database
+            WHERE
+                datname = {self._get_id_expr()}
+        ''')
+
+        return base.Query(text=qry)
+
+
+class Database(AbstractDatabase):
     def __init__(
         self,
         name: str,
@@ -50,28 +75,11 @@ class Database(base.DBObject):
         self.lc_collate = lc_collate
         self.lc_ctype = lc_ctype
 
-    def get_type(self):
-        return 'DATABASE'
-
     def get_id(self):
         return qi(self.name)
 
-    def is_shared(self) -> bool:
-        return True
-
-    def get_oid(self) -> base.Query:
-        qry = textwrap.dedent(f'''\
-            SELECT
-                'pg_database'::regclass::oid AS classoid,
-                pg_database.oid AS objectoid,
-                0
-            FROM
-                pg_database
-            WHERE
-                datname = {ql(self.name)}
-        ''')
-
-        return base.Query(text=qry)
+    def _get_id_expr(self) -> str:
+        return ql(self.name)
 
 
 class DatabaseWithTenant(Database):
@@ -81,24 +89,19 @@ class DatabaseWithTenant(Database):
     ) -> None:
         super().__init__(name=name)
 
-    def get_id(self):
-        dyn_db = f"{V('edgedb')}.get_database_backend_name({ql(self.name)})"
-        return f"' || quote_ident({dyn_db}) || '"
+    def get_id(self) -> str:
+        return f"' || quote_ident({self._get_id_expr()}) || '"
 
-    def get_oid(self) -> base.Query:
-        qry = textwrap.dedent(f'''\
-            SELECT
-                'pg_database'::regclass::oid AS classoid,
-                pg_database.oid AS objectoid,
-                0
-            FROM
-                pg_database
-            WHERE
-                datname =
-                  {V("edgedb")}.get_database_backend_name({ql(self.name)})
-        ''')
+    def _get_id_expr(self) -> str:
+        return f'{V("edgedb")}.get_database_backend_name({ql(self.name)})'
 
-        return base.Query(text=qry)
+
+class CurrentDatabase(AbstractDatabase):
+    def get_id(self) -> str:
+        return f"' || quote_ident({self._get_id_expr()}) || '"
+
+    def _get_id_expr(self) -> str:
+        return 'current_database()'
 
 
 class DatabaseExists(base.Condition):
