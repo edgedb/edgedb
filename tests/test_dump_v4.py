@@ -113,6 +113,24 @@ class DumpTestCaseMixin:
             ],
         )
 
+        if include_secrets:
+            await self.assert_query_result(
+                '''
+                    select cfg::Config.extensions[is ext::auth::AuthConfig] {
+                      providers: { name } order by .name
+                    };
+                ''',
+                [{
+                    'providers': [
+                        {'name': 'builtin::local_emailpassword'},
+                        {'name': 'builtin::oauth_apple'},
+                        {'name': 'builtin::oauth_azure'},
+                        {'name': 'builtin::oauth_github'},
+                        {'name': 'builtin::oauth_google'},
+                    ]
+                }]
+            )
+
 
 class TestDumpV4(tb.StableDumpTestCase, DumpTestCaseMixin):
     EXTENSIONS = ["pgvector", "_conf", "pgcrypto", "auth"]
@@ -127,6 +145,13 @@ class TestDumpV4(tb.StableDumpTestCase, DumpTestCaseMixin):
     async def test_dump_v4_dump_restore(self):
         await self.check_dump_restore(
             DumpTestCaseMixin.ensure_schema_data_integrity)
+
+    async def test_dump_v4_dump_restore_secrets(self):
+        await self.check_dump_restore(
+            lambda self: self.ensure_schema_data_integrity(
+                include_secrets=True),
+            include_secrets=True,
+        )
 
     async def test_dump_v4_branch_data(self):
         await self.check_branching(
