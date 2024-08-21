@@ -19,7 +19,9 @@
 from __future__ import annotations
 from typing import Tuple, Optional
 
+from edb.common import debug
 from edb.pgsql import ast as pgast
+from edb.pgsql import codegen as pgcodegen
 from edb.schema import schema as s_schema
 
 from edb.server.compiler import dbstate
@@ -38,6 +40,14 @@ def resolve(
     schema: s_schema.Schema,
     options: context.Options,
 ) -> Tuple[pgast.Base, Optional[dbstate.CommandCompleteTag]]:
+
+    if debug.flags.sql_input:
+        debug.header('SQL Input')
+        debug_sql_text = pgcodegen.generate_source(
+            query, reordered=True, pretty=True
+        )
+        debug.dump_code(debug_sql_text, lexer='sql')
+
     ctx = context.ResolverContextLevel(
         None, context.ContextSwitchMode.EMPTY, schema=schema, options=options
     )
@@ -75,5 +85,13 @@ def resolve(
             # resolved SQL will contain an injected COUNT clause
             # we instruct io process to unpack that
             command_complete_tag = dbstate.TagUnpackRow(prefix=prefix)
+
+    if debug.flags.sql_output:
+        debug.header('SQL Output')
+
+        debug_sql_text = pgcodegen.generate_source(
+            resolved, pretty=True, reordered=True
+        )
+        debug.dump_code(debug_sql_text, lexer='sql')
 
     return (resolved, command_complete_tag)
