@@ -10,7 +10,7 @@ client and server.
 
 You can reference the following repositories for more context:
 
-- `TurboRepo Template <https://github.com/scotttrinh/turbo-edb-app/blob/main-template/>`_: A monorepo template using **TurboRepo**, **EdgeDB**, and **tRPC**.
+- `TurboRepo Template <https://github.com/edgedb/create-t3-turbo-edgedb>`_: A monorepo template using **TurboRepo**, **EdgeDB**, and **tRPC**.
 - `LookFeel Project <https://github.com/LewTrn/lookfeel>`_: A real-world project example using **EdgeDB** and **tRPC**.
 
 Step 1: EdgeDB setup
@@ -465,6 +465,6 @@ user authentication and protecting routes.
 
 You can also reference these projects for further examples:
 
-- `TurboRepo Template <https://github.com/scotttrinh/turbo-edb-app/blob/main-template/>`_
+- `TurboRepo Template <https://github.com/edgedb/create-t3-turbo-edgedb>`_
 - `LookFeel Project <https://github.com/LewTrn/lookfeel>`_ - A real-world 
   example using **EdgeDB** and **tRPC**.
