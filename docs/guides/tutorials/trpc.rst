@@ -295,15 +295,15 @@ context that provides the user session and EdgeDB client to the tRPC API.
 
 2. **Create tRPC Context**
 
-   The **tRPC** context provides the session and the EdgeDB client to the tRPC 
+   The **tRPC** context provides the EdgeDB Auth session to the tRPC 
    procedures:
 
    .. code-block:: typescript
+      :caption: src/trpc.ts
 
       import { initTRPC } from '@trpc/server';
       import { headers } from "next/headers";
-      import { auth } from "./path-to-auth";
-      import { edgedbClient } from "./path-to-edgedb";
+      import { auth } from "src/edgedb.ts";
 
       // Create tRPC context with session and EdgeDB client
       export const createTRPCContext = async () => {
@@ -311,7 +311,6 @@ context that provides the user session and EdgeDB client to the tRPC API.
 
         return {
           session, // Pass the session to the context
-          edgedbClient, // EdgeDB client for querying the database
         };
       };
 
@@ -324,9 +323,11 @@ context that provides the user session and EdgeDB client to the tRPC API.
    the context:
 
    .. code-block:: typescript
+      :caption: pages/api/trpc/[trpc].ts
 
       import { createNextApiHandler } from '@trpc/server/adapters/next';
-      import { appRouter } from './path-to-router';
+      import { createTRPCContext } from 'src/trpc.ts';
+      import { appRouter } from 'src/routers/_app';
 
       export default createNextApiHandler({
         router: appRouter, // Your tRPC router
