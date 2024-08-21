@@ -1176,7 +1176,7 @@ MAX_INT64 = 2 ** 63 - 1
 MIN_INT64 = -2 ** 63
 
 
-def const_ast_from_python(val: Any) -> qlast.Expr:
+def const_ast_from_python(val: Any, with_secrets: bool=False) -> qlast.Expr:
     if isinstance(val, str):
         return qlast.StringConstant.from_python(val)
     elif isinstance(val, bool):
@@ -1207,14 +1207,18 @@ def const_ast_from_python(val: Any) -> qlast.Expr:
                     expr=qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(
                         name=ptr
                     ))]),
-                    compexpr=const_ast_from_python(getattr(val, ptr)),
+                    compexpr=const_ast_from_python(
+                        getattr(val, ptr), with_secrets=with_secrets
+                    ),
                 )
                 for ptr, typ in val._tspec.fields.items()
-                if not typ.secret and not typ.protected
+                if not (typ.secret and not with_secrets) and not typ.protected
             ],
         )
     elif isinstance(val, (set, frozenset)):
-        return qlast.Set(elements=[const_ast_from_python(x) for x in val])
+        return qlast.Set(elements=[
+            const_ast_from_python(x, with_secrets=with_secrets) for x in val
+        ])
     elif val is None:
         return qlast.Set(elements=[])
     else:
