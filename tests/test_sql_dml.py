@@ -1319,3 +1319,42 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             '''
         )
         self.assertEqual(res, [['untitled', None]])
+
+    async def test_sql_dml_01(self):
+        # update/delete only
+
+        await self.scon.execute(
+            '''
+            INSERT INTO "Base" (prop) VALUES ('base')
+            '''
+        )
+        await self.scon.execute(
+            '''
+            INSERT INTO "Child" (prop) VALUES ('child')
+            '''
+        )
+
+        res = await self.squery_values('SELECT prop FROM "Base" ORDER BY prop')
+        self.assertEqual(res, [['base'], ['child']])
+
+        res = await self.squery_values('SELECT prop FROM ONLY "Base"')
+        self.assertEqual(res, [['base']])
+
+        res = await self.squery_values('SELECT prop FROM "Child"')
+        self.assertEqual(res, [['child']])
+
+        await self.scon.execute(
+            '''
+            UPDATE ONLY "Base" SET prop = 'a'
+            '''
+        )
+        res = await self.squery_values('SELECT prop FROM "Base" ORDER BY prop')
+        self.assertEqual(res, [['a'], ['child']])
+
+        await self.scon.execute(
+            '''
+            DELETE FROM ONLY "Base"
+            '''
+        )
+        res = await self.squery_values('SELECT prop FROM "Base" ORDER BY prop')
+        self.assertEqual(res, [['child']])

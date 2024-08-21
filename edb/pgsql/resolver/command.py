@@ -837,6 +837,8 @@ def _uncompile_delete_object_stmt(
             pgast.RelRangeVar(
                 relation=stmt.relation.relation,
                 alias=pgast.Alias(aliasname=val_sub_rvar),
+                # DELETE ONLY
+                include_inherited=stmt.relation.include_inherited,
             )
         ]
         + stmt.using_clause,
@@ -868,13 +870,15 @@ def _uncompile_delete_object_stmt(
 
     # construct the EdgeQL DML AST
     sub_name = sub.get_name(ctx.schema)
+    where = qlast.BinOp(
+        left=qlast.Path(partial=True, steps=[qlast.Ptr(name='id')]),
+        op='IN',
+        right=qlast.Path(steps=[value_ql, qlast.Ptr(name='id')]),
+    )
+
     ql_stmt: qlast.Expr = qlast.DeleteQuery(
         subject=qlast.Path(steps=[s_utils.name_to_ast_ref(sub_name)]),
-        where=qlast.BinOp(
-            left=qlast.Path(partial=True, steps=[qlast.Ptr(name='id')]),
-            op='IN',
-            right=qlast.Path(steps=[value_ql, qlast.Ptr(name='id')]),
-        ),
+        where=where,
     )
 
     ql_returning_shape: List[qlast.ShapeElement] = []
@@ -1207,6 +1211,8 @@ def _uncompile_update_object_stmt(
             pgast.RelRangeVar(
                 relation=stmt.relation.relation,
                 alias=pgast.Alias(aliasname=val_sub_rvar),
+                # UPDATE ONLY
+                include_inherited=stmt.relation.include_inherited,
             )
         ]
         + stmt.from_clause,
@@ -1292,13 +1298,15 @@ def _uncompile_update_object_stmt(
     sub_name = sub.get_name(ctx.schema)
     ql_sub_ref = s_utils.name_to_ast_ref(sub_name)
 
+    where = qlast.BinOp(  # ObjectType == value.source
+        left=qlast.Path(steps=[ql_sub_ref]),
+        op='=',
+        right=qlast.Path(steps=[value_ql]),
+    )
+
     ql_stmt: qlast.Expr = qlast.UpdateQuery(
         subject=qlast.Path(steps=[ql_sub_ref]),
-        where=qlast.BinOp(  # ObjectType == value.source
-            left=qlast.Path(steps=[ql_sub_ref]),
-            op='=',
-            right=qlast.Path(steps=[value_ql]),
-        ),
+        where=where,
         shape=update_shape,
     )
 
