@@ -38,6 +38,7 @@ The previous command generated a schema file in the `dbschema` directory.
 Here’s an example schema that defines a `User` model:
 
 .. code-block:: sdl
+   :caption: dbschema/default.esdl
 
    module default {
      type User {
