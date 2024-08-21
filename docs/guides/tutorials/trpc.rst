@@ -33,7 +33,7 @@ This will create an EdgeDB project and set up a schema to start with.
 Define the EdgeDB Schema
 ------------------------
 
-The previous command generated a schema file in the `dbschema` directory.
+The previous command generated a schema file in the ``dbschema`` directory.
 
 Here’s an example schema that defines a `User` model:
 
@@ -445,13 +445,13 @@ authentication and context for tRPC procedures.
 
       export const appRouter = t.router({
         getUserData: t.procedure.query(async ({ ctx }) => {
-          if (!ctx.session) {
+          if (!(await ctx.session.isSignedIn())) {
             throw new Error("Not authenticated");
           }
-          // Query EdgeDB using the client's session
-          const userData = await ctx.edgedbClient.query(`
-            SELECT User { name, email } WHERE .id = <uuid>$id
-          `, { id: ctx.session.user.id });
+          // Fetch data from EdgeDB using the authenticated client
+          const userData = await ctx.session.client.query(`
+            select User { name, email }
+          `);
 
           return userData;
         }),
