@@ -98,10 +98,10 @@ Install the required tRPC dependencies:
 
 .. code-block:: bash
 
-   $ pnpm add @trpc/server @trpc/client @trpc/react-query
-   $ # or yarn add @trpc/server @trpc/client @trpc/react-query
-   $ # or npm install @trpc/server @trpc/client @trpc/react-query
-   $ # or bun add @trpc/server @trpc/client @trpc/react-query
+   $ pnpm add @trpc/server @trpc/client
+   $ # or yarn add @trpc/server @trpc/client
+   $ # or npm install @trpc/server @trpc/client
+   $ # or bun add @trpc/server @trpc/client
 
 If you're using React and would like to use React Query with tRPC, also 
 install a wrapper around the `@tanstack/react-query <https://tanstack.com/query/latest>`_.
