@@ -837,6 +837,8 @@ def _uncompile_delete_object_stmt(
             pgast.RelRangeVar(
                 relation=stmt.relation.relation,
                 alias=pgast.Alias(aliasname=val_sub_rvar),
+                # DELETE ONLY
+                include_inherited=stmt.relation.include_inherited,
             )
         ]
         + stmt.using_clause,
@@ -873,13 +875,6 @@ def _uncompile_delete_object_stmt(
         op='IN',
         right=qlast.Path(steps=[value_ql, qlast.Ptr(name='id')]),
     )
-    if not stmt.relation.include_inherited:
-        # DELETE ONLY
-        where = qlast.BinOp(
-            left=where,
-            op='AND',
-            right=_construct_ql_is_type(sub)
-        )
 
     ql_stmt: qlast.Expr = qlast.DeleteQuery(
         subject=qlast.Path(steps=[s_utils.name_to_ast_ref(sub_name)]),
@@ -1216,6 +1211,8 @@ def _uncompile_update_object_stmt(
             pgast.RelRangeVar(
                 relation=stmt.relation.relation,
                 alias=pgast.Alias(aliasname=val_sub_rvar),
+                # UPDATE ONLY
+                include_inherited=stmt.relation.include_inherited,
             )
         ]
         + stmt.from_clause,
@@ -1306,13 +1303,6 @@ def _uncompile_update_object_stmt(
         op='=',
         right=qlast.Path(steps=[value_ql]),
     )
-    if not stmt.relation.include_inherited:
-        # UPDATE ONLY
-        where = qlast.BinOp(
-            left=where,
-            op='AND',
-            right=_construct_ql_is_type(sub)
-        )
 
     ql_stmt: qlast.Expr = qlast.UpdateQuery(
         subject=qlast.Path(steps=[ql_sub_ref]),
@@ -1362,31 +1352,6 @@ def _uncompile_update_object_stmt(
         ),
         # these will be populated by _uncompile_dml_stmt
         subject_columns=[],
-    )
-
-
-def _construct_ql_is_type(sub: s_objtypes.ObjectType) -> qlast.Expr:
-    """
-    For UPDATE ONLY and DELETE ONLY, we want to filter objects that are of
-    subject type and not of subject's subtypes.
-    """
-
-    # Construct QL AST equivalent to:
-    # .__type__ = <schema::Type><uuid>'subject-type-id'
-    return qlast.BinOp(
-        left=qlast.Path(
-            partial=True, steps=[qlast.Ptr(name='__type__')]
-        ),
-        op='=',
-        right=qlast.TypeCast(
-            expr=qlast.TypeCast(
-                expr=qlast.Constant.string(str(sub.id)),
-                type=qlast.TypeName(maintype=qlast.ObjectRef(name='uuid'))
-            ),
-            type=qlast.TypeName(
-                maintype=qlast.ObjectRef(module='schema', name='Type')
-            )
-        )
     )
 
 
