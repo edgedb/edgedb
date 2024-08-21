@@ -16,4 +16,5 @@ Using EdgeDB with...
     graphql_apis_with_strawberry
     chatgpt_bot
     cloudflare_workers
+    trpc
     Bun <https://bun.sh/guides/ecosystem/edgedb>
