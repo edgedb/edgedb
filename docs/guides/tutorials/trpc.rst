@@ -77,6 +77,7 @@ First, install the **EdgeDB** client using your package manager:
 Then, create a client instance in a `edgedb.ts` file:
 
 .. code-block:: typescript
+   :caption: src/edgedb.ts
 
    import { createClient } from 'edgedb';
 
