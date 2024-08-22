@@ -1,7 +1,10 @@
 .. _ref_guide_trpc:
 
-Integrating EdgeDB with tRPC
-============================
+====
+tRPC
+====
+
+:edb-alt-title: Integrating EdgeDB with tRPC
 
 This guide explains how to integrate **EdgeDB** with **tRPC** for a modern, 
 type-safe API. We'll cover setting up database interactions, API routing, 
