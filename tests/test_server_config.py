@@ -1220,6 +1220,47 @@ class TestServerConfig(tb.QueryTestCase):
                         CREATE FUNCTION intfunc() -> int64 USING (1);
                     ''')
 
+            async with self._run_and_rollback():
+                await self.con.execute('''
+                    CONFIGURE SESSION SET store_migration_sdl :=
+                        cfg::StoreMigrationSDL.NeverStore;
+                ''')
+
+                await self.con.execute('''
+                    CREATE TYPE Bar;
+                ''')
+
+                await self.assert_query_result(
+                    'select schema::Migration { sdl }',
+                    [
+                        {'sdl': None},
+                        {'sdl': None},
+                    ]
+                )
+
+            async with self._run_and_rollback():
+                await self.con.execute('''
+                    CONFIGURE SESSION SET store_migration_sdl :=
+                        cfg::StoreMigrationSDL.AlwaysStore;
+                ''')
+
+                await self.con.execute('''
+                    CREATE TYPE Bar;
+                ''')
+
+                await self.assert_query_result(
+                    'select schema::Migration { sdl }',
+                    [
+                        {'sdl': None},
+                        {'sdl': (
+                            'module default {\n'
+                            '    type Bar;\n'
+                            '    type Foo;\n'
+                            '};'
+                        )},
+                    ]
+                )
+
         finally:
             await self.con.execute('''
                 DROP TYPE Foo;

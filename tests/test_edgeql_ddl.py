@@ -13746,7 +13746,124 @@ type default::Foo {
                     DROP FUNCTION foo___1(a: int64);
                 ''')
 
+    async def test_edgeql_ddl_migration_sdl_01(self):
+        await self.con.execute('reset schema to initial')
+        await self.con.execute('''
+            CONFIGURE SESSION SET store_migration_sdl :=
+                cfg::StoreMigrationSDL.AlwaysStore;
+        ''')
+
+        await self.con.execute('''
+            create type A;
+            create type B {
+                create property n -> int64;
+            };
+            alter type A {
+                create link b -> B;
+            };
+            alter type A {
+                alter link b {
+                    create property n -> int64
+                };
+            };
+            alter type A {
+                alter link b {
+                    drop property n;
+                };
+            };
+            alter type B {
+                drop property n;
+            };
+        ''')
+        await self.con.execute('''
+            drop type A;
+        ''')
+
+        await self.assert_query_result(
+            'select schema::Migration { sdl }',
+            [
+                {
+                    'sdl': (
+                        'module default {\n'
+                        '    type A;\n'
+                        '};'
+                    ),
+                },
+                {
+                    'sdl': (
+                        'module default {\n'
+                        '    type A;\n'
+                        '    type B {\n'
+                        '        property n: std::int64;\n'
+                        '    };\n'
+                        '};'
+                    ),
+                },
+                {
+                    'sdl': (
+                        'module default {\n'
+                        '    type A {\n'
+                        '        link b: default::B;\n'
+                        '    };\n'
+                        '    type B {\n'
+                        '        property n: std::int64;\n'
+                        '    };\n'
+                        '};'
+                    ),
+                },
+                {
+                    'sdl': (
+                        'module default {\n'
+                        '    type A {\n'
+                        '        link b: default::B {\n'
+                        '            property n: std::int64;\n'
+                        '        };\n'
+                        '    };\n'
+                        '    type B {\n'
+                        '        property n: std::int64;\n'
+                        '    };\n'
+                        '};'
+                    ),
+                },
+                {
+                    'sdl': (
+                        'module default {\n'
+                        '    type A {\n'
+                        '        link b: default::B;\n'
+                        '    };\n'
+                        '    type B {\n'
+                        '        property n: std::int64;\n'
+                        '    };\n'
+                        '};'
+                    ),
+                },
+                {
+                    'sdl': (
+                        'module default {\n'
+                        '    type A {\n'
+                        '        link b: default::B;\n'
+                        '    };\n'
+                        '    type B;\n'
+                        '};'
+                    ),
+                },
+                {
+                    'sdl': (
+                        'module default {\n'
+                        '    type B;\n'
+                        '};'
+                    ),
+                },
+            ]
+        )
+
     async def test_edgeql_ddl_create_migration_01(self):
+        await self.con.execute('reset schema to initial')
+        await self.con.execute('''
+            CONFIGURE SESSION SET store_migration_sdl :=
+                cfg::StoreMigrationSDL.AlwaysStore;
+        ''')
+
         await self.con.execute(f'''
             CREATE MIGRATION
             {{
@@ -13767,8 +13884,32 @@ type default::Foo {
             }]
         )
 
+        await self.assert_query_result(
+            'select schema::Migration { script, sdl }',
+            [
+                {
+                    'script': (
+                        'CREATE TYPE Type1 {\n'
+                        '    CREATE PROPERTY field1 -> str;\n'
+                        '};'
+                    ),
+                    'sdl': (
+                        'module default {\n'
+                        '    type Type1 {\n'
+                        '        property field1: std::str;\n'
+                        '    };'
+                        '\n};'
+                    ),
+                },
+            ]
+        )
+
     async def test_edgeql_ddl_create_migration_02(self):
         await self.con.execute('reset schema to initial')
+        await self.con.execute('''
+            CONFIGURE SESSION SET store_migration_sdl :=
+                cfg::StoreMigrationSDL.AlwaysStore;
+        ''')
 
         await self.con.execute('''
 CREATE MIGRATION m1kmv2mcizpj2twxlxxerkgngr2fkto7wnjd6uig3aa3x67dykvspq
@@ -13792,7 +13933,58 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 };
         ''')
 
+        await self.assert_query_result(
+            'select schema::Migration { script, sdl }',
+            [
+                {
+                    'script': (
+                        'CREATE GLOBAL default::foo -> std::bool;\n'
+                        'CREATE TYPE default::Foo {\n'
+                        '    CREATE ACCESS POLICY foo\n'
+                        '        ALLOW ALL USING ('
+                                    '(GLOBAL default::foo ?? true)'
+                                ');\n'
+                        '};'
+                    ),
+                    'sdl': (
+                        'module default {\n'
+                        '    global foo -> std::bool;\n'
+                        '    type Foo {\n'
+                        '        access policy foo\n'
+                        '            allow all using '
+                                        '((global default::foo ?? true));\n'
+                        '    };\n'
+                        '};'
+                    ),
+                },
+                {
+                    'script': (
+                        'CREATE TYPE default::X;\n'
+                        '\n'
+                        'INSERT Foo;'
+                    ),
+                    'sdl': (
+                        'module default {\n'
+                        '    global foo -> std::bool;\n'
+                        '    type Foo {\n'
+                        '        access policy foo\n'
+                        '            allow all using '
+                                        '((global default::foo ?? true));\n'
+                        '    };\n'
+                        '    type X;\n'
+                        '};'
+                    ),
+                },
+            ]
+        )
+
     async def test_edgeql_ddl_create_migration_03(self):
+        await self.con.query('reset schema to initial')
+        await self.con.execute('''
+            CONFIGURE SESSION SET store_migration_sdl :=
+                cfg::StoreMigrationSDL.AlwaysStore;
+        ''')
+
         await self.con.execute('''
             CREATE MIGRATION
             {
@@ -13806,10 +13998,29 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         await self.assert_query_result(
             '''
-            SELECT schema::Migration { generated_by }
-            FILTER .message = "migration2"
+            SELECT schema::Migration { message, generated_by, script, sdl }
             ''',
-            [{'generated_by': 'DevMode'}]
+            [
+                {
+                    'generated_by': 'DevMode',
+                    'message': 'migration2',
+                    'script': (
+                        'SET message := "migration2";\n'
+                        'SET generated_by := '
+                            'schema::MigrationGeneratedBy.DevMode;\n'
+                        'CREATE TYPE Type2 {\n'
+                        '    CREATE PROPERTY field2 -> int32;\n'
+                        '};'
+                    ),
+                    'sdl': (
+                        'module default {\n'
+                        '    type Type2 {\n'
+                        '        property field2: std::int32;\n'
+                        '    };\n'
+                        '};'
+                    ),
+                },
+            ]
         )
 
         await self.con.execute(f'''
@@ -13818,10 +14029,46 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         await self.assert_query_result(
             '''
-            SELECT schema::Migration { generated_by }
-            FILTER .script like "%Type3%"
+            SELECT schema::Migration { message, generated_by, script, sdl }
             ''',
-            [{'generated_by': 'DDLStatement'}]
+            [
+                {
+                    'generated_by': 'DevMode',
+                    'message': 'migration2',
+                    'script': (
+                        'SET message := "migration2";\n'
+                        'SET generated_by := '
+                            'schema::MigrationGeneratedBy.DevMode;\n'
+                        'CREATE TYPE Type2 {\n'
+                        '    CREATE PROPERTY field2 -> int32;\n'
+                        '};'
+                    ),
+                    'sdl': (
+                        'module default {\n'
+                        '    type Type2 {\n'
+                        '        property field2: std::int32;\n'
+                        '    };\n'
+                        '};'
+                    ),
+                },
+                {
+                    'generated_by': 'DDLStatement',
+                    'message': None,
+                    'script': (
+                        'SET generated_by := '
+                            '(schema::MigrationGeneratedBy.DDLStatement);\n'
+                        'CREATE TYPE Type3;'
+                    ),
+                    'sdl': (
+                        'module default {\n'
+                        '    type Type2 {\n'
+                        '        property field2: std::int32;\n'
+                        '    };\n'
+                        '    type Type3;\n'
+                        '};'
+                    ),
+                },
+            ]
         )
 
     async def test_edgeql_ddl_create_migration_04(self):
