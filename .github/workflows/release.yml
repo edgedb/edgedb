@@ -518,12 +518,6 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        repository: edgedb/edgedb-pkg
-        ref: master
-        path: edgedb-pkg
-
     - name: Update Homebrew before installing Rust toolchain
       run: |
         # Homebrew renamed `rustup-init` to `rustup`:
@@ -531,12 +525,25 @@ jobs:
         # But the GitHub Action runner is not updated with this change yet.
         # This caused the later `brew update` in step `Build` to relink Rust
         # toolchain executables, overwriting the custom toolchain installed by
-        # `dtolnay/rust-toolchain`. So let's just run `brew update` early.
+        # `dsherret/rust-toolchain-file`. So let's just run `brew update` early.
         brew update
+
+    - uses: actions/checkout@v4
+      if: true
+      with:
+        sparse-checkout: |
+          rust-toolchain.toml
+        sparse-checkout-cone-mode: false
 
     - name: Install Rust toolchain
       uses: dsherret/rust-toolchain-file@v1
       if: true
+
+    - uses: actions/checkout@v4
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -580,12 +587,6 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        repository: edgedb/edgedb-pkg
-        ref: master
-        path: edgedb-pkg
-
     - name: Update Homebrew before installing Rust toolchain
       run: |
         # Homebrew renamed `rustup-init` to `rustup`:
@@ -593,12 +594,25 @@ jobs:
         # But the GitHub Action runner is not updated with this change yet.
         # This caused the later `brew update` in step `Build` to relink Rust
         # toolchain executables, overwriting the custom toolchain installed by
-        # `dtolnay/rust-toolchain`. So let's just run `brew update` early.
+        # `dsherret/rust-toolchain-file`. So let's just run `brew update` early.
         brew update
+
+    - uses: actions/checkout@v4
+      if: true
+      with:
+        sparse-checkout: |
+          rust-toolchain.toml
+        sparse-checkout-cone-mode: false
 
     - name: Install Rust toolchain
       uses: dsherret/rust-toolchain-file@v1
       if: true
+
+    - uses: actions/checkout@v4
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
 
     - name: Set up Python
       uses: actions/setup-python@v5
