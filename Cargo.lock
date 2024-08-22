@@ -329,6 +329,8 @@ dependencies = [
  "rand",
  "rstest",
  "scopeguard",
+ "serde",
+ "serde-pickle",
  "smart-default",
  "statrs",
  "strum",

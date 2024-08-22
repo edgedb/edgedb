@@ -135,6 +135,10 @@ constants! {
     /// The maximum number of connections to create or destroy during a rebalance.
     #[range(0..=10)]
     const MAX_REBALANCE_OPS: usize = 5;
+    /// The maximum % of total connections to create or destroy during a
+    /// rebalance when full.
+    #[range(0..=10)]
+    const MAX_REBALANCE_OPS_PERCENT_WHEN_FULL: usize = 5;
     /// The minimum headroom in a block between its current total and its target
     /// for us to pre-create connections for it.
     #[range(0..=10)]
@@ -170,8 +174,10 @@ constants! {
     const HUNGER_WAITER_ACTIVE_WEIGHT: usize = 2;
     const HUNGER_ACTIVE_WEIGHT_DIVIDEND: usize = 9650;
     /// The weight we apply to the oldest waiter's age in milliseconds (as a divisor).
-    #[range(1..=2000)]
     const HUNGER_AGE_DIVISOR_WEIGHT: usize = 707;
+    /// This is divided by the youngest connection metric to penalize switching to
+    /// a backend which has changed recently.
+    const HUNGER_CHANGE_WEIGHT_DIVIDEND: usize = 57;
 
     /// The weight we apply to the difference between the target and required
     /// connections when determining overfullness.
@@ -234,6 +240,14 @@ pub enum ReleaseType {
     Poison,
 }
 
+#[derive(Default, Clone, Copy)]
+#[repr(transparent)]
+struct Score(isize);
+
+impl Score {
+
+}
+
 /// Generic trait to decouple the algorithm from the underlying pool blocks.
 /// This minimizes the interface between the algorithm and the blocks to keep
 /// coupling between the two at the right level.
@@ -293,24 +307,40 @@ pub trait PoolAlgorithmDataBlock: PoolAlgorithmDataMetrics {
         let waiters = waiting.saturating_sub(connecting);
         let current = self.total() - if will_release { 1 } else { 0 };
         let target = self.target();
-        let active_ms = self.avg_ms(MetricVariant::Active).max(MIN_TIME.get());
-
-        // Waiters become more hungry as they age
-        let age_score =
-            self.oldest_ms(MetricVariant::Waiting) / HUNGER_AGE_DIVISOR_WEIGHT.get().max(1);
-        let waiter_score = waiters * HUNGER_WAITER_WEIGHT.get()
-            + (waiters * HUNGER_WAITER_ACTIVE_WEIGHT.get() / active_ms)
-            + (HUNGER_ACTIVE_WEIGHT_DIVIDEND.get() / active_ms);
-        let base_score = age_score + waiter_score;
 
         // If we have more connections than our target, we are not hungry. We
         // may still be hungry if current <= target if we have waiters, however.
         if current > target || (target == current && waiters < 1) {
-            None
-        } else {
-            let diff = target - current;
-            Some((base_score + diff * HUNGER_DIFF_WEIGHT.get()) as _)
+            return None;
         }
+
+        let active_ms = self.avg_ms(MetricVariant::Active).max(MIN_TIME.get());
+        let reconnecting_ms = self
+            .avg_ms(MetricVariant::Reconnecting)
+            .max(self.avg_ms(MetricVariant::Connecting) + self.avg_ms(MetricVariant::Disconnecting))
+            .max(MIN_TIME.get());
+        let youngest_ms = self.youngest_ms().max(MIN_TIME.get());
+
+        let score = Score::default();
+
+        // Waiters become more hungry as they age
+        score.accum(HUNGER_AGE_DIVISOR_WEIGHT, self.oldest_ms(MetricVariant::Waiting));
+
+        let age_score =
+            self.oldest_ms(MetricVariant::Waiting) / HUNGER_AGE_DIVISOR_WEIGHT.get().max(1);
+        let waiter_score = waiters * HUNGER_WAITER_WEIGHT.get()
+            + waiters * (active_ms * HUNGER_WAITER_ACTIVE_WEIGHT.get() / reconnecting_ms)
+            + (HUNGER_ACTIVE_WEIGHT_DIVIDEND.get() / active_ms);
+        // We take the ratio of youngest/connecting and divide
+        // `OVERFULL_CHANGE_WEIGHT_DIVIDEND` by that to give an hunger
+        // "negative" penalty to blocks that have newly acquired a connection.
+        let youngest_score =
+            ((OVERFULL_CHANGE_WEIGHT_DIVIDEND.get() * reconnecting_ms) / youngest_ms) as isize;
+
+        let base_score = (age_score + waiter_score) as isize + youngest_score;
+
+        let diff = target - current;
+        Some((base_score + (diff * HUNGER_DIFF_WEIGHT.get()) as isize) as _)
     }
 
     /// Calculates the overfull score for the current state.
@@ -332,10 +362,17 @@ pub trait PoolAlgorithmDataBlock: PoolAlgorithmDataMetrics {
         let idle = self.count(MetricVariant::Idle) + if will_release { 1 } else { 0 };
         let current = self.total();
         let target = self.target();
+
+        // If we have no idle connections, or we don't have enough connections we're not overfull.
+        if target >= current || idle == 0 {
+            return None;
+        }
+
         let connecting =
             self.count(MetricVariant::Connecting) + self.count(MetricVariant::Reconnecting);
         let waiting = self.count(MetricVariant::Waiting);
         let waiters = waiting.saturating_sub(connecting);
+
         let active_ms = self.avg_ms(MetricVariant::Active).max(MIN_TIME.get());
         let reconnecting_ms = self
             .avg_ms(MetricVariant::Reconnecting)
@@ -343,32 +380,28 @@ pub trait PoolAlgorithmDataBlock: PoolAlgorithmDataMetrics {
             .max(MIN_TIME.get());
         let youngest_ms = self.youngest_ms().max(MIN_TIME.get());
 
-        // If we have no idle connections, or we don't have enough connections we're not overfull.
-        if target >= current || idle == 0 {
-            None
-        } else {
-            // The more idle connections we have, the more overfull this block is.
-            let idle_score = (idle * OVERFULL_IDLE_WEIGHT.get()) as isize;
-            // We take the ratio of youngest/connecting and divide
-            // `OVERFULL_CHANGE_WEIGHT_DIVIDEND` by that to give an overfullness
-            // "negative" penalty to blocks that have newly acquired a connection.
-            let youngest_score =
-                ((OVERFULL_CHANGE_WEIGHT_DIVIDEND.get() * reconnecting_ms) / youngest_ms) as isize;
-            // The number of waiters and the amount of time we expect to spend
-            // active on these waiters also acts as a "negative" penalty.
-            let waiter_score = (waiters * OVERFULL_WAITER_WEIGHT.get()
-                + (waiters * OVERFULL_WAITER_ACTIVE_WEIGHT.get() / active_ms)
-                + (OVERFULL_ACTIVE_WEIGHT_DIVIDEND.get() / active_ms))
-                as isize;
+        // The more idle connections we have, the more overfull this block is.
+        let idle_score = (idle * OVERFULL_IDLE_WEIGHT.get()) as isize;
+        // We take the ratio of youngest/connecting and divide
+        // `OVERFULL_CHANGE_WEIGHT_DIVIDEND` by that to give an overfullness
+        // "negative" penalty to blocks that have newly acquired a connection.
+        let youngest_score =
+            ((OVERFULL_CHANGE_WEIGHT_DIVIDEND.get() * reconnecting_ms) / youngest_ms) as isize;
 
-            let base_score = idle_score - youngest_score - waiter_score;
-            if current > target {
-                let diff = current - target;
-                let diff_score = (diff * OVERFULL_DIFF_WEIGHT.get()) as isize;
-                Some(diff_score + base_score)
-            } else {
-                Some(base_score)
-            }
+        // The number of waiters and the amount of time we expect to spend
+        // active on these waiters also acts as a "negative" penalty.
+        let waiter_score = (waiters * OVERFULL_WAITER_WEIGHT.get()
+            + waiters * (active_ms * OVERFULL_WAITER_ACTIVE_WEIGHT.get() / reconnecting_ms)
+            + (OVERFULL_ACTIVE_WEIGHT_DIVIDEND.get() / active_ms))
+            as isize;
+
+        let base_score = idle_score - youngest_score - waiter_score;
+        if current > target {
+            let diff = current - target;
+            let diff_score = (diff * OVERFULL_DIFF_WEIGHT.get()) as isize;
+            Some(diff_score + base_score)
+        } else {
+            Some(base_score)
         }
     }
 
@@ -679,7 +712,8 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
         overloaded.sort();
         hungriest.sort();
 
-        for _ in 0..MAX_REBALANCE_OPS.get() {
+        let ops_count = ((MAX_REBALANCE_OPS_PERCENT_WHEN_FULL.get() * max_pool_size) / 100).max(1);
+        for _ in 0..ops_count {
             let Some((_, to)) = hungriest.pop() else {
                 break;
             };

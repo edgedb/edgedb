@@ -9,6 +9,7 @@ use crate::{
     waitqueue::WaitQueue,
 };
 use futures::future::Either;
+use serde::Serialize;
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -31,6 +32,14 @@ macro_rules! consistency_check {
 /// A cheaply cloneable name string.
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Name(Rc<String>);
+
+impl Serialize for Name {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer {
+        serializer.serialize_str(self.0.as_str())
+    }
+}
 
 impl std::fmt::Display for Name {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

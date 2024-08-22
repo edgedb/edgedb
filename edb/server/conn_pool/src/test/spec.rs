@@ -780,7 +780,7 @@ pub fn run_specs_tests_in_runtime(
         for handle in suite_handles {
             let (name, qos) = handle
                 .join()
-                .map_err(|e| anyhow::anyhow!("Thread failed"))??;
+                .map_err(|e| anyhow::anyhow!("Thread failed: {e:?}"))??;
             suite.insert(name.into(), qos);
         }
         runs.push(suite)

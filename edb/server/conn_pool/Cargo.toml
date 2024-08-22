@@ -25,6 +25,8 @@ tracing-subscriber = "0"
 strum = { version = "0.26", features = ["derive"] }
 consume_on_drop = "0"
 smart-default = "0"
+serde = { version = "1", features = ["derive"] }
+serde-pickle = "1"
 
 # For the optimizer
 genetic_algorithm = { version = "0.9.0", optional = true }

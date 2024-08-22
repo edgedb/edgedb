@@ -1,11 +1,11 @@
 use crate::{
-    conn::{ConnError, ConnResult, Connector},
-    pool::{Pool, PoolConfig},
-    PoolHandle,
+    conn::{ConnError, ConnResult, Connector}, metrics::MetricVariant, pool::{Pool, PoolConfig}, PoolHandle
 };
 use derive_more::{Add, AddAssign};
 use futures::future::poll_fn;
-use pyo3::{exceptions::PyException, prelude::*};
+use pyo3::{exceptions::PyException, prelude::*, types::PyByteArray};
+use serde_pickle::SerOptions;
+use strum::IntoEnumIterator;
 use std::{
     cell::{Cell, RefCell},
     collections::BTreeMap,
@@ -13,7 +13,7 @@ use std::{
     pin::Pin,
     rc::Rc,
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tokio::{io::AsyncWrite, task::LocalSet};
 use tracing::{error, info, subscriber::DefaultGuard, trace};
@@ -31,6 +31,7 @@ enum RustToPythonMessage {
     PerformReconnect(ConnHandleId, String),
 
     Failed(PythonConnId, ConnHandleId),
+    Metrics(Vec<u8>),
 }
 
 impl ToPyObject for RustToPythonMessage {
@@ -43,6 +44,10 @@ impl ToPyObject for RustToPythonMessage {
             PerformReconnect(conn, s) => (3, conn.0, s).to_object(py),
             Pruned(conn) => (4, conn).to_object(py),
             Failed(conn, error) => (5, conn, error.0).to_object(py),
+            Metrics(metrics) => {
+                // This is not really fast but it should not be happening very often
+                (6, PyByteArray::new(py, &metrics)).to_object(py)
+            }
         }
     }
 }
@@ -182,17 +187,26 @@ fn internal_error(message: &str) -> PyErr {
     InternalError::new_err(())
 }
 
-async fn run_and_block(config: PoolConfig, rpc_pipe: RpcPipe) {
+async fn run_and_block(config: PoolConfig, rpc_pipe: RpcPipe, stats_interval: f64) {
     let rpc_pipe = Rc::new(rpc_pipe);
 
     let pool = Pool::new(config, rpc_pipe.clone());
 
     let pool_task = {
         let pool = pool.clone();
+        let rpc_pipe = rpc_pipe.clone();
         tokio::task::spawn_local(async move {
+            let stats_interval = Duration::from_secs_f64(stats_interval);
+            let mut last_stats = Instant::now();
             loop {
                 pool.run_once();
                 tokio::time::sleep(Duration::from_millis(10)).await;
+                if last_stats.elapsed() > stats_interval {
+                    last_stats = Instant::now();
+                    if rpc_pipe.write(RustToPythonMessage::Metrics(serde_pickle::to_vec(&pool.metrics(), SerOptions::new()).unwrap_or_default())).await.is_err() {
+                        break;
+                    }
+                }
             }
         })
     };
@@ -267,7 +281,7 @@ impl ConnPool {
     /// Create the connection pool and automatically boot a tokio runtime on a
     /// new thread. When this [`ConnPool`] is GC'd, the thread will be torn down.
     #[new]
-    fn new(max_capacity: usize, min_idle_time_before_gc: f64) -> Self {
+    fn new(max_capacity: usize, min_idle_time_before_gc: f64, stats_interval: f64) -> Self {
         let min_idle_time_before_gc = min_idle_time_before_gc as usize;
         info!("ConnPool::new(max_capacity={max_capacity}, min_idle_time_before_gc={min_idle_time_before_gc})");
         let (txrp, rxrp) = std::sync::mpsc::channel();
@@ -298,7 +312,7 @@ impl ConnPool {
 
             let config = PoolConfig::suggested_default_for(max_capacity)
                 .with_min_idle_time_for_gc(Duration::from_secs(min_idle_time_before_gc as _));
-            local.block_on(&rt, run_and_block(config, rpc_pipe));
+            local.block_on(&rt, run_and_block(config, rpc_pipe, stats_interval));
         });
 
         let notify_fd = rxfd.recv().unwrap();
@@ -379,7 +393,7 @@ impl LoggingGuard {
         let logging = py.import_bound("logging")?;
         let logger = logging
             .getattr("getLogger")?
-            .call(("edb.server.connpool",), None)?;
+            .call(("edb.server",), None)?;
         let level = logger
             .getattr("getEffectiveLevel")?
             .call((), None)?
@@ -463,6 +477,11 @@ fn _conn_pool(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<ConnPool>()?;
     m.add_class::<LoggingGuard>()?;
     m.add("InternalError", py.get_type_bound::<InternalError>())?;
+
+    // Add each metric variant as a constant
+    for variant in MetricVariant::iter() {
+        m.add(&format!("METRIC_{}", variant.as_ref().to_ascii_uppercase()), variant as u32)?;
+    }
 
     Ok(())
 }

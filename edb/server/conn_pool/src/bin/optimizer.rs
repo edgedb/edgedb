@@ -11,10 +11,10 @@ fn main() {
     // Enable tracing
     // tracing_subscriber::fmt::init();
 
-    const PREDICATE: fn(&str) -> bool = |_name| true;
+    const PREDICATE: fn(&str) -> bool = |_name| _name.contains("_5");
 
     let qos = run_specs_tests_in_runtime(1, Some(10.0), &PREDICATE).unwrap();
-    eprintln!("{qos:?}");
+    println!("{qos:?}");
 
     // the search goal to optimize towards (maximize or minimize)
     #[derive(Clone, std::fmt::Debug, smart_default::SmartDefault)]
@@ -63,12 +63,12 @@ fn main() {
             let qos_i = (score * 1_000_000.0) as isize;
             if qos_i > self.best.load(std::sync::atomic::Ordering::SeqCst) {
                 let _lock = LOG_LOCK.lock();
-                eprintln!("{:?} New best: {score:.02} {knobs:?}", self.now.elapsed());
-                eprintln!("{:?}", conn_pool::knobs::ALL_KNOBS);
+                println!("{:?} New best: {score:.02} {knobs:?}", self.now.elapsed());
+                println!("{:?}", conn_pool::knobs::ALL_KNOBS);
                 for (weight, output) in weights.iter().zip(outputs) {
-                    eprintln!("{weight:?}: {:?}", output.ok()?);
+                    println!("{weight:?}: {:?}", output.ok()?);
                 }
-                eprintln!("*****************************");
+                println!("*****************************");
                 self.best.store(qos_i, std::sync::atomic::Ordering::SeqCst);
             }
             self.lru.push(knobs, qos_i);
@@ -97,7 +97,10 @@ fn main() {
         seeds.push(
             conn_pool::knobs::ALL_KNOBS
                 .iter()
-                .map(|k| (k.get() as f32 * rand::thread_rng().gen_range(0.5..2.0_f32)) as isize)
+                .map(|k| {
+                    let proposed: isize = (k.get() as f32 * rand::thread_rng().gen_range(0.5..2.0_f32)) as _;
+                    proposed
+                })
                 .collect(),
         );
     }
@@ -116,7 +119,7 @@ fn main() {
 
     let genotype = RangeGenotype::builder()
         .with_genes_size(conn_pool::knobs::ALL_KNOBS.len())
-        .with_allele_range(0..=10000)
+        .with_allele_range(0..=100000)
         .with_allele_mutation_range(-1000..=1000)
         .with_seed_genes_list(final_seeds)
         .build()
