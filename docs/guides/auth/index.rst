@@ -312,7 +312,7 @@ Magic link
 Magic link offers only one setting: ``token_time_to_live``. This determines how
 long after sending the magic link is valid.
 
-You will also need to configure SMTP so that the magic link emails can be sent.
+You will also need to configure SMTP in order to send magic link emails.
 For local testing, you can use the same method used for SMTP previously for
 :ref:`the email and password provider
 <ref_guide_auth_overview_email_password>`.
@@ -342,9 +342,8 @@ great for testing in development:
 WebAuthn
 --------
 
--  ``relying_party_origin``: This is the URL of the origin of the web
-   application handling the WebAuthn request. If you're using the built-in UI,
-   this is the origin of the EdgeDB web server.
+-  ``relying_party_origin``: This is the URL of the web application handling the WebAuthn request.
+   If you're using the built-in UI, it's the origin of the EdgeDB web server.
 
 -  ``require_verification``: (Default: ``true``) If ``true``, your application
    will not be able to retrieve an authentication token until the user has
