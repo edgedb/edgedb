@@ -1397,7 +1397,7 @@ def _compile_uncompiled_dml(
         ql_aliases.append(
             qlast.AliasedExpr(
                 alias=name,
-                expr=qlast.DetachedExpr(expr=stmt.ql_stmt),
+                expr=stmt.ql_stmt,
             )
         )
         ql_stmt_shape.append(
