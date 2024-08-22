@@ -244,13 +244,13 @@ def render_result(
     _echo(file)
 
     # cases
-    for case in result.warnings:
+    for case in sorted(result.warnings, key=lambda c: c.id):
         _print_case_result(file, case, 'WARNING', 'yellow')
-    for case in result.errors:
+    for case in sorted(result.errors, key=lambda c: c.id):
         _print_case_result(file, case, 'ERROR', 'red')
-    for case in result.failures:
+    for case in sorted(result.failures, key=lambda c: c.id):
         _print_case_result(file, case, 'FAIL', 'red')
-    for case in result.unexpected_successes:
+    for case in sorted(result.unexpected_successes, key=lambda c: c.id):
         _print_case_result(file, case, 'UNEXPECTED SUCCESS', 'red')
 
     # outcome
