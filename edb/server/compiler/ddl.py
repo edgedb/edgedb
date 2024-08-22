@@ -165,6 +165,9 @@ def compile_and_apply_ddl_stmt(
             is_transactional=True,
         )
 
+    if isinstance(stmt, qlast.CreateMigration):
+        stmt.target_sdl = s_ddl.sdl_text_from_schema(new_schema)
+
     # If we are in a migration rewrite, we also don't actually
     # apply the DDL, just record it. (The DDL also needs to be a
     # CreateMigration.)
@@ -822,6 +825,7 @@ def _commit_migration(
             commands=mstate.accepted_cmds  # type: ignore
         ),
         parent=last_migration_ref,
+        target_sdl=s_ddl.sdl_text_from_schema(schema),
     )
 
     current_tx.update_schema(mstate.initial_schema)

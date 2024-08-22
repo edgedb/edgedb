@@ -134,6 +134,10 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         hasher.add_source(ddl_text)
         name = hasher.make_migration_id()
 
+        sdl_text = ''
+        if astnode.target_sdl:
+            sdl_text = astnode.target_sdl
+
         if specified_name is not None and name != specified_name:
             raise errors.SchemaDefinitionError(
                 f'specified migration name does not match the name derived '
@@ -176,8 +180,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
 
         cmd = cls(classname=sn.UnqualName(name))
         cmd.set_attribute_value('script', ddl_text)
-        # The sdl will be populated once the final schema is known.
-        cmd.set_attribute_value('sdl', '')
+        cmd.set_attribute_value('sdl', sdl_text)
         cmd.set_attribute_value('builtin', False)
         cmd.set_attribute_value('internal', False)
         if parent is not None:
@@ -214,8 +217,11 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         from . import ddl as s_ddl
 
         new_schema = super().apply(schema, context)
-        new_sdl: str = s_ddl.sdl_text_from_schema(new_schema)
-        self.set_attribute_value('sdl', new_sdl)
+
+        if not self.get_attribute_value('sdl'):
+            # If target sdl was not known in advance, compute it now.
+            new_sdl: str = s_ddl.sdl_text_from_schema(new_schema)
+            self.set_attribute_value('sdl', new_sdl)
 
         return new_schema
 
