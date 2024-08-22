@@ -342,8 +342,9 @@ great for testing in development:
 WebAuthn
 --------
 
--  ``relying_party_origin``: This is the URL of the web application handling the WebAuthn request.
-   If you're using the built-in UI, it's the origin of the EdgeDB web server.
+-  ``relying_party_origin``: This is the URL of the web application handling
+   the WebAuthn request. If you're using the built-in UI, it's the origin of
+   the EdgeDB web server.
 
 -  ``require_verification``: (Default: ``true``) If ``true``, your application
    will not be able to retrieve an authentication token until the user has
