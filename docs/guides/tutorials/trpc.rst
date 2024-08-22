@@ -13,7 +13,7 @@ client and server.
 
 You can reference the following repositories for more context:
 
-- `TurboRepo Template <https://github.com/edgedb/create-t3-turbo-edgedb>`_: A monorepo template using **TurboRepo**, **EdgeDB**, and **tRPC**.
+- `create-t3-turbo-edgedb <https://github.com/edgedb/create-t3-turbo-edgedb>`_: A monorepo template using **Turborepo**, **EdgeDB**, and **tRPC**.
 - `LookFeel Project <https://github.com/LewTrn/lookfeel>`_: A real-world project example using **EdgeDB** and **tRPC**.
 
 Step 1: EdgeDB setup
