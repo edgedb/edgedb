@@ -312,10 +312,9 @@ Magic link
 Magic link offers only one setting: ``token_time_to_live``. This determines how
 long after sending the magic link is valid.
 
-You will also need to configure SMTP in order to send magic link emails.
-For local testing, you can use the same method used for SMTP previously for
-:ref:`the email and password provider
-<ref_guide_auth_overview_email_password>`.
+Since magic links rely on email, you must also configure SMTP. For local
+testing, you can use the same method used for SMTP previously for
+:ref:`the email and password provider <ref_guide_auth_overview_email_password>`.
 
 Here is an example of setting a local SMTP server, in this case using a
 product called `Mailpit <https://mailpit.axllent.org/docs/>`__ which is
