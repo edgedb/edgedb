@@ -4804,26 +4804,60 @@ def trampoline_command(cmd: dbops.Command) -> list[trampoline.Trampoline]:
     return ncmds
 
 
-def get_bootstrap_commands(
-    config_spec: edbconfig.Spec,
-) -> tuple[dbops.CommandGroup, list[trampoline.Trampoline]]:
+def get_fixed_bootstrap_commands() -> dbops.CommandGroup:
+    """Create metaschema objects that are truly global"""
+
     cmds = [
         dbops.CreateSchema(name='edgedb'),
         dbops.CreateSchema(name='edgedbt'),
         dbops.CreateSchema(name='edgedbpub'),
         dbops.CreateSchema(name='edgedbstd'),
-        dbops.CreateSchema(name='edgedbsql'),
 
+        dbops.CreateTable(
+            DBConfigTable(),
+        ),
+        # TODO: SHOULD THIS BE VERSIONED?
+        dbops.CreateTable(DMLDummyTable()),
+        # TODO: SHOULD THIS BE VERSIONED?
+        dbops.CreateTable(QueryCacheTable()),
+
+        dbops.Query(DMLDummyTable.SETUP_QUERY),
+
+        dbops.CreateDomain(BigintDomain()),
+        dbops.CreateDomain(ConfigMemoryDomain()),
+        dbops.CreateDomain(TimestampTzDomain()),
+        dbops.CreateDomain(TimestampDomain()),
+        dbops.CreateDomain(DateDomain()),
+        dbops.CreateDomain(DurationDomain()),
+        dbops.CreateDomain(RelativeDurationDomain()),
+        dbops.CreateDomain(DateDurationDomain()),
+
+        dbops.CreateEnum(SysConfigSourceType()),
+        dbops.CreateEnum(SysConfigScopeType()),
+
+        dbops.CreateCompositeType(SysConfigValueType()),
+        dbops.CreateCompositeType(SysConfigEntryType()),
+        dbops.CreateRange(Float32Range()),
+        dbops.CreateRange(Float64Range()),
+        dbops.CreateRange(DatetimeRange()),
+        dbops.CreateRange(LocalDatetimeRange()),
+    ]
+
+    commands = dbops.CommandGroup()
+    commands.add_commands(cmds)
+    return commands
+
+
+def get_bootstrap_commands(
+    config_spec: edbconfig.Spec,
+) -> tuple[dbops.CommandGroup, list[trampoline.Trampoline]]:
+    cmds = [
         dbops.CreateSchema(name=V('edgedb')),
         dbops.CreateSchema(name=V('edgedbpub')),
         dbops.CreateSchema(name=V('edgedbstd')),
         dbops.CreateSchema(name=V('edgedbsql')),
 
         dbops.CreateView(NormalizedPgSettingsView()),
-        dbops.CreateTable(DBConfigTable()),
-        dbops.CreateTable(DMLDummyTable()),
-        dbops.CreateTable(QueryCacheTable()),
-        dbops.Query(DMLDummyTable.SETUP_QUERY),
         dbops.CreateFunction(EvictQueryCacheFunction()),
         dbops.CreateFunction(ClearQueryCacheFunction()),
         dbops.CreateFunction(UuidGenerateV1mcFunction('edgedbext')),
@@ -4859,14 +4893,6 @@ def get_bootstrap_commands(
         dbops.CreateFunction(NormalizeNameFunction()),
         dbops.CreateFunction(GetNameModuleFunction()),
         dbops.CreateFunction(NullIfArrayNullsFunction()),
-        dbops.CreateDomain(BigintDomain()),
-        dbops.CreateDomain(ConfigMemoryDomain()),
-        dbops.CreateDomain(TimestampTzDomain()),
-        dbops.CreateDomain(TimestampDomain()),
-        dbops.CreateDomain(DateDomain()),
-        dbops.CreateDomain(DurationDomain()),
-        dbops.CreateDomain(RelativeDurationDomain()),
-        dbops.CreateDomain(DateDurationDomain()),
         dbops.CreateFunction(StrToConfigMemoryFunction()),
         dbops.CreateFunction(ConfigMemoryToStrFunction()),
         dbops.CreateFunction(StrToBigint()),
@@ -4902,10 +4928,6 @@ def get_bootstrap_commands(
         dbops.CreateFunction(ToLocalDatetimeFunction()),
         dbops.CreateFunction(StrToBool()),
         dbops.CreateFunction(BytesIndexWithBoundsFunction()),
-        dbops.CreateEnum(SysConfigSourceType()),
-        dbops.CreateEnum(SysConfigScopeType()),
-        dbops.CreateCompositeType(SysConfigValueType()),
-        dbops.CreateCompositeType(SysConfigEntryType()),
         dbops.CreateFunction(TypeIDToConfigType()),
         dbops.CreateFunction(ConvertPostgresConfigUnitsFunction()),
         dbops.CreateFunction(InterpretConfigValueToJsonFunction()),
@@ -4924,10 +4946,6 @@ def get_bootstrap_commands(
         dbops.CreateFunction(GetTypeToMultiRangeNameMap()),
         dbops.CreateFunction(GetPgTypeForEdgeDBTypeFunction()),
         dbops.CreateFunction(DescribeRolesAsDDLFunctionForwardDecl()),
-        dbops.CreateRange(Float32Range()),
-        dbops.CreateRange(Float64Range()),
-        dbops.CreateRange(DatetimeRange()),
-        dbops.CreateRange(LocalDatetimeRange()),
         dbops.CreateFunction(RangeToJsonFunction()),
         dbops.CreateFunction(MultiRangeToJsonFunction()),
         dbops.CreateFunction(RangeValidateFunction()),
