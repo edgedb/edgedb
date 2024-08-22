@@ -852,12 +852,6 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._block_new_connections.add(dbname)
 
-        # Signal adjacent servers to prune their connections to this
-        # database.
-        await self.signal_sysevent(
-            "ensure-database-not-used", dbname=dbname
-        )
-
         rloop = retryloop.RetryLoop(
             timeout=30.0,
             ignore=errors.ExecutionError,
@@ -865,6 +859,12 @@ class Tenant(ha_base.ClusterProtocol):
 
         async for iteration in rloop:
             async with iteration:
+                # Signal adjacent servers to prune their connections to this
+                # database.
+                await self.signal_sysevent(
+                    "ensure-database-not-used", dbname=dbname
+                )
+
                 # Prune our inactive connections.  (Do it in the loop
                 # to help in the close_frontend_conns situation.)
                 await self._pg_pool.prune_inactive_connections(dbname)
