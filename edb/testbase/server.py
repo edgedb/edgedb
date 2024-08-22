@@ -1707,7 +1707,9 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
 
         await check_method(self)
 
-    async def check_dump_restore(self, check_method):
+    async def check_dump_restore(
+        self, check_method, include_secrets: bool=False
+    ):
         if not self.has_create_database:
             return await self.check_dump_restore_single_db(check_method)
 
@@ -1716,8 +1718,9 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
         q_tgt_dbname = qlquote.quote_ident(tgt_dbname)
         with tempfile.TemporaryDirectory() as f:
             fname = os.path.join(f, 'dump')
+            extra = ['--include-secrets'] if include_secrets else []
             await asyncio.to_thread(
-                self.run_cli, '-d', src_dbname, 'dump', fname
+                self.run_cli, '-d', src_dbname, 'dump', fname, *extra
             )
 
             await self.con.execute(f'CREATE DATABASE {q_tgt_dbname}')
