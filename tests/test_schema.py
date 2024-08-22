@@ -432,6 +432,28 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
         """
 
+    @tb.must_fail(errors.InvalidDefinitionError,
+                  "cannot create a deletion policy on a property")
+    def test_schema_deletion_policy_on_prop_01(self):
+        """
+            type Test1 {
+                title : str {
+                    on source delete allow;
+                }
+            };
+        """
+
+    @tb.must_fail(errors.InvalidDefinitionError,
+                  "cannot create a deletion policy on a property")
+    def test_schema_deletion_policy_on_prop_02(self):
+        """
+            type Test1 {
+                title : str {
+                    on target delete restrict;
+                }
+            };
+        """
+
     @tb.must_fail(errors.QueryError,
                   "could not resolve partial path")
     def test_schema_partial_path_in_default_of_link_prop_01(self):
