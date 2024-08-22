@@ -45,7 +45,7 @@ CREATE SCALAR TYPE net::http::Method EXTENDING std::enum<
 CREATE TYPE net::http::ScheduledRequest extending std::BaseObject {
     CREATE REQUIRED PROPERTY state: net::RequestState;
     CREATE REQUIRED PROPERTY created_at: std::datetime;
-    CREATE REQUIRED PROPERTY failure: tuple<kind: net::RequestFailureKind, message: str>;
+    CREATE PROPERTY failure: tuple<kind: net::RequestFailureKind, message: str>;
 
     CREATE REQUIRED PROPERTY url: str;
     CREATE REQUIRED PROPERTY method: net::http::Method;
