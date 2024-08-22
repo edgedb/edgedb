@@ -22,6 +22,7 @@ in our internal Postgres instance."""
 from typing import List, Optional, Dict, Tuple, Iterable, Mapping, Set
 import dataclasses
 import functools
+import uuid
 
 from edb.server.pgcon import errors as pgerror
 from edb.server.compiler import dbstate
@@ -197,6 +198,8 @@ class UncompiledDML:
     # these columns will be available within RETURNING clause
     subject_columns: List[Tuple[str, str]]
 
+    stype_refs: Dict[uuid.UUID, List[qlast.Set]]
+
     # data needed for stitching the compiled ast into the resolver output
     early_result: context.CompiledDML
 
@@ -342,6 +345,7 @@ def _uncompile_insert_object_stmt(
     value_rel = pgast.Relation(name=value_cte_name)
     value_columns = []
     insert_shape = []
+    stype_refs: Dict[uuid.UUID, List[qlast.Set]] = {}
     for index, expected_col in enumerate(expected_columns):
         ptr, ptr_name, is_link = _get_pointer_for_column(expected_col, sub, ctx)
         value_columns.append((ptr_name, is_link))
@@ -372,6 +376,7 @@ def _uncompile_insert_object_stmt(
                 ptr,
                 is_link,
                 ctx,
+                stype_refs,
             )
         )
 
@@ -426,6 +431,7 @@ def _uncompile_insert_object_stmt(
                 (pgce.PathAspect.SOURCE,),
             )
         },
+        stype_refs=stype_refs,
         early_result=context.CompiledDML(
             value_cte_name=value_cte_name,
             value_relation_input=value_relation,
@@ -447,6 +453,7 @@ def _construct_assign_element_for_ptr(
     ptr: s_pointers.Pointer,
     is_link: bool,
     ctx: context.ResolverContextLevel,
+    stype_refs: Dict[uuid.UUID, List[qlast.Set]],
 ):
     ptr_ql: qlast.Expr = qlast.Path(
         steps=[
@@ -454,26 +461,111 @@ def _construct_assign_element_for_ptr(
             qlast.Ptr(name=ptr_name),
         ]
     )
-    if is_link:
-        # add .id for links, which will figure out that it has uuid type.
-        # This will make type cast to the object type into "find_by_id".
-        assert isinstance(ptr_ql, qlast.Path)
-        ptr_ql.steps.append(qlast.Ptr(name='id'))
 
-        ptr_target = ptr.get_target(ctx.schema)
-        assert ptr_target
-        ptr_target_name: sn.Name = ptr_target.get_name(ctx.schema)
-        ptr_ql = qlast.TypeCast(
-            type=qlast.TypeName(
-                maintype=s_utils.name_to_ast_ref(ptr_target_name)
-            ),
-            expr=ptr_ql,
+    if is_link:
+        # Convert UUIDs into objects.
+        assert isinstance(ptr_ql, qlast.Path)
+
+        target = ptr.get_target(ctx.schema)
+        assert isinstance(target, s_objtypes.ObjectType)
+
+        ptr_ql = _construct_cast_from_uuid_to_obj_type(
+            ptr_ql, target, stype_refs, optional=True, ctx=ctx
         )
+
     return qlast.ShapeElement(
         expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
         operation=qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN),
         compexpr=ptr_ql,
     )
+
+
+def _construct_cast_from_uuid_to_obj_type(
+    ptr_ql: qlast.Path,
+    object: s_objtypes.ObjectType,
+    stype_refs: Dict[uuid.UUID, List[qlast.Set]],
+    *,
+    optional: bool,
+    ctx: Context,
+) -> qlast.Expr:
+    # Constructs AST that converts a UUID provided by ptr_ql to an object type.
+
+    # This mechanism similar to overlays in IR->SQL compiler.
+    # Makes sure that when an object is inserted, later casts from UUID do find
+    # this object. This is needed because this cast is part of the
+    # "under-the-hood" mechanism and is not visible to the user. They perceive
+    # plain UUID insertion and they expect FOREIGN KEY constrains to reject
+    # invalid UUIDs.
+
+    # Constructs qlast equivalent to:
+    #   if exists ptr_ql then
+    #     assert_exists((
+    #       select {type_name, #all preceding DML clauses#}
+    #       filter .id = ptr_ql.id
+    #       limit 1
+    #     ))
+    #   else {}
+
+    object_name: sn.Name = object.get_name(ctx.schema)
+
+    ptr_id_ql = qlast.Path(steps=ptr_ql.steps + [qlast.Ptr(name='id')])
+
+    stype_ref = qlast.Set(
+        elements=[
+            qlast.Path(steps=[s_utils.name_to_ast_ref(object_name)]),
+            # here we later inject references to preceding inserts of this type
+        ]
+    )
+    if object.id not in stype_refs:
+        stype_refs[object.id] = []
+    stype_refs[object.id].append(stype_ref)
+
+    res: qlast.Expr = qlast.FunctionCall(
+        func=('std', 'assert_exists'),
+        args=[
+            qlast.SelectQuery(
+                result=stype_ref,
+                where=qlast.BinOp(
+                    left=qlast.Path(partial=True, steps=[qlast.Ptr(name='id')]),
+                    op='=',
+                    right=ptr_id_ql,
+                ),
+                # this is needed for cardinality check only: there will
+                # always be at most one object with matching id. It will be
+                # either an existing object or a newly inserted one.
+                limit=qlast.Constant.integer(1),
+            )
+        ],
+        kwargs={
+            'message': qlast.BinOp(
+                left=qlast.Constant.string(
+                    f'object type {object_name} with id \''
+                ),
+                op='++',
+                right=qlast.BinOp(
+                    left=qlast.TypeCast(
+                        expr=ptr_id_ql,
+                        type=qlast.TypeName(
+                            maintype=qlast.ObjectRef(module='std', name='str'),
+                        ),
+                    ),
+                    op='++',
+                    right=qlast.Constant.string(f'\' does not exist'),
+                ),
+            )
+        },
+    )
+
+    if optional:
+        res = qlast.IfElse(
+            condition=qlast.UnaryOp(
+                op='EXISTS',
+                operand=ptr_ql,
+            ),
+            if_expr=res,
+            else_expr=qlast.Set(elements=[]),
+        )
+    return res
 
 
 def _uncompile_insert_pointer_stmt(
@@ -585,24 +677,28 @@ def _uncompile_insert_pointer_stmt(
     value_rel.path_outputs[(value_id, pgce.PathAspect.ITERATOR)] = var
 
     # construct the EdgeQL DML AST
-    sub_name = sub.get_name(ctx.schema)
-    sub_source_name = sub_source.get_name(ctx.schema)
-    sub_target_name = sub_target.get_name(ctx.schema)
+    stype_refs: Dict[uuid.UUID, List[qlast.Set]] = {}
 
     sub_name = sub.get_shortname(ctx.schema)
 
-    ql_sub_source_ref = s_utils.name_to_ast_ref(sub_source_name)
+    sub_target_name = sub_target.get_name(ctx.schema)
     ql_sub_target_ref = s_utils.name_to_ast_ref(sub_target_name)
+
+    target_ql: qlast.Expr = qlast.Path(
+        steps=[value_ql, qlast.Ptr(name=sub_name.name)]
+    )
+    if isinstance(sub_target, s_objtypes.ObjectType):
+        assert isinstance(target_ql, qlast.Path)
+        target_ql.steps.append(qlast.Ptr(name='id'))
+        target_ql = qlast.TypeCast(
+            expr=target_ql,
+            type=qlast.TypeName(maintype=ql_sub_target_ref)
+        )
 
     ql_ptr_val: qlast.Expr
     if isinstance(sub, s_links.Link):
         ql_ptr_val = qlast.Shape(
-            expr=qlast.TypeCast(
-                expr=qlast.Path(  # target
-                    steps=[value_ql, qlast.Ptr(name=sub_name.name)]
-                ),
-                type=qlast.TypeName(maintype=ql_sub_target_ref),
-            ),
+            expr=target_ql,
             elements=[
                 qlast.ShapeElement(
                     expr=qlast.Path(
@@ -625,6 +721,9 @@ def _uncompile_insert_pointer_stmt(
         ql_ptr_val = qlast.Path(  # target
             steps=[value_ql, qlast.Ptr(name=sub_name.name)]
         )
+
+    sub_source_name = sub_source.get_name(ctx.schema)
+    ql_sub_source_ref = s_utils.name_to_ast_ref(sub_source_name)
 
     ql_stmt: qlast.Expr = qlast.UpdateQuery(
         subject=qlast.Path(steps=[ql_sub_source_ref]),
@@ -656,7 +755,6 @@ def _uncompile_insert_pointer_stmt(
             iterator_alias=iterator_name,
             result=ql_stmt,
         )
-    # ql_stmt = qlast.Path(steps=[ql_stmt, qlast.Ptr(name=sub_name.name)])
 
     ql_returning_shape: List[qlast.ShapeElement] = []
     if stmt.returning_list:
@@ -713,13 +811,7 @@ def _uncompile_insert_pointer_stmt(
 def _has_at_most_one_row(query: pgast.Query | None) -> bool:
     if not query:
         return True
-    return isinstance(query, pgast.SelectStmt) and (
-        (query.values and len(query.values) <= 1)
-        or (
-            isinstance(query.limit_count, pgast.NumericConstant)
-            and query.limit_count.val == '1'
-        )
-    )
+    return False
 
 
 def _uncompile_default_value(
@@ -925,6 +1017,7 @@ def _uncompile_delete_object_stmt(
                 (pgce.PathAspect.SOURCE,),
             )
         },
+        stype_refs={},
         early_result=context.CompiledDML(
             value_cte_name=value_cte_name,
             value_relation_input=value_relation,
@@ -1117,6 +1210,7 @@ def _uncompile_delete_pointer_stmt(
                 (pgce.PathAspect.SOURCE,),
             )
         },
+        stype_refs={},
         early_result=context.CompiledDML(
             value_cte_name=value_cte_name,
             value_relation_input=value_relation,
@@ -1270,6 +1364,7 @@ def _uncompile_update_object_stmt(
 
     value_columns = [('id', False)]
     update_shape = []
+    stype_refs: Dict[uuid.UUID, List[qlast.Set]] = {}
     for index, (col, val) in enumerate(column_updates):
         ptr, ptr_name, is_link = _get_pointer_for_column(col, sub, ctx)
         if not is_default(val):
@@ -1318,6 +1413,7 @@ def _uncompile_update_object_stmt(
                     ptr,
                     is_link,
                     ctx,
+                    stype_refs,
                 )
             )
 
@@ -1372,6 +1468,7 @@ def _uncompile_update_object_stmt(
                 (pgce.PathAspect.SOURCE,),
             )
         },
+        stype_refs=stype_refs,
         early_result=context.CompiledDML(
             value_cte_name=value_cte_name,
             value_relation_input=value_relation,
@@ -1417,7 +1514,20 @@ def _compile_uncompiled_dml(
     ql_aliases: List[qlast.AliasedExpr | qlast.ModuleAliasDecl] = []
     ql_stmt_shape: List[qlast.ShapeElement] = []
     ql_stmt_shape_names = []
+    inserts_by_type: Dict[uuid.UUID, List[str]] = {}
     for index, stmt in enumerate(stmts):
+
+        # fixup references to stypes that have been modified be previous inserts
+        # for more info, see _construct_cast_from_uuid_to_obj_type
+        for stype_id, ref_sets in stmt.stype_refs.items():
+            if insert_names := inserts_by_type.get(stype_id, None):
+                for ref_set in ref_sets:
+                    for name in insert_names:
+                        ref_set.elements.append(
+                            qlast.Path(steps=[qlast.ObjectRef(name=name)])
+                        )
+
+        # the main thing
         name = f'dml_{index}'
         ql_stmt_shape_names.append(name)
         ql_aliases.append(
@@ -1435,6 +1545,13 @@ def _compile_uncompiled_dml(
                 ),
             )
         )
+
+        # save inserts for later fixups
+        if isinstance(stmt.input, pgast.InsertStmt) and stmt.subject.id:
+            if stmt.subject.id not in inserts_by_type:
+                inserts_by_type[stmt.subject.id] = []
+            inserts_by_type[stmt.subject.id].append(name)
+
     ql_stmt = qlast.SelectQuery(
         aliases=ql_aliases,
         result=qlast.Shape(expr=None, elements=ql_stmt_shape),
@@ -1585,6 +1702,8 @@ def _merge_and_prepare_external_rels(
                 element = element.result.expr
             elif isinstance(element, irast.Pointer):
                 element = element.source.expr
+            elif isinstance(element, irast.OperatorCall):
+                element = element.args[0].expr.expr
             else:
                 raise NotImplementedError('cannot find mutating stmt')
         ir_stmts.append(element)
