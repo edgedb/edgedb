@@ -278,6 +278,8 @@ Once the user clicks on the magic link, they will be redirected back to your
 application with a ``code`` query parameter. Your application will then exchange
 this code for an authentication token.
 
+.. lint-off
+
 .. code-block:: javascript
 
    /**
