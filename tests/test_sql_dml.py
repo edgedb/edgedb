@@ -92,6 +92,11 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             set default := global y;
           };
         };
+
+        create type Document2 {
+            create required property title: str;
+            create link owner: User;
+        };
     """
     ]
 
@@ -854,6 +859,28 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             ''',
         )
         self.assertEqual(res, 'INSERT 0 1')
+
+    async def test_sql_dml_insert_40(self):
+        await self.squery_values(
+            f'''
+            INSERT INTO "User" DEFAULT VALUES
+            '''
+        )
+
+        res = await self.scon.execute(
+            f'''
+            INSERT INTO "Document2" (title, owner_id)
+            VALUES ('Raven', (select id FROM "User" LIMIT 1))
+            '''
+        )
+        self.assertEqual(res, 'INSERT 0 1')
+
+        res = await self.squery_values(
+            '''
+            SELECT title FROM "Document2"
+            '''
+        )
+        self.assertEqual(res, [['Raven']])
 
     async def test_sql_dml_delete_01(self):
         # delete, inspect CommandComplete tag
