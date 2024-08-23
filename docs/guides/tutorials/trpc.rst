@@ -13,9 +13,11 @@ client and server.
 
 You can reference the following repositories for more context:
 
-- `create-t3-turbo-edgedb <https://github.com/edgedb/create-t3-turbo-edgedb>`_: A monorepo template using **Turborepo**, **EdgeDB**, and **tRPC**.
-- `LookFeel Project <https://github.com/LewTrn/lookfeel>`_: A real-world project example using **EdgeDB** and **tRPC**.
-
+- `create-t3-turbo-edgedb <https://github.com/edgedb/create-t3-turbo-edgedb>`_ - 
+  A monorepo template using the `T3 stack <https://init.tips/>`_, 
+  `Turborepo <https://turbo.build/>`_, and EdgeDB.
+- `LookFeel Project <https://github.com/LewTrn/lookfeel>`_ - A real-world 
+  example using **EdgeDB** and **tRPC**.
 Step 1: EdgeDB setup
 ====================
 
@@ -470,6 +472,7 @@ user authentication and protecting routes.
 You can also reference these projects for further examples:
 
 - `create-t3-turbo-edgedb <https://github.com/edgedb/create-t3-turbo-edgedb>`_ - 
-  A monorepo template using Turborepo, EdgeDB, and tRPC.
+  A monorepo template using the `T3 stack <https://init.tips/>`_, 
+  `Turborepo <https://turbo.build/>`_, and EdgeDB.
 - `LookFeel Project <https://github.com/LewTrn/lookfeel>`_ - A real-world 
   example using **EdgeDB** and **tRPC**.
