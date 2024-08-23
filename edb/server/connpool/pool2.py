@@ -302,7 +302,12 @@ class Pool(typing.Generic[C]):
                 c = self._conns[conn]
                 self._conns_held[c] = id
                 return c
-            except Exception:
+            except Exception as e:
+                # 3D000 - INVALID CATALOG NAME, database does not exist
+                # Skip retry and propagate the error immediately
+                if getattr(e, 'fields', {}).get('C') == '3D000':
+                    raise
+
                 # Allow the final exception to escape
                 if i == config.CONNECT_FAILURE_RETRIES:
                     logger.exception('Failed to acquire connection, will not '

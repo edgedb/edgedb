@@ -11,7 +11,8 @@ fn main() {
     // Enable tracing
     // tracing_subscriber::fmt::init();
 
-    const PREDICATE: fn(&str) -> bool = |_name| _name.contains("_5");
+    //    const PREDICATE: fn(&str) -> bool = |_name| _name.contains("_5") || _name.contains("_2");
+    const PREDICATE: fn(&str) -> bool = |_name| true;
 
     let qos = run_specs_tests_in_runtime(1, Some(10.0), &PREDICATE).unwrap();
     println!("{qos:?}");
@@ -22,7 +23,7 @@ fn main() {
         #[default(std::sync::Arc::new(AtomicIsize::new(isize::MIN)))]
         best: std::sync::Arc<AtomicIsize>,
         #[default(LruCache::new(100_000_000.try_into().unwrap()))]
-        lru: LruCache<[usize; ALL_KNOB_COUNT], isize>,
+        lru: LruCache<[isize; ALL_KNOB_COUNT], isize>,
         #[default(std::time::Instant::now())]
         now: std::time::Instant,
     }
@@ -33,7 +34,7 @@ fn main() {
             &mut self,
             chromosome: &Chromosome<Self::Allele>,
         ) -> Option<FitnessValue> {
-            let mut knobs: [usize; ALL_KNOB_COUNT] = Default::default();
+            let mut knobs: [isize; ALL_KNOB_COUNT] = Default::default();
             for (knob, gene) in knobs.iter_mut().zip(&chromosome.genes) {
                 *knob = *gene as _;
             }
@@ -53,7 +54,7 @@ fn main() {
             // } else {
             //     [(1.0, 5, None), (0.5, 1, None)]
             // };
-            let weights = [(1.0, 1, Some(10.0))];
+            let weights = [(1.0, 5, Some(10.0))];
             let outputs = weights
                 .map(|(_, count, scale)| run_specs_tests_in_runtime(count, scale, &PREDICATE));
             let mut score = 0.0;
@@ -98,7 +99,8 @@ fn main() {
             conn_pool::knobs::ALL_KNOBS
                 .iter()
                 .map(|k| {
-                    let proposed: isize = (k.get() as f32 * rand::thread_rng().gen_range(0.5..2.0_f32)) as _;
+                    let proposed: isize =
+                        (k.get() as f32 * rand::thread_rng().gen_range(-2.0..2.0_f32)) as _;
                     proposed
                 })
                 .collect(),
@@ -119,7 +121,7 @@ fn main() {
 
     let genotype = RangeGenotype::builder()
         .with_genes_size(conn_pool::knobs::ALL_KNOBS.len())
-        .with_allele_range(0..=100000)
+        .with_allele_range(-100_000..=100_000)
         .with_allele_mutation_range(-1000..=1000)
         .with_seed_genes_list(final_seeds)
         .build()

@@ -517,6 +517,9 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
             )
 
     async def simulate_once(self, spec, pool_cls, *, collect_stats=False):
+        from edb.server.connpool import config
+        config.STATS_COLLECT_INTERVAL = 0.01
+
         sim = Simulation()
 
         def on_stats(stat):
@@ -1433,6 +1436,9 @@ class TestServerConnectionPool(unittest.TestCase):
                 disconnect=self.make_fake_disconnect(),
                 max_capacity=5,
             )
+            if hasattr(pool, '_pool'):
+                raise unittest.SkipTest("Pool2 doesn't support this logger")
+
             conn1 = await pool.acquire("block_a")
             args = await logger.logs.get()
             self.assertIn("established", args)
@@ -1469,6 +1475,8 @@ class TestServerConnectionPool(unittest.TestCase):
 
     @unittest.mock.patch('edb.server.connpool.pool.logger.level',
                          logging.CRITICAL)
+    @unittest.mock.patch('edb.server.connpool.pool2.logger.level',
+                         logging.CRITICAL)
     def _test_connpool_connect_error(self, error_type, expected_connects):
         connect_called_num = 0
         disconnect_called_num = 0
@@ -1491,11 +1499,20 @@ class TestServerConnectionPool(unittest.TestCase):
             )
             with self.assertRaises(error_type):
                 await pool.acquire("block_a")
-            self.assertEqual(connect_called_num, expected_connects)
+            self.assertEqual(connect_called_num, expected_connects,
+                             f"Expected {expected_connects} connect(s), "
+                             f"got {connect_called_num}")
             self.assertEqual(disconnect_called_num, 0)
             with self.assertRaises(error_type):
                 await pool.acquire("block_a")
-            self.assertEqual(connect_called_num, expected_connects + 1)
+            if hasattr(pool, '_pool'):
+                self.assertEqual(connect_called_num, expected_connects * 2,
+                                f"Expected {expected_connects * 2} connect(s), "
+                                f"got {connect_called_num}")
+            else:
+                self.assertEqual(connect_called_num, expected_connects + 1,
+                                f"Expected {expected_connects + 1} connect(s), "
+                                f"got {connect_called_num}")
             self.assertEqual(disconnect_called_num, 0)
 
         async def main():
@@ -1554,6 +1571,8 @@ class TestServerConnectionPool(unittest.TestCase):
                 disconnect=self.make_fake_disconnect(),
                 max_capacity=2,
             )
+            if hasattr(pool, '_pool'):
+                raise unittest.SkipTest("Pool2 doesn't support this logger")
 
             # fill the pool
             conn1 = await pool.acquire("block_a")

@@ -1,11 +1,13 @@
 use crate::{
-    conn::{ConnError, ConnResult, Connector}, metrics::MetricVariant, pool::{Pool, PoolConfig}, PoolHandle
+    conn::{ConnError, ConnResult, Connector},
+    metrics::MetricVariant,
+    pool::{Pool, PoolConfig},
+    PoolHandle,
 };
 use derive_more::{Add, AddAssign};
 use futures::future::poll_fn;
 use pyo3::{exceptions::PyException, prelude::*, types::PyByteArray};
 use serde_pickle::SerOptions;
-use strum::IntoEnumIterator;
 use std::{
     cell::{Cell, RefCell},
     collections::BTreeMap,
@@ -15,6 +17,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+use strum::IntoEnumIterator;
 use tokio::{io::AsyncWrite, task::LocalSet};
 use tracing::{error, info, subscriber::DefaultGuard, trace};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -203,7 +206,14 @@ async fn run_and_block(config: PoolConfig, rpc_pipe: RpcPipe, stats_interval: f6
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 if last_stats.elapsed() > stats_interval {
                     last_stats = Instant::now();
-                    if rpc_pipe.write(RustToPythonMessage::Metrics(serde_pickle::to_vec(&pool.metrics(), SerOptions::new()).unwrap_or_default())).await.is_err() {
+                    if rpc_pipe
+                        .write(RustToPythonMessage::Metrics(
+                            serde_pickle::to_vec(&pool.metrics(), SerOptions::new())
+                                .unwrap_or_default(),
+                        ))
+                        .await
+                        .is_err()
+                    {
                         break;
                     }
                 }
@@ -480,7 +490,10 @@ fn _conn_pool(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
 
     // Add each metric variant as a constant
     for variant in MetricVariant::iter() {
-        m.add(&format!("METRIC_{}", variant.as_ref().to_ascii_uppercase()), variant as u32)?;
+        m.add(
+            &format!("METRIC_{}", variant.as_ref().to_ascii_uppercase()),
+            variant as u32,
+        )?;
     }
 
     Ok(())

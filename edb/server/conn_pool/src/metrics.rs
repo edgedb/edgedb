@@ -1,6 +1,6 @@
+use serde::{Serialize, Serializer};
 use std::collections::BTreeMap;
 use std::{cell::RefCell, rc::Rc, time::Duration};
-use serde::{Serialize, Serializer};
 use strum::EnumCount;
 use strum::IntoEnumIterator;
 
@@ -86,8 +86,14 @@ pub struct PoolMetrics {
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub struct VariantArray<T>([T; MetricVariant::COUNT]);
 
-impl <T> Serialize for VariantArray<T> where T: Serialize {
-    fn serialize<S>(&self, serializer: S)  -> Result<S::Ok, S::Error>  where S: Serializer {
+impl<T> Serialize for VariantArray<T>
+where
+    T: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
         self.0.serialize(serializer)
     }
 }

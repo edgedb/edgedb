@@ -35,8 +35,9 @@ pub struct Name(Rc<String>);
 
 impl Serialize for Name {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer {
+    where
+        S: serde::Serializer,
+    {
         serializer.serialize_str(self.0.as_str())
     }
 }
