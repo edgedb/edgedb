@@ -339,7 +339,7 @@ impl MetricsAccum {
             avg_time,
             total: lock.total,
             total_max: lock.total_max,
-            target: 0
+            target: 0,
         }
     }
 

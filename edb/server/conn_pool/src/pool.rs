@@ -178,7 +178,10 @@ impl<C: Connector> Pool<C> {
         // Run a garbage collection if we're due
         let since_last_gc = self.last_gc.get().elapsed();
         let gc = if since_last_gc > self.config.gc_interval {
-            trace!("GC triggered: time since last GC = {since_last_gc:?} > {:?}", self.config.gc_interval);
+            trace!(
+                "GC triggered: time since last GC = {since_last_gc:?} > {:?}",
+                self.config.gc_interval
+            );
             self.last_gc.set(Instant::now());
             true
         } else {

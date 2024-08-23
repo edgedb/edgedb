@@ -703,7 +703,7 @@ impl<C: Connector, D: Default> Blocks<C, D> {
     }
 }
 
-impl <C: Connector> Blocks<C, PoolAlgoTargetData> {
+impl<C: Connector> Blocks<C, PoolAlgoTargetData> {
     pub fn summary(&self) -> PoolMetrics {
         let mut metrics = PoolMetrics::default();
         metrics.pool = self.metrics.summary();
@@ -711,9 +711,7 @@ impl <C: Connector> Blocks<C, PoolAlgoTargetData> {
         for (name, block) in self.map.borrow().iter() {
             let mut block_metrics = block.metrics().summary();
             block_metrics.target = block.data.target();
-            metrics
-                .blocks
-                .insert(name.clone(), block_metrics);
+            metrics.blocks.insert(name.clone(), block_metrics);
         }
         metrics
     }
