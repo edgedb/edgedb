@@ -170,6 +170,7 @@ pub struct ConnMetrics {
     pub(crate) avg_time: VariantArray<u32>,
     pub(crate) total: usize,
     pub(crate) total_max: usize,
+    pub(crate) target: usize,
 }
 
 impl std::fmt::Debug for ConnMetrics {
@@ -338,6 +339,7 @@ impl MetricsAccum {
             avg_time,
             total: lock.total,
             total_max: lock.total_max,
+            target: 0
         }
     }
 

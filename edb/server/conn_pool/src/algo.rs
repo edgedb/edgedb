@@ -143,7 +143,7 @@ macro_rules! constants {
     };
 }
 
-// Note: these constants are tuned via the generic algorithm optimizer.
+ // Note: these constants are tuned via the generic algorithm optimizer.
 constants! {
     /// The maximum number of connections to create or destroy during a rebalance.
     #[range(1..=10)]
@@ -163,10 +163,10 @@ constants! {
 
     /// The weight we apply to waiting connections.
     #[range(0..)]
-    const DEMAND_WEIGHT_WAITING: isize = 45;
+    const DEMAND_WEIGHT_WAITING: isize = 61;
     /// The weight we apply to active connections.
     #[range(0..)]
-    const DEMAND_WEIGHT_ACTIVE: isize = 242;
+    const DEMAND_WEIGHT_ACTIVE: isize = 31;
     /// The minimum non-zero demand. This makes the demand calculations less noisy
     /// when we are competing at lower levels of demand, allowing for more
     /// reproducable results.
@@ -182,34 +182,34 @@ constants! {
     /// This prevents excessive swapping when hunger is similar across various
     /// backends.
     #[range(0..)]
-    const SELF_HUNGER_BOOST_FOR_RELEASE: isize = 42;
+    const SELF_HUNGER_BOOST_FOR_RELEASE: isize = 46;
     /// The weight we apply to the difference between the target and required
     /// connections when determining overfullness.
-    const HUNGER_DIFF_WEIGHT: isize = 2;
+    const HUNGER_DIFF_WEIGHT: isize = -3;
     /// The weight we apply to waiters when determining hunger.
-    const HUNGER_WAITER_WEIGHT: isize = -5;
+    const HUNGER_WAITER_WEIGHT: isize = 2;
     const HUNGER_WAITER_ACTIVE_WEIGHT: isize = 0;
-    const HUNGER_ACTIVE_WEIGHT_DIVIDEND_ADD: isize = -2400;
+    const HUNGER_ACTIVE_WEIGHT_DIVIDEND_ADD: isize = -611;
     const HUNGER_ACTIVE_WEIGHT_DIVIDEND_SUB: isize = 0;
     /// The weight we apply to the oldest waiter's age in milliseconds (as a divisor).
-    const HUNGER_AGE_DIVISOR_WEIGHT: isize = 59;
+    const HUNGER_AGE_DIVISOR_WEIGHT: isize = -35;
     /// Penalize switching to a backend which has changed recently.
-    const HUNGER_CHANGE_WEIGHT_DIVIDEND: isize = 32;
+    const HUNGER_CHANGE_WEIGHT_DIVIDEND: isize = -39;
 
     /// The weight we apply to the difference between the target and required
     /// connections when determining overfullness.
-    const OVERFULL_DIFF_WEIGHT: isize = 3;
+    const OVERFULL_DIFF_WEIGHT: isize = -3;
     /// The weight we apply to idle connections when determining overfullness.
-    const OVERFULL_IDLE_WEIGHT: isize = -1000;
+    const OVERFULL_IDLE_WEIGHT: isize = 423;
     /// This is divided by the youngest connection metric to penalize switching from
     /// a backend which has changed recently.
-    const OVERFULL_CHANGE_WEIGHT_DIVIDEND: isize = -66;
+    const OVERFULL_CHANGE_WEIGHT_DIVIDEND: isize = -59;
     /// The weight we apply to waiters when determining overfullness.
-    const OVERFULL_WAITER_WEIGHT: isize = 3550;
-    const OVERFULL_WAITER_ACTIVE_WEIGHT: isize = 70;
+    const OVERFULL_WAITER_WEIGHT: isize = 194;
+    const OVERFULL_WAITER_ACTIVE_WEIGHT: isize = -98;
 
-    const OVERFULL_ACTIVE_WEIGHT_DIVIDEND_ADD: isize = -1300;
-    const OVERFULL_ACTIVE_WEIGHT_DIVIDEND_SUB: isize = -36;
+    const OVERFULL_ACTIVE_WEIGHT_DIVIDEND_ADD: isize = -696;
+    const OVERFULL_ACTIVE_WEIGHT_DIVIDEND_SUB: isize = 60;
 }
 
 /// Determines the rebalance plan based on the current pool state.
@@ -738,7 +738,8 @@ impl<'a, V: VisitPoolAlgoData> AlgoState<'a, V> {
                 let gc_able =
                     block.count_older(MetricVariant::Idle, self.constraints.min_idle_time_for_gc);
                 if gc_able > 0 {
-                    trace!("GC for {name}: {gc_able} connection(s) to close");
+                    let idle = block.count(MetricVariant::Idle);
+                    trace!("GC for {name}: {gc_able}/{idle} connection(s) to close");
                 }
                 for _ in 0..gc_able {
                     tasks.push(RebalanceOp::Close(name.clone()));

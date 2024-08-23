@@ -366,7 +366,7 @@ class Pool(typing.Generic[C]):
                     npending=v[edb.server._conn_pool.METRIC_CONNECTING] +
                         v[edb.server._conn_pool.METRIC_RECONNECTING],
                     nwaiters=v[edb.server._conn_pool.METRIC_WAITING],
-                    quota=0
+                    quota=stats['target']
                 )
                 blocks.append(block_snapshot)
             pass

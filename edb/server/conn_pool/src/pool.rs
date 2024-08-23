@@ -48,7 +48,7 @@ impl PoolConfig {
 
     pub fn with_min_idle_time_for_gc(mut self, min_idle_time_for_gc: Duration) -> Self {
         self.constraints.min_idle_time_for_gc = min_idle_time_for_gc;
-        self.gc_interval = (min_idle_time_for_gc / 120).max(Duration::from_secs(1));
+        self.gc_interval = (min_idle_time_for_gc / 120).max(Duration::from_secs_f64(0.5));
         self
     }
 }
@@ -176,7 +176,9 @@ impl<C: Connector> Pool<C> {
         self.algo().adjust();
 
         // Run a garbage collection if we're due
-        let gc = if self.last_gc.get().elapsed() > self.config.gc_interval {
+        let since_last_gc = self.last_gc.get().elapsed();
+        let gc = if since_last_gc > self.config.gc_interval {
+            trace!("GC triggered: time since last GC = {since_last_gc:?} > {:?}", self.config.gc_interval);
             self.last_gc.set(Instant::now());
             true
         } else {

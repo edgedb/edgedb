@@ -14,7 +14,7 @@ fn main() {
     //    const PREDICATE: fn(&str) -> bool = |_name| _name.contains("_5") || _name.contains("_2");
     const PREDICATE: fn(&str) -> bool = |_name| true;
 
-    let qos = run_specs_tests_in_runtime(1, Some(10.0), &PREDICATE).unwrap();
+    let qos = run_specs_tests_in_runtime(5, None, &PREDICATE).unwrap();
     println!("{qos:?}");
 
     // the search goal to optimize towards (maximize or minimize)
@@ -54,7 +54,7 @@ fn main() {
             // } else {
             //     [(1.0, 5, None), (0.5, 1, None)]
             // };
-            let weights = [(1.0, 5, Some(10.0))];
+            let weights = [(1.0, 1, None), (1.0, 5, Some(10.0))];
             let outputs = weights
                 .map(|(_, count, scale)| run_specs_tests_in_runtime(count, scale, &PREDICATE));
             let mut score = 0.0;
