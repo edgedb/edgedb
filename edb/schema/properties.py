@@ -277,15 +277,27 @@ class PropertyCommand(
                 span=span,
             )
 
-    def _check_linkprop_errors(self, node: qlast.DDLOperation) -> None:
+    def _check_field_errors(self, node: qlast.DDLOperation) -> None:
         for sub in node.commands:
             # do not allow link property on properties
             if isinstance(sub, qlast.CreateConcretePointer):
                 raise errors.InvalidDefinitionError(
-                    f'cannot create a link property on a property',
+                    f'cannot place a link property on a property',
                     span=node.span,
-                    hint='Link properties can only be created on links, whose '
-                         'target types are object types.',
+                    hint=(
+                        'Link properties can only be placed on links, whose '
+                        'target types are object types.'
+                    ),
+                )
+            # do not allow on source/target delete on properties
+            if isinstance(sub, (qlast.OnSourceDelete, qlast.OnTargetDelete)):
+                raise errors.InvalidDefinitionError(
+                    f'cannot place a deletion policy on a property',
+                    span=node.span,
+                    hint=(
+                        'Deletion policies can only be placed on links, whose '
+                        'target types are object types.'
+                    ),
                 )
 
 
@@ -310,7 +322,7 @@ class CreateProperty(
         if isinstance(astnode, qlast.CreateConcreteProperty):
             assert isinstance(cmd, PropertyCommand)
             cmd._process_create_or_alter_ast(schema, astnode, context)
-            cmd._check_linkprop_errors(astnode)
+            cmd._check_field_errors(astnode)
 
         return cmd
 
@@ -433,7 +445,7 @@ class AlterProperty(
             cmd._process_create_or_alter_ast(schema, astnode, context)
         else:
             cmd._process_alter_ast(schema, astnode, context)
-        cmd._check_linkprop_errors(astnode)
+        cmd._check_field_errors(astnode)
         return cmd
 
     def _apply_field_ast(
