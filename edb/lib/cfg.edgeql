@@ -38,6 +38,9 @@ CREATE ABSTRACT INHERITABLE ANNOTATION cfg::affects_compilation;
 
 CREATE SCALAR TYPE cfg::memory EXTENDING std::anyscalar;
 CREATE SCALAR TYPE cfg::AllowBareDDL EXTENDING enum<AlwaysAllow, NeverAllow>;
+CREATE SCALAR TYPE cfg::StoreMigrationSDL EXTENDING enum<
+    AlwaysStore, NeverStore,
+>;
 CREATE SCALAR TYPE cfg::ConnectionTransport EXTENDING enum<
     TCP, TCP_PG, HTTP, SIMPLE_HTTP, HTTP_METRICS, HTTP_HEALTH>;
 CREATE SCALAR TYPE cfg::QueryCacheMode EXTENDING enum<
@@ -166,6 +169,13 @@ ALTER TYPE cfg::AbstractConfig {
         CREATE ANNOTATION cfg::affects_compilation := 'true';
         CREATE ANNOTATION std::description :=
             'Whether DDL is allowed to be executed outside a migration.';
+    };
+
+    CREATE PROPERTY store_migration_sdl -> cfg::StoreMigrationSDL {
+        SET default := cfg::StoreMigrationSDL.NeverStore;
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
+        CREATE ANNOTATION std::description :=
+            'When to store resulting SDL of a Migration. This may be slow.';
     };
 
     CREATE PROPERTY apply_access_policies -> std::bool {
