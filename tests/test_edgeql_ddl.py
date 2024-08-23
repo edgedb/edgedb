@@ -12139,89 +12139,6 @@ type default::Foo {
                     EXTENDING enum<Red, Green, Blue, Red>;
             ''')
 
-    async def test_edgeql_ddl_enum_04(self):
-        await self.con.execute('''
-            CREATE SCALAR TYPE Color
-                EXTENDING enum<Red, Green, Blue>;
-        ''')
-
-        await self.con.query('DECLARE SAVEPOINT t0')
-
-        with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                'cannot DROP EXTENDING enum'):
-            await self.con.execute('''
-                ALTER SCALAR TYPE Color
-                    DROP EXTENDING enum<Red, Green, Blue>;
-            ''')
-
-        # Recover.
-        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
-
-        with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                "cannot add supertype scalar type 'std::str' to enum type "
-                "default::Color"):
-            await self.con.execute('''
-                ALTER SCALAR TYPE Color EXTENDING str FIRST;
-            ''')
-
-        # Recover.
-        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
-
-        with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                'cannot add supertype enum<Bad> to enum type default::Color'):
-            await self.con.execute('''
-                ALTER SCALAR TYPE Color
-                    EXTENDING enum<Bad> LAST;
-            ''')
-
-        # Recover.
-        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
-
-        with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                'enum default::Color may not have multiple supertypes'):
-            await self.con.execute('''
-                ALTER SCALAR TYPE Color
-                    EXTENDING enum<Bad>, enum<AlsoBad>;
-            ''')
-
-        # Recover.
-        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
-
-        with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                'enums cannot contain duplicate values'):
-            await self.con.execute('''
-                ALTER SCALAR TYPE Color
-                    EXTENDING enum<Red, Green, Blue, Red>;
-            ''')
-
-        # Recover.
-        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
-
-        await self.con.execute(r'''
-            ALTER SCALAR TYPE Color
-                EXTENDING enum<Red, Green, Blue, Magic>;
-        ''')
-        # Commit the changes and start a new transaction for more testing.
-        await self.con.query("COMMIT")
-        await self.con.query("START TRANSACTION")
-        await self.assert_query_result(
-            r"""
-                SELECT <Color>'Magic' >
-                    <Color>'Red';
-            """,
-            [True],
-        )
-
-        await self.con.execute('''
-            DROP SCALAR TYPE Color;
-        ''')
-        await self.con.query("COMMIT")
-
     async def test_edgeql_ddl_enum_05(self):
         await self.con.execute('''
             CREATE SCALAR TYPE Color
@@ -13747,7 +13664,6 @@ type default::Foo {
                 ''')
 
     async def test_edgeql_ddl_migration_sdl_01(self):
-        await self.con.execute('reset schema to initial')
         await self.con.execute('''
             CONFIGURE SESSION SET store_migration_sdl :=
                 cfg::StoreMigrationSDL.AlwaysStore;
@@ -13858,7 +13774,6 @@ type default::Foo {
         )
 
     async def test_edgeql_ddl_create_migration_01(self):
-        await self.con.execute('reset schema to initial')
         await self.con.execute('''
             CONFIGURE SESSION SET store_migration_sdl :=
                 cfg::StoreMigrationSDL.AlwaysStore;
@@ -13905,7 +13820,6 @@ type default::Foo {
         )
 
     async def test_edgeql_ddl_create_migration_02(self):
-        await self.con.execute('reset schema to initial')
         await self.con.execute('''
             CONFIGURE SESSION SET store_migration_sdl :=
                 cfg::StoreMigrationSDL.AlwaysStore;
@@ -13979,7 +13893,6 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         )
 
     async def test_edgeql_ddl_create_migration_03(self):
-        await self.con.query('reset schema to initial')
         await self.con.execute('''
             CONFIGURE SESSION SET store_migration_sdl :=
                 cfg::StoreMigrationSDL.AlwaysStore;
@@ -17339,3 +17252,81 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         await self.con.execute('''
             drop function lol();
         ''')
+
+    async def test_edgeql_ddl_rollback_enum_01(self):
+        await self.con.query("START TRANSACTION")
+        await self.con.execute('''
+            CREATE SCALAR TYPE Color
+                EXTENDING enum<Red, Green, Blue>;
+        ''')
+
+        await self.con.query('DECLARE SAVEPOINT t0')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'cannot DROP EXTENDING enum'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE Color
+                    DROP EXTENDING enum<Red, Green, Blue>;
+            ''')
+
+        # Recover.
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot add supertype scalar type 'std::str' to enum type "
+                "default::Color"):
+            await self.con.execute('''
+                ALTER SCALAR TYPE Color EXTENDING str FIRST;
+            ''')
+
+        # Recover.
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'cannot add supertype enum<Bad> to enum type default::Color'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE Color
+                    EXTENDING enum<Bad> LAST;
+            ''')
+
+        # Recover.
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'enum default::Color may not have multiple supertypes'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE Color
+                    EXTENDING enum<Bad>, enum<AlsoBad>;
+            ''')
+
+        # Recover.
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'enums cannot contain duplicate values'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE Color
+                    EXTENDING enum<Red, Green, Blue, Red>;
+            ''')
+
+        # Recover.
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
+
+        await self.con.execute(r'''
+            ALTER SCALAR TYPE Color
+                EXTENDING enum<Red, Green, Blue, Magic>;
+        ''')
+        # Commit the changes and before continuing testing.
+        await self.con.query("COMMIT")
+        await self.assert_query_result(
+            r"""
+                SELECT <Color>'Magic' >
+                    <Color>'Red';
+            """,
+            [True],
+        )
