@@ -1354,6 +1354,7 @@ class FunctionCommand(MetaCommand):
                 output_format=compiler.OutputFormat.NATIVE,
                 named_param_prefix=self.get_pgname(func, schema)[-1:],
                 backend_runtime_params=context.backend_runtime_params,
+                versioned_stdlib=context.stdmode,
             )
             body = codegen.generate_source(sql_res.ast)
 
@@ -5915,17 +5916,19 @@ class UpdateEndpointDeleteActions(MetaCommand):
         return (name[0], f'{name[1]}_{aspect}')
 
     def get_trigger_proc_text(
-        self, target, links, *, disposition, inline, schema
+        self, target, links, *, disposition, inline, schema, context,
     ):
         if inline:
             return self._get_inline_link_trigger_proc_text(
-                target, links, disposition=disposition, schema=schema)
+                target, links, disposition=disposition,
+                schema=schema, context=context)
         else:
             return self._get_outline_link_trigger_proc_text(
-                target, links, disposition=disposition, schema=schema)
+                target, links, disposition=disposition,
+                schema=schema, context=context)
 
     def _get_outline_link_trigger_proc_text(
-        self, target, links, *, disposition, schema
+        self, target, links, *, disposition, schema, context
     ):
 
         chunks = []
@@ -5948,6 +5951,10 @@ class UpdateEndpointDeleteActions(MetaCommand):
             if action is DA.Restrict or action is DA.DeferredRestrict:
                 tables = self._get_link_table_union(schema, links)
 
+                # We want versioned for stdlib (since the trampolines
+                # don't exist yet) but trampolined for user code
+                prefix = 'edgedb_VER' if context.stdmode else 'edgedb'
+
                 text = textwrap.dedent(trampoline.fixup_query('''\
                     SELECT
                         q.__sobj_id__, q.source, q.target
@@ -5960,12 +5967,12 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                     IF FOUND THEN
                         SELECT
-                            edgedb_VER.shortname_from_fullname(link.name),
-                            edgedb_VER._get_schema_object_name(
+                            {prefix}.shortname_from_fullname(link.name),
+                            {prefix}._get_schema_object_name(
                                 link.{far_endpoint})
                             INTO linkname, endname
                         FROM
-                            edgedb_VER._schema_links AS link
+                            {prefix}._schema_links AS link
                         WHERE
                             link.id = link_type_id;
                         RAISE foreign_key_violation
@@ -5984,6 +5991,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     tgtname=target.get_displayname(schema),
                     near_endpoint=near_endpoint,
                     far_endpoint=far_endpoint,
+                    prefix=prefix,
                 )
 
                 chunks.append(text)
@@ -6154,7 +6162,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
         return text
 
     def _get_inline_link_trigger_proc_text(
-        self, target, links, *, disposition, schema
+        self, target, links, *, disposition, schema, context
     ):
 
         chunks = []
@@ -6174,6 +6182,10 @@ class UpdateEndpointDeleteActions(MetaCommand):
             if action is DA.Restrict or action is DA.DeferredRestrict:
                 tables = self._get_inline_link_table_union(schema, links)
 
+                # We want versioned for stdlib (since the trampolines
+                # don't exist yet) but trampolined for user code
+                prefix = 'edgedb_VER' if context.stdmode else 'edgedb'
+
                 text = textwrap.dedent(trampoline.fixup_query('''\
                     SELECT
                         q.__sobj_id__, q.source, q.target
@@ -6186,12 +6198,12 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                     IF FOUND THEN
                         SELECT
-                            edgedb_VER.shortname_from_fullname(link.name),
-                            edgedb_VER._get_schema_object_name(
+                            {prefix}.shortname_from_fullname(link.name),
+                            {prefix}._get_schema_object_name(
                                 link.{far_endpoint})
                             INTO linkname, endname
                         FROM
-                            edgedb_VER._schema_links AS link
+                            {prefix}._schema_links AS link
                         WHERE
                             link.id = link_type_id;
                         RAISE foreign_key_violation
@@ -6210,6 +6222,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     tgtname=target.get_displayname(schema),
                     near_endpoint=near_endpoint,
                     far_endpoint=far_endpoint,
+                    prefix=prefix,
                 )
 
                 chunks.append(text)
@@ -6528,21 +6541,21 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
             if links or modifications:
                 self._update_action_triggers(
-                    schema, target, links, disposition='target')
+                    schema, context, target, links, disposition='target')
 
             if inline_links or modifications:
                 self._update_action_triggers(
-                    schema, target, inline_links,
+                    schema, context, target, inline_links,
                     disposition='target', inline=True)
 
             if deferred_links or modifications:
                 self._update_action_triggers(
-                    schema, target, deferred_links,
+                    schema, context, target, deferred_links,
                     disposition='target', deferred=True)
 
             if deferred_inline_links or modifications:
                 self._update_action_triggers(
-                    schema, target, deferred_inline_links,
+                    schema, context, target, deferred_inline_links,
                     disposition='target', deferred=True,
                     inline=True)
 
@@ -6604,11 +6617,11 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
             if links or modifications:
                 self._update_action_triggers(
-                    schema, source, links, disposition='source')
+                    schema, context, source, links, disposition='source')
 
             if inline_links or modifications:
                 self._update_action_triggers(
-                    schema, source, inline_links,
+                    schema, context, source, inline_links,
                     inline=True, disposition='source')
 
         return schema
@@ -6616,6 +6629,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
     def _update_action_triggers(
         self,
         schema,
+        context: sd.CommandContext,
         objtype: s_objtypes.ObjectType,
         links: List[s_links.Link],
         *,
@@ -6642,7 +6656,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
         if links:
             proc_text = self.get_trigger_proc_text(
                 objtype, links, disposition=disposition,
-                inline=inline, schema=schema)
+                inline=inline, schema=schema, context=context)
 
             trig_func = dbops.Function(
                 name=proc_name, text=proc_text, volatility='volatile',
