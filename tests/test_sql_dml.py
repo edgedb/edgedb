@@ -728,6 +728,43 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
+    async def test_sql_dml_insert_34(self):
+        id1 = uuid.uuid4()
+        id2 = uuid.uuid4()
+        id3 = uuid.uuid4()
+        id4 = uuid.uuid4()
+        id5 = uuid.uuid4()
+
+        res = await self.squery_values(
+            f'''
+            INSERT INTO "Document" (id)
+            VALUES ($1), ('{id2}')
+            RETURNING id
+            ''',
+            id1,
+        )
+        self.assertEqual(res, [[id1], [id2]])
+
+        res = await self.squery_values(
+            f'''
+            INSERT INTO "Document" (id)
+            SELECT id FROM (VALUES ($1::uuid), ('{id4}')) t(id)
+            RETURNING id
+            ''',
+            id3,
+        )
+        self.assertEqual(res, [[id3], [id4]])
+
+        res = await self.squery_values(
+            f'''
+            INSERT INTO "Document" (id)
+            VALUES ($1)
+            RETURNING id
+            ''',
+            id5,
+        )
+        self.assertEqual(res, [[id5]])
+
     async def test_sql_dml_delete_01(self):
         # delete, inspect CommandComplete tag
 
@@ -1319,6 +1356,28 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             '''
         )
         self.assertEqual(res, [['untitled', None]])
+
+    async def test_sql_dml_update_12(self):
+        id1 = uuid.uuid4()
+
+        [doc] = await self.squery_values(
+            'INSERT INTO "Document" DEFAULT VALUES RETURNING id'
+        )
+
+        with self.assertRaisesRegex(
+            asyncpg.DataError,
+            'cannot update property \'id\': ' 'it is declared as read-only',
+        ):
+            await self.squery_values(
+                '''
+                UPDATE "Document"
+                SET id = $2
+                WHERE id = $1
+                RETURNING id
+                ''',
+                doc[0],
+                id1,
+            )
 
     async def test_sql_dml_01(self):
         # update/delete only
