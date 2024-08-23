@@ -18,6 +18,7 @@ You can reference the following repositories for more context:
   `Turborepo <https://turbo.build/>`_, and EdgeDB.
 - `LookFeel Project <https://github.com/LewTrn/lookfeel>`_ - A real-world 
   example using **EdgeDB** and **tRPC**.
+
 Step 1: EdgeDB setup
 ====================
 
