@@ -282,20 +282,20 @@ class PropertyCommand(
             # do not allow link property on properties
             if isinstance(sub, qlast.CreateConcretePointer):
                 raise errors.InvalidDefinitionError(
-                    f'cannot create a link property on a property',
+                    f'cannot place a link property on a property',
                     span=node.span,
                     hint=(
-                        'Link properties can only be created on links, whose '
+                        'Link properties can only be placed on links, whose '
                         'target types are object types.'
                     ),
                 )
             # do not allow on source/target delete on properties
             if isinstance(sub, (qlast.OnSourceDelete, qlast.OnTargetDelete)):
                 raise errors.InvalidDefinitionError(
-                    f'cannot create a deletion policy on a property',
+                    f'cannot place a deletion policy on a property',
                     span=node.span,
                     hint=(
-                        'Deletion policies can only be created on links, whose '
+                        'Deletion policies can only be placed on links, whose '
                         'target types are object types.'
                     ),
                 )

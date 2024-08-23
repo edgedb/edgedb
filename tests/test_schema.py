@@ -422,7 +422,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.InvalidDefinitionError,
-                  "cannot create a link property on a property")
+                  "cannot place a link property on a property")
     def test_schema_link_prop_on_prop_01(self):
         """
             type Test1 {
@@ -433,7 +433,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.InvalidDefinitionError,
-                  "cannot create a deletion policy on a property")
+                  "cannot place a deletion policy on a property")
     def test_schema_deletion_policy_on_prop_01(self):
         """
             type Test1 {
@@ -444,7 +444,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.InvalidDefinitionError,
-                  "cannot create a deletion policy on a property")
+                  "cannot place a deletion policy on a property")
     def test_schema_deletion_policy_on_prop_02(self):
         """
             type Test1 {
