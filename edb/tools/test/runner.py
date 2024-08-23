@@ -835,7 +835,7 @@ class ParallelTextTestRunner:
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
                  output_format=OutputFormat.auto, warnings=True,
                  failfast=False, shuffle=False, backend_dsn=None,
-                 data_dir=None, try_cached_db=False):
+                 data_dir=None, try_cached_db=False, use_data_dir_dbs=False):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
@@ -845,6 +845,7 @@ class ParallelTextTestRunner:
         self.output_format = output_format
         self.backend_dsn = backend_dsn
         self.data_dir = data_dir
+        self.use_data_dir_dbs = use_data_dir_dbs
         self.try_cached_db = try_cached_db
 
     def run(
@@ -974,7 +975,9 @@ class ParallelTextTestRunner:
                         conn,
                         self.num_workers,
                         verbose=self.verbosity > 1,
-                        try_cached_db=self.try_cached_db,
+                        try_cached_db=(
+                            self.try_cached_db or self.use_data_dir_dbs
+                        ),
                     )
                     if self.try_cached_db and any(
                         not x[1]['cached'] for x in stats
