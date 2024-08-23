@@ -36,18 +36,17 @@ a single file that we will use to simulate a typical web application.
 
 .. note::
 
-    We are in the process of publishing helper libraries that you can use with
-    popular languages and web frameworks. The details below show the inner
-    workings of how data is exchanged with the Auth extension from a web app
-    using HTTP. You can use this as a guide to integrate with your application
-    written in any language that can send and receive HTTP requests.
-
-We secure authentication tokens and other sensitive data by using PKCE
-(Proof Key of Code Exchange).
+    The details below show the inner workings of how data is exchanged with the
+    Auth extension from a web app using HTTP. You can use this as a guide to
+    integrate with your application written in any language that can send and
+    receive HTTP requests.
 
 
 Start the PKCE flow
 -------------------
+
+We secure authentication tokens and other sensitive data by using PKCE
+(Proof Key of Code Exchange).
 
 Your application server creates a 32-byte Base64 URL-encoded string (which will
 be 43 bytes after encoding), called the ``verifier``. You need to store this
@@ -114,6 +113,13 @@ base64url encode the resulting string. This new string is called the
    };
 
 .. lint-on
+
+.. note::
+
+    For EdgeDB versions before 5.0, the value for ``EDGEDB_AUTH_BASE_URL``
+    in the above snippet should have the form:
+
+    ``${protocol}://${host}:${port}/db/${database}/ext/auth/``
 
 
 Sign-in and sign-up
