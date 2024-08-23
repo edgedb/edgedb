@@ -1,3 +1,4 @@
+#![cfg(feature = "python_extension")]
 use edgeql_parser::tokenizer::Value;
 use edgeql_rust::normalize::{normalize, Variable};
 use num_bigint::BigInt;

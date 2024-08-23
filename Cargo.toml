@@ -8,6 +8,10 @@ members = [
 ]
 resolver = "2"
 
+[workspace.dependencies]
+pyo3 = { version = "0.20.2", features = ["extension-module", "serde"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "sync", "net", "io-util"] }
+
 [profile.release]
 debug = true
 lto = true

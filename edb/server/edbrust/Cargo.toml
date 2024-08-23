@@ -1,48 +1,40 @@
 [package]
-name = "conn-pool"
+name = "edbrust"
 version = "0.1.0"
 license = "MIT/Apache-2.0"
 authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2021"
 
-[lints]
+[lint]
 workspace = true
 
 [features]
-python_extension = ["pyo3/extension-module"]
-optimizer = []
+python_extension = ["pyo3/extension-module", "pyo3/serde"]
 
 [dependencies]
 pyo3 = { workspace = true, optional = true }
 tokio.workspace = true
-
-futures = "0"
-scopeguard = "1"
-itertools = "0"
-thiserror = "1"
-tracing = "0"
-tracing-subscriber = "0"
-strum = { version = "0.26", features = ["derive"] }
-consume_on_drop = "0"
-smart-default = "0"
 
 [dependencies.derive_more]
 version = "1.0.0-beta.6"
 features = ["full"]
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["test-util"] }
-
 pretty_assertions = "1.2.0"
 test-log = { version = "0", features = ["trace"] }
 anyhow = "1"
 rstest = "0"
-rand = "0"
 statrs = "0"
-genetic_algorithm = "0.7.2"
 lru = "0"
+byteorder = "1.5"
+clap = "4"
+clap_derive = "4"
+hex-literal = "0.4"
+
+[dev-dependencies.tokio]
+version = "1"
+features = ["test-util"]
 
 [lib]
 crate-type = ["lib", "cdylib"]
-name = "conn_pool"
 path = "src/lib.rs"
