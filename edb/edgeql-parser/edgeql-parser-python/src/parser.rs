@@ -10,8 +10,8 @@ use crate::pynormalize::value_to_py_object;
 use crate::tokenizer::OpaqueToken;
 
 #[pyfunction]
-pub fn parse<'py>(
-    py: Python<'py>,
+pub fn parse(
+    py: Python,
     start_token_name: &Bound<PyString>,
     tokens: PyObject,
 ) -> PyResult<(ParserResult, PyObject)> {
