@@ -1086,7 +1086,8 @@ class TestConnectParams(tb.TestCase):
         # nonexistent passfile is OK
         with self.assertWarnsRegex(
             UserWarning,
-            'Password file .* does not exist'):
+            'Password file .* does not exist',
+        ):
             self.run_testcase({
                 'dsn': 'postgres://user@abc/db?passfile=totally+nonexistent',
                 'result': (
