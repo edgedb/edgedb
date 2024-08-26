@@ -1033,7 +1033,7 @@ class TestConnectParams(tb.TestCase):
                     {
                         'password': 'password from pgpass with escapes',
                         'user': 'test\\',
-                        'database': R'test:db',
+                        'database': 'test:db',
                     }
                 )
             })
