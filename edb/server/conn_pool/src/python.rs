@@ -462,7 +462,7 @@ impl LoggingGuard {
 fn _conn_pool(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<ConnPool>()?;
     m.add_class::<LoggingGuard>()?;
-    m.add("InternalError", py.get_type::<InternalError>())?;
+    m.add("InternalError", py.get_type_bound::<InternalError>())?;
 
     Ok(())
 }
