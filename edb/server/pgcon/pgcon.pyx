@@ -1792,7 +1792,19 @@ cdef class PGConnection:
                     # on this connection, so there's nothing to DEALLOCATE.
                     action.frontend_only = True
 
-                if not action.is_frontend_only():
+                if action.is_frontend_only():
+                    pass
+                elif isinstance(
+                    action.query_unit.command_complete_tag,
+                    (dbstate.TagCountMessages, dbstate.TagUnpackRow),
+                ):
+                    # when executing TagUnpackRow, don't pass the limit through
+                    msg_buf = WriteBuffer.new_message(b'E')
+                    msg_buf.write_bytestring(action.portal_name)
+                    msg_buf.write_int32(0)
+                    buf.write_buffer(msg_buf.end_message())
+                else:
+                    # base case
                     msg_buf = WriteBuffer.new_message(b'E')
                     msg_buf.write_bytestring(action.portal_name)
                     msg_buf.write_int32(action.args)
@@ -2054,8 +2066,7 @@ cdef class PGConnection:
                     if self.debug:
                         self.debug_print('END OF DESCRIBE', mtype)
                     if (
-                        mtype == b'T' and 
-                        action.action == PGAction.DESCRIBE_STMT_ROWS and
+                        mtype == b'T' and
                         isinstance(
                             action.query_unit.command_complete_tag,
                             dbstate.TagUnpackRow,
@@ -2068,10 +2079,9 @@ cdef class PGConnection:
                         # that col.
                         is_binary_format = data[-1] == 1
 
-                        if is_binary_format:
-                            # TagUnpackRow converts RowDescription into NoData
-                            msg_buf = WriteBuffer.new_message(b'n')
-                            buf.write_buffer(msg_buf.end_message())
+                        # TagUnpackRow converts RowDescription into NoData
+                        msg_buf = WriteBuffer.new_message(b'n')
+                        buf.write_buffer(msg_buf.end_message())
 
                     elif not action.is_injected() and not (
                         mtype == b'n' and
@@ -2153,7 +2163,6 @@ cdef class PGConnection:
 
                     if (
                         not action.is_injected()
-                        and mtype == b'C'
                         and action.query_unit.command_complete_tag
                     ):
                         tag = action.query_unit.command_complete_tag
