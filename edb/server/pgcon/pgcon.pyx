@@ -1741,7 +1741,38 @@ cdef class PGConnection:
                             action.frontend_only = True
                             prepared.add(be_stmt_name)
 
-                if not action.is_frontend_only():
+                if action.is_frontend_only():
+                    pass
+                elif isinstance(
+                    action.query_unit.command_complete_tag, dbstate.TagUnpackRow
+                ):
+                    # in this case we are intercepting the only result row so
+                    # we want to set its encoding to be binary
+                    msg_buf = WriteBuffer.new_message(b'B')
+                    msg_buf.write_bytestring(action.portal_name)
+                    msg_buf.write_bytestring(action.stmt_name)
+
+                    # skim over param format codes
+                    param_formats = int.from_bytes(action.args[0:2], "big")
+                    offset = 2 + param_formats * 2
+
+                    # skim over param values
+                    params = int.from_bytes(action.args[offset:offset+2], "big")
+                    offset += 2
+                    for p in range(params):
+                        size = int.from_bytes(
+                            action.args[offset:offset+4], "big"
+                        )
+                        if size == -1:  # special case: NULL
+                            size = 0
+                        offset += 4 + size
+                    msg_buf.write_bytes(action.args[0:offset])
+
+                    # set the result formats
+                    msg_buf.write_int16(1)  # number of columns
+                    msg_buf.write_int16(1)  # binary encoding
+                    buf.write_buffer(msg_buf.end_message())
+                else:
                     msg_buf = WriteBuffer.new_message(b'B')
                     msg_buf.write_bytestring(action.portal_name)
                     msg_buf.write_bytestring(action.stmt_name)
@@ -1866,7 +1897,6 @@ cdef class PGConnection:
 
         buf = WriteBuffer.new()
         rv = True
-        is_binary_format = True
 
         for action in actions:
             if self.debug:
@@ -2072,13 +2102,6 @@ cdef class PGConnection:
                             dbstate.TagUnpackRow,
                         )
                     ):
-                        # when unpacking a DataRow, we need to know if it is in
-                        # in binary or text mode.
-                        # Here we assume that there will be a single column in
-                        # the DataRow, so last byte will be the format code of
-                        # that col.
-                        is_binary_format = data[-1] == 1
-
                         # TagUnpackRow converts RowDescription into NoData
                         msg_buf = WriteBuffer.new_message(b'n')
                         buf.write_buffer(msg_buf.end_message())
@@ -2108,17 +2131,10 @@ cdef class PGConnection:
                 ):
                     data = self.buffer.consume_message()
 
-                    # when unpacking a DataRow, we need to know if it is in
-                    # in binary or text mode.
-                    # Here we assume that there will be a single column in the
-                    # DataRow, so last byte will be the format code of that col.
-                    is_binary_format = data[-1] == 1
-
                     # tell the frontend connection that there is NoData
                     # because we intercept and unpack the DataRow.
                     msg_buf = WriteBuffer.new_message(b'n')
                     buf.write_buffer(msg_buf.end_message())
-
                 elif (
                     mtype == b'D'  # DataRow
                     and action.action == PGAction.EXECUTE
@@ -2133,11 +2149,7 @@ cdef class PGConnection:
                     field_size = int.from_bytes(data[2:6], "big")
                     val_bytes = data[6:6 + field_size]
 
-                    if is_binary_format:
-                        row_count = int.from_bytes(val_bytes, "big")
-                    else:
-                        row_count = int(str(val_bytes, "ascii"))
-
+                    row_count = int.from_bytes(val_bytes, "big")
                 elif (
                     # CommandComplete, EmptyQueryResponse, PortalSuspended
                     mtype == b'C' or mtype == b'I' or mtype == b's'
