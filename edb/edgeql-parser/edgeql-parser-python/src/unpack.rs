@@ -8,7 +8,7 @@ use crate::pynormalize::Entry;
 use crate::tokenizer::tokens_to_py;
 
 #[pyfunction]
-pub fn unpack(py: Python<'_>, serialized: &PyBytes) -> PyResult<PyObject> {
+pub fn unpack(py: Python<'_>, serialized: &Bound<PyBytes>) -> PyResult<PyObject> {
     let buf = serialized.as_bytes();
     match buf[0] {
         0u8 => {

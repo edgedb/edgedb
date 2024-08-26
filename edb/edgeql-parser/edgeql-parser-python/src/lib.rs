@@ -13,9 +13,9 @@ use pyo3::prelude::*;
 
 /// Rust bindings to the edgeql-parser crate
 #[pymodule]
-fn _edgeql_parser(py: Python, m: &PyModule) -> PyResult<()> {
-    m.add("SyntaxError", py.get_type::<errors::SyntaxError>())?;
-    m.add("ParserResult", py.get_type::<errors::ParserResult>())?;
+fn _edgeql_parser(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
+    m.add("SyntaxError", py.get_type_bound::<errors::SyntaxError>())?;
+    m.add("ParserResult", py.get_type_bound::<errors::ParserResult>())?;
 
     m.add_class::<hash::Hasher>()?;
 
@@ -36,7 +36,7 @@ fn _edgeql_parser(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<parser::Terminal>()?;
 
     m.add_function(wrap_pyfunction!(position::offset_of_line, m)?)?;
-    m.add("SourcePoint", py.get_type::<position::SourcePoint>())?;
+    m.add("SourcePoint", py.get_type_bound::<position::SourcePoint>())?;
 
     m.add_class::<tokenizer::OpaqueToken>()?;
     m.add_function(wrap_pyfunction!(tokenizer::tokenize, m)?)?;

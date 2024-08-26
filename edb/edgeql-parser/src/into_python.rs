@@ -51,7 +51,7 @@ impl<T: IntoPython> IntoPython for Vec<T> {
         for x in self {
             elements.push(x.into_python(py, None)?);
         }
-        Ok(PyList::new(py, elements.as_slice()).into_object())
+        Ok(PyList::new_bound(py, elements.as_slice()).into_object())
     }
 }
 
@@ -76,13 +76,13 @@ impl<T1: IntoPython, T2: IntoPython> IntoPython for (T1, T2) {
         let mut elements = Vec::new();
         elements.push(self.0.into_python(py, None)?);
         elements.push(self.1.into_python(py, None)?);
-        Ok(PyTuple::new(py, elements.as_slice()).into_object())
+        Ok(PyTuple::new_bound(py, elements.as_slice()).into_object())
     }
 }
 
 impl<K: IntoPython, V: IntoPython> IntoPython for IndexMap<K, V> {
     fn into_python(self, py: Python<'_>, _: Option<PyDict>) -> PyResult<PyObject> {
-        let dict = PyDict::new(py);
+        let dict = PyDict::new_bound(py);
         for (key, value) in self {
             let key = key.into_python(py, None)?;
             let value = value.into_python(py, None)?;
@@ -94,7 +94,7 @@ impl<K: IntoPython, V: IntoPython> IntoPython for IndexMap<K, V> {
 
 impl IntoPython for Vec<u8> {
     fn into_python(self, py: Python<'_>, _: Option<PyDict>) -> PyResult<PyObject> {
-        Ok(PyBytes::new(py, self.as_slice()).into_object())
+        Ok(PyBytes::new_bound(py, self.as_slice()).into_object())
     }
 }
 
@@ -109,7 +109,7 @@ pub fn init_ast_class(
     class_name: &'static str,
     kw_args: PyDict,
 ) -> Result<PyObject, cpython::PyErr> {
-    let locals = PyDict::new(py);
+    let locals = PyDict::new_bound(py);
     locals.set_item(py, "kw_args", kw_args)?;
 
     let code = format!("qlast.{class_name}(**kw_args)");
