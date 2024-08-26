@@ -1796,7 +1796,7 @@ cdef class PGConnection:
                     pass
                 elif isinstance(
                     action.query_unit.command_complete_tag,
-                    dbstate.TagUnpackRow,
+                    (dbstate.TagCountMessages, dbstate.TagUnpackRow),
                 ):
                     # when executing TagUnpackRow, don't pass the limit through
                     msg_buf = WriteBuffer.new_message(b'E')
