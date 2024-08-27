@@ -39,6 +39,7 @@ CREATE TYPE sys::Branch EXTENDING
     ALTER PROPERTY name {
         CREATE CONSTRAINT std::exclusive;
     };
+    CREATE PROPERTY last_migration-> std::str;
 };
 
 CREATE ALIAS sys::Database := sys::Branch;
