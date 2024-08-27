@@ -4,6 +4,7 @@ import edgedb
 import json
 import sys
 
+
 def main(argv):
     con = edgedb.create_client()
 

@@ -1,0 +1,111 @@
+diff --git a/edb/buildmeta.py b/edb/buildmeta.py
+index a56a33964..855e7730f 100644
+--- a/edb/buildmeta.py
++++ b/edb/buildmeta.py
+@@ -68,6 +68,12 @@ class MetadataError(Exception):
+     pass
+
+
++# HACK: Put this down here so it overrides the above version without
++# merge conflicting with them.
++EDGEDB_CATALOG_VERSION = 2030_01_01_00_00
++EDGEDB_MAJOR_VERSION = 1000
++
++
+ class BackendVersion(NamedTuple):
+     major: int
+     minor: int
+diff --git a/edb/lib/_testmode.edgeql b/edb/lib/_testmode.edgeql
+index 508382ecd..addd01b4f 100644
+--- a/edb/lib/_testmode.edgeql
++++ b/edb/lib/_testmode.edgeql
+@@ -214,6 +214,15 @@ create extension package _conf VERSION '1.0' {
+
+ # std::_gen_series
+
++CREATE FUNCTION
++std::_upgrade_test(
++) -> std::str
++{
++    SET volatility := 'Immutable';
++    USING ('asdf');
++};
++
++
+ CREATE FUNCTION
+ std::_gen_series(
+     `start`: std::int64,
+diff --git a/edb/lib/schema.edgeql b/edb/lib/schema.edgeql
+index 1cd386fc0..9e515f5d0 100644
+--- a/edb/lib/schema.edgeql
++++ b/edb/lib/schema.edgeql
+@@ -536,6 +536,9 @@ CREATE TYPE schema::Global EXTENDING schema::AnnotationSubject {
+ CREATE TYPE schema::Function
+     EXTENDING schema::CallableObject, schema::VolatilitySubject
+ {
++    CREATE PROPERTY test_field_a -> std::str;
++    CREATE PROPERTY test_nativecode_size -> std::int64;
++
+     CREATE PROPERTY preserves_optionality -> std::bool {
+         SET default := false;
+     };
+diff --git a/edb/schema/functions.py b/edb/schema/functions.py
+index 9cca3de6d..c22d3f414 100644
+--- a/edb/schema/functions.py
++++ b/edb/schema/functions.py
+@@ -1237,6 +1237,27 @@ class Function(
+     data_safe=True,
+ ):
+
++    ##
++    test_field_a = so.SchemaField(
++        str,
++        default=None,
++        compcoef=0.4,
++        allow_ddl_set=True,
++    )
++
++    test_field_b = so.SchemaField(
++        str,
++        default=None,
++        compcoef=0.4,
++        allow_ddl_set=True,
++    )
++
++    test_nativecode_size = so.SchemaField(
++        int,
++        default=None,
++    )
++    ##
++
+     used_globals = so.SchemaField(
+         so.ObjectSet[s_globals.Global],
+         coerce=True, default=so.DEFAULT_CONSTRUCTOR,
+@@ -1608,6 +1629,10 @@ class FunctionCommand(
+                 nativecode.not_compiled()
+             )
+
++        if self.has_attribute_value('nativecode'):
++            code = self.get_attribute_value('nativecode')
++            self.set_attribute_value('test_nativecode_size', len(code.text))
++
+         # Resolving 'nativecode' has side effects on has_dml and
+         # volatility, so force it to happen as part of
+         # canonicalization of attributes.
+diff --git a/edb/schema/operators.py b/edb/schema/operators.py
+index a98cd3fec..bc9a3aea7 100644
+--- a/edb/schema/operators.py
++++ b/edb/schema/operators.py
+@@ -68,12 +68,6 @@ class Operator(
+     code = so.SchemaField(
+         str, default=None, compcoef=0.4)
+
+-    # An unused dummy field. We have this here to make it easier to
+-    # test the *removal* of internal schema fields during in-place
+-    # upgrades.
+-    _dummy_field = so.SchemaField(
+-        str, default=None)
+-
+     # If this is a derivative operator, *derivative_of* would
+     # contain the name of the origin operator.
+     # For example, the `std::IN` operator has `std::=`
