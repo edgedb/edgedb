@@ -257,6 +257,79 @@ class ClearQueryCacheFunction(trampoline.VersionedFunction):
         )
 
 
+class CreateTrampolineViewFunction(trampoline.VersionedFunction):
+    text = f'''
+        DECLARE
+            cols text;
+            tgt text;
+            dummy text;
+        BEGIN
+            tgt := quote_ident(tgt_schema) || '.' || quote_ident(tgt_name);
+
+            -- Check if the view already exists.
+            select viewname into dummy
+            from pg_catalog.pg_views
+            where schemaname = tgt_schema
+            and viewname = tgt_name;
+
+            IF FOUND THEN
+                -- If the view already existed, we need to generate a column
+                -- list that maintains the order of anything that was present in
+                -- the old view, and that doesn't remove any columns that were
+                -- dropped.
+                select
+                  string_agg(
+                    COALESCE(
+                      quote_ident(tname),
+                      'NULL::' || vtypname || ' AS ' || quote_ident(vname)
+                    ),
+                    ','
+                  )
+                from (
+                  select
+                    a1.attname as tname,
+                    a2.attname as vname,
+                    pg_catalog.format_type(a2.atttypid, NULL) as vtypname
+                  from (
+                    select * from pg_catalog.pg_attribute
+                    where attrelid = src::regclass::oid
+                    and attnum >= 0
+                  ) a1
+                  full outer join (
+                    select * from pg_catalog.pg_attribute
+                    where attrelid = tgt::regclass::oid
+                  ) a2
+                  on a1.attname = a2.attname
+                  order by a2.attnum, a1.attnum
+                )
+                INTO cols;
+
+            END IF;
+
+            -- If it doesn't exist or has no columns, create it with SELECT *
+            cols := COALESCE(cols, '*');
+
+            EXECUTE 'CREATE OR REPLACE VIEW ' || tgt || ' AS ' ||
+              'SELECT ' || cols || ' FROM ' || src;
+
+        END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_create_trampoline_view'),
+            args=[
+                ('src', ('text',)),
+                ('tgt_schema', ('text',)),
+                ('tgt_name', ('text',)),
+            ],
+            returns=('void',),
+            language='plpgsql',
+            volatility='volatile',
+            text=self.text,
+        )
+
+
 class BigintDomain(dbops.Domain):
     """Bigint: a variant of numeric that enforces zero digits after the dot.
 
@@ -4860,6 +4933,7 @@ def get_bootstrap_commands(
         dbops.CreateView(NormalizedPgSettingsView()),
         dbops.CreateFunction(EvictQueryCacheFunction()),
         dbops.CreateFunction(ClearQueryCacheFunction()),
+        dbops.CreateFunction(CreateTrampolineViewFunction()),
         dbops.CreateFunction(UuidGenerateV1mcFunction('edgedbext')),
         dbops.CreateFunction(UuidGenerateV4Function('edgedbext')),
         dbops.CreateFunction(UuidGenerateV5Function('edgedbext')),
