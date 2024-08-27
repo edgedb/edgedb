@@ -1707,7 +1707,9 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
 
         await check_method(self)
 
-    async def check_dump_restore(self, check_method):
+    async def check_dump_restore(
+        self, check_method, include_secrets: bool=False
+    ):
         if not self.has_create_database:
             return await self.check_dump_restore_single_db(check_method)
 
@@ -1716,8 +1718,9 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
         q_tgt_dbname = qlquote.quote_ident(tgt_dbname)
         with tempfile.TemporaryDirectory() as f:
             fname = os.path.join(f, 'dump')
+            extra = ['--include-secrets'] if include_secrets else []
             await asyncio.to_thread(
-                self.run_cli, '-d', src_dbname, 'dump', fname
+                self.run_cli, '-d', src_dbname, 'dump', fname, *extra
             )
 
             await self.con.execute(f'CREATE DATABASE {q_tgt_dbname}')
@@ -2026,13 +2029,21 @@ def test_cases_use_server(cases: Iterable[unittest.TestCase]) -> bool:
 
 
 async def setup_test_cases(
-        cases, conn, num_jobs, try_cached_db=False, verbose=False):
+    cases,
+    conn,
+    num_jobs,
+    try_cached_db=False,
+    skip_empty_databases=False,
+    verbose=False,
+):
     setup = get_test_cases_setup(cases)
 
     stats = []
     if num_jobs == 1:
         # Special case for --jobs=1
         for _case, dbname, setup_script in setup:
+            if skip_empty_databases and not setup_script:
+                continue
             await _setup_database(
                 dbname, setup_script, conn, stats, try_cached_db)
             if verbose:
@@ -2052,6 +2063,9 @@ async def setup_test_cases(
                         print(f' -> {dbname}: OK', flush=True)
 
             for _case, dbname, setup_script in setup:
+                if skip_empty_databases and not setup_script:
+                    continue
+
                 g.create_task(controller(
                     _setup_database, dbname, setup_script, conn, stats,
                     try_cached_db))

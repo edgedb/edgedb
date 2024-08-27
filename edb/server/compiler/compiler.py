@@ -610,12 +610,6 @@ class Compiler:
         for stmt in stmts:
             orig_text = pg_gen_source(stmt)
 
-            if debug.flags.sql_input:
-                debug.header('SQL Input')
-                debug.dump_code(
-                    pg_codegen.generate_source(stmt, pretty=True), lexer='sql'
-                )
-
             unit_ctor = functools.partial(
                 dbstate.SQLQueryUnit,
                 orig_query=orig_text,
@@ -808,10 +802,6 @@ class Compiler:
                     translation_data=source.translation_data,
                     command_complete_tag=complete_tag,
                 )
-
-            if debug.flags.sql_output:
-                debug.header('SQL Output')
-                debug.dump_code(unit.query, lexer='sql')
 
             unit.stmt_name = compute_stmt_name(unit.query).encode("utf-8")
 
@@ -1536,7 +1526,7 @@ def compile_schema_storage_in_delta(
     with cache.mutate() as cache_mm:
         for eql, args in meta_blocks:
             eql_hash = hashlib.sha1(eql.encode()).hexdigest()
-            fname = ('edgedb', f'__rh_{eql_hash}')
+            fname = (pg_common.versioned_schema('edgedb'), f'__rh_{eql_hash}')
 
             if eql_hash in cache_mm:
                 argnames = cache_mm[eql_hash]
@@ -2041,8 +2031,11 @@ def _build_cache_function(
                 val=pgast.BooleanConstant(val=True),
             ),
         )
+
+    # XXX: we need to put the version in the key
+    fname = (pg_common.versioned_schema("edgedb"), f"__qh_{key}")
     func = pg_dbops.Function(
-        name=("edgedb", f"__qh_{key}"),
+        name=fname,
         args=[(None, arg) for arg in sql_res.detached_params or []],
         returns=return_type,
         set_returning=set_returning,
@@ -2057,7 +2050,7 @@ def _build_cache_function(
         name=func.name, args=func.args or (), if_exists=True
     ).generate(df)
     func_call = pgast.FuncCall(
-        name=("edgedb", f"__qh_{key}"),
+        name=fname,
         args=[
             pgast.TypeCast(
                 arg=pgast.ParamRef(number=i),

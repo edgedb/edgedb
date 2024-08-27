@@ -852,12 +852,6 @@ class Tenant(ha_base.ClusterProtocol):
 
         self._block_new_connections.add(dbname)
 
-        # Signal adjacent servers to prune their connections to this
-        # database.
-        await self.signal_sysevent(
-            "ensure-database-not-used", dbname=dbname
-        )
-
         rloop = retryloop.RetryLoop(
             timeout=30.0,
             ignore=errors.ExecutionError,
@@ -865,6 +859,12 @@ class Tenant(ha_base.ClusterProtocol):
 
         async for iteration in rloop:
             async with iteration:
+                # Signal adjacent servers to prune their connections to this
+                # database.
+                await self.signal_sysevent(
+                    "ensure-database-not-used", dbname=dbname
+                )
+
                 # Prune our inactive connections.  (Do it in the loop
                 # to help in the close_frontend_conns situation.)
                 await self._pg_pool.prune_inactive_connections(dbname)
@@ -973,7 +973,7 @@ class Tenant(ha_base.ClusterProtocol):
             )
 
             reflection_cache_json = await conn.sql_fetch_val(
-                b"""
+                trampoline.fixup_query("""
                     SELECT json_agg(o.c)
                     FROM (
                         SELECT
@@ -982,10 +982,10 @@ class Tenant(ha_base.ClusterProtocol):
                                 'argnames', array_to_json(t.argnames)
                             ) AS c
                         FROM
-                            ROWS FROM(edgedb._get_cached_reflection())
+                            ROWS FROM(edgedb_VER._get_cached_reflection())
                                 AS t(eql_hash text, argnames text[])
                     ) AS o;
-                """,
+                """).encode('utf-8'),
             )
 
             reflection_cache = immutables.Map(

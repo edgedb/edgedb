@@ -7,7 +7,7 @@ use pyo3::types::{PyBytes, PyList, PyString};
 use crate::errors::{parser_error_into_tuple, ParserResult};
 
 #[pyfunction]
-pub fn tokenize(py: Python, s: &PyString) -> PyResult<ParserResult> {
+pub fn tokenize(py: Python, s: &Bound<PyString>) -> PyResult<ParserResult> {
     let data = s.to_string();
 
     let mut token_stream = Tokenizer::new(&data[..]).validated_values().with_eof();
@@ -29,7 +29,7 @@ pub fn tokenize(py: Python, s: &PyString) -> PyResult<ParserResult> {
 
     let tokens = tokens_to_py(py, tokens)?;
 
-    let errors = PyList::new(py, errors.as_slice()).into_py(py);
+    let errors = PyList::new_bound(py, errors.as_slice()).into_py(py);
 
     Ok(ParserResult {
         out: tokens.into_py(py),
@@ -54,7 +54,7 @@ impl OpaqueToken {
             .map_err(|e| PyValueError::new_err(format!("Failed to reduce: {e}")))?;
 
         let tok = get_unpickle_token_fn(py);
-        Ok((tok, (PyBytes::new(py, &data).to_object(py),)))
+        Ok((tok, (PyBytes::new_bound(py, &data).to_object(py),)))
     }
 }
 
@@ -67,7 +67,7 @@ pub fn tokens_to_py(py: Python<'_>, rust_tokens: Vec<Token>) -> PyResult<PyObjec
 
         buf.push(py_tok.into_py(py));
     }
-    Ok(PyList::new(py, &buf[..]).into_py(py))
+    Ok(PyList::new_bound(py, &buf[..]).into_py(py))
 }
 
 /// To support pickle serialization of OpaqueTokens, we need to provide a
@@ -79,7 +79,7 @@ pub fn tokens_to_py(py: Python<'_>, rust_tokens: Vec<Token>) -> PyResult<PyObjec
 /// A bit hackly, but it works.
 static FN_UNPICKLE_TOKEN: OnceCell<PyObject> = OnceCell::new();
 
-pub fn fini_module(py: Python, m: &PyModule) {
+pub fn fini_module(py: Python, m: &Bound<PyModule>) {
     let _unpickle_token = m.getattr("unpickle_token").unwrap();
     FN_UNPICKLE_TOKEN
         .set(_unpickle_token.to_object(py))
@@ -87,7 +87,7 @@ pub fn fini_module(py: Python, m: &PyModule) {
 }
 
 #[pyfunction]
-pub fn unpickle_token(bytes: &PyBytes) -> PyResult<OpaqueToken> {
+pub fn unpickle_token(bytes: &Bound<PyBytes>) -> PyResult<OpaqueToken> {
     let token = bincode::deserialize(bytes.as_bytes())
         .map_err(|e| PyValueError::new_err(format!("Failed to read token: {e}")))?;
     Ok(OpaqueToken { inner: token })

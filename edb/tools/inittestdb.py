@@ -57,7 +57,9 @@ async def execute(tests_dir, conn, num_workers, include):
         argv=['unittest', 'discover', '-s', tests_dir, *include],
         testRunner=runner, exit=False)
 
-    await tb.setup_test_cases(runner.cases, conn, num_workers)
+    await tb.setup_test_cases(
+        runner.cases, conn, num_workers, skip_empty_databases=True
+    )
 
 
 def die(msg):
@@ -120,7 +122,6 @@ async def _inittestdb(
             print(f'Bootstrapping test EdgeDB instance in {data_dir}...')
             await cluster.init()
         await cluster.start(port=0)
-        await cluster.trust_local_connections()
     except BaseException:
         if not update:
             if os.path.exists(data_dir):

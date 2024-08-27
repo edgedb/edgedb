@@ -1119,11 +1119,13 @@ setuptools.setup(
         setuptools_rust.RustExtension(
             "edb._edgeql_parser",
             path="edb/edgeql-parser/edgeql-parser-python/Cargo.toml",
+            features=["python_extension"],
             binding=setuptools_rust.Binding.PyO3,
         ),
         setuptools_rust.RustExtension(
             "edb._graphql_rewrite",
             path="edb/graphql-rewrite/Cargo.toml",
+            features=["python_extension"],
             binding=setuptools_rust.Binding.PyO3,
         ),
         setuptools_rust.RustExtension(

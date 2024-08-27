@@ -15,7 +15,7 @@ use crate::normalize::{normalize as _normalize, Error, PackedEntry, Variable};
 use crate::tokenizer::tokens_to_py;
 
 #[pyfunction]
-pub fn normalize(py: Python<'_>, text: &PyString) -> PyResult<Entry> {
+pub fn normalize(py: Python<'_>, text: &Bound<PyString>) -> PyResult<Entry> {
     let text = text.to_string();
     match _normalize(&text) {
         Ok(entry) => Entry::new(py, entry),
@@ -63,12 +63,12 @@ impl Entry {
             .collect();
 
         Ok(Entry {
-            key: PyBytes::new(py, &entry.hash[..]).into(),
+            key: PyBytes::new_bound(py, &entry.hash[..]).into(),
             tokens: tokens_to_py(py, entry.tokens.clone())?,
             extra_blobs: blobs.into(),
             extra_named: entry.named_args,
             first_extra: entry.first_arg,
-            extra_counts: PyList::new(py, &counts[..]).into(),
+            extra_counts: PyList::new_bound(py, &counts[..]).into(),
             entry_pack: entry.into(),
         })
     }
@@ -77,7 +77,7 @@ impl Entry {
 #[pymethods]
 impl Entry {
     fn get_variables(&self, py: Python) -> PyResult<PyObject> {
-        let vars = PyDict::new(py);
+        let vars = PyDict::new_bound(py);
         let first = match self.first_extra {
             Some(first) => first,
             None => return Ok(vars.to_object(py)),
@@ -98,7 +98,7 @@ impl Entry {
         let mut buf = vec![1u8]; // type and version
         bincode::serialize_into(&mut buf, &self.entry_pack)
             .map_err(|e| PyValueError::new_err(format!("Failed to pack: {e}")))?;
-        Ok(PyBytes::new(py, buf.as_slice()).into())
+        Ok(PyBytes::new_bound(py, buf.as_slice()).into())
     }
 }
 
@@ -167,14 +167,13 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
 pub fn serialize_all<'a>(
     py: Python<'a>,
     variables: &[Vec<Variable>],
-) -> Result<&'a PyList, String> {
+) -> Result<Bound<'a, PyList>, String> {
     let mut buf = Vec::with_capacity(variables.len());
     for vars in variables {
         let bytes = serialize_extra(vars)?;
-        let pybytes = PyBytes::new(py, &bytes).as_ref();
-        buf.push(pybytes);
+        buf.push(PyBytes::new_bound(py, &bytes));
     }
-    Ok(PyList::new(py, buf.as_slice()))
+    Ok(PyList::new_bound(py, &buf))
 }
 
 pub fn value_to_py_object(py: Python, val: &Value) -> PyResult<PyObject> {
@@ -183,13 +182,13 @@ pub fn value_to_py_object(py: Python, val: &Value) -> PyResult<PyObject> {
         Value::String(v) => v.into_py(py),
         Value::Float(v) => v.into_py(py),
         Value::BigInt(v) => py
-            .get_type::<PyLong>()
+            .get_type_bound::<PyLong>()
             .call((v, 16.into_py(py)), None)?
             .into(),
         Value::Decimal(v) => py
-            .get_type::<PyFloat>()
+            .get_type_bound::<PyFloat>()
             .call((v.to_string(),), None)?
             .into(),
-        Value::Bytes(v) => PyBytes::new(py, v).into(),
+        Value::Bytes(v) => PyBytes::new_bound(py, v).into(),
     })
 }

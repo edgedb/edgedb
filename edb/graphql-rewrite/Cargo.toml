@@ -8,16 +8,18 @@ edition = "2021"
 [lints]
 workspace = true
 
+[features]
+python_extension = ["pyo3/extension-module"]
+default = ["python_extension"]
+
 [dependencies]
+pyo3 = { workspace = true, optional = true }
+
 combine = "3.8"
 thiserror = "1.0.11"
 num-bigint = "0.4.3"
 num-traits = "0.2.11"
 edb-graphql-parser = { git="https://github.com/edgedb/graphql-parser" }
-
-[dependencies.pyo3]
-version = "0.20.2"
-features = ["extension-module"]
 
 [dev-dependencies]
 pretty_assertions = "1.2.0"

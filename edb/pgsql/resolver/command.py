@@ -342,21 +342,22 @@ def _uncompile_insert_object_stmt(
         value_columns.append((ptr_name, is_link))
 
         # inject type annotation into value relation
-        if is_link:
+        if is_link or ptr_name == 'id':
             _try_inject_type_cast(
                 value_relation, index, pgast.TypeName(name=('uuid',))
             )
 
         # prepare the outputs of the source CTE
         ptr_id = _get_ptr_id(value_id, ptr, ctx)
-        output_var = pgast.ColumnRef(name=(ptr_name,), nullable=True)
+        output = pgast.ColumnRef(name=(ptr_name,), nullable=True)
         if is_link:
-            value_rel.path_outputs[(ptr_id, pgce.PathAspect.IDENTITY)] = (
-                output_var
-            )
-            value_rel.path_outputs[(ptr_id, pgce.PathAspect.VALUE)] = output_var
+            value_rel.path_outputs[(ptr_id, pgce.PathAspect.IDENTITY)] = output
+            value_rel.path_outputs[(ptr_id, pgce.PathAspect.VALUE)] = output
         else:
-            value_rel.path_outputs[(ptr_id, pgce.PathAspect.VALUE)] = output_var
+            value_rel.path_outputs[(ptr_id, pgce.PathAspect.VALUE)] = output
+
+        if ptr_name == 'id':
+            value_rel.path_outputs[(value_id, pgce.PathAspect.VALUE)] = output
 
         # prepare insert shape that will use the paths from source_outputs
         insert_shape.append(
@@ -373,9 +374,10 @@ def _uncompile_insert_object_stmt(
     # Here we only decide on the name of that iterator column, the actual column
     # is generated later, when resolving the DML stmt.
     value_iterator = ctx.alias_generator.get('iter')
-    output_var = pgast.ColumnRef(name=(value_iterator,))
-    value_rel.path_outputs[(value_id, pgce.PathAspect.ITERATOR)] = output_var
-    value_rel.path_outputs[(value_id, pgce.PathAspect.VALUE)] = output_var
+    output = pgast.ColumnRef(name=(value_iterator,))
+    value_rel.path_outputs[(value_id, pgce.PathAspect.ITERATOR)] = output
+    if not any(c.name == 'id' for c in expected_columns):
+        value_rel.path_outputs[(value_id, pgce.PathAspect.VALUE)] = output
 
     # construct the EdgeQL DML AST
     sub_name = sub.get_name(ctx.schema)
@@ -837,6 +839,8 @@ def _uncompile_delete_object_stmt(
             pgast.RelRangeVar(
                 relation=stmt.relation.relation,
                 alias=pgast.Alias(aliasname=val_sub_rvar),
+                # DELETE ONLY
+                include_inherited=stmt.relation.include_inherited,
             )
         ]
         + stmt.using_clause,
@@ -868,13 +872,15 @@ def _uncompile_delete_object_stmt(
 
     # construct the EdgeQL DML AST
     sub_name = sub.get_name(ctx.schema)
+    where = qlast.BinOp(
+        left=qlast.Path(partial=True, steps=[qlast.Ptr(name='id')]),
+        op='IN',
+        right=qlast.Path(steps=[value_ql, qlast.Ptr(name='id')]),
+    )
+
     ql_stmt: qlast.Expr = qlast.DeleteQuery(
         subject=qlast.Path(steps=[s_utils.name_to_ast_ref(sub_name)]),
-        where=qlast.BinOp(
-            left=qlast.Path(partial=True, steps=[qlast.Ptr(name='id')]),
-            op='IN',
-            right=qlast.Path(steps=[value_ql, qlast.Ptr(name='id')]),
-        ),
+        where=where,
     )
 
     ql_returning_shape: List[qlast.ShapeElement] = []
@@ -1207,6 +1213,8 @@ def _uncompile_update_object_stmt(
             pgast.RelRangeVar(
                 relation=stmt.relation.relation,
                 alias=pgast.Alias(aliasname=val_sub_rvar),
+                # UPDATE ONLY
+                include_inherited=stmt.relation.include_inherited,
             )
         ]
         + stmt.from_clause,
@@ -1292,13 +1300,15 @@ def _uncompile_update_object_stmt(
     sub_name = sub.get_name(ctx.schema)
     ql_sub_ref = s_utils.name_to_ast_ref(sub_name)
 
+    where = qlast.BinOp(  # ObjectType == value.source
+        left=qlast.Path(steps=[ql_sub_ref]),
+        op='=',
+        right=qlast.Path(steps=[value_ql]),
+    )
+
     ql_stmt: qlast.Expr = qlast.UpdateQuery(
         subject=qlast.Path(steps=[ql_sub_ref]),
-        where=qlast.BinOp(  # ObjectType == value.source
-            left=qlast.Path(steps=[ql_sub_ref]),
-            op='=',
-            right=qlast.Path(steps=[value_ql]),
-        ),
+        where=where,
         shape=update_shape,
     )
 

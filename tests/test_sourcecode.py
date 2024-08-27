@@ -108,7 +108,7 @@ class TestCodeQuality(unittest.TestCase):
                 raise AssertionError(
                     f'mypy validation failed:\n{output}') from None
 
-    def test_clippy(self):
+    def test_cqa_rust_clippy(self):
         edgepath = find_edgedb_root()
         config_path = os.path.join(edgepath, 'Cargo.toml')
         if not os.path.exists(config_path):
@@ -134,7 +134,7 @@ class TestCodeQuality(unittest.TestCase):
             raise AssertionError(
                 f'clippy validation failed:\n{output}') from None
 
-    def test_rustfmt(self):
+    def test_cqa_rust_rustfmt(self):
         edgepath = find_edgedb_root()
         config_path = os.path.join(edgepath, 'Cargo.toml')
         if not os.path.exists(config_path):

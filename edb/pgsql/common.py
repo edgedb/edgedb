@@ -179,8 +179,16 @@ def versioned_schema(s: str, version: Optional[int]=None) -> str:
     return f'{s}_v{version}'
 
 
-def maybe_versioned_schema(s: str, version: Optional[int]=None) -> str:
-    return versioned_schema(s, version=version) if s in VERSIONED_SCHEMAS else s
+def maybe_versioned_schema(
+    s: str,
+    version: Optional[int]=None,
+    versioned: bool=True,
+) -> str:
+    return (
+        versioned_schema(s, version=version)
+        if versioned and s in VERSIONED_SCHEMAS
+        else s
+    )
 
 
 def versioned_name(

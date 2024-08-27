@@ -338,7 +338,7 @@ impl ConnPool {
             .map_err(|_| internal_error("In shutdown"))
     }
 
-    fn _failed(&self, id: u64, error: PyObject) -> PyResult<()> {
+    fn _failed(&self, id: u64, _error: PyObject) -> PyResult<()> {
         self.python_to_rust
             .send(PythonToRustMessage::FailedAsync(ConnHandleId(id)))
             .map_err(|_| internal_error("In shutdown"))
@@ -376,7 +376,7 @@ struct LoggingGuard {
 impl LoggingGuard {
     #[new]
     fn init_logging(py: Python) -> PyResult<LoggingGuard> {
-        let logging = py.import("logging")?;
+        let logging = py.import_bound("logging")?;
         let logger = logging
             .getattr("getLogger")?
             .call(("edb.server.connpool",), None)?;
@@ -459,10 +459,10 @@ impl LoggingGuard {
 }
 
 #[pymodule]
-fn _conn_pool(py: Python, m: &PyModule) -> PyResult<()> {
+fn _conn_pool(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<ConnPool>()?;
     m.add_class::<LoggingGuard>()?;
-    m.add("InternalError", py.get_type::<InternalError>())?;
+    m.add("InternalError", py.get_type_bound::<InternalError>())?;
 
     Ok(())
 }

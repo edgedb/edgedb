@@ -13,14 +13,14 @@ pub struct Hasher {
 #[pymethods]
 impl Hasher {
     #[staticmethod]
-    fn start_migration(parent_id: &PyString) -> PyResult<Hasher> {
+    fn start_migration(parent_id: &Bound<PyString>) -> PyResult<Hasher> {
         let hasher = hash::Hasher::start_migration(parent_id.to_str()?);
         Ok(Hasher {
             _hasher: RefCell::new(Some(hasher)),
         })
     }
 
-    fn add_source(&self, py: Python, data: &PyString) -> PyResult<PyObject> {
+    fn add_source(&self, py: Python, data: &Bound<PyString>) -> PyResult<PyObject> {
         let text = data.to_str()?;
         let mut cell = self._hasher.borrow_mut();
         let hasher = cell

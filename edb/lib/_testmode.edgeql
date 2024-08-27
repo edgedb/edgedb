@@ -371,6 +371,13 @@ std::_current_setting(sqlname: str) -> OPTIONAL std::str {
 };
 
 
+create function std::_set_config(sqlname: std::str, val: std::str) -> std::str {
+    using sql $$
+      select set_config(sqlname, val, true)
+    $$;
+};
+
+
 CREATE MODULE std::_test;
 
 

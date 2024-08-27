@@ -420,8 +420,12 @@ def value_from_json(spec, setting, value: str):
     return value_from_json_value(spec, setting, json.loads(value))
 
 
-def value_to_edgeql_const(type: type | types.ConfigTypeSpec, value: Any) -> str:
-    ql = s_utils.const_ast_from_python(value)
+def value_to_edgeql_const(
+    type: type | types.ConfigTypeSpec,
+    value: Any,
+    with_secrets: bool,
+) -> str:
+    ql = s_utils.const_ast_from_python(value, with_secrets=with_secrets)
     return qlcodegen.generate_source(ql)
 
 
@@ -498,11 +502,15 @@ def to_edgeql(
                 # a subtype could have a secret that the parent doesn't.
                 if x._tspec.has_secret and not with_secrets:
                     continue
-                val = value_to_edgeql_const(setting.type, x)
+                val = value_to_edgeql_const(
+                    setting.type, x, with_secrets=with_secrets
+                )
                 stmt = f'CONFIGURE {value.scope.to_edgeql()}\n{val};'
                 stmts.append(stmt)
         else:
-            val = value_to_edgeql_const(setting.type, value.value)
+            val = value_to_edgeql_const(
+                setting.type, value.value, with_secrets=with_secrets
+            )
             stmt = f'CONFIGURE {value.scope.to_edgeql()} SET {name} := {val};'
             stmts.append(stmt)
 

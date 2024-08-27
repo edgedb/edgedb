@@ -1,3 +1,4 @@
+#![cfg(feature = "python_extension")]
 use std::collections::BTreeMap;
 
 use edb_graphql_parser::Pos;

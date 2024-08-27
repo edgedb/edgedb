@@ -143,7 +143,7 @@ fn impl_struct_into_python(struct_: &mut syn::ItemStruct) -> TokenStream {
             ) -> cpython::PyResult<cpython::PyObject> {
                 use crate::into_python::IntoPython;
 
-                let kw_args = parent_kw_args.unwrap_or_else(|| cpython::PyDict::new(py));
+                let kw_args = parent_kw_args.unwrap_or_else(|| cPython::PyDict::new_bound(py));
                 #(#property_assigns)*
 
                 #init

@@ -133,14 +133,6 @@ SET {
 };
 
 
-# Add a function that disables sequential scan.
-create function _set_seqscan(val: std::str) -> std::str {
-    using sql $$
-      select set_config('enable_seqscan', val, true)
-    $$;
-};
-
-
 # Generate some data ...
 for i in range_unpack(range(1, 10)) union (
   with u := (insert User { name := <str>i }),

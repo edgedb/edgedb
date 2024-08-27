@@ -112,6 +112,14 @@ base64url encode the resulting string. This new string is called the
    };
 
 
+.. note::
+
+    For EdgeDB versions before 5.0, the value for ``EDGEDB_AUTH_BASE_URL``
+    in the above snippet should have the form:
+
+    ``${protocol}://${host}:${port}/db/${database}/ext/auth/``
+
+
 Redirect users to Identity Provider
 -----------------------------------
 
