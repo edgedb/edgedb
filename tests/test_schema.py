@@ -9959,10 +9959,10 @@ class TestDescribe(BaseDescribeTest):
             type test::UniqueName {
                 link translated_label: test::Label {
                     extending test::translated_label;
-                    constraint std::exclusive on (__subject__@prop1);
                     constraint std::exclusive on (
                         (__subject__@source, __subject__@lang)
                     );
+                    constraint std::exclusive on (__subject__@prop1);
                 };
             };
             ''',
@@ -9994,9 +9994,9 @@ class TestDescribe(BaseDescribeTest):
                 };
                 optional single link translated_label: test::Label {
                     extending test::translated_label;
-                    constraint std::exclusive on (__subject__@prop1);
                     constraint std::exclusive on (
                         (__subject__@source, __subject__@lang));
+                    constraint std::exclusive on (__subject__@prop1);
                     optional single property lang: std::str;
                     optional single property prop1: std::str;
                 };
