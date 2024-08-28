@@ -22,14 +22,15 @@ from __future__ import annotations
 from typing import (
     Any,
     Callable,
+    Dict,
+    FrozenSet,
+    Iterable,
     Optional,
+    Set,
     Tuple,
     Type,
-    Dict,
-    Set,
-    FrozenSet,
-    overload,
     TYPE_CHECKING,
+    overload,
 )
 
 import uuid
@@ -925,52 +926,94 @@ def get_tuple_element_index(ptrref: irast.TupleIndirectionPointerRef) -> int:
 
 def type_contains(
     parent: irast.TypeRef,
-    typeref: irast.TypeRef,
+    child: irast.TypeRef,
 ) -> bool:
-    """Check if *parent* typeref contains the given *typeref*.
+    """Check if *parent* typeref contains the given *child* typeref.
 
-    *Containment* here means that either *parent* == *typeref* or, if
-    *parent* is a compound type, *typeref* is properly contained within
-    a compound type.
+    Both *parent* and *child* can be type expressions.
     """
-
-    if typeref == parent:
+    if parent == child:
         return True
 
-    elif typeref.expr_union:
-        # A union is considered a subtype of a type, if
-        # ALL its components are subtypes of that type.
-        return all(
-            type_contains(parent, component)
-            for component in typeref.expr_union
+    # Calculate the minterms of both *parent* and *child*.
+    parent_minterms = _disjunctive_normal_form(parent)
+    child_minterms = _disjunctive_normal_form(child)
+
+    # The *parent* contains *child* if each child minterm is contained
+    # by a parent minterm.
+    #
+    # Examples
+    # - [A] contains [AB]
+    # - [A,B] contains [A]
+    # - [AB] does not contain [A]
+    # - [A] does not contain [A,B]
+    # - [AB,CD] does not contain [BD]
+    return all(
+        any(
+            c.issuperset(p)
+            for p in parent_minterms
+        )
+        for c in child_minterms
+    )
+
+
+def _disjunctive_normal_form(
+    typeref: irast.TypeRef
+) -> list[set[uuid.UUID]]:
+    """Convert any typeref into a minimal disjunctive normal form.
+
+    In the result:
+    - The outer list represents unions.
+    - The inner sets represent intersections of simple types (ie. minterms).
+
+    Duplicate and superset minterms are removed as redundant.
+    """
+
+    def simplify(
+        expr: Iterable[set[uuid.UUID]]
+    ) -> list[set[uuid.UUID]]:
+        # Remove any minterms which imply others
+        # eg. [A, AB, BC] -> [A, BC]
+        minterms_by_length = sorted(
+            expr,
+            key=lambda i: len(i)
+        )
+
+        result: list[set[uuid.UUID]] = []
+        for minterm in minterms_by_length:
+            if not any(
+                minterm.issuperset(r)
+                for r in result
+            ):
+                result.append(minterm)
+
+        return result
+
+    if typeref.expr_union:
+        return simplify(
+            minterm
+            for t in typeref.expr_union
+            for minterm in _disjunctive_normal_form(t)
         )
 
     elif typeref.expr_intersection:
-        # An intersection is considered a subtype of a type, if
-        # ANY of its components are subtypes of that type.
-        return any(
-            type_contains(parent, component)
-            for component in typeref.expr_intersection
-        )
+        components = [
+            _disjunctive_normal_form(t)
+            for t in typeref.expr_intersection
+        ]
 
-    elif parent.expr_union:
-        # A type is considered a subtype of a union type,
-        # if it is a subtype of ANY of the union components.
-        return any(
-            type_contains(component, typeref)
-            for component in parent.expr_union
-        )
+        result = components[0]
+        for other in components[1:]:
+            result = [
+                set.union(r, o)
+                for r in result
+                for o in other
+            ]
 
-    elif parent.expr_intersection:
-        # A type is considered a subtype of an intersection type,
-        # if it is a subtype of ALL of the intersection components.
-        return any(
-            type_contains(component, typeref)
-            for component in parent.expr_intersection
-        )
+        return simplify(result)
 
     else:
-        return False
+        return [{typeref.id}]
 
 
 def find_actual_ptrref(

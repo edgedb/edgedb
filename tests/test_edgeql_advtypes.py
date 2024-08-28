@@ -564,6 +564,65 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
             [{'name': 'vvv'}],
         )
 
+    async def test_edgeql_advtypes_complex_intersection_16(self):
+        # Testing finding path var for type intersections (#7656)
+        await self._setup_basic_data()
+        await self.assert_query_result(
+            r"""
+            SELECT {CBa, Ba[is Bb]} {
+                tn := .__type__.name,
+                [IS Ba].ba,
+            }
+            ORDER BY .ba EMPTY LAST;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0'},
+                {'tn': 'default::CBa', 'ba': 'cba1'},
+                {'tn': 'default::CBaBb', 'ba': 'cba2'},
+                {'tn': 'default::CBaBb', 'ba': 'cba3'},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8'},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9'},
+            ],
+        )
+
+        await self.assert_query_result(
+            r"""
+            SELECT {CBa, Bb[is Ba]} {
+                tn := .__type__.name,
+                [IS Ba].ba,
+            }
+            ORDER BY .ba EMPTY LAST;
+            """,
+            [
+                {'tn': 'default::CBa', 'ba': 'cba0'},
+                {'tn': 'default::CBa', 'ba': 'cba1'},
+                {'tn': 'default::CBaBb', 'ba': 'cba2'},
+                {'tn': 'default::CBaBb', 'ba': 'cba3'},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8'},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9'},
+            ],
+        )
+
+        await self.assert_query_result(
+            r"""
+            SELECT {Bb[is Ba], Bb[is Ba & Bc | CBaBb]} {
+                tn := .__type__.name,
+                [IS Ba].ba,
+            }
+            ORDER BY .ba EMPTY LAST;
+            """,
+            [
+                {'tn': 'default::CBaBb', 'ba': 'cba2'},
+                {'tn': 'default::CBaBb', 'ba': 'cba2'},
+                {'tn': 'default::CBaBb', 'ba': 'cba3'},
+                {'tn': 'default::CBaBb', 'ba': 'cba3'},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8'},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba8'},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9'},
+                {'tn': 'default::CBaBbBc', 'ba': 'cba9'},
+            ],
+        )
+
     async def test_edgeql_advtypes_complex_polymorphism_01(self):
         await self._setup_basic_data()
         await self.assert_query_result(
