@@ -1134,5 +1134,11 @@ setuptools.setup(
             features=["python_extension"],
             binding=setuptools_rust.Binding.PyO3,
         ),
+        setuptools_rust.RustExtension(
+            "edb.server._pg_rust",
+            path="edb/server/pgrust/Cargo.toml",
+            features=["python_extension"],
+            binding=setuptools_rust.Binding.PyO3,
+        ),
     ],
 )
