@@ -932,6 +932,8 @@ def type_contains(
 
     Both *parent* and *child* can be type expressions.
     """
+    if parent == child:
+        return True
 
     # Calculate the minterms of both *parent* and *child*.
     parent_minterms = _disjunctive_normal_form(parent)
