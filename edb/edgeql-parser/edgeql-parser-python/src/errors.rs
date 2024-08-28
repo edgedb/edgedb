@@ -20,16 +20,16 @@ pub struct ParserResult {
 #[pymethods]
 impl ParserResult {
     fn pack(&self, py: Python) -> PyResult<PyObject> {
-        let tokens: &PyList = self.out.downcast(py)?;
+        let tokens = self.out.downcast_bound::<PyList>(py)?;
         let mut rv = Vec::with_capacity(tokens.len());
         for token in tokens {
-            let token: &PyCell<OpaqueToken> = token.downcast()?;
+            let token: &Bound<OpaqueToken> = token.downcast()?;
             rv.push(token.borrow().inner.clone());
         }
         let mut buf = vec![0u8]; // type and version
         bincode::serialize_into(&mut buf, &rv)
             .map_err(|e| PyValueError::new_err(format!("Failed to pack: {e}")))?;
-        Ok(PyBytes::new(py, buf.as_slice()).into())
+        Ok(PyBytes::new_bound(py, buf.as_slice()).into())
     }
 }
 

@@ -625,7 +625,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             runstate_dir=None if devmode.is_in_dev_mode() else td,
             reset_auth=True,
             ignore_other_tenants=True,
-            env={'EDGEDB_TEST_CATALOG_VERSION': '3022_01_07_00_00'},
+            env={'EDGEDB_SERVER_TENANT_ID': 'asdf'},
         ) as sd:
             con = await sd.connect()
             await con.aclose()

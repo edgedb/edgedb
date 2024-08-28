@@ -258,6 +258,7 @@ class EdgeQL:
         "ext",
         "fts",
         "math",
+        "net",
         "pg",
         "schema",
         "std",
