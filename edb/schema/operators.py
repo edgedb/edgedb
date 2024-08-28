@@ -68,6 +68,12 @@ class Operator(
     code = so.SchemaField(
         str, default=None, compcoef=0.4)
 
+    # An unused dummy field. We have this here to make it easier to
+    # test the *removal* of internal schema fields during in-place
+    # upgrades.
+    _dummy_field = so.SchemaField(
+        str, default=None)
+
     # If this is a derivative operator, *derivative_of* would
     # contain the name of the origin operator.
     # For example, the `std::IN` operator has `std::=`
