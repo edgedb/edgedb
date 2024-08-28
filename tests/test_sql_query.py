@@ -1275,9 +1275,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         self.assertEqual(res, [[1]])
 
     async def test_sql_query_error_12(self):
-        print('tran')
         tran = self.scon.transaction()
-        print('start')
         await tran.start()
 
         with self.assertRaisesRegex(
@@ -1285,11 +1283,8 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             'invalid input syntax for type uuid',
             position="8",
         ):
-            print('query')
             await self.scon.fetch("""SELECT 'bad uuid'::uuid""")
-        # await self.scon.fetch("""SELECT 1""")
 
-        print('rollback')
         await tran.rollback()
 
         # test that the connection has not be spuriously closed
