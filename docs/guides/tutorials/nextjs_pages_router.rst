@@ -125,7 +125,42 @@ something like this.
 Initializing EdgeDB
 -------------------
 
-Now let's spin up a database for the app. First, install the ``edgedb`` CLI.
+Now let's spin up a database for the app. You have two options to initialize 
+an EdgeDB project: using npx edgedb without installing the CLI, or installing 
+the edgedb CLI directly.
+
+Option 1: Using ``npx edgedb``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you prefer not to install the EdgeDB CLI, you can still initialize the
+project by using ``npx``. From the application's root directory, run the
+following command:
+
+.. code-block:: bash
+
+  $ npx edgedb project init
+  No `edgedb.toml` found in `~/nextjs-blog` or above
+  Do you want to initialize a new project? [Y/n]
+  > Y
+  Specify the name of EdgeDB instance to use with this project [default:
+  nextjs_blog]:
+  > nextjs_blog
+  Checking EdgeDB versions...
+  Specify the version of EdgeDB to use with this project [default: x.x]:
+  >
+  ┌─────────────────────┬──────────────────────────────────────────────┐
+  │ Project directory   │ ~/nextjs-blog                                │
+  │ Project config      │ ~/nextjs-blog/edgedb.toml                    │
+  │ Schema dir (empty)  │ ~/nextjs-blog/dbschema                       │
+  │ Installation method │ portable package                             │
+  │ Start configuration │ manual                                       │
+  │ Version             │ x.x                                          │
+  │ Instance name       │ nextjs_blog                                  │
+  └─────────────────────┴──────────────────────────────────────────────┘
+  Initializing EdgeDB instance...
+  Applying migrations...
+  Everything is up to date. Revision initial.
+  Project initialized.
 
 **Linux or macOS**
 
@@ -171,6 +206,15 @@ directory. You'll be presented with a series of prompts.
   Applying migrations...
   Everything is up to date. Revision initial.
   Project initialized.
+
+Next steps
+~~~~~~~~~~
+
+.. note::
+
+   Throughout this tutorial, we refer to the ``edgedb`` command. If you haven't
+   installed the EdgeDB CLI, you can use ``npx edgedb`` in place of
+   ``edgedb`` for all commands.
 
 This process has spun up an EdgeDB instance called ``nextjs-blog`` and
 "linked" it with your current directory. As long as you're inside that
