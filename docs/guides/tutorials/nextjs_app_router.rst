@@ -128,15 +128,13 @@ Initializing EdgeDB
 -------------------
 
 Now let's spin up a database for the app. You have two options to initialize 
-an EdgeDB project: using npx edgedb without installing the CLI, or installing 
-the edgedb CLI directly.
+an EdgeDB project: using ``npx edgedb`` without installing the CLI, or 
+installing the edgedb CLI directly. In this tutorial, we'll use the first
+option. If you prefer to install the CLI, see the 
+`EdgeDB CLI installation guide <https://docs.edgedb.com/cli>`_ 
+for more information.
 
-Option 1: Using ``npx edgedb``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-If you prefer not to install the EdgeDB CLI, you can still initialize the
-project by using ``npx``. From the application's root directory, run the
-following command:
+From the application's root directory, run the following command:
 
 .. code-block:: bash
 
@@ -163,65 +161,6 @@ following command:
   Applying migrations...
   Everything is up to date. Revision initial.
   Project initialized.
-
-Option 2: Installing the EdgeDB CLI
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-If you'd rather install the CLI directly, follow the steps below.
-
-**Linux or macOS**
-
-.. code-block:: bash
-
-    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
-
-**Windows Powershell**
-
-.. code-block:: powershell
-
-    PS> iwr https://ps1.edgedb.com -useb | iex
-
-Then check that the CLI is available with the ``edgedb --version`` command. If
-you get a ``Command not found`` error, you may need to open a new terminal
-window before the ``edgedb`` command is available.
-
-Once the CLI is installed, initialize a project from the application's root
-directory. You'll be presented with a series of prompts.
-
-.. code-block:: bash
-
-  $ edgedb project init
-  No `edgedb.toml` found in `~/nextjs-blog` or above
-  Do you want to initialize a new project? [Y/n]
-  > Y
-  Specify the name of EdgeDB instance to use with this project [default:
-  nextjs_blog]:
-  > nextjs_blog
-  Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: x.x]:
-  >
-  ┌─────────────────────┬──────────────────────────────────────────────┐
-  │ Project directory   │ ~/nextjs-blog                                │
-  │ Project config      │ ~/nextjs-blog/edgedb.toml                    │
-  │ Schema dir (empty)  │ ~/nextjs-blog/dbschema                       │
-  │ Installation method │ portable package                             │
-  │ Start configuration │ manual                                       │
-  │ Version             │ x.x                                          │
-  │ Instance name       │ nextjs_blog                                  │
-  └─────────────────────┴──────────────────────────────────────────────┘
-  Initializing EdgeDB instance...
-  Applying migrations...
-  Everything is up to date. Revision initial.
-  Project initialized.
-
-Next steps
-~~~~~~~~~~
-
-.. note::
-
-   Throughout this tutorial, we refer to the ``edgedb`` command. If you haven't
-   installed the EdgeDB CLI, you can use ``npx edgedb`` in place of
-   ``edgedb`` for all commands.
 
 This process has spun up an EdgeDB instance called ``nextjs_blog`` and
 associated it with your current directory. As long as you're inside that
@@ -278,7 +217,7 @@ Save the file, then let's create our first migration.
 
 .. code-block:: bash
 
-  $ edgedb migration create
+  $ npx edgedb migration create
   did you create object type 'default::BlogPost'? [y,n,l,c,b,s,q,?]
   > y
   Created ./dbschema/migrations/00001.edgeql
@@ -289,7 +228,7 @@ our database. Let's do that.
 
 .. code-block:: bash
 
-  $ edgedb migrate
+  $ npx edgedb migrate
   Applied m1fee6oypqpjrreleos5hmivgfqg6zfkgbrowx7sw5jvnicm73hqdq (00001.edgeql)
 
 Our database now has a schema consisting of the ``BlogPost`` type. We can
@@ -586,7 +525,7 @@ Run the following command to migrate the project to the EdgeDB Cloud:
 
 .. code-block:: bash
 
-  $ edgedb migrate -I <org>/<instance-name>
+  $ npx edgedb migrate -I <org>/<instance-name>
 
 .. note::
 
@@ -595,8 +534,8 @@ Run the following command to migrate the project to the EdgeDB Cloud:
 
 .. code-block:: bash
 
-  $ edgedb dump <your-dump.dump>
-  $ edgedb restore -I <org>/<instance-name> <your-dump.dump>
+  $ npx edgedb dump <your-dump.dump>
+  $ npx edgedb restore -I <org>/<instance-name> <your-dump.dump>
 
 The migrations and schema will be automatically applied to the 
 cloud instance.
@@ -674,7 +613,7 @@ Use the DSN to apply migrations against your remote instance.
 
 .. code-block:: bash
 
-  $ edgedb migrate --dsn <your-instance-dsn> --tls-security insecure
+  $ npx edgedb migrate --dsn <your-instance-dsn> --tls-security insecure
 
 .. note::
 
@@ -687,7 +626,7 @@ database. Open a REPL and ``insert`` some blog posts:
 
 .. code-block:: bash
 
-  $ edgedb --dsn <your-instance-dsn> --tls-security insecure
+  $ npx edgedb --dsn <your-instance-dsn> --tls-security insecure
   EdgeDB x.x (repl x.x)
   Type \help for help, \quit to quit.
   edgedb> insert BlogPost { title := "Test post" };
