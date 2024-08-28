@@ -933,14 +933,43 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                         self.new_lines = 1
                     self.visit_list(list(items), terminator=';')
             elif self.descmode or self.sdlmode:
-                sort_key = lambda c: (
-                    (c.name.itemclass or '', c.name.name)
-                    if isinstance(c, qlast.ObjectDDL)
-                    else ('', c.name if isinstance(c, qlast.SetField) else '')
+                sort_desc_or_sdl: Callable[
+                    [qlast.Base],
+                    tuple[str, ...]
+                ] = lambda c: (
+                    (
+                        (
+                            typeutils.not_none(c.name.itemclass),
+                            c.name.name,
+                            self.generate_isolated_text(c.subjectexpr)
+                            if c.subjectexpr is not None else
+                            '',
+                            self.generate_isolated_text(c.except_expr)
+                            if c.except_expr is not None else
+                            '',
+                        )
+                        if isinstance(c, qlast.ConcreteConstraintOp) else
+                        (
+                            typeutils.not_none(c.name.itemclass),
+                            c.name.name,
+                            self.generate_isolated_text(c.expr)
+                            if c.expr is not None else
+                            '',
+                            self.generate_isolated_text(c.except_expr)
+                            if c.except_expr is not None else
+                            '',
+                        )
+                        if isinstance(c, qlast.ConcreteIndexCommand) else
+                        (c.name.itemclass or '', c.name.name)
+                    )
+                    if isinstance(c, qlast.ObjectDDL) else
+                    ('', c.name)
+                    if isinstance(c, qlast.SetField) else
+                    ('', '')
                 )
 
                 if not self.unsorted:
-                    commands = sorted(commands, key=sort_key)
+                    commands = sorted(commands, key=sort_desc_or_sdl)
                 self.visit_list(list(commands), terminator=';')
             else:
                 self.visit_list(list(commands), terminator=';')
@@ -2432,15 +2461,24 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(opt.name)
 
     # SDL nodes
-    def visit_Schema(self, node: qlast.Schema) -> None:
-        sdl_codegen = self.__class__(
+    def copy_generator(self) -> EdgeQLSourceGenerator:
+        return self.__class__(
             indent_with=self.indent_with,
             add_line_information=self.add_line_information,
             pretty=self.pretty,
             unsorted=self.unsorted,
             sdlmode=True,
             descmode=self.descmode,
-            limit_ref_classes=self.limit_ref_classes)
+            limit_ref_classes=self.limit_ref_classes
+        )
+
+    def generate_isolated_text(self, node: qlast.Base) -> str:
+        sdl_codegen = self.copy_generator()
+        sdl_codegen.visit(node)
+        return ''.join(sdl_codegen.result)
+
+    def visit_Schema(self, node: qlast.Schema) -> None:
+        sdl_codegen = self.copy_generator()
         sdl_codegen.indentation = self.indentation
         sdl_codegen.current_line = self.current_line
         sdl_codegen.visit_list(node.declarations, terminator=';')
@@ -2479,9 +2517,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             _fix_parent_links(node)
 
         return super().to_source(
-            node, indent_with, add_line_information, pretty,
-            sdlmode=sdlmode, descmode=descmode, uppercase=uppercase,
-            unsorted=unsorted, limit_ref_classes=limit_ref_classes)
+            node,
+            indent_with,
+            add_line_information,
+            pretty,
+            sdlmode=sdlmode,
+            descmode=descmode,
+            uppercase=uppercase,
+            limit_ref_classes=limit_ref_classes,
+            unsorted=unsorted,
+        )
 
 
 def _fix_parent_links(node: qlast.Base) -> qlast.Base:
