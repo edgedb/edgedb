@@ -216,6 +216,7 @@ class EdgeQLDataMigrationTestCase(tb.DDLTestCase):
                 explicit_modules=explicit_modules,
             )
             await self.fast_forward_describe_migration(user_input=user_input)
+        await self.assert_last_migration()
 
     async def interact(self, parts, check_complete=True):
         for part in parts:
@@ -242,6 +243,25 @@ class EdgeQLDataMigrationTestCase(tb.DDLTestCase):
             await self.assert_describe_migration({
                 'complete': True
             })
+
+    async def assert_last_migration(self):
+        last_name = await self.con.query_single(
+            '''
+            select assert_single(
+                sys::Branch.last_migration
+                    filter sys::Branch.name = sys::get_current_database());
+            '''
+        )
+        last_mig = await self.con.query_single(
+            '''
+            select assert_single(
+                schema::Migration { name } filter not exists .<parents);
+            '''
+        )
+        if last_mig:
+            self.assertEqual(last_mig.name, last_name)
+        else:
+            self.assertIsNone(last_name)
 
 
 class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
@@ -12275,6 +12295,7 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
         self.assertEqual(len(res), 2)
 
         await self.con.query('reset schema to initial')
+        await self.assert_last_migration()
 
         res = await self.con.query('''
             select schema::ObjectType { name } filter .name ilike 'test::%'
@@ -12869,6 +12890,7 @@ class EdgeQLMigrationRewriteTestCase(EdgeQLDataMigrationTestCase):
         res = serutils.serialize(res)
         assert_data_shape.assert_data_shape(
             res, exp_result, self.fail)
+        await self.assert_last_migration()
 
 
 class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):

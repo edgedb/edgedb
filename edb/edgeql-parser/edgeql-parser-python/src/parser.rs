@@ -12,7 +12,7 @@ use crate::tokenizer::OpaqueToken;
 #[pyfunction]
 pub fn parse(
     py: Python,
-    start_token_name: &PyString,
+    start_token_name: &Bound<PyString>,
     tokens: PyObject,
 ) -> PyResult<(ParserResult, PyObject)> {
     let start_token_name = start_token_name.to_string();
@@ -30,14 +30,14 @@ pub fn parse(
         .into_iter()
         .map(|e| parser_error_into_tuple(py, e))
         .collect::<Vec<_>>();
-    let errors = PyList::new(py, &errors);
+    let errors = PyList::new_bound(py, &errors);
 
     let res = ParserResult {
         out: cst.into_py(py),
         errors: errors.into(),
     };
 
-    Ok((res, productions.clone()))
+    Ok((res, productions.to_object(py)))
 }
 
 #[pyclass]
@@ -75,12 +75,12 @@ fn downcast_tokens(
     start_token_name: &str,
     token_list: PyObject,
 ) -> PyResult<Vec<parser::Terminal>> {
-    let tokens: &PyList = token_list.downcast(py)?;
+    let tokens = token_list.downcast_bound::<PyList>(py)?;
 
     let mut buf = Vec::with_capacity(tokens.len() + 1);
     buf.push(parser::Terminal::from_start_name(start_token_name));
     for token in tokens.iter() {
-        let token: &PyCell<OpaqueToken> = token.downcast()?;
+        let token: &Bound<OpaqueToken> = token.downcast()?;
         let token = token.borrow().inner.clone();
 
         buf.push(parser::Terminal::from_token(token));
@@ -105,7 +105,7 @@ fn get_spec() -> PyResult<&'static (parser::Spec, PyObject)> {
 
 /// Loads the grammar specification from file and caches it in memory.
 #[pyfunction]
-pub fn preload_spec(py: Python, spec_filepath: &PyString) -> PyResult<()> {
+pub fn preload_spec(py: Python, spec_filepath: &Bound<PyString>) -> PyResult<()> {
     if PARSER_SPECS.get().is_some() {
         return Ok(());
     }
@@ -127,7 +127,7 @@ pub fn preload_spec(py: Python, spec_filepath: &PyString) -> PyResult<()> {
 ///
 /// Called from setup.py.
 #[pyfunction]
-pub fn save_spec(spec_json: &PyString, dst: &PyString) -> PyResult<()> {
+pub fn save_spec(spec_json: &Bound<PyString>, dst: &Bound<PyString>) -> PyResult<()> {
     let spec_json = spec_json.to_string();
     let spec: parser::SpecSerializable = serde_json::from_str(&spec_json)
         .map_err(|e| PyValueError::new_err(format!("Invalid JSON: {e}")))?;
@@ -142,15 +142,15 @@ pub fn save_spec(spec_json: &PyString, dst: &PyString) -> PyResult<()> {
 
 fn load_productions(py: Python<'_>, spec: &parser::Spec) -> PyResult<PyObject> {
     let grammar_name = "edb.edgeql.parser.grammar.start";
-    let grammar_mod = py.import(grammar_name)?;
+    let grammar_mod = py.import_bound(grammar_name)?;
     let load_productions = py
-        .import("edb.common.parsing")?
+        .import_bound("edb.common.parsing")?
         .getattr("load_spec_productions")?;
 
     let production_names: Vec<_> = spec
         .production_names
         .iter()
-        .map(|(a, b)| PyTuple::new(py, [a, b]))
+        .map(|(a, b)| PyTuple::new_bound(py, [a, b]))
         .collect();
 
     let productions = load_productions.call((production_names, grammar_mod), None)?;
@@ -180,7 +180,7 @@ fn to_py_cst<'a>(cst: &'a parser::CSTNode<'a>, py: Python) -> PyResult<CSTNode> 
         parser::CSTNode::Production(prod) => CSTNode {
             production: Production {
                 id: prod.id,
-                args: PyList::new(
+                args: PyList::new_bound(
                     py,
                     prod.args
                         .iter()

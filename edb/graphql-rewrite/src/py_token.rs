@@ -125,7 +125,7 @@ pub fn convert_tokens(
         0u32.into_py(py),
         py.None(),
     ];
-    elems.push(PyTuple::new(py, &start_of_file).into());
+    elems.push(PyTuple::new_bound(py, &start_of_file).into());
 
     for token in tokens {
         let (kind, value) = match token.kind {
@@ -173,10 +173,10 @@ pub fn convert_tokens(
             token.position.map(|x| x.column).into_py(py),
             value,
         ];
-        elems.push(PyTuple::new(py, &token_tuple).into());
+        elems.push(PyTuple::new_bound(py, &token_tuple).into());
     }
     elems.push(
-        PyTuple::new(
+        PyTuple::new_bound(
             py,
             &[
                 eof.clone_ref(py),
@@ -189,5 +189,5 @@ pub fn convert_tokens(
         )
         .into(),
     );
-    Ok(PyList::new(py, &elems[..]).into())
+    Ok(PyList::new_bound(py, &elems[..]).into())
 }

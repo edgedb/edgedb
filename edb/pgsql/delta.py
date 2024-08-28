@@ -7301,7 +7301,21 @@ class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
 
 
 class MigrationCommand(MetaCommand):
-    pass
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().apply(schema, context)
+        if last_mig := schema.get_last_migration():
+            last_mig_name = last_mig.get_name(schema).name
+        else:
+            last_mig_name = None
+        self.pgops.add(dbops.UpdateMetadata(
+            dbops.CurrentDatabase(),
+            {'last_migration': last_mig_name},
+        ))
+        return schema
 
 
 class CreateMigration(
