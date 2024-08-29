@@ -49,6 +49,7 @@ from . import dbops
 
 q = common.qname
 qi = common.quote_ident
+ql = common.quote_literal
 
 
 V = common.versioned_schema
@@ -107,10 +108,13 @@ class TrampolineFunction(Trampoline):
 
 @dataclasses.dataclass
 class TrampolineView(Trampoline):
-    view: dbops.View
+    old_name: tuple[str, str]
 
     def make(self) -> dbops.Command:
-        return dbops.CreateView(self.view, or_replace=True)
+        return dbops.Query(f'''
+            PERFORM {V('edgedb')}._create_trampoline_view(
+                {ql(q(*self.old_name))}, {ql(self.name[0])}, {ql(self.name[1])})
+        ''')
 
 
 def make_trampoline(func: dbops.Function) -> TrampolineFunction:
@@ -143,13 +147,7 @@ def make_table_trampoline(fullname: tuple[str, str]) -> TrampolineView:
     assert schema.endswith(namespace), schema
     new_name = (schema[:-len(namespace)], name)
 
-    view = dbops.View(
-        name=new_name,
-        query=f'''
-            SELECT * FROM {q(*fullname)}
-        ''',
-    )
-    return TrampolineView(new_name, view)
+    return TrampolineView(new_name, fullname)
 
 
 def make_view_trampoline(view: dbops.View) -> TrampolineView:

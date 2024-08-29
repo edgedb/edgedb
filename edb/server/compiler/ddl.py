@@ -1541,3 +1541,37 @@ def administer_vacuum(
         sql=(command.encode('utf-8'),),
         is_transactional=False,
     )
+
+
+def administer_prepare_upgrade(
+    ctx: compiler.CompileContext,
+    ql: qlast.AdministerStmt,
+) -> dbstate.BaseQuery:
+
+    user_schema = ctx.state.current_tx().get_user_schema()
+    global_schema = ctx.state.current_tx().get_global_schema()
+
+    schema = s_schema.ChainedSchema(
+        ctx.compiler_state.std_schema,
+        user_schema,
+        global_schema
+    )
+
+    schema_ddl = s_ddl.ddl_text_from_schema(
+        schema, include_migrations=True)
+    ids, _ = compiler.get_obj_ids(schema, include_extras=True)
+    json_ids = [(name, cls, str(id)) for name, cls, id in ids]
+
+    obj = dict(
+        ddl=schema_ddl, ids=json_ids
+    )
+
+    desc_ql = edgeql.parse_query(
+        f'SELECT to_json({qlquote.quote_literal(json.dumps(obj))})'
+    )
+    return compiler._compile_ql_query(
+        ctx,
+        desc_ql,
+        cacheable=False,
+        migration_block_query=True,
+    )

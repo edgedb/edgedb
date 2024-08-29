@@ -3128,10 +3128,16 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         metaclass = self.get_schema_metaclass()
 
         props = self.get_resolved_attributes(schema, context)
+        if not props.get('id'):
+            if context.schema_object_ids is not None:
+                specified_id = self.get_prespecified_id(context)
+                if specified_id is not None:
+                    props['id'] = specified_id
+
         schema, self.scls = metaclass.create_in_schema(
             schema, stable_ids=context.stable_ids, **props)
 
-        if not props.get('id'):
+        if not self.get_attribute_value('id'):
             # Record the generated ID.
             self.set_attribute_value('id', self.scls.id)
 
@@ -3171,11 +3177,6 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         context: CommandContext,
     ) -> s_schema.Schema:
         schema = super().canonicalize_attributes(schema, context)
-
-        if context.schema_object_ids is not None:
-            specified_id = self.get_prespecified_id(context)
-            if specified_id is not None:
-                self.set_attribute_value('id', specified_id)
 
         self.set_attribute_value('builtin', context.stdmode)
         if not self.has_attribute_value('internal'):

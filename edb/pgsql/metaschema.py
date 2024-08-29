@@ -257,6 +257,79 @@ class ClearQueryCacheFunction(trampoline.VersionedFunction):
         )
 
 
+class CreateTrampolineViewFunction(trampoline.VersionedFunction):
+    text = f'''
+        DECLARE
+            cols text;
+            tgt text;
+            dummy text;
+        BEGIN
+            tgt := quote_ident(tgt_schema) || '.' || quote_ident(tgt_name);
+
+            -- Check if the view already exists.
+            select viewname into dummy
+            from pg_catalog.pg_views
+            where schemaname = tgt_schema
+            and viewname = tgt_name;
+
+            IF FOUND THEN
+                -- If the view already existed, we need to generate a column
+                -- list that maintains the order of anything that was present in
+                -- the old view, and that doesn't remove any columns that were
+                -- dropped.
+                select
+                  string_agg(
+                    COALESCE(
+                      quote_ident(tname),
+                      'NULL::' || vtypname || ' AS ' || quote_ident(vname)
+                    ),
+                    ','
+                  )
+                from (
+                  select
+                    a1.attname as tname,
+                    a2.attname as vname,
+                    pg_catalog.format_type(a2.atttypid, NULL) as vtypname
+                  from (
+                    select * from pg_catalog.pg_attribute
+                    where attrelid = src::regclass::oid
+                    and attnum >= 0
+                  ) a1
+                  full outer join (
+                    select * from pg_catalog.pg_attribute
+                    where attrelid = tgt::regclass::oid
+                  ) a2
+                  on a1.attname = a2.attname
+                  order by a2.attnum, a1.attnum
+                )
+                INTO cols;
+
+            END IF;
+
+            -- If it doesn't exist or has no columns, create it with SELECT *
+            cols := COALESCE(cols, '*');
+
+            EXECUTE 'CREATE OR REPLACE VIEW ' || tgt || ' AS ' ||
+              'SELECT ' || cols || ' FROM ' || src;
+
+        END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_create_trampoline_view'),
+            args=[
+                ('src', ('text',)),
+                ('tgt_schema', ('text',)),
+                ('tgt_name', ('text',)),
+            ],
+            returns=('void',),
+            language='plpgsql',
+            volatility='volatile',
+            text=self.text,
+        )
+
+
 class BigintDomain(dbops.Domain):
     """Bigint: a variant of numeric that enforces zero digits after the dot.
 
@@ -4804,28 +4877,63 @@ def trampoline_command(cmd: dbops.Command) -> list[trampoline.Trampoline]:
     return ncmds
 
 
-def get_bootstrap_commands(
-    config_spec: edbconfig.Spec,
-) -> tuple[dbops.CommandGroup, list[trampoline.Trampoline]]:
+def get_fixed_bootstrap_commands() -> dbops.CommandGroup:
+    """Create metaschema objects that are truly global"""
+
     cmds = [
         dbops.CreateSchema(name='edgedb'),
         dbops.CreateSchema(name='edgedbt'),
         dbops.CreateSchema(name='edgedbpub'),
         dbops.CreateSchema(name='edgedbstd'),
-        dbops.CreateSchema(name='edgedbsql'),
 
+        dbops.CreateTable(
+            DBConfigTable(),
+        ),
+        # TODO: SHOULD THIS BE VERSIONED?
+        dbops.CreateTable(DMLDummyTable()),
+        # TODO: SHOULD THIS BE VERSIONED?
+        dbops.CreateTable(QueryCacheTable()),
+
+        dbops.Query(DMLDummyTable.SETUP_QUERY),
+
+        dbops.CreateDomain(BigintDomain()),
+        dbops.CreateDomain(ConfigMemoryDomain()),
+        dbops.CreateDomain(TimestampTzDomain()),
+        dbops.CreateDomain(TimestampDomain()),
+        dbops.CreateDomain(DateDomain()),
+        dbops.CreateDomain(DurationDomain()),
+        dbops.CreateDomain(RelativeDurationDomain()),
+        dbops.CreateDomain(DateDurationDomain()),
+
+        dbops.CreateEnum(SysConfigSourceType()),
+        dbops.CreateEnum(SysConfigScopeType()),
+
+        dbops.CreateCompositeType(SysConfigValueType()),
+        dbops.CreateCompositeType(SysConfigEntryType()),
+        dbops.CreateRange(Float32Range()),
+        dbops.CreateRange(Float64Range()),
+        dbops.CreateRange(DatetimeRange()),
+        dbops.CreateRange(LocalDatetimeRange()),
+    ]
+
+    commands = dbops.CommandGroup()
+    commands.add_commands(cmds)
+    return commands
+
+
+def get_bootstrap_commands(
+    config_spec: edbconfig.Spec,
+) -> tuple[dbops.CommandGroup, list[trampoline.Trampoline]]:
+    cmds = [
         dbops.CreateSchema(name=V('edgedb')),
         dbops.CreateSchema(name=V('edgedbpub')),
         dbops.CreateSchema(name=V('edgedbstd')),
         dbops.CreateSchema(name=V('edgedbsql')),
 
         dbops.CreateView(NormalizedPgSettingsView()),
-        dbops.CreateTable(DBConfigTable()),
-        dbops.CreateTable(DMLDummyTable()),
-        dbops.CreateTable(QueryCacheTable()),
-        dbops.Query(DMLDummyTable.SETUP_QUERY),
         dbops.CreateFunction(EvictQueryCacheFunction()),
         dbops.CreateFunction(ClearQueryCacheFunction()),
+        dbops.CreateFunction(CreateTrampolineViewFunction()),
         dbops.CreateFunction(UuidGenerateV1mcFunction('edgedbext')),
         dbops.CreateFunction(UuidGenerateV4Function('edgedbext')),
         dbops.CreateFunction(UuidGenerateV5Function('edgedbext')),
@@ -4859,14 +4967,6 @@ def get_bootstrap_commands(
         dbops.CreateFunction(NormalizeNameFunction()),
         dbops.CreateFunction(GetNameModuleFunction()),
         dbops.CreateFunction(NullIfArrayNullsFunction()),
-        dbops.CreateDomain(BigintDomain()),
-        dbops.CreateDomain(ConfigMemoryDomain()),
-        dbops.CreateDomain(TimestampTzDomain()),
-        dbops.CreateDomain(TimestampDomain()),
-        dbops.CreateDomain(DateDomain()),
-        dbops.CreateDomain(DurationDomain()),
-        dbops.CreateDomain(RelativeDurationDomain()),
-        dbops.CreateDomain(DateDurationDomain()),
         dbops.CreateFunction(StrToConfigMemoryFunction()),
         dbops.CreateFunction(ConfigMemoryToStrFunction()),
         dbops.CreateFunction(StrToBigint()),
@@ -4902,10 +5002,6 @@ def get_bootstrap_commands(
         dbops.CreateFunction(ToLocalDatetimeFunction()),
         dbops.CreateFunction(StrToBool()),
         dbops.CreateFunction(BytesIndexWithBoundsFunction()),
-        dbops.CreateEnum(SysConfigSourceType()),
-        dbops.CreateEnum(SysConfigScopeType()),
-        dbops.CreateCompositeType(SysConfigValueType()),
-        dbops.CreateCompositeType(SysConfigEntryType()),
         dbops.CreateFunction(TypeIDToConfigType()),
         dbops.CreateFunction(ConvertPostgresConfigUnitsFunction()),
         dbops.CreateFunction(InterpretConfigValueToJsonFunction()),
@@ -4924,10 +5020,6 @@ def get_bootstrap_commands(
         dbops.CreateFunction(GetTypeToMultiRangeNameMap()),
         dbops.CreateFunction(GetPgTypeForEdgeDBTypeFunction()),
         dbops.CreateFunction(DescribeRolesAsDDLFunctionForwardDecl()),
-        dbops.CreateRange(Float32Range()),
-        dbops.CreateRange(Float64Range()),
-        dbops.CreateRange(DatetimeRange()),
-        dbops.CreateRange(LocalDatetimeRange()),
         dbops.CreateFunction(RangeToJsonFunction()),
         dbops.CreateFunction(MultiRangeToJsonFunction()),
         dbops.CreateFunction(RangeValidateFunction()),

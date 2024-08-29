@@ -1153,26 +1153,8 @@ class Compiler:
         schema_ddl = s_ddl.ddl_text_from_schema(
             schema, include_migrations=True)
 
-        all_objects: Iterable[s_obj.Object] = schema.get_objects(
-            exclude_stdlib=True,
-            exclude_global=True,
-        )
-        ids = []
-        sequences = []
-        for obj in all_objects:
-            if isinstance(obj, s_obj.QualifiedObject):
-                ql_class = ''
-            else:
-                ql_class = str(type(obj).get_ql_class_or_die())
-
-            ids.append((
-                str(obj.get_name(schema)),
-                ql_class,
-                obj.id.bytes,
-            ))
-
-            if isinstance(obj, s_types.Type) and obj.is_sequence(schema):
-                sequences.append(obj.id)
+        ids, sequences = get_obj_ids(schema)
+        raw_ids = [(name, cls, id.bytes) for name, cls, id in ids]
 
         objtypes = schema.get_objects(
             type=s_objtypes.ObjectType,
@@ -1202,7 +1184,7 @@ class Compiler:
         return DumpDescriptor(
             schema_ddl='\n'.join([sys_config_ddl, schema_ddl, user_config_ddl]),
             schema_dynamic_ddl=tuple(dynamic_ddl),
-            schema_ids=ids,
+            schema_ids=raw_ids,
             blocks=descriptors,
         )
 
@@ -1814,6 +1796,8 @@ def _compile_ql_administer(
         return ddl.administer_reindex(ctx, ql)
     elif ql.expr.func == 'vacuum':
         return ddl.administer_vacuum(ctx, ql)
+    elif ql.expr.func == 'prepare_upgrade':
+        return ddl.administer_prepare_upgrade(ctx, ql)
     else:
         raise errors.QueryError(
             'Unknown ADMINISTER function',
@@ -3061,6 +3045,45 @@ def _extract_params(
         )
 
     return oparams, in_type_args  # type: ignore[return-value]
+
+
+def get_obj_ids(
+    schema: s_schema.Schema,
+    *,
+    include_extras: bool=False,
+) -> tuple[list[tuple[str, str, uuid.UUID]], list[uuid.UUID]]:
+    all_objects: Iterable[s_obj.Object] = schema.get_objects(
+        exclude_stdlib=True,
+        exclude_global=True,
+    )
+    ids = []
+    sequences = []
+    for obj in all_objects:
+        if isinstance(obj, s_obj.QualifiedObject):
+            ql_class = ''
+        else:
+            ql_class = str(type(obj).get_ql_class_or_die())
+
+        name = str(obj.get_name(schema))
+        ids.append((
+            name,
+            ql_class,
+            obj.id,
+        ))
+
+        if isinstance(obj, s_types.Type) and obj.is_sequence(schema):
+            sequences.append(obj.id)
+
+        if include_extras and isinstance(obj, s_func.Function):
+            backend_name = obj.get_backend_name(schema)
+            if backend_name:
+                ids.append((
+                    name,
+                    f'{ql_class or None}-backend_name',
+                    backend_name,
+                ))
+
+    return ids, sequences
 
 
 def _describe_object(

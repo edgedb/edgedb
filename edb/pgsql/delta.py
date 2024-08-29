@@ -586,11 +586,13 @@ class CreateTuple(TupleCommand, adapts=s_types.CreateTuple):
         cls,
         tup: s_types.Tuple,
         schema: s_schema.Schema,
+        conditional: bool=False,
     ) -> dbops.Command:
         elements = tup.get_element_types(schema).items(schema)
 
+        name = common.get_backend_name(schema, tup, catenate=False)
         ctype = dbops.CompositeType(
-            name=common.get_backend_name(schema, tup, catenate=False),
+            name=name,
             columns=[
                 dbops.Column(
                     name=n,
@@ -601,7 +603,12 @@ class CreateTuple(TupleCommand, adapts=s_types.CreateTuple):
             ]
         )
 
-        return dbops.CreateCompositeType(type=ctype)
+        neg_conditions = []
+        if conditional:
+            neg_conditions.append(dbops.TypeExists(name=name))
+
+        return dbops.CreateCompositeType(
+            type=ctype, neg_conditions=neg_conditions)
 
     def apply(
         self,
@@ -613,7 +620,12 @@ class CreateTuple(TupleCommand, adapts=s_types.CreateTuple):
         if self.scls.is_polymorphic(schema):
             return schema
 
-        self.pgops.add(self.create_tuple(self.scls, schema))
+        self.pgops.add(self.create_tuple(
+            self.scls,
+            schema,
+            # XXX: WHY
+            conditional=context.stdmode,
+        ))
 
         return schema
 
@@ -2422,8 +2434,15 @@ class CreateScalarType(ScalarTypeMetaCommand,
 
         new_enum_name = common.get_backend_name(schema, scalar, catenate=False)
 
+        neg_conditions = []
+        if context.stdmode:
+            neg_conditions.append(dbops.EnumExists(name=new_enum_name))
+
         ops.add_command(
-            dbops.CreateEnum(dbops.Enum(name=new_enum_name, values=values))
+            dbops.CreateEnum(
+                dbops.Enum(name=new_enum_name, values=values),
+                neg_conditions=neg_conditions,
+            )
         )
 
         fcls = cls.get_function_type(new_enum_name)
