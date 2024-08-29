@@ -11202,13 +11202,19 @@ class TestSDLTextFromSchema(BaseDescribeTest):
         "index on (true) except (('B' = 'A'));",
         "index on (true) except (('B' = 'B'));",
     ]
+    access_policy_statements = [
+        "access policy AccessPolicyA allow all;"
+        "access policy AccessPolicyB allow all;"
+        "access policy AccessPolicyC allow all;"
+        "access policy AccessPolicyD allow all;"
+    ]
 
     def test_schema_sdl_text_order_alias_01(self):
         # Test that alias contents are in order
 
         ordered_statements = (
-            TestSDLTextFromSchema.annotation_statements
-            + ["using (1);"]
+            ["using (1);"]
+            + TestSDLTextFromSchema.annotation_statements
         )
         shuffled_statements = ordered_statements[:]
         random.Random(1).shuffle(shuffled_statements)
@@ -11278,11 +11284,11 @@ class TestSDLTextFromSchema(BaseDescribeTest):
         # Test that abstract constraint contents are in order
 
         ordered_statements = (
-            TestSDLTextFromSchema.annotation_statements
-            + [
+            [
                 "errmessage := 'Oh no!';",
                 "using (true);",
             ]
+            + TestSDLTextFromSchema.annotation_statements
         )
         shuffled_statements = ordered_statements[:]
         random.Random(1).shuffle(shuffled_statements)
@@ -11317,10 +11323,10 @@ class TestSDLTextFromSchema(BaseDescribeTest):
         # Test that object constraint contents are in order
 
         ordered_statements = (
-            TestSDLTextFromSchema.annotation_statements
-            + [
+            [
                 "errmessage := 'Oh no!';",
             ]
+            + TestSDLTextFromSchema.annotation_statements
         )
         shuffled_statements = ordered_statements[:]
         random.Random(1).shuffle(shuffled_statements)
@@ -11361,10 +11367,10 @@ class TestSDLTextFromSchema(BaseDescribeTest):
         # Test that pointer constraint contents are in order
 
         ordered_statements = (
-            TestSDLTextFromSchema.annotation_statements
-            + [
+            [
                 "errmessage := 'Oh no!';",
             ]
+            + TestSDLTextFromSchema.annotation_statements
         )
         shuffled_statements = ordered_statements[:]
         random.Random(1).shuffle(shuffled_statements)
@@ -11444,8 +11450,8 @@ class TestSDLTextFromSchema(BaseDescribeTest):
         # Test that function non-computed global are in order
 
         ordered_statements = (
-            TestSDLTextFromSchema.annotation_statements
-            + ["default := true;"]
+            ["default := true;"]
+            + TestSDLTextFromSchema.annotation_statements
         )
         shuffled_statements = ordered_statements[:]
         random.Random(1).shuffle(shuffled_statements)
@@ -11480,8 +11486,8 @@ class TestSDLTextFromSchema(BaseDescribeTest):
         # Test that function computed global are in order
 
         ordered_statements = (
-            TestSDLTextFromSchema.annotation_statements
-            + ["using (true);"]
+            ["using (true);"]
+            + TestSDLTextFromSchema.annotation_statements
         )
         shuffled_statements = ordered_statements[:]
         random.Random(1).shuffle(shuffled_statements)
@@ -11555,9 +11561,11 @@ class TestSDLTextFromSchema(BaseDescribeTest):
         # Test that abstract link contents are in order
 
         ordered_statements = (
-            ["extending default::Base;"]
+            [
+                "extending default::Base;",
+                "readonly := true;",
+            ]
             + TestSDLTextFromSchema.annotation_statements
-            + ["readonly := true;"]
             + TestSDLTextFromSchema.exclusive_constraint_statements
             + TestSDLTextFromSchema.expression_constraint_statements
             + TestSDLTextFromSchema.index_statements_caps
@@ -11615,12 +11623,10 @@ class TestSDLTextFromSchema(BaseDescribeTest):
                 "extending default::Base;",
                 "on source delete allow;",
                 "on target delete restrict;",
-            ]
-            + TestSDLTextFromSchema.annotation_statements
-            + [
                 "default := (select default::Bar limit 1);",
                 "readonly := true;",
             ]
+            + TestSDLTextFromSchema.annotation_statements
             + TestSDLTextFromSchema.exclusive_constraint_statements
             + TestSDLTextFromSchema.expression_constraint_statements
             + TestSDLTextFromSchema.index_statements_caps
@@ -11683,12 +11689,10 @@ class TestSDLTextFromSchema(BaseDescribeTest):
             [
                 "on source delete allow;",
                 "on target delete restrict;",
-            ]
-            + TestSDLTextFromSchema.annotation_statements
-            + [
                 "using (select default::Bar limit 1);",
                 "readonly := true;",
             ]
+            + TestSDLTextFromSchema.annotation_statements
             + TestSDLTextFromSchema.exclusive_constraint_statements
             + TestSDLTextFromSchema.expression_constraint_statements
             + TestSDLTextFromSchema.index_statements_caps
@@ -11834,9 +11838,11 @@ class TestSDLTextFromSchema(BaseDescribeTest):
         # Test that abstract property contents are in order
 
         ordered_statements = (
-            ["extending default::Base;"]
+            [
+                "extending default::Base;",
+                "readonly := true;",
+            ]
             + TestSDLTextFromSchema.annotation_statements
-            + ["readonly := true;"]
         )
         shuffled_statements = ordered_statements[:]
         random.Random(1).shuffle(shuffled_statements)
@@ -11873,12 +11879,12 @@ class TestSDLTextFromSchema(BaseDescribeTest):
         # Test that non-computed concrete property contents are in order
 
         ordered_statements = (
-            ["extending default::Base;"]
-            + TestSDLTextFromSchema.annotation_statements
-            + [
+            [
+                "extending default::Base;",
                 "default := 1;",
                 "readonly := true;",
             ]
+            + TestSDLTextFromSchema.annotation_statements
             + TestSDLTextFromSchema.exclusive_constraint_statements
             + TestSDLTextFromSchema.expression_constraint_statements
         )
@@ -11921,11 +11927,11 @@ class TestSDLTextFromSchema(BaseDescribeTest):
         # Test that computed concrete property contents are in order
 
         ordered_statements = (
-            TestSDLTextFromSchema.annotation_statements
-            + [
+            [
                 "using (1);",
                 "readonly := true;",
             ]
+            + TestSDLTextFromSchema.annotation_statements
             + TestSDLTextFromSchema.exclusive_constraint_statements
             + TestSDLTextFromSchema.expression_constraint_statements
         )
@@ -12003,6 +12009,7 @@ class TestSDLTextFromSchema(BaseDescribeTest):
 
         ordered_statements = (
             TestSDLTextFromSchema.annotation_statements
+            + TestSDLTextFromSchema.access_policy_statements
             + TestSDLTextFromSchema.exclusive_constraint_statements
             + TestSDLTextFromSchema.expression_constraint_statements
             + TestSDLTextFromSchema.index_statements_caps

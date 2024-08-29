@@ -933,44 +933,84 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                         self.new_lines = 1
                     self.visit_list(list(items), terminator=';')
             elif self.descmode or self.sdlmode:
-                sort_desc_or_sdl: Callable[
-                    [qlast.Base],
-                    tuple[str, ...]
-                ] = lambda c: (
-                    (
-                        (
-                            typeutils.not_none(c.name.itemclass),
-                            c.name.name,
-                            self.generate_isolated_text(c.subjectexpr)
-                            if c.subjectexpr is not None else
-                            '',
-                            self.generate_isolated_text(c.except_expr)
-                            if c.except_expr is not None else
-                            '',
-                        )
-                        if isinstance(c, qlast.ConcreteConstraintOp) else
-                        (
-                            typeutils.not_none(c.name.itemclass),
-                            c.name.name,
-                            self.generate_isolated_text(c.expr)
-                            if c.expr is not None else
-                            '',
-                            self.generate_isolated_text(c.except_expr)
-                            if c.except_expr is not None else
-                            '',
-                        )
-                        if isinstance(c, qlast.ConcreteIndexCommand) else
-                        (c.name.itemclass or '', c.name.name)
-                    )
-                    if isinstance(c, qlast.ObjectDDL) else
-                    ('', c.name)
-                    if isinstance(c, qlast.SetField) else
-                    ('', '')
-                )
+                def sort_desc_or_sdl(
+                    c: qlast.Base,
+                ) -> tuple[str, ...]:
+                    # The sort key is a tuple of parts of the command which will
+                    # be rendered to text.
+                    #
+                    # Commands will be ordered generally as:
+                    # 1. General DDL Operations
+                    # 2. Set Field Operations
+                    # 3. Object DDL Operations
+                    #
+                    # Empty strings are used to achieve this general ordering.
+                    #
+                    # General DDL Operations are sorted by command class name.
+                    # This works because these commands can each appear once per
+                    # body.
+                    # eg. ('', '', '', 'AlterAddInherit')
+                    #
+                    # Set Field Operations are sorted by field name.
+                    # eg. ('', '', 'readonly')
+                    #
+                    # Object DDL Operations are sorted first by itemclass then
+                    # name.
+                    # eg. ('TYPE', 'Foo')
+                    #
+                    # For constraints and indexes, the expression and except
+                    # expression are included.
+                    # eg. ('CONSTRAINT', 'exclusive', '.a', '.b')
+
+                    if isinstance(c, qlast.ObjectDDL):
+                        if isinstance(c, qlast.ConcreteConstraintOp):
+                            subject_expr = (
+                                self.generate_isolated_text(c.subjectexpr)
+                                if c.subjectexpr is not None else
+                                ''
+                            )
+                            except_expr = (
+                                self.generate_isolated_text(c.except_expr)
+                                if c.except_expr is not None else
+                                ''
+                            )
+                            return (
+                                typeutils.not_none(c.name.itemclass),
+                                c.name.name,
+                                subject_expr,
+                                except_expr,
+                            )
+
+                        if isinstance(c, qlast.ConcreteIndexCommand):
+                            expr = (
+                                self.generate_isolated_text(c.expr)
+                                if c.expr is not None else
+                                ''
+                            )
+                            except_expr = (
+                                self.generate_isolated_text(c.except_expr)
+                                if c.except_expr is not None else
+                                ''
+                            )
+                            return (
+                                typeutils.not_none(c.name.itemclass),
+                                c.name.name,
+                                expr,
+                                except_expr,
+                            )
+
+                        return (c.name.itemclass or '', c.name.name)
+
+                    if isinstance(c, qlast.SetField):
+                        return ('', '', c.name)
+
+                    return ('', '', '', c.__class__.__name__)
 
                 if not self.unsorted:
                     commands = sorted(commands, key=sort_desc_or_sdl)
+
                 self.visit_list(list(commands), terminator=';')
+
             else:
                 self.visit_list(list(commands), terminator=';')
 
