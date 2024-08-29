@@ -27,14 +27,11 @@ fn impl_enum_into_python(enum_: &mut syn::ItemEnum) -> TokenStream {
     let mut cases = Vec::new();
 
     if let Some(py_enum) = find_attr(&enum_.attrs, "py_enum") {
-        let class_path = py_enum.tokens.to_string();
-        let class_path = &class_path[1..class_path.len() - 1];
+        let class_path = py_enum.meta.path();
 
         for Variant { name } in variants {
-            let variant = format!("{class_path}.{name}");
-
             cases.push(quote! {
-                Self::#name => py.eval(#variant, None, None),
+                Self::#name => py.eval(#class_path.#name, None, None),
             });
         }
     } else if find_attr(&enum_.attrs, "py_child").is_some() {
@@ -183,7 +180,7 @@ fn infer_fields(r#struct: &mut syn::ItemStruct) -> (Vec<Ident>, Option<PyChildFi
 
 fn find_attr<'a>(attrs: &'a [Attribute], name: &'static str) -> Option<&'a Attribute> {
     attrs.iter().find(|a| {
-        let Some(ident) = a.path.get_ident() else {
+        let Some(ident) = a.path().get_ident() else {
             return false;
         };
         *ident == name

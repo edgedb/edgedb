@@ -11,9 +11,9 @@ workspace = true
 [dependencies]
 pyo3 = { workspace = true, optional = true }
 
-base32 = "0.4.0"
-bigdecimal = { version = "0.3.0", features = ["serde"] }
-num-bigint = { version = "0.3.0", features = ["serde"] }
+base32 = "0.5.1"
+bigdecimal = { version = "0.4.5", features = ["serde"] }
+num-bigint = { version = "0.4.6", features = ["serde"] }
 sha2 = "0.10.2"
 snafu = "0.8.1"
 memchr = "2.5.0"
@@ -21,7 +21,7 @@ serde = { version = "1.0.106", features = ["derive"], optional = true }
 thiserror = "1.0.23"
 unicode-width = "0.1.8"
 edgeql-parser-derive = { path = "edgeql-parser-derive", optional = true }
-indexmap = "1.9.3"
+indexmap = "2.4.0"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 bumpalo = { version = "3.13.0", features = ["collections"] }
 phf = { version = "0.11.1", features = ["macros"] }
