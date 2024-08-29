@@ -41,7 +41,7 @@ impl Hasher {
     pub fn make_migration_id(mut self) -> String {
         self.hasher.update(b"}\0");
         let hash = base32::encode(
-            base32::Alphabet::RFC4648 { padding: false },
+            base32::Alphabet::Rfc4648 { padding: false },
             &self.hasher.finalize(),
         );
         format!("m1{}", hash.to_ascii_lowercase())
