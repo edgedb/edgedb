@@ -11,7 +11,6 @@ fn main() {
     // Enable tracing
     // tracing_subscriber::fmt::init();
 
-    //    const PREDICATE: fn(&str) -> bool = |_name| _name.contains("_5") || _name.contains("_2");
     const PREDICATE: fn(&str) -> bool = |_name| true;
 
     let qos = run_specs_tests_in_runtime(5, None, &PREDICATE).unwrap();
@@ -48,12 +47,6 @@ fn main() {
                 };
             }
 
-            // let real = rand::thread_rng().gen_range(0..1000) < 200;
-            // let weights = if real {
-            //     [(1.0, 5, None), (0.5, 1, Some(10.0))]
-            // } else {
-            //     [(1.0, 5, None), (0.5, 1, None)]
-            // };
             let weights = [(1.0, 1, None), (1.0, 5, Some(10.0))];
             let outputs = weights
                 .map(|(_, count, scale)| run_specs_tests_in_runtime(count, scale, &PREDICATE));
@@ -87,11 +80,6 @@ fn main() {
             .map(|k| k.get() as _)
             .collect(),
     );
-
-    // A constant value for all knobs
-    // for i in 0..100 {
-    //     seeds.push([i].repeat(conn_pool::knobs::ALL_KNOBS.len()));
-    // }
 
     // Some randomness
     for _ in 0..100 {
