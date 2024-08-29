@@ -222,6 +222,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         ):
             # If target sdl was not known in advance, compute it now.
             new_sdl: str = s_ddl.sdl_text_from_schema(new_schema)
+            new_schema = self.scls.set_field_value(new_schema, 'sdl', new_sdl)
             self.set_attribute_value('sdl', new_sdl)
 
         return new_schema
