@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+import random
 import re
 
 from edb import errors
@@ -9425,21 +9426,18 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         self._assert_migration_consistency(schema)
 
 
-class TestDescribe(tb.BaseSchemaLoadTest):
-    """Test the DESCRIBE command."""
-
-    DEFAULT_MODULE = 'test'
+class BaseDescribeTest(tb.BaseSchemaLoadTest):
 
     re_filter = re.compile(r'[\s]+|(,(?=\s*[})]))')
     maxDiff = 10000
 
-    def _assert_describe(
+    def _load_schema(
         self,
         schema_text,
-        *tests,
-        as_ddl=False,
-        default_module='test',
-        explicit_modules=False,
+        *,
+        as_ddl,
+        default_module,
+        explicit_modules,
     ):
         if as_ddl:
             schema = tb._load_std_schema()
@@ -9454,6 +9452,29 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             )
         else:
             schema = self.load_schema(schema_text, modname=default_module)
+
+        return schema
+
+
+class TestDescribe(BaseDescribeTest):
+    """Test the DESCRIBE command."""
+
+    DEFAULT_MODULE = 'test'
+
+    def _assert_describe(
+        self,
+        schema_text,
+        *tests,
+        as_ddl=False,
+        default_module='test',
+        explicit_modules=False,
+    ):
+        schema = self._load_schema(
+            schema_text,
+            as_ddl=as_ddl,
+            default_module=default_module,
+            explicit_modules=explicit_modules,
+        )
 
         tests = [iter(tests)] * 2
 
@@ -9938,10 +9959,10 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             type test::UniqueName {
                 link translated_label: test::Label {
                     extending test::translated_label;
-                    constraint std::exclusive on (__subject__@prop1);
                     constraint std::exclusive on (
                         (__subject__@source, __subject__@lang)
                     );
+                    constraint std::exclusive on (__subject__@prop1);
                 };
             };
             ''',
@@ -9973,9 +9994,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 };
                 optional single link translated_label: test::Label {
                     extending test::translated_label;
-                    constraint std::exclusive on (__subject__@prop1);
                     constraint std::exclusive on (
                         (__subject__@source, __subject__@lang));
+                    constraint std::exclusive on (__subject__@prop1);
                     optional single property lang: std::str;
                     optional single property prop1: std::str;
                 };
@@ -11082,6 +11103,1009 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             };
             """,
         )
+
+
+class TestSDLTextFromSchema(BaseDescribeTest):
+
+    def _load_schema(
+        self,
+        schema_text,
+        *,
+        as_ddl,
+        default_module,
+        explicit_modules,
+    ):
+        if as_ddl:
+            schema = tb._load_std_schema()
+            schema = self.run_ddl(schema, schema_text, default_module)
+        elif explicit_modules:
+            sdl_schema = qlparser.parse_sdl(schema_text)
+            schema = tb._load_std_schema()
+            schema = s_ddl.apply_sdl(
+                sdl_schema,
+                base_schema=schema,
+                current_schema=schema,
+            )
+        else:
+            schema = self.load_schema(schema_text, modname=default_module)
+
+        return schema
+
+    def _assert_sdl_text_from_schema(
+        self,
+        schema_text,
+        expected_text,
+        default_module='default',
+        explicit_modules=False,
+    ):
+        schema = self._load_schema(
+            schema_text,
+            as_ddl=False,
+            default_module=default_module,
+            explicit_modules=explicit_modules,
+        )
+
+        sdl_text = s_ddl.sdl_text_from_schema(schema)
+
+        self.assert_equal(
+            expected_text,
+            sdl_text,
+        )
+
+    annotation_statements = [
+        "annotation default::AnnotationA := 'A';",
+        "annotation default::AnnotationB := 'B';",
+        "annotation default::AnnotationC := 'C';",
+        "annotation default::AnnotationD := 'D';",
+    ]
+    exclusive_constraint_statements = [
+        "constraint std::exclusive on ('A');",
+        "constraint std::exclusive on ('B');",
+        "constraint std::exclusive on ('C');",
+        "constraint std::exclusive on ('D');",
+        "constraint std::exclusive on (1);",
+        "constraint std::exclusive on (2);",
+        "constraint std::exclusive on (3);",
+        "constraint std::exclusive on (4);",
+        "constraint std::exclusive on (true) except (('A' = 'A'));",
+        "constraint std::exclusive on (true) except (('A' = 'B'));",
+        "constraint std::exclusive on (true) except (('B' = 'A'));",
+        "constraint std::exclusive on (true) except (('B' = 'B'));",
+    ]
+    expression_constraint_statements = [
+        "constraint std::expression on (('A' = 'A'));",
+        "constraint std::expression on (('A' = 'B'));",
+        "constraint std::expression on (('B' = 'A'));",
+        "constraint std::expression on (('B' = 'B'));",
+        "constraint std::expression on (NOT (false));",
+        "constraint std::expression on (std::contains([1], 1));",
+        "constraint std::expression on (true) except (('A' = 'A'));",
+        "constraint std::expression on (true) except (('A' = 'B'));",
+        "constraint std::expression on (true) except (('B' = 'A'));",
+        "constraint std::expression on (true) except (('B' = 'B'));",
+    ]
+    index_statements_caps = [
+        "index on ('A');",
+        "index on ('B');",
+        "index on ('C');",
+        "index on ('D');",
+    ]
+    index_statements_nums = [
+        "index on (1);",
+        "index on (2);",
+        "index on (3);",
+        "index on (4);",
+    ]
+    index_statements_except = [
+        "index on (true) except (('A' = 'A'));",
+        "index on (true) except (('A' = 'B'));",
+        "index on (true) except (('B' = 'A'));",
+        "index on (true) except (('B' = 'B'));",
+    ]
+    access_policy_statements = [
+        "access policy AccessPolicyA allow all;"
+        "access policy AccessPolicyB allow all;"
+        "access policy AccessPolicyC allow all;"
+        "access policy AccessPolicyD allow all;"
+    ]
+
+    def test_schema_sdl_text_order_alias_01(self):
+        # Test that alias contents are in order
+
+        ordered_statements = (
+            ["using (1);"]
+            + TestSDLTextFromSchema.annotation_statements
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "alias Foo {\n"
+                + ''.join(
+                    ' ' * 4 + s + '\n'
+                    for s in shuffled_statements
+                ) +
+            "}",
+
+            "module default {\n"
+            "    alias Foo {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in ordered_statements
+                    ) +
+            "    };\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_annotation_01(self):
+        # Test that annotation contents are in order
+
+        ordered_statements = (
+            TestSDLTextFromSchema.annotation_statements
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "abstract annotation Foo {\n"
+                + ''.join(
+                    ' ' * 4 + s + '\n'
+                    for s in shuffled_statements
+                ) +
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    abstract annotation Foo {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in ordered_statements
+                    ) +
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_constraint_01(self):
+        # Test that abstract constraint contents are in order
+
+        ordered_statements = (
+            [
+                "errmessage := 'Oh no!';",
+                "using (true);",
+            ]
+            + TestSDLTextFromSchema.annotation_statements
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "abstract constraint Foo {\n"
+            + ''.join(
+                ' ' * 4 + s + '\n'
+                for s in shuffled_statements
+            ) +
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    abstract constraint Foo {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in ordered_statements
+                    ) +
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_constraint_02(self):
+        # Test that object constraint contents are in order
+
+        ordered_statements = (
+            [
+                "errmessage := 'Oh no!';",
+            ]
+            + TestSDLTextFromSchema.annotation_statements
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "type Foo {\n"
+            "    property n -> int64;\n"
+            "    constraint expression on (true) {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in shuffled_statements
+                    ) +
+            "    };"
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    type Foo {\n"
+            "        constraint std::expression on (true) {\n"
+                        + ''.join(
+                            ' ' * 12 + s + '\n'
+                            for s in ordered_statements
+                        ) +
+            "        };\n"
+            "        property n: std::int64;\n"
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_constraint_03(self):
+        # Test that pointer constraint contents are in order
+
+        ordered_statements = (
+            [
+                "errmessage := 'Oh no!';",
+            ]
+            + TestSDLTextFromSchema.annotation_statements
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "type Foo {\n"
+            "    property n -> int64 {\n"
+            "        constraint expression on (true) {\n"
+                        + ''.join(
+                            ' ' * 12 + s + '\n'
+                            for s in shuffled_statements
+                        ) +
+            "        };"
+            "    };"
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    type Foo {\n"
+            "        property n: std::int64 {\n"
+            "            constraint std::expression on (true) {\n"
+                            + ''.join(
+                                ' ' * 16 + s + '\n'
+                                for s in ordered_statements
+                            ) +
+            "            };\n"
+            "        };\n"
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_function_01(self):
+        # Test that function contents are in order
+
+        ordered_statements = (
+            ["volatility := 'Immutable';"]
+            + TestSDLTextFromSchema.annotation_statements
+            + ["using (true);"]
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "function Foo() -> std::bool {\n"
+                + ''.join(
+                    ' ' * 4 + s + '\n'
+                    for s in shuffled_statements
+                ) +
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    function Foo() -> std::bool {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in ordered_statements
+                    ) +
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_global_01(self):
+        # Test that function non-computed global are in order
+
+        ordered_statements = (
+            ["default := true;"]
+            + TestSDLTextFromSchema.annotation_statements
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "global Foo -> std::bool {\n"
+                + ''.join(
+                    ' ' * 4 + s + '\n'
+                    for s in shuffled_statements
+                ) +
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    global Foo -> std::bool {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in ordered_statements
+                    ) +
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_global_02(self):
+        # Test that function computed global are in order
+
+        ordered_statements = (
+            ["using (true);"]
+            + TestSDLTextFromSchema.annotation_statements
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "global Foo {\n"
+                + ''.join(
+                    ' ' * 4 + s + '\n'
+                    for s in shuffled_statements
+                ) +
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    global Foo {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in ordered_statements
+                    ) +
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_index_01(self):
+        # Test that index contents are in order
+
+        ordered_statements = (
+            TestSDLTextFromSchema.annotation_statements
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "type Foo {\n"
+            "    index on (true) {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in shuffled_statements
+                    ) +
+            "    };\n"
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    type Foo {\n"
+            "        index on (true) {\n"
+                        + ''.join(
+                            ' ' * 12 + s + '\n'
+                            for s in ordered_statements
+                        ) +
+            "        };\n"
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_link_01(self):
+        # Test that abstract link contents are in order
+
+        ordered_statements = (
+            [
+                "extending default::Base;",
+                "readonly := true;",
+            ]
+            + TestSDLTextFromSchema.annotation_statements
+            + TestSDLTextFromSchema.exclusive_constraint_statements
+            + TestSDLTextFromSchema.expression_constraint_statements
+            + TestSDLTextFromSchema.index_statements_caps
+            + TestSDLTextFromSchema.index_statements_nums
+            + [
+                "index on (@a);",
+                "index on (@b);",
+                "index on (@c);",
+                "index on (@d);",
+            ]
+            + TestSDLTextFromSchema.index_statements_except
+            + [
+                "property a: std::int64;",
+                "property b := (1);",
+                "property c: std::int64;",
+                "property d := (1);",
+            ]
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "abstract link Base;\n"
+            "abstract link Foo {\n"
+                + ''.join(
+                    ' ' * 4 + s + '\n'
+                    for s in shuffled_statements
+                ) +
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    abstract link Base;\n"
+            "    abstract link Foo {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in ordered_statements
+                    ) +
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_link_02(self):
+        # Test that non-computed concrete link contents are in order
+
+        ordered_statements = (
+            [
+                "extending default::Base;",
+                "on source delete allow;",
+                "on target delete restrict;",
+                "default := (select default::Bar limit 1);",
+                "readonly := true;",
+            ]
+            + TestSDLTextFromSchema.annotation_statements
+            + TestSDLTextFromSchema.exclusive_constraint_statements
+            + TestSDLTextFromSchema.expression_constraint_statements
+            + TestSDLTextFromSchema.index_statements_caps
+            + TestSDLTextFromSchema.index_statements_nums
+            + [
+                "index on (@a);",
+                "index on (@b);",
+                "index on (@c);",
+                "index on (@d);",
+            ]
+            + TestSDLTextFromSchema.index_statements_except
+            + [
+                "property a: std::int64;",
+                "property b := (1);",
+                "property c: std::int64;",
+                "property d := (1);",
+            ]
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "abstract link Base;\n"
+            "type Bar;\n"
+            "type Foo {\n"
+            "    link bar -> Bar {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in shuffled_statements
+                    ) +
+            "    };\n"
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    abstract link Base;\n"
+            "    type Bar;\n"
+            "    type Foo {\n"
+            "        link bar: default::Bar {\n"
+                        + ''.join(
+                            ' ' * 12 + s + '\n'
+                            for s in ordered_statements
+                        ) +
+            "        };\n"
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_link_03(self):
+        # Test that computed concrete link contents are in order
+
+        ordered_statements = (
+            [
+                "on source delete allow;",
+                "on target delete restrict;",
+                "using (select default::Bar limit 1);",
+                "readonly := true;",
+            ]
+            + TestSDLTextFromSchema.annotation_statements
+            + TestSDLTextFromSchema.exclusive_constraint_statements
+            + TestSDLTextFromSchema.expression_constraint_statements
+            + TestSDLTextFromSchema.index_statements_caps
+            + TestSDLTextFromSchema.index_statements_nums
+            + [
+                "index on (@a);",
+                "index on (@b);",
+                "index on (@c);",
+                "index on (@d);",
+            ]
+            + TestSDLTextFromSchema.index_statements_except
+            + [
+                "property a: std::int64;",
+                "property b := (1);",
+                "property c: std::int64;",
+                "property d := (1);",
+            ]
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "type Bar;\n"
+            "type Foo {\n"
+            "    link bar -> Bar {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in shuffled_statements
+                    ) +
+            "    };\n"
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    type Bar;\n"
+            "    type Foo {\n"
+            "        link bar {\n"
+                        + ''.join(
+                            ' ' * 12 + s + '\n'
+                            for s in ordered_statements
+                        ) +
+            "        };\n"
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_module_01(self):
+        # Test that module contents are in order
+
+        ordered_statements = [
+            "alias AliasA := (1);",
+            "alias AliasB := (1);",
+            "alias AliasC := (1);",
+            "alias AliasD := (1);",
+            "abstract annotation AnnotationA;",
+            "abstract annotation AnnotationB;",
+            "abstract annotation AnnotationC;",
+            "abstract annotation AnnotationD;",
+            "abstract constraint ConstraintA;",
+            "abstract constraint ConstraintB;",
+            "abstract constraint ConstraintC;",
+            "abstract constraint ConstraintD;",
+            "function FunctionA() -> std::bool using (true);",
+            "function FunctionB() -> std::bool using (true);",
+            "function FunctionC() -> std::bool using (true);",
+            "function FunctionD() -> std::bool using (true);",
+            "global GlobalA := (1);",
+            "global GlobalB := (1);",
+            "global GlobalC := (1);",
+            "global GlobalD := (1);",
+            "abstract link LinkA;",
+            "abstract link LinkB;",
+            "abstract link LinkC;",
+            "abstract link LinkD;",
+            "abstract property PropertyA;",
+            "abstract property PropertyB;",
+            "abstract property PropertyC;",
+            "abstract property PropertyD;",
+            "abstract scalar type AScalarA extending std::int64;",
+            "abstract scalar type AScalarB extending std::int64;",
+            "abstract scalar type AScalarC extending std::int64;",
+            "abstract scalar type AScalarD extending std::int64;",
+            "scalar type ScalarA extending std::int64;",
+            "scalar type ScalarB extending std::int64;",
+            "scalar type ScalarC extending std::int64;",
+            "scalar type ScalarD extending std::int64;",
+            "abstract type ATypeA;",
+            "abstract type ATypeB;",
+            "abstract type ATypeC;",
+            "abstract type ATypeD;",
+            "type TypeA;",
+            "type TypeB;",
+            "type TypeC;",
+            "type TypeD;",
+        ]
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            ''.join(
+                ' ' * 4 + s + '\n'
+                for s in shuffled_statements
+            ),
+
+            "module default {\n"
+                + ''.join(
+                    ' ' * 4 + s + '\n'
+                    for s in ordered_statements
+                ) +
+            "};",
+        )
+
+    def test_schema_sdl_text_order_module_02(self):
+        # Test that sdl text sorts sub modules.
+        ordered_names = [
+            chr(ord('A') + c)
+            for c in range(10)
+        ]
+        shuffled_names = ordered_names[:]
+        random.Random(1).shuffle(shuffled_names)
+
+        self._assert_sdl_text_from_schema(
+            ''.join(
+                'module ' + name + ' {};\n'
+                for name in shuffled_names
+            ),
+
+            'module default {};\n'
+            + ''.join(
+                'module default::' + name + ' {};\n'
+                for name in ordered_names
+            ),
+        )
+
+    def test_schema_sdl_text_order_property_01(self):
+        # Test that abstract property contents are in order
+
+        ordered_statements = (
+            [
+                "extending default::Base;",
+                "readonly := true;",
+            ]
+            + TestSDLTextFromSchema.annotation_statements
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "abstract property Base;\n"
+            "abstract property Foo {\n"
+                + ''.join(
+                    ' ' * 4 + s + '\n'
+                    for s in shuffled_statements
+                ) +
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    abstract property Base;\n"
+            "    abstract property Foo {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in ordered_statements
+                    ) +
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_property_02(self):
+        # Test that non-computed concrete property contents are in order
+
+        ordered_statements = (
+            [
+                "extending default::Base;",
+                "default := 1;",
+                "readonly := true;",
+            ]
+            + TestSDLTextFromSchema.annotation_statements
+            + TestSDLTextFromSchema.exclusive_constraint_statements
+            + TestSDLTextFromSchema.expression_constraint_statements
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "abstract property Base;\n"
+            "type Foo {\n"
+            "    property bar -> std::int64 {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in shuffled_statements
+                    ) +
+            "    };\n"
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    abstract property Base;\n"
+            "    type Foo {\n"
+            "        property bar: std::int64 {\n"
+                        + ''.join(
+                            ' ' * 12 + s + '\n'
+                            for s in ordered_statements
+                        ) +
+            "        };\n"
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_property_03(self):
+        # Test that computed concrete property contents are in order
+
+        ordered_statements = (
+            [
+                "using (1);",
+                "readonly := true;",
+            ]
+            + TestSDLTextFromSchema.annotation_statements
+            + TestSDLTextFromSchema.exclusive_constraint_statements
+            + TestSDLTextFromSchema.expression_constraint_statements
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "type Foo {\n"
+            "    property bar -> std::int64 {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in shuffled_statements
+                    ) +
+            "    };\n"
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    type Foo {\n"
+            "        property bar {\n"
+                        + ''.join(
+                            ' ' * 12 + s + '\n'
+                            for s in ordered_statements
+                        ) +
+            "        };\n"
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_scalar_01(self):
+        # Test that type contents are in order
+
+        ordered_statements = (
+            TestSDLTextFromSchema.annotation_statements
+            + TestSDLTextFromSchema.expression_constraint_statements
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "scalar type Foo extending std::int64 {\n"
+                + ''.join(
+                    ' ' * 4 + s + '\n'
+                    for s in shuffled_statements
+                ) +
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    scalar type Foo extending std::int64 {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in ordered_statements
+                    ) +
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_type_01(self):
+        # Test that type contents are in order
+
+        ordered_statements = (
+            TestSDLTextFromSchema.annotation_statements
+            + TestSDLTextFromSchema.access_policy_statements
+            + TestSDLTextFromSchema.exclusive_constraint_statements
+            + TestSDLTextFromSchema.expression_constraint_statements
+            + TestSDLTextFromSchema.index_statements_caps
+            + [
+                "index on (.a);",
+                "index on (.b);",
+                "index on (.c);",
+            ]
+            + TestSDLTextFromSchema.index_statements_nums
+            + TestSDLTextFromSchema.index_statements_except
+            + [
+                "link b: default::Bar;",
+                "link d := (select default::Bar limit 1);",
+                "link f: default::Bar;",
+                "link h := (select default::Bar limit 1);",
+                "property a: std::int64;",
+                "property c := (1);",
+                "property e: std::int64;",
+                "property g := (1);",
+            ]
+        )
+        shuffled_statements = ordered_statements[:]
+        random.Random(1).shuffle(shuffled_statements)
+
+        self._assert_sdl_text_from_schema(
+            "abstract annotation AnnotationA;\n"
+            "abstract annotation AnnotationB;\n"
+            "abstract annotation AnnotationC;\n"
+            "abstract annotation AnnotationD;\n"
+            "type Bar;\n"
+            "type Foo {\n"
+                + ''.join(
+                    ' ' * 4 + s + '\n'
+                    for s in shuffled_statements
+                ) +
+            "}",
+
+            "module default {\n"
+            "    abstract annotation AnnotationA;\n"
+            "    abstract annotation AnnotationB;\n"
+            "    abstract annotation AnnotationC;\n"
+            "    abstract annotation AnnotationD;\n"
+            "    type Bar;\n"
+            "    type Foo {\n"
+                    + ''.join(
+                        ' ' * 8 + s + '\n'
+                        for s in ordered_statements
+                    ) +
+            "    };\n"
+            "};",
+        )
+
+    def test_schema_sdl_text_order_type_02(self):
+        # Test that sdl text sorts pointers.
+        ordered_names = [
+            chr(ord('A') + c)
+            for c in range(10)
+        ]
+        shuffled_names = ordered_names[:]
+        random.Random(1).shuffle(shuffled_names)
+
+        statements = [
+            (
+                'type Foo {\n',
+                '    property X: std::int64;',
+                '};',
+            ),
+            (
+                'type Bar; type Foo {\n',
+                '    link X: default::Bar;',
+                '};',
+            ),
+            (
+                'type Bar; type Foo { link bar: default::Bar {\n',
+                '    property X: std::int64;',
+                '};};',
+            ),
+        ]
+
+        for prefix, statement, suffix in statements:
+            self._assert_sdl_text_from_schema(
+                prefix
+                + ''.join(
+                    statement.replace('X', name) + '\n'
+                    for name in shuffled_names
+                )
+                + suffix,
+                'module default {\n'
+                + prefix
+                + ''.join(
+                    ' ' * 4 + statement.replace('X', name) + '\n'
+                    for name in ordered_names
+                )
+                + suffix
+                + '};',
+            )
 
 
 class TestCreateMigration(tb.BaseSchemaTest):
