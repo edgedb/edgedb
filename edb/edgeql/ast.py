@@ -779,6 +779,10 @@ class CreateMigration(CreateObject, MigrationCommand):
     parent: typing.Optional[ObjectRef] = None
     metadata_only: bool = False
 
+    # Sometimes the target SDL of a migration can be known in advance.
+    # eg. when doing `start migration to`
+    target_sdl: typing.Optional[str] = None
+
 
 class CommittedSchema(DDL):
     pass

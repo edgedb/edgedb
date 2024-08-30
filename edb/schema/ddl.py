@@ -661,6 +661,7 @@ def delta_from_ddl(
     stdmode: bool=False,
     testmode: bool=False,
     allow_dml_in_functions: bool=False,
+    store_migration_sdl: bool=False,
     schema_object_ids: Optional[
         Mapping[Tuple[sn.Name, Optional[str]], uuid.UUID]
     ]=None,
@@ -673,6 +674,7 @@ def delta_from_ddl(
         stdmode=stdmode,
         testmode=testmode,
         allow_dml_in_functions=allow_dml_in_functions,
+        store_migration_sdl=store_migration_sdl,
         schema_object_ids=schema_object_ids,
         compat_ver=compat_ver,
     )
@@ -688,6 +690,7 @@ def delta_and_schema_from_ddl(
     internal_schema_mode: bool=False,
     testmode: bool=False,
     allow_dml_in_functions: bool=False,
+    store_migration_sdl: bool=False,
     schema_object_ids: Optional[
         Mapping[Tuple[sn.Name, Optional[str]], uuid.UUID]
     ]=None,
@@ -701,6 +704,7 @@ def delta_and_schema_from_ddl(
         internal_schema_mode=internal_schema_mode,
         testmode=testmode,
         allow_dml_in_functions=allow_dml_in_functions,
+        store_migration_sdl=store_migration_sdl,
         schema_object_ids=schema_object_ids,
         compat_ver=compat_ver,
     )

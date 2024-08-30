@@ -165,6 +165,13 @@ def compile_and_apply_ddl_stmt(
             is_transactional=True,
         )
 
+    store_migration_sdl = compiler._get_config_val(ctx, 'store_migration_sdl')
+    if (
+        isinstance(stmt, qlast.CreateMigration)
+        and store_migration_sdl == 'AlwaysStore'
+    ):
+        stmt.target_sdl = s_ddl.sdl_text_from_schema(new_schema)
+
     # If we are in a migration rewrite, we also don't actually
     # apply the DDL, just record it. (The DDL also needs to be a
     # CreateMigration.)
@@ -295,6 +302,9 @@ def _get_delta_context_args(ctx: compiler.CompileContext) -> dict[str, Any]:
         allow_dml_in_functions=(
             compiler._get_config_val(ctx, 'allow_dml_in_functions')
         ),
+        store_migration_sdl=(
+            compiler._get_config_val(ctx, 'store_migration_sdl')
+        ) == 'AlwaysStore',
         schema_object_ids=ctx.schema_object_ids,
         compat_ver=ctx.compat_ver,
     )
@@ -817,11 +827,17 @@ def _commit_migration(
     else:
         last_migration_ref = None
 
+    target_sdl: Optional[str] = None
+    store_migration_sdl = compiler._get_config_val(ctx, 'store_migration_sdl')
+    if store_migration_sdl == 'AlwaysStore':
+        target_sdl = s_ddl.sdl_text_from_schema(schema)
+
     create_migration = qlast.CreateMigration(  # type: ignore
         body=qlast.NestedQLBlock(
             commands=mstate.accepted_cmds  # type: ignore
         ),
         parent=last_migration_ref,
+        target_sdl=target_sdl,
     )
 
     current_tx.update_schema(mstate.initial_schema)
