@@ -24,7 +24,7 @@ pub fn parse(
     let context = parser::Context::new(spec);
     let (cst, errors) = parser::parse(&tokens, &context);
 
-    let cst = cst.map(|c| to_py_cst(c, py)).transpose()?;
+    let cst = cst.map(|c| to_py_cst(&c, py)).transpose()?;
 
     let errors = errors
         .into_iter()
@@ -84,12 +84,6 @@ fn downcast_tokens(
         let token = token.borrow().inner.clone();
 
         buf.push(parser::Terminal::from_token(token));
-    }
-
-    // adjust the span of the starting token for nicer error message spans
-    if buf.len() >= 2 {
-        buf[0].span.start = buf[1].span.start;
-        buf[0].span.end = buf[1].span.start;
     }
 
     Ok(buf)

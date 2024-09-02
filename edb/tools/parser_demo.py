@@ -89,9 +89,11 @@ def main():
                         assert isinstance(x, qlast.Base)
                         x.dump_edgeql()
                         x.dump()
+                        print(x.span.start, x.span.end)
                 elif isinstance(ast, qlast.Base):
                     ast.dump_edgeql()
                     ast.dump()
+                    print(ast.span.start, ast.span.end)
                 else:
                     print(ast)
 
@@ -380,4 +382,12 @@ QUERIES = [
     '''
         START MIGRATION TO BadLang $$type Foo$$;
     ''',
+    '''
+        SELECT Issue{
+            name,
+            related_to *5,
+        };
+    ''',
+    '''sdl# comment
+    '''
 ]

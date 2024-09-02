@@ -123,8 +123,7 @@ pub enum Kind {
     Keyword(Keyword),
 
     Ident,
-    EOF,
-    EOI,     // <$> (needed for LR parser)
+    EOI,     // end of input
     Epsilon, // <e> (needed for LR parser)
 
     StartBlock,
@@ -1056,7 +1055,6 @@ impl Kind {
         use Kind::*;
         Some(match self {
             Ident => "identifier",
-            EOF => "end of file",
             EOI => "end of input",
 
             BinStr => "binary constant",
