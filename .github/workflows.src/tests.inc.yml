@@ -60,7 +60,7 @@
     << caller() >>
 
     - name: Upload shared artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
       with:
         name: shared-artifacts
         path: shared-artifacts
@@ -338,7 +338,7 @@
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: shared-artifacts
         path: shared-artifacts

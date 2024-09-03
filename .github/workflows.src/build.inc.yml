@@ -112,7 +112,7 @@
         <%- endif %>
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -194,7 +194,7 @@
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -208,7 +208,7 @@
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -241,7 +241,7 @@
         ref: master
         path: edgedb-pkg
 
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -286,7 +286,7 @@
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -310,7 +310,7 @@
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -352,7 +352,7 @@
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
