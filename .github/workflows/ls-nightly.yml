@@ -131,7 +131,7 @@ jobs:
         BUILD_GENERIC: true
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -157,7 +157,7 @@ jobs:
         BUILD_GENERIC: true
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -184,7 +184,7 @@ jobs:
         PKG_PLATFORM_LIBC: "musl"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -211,7 +211,7 @@ jobs:
         PKG_PLATFORM_LIBC: "musl"
         METAPKG_GIT_CACHE: disabled
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
@@ -266,7 +266,7 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
@@ -321,7 +321,7 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64
@@ -331,7 +331,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -352,7 +352,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -385,7 +385,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -406,7 +406,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -439,7 +439,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -460,7 +460,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -493,7 +493,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
@@ -514,7 +514,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
@@ -547,7 +547,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
@@ -578,7 +578,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64

@@ -61,7 +61,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds/terraform.tfstate
@@ -100,7 +100,7 @@ jobs:
       << setup_aws_creds()|indent(2) >>
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds
@@ -112,7 +112,7 @@ jobs:
           TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds/terraform.tfstate
@@ -135,7 +135,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: do-database-tfstate
           path: .github/do-database/terraform.tfstate
@@ -155,7 +155,7 @@ jobs:
       run: terraform init
 
     - name: Restore Terraform state
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: do-database-tfstate
         path: .github/do-database
@@ -210,7 +210,7 @@ jobs:
       << setup_terraform()|indent(2) >>
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
           name: do-database-tfstate
           path: .github/do-database
@@ -221,7 +221,7 @@ jobs:
           TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: do-database-tfstate
           path: .github/do-database/terraform.tfstate
@@ -248,7 +248,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql/terraform.tfstate
@@ -287,7 +287,7 @@ jobs:
       << setup_gcp_creds()|indent(2) >>
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql
@@ -298,7 +298,7 @@ jobs:
           TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql/terraform.tfstate
@@ -327,7 +327,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora/terraform.tfstate
@@ -366,7 +366,7 @@ jobs:
       << setup_aws_creds()|indent(2) >>
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora
@@ -379,7 +379,7 @@ jobs:
           TF_VAR_vpc_id: ${{ secrets.AWS_VPC_ID }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora/terraform.tfstate
@@ -403,7 +403,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres/terraform.tfstate
@@ -423,7 +423,7 @@ jobs:
       run: terraform init
 
     - name: Restore Terraform state
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: heroku-postgres-tfstate
         path: .github/heroku-postgres
@@ -457,7 +457,7 @@ jobs:
       << setup_aws_creds()|indent(2) >>
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres
@@ -469,7 +469,7 @@ jobs:
           HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres/terraform.tfstate

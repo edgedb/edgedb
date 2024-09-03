@@ -69,27 +69,27 @@ jobs:
 
     - name: Compute cache keys
       run: |
-        mkdir -p .tmp
-        python setup.py -q ci_helper --type cli > .tmp/edgedbcli_git_rev.txt
-        python setup.py -q ci_helper --type rust >.tmp/rust_cache_key.txt
-        python setup.py -q ci_helper --type ext >.tmp/ext_cache_key.txt
-        python setup.py -q ci_helper --type parsers >.tmp/parsers_cache_key.txt
-        python setup.py -q ci_helper --type postgres >.tmp/postgres_git_rev.txt
-        python setup.py -q ci_helper --type libpg_query >.tmp/libpg_query_git_rev.txt
-        echo 'f8cd94309eaccbfba5dea7835b88c78377608a37' >.tmp/stolon_git_rev.txt
-        python setup.py -q ci_helper --type bootstrap >.tmp/bootstrap_cache_key.txt
-        echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
-        echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
-        echo LIBPG_QUERY_GIT_REV=$(cat .tmp/libpg_query_git_rev.txt) >> $GITHUB_ENV
-        echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
+        mkdir -p shared-artifacts
+        python setup.py -q ci_helper --type cli > shared-artifacts/edgedbcli_git_rev.txt
+        python setup.py -q ci_helper --type rust >shared-artifacts/rust_cache_key.txt
+        python setup.py -q ci_helper --type ext >shared-artifacts/ext_cache_key.txt
+        python setup.py -q ci_helper --type parsers >shared-artifacts/parsers_cache_key.txt
+        python setup.py -q ci_helper --type postgres >shared-artifacts/postgres_git_rev.txt
+        python setup.py -q ci_helper --type libpg_query >shared-artifacts/libpg_query_git_rev.txt
+        echo 'f8cd94309eaccbfba5dea7835b88c78377608a37' >shared-artifacts/stolon_git_rev.txt
+        python setup.py -q ci_helper --type bootstrap >shared-artifacts/bootstrap_cache_key.txt
+        echo EDGEDBCLI_GIT_REV=$(cat shared-artifacts/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo POSTGRES_GIT_REV=$(cat shared-artifacts/postgres_git_rev.txt) >> $GITHUB_ENV
+        echo LIBPG_QUERY_GIT_REV=$(cat shared-artifacts/libpg_query_git_rev.txt) >> $GITHUB_ENV
+        echo STOLON_GIT_REV=$(cat shared-artifacts/stolon_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
     - name: Upload shared artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
       with:
         name: shared-artifacts
-        path: .tmp
+        path: shared-artifacts
         retention-days: 1
 
     # Restore binary cache
@@ -106,7 +106,7 @@ jobs:
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v4-${{ hashFiles('shared-artifacts/rust_cache_key.txt') }}
         restore-keys: |
           edb-rust-v4-
 
@@ -115,7 +115,7 @@ jobs:
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('shared-artifacts/ext_cache_key.txt') }}
 
     - name: Handle cached PostgreSQL build
       uses: actions/cache@v4
@@ -186,7 +186,7 @@ jobs:
       if: steps.rust-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/extensions
-        key: edb-rust-build-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-build-v1-${{ hashFiles('shared-artifacts/rust_cache_key.txt') }}
         restore-keys: |
           edb-rust-build-v1-
 
@@ -221,7 +221,7 @@ jobs:
       if: steps.ext-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/edb
-        key: edb-ext-build-v3-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-build-v3-${{ hashFiles('shared-artifacts/ext_cache_key.txt') }}
 
     - name: Build Cython extensions
       env:
@@ -245,7 +245,7 @@ jobs:
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v3-${{ hashFiles('shared-artifacts/parsers_cache_key.txt') }}
         restore-keys: |
           edb-parsers-v3-
 
@@ -318,7 +318,7 @@ jobs:
       id: bootstrap-cache
       with:
         path: build/cache
-        key: edb-bootstrap-v2-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
+        key: edb-bootstrap-v2-${{ hashFiles('shared-artifacts/bootstrap_cache_key.txt') }}
         restore-keys: |
           edb-bootstrap-v2-
 
@@ -363,7 +363,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds/terraform.tfstate
@@ -423,16 +423,16 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: shared-artifacts
-        path: .tmp
+        path: shared-artifacts
 
     - name: Set environment variables
       run: |
-        echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
-        echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
-        echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
+        echo EDGEDBCLI_GIT_REV=$(cat shared-artifacts/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo POSTGRES_GIT_REV=$(cat shared-artifacts/postgres_git_rev.txt) >> $GITHUB_ENV
+        echo STOLON_GIT_REV=$(cat shared-artifacts/stolon_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
@@ -450,21 +450,21 @@ jobs:
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v4-${{ hashFiles('shared-artifacts/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
       uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('shared-artifacts/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
       uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v3-${{ hashFiles('shared-artifacts/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
       uses: actions/cache@v4
@@ -485,7 +485,7 @@ jobs:
       id: bootstrap-cache
       with:
         path: build/cache
-        key: edb-bootstrap-v2-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
+        key: edb-bootstrap-v2-${{ hashFiles('shared-artifacts/bootstrap_cache_key.txt') }}
 
     - name: Stop if we cannot retrieve the cache
       if: |
@@ -552,7 +552,7 @@ jobs:
           aws-region: us-east-2
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds
@@ -564,7 +564,7 @@ jobs:
           TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds/terraform.tfstate
@@ -596,7 +596,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: do-database-tfstate
           path: .github/do-database/terraform.tfstate
@@ -651,16 +651,16 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: shared-artifacts
-        path: .tmp
+        path: shared-artifacts
 
     - name: Set environment variables
       run: |
-        echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
-        echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
-        echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
+        echo EDGEDBCLI_GIT_REV=$(cat shared-artifacts/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo POSTGRES_GIT_REV=$(cat shared-artifacts/postgres_git_rev.txt) >> $GITHUB_ENV
+        echo STOLON_GIT_REV=$(cat shared-artifacts/stolon_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
@@ -678,21 +678,21 @@ jobs:
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v4-${{ hashFiles('shared-artifacts/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
       uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('shared-artifacts/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
       uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v3-${{ hashFiles('shared-artifacts/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
       uses: actions/cache@v4
@@ -713,7 +713,7 @@ jobs:
       id: bootstrap-cache
       with:
         path: build/cache
-        key: edb-bootstrap-v2-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
+        key: edb-bootstrap-v2-${{ hashFiles('shared-artifacts/bootstrap_cache_key.txt') }}
 
     - name: Stop if we cannot retrieve the cache
       if: |
@@ -752,7 +752,7 @@ jobs:
       run: terraform init
 
     - name: Restore Terraform state
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: do-database-tfstate
         path: .github/do-database
@@ -816,7 +816,7 @@ jobs:
         run: terraform init
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
           name: do-database-tfstate
           path: .github/do-database
@@ -827,7 +827,7 @@ jobs:
           TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: do-database-tfstate
           path: .github/do-database/terraform.tfstate
@@ -867,7 +867,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql/terraform.tfstate
@@ -927,16 +927,16 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: shared-artifacts
-        path: .tmp
+        path: shared-artifacts
 
     - name: Set environment variables
       run: |
-        echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
-        echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
-        echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
+        echo EDGEDBCLI_GIT_REV=$(cat shared-artifacts/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo POSTGRES_GIT_REV=$(cat shared-artifacts/postgres_git_rev.txt) >> $GITHUB_ENV
+        echo STOLON_GIT_REV=$(cat shared-artifacts/stolon_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
@@ -954,21 +954,21 @@ jobs:
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v4-${{ hashFiles('shared-artifacts/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
       uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('shared-artifacts/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
       uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v3-${{ hashFiles('shared-artifacts/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
       uses: actions/cache@v4
@@ -989,7 +989,7 @@ jobs:
       id: bootstrap-cache
       with:
         path: build/cache
-        key: edb-bootstrap-v2-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
+        key: edb-bootstrap-v2-${{ hashFiles('shared-artifacts/bootstrap_cache_key.txt') }}
 
     - name: Stop if we cannot retrieve the cache
       if: |
@@ -1055,7 +1055,7 @@ jobs:
           export_default_credentials: true
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql
@@ -1066,7 +1066,7 @@ jobs:
           TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql/terraform.tfstate
@@ -1109,7 +1109,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora/terraform.tfstate
@@ -1169,16 +1169,16 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: shared-artifacts
-        path: .tmp
+        path: shared-artifacts
 
     - name: Set environment variables
       run: |
-        echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
-        echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
-        echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
+        echo EDGEDBCLI_GIT_REV=$(cat shared-artifacts/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo POSTGRES_GIT_REV=$(cat shared-artifacts/postgres_git_rev.txt) >> $GITHUB_ENV
+        echo STOLON_GIT_REV=$(cat shared-artifacts/stolon_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
@@ -1196,21 +1196,21 @@ jobs:
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v4-${{ hashFiles('shared-artifacts/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
       uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('shared-artifacts/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
       uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v3-${{ hashFiles('shared-artifacts/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
       uses: actions/cache@v4
@@ -1231,7 +1231,7 @@ jobs:
       id: bootstrap-cache
       with:
         path: build/cache
-        key: edb-bootstrap-v2-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
+        key: edb-bootstrap-v2-${{ hashFiles('shared-artifacts/bootstrap_cache_key.txt') }}
 
     - name: Stop if we cannot retrieve the cache
       if: |
@@ -1298,7 +1298,7 @@ jobs:
           aws-region: us-east-2
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora
@@ -1311,7 +1311,7 @@ jobs:
           TF_VAR_vpc_id: ${{ secrets.AWS_VPC_ID }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora/terraform.tfstate
@@ -1344,7 +1344,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres/terraform.tfstate
@@ -1399,16 +1399,16 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: shared-artifacts
-        path: .tmp
+        path: shared-artifacts
 
     - name: Set environment variables
       run: |
-        echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
-        echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
-        echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
+        echo EDGEDBCLI_GIT_REV=$(cat shared-artifacts/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo POSTGRES_GIT_REV=$(cat shared-artifacts/postgres_git_rev.txt) >> $GITHUB_ENV
+        echo STOLON_GIT_REV=$(cat shared-artifacts/stolon_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
@@ -1426,21 +1426,21 @@ jobs:
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v4-${{ hashFiles('shared-artifacts/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
       uses: actions/cache@v4
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('shared-artifacts/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
       uses: actions/cache@v4
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v3-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v3-${{ hashFiles('shared-artifacts/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
       uses: actions/cache@v4
@@ -1461,7 +1461,7 @@ jobs:
       id: bootstrap-cache
       with:
         path: build/cache
-        key: edb-bootstrap-v2-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
+        key: edb-bootstrap-v2-${{ hashFiles('shared-artifacts/bootstrap_cache_key.txt') }}
 
     - name: Stop if we cannot retrieve the cache
       if: |
@@ -1500,7 +1500,7 @@ jobs:
       run: terraform init
 
     - name: Restore Terraform state
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
       with:
         name: heroku-postgres-tfstate
         path: .github/heroku-postgres
@@ -1548,7 +1548,7 @@ jobs:
           aws-region: us-east-2
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres
@@ -1560,7 +1560,7 @@ jobs:
           HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874  # v4.4.0
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres/terraform.tfstate
