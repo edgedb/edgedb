@@ -318,8 +318,6 @@ instance-level configuration object.
       - ``--password <pass>``
     * - ``EDGEDB_TLS_CA_FILE``
       - ``--tls-ca-file <path>``
-    * - ``EDGEDB_TLS_SERVER_NAME``
-      - ``--tls-server-name``
     * - ``EDGEDB_CLIENT_TLS_SECURITY``
       - ``--tls-security``
     * - ``EDGEDB_CLIENT_SECURITY``
@@ -345,6 +343,8 @@ instance-level configuration object.
       - ``--password <pass>``
     * - ``EDGEDB_TLS_CA_FILE``
       - ``--tls-ca-file <path>``
+    * - ``EDGEDB_TLS_SERVER_NAME``
+      - ``--tls-server-name``
     * - ``EDGEDB_CLIENT_TLS_SECURITY``
       - ``--tls-security``
     * - ``EDGEDB_CLIENT_SECURITY``
@@ -375,10 +375,9 @@ instance-level configuration object.
   and provide a path to its location on the filesystem. Otherwise TLS will fail
   to connect.
 
-**EDGEDB_TLS_SERVER_NAME**
-  Sometimes the target instance address cannot be resolved correctly
-  from a hostname. In those cases it is required to provide SNI for proper TLS
-  verification. It is also required for tenant selection in a multi-tenant environment.
+**EDGEDB_TLS_SERVER_NAME (SNI)**
+  If for some reason target instance IP address can't be resolved from the
+  hostname, you can provide SNI.
 
 **EDGEDB_CLIENT_TLS_SECURITY**
   Sets the TLS security mode. Determines whether certificate and hostname
