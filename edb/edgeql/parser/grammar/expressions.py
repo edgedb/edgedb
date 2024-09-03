@@ -41,6 +41,16 @@ class Nonterm(parsing.Nonterm, is_internal=True):
     pass
 
 
+def merge_spans(nodes: Iterable[Nonterm]) -> span.Span:
+    return span.merge_spans(
+        n.val.span for n in nodes if isinstance(n.val, qlast.Base)
+    )
+
+def assert_non_null(span):
+    assert span
+    return span
+
+
 class ListNonterm(parsing.ListNonterm, element=None, is_internal=True):
     pass
 
@@ -585,12 +595,12 @@ class ShapePath(Nonterm):
 class Splat(Nonterm):
     def reduce_STAR(self, *kids):
         self.val = qlast.Path(steps=[
-            qlast.Splat(depth=1),
+            qlast.Splat(depth=1, span=kids[0].val.span),
         ])
 
     def reduce_DOUBLESTAR(self, *kids):
         self.val = qlast.Path(steps=[
-            qlast.Splat(depth=2),
+            qlast.Splat(depth=2, span=kids[0].val.span),
         ])
 
     # Type.*
@@ -598,7 +608,10 @@ class Splat(Nonterm):
         self.val = qlast.Path(steps=[
             qlast.Splat(
                 depth=1,
-                type=qlast.TypeName(maintype=kids[0].val),
+                type=qlast.TypeName(
+                    maintype=kids[0].val, span=kids[0].val.span
+                ),
+                span=merge_spans(kids),
             ),
         ])
 
@@ -607,7 +620,10 @@ class Splat(Nonterm):
         self.val = qlast.Path(steps=[
             qlast.Splat(
                 depth=2,
-                type=qlast.TypeName(maintype=kids[0].val),
+                type=qlast.TypeName(
+                    maintype=kids[0].val, span=kids[0].val.span
+                ),
+                span=merge_spans(kids),
             ),
         ])
 
@@ -617,6 +633,7 @@ class Splat(Nonterm):
             qlast.Splat(
                 depth=1,
                 intersection=kids[0].val,
+                span=merge_spans(kids),
             ),
         ])
 
@@ -626,6 +643,7 @@ class Splat(Nonterm):
             qlast.Splat(
                 depth=2,
                 intersection=kids[0].val,
+                span=merge_spans(kids),
             ),
         ])
 
@@ -634,8 +652,11 @@ class Splat(Nonterm):
         self.val = qlast.Path(steps=[
             qlast.Splat(
                 depth=1,
-                type=qlast.TypeName(maintype=kids[0].val),
+                type=qlast.TypeName(
+                    maintype=kids[0].val, span=kids[0].val.span
+                ),
                 intersection=kids[1].val,
+                span=merge_spans(kids),
             ),
         ])
 
@@ -644,8 +665,11 @@ class Splat(Nonterm):
         self.val = qlast.Path(steps=[
             qlast.Splat(
                 depth=2,
-                type=qlast.TypeName(maintype=kids[0].val),
+                type=qlast.TypeName(
+                    maintype=kids[0].val, span=kids[0].val.span
+                ),
                 intersection=kids[1].val,
+                span=merge_spans(kids),
             ),
         ])
 
@@ -653,8 +677,11 @@ class Splat(Nonterm):
     def reduce_PtrQualifiedNodeName_DOT_STAR(self, *kids):
         self.val = qlast.Path(steps=[
             qlast.Splat(
-                type=qlast.TypeName(maintype=kids[0].val),
+                type=qlast.TypeName(
+                    maintype=kids[0].val, span=kids[0].val.span
+                ),
                 depth=1,
+                span=merge_spans(kids),
             ),
         ])
 
@@ -662,8 +689,11 @@ class Splat(Nonterm):
     def reduce_PtrQualifiedNodeName_DOT_DOUBLESTAR(self, *kids):
         self.val = qlast.Path(steps=[
             qlast.Splat(
-                type=qlast.TypeName(maintype=kids[0].val),
+                type=qlast.TypeName(
+                    maintype=kids[0].val, span=kids[0].val.span
+                ),
                 depth=2,
+                span=merge_spans(kids),
             ),
         ])
 
@@ -672,8 +702,11 @@ class Splat(Nonterm):
         self.val = qlast.Path(steps=[
             qlast.Splat(
                 depth=1,
-                type=qlast.TypeName(maintype=kids[0].val),
+                type=qlast.TypeName(
+                    maintype=kids[0].val, span=kids[0].val.span
+                ),
                 intersection=kids[1].val,
+                span=merge_spans(kids),
             ),
         ])
 
@@ -685,8 +718,11 @@ class Splat(Nonterm):
         self.val = qlast.Path(steps=[
             qlast.Splat(
                 depth=2,
-                type=qlast.TypeName(maintype=kids[0].val),
+                type=qlast.TypeName(
+                    maintype=kids[0].val, span=kids[0].val.span
+                ),
                 intersection=kids[1].val,
+                span=merge_spans(kids),
             ),
         ])
 
@@ -696,6 +732,7 @@ class Splat(Nonterm):
             qlast.Splat(
                 depth=1,
                 type=kids[0].val,
+                span=merge_spans(kids),
             ),
         ])
 
@@ -706,6 +743,7 @@ class Splat(Nonterm):
                 depth=1,
                 type=kids[0].val,
                 intersection=kids[1].val,
+                span=merge_spans(kids),
             ),
         ])
 
@@ -715,6 +753,7 @@ class Splat(Nonterm):
             qlast.Splat(
                 depth=2,
                 type=kids[0].val,
+                span=merge_spans(kids),
             ),
         ])
 
@@ -725,6 +764,7 @@ class Splat(Nonterm):
                 depth=2,
                 type=kids[0].val,
                 intersection=kids[1].val,
+                span=merge_spans(kids),
             ),
         ])
 
@@ -793,7 +833,7 @@ class ComputableShapePointer(Nonterm):
         self.val.required = False
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[2].span,
+            span=assert_non_null(kids[2].span),
         )
 
     def reduce_REQUIRED_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -802,7 +842,7 @@ class ComputableShapePointer(Nonterm):
         self.val.required = True
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[2].span,
+            span=assert_non_null(kids[2].span),
         )
 
     def reduce_MULTI_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -811,7 +851,7 @@ class ComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[2].span,
+            span=assert_non_null(kids[2].span),
         )
 
     def reduce_SINGLE_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -820,7 +860,7 @@ class ComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[2].span,
+            span=assert_non_null(kids[2].span),
         )
 
     def reduce_OPTIONAL_MULTI_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -830,7 +870,7 @@ class ComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[3].span,
+            span=assert_non_null(kids[3].span),
         )
 
     def reduce_OPTIONAL_SINGLE_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -840,7 +880,7 @@ class ComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[3].span,
+            span=assert_non_null(kids[3].span),
         )
 
     def reduce_REQUIRED_MULTI_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -850,7 +890,7 @@ class ComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[3].span,
+            span=assert_non_null(kids[3].span),
         )
 
     def reduce_REQUIRED_SINGLE_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -860,7 +900,7 @@ class ComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[3].span,
+            span=assert_non_null(kids[3].span),
         )
 
     def reduce_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -868,7 +908,7 @@ class ComputableShapePointer(Nonterm):
         self.val.compexpr = kids[2].val
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[1].span,
+            span=assert_non_null(kids[1].span),
         )
 
     def reduce_SimpleShapePointer_ADDASSIGN_Expr(self, *kids):
@@ -876,7 +916,7 @@ class ComputableShapePointer(Nonterm):
         self.val.compexpr = kids[2].val
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.APPEND,
-            span=kids[1].span,
+            span=assert_non_null(kids[1].span),
         )
 
     def reduce_SimpleShapePointer_REMASSIGN_Expr(self, *kids):
@@ -884,7 +924,7 @@ class ComputableShapePointer(Nonterm):
         self.val.compexpr = kids[2].val
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.SUBTRACT,
-            span=kids[1].span,
+            span=assert_non_null(kids[1].span),
         )
 
 
@@ -897,7 +937,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.required = False
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[2].span,
+            span=assert_non_null(kids[2].span),
         )
 
     def reduce_REQUIRED_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -906,7 +946,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.required = True
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[2].span,
+            span=assert_non_null(kids[2].span),
         )
 
     def reduce_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -915,7 +955,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[2].span,
+            span=assert_non_null(kids[2].span),
         )
 
     def reduce_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -924,7 +964,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[2].span,
+            span=assert_non_null(kids[2].span),
         )
 
     def reduce_OPTIONAL_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -934,7 +974,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[3].span,
+            span=assert_non_null(kids[3].span),
         )
 
     def reduce_OPTIONAL_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -944,7 +984,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[3].span,
+            span=assert_non_null(kids[3].span),
         )
 
     def reduce_REQUIRED_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -954,7 +994,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.Many
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[3].span,
+            span=assert_non_null(kids[3].span),
         )
 
     def reduce_REQUIRED_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -964,7 +1004,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.cardinality = qltypes.SchemaCardinality.One
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[3].span,
+            span=assert_non_null(kids[3].span),
         )
 
     def reduce_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -972,7 +1012,7 @@ class FreeComputableShapePointer(Nonterm):
         self.val.compexpr = kids[2].val
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
-            span=kids[1].span,
+            span=assert_non_null(kids[1].span),
         )
 
 
@@ -1145,24 +1185,46 @@ class BaseAtomicExpr(Nonterm):
         pass
 
     def reduce_DUNDERSOURCE(self, *kids):
-        self.val = qlast.Path(steps=[qlast.SpecialAnchor(name='__source__')])
+        self.val = qlast.Path(
+            steps=[
+                qlast.SpecialAnchor(name='__source__', span=kids[0].val.span)
+            ]
+        )
 
     def reduce_DUNDERSUBJECT(self, *kids):
-        self.val = qlast.Path(steps=[qlast.SpecialAnchor(name='__subject__')])
+        self.val = qlast.Path(
+            steps=[
+                qlast.SpecialAnchor(name='__subject__', span=kids[0].val.span)
+            ]
+        )
 
     def reduce_DUNDERNEW(self, *kids):
-        self.val = qlast.Path(steps=[qlast.SpecialAnchor(name='__new__')])
+        self.val = qlast.Path(
+            steps=[
+                qlast.SpecialAnchor(name='__new__', span=kids[0].val.span)
+            ]
+        )
 
     def reduce_DUNDEROLD(self, *kids):
-        self.val = qlast.Path(steps=[qlast.SpecialAnchor(name='__old__')])
+        self.val = qlast.Path(
+            steps=[
+                qlast.SpecialAnchor(name='__old__', span=kids[0].val.span)
+            ]
+        )
 
     def reduce_DUNDERSPECIFIED(self, _):
         self.val = qlast.Path(
-            steps=[qlast.SpecialAnchor(name='__specified__')]
+            steps=[
+                qlast.SpecialAnchor(name='__specified__', span=kids[0].val.span)
+            ]
         )
 
     def reduce_DUNDERDEFAULT(self, *kids):
-        self.val = qlast.Path(steps=[qlast.SpecialAnchor(name='__default__')])
+        self.val = qlast.Path(
+            steps=[
+                qlast.SpecialAnchor(name='__default__', span=kids[0].val.span)
+            ]
+        )
 
     @parsing.precedence(precedence.P_UMINUS)
     @parsing.inline(0)
@@ -1192,8 +1254,14 @@ class BaseAtomicExpr(Nonterm):
     @parsing.precedence(precedence.P_DOT)
     def reduce_NodeName(self, *kids):
         self.val = qlast.Path(
-            steps=[qlast.ObjectRef(name=kids[0].val.name,
-                                   module=kids[0].val.module)])
+            steps=[
+                qlast.ObjectRef(
+                    name=kids[0].val.name,
+                    module=kids[0].val.module,
+                    span=kids[0].val.span,
+                )
+            ]
+        )
 
     @parsing.precedence(precedence.P_DOT)
     def reduce_PathStep(self, *kids):
@@ -1545,9 +1613,13 @@ class Constant(Nonterm):
                 maintype=qlast.ObjectRef(
                     name=type_name,
                     module='__std__'
-                )
+                ),
+                span=param.val.span,
             ),
-            expr=qlast.Parameter(name=param_name),
+            expr=qlast.Parameter(
+                name=param_name,
+                span=param.val.span,
+            ),
         )
 
     @parsing.inline(0)

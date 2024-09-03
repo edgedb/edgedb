@@ -278,6 +278,7 @@ pub struct Terminal {
 pub struct Production<'a> {
     pub id: usize,
     pub args: &'a [CSTNode<'a>],
+    pub span: Option<Span>,
 
     /// When a production is inlined, its id is saved into the new production
     /// This is needed when matching CST nodes by production id.
@@ -347,6 +348,7 @@ impl<'s> Parser<'s> {
 
         let value = CSTNode::Production(Production {
             id: reduce.production_id,
+            span: get_span_of_nodes(args),
             args,
             inlined_ids: None,
         });
@@ -372,7 +374,7 @@ impl<'s> Parser<'s> {
                         Some(ctx.alloc_slice_and_push(&new_prod.inlined_ids, inlined_id));
                 }
 
-                extend_span(&mut value, span, ctx);
+                expand_span(&mut value, span, ctx);
             } else {
                 // place back
                 value = CSTNode::Production(production);
@@ -510,38 +512,54 @@ impl<'a> StackNode<'a> {
     }
 }
 
-fn get_span_of_nodes(args: &[CSTNode]) -> Option<Span> {
-    let start = args.iter().find_map(|x| match x {
+/// Returns the span of syntactically ordered nodes. Panic on empty nodes.
+fn get_span_of_nodes(nodes: &[CSTNode]) -> Option<Span> {
+    let start = nodes.iter().find_map(|x| match x {
         CSTNode::Terminal(t) => Some(t.span.start),
-        CSTNode::Production(p) => get_span_of_nodes(p.args).map(|x| x.start),
-        _ => None,
+        CSTNode::Production(p) => Some(p.span?.start),
+        CSTNode::Empty => panic!(),
     })?;
-    let end = args.iter().rev().find_map(|x| match x {
+    let end = nodes.iter().rev().find_map(|x| match x {
         CSTNode::Terminal(t) => Some(t.span.end),
-        CSTNode::Production(p) => get_span_of_nodes(p.args).map(|x| x.end),
-        _ => None,
+        CSTNode::Production(p) => Some(p.span?.end),
+        CSTNode::Empty => panic!(),
     })?;
     Some(Span { start, end })
 }
 
-fn extend_span<'a>(value: &mut CSTNode<'a>, span: Option<Span>, ctx: &'a Context) {
+fn expand_span<'a>(value: &mut CSTNode<'a>, span: Option<Span>, ctx: &'a Context) {
     let Some(span) = span else {
         return;
     };
 
-    let CSTNode::Terminal(terminal) = value else {
-        return;
+    let curr_span = match value {
+        CSTNode::Empty => panic!(),
+        CSTNode::Terminal(t) => &t.span,
+        CSTNode::Production(p) => {
+            if let Some(span) = &p.span {
+                span
+            } else {
+                p.span = Some(span);
+                return;
+            }
+        }
     };
 
-    let mut new_term = terminal.clone();
+    if curr_span.start <= span.start && span.end <= curr_span.end {
+        return;
+    }
 
-    if span.start < new_term.span.start {
-        new_term.span.start = span.start;
-    }
-    if span.end > new_term.span.end {
-        new_term.span.end = span.end;
-    }
-    *terminal = ctx.alloc_terminal(new_term);
+    let span = span.extend(curr_span);
+
+    match value {
+        CSTNode::Empty => panic!(),
+        CSTNode::Terminal(t) => {
+            let mut new_term = t.clone();
+            new_term.span = span;
+            *t = ctx.alloc_terminal(new_term);
+        }
+        CSTNode::Production(p) => p.span = Some(span),
+    };
 }
 
 const PARSER_COUNT_MAX: usize = 10;

@@ -238,6 +238,15 @@ def _cst_to_ast(
             sym = non_term_type()
             method(sym, *args)
 
+            # span
+            if node.start is not None and isinstance(sym.val, qlast.Base):
+                sym.val.span = parsing.Span(
+                    name=filename,
+                    buffer=source.text(),
+                    start=node.start,
+                    end=node.end,
+                )
+
             # push into result stack
             result.append(sym)
 
