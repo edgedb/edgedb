@@ -94,18 +94,18 @@ jobs:
         SHARD: ${{ matrix.shard }}
         EDGEDB_TEST_REPEATS: 1
       run: |
-        mkdir -p .results/
-        cp shared-artifacts/time_stats.csv .results/running_times_${SHARD}.csv
+        mkdir -p results/
+        cp shared-artifacts/time_stats.csv results/running_times_${SHARD}.csv
         edb test --jobs 2 --verbose --shard ${SHARD}/16 \
-          --running-times-log=.results/running_times_${SHARD}.csv \
-          --result-log=.results/result_${SHARD}.json
+          --running-times-log=results/running_times_${SHARD}.csv \
+          --result-log=results/result_${SHARD}.json
 
     - name: Upload test results
       uses: actions/upload-artifact@v4
       if: ${{ always() }}
       with:
         name: python-test-results-${{ matrix.shard }}
-        path: .results
+        path: results
         retention-days: 1
 
   python-test-list:
@@ -153,12 +153,12 @@ jobs:
         with:
           pattern: python-test-results-*
           merge-multiple: true
-          path: .results
+          path: results
 
       # Render results and exit if they were unsuccessful
       - name: Render results
         run: |
-          python edb/tools/test/results.py '.results/result_*.json'
+          python edb/tools/test/results.py 'results/result_*.json'
 
       - name: Download shared artifacts
         uses: actions/download-artifact@v4
@@ -197,7 +197,7 @@ jobs:
                   assert line not in all_tests, "duplicate test name in this run!"
                   all_tests.add(line.strip())
 
-          for new_file in glob.glob(".results/running_times_*.csv"):
+          for new_file in glob.glob("results/running_times_*.csv"):
               with open(new_file) as f:
                   for name, t, c in csv.reader(f):
                       if int(c) > orig.get(name, (0, 0))[1]:
