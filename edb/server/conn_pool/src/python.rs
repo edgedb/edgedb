@@ -401,9 +401,7 @@ impl LoggingGuard {
     #[new]
     fn init_logging(py: Python) -> PyResult<LoggingGuard> {
         let logging = py.import_bound("logging")?;
-        let logger = logging
-            .getattr("getLogger")?
-            .call(("edb.server",), None)?;
+        let logger = logging.getattr("getLogger")?.call(("edb.server",), None)?;
         let level = logger
             .getattr("getEffectiveLevel")?
             .call((), None)?
