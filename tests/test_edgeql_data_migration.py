@@ -12869,7 +12869,7 @@ class EdgeQLMigrationRewriteTestCase(EdgeQLDataMigrationTestCase):
         res = await self.con.query(
             '''
             select schema::Migration {
-                id, name, script, parents: {name, id}, generated_by
+                id, name, script, sdl, parents: {name, id}, generated_by
             }
             '''
         )
@@ -12899,6 +12899,11 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
     # If that is a problem, a test case can be made to skip it
 
     async def test_edgeql_migration_rewrite_01(self):
+        await self.con.execute('''
+            CONFIGURE SESSION SET store_migration_sdl :=
+                cfg::StoreMigrationSDL.AlwaysStore;
+        ''')
+
         # Split one migration up into several
         await self.migrate(r"""
             type A;
@@ -12936,17 +12941,60 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
         """)
 
         await self.assert_migration_history([
-            {'script': 'CREATE TYPE default::A;', 'generated_by': None},
-            {'script': 'CREATE TYPE B;', 'generated_by': None},
-            {'script': 'create type C;', 'generated_by': None},
-            {'script': (
-                'SET generated_by '
-                ':= (schema::MigrationGeneratedBy.DDLStatement);\n'
-                'CREATE TYPE D;'
-            ), 'generated_by': 'DDLStatement'},
+            {
+                'script': 'CREATE TYPE default::A;',
+                'sdl': (
+                    'module default {\n'
+                    '    type A;\n'
+                    '};'
+                ),
+                'generated_by': None,
+            },
+            {
+                'script': 'CREATE TYPE B;',
+                'sdl': (
+                    'module default {\n'
+                    '    type A;\n'
+                    '    type B;\n'
+                    '};'
+                ),
+                'generated_by': None,
+            },
+            {
+                'script': 'create type C;',
+                'sdl': (
+                    'module default {\n'
+                    '    type A;\n'
+                    '    type B;\n'
+                    '    type C;\n'
+                    '};'
+                ),
+                'generated_by': None,
+            },
+            {
+                'script': (
+                    'SET generated_by '
+                    ':= (schema::MigrationGeneratedBy.DDLStatement);\n'
+                    'CREATE TYPE D;'
+                ),
+                'sdl': (
+                    'module default {\n'
+                    '    type A;\n'
+                    '    type B;\n'
+                    '    type C;\n'
+                    '    type D;\n'
+                    '};'
+                ),
+                'generated_by': 'DDLStatement',
+            },
         ])
 
     async def test_edgeql_migration_rewrite_02(self):
+        await self.con.execute('''
+            CONFIGURE SESSION SET store_migration_sdl :=
+                cfg::StoreMigrationSDL.AlwaysStore;
+        ''')
+
         # Simulate a potential migration squashing flow from the CLI,
         # where we generate a script using start migration and then apply it
         # later.
@@ -12989,10 +13037,25 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
         await self.con.execute(script)
 
         await self.assert_migration_history([
-            {'script': commands}
+            {
+                'script': commands,
+                'sdl': (
+                    'module default {\n'
+                    '    type Foo {\n'
+                    '        link tgt: default::Tgt;\n'
+                    '    };\n'
+                    '    type Tgt;\n'
+                    '};'
+                ),
+            }
         ])
 
     async def test_edgeql_migration_rewrite_03(self):
+        await self.con.execute('''
+            CONFIGURE SESSION SET store_migration_sdl :=
+                cfg::StoreMigrationSDL.AlwaysStore;
+        ''')
+
         # Test rolling back to a savepoint after a commit failure
         await self.con.execute(r"""
             create type A;
@@ -13033,8 +13096,23 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
             'SET generated_by := (schema::MigrationGeneratedBy.DDLStatement);'
         )
         await self.assert_migration_history([
-            {'script': gby + '\n' + 'CREATE TYPE B;'},
-            {'script': gby + '\n' + 'CREATE TYPE A;'},
+            {
+                'script': gby + '\n' + 'CREATE TYPE B;',
+                'sdl': (
+                    'module default {\n'
+                    '    type B;\n'
+                    '};'
+                ),
+            },
+            {
+                'script': gby + '\n' + 'CREATE TYPE A;',
+                'sdl': (
+                    'module default {\n'
+                    '    type A;\n'
+                    '    type B;\n'
+                    '};'
+                ),
+            },
         ])
 
     async def test_edgeql_migration_rewrite_05(self):
@@ -13058,6 +13136,11 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
         """)
 
     async def test_edgeql_migration_rewrite_06(self):
+        await self.con.execute('''
+            CONFIGURE SESSION SET store_migration_sdl :=
+                cfg::StoreMigrationSDL.AlwaysStore;
+        ''')
+
         # Test doing the interactive migration flow
         await self.con.execute(r"""
             create type A;
@@ -13079,7 +13162,15 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
         """)
 
         await self.assert_migration_history([
-            {'script': 'CREATE TYPE default::A;\nCREATE TYPE default::B;'},
+            {
+                'script': 'CREATE TYPE default::A;\nCREATE TYPE default::B;',
+                'sdl': (
+                    'module default {\n'
+                    '    type A;\n'
+                    '    type B;\n'
+                    '};'
+                ),
+            },
         ])
 
     async def test_edgeql_migration_preexisting_01(self):

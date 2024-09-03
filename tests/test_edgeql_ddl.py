@@ -12139,89 +12139,6 @@ type default::Foo {
                     EXTENDING enum<Red, Green, Blue, Red>;
             ''')
 
-    async def test_edgeql_ddl_enum_04(self):
-        await self.con.execute('''
-            CREATE SCALAR TYPE Color
-                EXTENDING enum<Red, Green, Blue>;
-        ''')
-
-        await self.con.query('DECLARE SAVEPOINT t0')
-
-        with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                'cannot DROP EXTENDING enum'):
-            await self.con.execute('''
-                ALTER SCALAR TYPE Color
-                    DROP EXTENDING enum<Red, Green, Blue>;
-            ''')
-
-        # Recover.
-        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
-
-        with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                "cannot add supertype scalar type 'std::str' to enum type "
-                "default::Color"):
-            await self.con.execute('''
-                ALTER SCALAR TYPE Color EXTENDING str FIRST;
-            ''')
-
-        # Recover.
-        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
-
-        with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                'cannot add supertype enum<Bad> to enum type default::Color'):
-            await self.con.execute('''
-                ALTER SCALAR TYPE Color
-                    EXTENDING enum<Bad> LAST;
-            ''')
-
-        # Recover.
-        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
-
-        with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                'enum default::Color may not have multiple supertypes'):
-            await self.con.execute('''
-                ALTER SCALAR TYPE Color
-                    EXTENDING enum<Bad>, enum<AlsoBad>;
-            ''')
-
-        # Recover.
-        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
-
-        with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                'enums cannot contain duplicate values'):
-            await self.con.execute('''
-                ALTER SCALAR TYPE Color
-                    EXTENDING enum<Red, Green, Blue, Red>;
-            ''')
-
-        # Recover.
-        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
-
-        await self.con.execute(r'''
-            ALTER SCALAR TYPE Color
-                EXTENDING enum<Red, Green, Blue, Magic>;
-        ''')
-        # Commit the changes and start a new transaction for more testing.
-        await self.con.query("COMMIT")
-        await self.con.query("START TRANSACTION")
-        await self.assert_query_result(
-            r"""
-                SELECT <Color>'Magic' >
-                    <Color>'Red';
-            """,
-            [True],
-        )
-
-        await self.con.execute('''
-            DROP SCALAR TYPE Color;
-        ''')
-        await self.con.query("COMMIT")
-
     async def test_edgeql_ddl_enum_05(self):
         await self.con.execute('''
             CREATE SCALAR TYPE Color
@@ -13746,7 +13663,122 @@ type default::Foo {
                     DROP FUNCTION foo___1(a: int64);
                 ''')
 
+    async def test_edgeql_ddl_migration_sdl_01(self):
+        await self.con.execute('''
+            CONFIGURE SESSION SET store_migration_sdl :=
+                cfg::StoreMigrationSDL.AlwaysStore;
+        ''')
+
+        await self.con.execute('''
+            create type A;
+            create type B {
+                create property n -> int64;
+            };
+            alter type A {
+                create link b -> B;
+            };
+            alter type A {
+                alter link b {
+                    create property n -> int64
+                };
+            };
+            alter type A {
+                alter link b {
+                    drop property n;
+                };
+            };
+            alter type B {
+                drop property n;
+            };
+        ''')
+        await self.con.execute('''
+            drop type A;
+        ''')
+
+        await self.assert_query_result(
+            'select schema::Migration { sdl }',
+            [
+                {
+                    'sdl': (
+                        'module default {\n'
+                        '    type A;\n'
+                        '};'
+                    ),
+                },
+                {
+                    'sdl': (
+                        'module default {\n'
+                        '    type A;\n'
+                        '    type B {\n'
+                        '        property n: std::int64;\n'
+                        '    };\n'
+                        '};'
+                    ),
+                },
+                {
+                    'sdl': (
+                        'module default {\n'
+                        '    type A {\n'
+                        '        link b: default::B;\n'
+                        '    };\n'
+                        '    type B {\n'
+                        '        property n: std::int64;\n'
+                        '    };\n'
+                        '};'
+                    ),
+                },
+                {
+                    'sdl': (
+                        'module default {\n'
+                        '    type A {\n'
+                        '        link b: default::B {\n'
+                        '            property n: std::int64;\n'
+                        '        };\n'
+                        '    };\n'
+                        '    type B {\n'
+                        '        property n: std::int64;\n'
+                        '    };\n'
+                        '};'
+                    ),
+                },
+                {
+                    'sdl': (
+                        'module default {\n'
+                        '    type A {\n'
+                        '        link b: default::B;\n'
+                        '    };\n'
+                        '    type B {\n'
+                        '        property n: std::int64;\n'
+                        '    };\n'
+                        '};'
+                    ),
+                },
+                {
+                    'sdl': (
+                        'module default {\n'
+                        '    type A {\n'
+                        '        link b: default::B;\n'
+                        '    };\n'
+                        '    type B;\n'
+                        '};'
+                    ),
+                },
+                {
+                    'sdl': (
+                        'module default {\n'
+                        '    type B;\n'
+                        '};'
+                    ),
+                },
+            ]
+        )
+
     async def test_edgeql_ddl_create_migration_01(self):
+        await self.con.execute('''
+            CONFIGURE SESSION SET store_migration_sdl :=
+                cfg::StoreMigrationSDL.AlwaysStore;
+        ''')
+
         await self.con.execute(f'''
             CREATE MIGRATION
             {{
@@ -13767,8 +13799,31 @@ type default::Foo {
             }]
         )
 
+        await self.assert_query_result(
+            'select schema::Migration { script, sdl }',
+            [
+                {
+                    'script': (
+                        'CREATE TYPE Type1 {\n'
+                        '    CREATE PROPERTY field1 -> str;\n'
+                        '};'
+                    ),
+                    'sdl': (
+                        'module default {\n'
+                        '    type Type1 {\n'
+                        '        property field1: std::str;\n'
+                        '    };'
+                        '\n};'
+                    ),
+                },
+            ]
+        )
+
     async def test_edgeql_ddl_create_migration_02(self):
-        await self.con.execute('reset schema to initial')
+        await self.con.execute('''
+            CONFIGURE SESSION SET store_migration_sdl :=
+                cfg::StoreMigrationSDL.AlwaysStore;
+        ''')
 
         await self.con.execute('''
 CREATE MIGRATION m1kmv2mcizpj2twxlxxerkgngr2fkto7wnjd6uig3aa3x67dykvspq
@@ -13792,7 +13847,57 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 };
         ''')
 
+        await self.assert_query_result(
+            'select schema::Migration { script, sdl }',
+            [
+                {
+                    'script': (
+                        'CREATE GLOBAL default::foo -> std::bool;\n'
+                        'CREATE TYPE default::Foo {\n'
+                        '    CREATE ACCESS POLICY foo\n'
+                        '        ALLOW ALL USING ('
+                                    '(GLOBAL default::foo ?? true)'
+                                ');\n'
+                        '};'
+                    ),
+                    'sdl': (
+                        'module default {\n'
+                        '    global foo -> std::bool;\n'
+                        '    type Foo {\n'
+                        '        access policy foo\n'
+                        '            allow all using '
+                                        '((global default::foo ?? true));\n'
+                        '    };\n'
+                        '};'
+                    ),
+                },
+                {
+                    'script': (
+                        'CREATE TYPE default::X;\n'
+                        '\n'
+                        'INSERT Foo;'
+                    ),
+                    'sdl': (
+                        'module default {\n'
+                        '    global foo -> std::bool;\n'
+                        '    type Foo {\n'
+                        '        access policy foo\n'
+                        '            allow all using '
+                                        '((global default::foo ?? true));\n'
+                        '    };\n'
+                        '    type X;\n'
+                        '};'
+                    ),
+                },
+            ]
+        )
+
     async def test_edgeql_ddl_create_migration_03(self):
+        await self.con.execute('''
+            CONFIGURE SESSION SET store_migration_sdl :=
+                cfg::StoreMigrationSDL.AlwaysStore;
+        ''')
+
         await self.con.execute('''
             CREATE MIGRATION
             {
@@ -13806,10 +13911,29 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         await self.assert_query_result(
             '''
-            SELECT schema::Migration { generated_by }
-            FILTER .message = "migration2"
+            SELECT schema::Migration { message, generated_by, script, sdl }
             ''',
-            [{'generated_by': 'DevMode'}]
+            [
+                {
+                    'generated_by': 'DevMode',
+                    'message': 'migration2',
+                    'script': (
+                        'SET message := "migration2";\n'
+                        'SET generated_by := '
+                            'schema::MigrationGeneratedBy.DevMode;\n'
+                        'CREATE TYPE Type2 {\n'
+                        '    CREATE PROPERTY field2 -> int32;\n'
+                        '};'
+                    ),
+                    'sdl': (
+                        'module default {\n'
+                        '    type Type2 {\n'
+                        '        property field2: std::int32;\n'
+                        '    };\n'
+                        '};'
+                    ),
+                },
+            ]
         )
 
         await self.con.execute(f'''
@@ -13818,10 +13942,46 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         await self.assert_query_result(
             '''
-            SELECT schema::Migration { generated_by }
-            FILTER .script like "%Type3%"
+            SELECT schema::Migration { message, generated_by, script, sdl }
             ''',
-            [{'generated_by': 'DDLStatement'}]
+            [
+                {
+                    'generated_by': 'DevMode',
+                    'message': 'migration2',
+                    'script': (
+                        'SET message := "migration2";\n'
+                        'SET generated_by := '
+                            'schema::MigrationGeneratedBy.DevMode;\n'
+                        'CREATE TYPE Type2 {\n'
+                        '    CREATE PROPERTY field2 -> int32;\n'
+                        '};'
+                    ),
+                    'sdl': (
+                        'module default {\n'
+                        '    type Type2 {\n'
+                        '        property field2: std::int32;\n'
+                        '    };\n'
+                        '};'
+                    ),
+                },
+                {
+                    'generated_by': 'DDLStatement',
+                    'message': None,
+                    'script': (
+                        'SET generated_by := '
+                            '(schema::MigrationGeneratedBy.DDLStatement);\n'
+                        'CREATE TYPE Type3;'
+                    ),
+                    'sdl': (
+                        'module default {\n'
+                        '    type Type2 {\n'
+                        '        property field2: std::int32;\n'
+                        '    };\n'
+                        '    type Type3;\n'
+                        '};'
+                    ),
+                },
+            ]
         )
 
     async def test_edgeql_ddl_create_migration_04(self):
@@ -17092,3 +17252,81 @@ class TestDDLNonIsolated(tb.DDLTestCase):
         await self.con.execute('''
             drop function lol();
         ''')
+
+    async def test_edgeql_ddl_rollback_enum_01(self):
+        await self.con.query("START TRANSACTION")
+        await self.con.execute('''
+            CREATE SCALAR TYPE Color
+                EXTENDING enum<Red, Green, Blue>;
+        ''')
+
+        await self.con.query('DECLARE SAVEPOINT t0')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'cannot DROP EXTENDING enum'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE Color
+                    DROP EXTENDING enum<Red, Green, Blue>;
+            ''')
+
+        # Recover.
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot add supertype scalar type 'std::str' to enum type "
+                "default::Color"):
+            await self.con.execute('''
+                ALTER SCALAR TYPE Color EXTENDING str FIRST;
+            ''')
+
+        # Recover.
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'cannot add supertype enum<Bad> to enum type default::Color'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE Color
+                    EXTENDING enum<Bad> LAST;
+            ''')
+
+        # Recover.
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'enum default::Color may not have multiple supertypes'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE Color
+                    EXTENDING enum<Bad>, enum<AlsoBad>;
+            ''')
+
+        # Recover.
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'enums cannot contain duplicate values'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE Color
+                    EXTENDING enum<Red, Green, Blue, Red>;
+            ''')
+
+        # Recover.
+        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
+
+        await self.con.execute(r'''
+            ALTER SCALAR TYPE Color
+                EXTENDING enum<Red, Green, Blue, Magic>;
+        ''')
+        # Commit the changes and before continuing testing.
+        await self.con.query("COMMIT")
+        await self.assert_query_result(
+            r"""
+                SELECT <Color>'Magic' >
+                    <Color>'Red';
+            """,
+            [True],
+        )
