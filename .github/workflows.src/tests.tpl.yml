@@ -30,7 +30,7 @@ jobs:
           -u edgedb-ci:$GIST_TOKEN \
           https://api.github.com/gists/8b722a65397f7c4c0df72f5394efa04c \
         | jq '.files."time_stats.csv".raw_url' \
-        | xargs curl > .tmp/time_stats.csv
+        | xargs curl > shared-artifacts/time_stats.csv
     <%- endcall %>
 
   cargo-test:
@@ -45,7 +45,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: shared-artifacts
-        path: .tmp
+        path: shared-artifacts
 
     - name: Generate environment variables
       run: |
@@ -56,7 +56,7 @@ jobs:
       id: rust-cache
       with:
         path: ${{ env.BUILD_TEMP }}/rust/extensions
-        key: edb-rust-build-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-build-v1-${{ hashFiles('shared-artifacts/rust_cache_key.txt') }}
 
     - name: Install Rust toolchain
       uses: dsherret/rust-toolchain-file@v1
@@ -95,7 +95,7 @@ jobs:
         EDGEDB_TEST_REPEATS: 1
       run: |
         mkdir -p .results/
-        cp .tmp/time_stats.csv .results/running_times_${SHARD}.csv
+        cp shared-artifacts/time_stats.csv .results/running_times_${SHARD}.csv
         edb test --jobs 2 --verbose --shard ${SHARD}/16 \
           --running-times-log=.results/running_times_${SHARD}.csv \
           --result-log=.results/result_${SHARD}.json
@@ -121,13 +121,13 @@ jobs:
         SHARD: ${{ matrix.shard }}
         EDGEDB_TEST_REPEATS: 1
       run: |
-        edb test --list > .tmp/all_tests.txt
+        edb test --list > shared-artifacts/all_tests.txt
 
     - name: Upload list of tests
       uses: actions/upload-artifact@v4
       with:
         name: test-list
-        path: .tmp
+        path: shared-artifacts
         retention-days: 1
 
   test-conclusion:
@@ -164,13 +164,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: shared-artifacts
-          path: .tmp
+          path: shared-artifacts
 
       - name: Download test list
         uses: actions/download-artifact@v4
         with:
           name: test-list
-          path: .tmp
+          path: shared-artifacts
 
       - name: Merge stats and verify tests completion
         shell: python
@@ -187,12 +187,12 @@ jobs:
           orig = {}
           new = {}
           all_tests = set()
-          with open(".tmp/time_stats.csv") as f:
+          with open("shared-artifacts/time_stats.csv") as f:
               for name, t, c in csv.reader(f):
                   assert name not in orig, "duplicate test name in original stats!"
                   orig[name] = (t, int(c))
 
-          with open(".tmp/all_tests.txt") as f:
+          with open("shared-artifacts/all_tests.txt") as f:
               for line in f:
                   assert line not in all_tests, "duplicate test name in this run!"
                   all_tests.add(line.strip())
