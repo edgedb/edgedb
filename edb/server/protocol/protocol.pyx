@@ -590,10 +590,8 @@ cdef class HttpProtocol:
                         return self._bad_request(
                             request,
                             response,
-                            message=(
-                                "requested protocol version is too old and "
+                            message="requested protocol version is too old and "
                                 "no longer supported",
-                            )
                         )
                     if proto_ver > edbdef.CURRENT_PROTOCOL:
                         proto_ver = edbdef.CURRENT_PROTOCOL

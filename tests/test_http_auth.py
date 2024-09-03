@@ -292,7 +292,7 @@ class TestHttpAuth(BaseTestHttpAuth):
             args["user"], args["password"]
         )
 
-        proto_ver = (edbdef.CURRENT_PROTOCOL[0]-1, edbdef.CURRENT_PROTOCOL[1])
+        proto_ver = (edbdef.CURRENT_PROTOCOL[0] - 1, edbdef.CURRENT_PROTOCOL[1])
         proto_ver_str = f"v_{proto_ver[0]}_{proto_ver[1]}"
         mime_type = f"application/x.edgedb.{proto_ver_str}.binary"
 
@@ -333,8 +333,8 @@ class TestHttpAuth(BaseTestHttpAuth):
         )
         self.assertEqual(status, 200)
 
-        proto_ver = (edbdef.CURRENT_PROTOCOL[0]+1, edbdef.CURRENT_PROTOCOL[1])
-        
+        proto_ver = (edbdef.CURRENT_PROTOCOL[0] + 1, edbdef.CURRENT_PROTOCOL[1])
+
         expect_proto_ver = edbdef.CURRENT_PROTOCOL
         proto_ver_str = f"v_{expect_proto_ver[0]}_{expect_proto_ver[1]}"
 
