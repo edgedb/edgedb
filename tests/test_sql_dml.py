@@ -765,6 +765,30 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [[id5]])
 
+    async def test_sql_dml_insert_35(self):
+        with self.assertRaisesRegex(
+            asyncpg.exceptions.DataError,
+            "cannot assign to property 'id'",
+        ):
+            res = await self.squery_values(
+                f'''
+                INSERT INTO "Document" (id) VALUES ($1) RETURNING id
+                ''',
+                uuid.uuid4(),
+            )
+
+        await self.scon.execute(
+            'SET LOCAL allow_user_specified_id TO TRUE'
+        )
+        id = uuid.uuid4()
+        res = await self.squery_values(
+            f'''
+            INSERT INTO "Document" (id) VALUES ($1) RETURNING id
+            ''',
+            id,
+        )
+        self.assertEqual(res, [[id]])
+
     async def test_sql_dml_delete_01(self):
         # delete, inspect CommandComplete tag
 
