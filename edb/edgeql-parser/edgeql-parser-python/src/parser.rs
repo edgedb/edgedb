@@ -54,6 +54,10 @@ pub struct Production {
     id: usize,
     #[pyo3(get)]
     args: PyObject,
+    #[pyo3(get)]
+    start: Option<u64>,
+    #[pyo3(get)]
+    end: Option<u64>,
 }
 
 #[pyclass]
@@ -189,6 +193,8 @@ fn to_py_cst<'a>(cst: &'a parser::CSTNode<'a>, py: Python) -> PyResult<CSTNode> 
                         .as_slice(),
                 )
                 .into(),
+                start: prod.span.map(|s| s.start),
+                end: prod.span.map(|s| s.end),
             }
             .into_py(py),
             terminal: py.None(),

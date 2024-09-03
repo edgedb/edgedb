@@ -79,6 +79,13 @@ impl Span {
             end: right.end,
         }
     }
+    
+    pub fn extend(self, other: &Span) -> Span {
+        Span {
+            start: u64::min(self.start, other.start),
+            end: u64::max(self.end, other.end),
+        }
+    }
 }
 
 fn new_lines_in_fragment(data: &[u8]) -> u64 {

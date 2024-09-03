@@ -45,27 +45,27 @@ class EdgeQLGrammar(Nonterm):
     "%start"
 
     @parsing.inline(1)
-    def reduce_STARTBLOCK_EdgeQLBlock_EOF(self, *kids):
+    def reduce_STARTBLOCK_EdgeQLBlock_EOI(self, *kids):
         pass
 
     @parsing.inline(1)
-    def reduce_STARTEXTENSION_CreateExtensionPackageCommandsBlock_EOF(self, *k):
+    def reduce_STARTEXTENSION_CreateExtensionPackageCommandsBlock_EOI(self, *k):
         pass
 
     @parsing.inline(1)
-    def reduce_STARTMIGRATION_CreateMigrationCommandsBlock_EOF(self, *kids):
+    def reduce_STARTMIGRATION_CreateMigrationCommandsBlock_EOI(self, *kids):
         pass
 
     @parsing.inline(1)
-    def reduce_STARTFRAGMENT_ExprStmt_EOF(self, *kids):
+    def reduce_STARTFRAGMENT_ExprStmt_EOI(self, *kids):
         pass
 
     @parsing.inline(1)
-    def reduce_STARTFRAGMENT_Expr_EOF(self, *kids):
+    def reduce_STARTFRAGMENT_Expr_EOI(self, *kids):
         pass
 
     @parsing.inline(1)
-    def reduce_STARTSDLDOCUMENT_SDLDocument(self, *kids):
+    def reduce_STARTSDLDOCUMENT_SDLDocument_EOI(self, *kids):
         pass
 
 

@@ -141,11 +141,11 @@ class Nonterm(parsing.Nonterm):
                     attr = lambda self, *args, meth=attr: meth(self, *args)
                     attr.__doc__ = doc
 
-                a = span.wrap_function_to_infer_spans(attr)
+                # a = span.wrap_function_to_infer_spans(attr)
 
-                a.__doc__ = attr.__doc__
-                a.inline_index = inline_index
-                setattr(cls, name, a)
+                # a.__doc__ = attr.__doc__
+                # a.inline_index = inline_index
+                # setattr(cls, name, a)
 
 
 class ListNonterm(Nonterm, is_internal=True):
