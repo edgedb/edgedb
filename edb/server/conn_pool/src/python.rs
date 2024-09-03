@@ -489,7 +489,7 @@ fn _conn_pool(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     // Add each metric variant as a constant
     for variant in MetricVariant::iter() {
         m.add(
-            &format!("METRIC_{}", variant.as_ref().to_ascii_uppercase()),
+            format!("METRIC_{}", variant.as_ref().to_ascii_uppercase()).as_str(),
             variant as u32,
         )?;
     }
