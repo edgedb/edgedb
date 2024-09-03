@@ -49,7 +49,7 @@ impl ToPyObject for RustToPythonMessage {
             Failed(conn, error) => (5, conn, error.0).to_object(py),
             Metrics(metrics) => {
                 // This is not really fast but it should not be happening very often
-                (6, PyByteArray::new(py, &metrics)).to_object(py)
+                (6, PyByteArray::new_bound(py, &metrics)).to_object(py)
             }
         }
     }
