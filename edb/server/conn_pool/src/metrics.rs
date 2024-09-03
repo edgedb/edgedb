@@ -1,3 +1,4 @@
+use serde::{Serialize, Serializer};
 use std::collections::BTreeMap;
 use std::{cell::RefCell, rc::Rc, time::Duration};
 use strum::EnumCount;
@@ -74,7 +75,7 @@ impl<const SIZE: usize> RollingAverageU32<SIZE> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize)]
 pub struct PoolMetrics {
     pub pool: ConnMetrics,
     pub all_time: VariantArray<usize>,
@@ -84,6 +85,18 @@ pub struct PoolMetrics {
 /// An array indexed by [`MetricVariant`].
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub struct VariantArray<T>([T; MetricVariant::COUNT]);
+
+impl<T> Serialize for VariantArray<T>
+where
+    T: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
 
 impl<T> std::ops::Index<MetricVariant> for VariantArray<T> {
     type Output = T;
@@ -148,7 +161,7 @@ impl<T: Copy + Default> VariantArray<T> {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize)]
 #[allow(unused)]
 pub struct ConnMetrics {
     pub(crate) value: VariantArray<usize>,
@@ -157,6 +170,7 @@ pub struct ConnMetrics {
     pub(crate) avg_time: VariantArray<u32>,
     pub(crate) total: usize,
     pub(crate) total_max: usize,
+    pub(crate) target: usize,
 }
 
 impl std::fmt::Debug for ConnMetrics {
@@ -325,6 +339,7 @@ impl MetricsAccum {
             avg_time,
             total: lock.total,
             total_max: lock.total_max,
+            target: 0,
         }
     }
 

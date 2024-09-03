@@ -9,6 +9,7 @@ use crate::{
     waitqueue::WaitQueue,
 };
 use futures::future::Either;
+use serde::Serialize;
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -31,6 +32,15 @@ macro_rules! consistency_check {
 /// A cheaply cloneable name string.
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Name(Rc<String>);
+
+impl Serialize for Name {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.0.as_str())
+    }
+}
 
 impl std::fmt::Display for Name {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -576,18 +586,6 @@ impl<C: Connector, D: Default> Blocks<C, D> {
             .unwrap_or_default()
     }
 
-    pub fn summary(&self) -> PoolMetrics {
-        let mut metrics = PoolMetrics::default();
-        metrics.pool = self.metrics.summary();
-        metrics.all_time = self.metrics.all_time();
-        for (name, block) in self.map.borrow().iter() {
-            metrics
-                .blocks
-                .insert(name.clone(), block.metrics().summary());
-        }
-        metrics
-    }
-
     fn block(&self, db: &str) -> Rc<Block<C, D>> {
         let mut lock = self.map.borrow_mut();
         if let Some(block) = lock.get(db) {
@@ -702,6 +700,20 @@ impl<C: Connector, D: Default> Blocks<C, D> {
     /// Do we have any live blocks?
     pub fn is_empty(&self) -> bool {
         self.conn_count() == 0
+    }
+}
+
+impl<C: Connector> Blocks<C, PoolAlgoTargetData> {
+    pub fn summary(&self) -> PoolMetrics {
+        let mut metrics = PoolMetrics::default();
+        metrics.pool = self.metrics.summary();
+        metrics.all_time = self.metrics.all_time();
+        for (name, block) in self.map.borrow().iter() {
+            let mut block_metrics = block.metrics().summary();
+            block_metrics.target = block.data.target();
+            metrics.blocks.insert(name.clone(), block_metrics);
+        }
+        metrics
     }
 }
 

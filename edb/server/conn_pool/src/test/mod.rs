@@ -18,6 +18,8 @@ use crate::{
     PoolConfig,
 };
 
+pub mod spec;
+
 #[derive(derive_more::Debug)]
 pub struct BasicConnector {
     #[debug(skip)]
