@@ -101,6 +101,8 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         # when columns are not specified, all columns are expected,
         # in alphabetical order:
         # id, __type__, owner, title
+
+        await self.scon.execute("SET LOCAL allow_user_specified_id TO TRUE")
         with self.assertRaisesRegex(
             asyncpg.DataError,
             "cannot assign to link '__type__': it is protected",
@@ -734,6 +736,8 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         id3 = uuid.uuid4()
         id4 = uuid.uuid4()
         id5 = uuid.uuid4()
+
+        await self.scon.execute("SET LOCAL allow_user_specified_id TO TRUE")
 
         res = await self.squery_values(
             f'''

@@ -561,8 +561,8 @@ class Compiler:
         def translate_query(
             stmt: pgast.Base
         ) -> Tuple[pg_codegen.SQLSource, Optional[dbstate.CommandCompleteTag]]:
-            
-            search_path: Iterable[str] = ("public",)
+
+            search_path: Sequence[str] = ("public",)
             allow_user_specified_id: bool = False
 
             try:
