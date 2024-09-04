@@ -404,7 +404,13 @@ class Tenant(ha_base.ClusterProtocol):
             sys_config_spec=self._server.config_settings,
         )
 
-        await self._introspect_dbs()
+        logger.info("introspecting extensions")
+        try:
+            await self._introspect_dbs()
+        except Exception as e:
+            print("OOOOOH FUCK!!!", e)
+            raise
+        logger.info("done introspecting extensions")
 
         # Now, once all DBs have been introspected, start listening on
         # any notifications about schema/roles/etc changes.
@@ -1052,6 +1058,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         async with self._with_intro_pgcon(dbname) as conn:
             if not conn:
+                logger.info("giving up introspecting extensions for database '%s'", dbname)
                 return
             assert self._dbindex is not None
             if not self._dbindex.has_db(dbname):
@@ -1070,9 +1077,13 @@ class Tenant(ha_base.ClusterProtocol):
                         early=True,
                     )
 
+        logger.info("done introspecting extensions for database '%s'", dbname)
+
     async def _introspect_dbs(self) -> None:
         async with self.use_sys_pgcon() as syscon:
             dbnames = await self._server.get_dbnames(syscon)
+
+        # await asyncio.sleep(30)
 
         async with asyncio.TaskGroup() as g:
             for dbname in dbnames:

@@ -2102,6 +2102,8 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             server_args['backend_dsn'] = self.backend_dsn
         else:
             server_args['adjacent_to'] = self.con
+
+        server_args['debug'] = True
         async with tb.start_edgedb_server(**server_args) as sd:
 
             con2 = await sd.connect(
@@ -2200,6 +2202,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             server_args['backend_dsn'] = self.backend_dsn
         else:
             server_args['adjacent_to'] = self.con
+        server_args['debug'] = True
         async with tb.start_edgedb_server(**server_args) as sd:
 
             # Run twice to make sure there is no lingering accessibility state
@@ -2282,6 +2285,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             server_args['backend_dsn'] = self.backend_dsn
         else:
             server_args['adjacent_to'] = self.con
+        server_args['debug'] = True
 
         headers = {
             'Authorization': self.make_auth_header(),
