@@ -243,6 +243,125 @@ class TestHttpAuth(BaseTestHttpAuth):
                     headers['access-control-expose-headers']
                 )
 
+    def test_http_binary_proto_too_old(self):
+        args = self.get_connect_args()
+        (token, _, status, _, _) = self._scram_auth(
+            args["user"], args["password"]
+        )
+
+        proto_ver = (0, 1)
+        proto_ver_str = f"v_{proto_ver[0]}_{proto_ver[1]}"
+        mime_type = f"application/x.edgedb.{proto_ver_str}.binary"
+
+        with self.http_con() as con:
+            content, _, status = self.http_con_request(
+                con,
+                method="POST",
+                path=f"db/{args["database"]}",
+                prefix="",
+                body=protocol.Execute(
+                    annotations=[],
+                    allowed_capabilities=protocol.Capability.ALL,
+                    compilation_flags=protocol.CompilationFlag(0),
+                    implicit_limit=0,
+                    command_text="SELECT 42",
+                    output_format=protocol.OutputFormat.JSON,
+                    expected_cardinality=protocol.Cardinality.AT_MOST_ONE,
+                    input_typedesc_id=b"\0" * 16,
+                    output_typedesc_id=b"\0" * 16,
+                    state_typedesc_id=b"\0" * 16,
+                    arguments=b"",
+                    state_data=b"",
+                ).dump() + protocol.Sync().dump(),
+                headers={
+                    "Content-Type": mime_type,
+                    "X-EdgeDB-User": args["user"],
+                    "Authorization": f"Bearer {token.decode("ascii")}"
+                },
+            )
+
+        self.assertEqual(status, 400)
+        self.assertEqual(
+            content,
+            b"requested protocol version is too old and no longer supported"
+        )
+
+    def test_http_binary_proto_old_supported(self):
+        args = self.get_connect_args()
+        (token, _, status, _, _) = self._scram_auth(
+            args["user"], args["password"]
+        )
+
+        proto_ver = (edbdef.CURRENT_PROTOCOL[0] - 1, edbdef.CURRENT_PROTOCOL[1])
+        proto_ver_str = f"v_{proto_ver[0]}_{proto_ver[1]}"
+        mime_type = f"application/x.edgedb.{proto_ver_str}.binary"
+
+        with self.http_con() as con:
+            _, headers, status = self.http_con_request(
+                con,
+                method="POST",
+                path=f"db/{args["database"]}",
+                prefix="",
+                body=protocol.Execute(
+                    annotations=[],
+                    allowed_capabilities=protocol.Capability.ALL,
+                    compilation_flags=protocol.CompilationFlag(0),
+                    implicit_limit=0,
+                    command_text="SELECT 42",
+                    output_format=protocol.OutputFormat.JSON,
+                    expected_cardinality=protocol.Cardinality.AT_MOST_ONE,
+                    input_typedesc_id=b"\0" * 16,
+                    output_typedesc_id=b"\0" * 16,
+                    state_typedesc_id=b"\0" * 16,
+                    arguments=b"",
+                    state_data=b"",
+                ).dump() + protocol.Sync().dump(),
+                headers={
+                    "Content-Type": mime_type,
+                    "X-EdgeDB-User": args["user"],
+                    "Authorization": f"Bearer {token.decode("ascii")}"
+                },
+            )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(headers, headers | {"content-type": mime_type})
+
+    def test_http_binary_proto_too_new(self):
+        args = self.get_connect_args()
+        (token, _, status, _, _) = self._scram_auth(
+            args["user"], args["password"]
+        )
+        self.assertEqual(status, 200)
+
+        proto_ver = (edbdef.CURRENT_PROTOCOL[0] + 1, edbdef.CURRENT_PROTOCOL[1])
+
+        expect_proto_ver = edbdef.CURRENT_PROTOCOL
+        proto_ver_str = f"v_{expect_proto_ver[0]}_{expect_proto_ver[1]}"
+
+        with self.http_con() as con:
+            msgs, headers, status = self.http_con_binary_request(
+                con,
+                "SELECT 42",
+                proto_ver=proto_ver,
+                bearer_token=token.decode("ascii"),
+                user=args["user"],
+                database=args["database"],
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(headers, headers | {
+            "content-type": f"application/x.edgedb.{proto_ver_str}.binary"
+        })
+        self.assertIsInstance(msgs[0], protocol.CommandDataDescription)
+        self.assertIsInstance(msgs[1], protocol.Data)
+        self.assertEqual(bytes(msgs[1].data[0].data), b"42")
+        self.assertIsInstance(msgs[2], protocol.CommandComplete)
+        self.assertEqual(msgs[2].status, "SELECT")
+        self.assertIsInstance(msgs[3], protocol.ReadyForCommand)
+        self.assertEqual(
+            msgs[3].transaction_state,
+            protocol.TransactionState.NOT_IN_TRANSACTION,
+        )
+
 
 class TestHttpAuthSystem(BaseTestHttpAuth):
 
