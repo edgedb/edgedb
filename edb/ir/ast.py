@@ -547,6 +547,11 @@ class VisibleBindingExpr(RefExpr):
     pass
 
 
+class InlinedParameterExpr(RefExpr):
+    required: bool
+    is_global: bool
+
+
 T_expr_co = typing.TypeVar('T_expr_co', covariant=True, bound=Expr)
 
 

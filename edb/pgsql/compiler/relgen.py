@@ -796,6 +796,16 @@ def process_set_as_visible_binding(
     )
 
 
+@register_get_rvar(irast.InlinedParameterExpr)
+def process_set_as_inlined_parameter(
+    ir_set: irast.SetE[irast.InlinedParameterExpr],
+    *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    raise AssertionError(
+        f"Can't compile ref to inline parameter {ir_set.path_id}"
+    )
+
+
 @register_get_rvar(irast.EmptySet)
 def process_set_as_empty(
     ir_set: irast.SetE[irast.EmptySet], *, ctx: context.CompilerContextLevel
@@ -3355,7 +3365,7 @@ def _compile_call_args(
     skip: Collection[int] = (),
     no_subquery_args: bool = False,
     ctx: context.CompilerContextLevel,
-) -> List[pgast.BaseExpr]:
+) -> list[pgast.BaseExpr]:
     """
     Compiles function call arguments, whose index is not in `skip`.
     """
@@ -3475,11 +3485,36 @@ def process_set_as_func_expr(
 
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
-        args = _compile_call_args(ir_set, ctx=newctx)
 
         if expr.body is not None:
+            with newctx.subrel() as arg_ctx:
+                args = _compile_call_args(ir_set, ctx=arg_ctx)
+                arg_rvar = relctx.rvar_for_rel(arg_ctx.rel, ctx=ctx)
+                for ir_arg in expr.args.values():
+                    arg_path_id = ir_arg.expr.path_id
+                    relctx.include_rvar(
+                        newctx.rel,
+                        arg_rvar,
+                        arg_path_id,
+                        ctx=newctx,
+                    )
+                    if arg_scope_stmt := relctx.maybe_get_scope_stmt(
+                        arg_path_id, ctx=newctx
+                    ):
+                        # The rvar is joined to newctx.rel, but other sets may
+                        # look for it in the scope statement. Make sure it's
+                        # available.
+                        pathctx.put_path_value_rvar(
+                            arg_scope_stmt,
+                            arg_path_id,
+                            arg_rvar,
+                        )
+
             set_expr = dispatch.compile(expr.body, ctx=newctx)
+
         else:
+            args = _compile_call_args(ir_set, ctx=newctx)
+
             name = exprcomp.get_func_call_backend_name(expr, ctx=newctx)
 
             if expr.typemod is qltypes.TypeModifier.SetOfType:

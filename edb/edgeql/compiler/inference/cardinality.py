@@ -835,6 +835,16 @@ def __infer_param(
 
 
 @_infer_cardinality.register
+def __infer_inlined_param(
+    ir: irast.InlinedParameterExpr,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    return ONE if ir.required else AT_MOST_ONE
+
+
+@_infer_cardinality.register
 def __infer_const_set(
     ir: irast.ConstantSet,
     *,

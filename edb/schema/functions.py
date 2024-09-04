@@ -1312,6 +1312,8 @@ class Function(
         compcoef=0.909,
     )
 
+    is_inlined = so.SchemaField(bool, default=False)
+
     def has_inlined_defaults(self, schema: s_schema.Schema) -> bool:
         # This can be relaxed to just `language is EdgeQL` when we
         # support non-constant defaults.
