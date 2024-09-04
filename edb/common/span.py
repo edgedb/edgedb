@@ -260,6 +260,8 @@ class SpanPropagator(ast.NodeVisitor):
                     pass
                 elif isinstance(span, list):
                     span_list.extend(span)
+                elif isinstance(span, dict):
+                    span_list.extend(span.values())
                 else:
                     span_list.append(span)
         return span_list

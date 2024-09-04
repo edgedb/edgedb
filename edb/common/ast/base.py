@@ -261,7 +261,7 @@ class AST:
         self.__dict__ = kwargs
 
     def __copy__(self):
-        copied = self.__class__()
+        copied = self._init_copy()
         for field, value in iter_fields(self, include_meta=True):
             try:
                 object.__setattr__(copied, field, value)
@@ -271,10 +271,13 @@ class AST:
         return copied
 
     def __deepcopy__(self, memo):
-        copied = self.__class__()
+        copied = self._init_copy()
         for field, value in iter_fields(self, include_meta=True):
             object.__setattr__(copied, field, copy.deepcopy(value, memo))
         return copied
+
+    def _init_copy(self):
+        return self.__class__()
 
     def replace(self: T, **changes) -> T:
         copied = copy.copy(self)

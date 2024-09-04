@@ -1809,6 +1809,8 @@ class GraphQLTranslator:
             for res in results:
                 if isinstance(res, Field):
                     flattened.append(res)
+                elif isinstance(res, dict):
+                    flattened.extend(res.values())
                 elif typeutils.is_container(res):
                     flattened.extend(res)
                 else:
