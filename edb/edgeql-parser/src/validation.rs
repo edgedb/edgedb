@@ -239,7 +239,7 @@ impl<'a> Iterator for WithEof<'a> {
             let pos = self.inner.current_pos().offset;
 
             Some(Ok(Token {
-                kind: Kind::EOF,
+                kind: Kind::EOI,
                 text: "".into(),
                 value: None,
                 span: Span {

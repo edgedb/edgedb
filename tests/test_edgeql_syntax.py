@@ -1998,7 +1998,7 @@ aa';
         # TODO: parser error quality regression
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing ','", line=2, col=21)
+                  "Unexpected ':='", line=2, col=22)
     def test_edgeql_syntax_struct_10(self):
         """
         SELECT (1, a := 2);
@@ -2780,7 +2780,9 @@ aa';
         OFFSET 2 LIMIT 5;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
+    @tb.must_fail(
+        errors.EdgeQLSyntaxError, 'Missing keyword \'SELECT\'', line=1, col=1
+    )
     def test_edgeql_syntax_select_07(self):
         """
         (SELECT User.name) OFFSET 2;
@@ -2825,7 +2827,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Missing keyword 'SELECT'", line=2, col=9)
+                  r"Missing keyword 'SELECT'", line=1, col=1)
     def test_edgeql_syntax_select_13(self):
         """
         default::Movie.name;
@@ -3077,7 +3079,9 @@ aa';
         SELECT ((SELECT Foo) UNION (SELECT Bar));
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=9)
+    @tb.must_fail(
+        errors.EdgeQLSyntaxError, 'Missing keyword \'SELECT\'', line=1, col=1
+    )
     def test_edgeql_syntax_set_03(self):
         """
         (SELECT Foo) UNION (SELECT Bar);
@@ -6477,7 +6481,7 @@ aa';
         # just the first one.
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Missing keyword 'SELECT'", line=2, col=9)
+                  "Missing keyword 'SELECT'", line=1, col=1)
     def test_edgeql_syntax_ddl_02(self):
         """
         sys::get_version();

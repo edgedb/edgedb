@@ -261,18 +261,18 @@ def render_result(
 
     # counts
     counts = [
-        ('tests ran', result.testsRun),
-        ('failures', len(result.failures)),
-        ('errors', len(result.errors)),
-        ('expected failures', len(result.expected_failures)),
-        ('not implemented', len(result.not_implemented)),
-        ('unexpected successes', len(result.unexpected_successes)),
-        ('skipped', len(result.skipped)),
+        ('tests ran', result.testsRun, None),
+        ('failures', len(result.failures), 'red'),
+        ('errors', len(result.errors), 'red'),
+        ('unexpected successes', len(result.unexpected_successes), 'red'),
+        ('not implemented', len(result.not_implemented), 'yellow'),
+        ('skipped', len(result.skipped), 'yellow'),
+        ('expected failures', len(result.expected_failures), None),
     ]
-    for bit, count in counts:
+    for name, count, fg in counts:
         if not count:
             continue
-        _echo(file, f'  {bit}: ', nl=False)
+        _echo(file, f'  {name}: ', nl=False, fg=fg)
         _echo(file, f'{count}', bold=True)
 
     # running times

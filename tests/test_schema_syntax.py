@@ -1957,8 +1957,12 @@ abstract property test::foo {
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Missing keyword 'ABSTRACT'",
-                  line=2, col=1)
+    @tb.must_fail(
+        errors.EdgeQLSyntaxError,
+        r"Missing keyword 'ABSTRACT'",
+        line=1,
+        col=1
+    )
     def test_eschema_syntax_annotation_15(self):
         """
 annotation test::foo;

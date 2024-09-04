@@ -31,7 +31,7 @@ from edb.tools.edb import edbcommands
 def main():
     qlparser.preload_spec()
 
-    for q in QUERIES[-1:]:
+    for q in QUERIES[-8:]:
         sdl = q.startswith('sdl')
         if sdl:
             q = q[3:]
@@ -64,7 +64,7 @@ def main():
             )
             print(
                 ' ' * (start.column - 1)
-                + '^' * (end.column - start.column)
+                + '^' * (max(1, end.column - start.column))
                 + ' '
                 + message
             )
@@ -89,9 +89,11 @@ def main():
                         assert isinstance(x, qlast.Base)
                         x.dump_edgeql()
                         x.dump()
+                        print(x.span.start, x.span.end)
                 elif isinstance(ast, qlast.Base):
                     ast.dump_edgeql()
                     ast.dump()
+                    print(ast.span.start, ast.span.end)
                 else:
                     print(ast)
 
@@ -349,6 +351,43 @@ QUERIES = [
     }
     ''',
     '''
-    select { a := 1, b := false }
+    SELECT __type__;
     ''',
+    '''
+    INSERT Foo GROUP BY Foo.bar;
+    ''',
+    '''
+    WITH MODULE welp
+    CREATE DATABASE sample;
+    ''',
+    '''
+    WITH MODULE welp
+    DROP DATABASE sample;
+    ''',
+    '''
+    SELECT (1, a := 2);
+    ''',
+    '''
+        SELECT Issue{
+            name,
+            related_to *$var,
+        };
+    ''',
+    '''
+        SELECT Issue{
+            name,
+            related_to *5,
+        };
+    ''',
+    '''
+        START MIGRATION TO BadLang $$type Foo$$;
+    ''',
+    '''
+        SELECT Issue{
+            name,
+            related_to *5,
+        };
+    ''',
+    '''sdl# comment
+    '''
 ]
