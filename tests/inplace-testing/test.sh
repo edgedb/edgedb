@@ -10,14 +10,18 @@ if ! git diff-index --quiet HEAD --; then
     exit 1
 fi
 
+make parsers
+
 ./tests/inplace-testing/make-and-prep.sh "$DIR" "$@"
 
 tar cf "$DIR".tar "$DIR"
 
 patch -f -p1 < tests/inplace-testing/upgrade.patch
 
+make parsers
+
 edb server --bootstrap-only --inplace-upgrade "$DIR"/upgrade.json --data-dir "$DIR"
 
 tar cf "$DIR"-cooked.tar "$DIR"
 
-edb test --data-dir "$DIR" --use-data-dir-dbs -v
+edb test --data-dir "$DIR" --use-data-dir-dbs -v "$@"
