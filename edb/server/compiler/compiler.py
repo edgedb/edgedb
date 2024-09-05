@@ -561,18 +561,30 @@ class Compiler:
         def translate_query(
             stmt: pgast.Base
         ) -> Tuple[pg_codegen.SQLSource, Optional[dbstate.CommandCompleteTag]]:
-            args = {}
+
+            search_path: Sequence[str] = ("public",)
+            allow_user_specified_id: bool = False
+
             try:
-                search_path = tx_state.get("search_path")
+                sp = tx_state.get("search_path")
             except KeyError:
-                search_path = None
-            if isinstance(search_path, str):
-                args['search_path'] = parse_search_path(search_path)
+                sp = None
+            if isinstance(sp, str):
+                search_path = parse_search_path(sp)
+
+            try:
+                allow_id = tx_state.get("allow_user_specified_id")
+            except KeyError:
+                allow_id = None
+            if isinstance(allow_id, str):
+                allow_user_specified_id = bool(allow_id)
+
             options = pg_resolver.Options(
                 current_user=current_user,
                 current_database=current_database,
                 current_query=query_str,
-                **args
+                search_path=search_path,
+                allow_user_specified_id=allow_user_specified_id
             )
             resolved, complete_tag = pg_resolver.resolve(
                 stmt, schema, options
@@ -602,6 +614,7 @@ class Compiler:
         # frontend-only settings (key) and their mutability (value)
         fe_settings_mutable = {
             'search_path': True,
+            'allow_user_specified_id': True,
             'server_version': False,
             'server_version_num': False,
         }

@@ -101,6 +101,8 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         # when columns are not specified, all columns are expected,
         # in alphabetical order:
         # id, __type__, owner, title
+
+        await self.scon.execute("SET LOCAL allow_user_specified_id TO TRUE")
         with self.assertRaisesRegex(
             asyncpg.DataError,
             "cannot assign to link '__type__': it is protected",
@@ -735,6 +737,8 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         id4 = uuid.uuid4()
         id5 = uuid.uuid4()
 
+        await self.scon.execute("SET LOCAL allow_user_specified_id TO TRUE")
+
         res = await self.squery_values(
             f'''
             INSERT INTO "Document" (id)
@@ -764,6 +768,30 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             id5,
         )
         self.assertEqual(res, [[id5]])
+
+    async def test_sql_dml_insert_35(self):
+        with self.assertRaisesRegex(
+            asyncpg.exceptions.DataError,
+            "cannot assign to property 'id'",
+        ):
+            res = await self.squery_values(
+                f'''
+                INSERT INTO "Document" (id) VALUES ($1) RETURNING id
+                ''',
+                uuid.uuid4(),
+            )
+
+        await self.scon.execute(
+            'SET LOCAL allow_user_specified_id TO TRUE'
+        )
+        id = uuid.uuid4()
+        res = await self.squery_values(
+            f'''
+            INSERT INTO "Document" (id) VALUES ($1) RETURNING id
+            ''',
+            id,
+        )
+        self.assertEqual(res, [[id]])
 
     async def test_sql_dml_delete_01(self):
         # delete, inspect CommandComplete tag
