@@ -63,9 +63,11 @@ from edb.schema import ddl as s_ddl
 from edb.schema import delta as sd
 from edb.schema import extensions as s_exts
 from edb.schema import functions as s_func
+from edb.schema import links as s_links
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
+from edb.schema import objtypes as s_objtypes
 from edb.schema import properties as s_props
 from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
@@ -2673,6 +2675,117 @@ async def _load_schema(
     )
 
 
+def _is_stdlib_target(
+    t: s_objtypes.ObjectType,
+    schema: s_schema.Schema,
+) -> bool:
+    if intersection := t.get_intersection_of(schema):
+        return any((_is_stdlib_target(it, schema)
+                    for it in intersection.objects(schema)))
+    elif union := t.get_union_of(schema):
+        return any((_is_stdlib_target(ut, schema)
+                    for ut in union.objects(schema)))
+
+    name = t.get_name(schema)
+
+    if name == sn.QualName('std', 'Object'):
+        return False
+    return t.get_name(schema).get_module_name() in s_schema.STD_MODULES
+
+
+async def _fixup_schema(
+    ctx: BootstrapContext,
+    schema: s_schema.ChainedSchema,
+    keys: dict[str, Any],
+) -> None:
+    current_block = dbops.PLTopBlock()
+    backend_params = ctx.cluster.get_runtime_params()
+
+    # Recompile functions that reference stdlib types (like
+    # std::BaseObject or schema::Object), since new subtypes may have
+    # been added.
+    to_recompile = schema._top_schema.get_objects(type=s_func.Function)
+    for func in to_recompile:
+        if func.get_name(schema).get_root_module_name() == s_schema.EXT_MODULE:
+            continue
+        # If none of the types referenced in the function are standard
+        # library types, we don't need to recompile.
+        if not (
+            (expr := func.get_nativecode(schema))
+            and expr.refs
+            and any(
+                isinstance(dep, s_objtypes.ObjectType)
+                and _is_stdlib_target(dep, schema)
+                for dep in expr.refs.objects(schema)
+            )
+        ):
+            continue
+
+        alter_func = func.init_delta_command(
+            schema, sd.AlterObject
+        )
+        alter_func.set_attribute_value(
+            'nativecode', func.get_nativecode(schema)
+        )
+        alter_func.canonical = True
+
+        # N.B: We are ignoring the schema changes, since we aren't
+        # updating the schema version.
+        _, plan, _ = _process_delta_params(
+            sd.DeltaRoot.from_commands(alter_func),
+            schema,
+            backend_params,
+            stdmode=False,
+            **keys,
+        )
+        plan.generate(current_block)
+
+    # Regenerate on_target_delete triggers for any links targeting a
+    # stdlib type.
+    links = schema._top_schema.get_objects(type=s_links.Link)
+    for link in links:
+        if link.get_name(schema).get_root_module_name() == s_schema.EXT_MODULE:
+            continue
+        source = link.get_source(schema)
+        if (
+            not source
+            or not source.is_material_object_type(schema)
+            or link.get_computable(schema)
+            or link.get_shortname(schema).name == '__type__'
+            or not _is_stdlib_target(link.get_target(schema), schema)
+        ):
+            continue
+
+        pol = link.get_on_target_delete(schema)
+        # HACK: Set the policy in a temporary in-memory schema to be
+        # something else, so that we can set it back to the real value
+        # and pgdelta will generate code for it.
+        fake_pol = (
+            s_links.LinkTargetDeleteAction.Allow
+            if pol == s_links.LinkTargetDeleteAction.Restrict
+            else s_links.LinkTargetDeleteAction.Restrict
+        )
+        fake_schema = link.set_field_value(schema, 'on_target_delete', fake_pol)
+
+        alter_delta, alter_link, _ = link.init_delta_branch(
+            schema, sd.CommandContext(), sd.AlterObject
+        )
+        alter_link.set_attribute_value('on_target_delete', pol)
+
+        # N.B: We are ignoring the schema changes, since we aren't
+        # updating the schema version.
+        _, plan, _ = _process_delta_params(
+            sd.DeltaRoot.from_commands(alter_delta),
+            fake_schema,
+            backend_params,
+            stdmode=False,
+            **keys,
+        )
+        plan.generate(current_block)
+
+    await _execute_block(ctx.conn, current_block)
+
+
 async def _upgrade_one(
     ctx: BootstrapContext,
     state: edbcompiler.CompilerState,
@@ -2704,14 +2817,14 @@ async def _upgrade_one(
         bootstrap_mode=False,  # MAYBE?
     )
 
+    keys: dict[str, Any] = dict(
+        testmode=True,
+        allow_dml_in_functions=True,
+    )
+
     # Apply the DDL, but *only* execute the schema storage part!!
     for ddl_cmd in edgeql.parse_block(ddl):
         current_block = dbops.PLTopBlock()
-
-        keys: dict[str, Any] = dict(
-            testmode=True,
-            allow_dml_in_functions=True,
-        )
 
         if debug.flags.sdl_loading:
             ddl_cmd.dump_edgeql()
@@ -2768,6 +2881,8 @@ async def _upgrade_one(
             key = 'configspec_ext';
     ''').encode('utf-8'))
 
+    await _fixup_schema(ctx, schema, keys)
+
 
 async def _cleanup_one(
     ctx: BootstrapContext,
@@ -2821,7 +2936,7 @@ async def _upgrade_all(
 
     # DEBUG VELOCITY HACK: You can add a failing database to EARLY
     # when trying to upgrade the whole suite.
-    EARLY: tuple[str, ...] = ()
+    EARLY: tuple[str, ...] = ('dump01',)
     databases.sort(key=lambda k: (k not in EARLY, k))
 
     for database in databases:

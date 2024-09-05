@@ -161,3 +161,7 @@ function opt_test(tag: bool, x: optional int64) -> int64 using (x ?? -1);
 
 function opt_test(tag: int64, x: int64, y: optional int64) -> int64 using (y ?? -1);
 function opt_test(tag: bool, x: optional int64, y: optional int64) -> int64 using (y ?? -1);
+
+function all_objects() -> SET OF BaseObject {
+    USING (BaseObject)
+}
