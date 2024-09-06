@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import (
     Any,
     Optional,
+    Sequence,
 )
 
 import dataclasses
@@ -51,6 +52,7 @@ from edb.server import compiler as edbcompiler
 from edb.server import defines as edbdef
 from edb.server import instdata
 from edb.server import pgcluster
+from edb.server import pgcon
 
 from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
@@ -58,6 +60,8 @@ from edb.pgsql import trampoline
 
 
 logger = logging.getLogger('edb.server')
+
+PGCon = bootstrap.PGConnectionProxy | pgcon.PGConnection
 
 
 async def _load_schema(
@@ -343,35 +347,10 @@ and dep.deptype != 'i'
 '''
 
 
-async def _cleanup_one(
-    ctx: bootstrap.BootstrapContext,
+async def _delete_schemas(
+    conn: PGCon,
+    to_delete: Sequence[str]
 ) -> None:
-    conn = ctx.conn
-
-    # If the upgrade is already finalized, skip it. This lets us be
-    # resilient to crashes during the finalization process, which may
-    # leave some databases upgraded but not all.
-    if (await instdata.get_instdata(conn, 'upgrade_finalized', 'text')) == b'1':
-        logger.info(f"Database already pivoted")
-        return
-
-    trampoline_query = await instdata.get_instdata(
-        conn, 'trampoline_pivot_query', 'text')
-    fixup_query = await instdata.get_instdata(
-        conn, 'schema_fixup_query', 'text')
-
-    await conn.sql_execute(trampoline_query)
-    if fixup_query:
-        await conn.sql_execute(fixup_query)
-
-    namespaces = json.loads(await conn.sql_fetch_val("""
-        select json_agg(nspname) from pg_namespace
-        where nspname like 'edgedb%\\_v%'
-    """.encode('utf-8')))
-
-    cur_suffix = pg_common.versioned_schema("")
-    to_delete = [x for x in namespaces if not x.endswith(cur_suffix)]
-
     # To add a bit more safety, check whether there are any
     # dependencies on the modules we want to delete from outside those
     # modules since the only way to delete non-empty schemas in
@@ -404,6 +383,44 @@ async def _cleanup_one(
         drop schema {', '.join(to_delete)} cascade
     """.encode('utf-8'))
 
+
+async def _get_namespaces(
+    conn: PGCon,
+) -> list[str]:
+    return json.loads(await conn.sql_fetch_val("""
+        select json_agg(nspname) from pg_namespace
+        where nspname like 'edgedb%\\_v%'
+    """.encode('utf-8')))
+
+
+async def _finalize_one(
+    ctx: bootstrap.BootstrapContext,
+) -> None:
+    conn = ctx.conn
+
+    # If the upgrade is already finalized, skip it. This lets us be
+    # resilient to crashes during the finalization process, which may
+    # leave some databases upgraded but not all.
+    if (await instdata.get_instdata(conn, 'upgrade_finalized', 'text')) == b'1':
+        logger.info(f"Database upgrade already finalized")
+        return
+
+    trampoline_query = await instdata.get_instdata(
+        conn, 'trampoline_pivot_query', 'text')
+    fixup_query = await instdata.get_instdata(
+        conn, 'schema_fixup_query', 'text')
+
+    await conn.sql_execute(trampoline_query)
+    if fixup_query:
+        await conn.sql_execute(fixup_query)
+
+    namespaces = await _get_namespaces(ctx.conn)
+
+    cur_suffix = pg_common.versioned_schema("")
+    to_delete = [x for x in namespaces if not x.endswith(cur_suffix)]
+
+    await _delete_schemas(conn, to_delete)
+
     await bootstrap._store_static_text_cache(
         ctx,
         f'upgrade_finalized',
@@ -435,6 +452,35 @@ async def _get_databases(
     databases.sort(key=lambda k: (k not in EARLY, k))
 
     return databases
+
+
+async def _rollback_one(
+    ctx: bootstrap.BootstrapContext,
+) -> None:
+    namespaces = await _get_namespaces(ctx.conn)
+
+    cur_suffix = pg_common.versioned_schema("")
+    to_delete = [x for x in namespaces if x.endswith(cur_suffix)]
+
+    await _delete_schemas(ctx.conn, to_delete)
+
+
+async def _rollback_all(
+    ctx: bootstrap.BootstrapContext,
+) -> None:
+    cluster = ctx.cluster
+    databases = await _get_databases(ctx)
+
+    for database in databases:
+        conn = bootstrap.PGConnectionProxy(
+            cluster, cluster.get_db_name(database))
+        try:
+            subctx = dataclasses.replace(ctx, conn=conn)
+
+            logger.info(f"Rolling back preparation of database '{database}'")
+            await _rollback_one(ctx=subctx)
+        finally:
+            conn.terminate()
 
 
 async def _upgrade_all(
@@ -471,7 +517,7 @@ async def _upgrade_all(
             conn.terminate()
 
 
-async def _finish_all(
+async def _finalize_all(
     ctx: bootstrap.BootstrapContext,
 ) -> None:
     cluster = ctx.cluster
@@ -493,7 +539,7 @@ async def _finish_all(
                 if database == inject_failure_on:
                     raise AssertionError(f'failure injected on {database}')
 
-                await _cleanup_one(subctx)
+                await _finalize_one(subctx)
                 await conn.sql_execute(final_command)
             finally:
                 conn.terminate()
@@ -529,11 +575,14 @@ async def inplace_upgrade(
         mode = await bootstrap._get_cluster_mode(ctx)
         ctx = dataclasses.replace(ctx, mode=mode)
 
+        if args.inplace_upgrade_rollback:
+            await _rollback_all(ctx)
+
         if args.inplace_upgrade_prepare:
             await _upgrade_all(ctx)
 
         if args.inplace_upgrade_finalize:
-            await _finish_all(ctx)
+            await _finalize_all(ctx)
 
     finally:
         pgconn.terminate()

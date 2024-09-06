@@ -605,6 +605,7 @@ async def run_server(
         if (
             args.inplace_upgrade_prepare
             or args.inplace_upgrade_finalize
+            or args.inplace_upgrade_rollback
         ):
             from . import inplace_upgrade
             await inplace_upgrade.inplace_upgrade(cluster, args)
