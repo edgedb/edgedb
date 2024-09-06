@@ -109,6 +109,7 @@ STD_SOURCES = (
     sn.UnqualName('enc'),
     sn.UnqualName('pg'),
     sn.UnqualName('fts'),
+    sn.UnqualName('net'),
 )
 TESTMODE_SOURCES = (
     sn.UnqualName('_testmode'),
