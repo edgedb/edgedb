@@ -2884,6 +2884,55 @@ async def _upgrade_one(
     await _fixup_schema(ctx, schema, keys)
 
 
+DEP_CHECK_QUERY = r'''
+with
+-- Fetch all the object types we care about.
+all_objs AS (
+  select objs.oid, ns.nspname as nspname, objs.name, objs.typ
+  from (
+    select
+      oid as oid, relname as name,
+      (case when relkind = 'v' then 'view' else 'table' end) as typ,
+      relnamespace as namespace
+    from pg_catalog.pg_class
+    union all
+    select
+      oid as oid, typname as name, 'type' as typ, typnamespace as namespace
+    from pg_catalog.pg_type
+    union all
+    select
+      oid as oid, proname as name, 'function' as typ, pronamespace as namespace
+    from pg_catalog.pg_proc
+  ) as objs
+  inner join pg_catalog.pg_namespace ns on objs.namespace = ns.oid
+),
+-- Fetch pg_depend along with some special handling of internal deps.
+cdeps AS (
+  select dep.objid, dep.refobjid, dep.deptype
+  from pg_catalog.pg_depend dep
+  union
+  -- if there is an incoming 'i' dep to an obj A from B, treat all
+  -- other outgoing deps from B as outgoing from A. We do this because
+  -- the actual query in a view is stored in a pg_rewrite that *depends on*
+  -- the view. (Seems backward.)
+  select i.refobjid, c.refobjid, c.deptype
+  from pg_catalog.pg_depend i
+  inner join pg_catalog.pg_depend c
+  on i.objid = c.objid
+  where i.refobjid != c.refobjid and i.deptype = 'i'
+)
+-- Get any dependencies from outside our namespaces into them.
+select src.typ, src.nspname, src.name, tgt.typ, tgt.nspname, tgt.name
+from all_objs src
+inner join cdeps dep on src.oid = dep.objid
+inner join all_objs tgt on tgt.oid = dep.refobjid
+where true
+and NOT src.nspname = ANY ({namespaces})
+and tgt.nspname = ANY ({namespaces})
+and dep.deptype != 'i'
+'''
+
+
 async def _cleanup_one(
     ctx: BootstrapContext,
     state: edbcompiler.CompilerState,
@@ -2901,9 +2950,33 @@ async def _cleanup_one(
     cur_suffix = pg_common.versioned_schema("")
     to_delete = [x for x in namespaces if not x.endswith(cur_suffix)]
 
-    # TODO: Should we try to query functions/tables/views/types and
-    # pg_depend to make sure that nothing wrong is going to get
-    # cascaded??
+    # To add a bit more safety, check whether there are any
+    # dependencies on the modules we want to delete from outside those
+    # modules since the only way to delete non-empty schemas in
+    # postgres is CASCADE.
+    namespaces = (
+        f'ARRAY[{", ".join(pg_common.quote_literal(k) for k in to_delete)}]'
+    )
+    qry = DEP_CHECK_QUERY.format(namespaces=namespaces)
+    existing_deps = await conn.sql_fetch(qry.encode('utf-8'))
+    if existing_deps:
+        # All of the fields are text, so decode them all
+        sdeps = [
+            tuple(x.decode('utf-8') for x in row)
+            for row in existing_deps
+        ]
+
+        messages = [
+            f'{st} {pg_common.qname(ss, sn)} depends on '
+            f'{tt} {pg_common.qname(ts, tn)}\n'
+            for st, ss, sn, tt, ts, tn in sdeps
+        ]
+
+        raise AssertionError(
+            'Dependencies to old schemas still exist: \n%s'
+            % ''.join(messages)
+        )
+
     # It is *really* dumb the way that CASCADE works in postgres.
     await conn.sql_execute(f"""
         drop schema {', '.join(to_delete)} cascade
