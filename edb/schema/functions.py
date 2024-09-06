@@ -65,6 +65,7 @@ from . import utils
 
 
 if TYPE_CHECKING:
+    from edb.edgeql.compiler import context as qlcontext
     from edb.ir import ast as irast
     from . import schema as s_schema
 
@@ -2385,6 +2386,7 @@ def compile_function(
     return_type: s_types.Type,
     return_typemod: ft.TypeModifier,
     track_schema_ref_exprs: bool=False,
+    inlining_context: Optional[qlcontext.ContextLevel] = None,
 ) -> s_expr.CompiledExpression:
     assert language is qlast.Language.EdgeQL
 
@@ -2400,11 +2402,20 @@ def compile_function(
         schema,
         options=qlcompiler.CompilerOptions(
             anchors=param_anchors,
-            func_name=func_name,
-            func_params=params,
+            func_name=(
+                inlining_context.env.options.func_name
+                if inlining_context is not None else
+                func_name
+            ),
+            func_params=(
+                inlining_context.env.options.func_params
+                if inlining_context is not None else
+                params
+            ),
             apply_query_rewrites=not context.stdmode,
             track_schema_ref_exprs=track_schema_ref_exprs,
         ),
+        inlining_context=inlining_context,
     )
 
     ir = compiled.irast

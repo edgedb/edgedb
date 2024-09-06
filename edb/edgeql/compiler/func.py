@@ -218,6 +218,7 @@ def compile_FunctionCall(
             return_type=func.get_return_type(ctx.env.schema),
             return_typemod=func.get_return_typemod(ctx.env.schema),
             track_schema_ref_exprs=False,
+            inlining_context=ctx,
         )
 
     # Record this node in the list of potential DML expressions.

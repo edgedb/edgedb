@@ -57,6 +57,8 @@ if TYPE_CHECKING:
     from edb.schema import schema as s_schema
     from edb.schema import types as s_types
 
+    from edb.edgeql.compiler import context as qlcontext
+
     from edb.ir import ast as irast_
 
 
@@ -213,7 +215,8 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         detached: bool = False,
         find_extra_refs: Optional[
             Callable[[irast_.Set], set[so.Object]]
-        ] = None
+        ] = None,
+        inlining_context: Optional[qlcontext.ContextLevel] = None,
     ) -> CompiledExpression:
 
         from edb.ir import ast as irast_
@@ -237,9 +240,13 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
                 ql_expr,
                 schema=schema,
                 options=options,
+                inlining_context=inlining_context,
             )
 
         assert isinstance(ir, irast_.Statement)
+
+        if inlining_context:
+            inlining_context.env.schema = ir.schema
 
         # XXX: ref stuff - why doesn't it go into the delta tree? - temporary??
         srefs: set[so.Object] = {

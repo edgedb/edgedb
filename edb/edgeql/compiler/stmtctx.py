@@ -77,6 +77,7 @@ def init_context(
     *,
     schema: s_schema.Schema,
     options: coptions.CompilerOptions,
+    inlining_context: Optional[context.ContextLevel] = None,
 ) -> context.ContextLevel:
 
     if not schema.get_global(s_mod.Module, '__derived__', None):
@@ -85,12 +86,30 @@ def init_context(
             name=s_name.UnqualName('__derived__'),
         )
 
-    env = context.Environment(
-        schema=schema,
-        options=options,
-        alias_result_view_name=options.result_view_name,
-    )
-    ctx = context.ContextLevel(None, context.ContextSwitchMode.NEW, env=env)
+    if inlining_context:
+        env = context.Environment(
+            schema=schema,
+            options=options,
+            path_scope=inlining_context.path_scope,
+            alias_result_view_name=options.result_view_name,
+            set_types=inlining_context.env.set_types,
+            scope_tree_nodes=inlining_context.env.scope_tree_nodes,
+            type_rewrites=inlining_context.env.type_rewrites,
+        )
+        ctx = context.ContextLevel(
+            None,
+            context.ContextSwitchMode.NEW,
+            env=env,
+            aliases=inlining_context.aliases,
+            scope_id_ctr=inlining_context.scope_id_ctr,
+        )
+    else:
+        env = context.Environment(
+            schema=schema,
+            options=options,
+            alias_result_view_name=options.result_view_name,
+        )
+        ctx = context.ContextLevel(None, context.ContextSwitchMode.NEW, env=env)
     _ = context.CompilerContext(initial=ctx)
 
     if options.singletons:
