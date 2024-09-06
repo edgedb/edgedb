@@ -22,6 +22,7 @@ SPID=$!
 cleanup() {
     if [ -n "$SPID" ]; then
         kill $SPID
+        wait $SPID
     fi
 }
 trap cleanup EXIT
@@ -38,7 +39,7 @@ DSN=$(curl -s http://localhost:$PORT/server-info | jq -r '.pg_addr | "postgres:/
 
 # Prepare the upgrade, operating against the postgres that the old
 # version server is managing
-edb server --bootstrap-only --inplace-upgrade-prepare "$DIR"/upgrade.json --backend-dsn="$DSN"
+edb server --inplace-upgrade-prepare "$DIR"/upgrade.json --backend-dsn="$DSN"
 
 # Check the server is still working
 edgedb -H localhost -P $PORT --tls-security insecure -b select query 'select count(User)' | grep 2
@@ -51,13 +52,13 @@ SPID=
 tar cf "$DIR"-prepped.tar "$DIR"
 
 # Try to finalize the upgrade, but inject a failure
-if EDGEDB_UPGRADE_FINALIZE_ERROR_INJECTION=main edb server --bootstrap-only --inplace-upgrade-finalize --data-dir "$DIR"; then
+if EDGEDB_UPGRADE_FINALIZE_ERROR_INJECTION=main edb server --inplace-upgrade-finalize --data-dir "$DIR"; then
     echo Unexpected upgrade success despite failure injection
     exit 4
 fi
 
 # Finalize the upgrade
-edb server --bootstrap-only --inplace-upgrade-finalize --data-dir "$DIR"
+edb server --inplace-upgrade-finalize --data-dir "$DIR"
 tar cf "$DIR"-cooked.tar "$DIR"
 
 # Test!
