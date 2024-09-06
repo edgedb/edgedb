@@ -3053,31 +3053,19 @@ async def _finish_all(
 
     databases = await _get_databases(ctx)
 
-    conns = []
-    try:
-        for database in databases:
-            conn = await cluster.connect(database=cluster.get_db_name(database))
-            conns.append(conn)
-
+    for database in databases:
+        conn = await cluster.connect(database=cluster.get_db_name(database))
+        try:
             subctx = dataclasses.replace(ctx, conn=conn)
 
-            await conn.sql_execute(b'START TRANSACTION')
-            await conn.sql_execute(
-                b' SET LOCAL idle_in_transaction_session_timeout = 0'
-            )
             logger.info(f"Pivoting database '{database}'")
+            # TODO: Try running each cleanup in a transaction to test
+            # that they all work, before applying them for real.  (We
+            # would *like* to just run them all in open transactions
+            # and then commit them all, but we run into memory
+            # concerns.)
             await _cleanup_one(subctx)
-
-        # Commit all of the pivots together, once they have succeeded.
-        # This could still fail part way through (due to a crash or
-        # some such), but then we should be able to try again and have
-        # it succeed, since we already know that the DDL works.
-        logger.info(f"Commiting database pivots")
-        for conn in conns:
-            await conn.sql_execute(b'COMMIT')
-
-    finally:
-        for conn in conns:
+        finally:
             conn.terminate()
 
 
