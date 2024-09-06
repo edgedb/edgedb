@@ -2698,11 +2698,12 @@ def _is_stdlib_target(
     return t.get_name(schema).get_module_name() in s_schema.STD_MODULES
 
 
-async def _fixup_schema(
+def _compile_schema_fixup(
     ctx: BootstrapContext,
     schema: s_schema.ChainedSchema,
     keys: dict[str, Any],
-) -> None:
+) -> str:
+    """Compile any schema-specific fixes that need to be applied."""
     current_block = dbops.PLTopBlock()
     backend_params = ctx.cluster.get_runtime_params()
 
@@ -2788,7 +2789,7 @@ async def _fixup_schema(
         )
         plan.generate(current_block)
 
-    await _execute_block(ctx.conn, current_block)
+    return current_block.to_string()
 
 
 async def _upgrade_one(
@@ -2884,7 +2885,13 @@ async def _upgrade_one(
             key = 'configspec_ext';
     ''').encode('utf-8'))
 
-    await _fixup_schema(ctx, schema, keys)
+    # Compile the fixup script for the schema and stash it away
+    schema_fixup = _compile_schema_fixup(ctx, schema, keys)
+    await _store_static_text_cache(
+        ctx,
+        f'schema_fixup_query',
+        schema_fixup,
+    )
 
 
 DEP_CHECK_QUERY = r'''
@@ -2944,7 +2951,12 @@ async def _cleanup_one(
 
     trampoline_query = await instdata.get_instdata(
         conn, 'trampoline_pivot_query', 'text')
+    fixup_query = await instdata.get_instdata(
+        conn, 'schema_fixup_query', 'text')
+
     await conn.sql_execute(trampoline_query)
+    if fixup_query:
+        await conn.sql_execute(fixup_query)
 
     namespaces = json.loads(await conn.sql_fetch_val("""
         select json_agg(nspname) from pg_namespace
