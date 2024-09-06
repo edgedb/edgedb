@@ -46,7 +46,7 @@ index ab575e310..3ed277fb0 100644
  
      __abstract_node__ = True
 diff --git a/edb/edgeql/codegen.py b/edb/edgeql/codegen.py
-index f65a16364..f80e11079 100644
+index f65a16364..bb3d847d9 100644
 --- a/edb/edgeql/codegen.py
 +++ b/edb/edgeql/codegen.py
 @@ -2385,6 +2385,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
@@ -54,16 +54,16 @@ index f65a16364..f80e11079 100644
          self._visit_DropObject(node, 'GLOBAL')
  
 +    def visit_CreateBlobal(self, node: qlast.CreateGlobal) -> None:
-+        self._visit_CreateObject(node, 'PARTITION')
++        self._visit_CreateObject(node, 'BLOBAL')
 +
 +    def visit_DropBlobal(self, node: qlast.DropGlobal) -> None:
-+        self._visit_DropObject(node, 'PARTITION')
++        self._visit_DropObject(node, 'BLOBAL')
 +
      def visit_ConfigSet(self, node: qlast.ConfigSet) -> None:
          if node.scope == qltypes.ConfigScope.GLOBAL:
              self._write_keywords('SET GLOBAL ')
 diff --git a/edb/edgeql/parser/grammar/ddl.py b/edb/edgeql/parser/grammar/ddl.py
-index 40459e520..03ecf98c5 100644
+index 40459e520..7b6c767b1 100644
 --- a/edb/edgeql/parser/grammar/ddl.py
 +++ b/edb/edgeql/parser/grammar/ddl.py
 @@ -246,6 +246,14 @@ class InnerDDLStmt(Nonterm):
@@ -100,7 +100,7 @@ index 40459e520..03ecf98c5 100644
 +class CreateBlobalStmt(Nonterm):
 +    def reduce_CreateBlobal(self, *kids):
 +        """%reduce
-+            CREATE PARTITION NodeName
++            CREATE BLOBAL NodeName
 +            OptCreateBlobalCommandsBlock
 +        """
 +        self.val = qlast.CreateBlobal(
@@ -111,7 +111,7 @@ index 40459e520..03ecf98c5 100644
 +
 +class DropBlobalStmt(Nonterm):
 +    def reduce_DropBlobal(self, *kids):
-+        r"""%reduce DROP PARTITION NodeName"""
++        r"""%reduce DROP BLOBAL NodeName"""
 +        self.val = qlast.DropBlobal(
 +            name=kids[2].val
 +        )
@@ -331,7 +331,7 @@ index 856225997..bc9a3aea7 100644
      # contain the name of the origin operator.
      # For example, the `std::IN` operator has `std::=`
 diff --git a/tests/test_edgeql_select.py b/tests/test_edgeql_select.py
-index 1927d16eb..0f1cb0f4b 100644
+index 1927d16eb..0db9b759c 100644
 --- a/tests/test_edgeql_select.py
 +++ b/tests/test_edgeql_select.py
 @@ -1960,6 +1960,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
@@ -341,7 +341,7 @@ index 1927d16eb..0f1cb0f4b 100644
 +    async def test_edgeql_select_baseobject_function_01(self):
 +        # HACK: special inplace-upgrade test
 +        await self.con.execute('''
-+            create partition asdf { set required := true; };
++            CREATE BLOBAL asdf { set required := true; };
 +        ''')
 +        await self.assert_query_result(
 +            r'''
@@ -354,7 +354,7 @@ index 1927d16eb..0f1cb0f4b 100644
          # allow assigning id to a computed (#4781)
          await self.con.query('SELECT schema::Type { XYZ := .id};')
 diff --git a/tests/test_link_target_delete.py b/tests/test_link_target_delete.py
-index 8982b3113..c08616dea 100644
+index 8982b3113..f50b28c92 100644
 --- a/tests/test_link_target_delete.py
 +++ b/tests/test_link_target_delete.py
 @@ -307,6 +307,48 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
@@ -365,7 +365,7 @@ index 8982b3113..c08616dea 100644
 +        # HACK: special inplace-upgrade test
 +        async with self._run_and_rollback():
 +            await self.con.execute("""
-+                create partition asdf2 { set required := true; };
++                CREATE BLOBAL asdf2 { set required := true; };
 +
 +                INSERT SchemaSource {
 +                    name := 'Source1.1',
@@ -379,14 +379,14 @@ index 8982b3113..c08616dea 100644
 +                    edgedb.ConstraintViolationError,
 +                    'prohibited by link'):
 +                await self.con.execute("""
-+                    DROP PARTITION asdf2;
++                    DROP BLOBAL asdf2;
 +                """)
 +
 +    async def test_link_on_target_delete_restrict_schema_02(self):
 +        # HACK: special inplace-upgrade test
 +        async with self._run_and_rollback():
 +            await self.con.execute("""
-+                create partition asdf2 { set required := true; };
++                CREATE BLOBAL asdf2 { set required := true; };
 +
 +                INSERT SchemaSource {
 +                    name := 'Source1.1',
@@ -400,7 +400,7 @@ index 8982b3113..c08616dea 100644
 +                    edgedb.ConstraintViolationError,
 +                    'prohibited by link'):
 +                await self.con.execute("""
-+                    DROP PARTITION asdf2;
++                    DROP BLOBAL asdf2;
 +                """)
 +
      async def test_link_on_target_delete_deferred_restrict_01(self):
