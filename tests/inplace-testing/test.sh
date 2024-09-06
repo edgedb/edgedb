@@ -20,7 +20,9 @@ PORT=12346
 edb server -D "$DIR" -P $PORT &
 SPID=$!
 cleanup() {
-    kill $SPID
+    if [ -n "$SPID" ]; then
+        kill $SPID
+    fi
 }
 trap cleanup EXIT
 
