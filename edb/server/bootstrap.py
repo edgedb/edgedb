@@ -2946,8 +2946,14 @@ and dep.deptype != 'i'
 async def _cleanup_one(
     ctx: BootstrapContext,
 ) -> None:
-    # TODO: Handle it already being committed
     conn = ctx.conn
+
+    # If the upgrade is already finalized, skip it. This lets us be
+    # resilient to crashes during the finalization process, which may
+    # leave some databases upgraded but not all.
+    if (await instdata.get_instdata(conn, 'upgrade_finalized', 'text')) == b'1':
+        logger.info(f"Database already pivoted")
+        return
 
     trampoline_query = await instdata.get_instdata(
         conn, 'trampoline_pivot_query', 'text')
@@ -2997,6 +3003,12 @@ async def _cleanup_one(
     await conn.sql_execute(f"""
         drop schema {', '.join(to_delete)} cascade
     """.encode('utf-8'))
+
+    await _store_static_text_cache(
+        ctx,
+        f'upgrade_finalized',
+        '1',
+    )
 
 
 async def _get_databases(
@@ -3062,23 +3074,45 @@ async def _finish_all(
     ctx: BootstrapContext,
 ) -> None:
     cluster = ctx.cluster
-
     databases = await _get_databases(ctx)
 
-    for database in databases:
-        conn = await cluster.connect(database=cluster.get_db_name(database))
-        try:
-            subctx = dataclasses.replace(ctx, conn=conn)
+    async def go(
+        message: str,
+        final_command: bytes,
+        inject_failure_on: Optional[str]=None,
+    ) -> None:
+        for database in databases:
+            conn = await cluster.connect(database=cluster.get_db_name(database))
+            try:
+                subctx = dataclasses.replace(ctx, conn=conn)
 
-            logger.info(f"Pivoting database '{database}'")
-            # TODO: Try running each cleanup in a transaction to test
-            # that they all work, before applying them for real.  (We
-            # would *like* to just run them all in open transactions
-            # and then commit them all, but we run into memory
-            # concerns.)
-            await _cleanup_one(subctx)
-        finally:
-            conn.terminate()
+                logger.info(f"{message} database '{database}'")
+                await conn.sql_execute(b'START TRANSACTION')
+                # DEBUG HOOK: Inject a failure if specified
+                if database == inject_failure_on:
+                    raise AssertionError(f'failure injected on {database}')
+
+                await _cleanup_one(subctx)
+                await conn.sql_execute(final_command)
+            finally:
+                conn.terminate()
+
+    inject_failure = os.environ.get('EDGEDB_UPGRADE_FINALIZE_ERROR_INJECTION')
+
+    # Test all of the pivots in transactions we rollback, to make sure
+    # that they work. This ensures that if there is a bug in the pivot
+    # scripts on some database, we fail before any irreversible
+    # changes are made to any database.
+    #
+    # *Then*, apply them all for real. They may fail
+    # when applying for real, but that should be due to a crash or
+    # some such, and so the user should be able to retry.
+    #
+    # We wanted to apply them all inside transactions and then commit
+    # the transactions, but that requires holding open potentially too
+    # many connections.
+    await go("Testing pivot of", b'ROLLBACK')
+    await go("Pivoting", b'COMMIT', inject_failure)
 
 
 async def ensure_bootstrapped(

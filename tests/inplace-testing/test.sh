@@ -50,6 +50,12 @@ SPID=
 
 tar cf "$DIR"-prepped.tar "$DIR"
 
+# Try to finalize the upgrade, but inject a failure
+if EDGEDB_UPGRADE_FINALIZE_ERROR_INJECTION=main edb server --bootstrap-only --inplace-upgrade-finalize --data-dir "$DIR"; then
+    echo Unexpected upgrade success despite failure injection
+    exit 4
+fi
+
 # Finalize the upgrade
 edb server --bootstrap-only --inplace-upgrade-finalize --data-dir "$DIR"
 tar cf "$DIR"-cooked.tar "$DIR"
