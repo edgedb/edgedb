@@ -602,6 +602,14 @@ async def run_server(
 
         logger.info("postgres cluster is running")
 
+        if (
+            args.inplace_upgrade_prepare
+            or args.inplace_upgrade_finalize
+        ):
+            from . import inplace_upgrade
+            await inplace_upgrade.inplace_upgrade(cluster, args)
+            return
+
         new_instance, compiler_state = await _init_cluster(cluster, args)
 
         _, backend_settings = initialize_static_cfg(
