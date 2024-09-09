@@ -207,6 +207,7 @@ def compile_sql(
                 )
             stmt.name = mangled_name
 
+            unit.query = pg_codegen.generate_source(stmt)
             unit.execute = dbstate.ExecuteData(
                 stmt_name=orig_name,
                 be_stmt_name=mangled_name.encode("utf-8"),
@@ -221,6 +222,7 @@ def compile_sql(
                 )
             stmt.name = mangled_name
 
+            unit.query = pg_codegen.generate_source(stmt)
             unit.deallocate = dbstate.DeallocateData(
                 stmt_name=orig_name,
                 be_stmt_name=mangled_name.encode("utf-8"),
