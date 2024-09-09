@@ -73,23 +73,18 @@ def compile_sql(
     sql_units = []
     for stmt in stmts:
         orig_text = pg_codegen.generate_source(stmt)
+        fe_settings = tx_state.current_fe_settings()
 
-        unit_ctor = functools.partial(
-            dbstate.SQLQueryUnit,
+        unit = dbstate.SQLQueryUnit(
             orig_query=orig_text,
-            fe_settings=tx_state.current_fe_settings(),
+            fe_settings=fe_settings,
+            query=orig_text,
         )
 
         if isinstance(stmt, pgast.VariableSetStmt):
             # GOTCHA: setting is frontend-only regardless of its mutability
             fe_only = stmt.name in FE_SETTINGS_MUTABLE
 
-            args = {
-                "query": orig_text,
-                "frontend_only": fe_only,
-                "command_tag": b"SET",
-                "is_local": stmt.scope == pgast.OptionsScope.TRANSACTION,
-            }
             if fe_only:
                 if not FE_SETTINGS_MUTABLE[stmt.name]:
                     raise errors.QueryError(
@@ -97,7 +92,7 @@ def compile_sql(
                         pgext_code='55P02',  # cant_change_runtime_param
                     )
                 value = pg_codegen.generate_source(stmt.args)
-                args["set_vars"] = {stmt.name: value}
+                unit.set_vars = {stmt.name: value}
             elif stmt.scope == pgast.OptionsScope.SESSION:
                 if len(stmt.args.args) == 1 and isinstance(
                     stmt.args.args[0], pgast.StringConstant
@@ -106,8 +101,10 @@ def compile_sql(
                     value = stmt.args.args[0].val
                 else:
                     value = pg_codegen.generate_source(stmt.args)
-                args["set_vars"] = {stmt.name: value}
-            unit = unit_ctor(**args)
+                unit.set_vars = {stmt.name: value}
+            unit.frontend_only = fe_only
+            unit.command_tag = b"SET"
+            unit.is_local = stmt.scope == pgast.OptionsScope.TRANSACTION
         elif isinstance(stmt, pgast.VariableResetStmt):
             fe_only = stmt.name in FE_SETTINGS_MUTABLE
             if fe_only and stmt.name and not FE_SETTINGS_MUTABLE[stmt.name]:
@@ -115,26 +112,20 @@ def compile_sql(
                     f'parameter "{stmt.name}" cannot be changed',
                     pgext_code='55P02',  # cant_change_runtime_param
                 )
-            args = {
-                "query": orig_text,
-                "frontend_only": fe_only,
-                "command_tag": b"RESET",
-                "is_local": stmt.scope == pgast.OptionsScope.TRANSACTION,
-            }
             if fe_only or stmt.scope == pgast.OptionsScope.SESSION:
-                args["set_vars"] = {stmt.name: None}
-            unit = unit_ctor(**args)
+                unit.set_vars = {stmt.name: None}
+            unit.frontend_only = fe_only
+            unit.command_tag = b"RESET"
+            unit.is_local = stmt.scope == pgast.OptionsScope.TRANSACTION
+
         elif isinstance(stmt, pgast.VariableShowStmt):
-            unit = unit_ctor(
-                query=orig_text,
-                get_var=stmt.name,
-                frontend_only=stmt.name in FE_SETTINGS_MUTABLE,
-                command_tag=b"SHOW",
-            )
+            unit.get_var = stmt.name
+            unit.frontend_only = stmt.name in FE_SETTINGS_MUTABLE
+            unit.command_tag = b"SHOW"
+
         elif isinstance(stmt, pgast.SetTransactionStmt):
-            args = {"query": orig_text}
             if stmt.scope == pgast.OptionsScope.SESSION:
-                args["set_vars"] = {
+                unit.set_vars = {
                     f"default_{name}": (
                         value.val
                         if isinstance(value, pgast.StringConstant)
@@ -142,42 +133,29 @@ def compile_sql(
                     )
                     for name, value in stmt.options.options.items()
                 }
-            unit = unit_ctor(**args)
+
         elif isinstance(stmt, (pgast.BeginStmt, pgast.StartStmt)):
-            unit = unit_ctor(
-                query=orig_text,
-                tx_action=dbstate.TxAction.START,
-            )
+            unit.tx_action = dbstate.TxAction.START
         elif isinstance(stmt, pgast.CommitStmt):
-            unit = unit_ctor(
-                query=orig_text,
-                tx_action=dbstate.TxAction.COMMIT,
-                tx_chain=stmt.chain or False,
-            )
+            unit.tx_action = dbstate.TxAction.COMMIT
+            unit.tx_chain = stmt.chain or False
+
         elif isinstance(stmt, pgast.RollbackStmt):
-            unit = unit_ctor(
-                query=orig_text,
-                tx_action=dbstate.TxAction.ROLLBACK,
-                tx_chain=stmt.chain or False,
-            )
+            unit.tx_action = dbstate.TxAction.ROLLBACK
+            unit.tx_chain = stmt.chain or False
+
         elif isinstance(stmt, pgast.SavepointStmt):
-            unit = unit_ctor(
-                query=orig_text,
-                tx_action=dbstate.TxAction.DECLARE_SAVEPOINT,
-                sp_name=stmt.savepoint_name,
-            )
+            unit.tx_action = dbstate.TxAction.DECLARE_SAVEPOINT
+            unit.sp_name = stmt.savepoint_name
+
         elif isinstance(stmt, pgast.ReleaseStmt):
-            unit = unit_ctor(
-                query=orig_text,
-                tx_action=dbstate.TxAction.RELEASE_SAVEPOINT,
-                sp_name=stmt.savepoint_name,
-            )
+            unit.tx_action = dbstate.TxAction.RELEASE_SAVEPOINT
+            unit.sp_name = stmt.savepoint_name
+
         elif isinstance(stmt, pgast.RollbackToStmt):
-            unit = unit_ctor(
-                query=orig_text,
-                tx_action=dbstate.TxAction.ROLLBACK_TO_SAVEPOINT,
-                sp_name=stmt.savepoint_name,
-            )
+            unit.tx_action = dbstate.TxAction.ROLLBACK_TO_SAVEPOINT
+            unit.sp_name = stmt.savepoint_name
+
         elif isinstance(stmt, pgast.TwoPhaseTransactionStmt):
             raise NotImplementedError(
                 "two-phase transactions are not supported"
@@ -207,17 +185,16 @@ def compile_sql(
                 f"{sql_trailer}"
             )
 
-            unit = unit_ctor(
-                query=sql_text,
-                prepare=dbstate.PrepareData(
-                    stmt_name=stmt.name,
-                    be_stmt_name=mangled_stmt_name.encode("utf-8"),
-                    query=stmt_source.text,
-                    translation_data=stmt_source.translation_data,
-                ),
-                command_tag=b"PREPARE",
-                command_complete_tag=complete_tag,
+            unit.query = sql_text
+            unit.prepare = dbstate.PrepareData(
+                stmt_name=stmt.name,
+                be_stmt_name=mangled_stmt_name.encode("utf-8"),
+                query=stmt_source.text,
+                translation_data=stmt_source.translation_data,
             )
+            unit.command_tag = b"PREPARE"
+            unit.command_complete_tag = complete_tag
+
         elif isinstance(stmt, pgast.ExecuteStmt):
             orig_name = stmt.name
             mangled_name = prepared_stmt_map.get(orig_name)
@@ -228,12 +205,9 @@ def compile_sql(
                 )
             stmt.name = mangled_name
 
-            unit = unit_ctor(
-                query=pg_codegen.generate_source(stmt),
-                execute=dbstate.ExecuteData(
-                    stmt_name=orig_name,
-                    be_stmt_name=mangled_name.encode("utf-8"),
-                ),
+            unit.execute = dbstate.ExecuteData(
+                stmt_name=orig_name,
+                be_stmt_name=mangled_name.encode("utf-8"),
             )
         elif isinstance(stmt, pgast.DeallocateStmt):
             orig_name = stmt.name
@@ -244,27 +218,25 @@ def compile_sql(
                     pgext_code='26000',  # invalid_sql_statement_name
                 )
             stmt.name = mangled_name
-            unit = unit_ctor(
-                query=pg_codegen.generate_source(stmt),
-                deallocate=dbstate.DeallocateData(
-                    stmt_name=orig_name,
-                    be_stmt_name=mangled_name.encode("utf-8"),
-                ),
-                command_tag=b"DEALLOCATE",
+
+            unit.deallocate = dbstate.DeallocateData(
+                stmt_name=orig_name,
+                be_stmt_name=mangled_name.encode("utf-8"),
             )
+            unit.command_tag = b"DEALLOCATE"
+
         elif isinstance(stmt, pgast.LockStmt):
             if stmt.mode not in ('ACCESS SHARE', 'ROW SHARE', 'SHARE'):
                 raise NotImplementedError("exclusive lock is not supported")
             # just ignore
-            unit = unit_ctor(query="DO $$ BEGIN END $$;")
+            unit.query = "DO $$ BEGIN END $$;"
         else:
             assert isinstance(stmt, (pgast.Query, pgast.CopyStmt))
             source, complete_tag = resolve_query(stmt, schema, tx_state, opts)
-            unit = unit_ctor(
-                query=source.text,
-                translation_data=source.translation_data,
-                command_complete_tag=complete_tag,
-            )
+
+            unit.query = source.text
+            unit.translation_data = source.translation_data
+            unit.command_complete_tag = complete_tag
 
         unit.stmt_name = compute_stmt_name(unit.query, tx_state).encode("utf-8")
 
@@ -292,7 +264,7 @@ class ResolverOptionsPartial:
 
 
 def resolve_query(
-    stmt: pgast.Query | pgast.CopyStmt,
+    stmt: pgast.Base,
     schema: s_schema.Schema,
     tx_state: dbstate.SQLTransactionState,
     opts: ResolverOptionsPartial,
