@@ -103,7 +103,8 @@ def compile_sql(
                     value = pg_codegen.generate_source(stmt.args)
                 unit.set_vars = {stmt.name: value}
             unit.frontend_only = fe_only
-            unit.command_tag = b"SET"
+            if fe_only:
+                unit.command_complete_tag = dbstate.TagPlain(tag=b"SET")
             unit.is_local = stmt.scope == pgast.OptionsScope.TRANSACTION
         elif isinstance(stmt, pgast.VariableResetStmt):
             fe_only = stmt.name in FE_SETTINGS_MUTABLE
@@ -115,13 +116,15 @@ def compile_sql(
             if fe_only or stmt.scope == pgast.OptionsScope.SESSION:
                 unit.set_vars = {stmt.name: None}
             unit.frontend_only = fe_only
-            unit.command_tag = b"RESET"
+            if fe_only:
+                unit.command_complete_tag = dbstate.TagPlain(tag=b"RESET")
             unit.is_local = stmt.scope == pgast.OptionsScope.TRANSACTION
 
         elif isinstance(stmt, pgast.VariableShowStmt):
             unit.get_var = stmt.name
             unit.frontend_only = stmt.name in FE_SETTINGS_MUTABLE
-            unit.command_tag = b"SHOW"
+            if unit.frontend_only:
+                unit.command_complete_tag = dbstate.TagPlain(tag=b"SHOW")
 
         elif isinstance(stmt, pgast.SetTransactionStmt):
             if stmt.scope == pgast.OptionsScope.SESSION:
@@ -192,8 +195,7 @@ def compile_sql(
                 query=stmt_source.text,
                 translation_data=stmt_source.translation_data,
             )
-            unit.command_tag = b"PREPARE"
-            unit.command_complete_tag = complete_tag
+            unit.command_complete_tag = dbstate.TagPlain(tag=b"PREPARE")
 
         elif isinstance(stmt, pgast.ExecuteStmt):
             orig_name = stmt.name
@@ -223,7 +225,7 @@ def compile_sql(
                 stmt_name=orig_name,
                 be_stmt_name=mangled_name.encode("utf-8"),
             )
-            unit.command_tag = b"DEALLOCATE"
+            unit.command_complete_tag = dbstate.TagPlain(tag=b"DEALLOCATE")
 
         elif isinstance(stmt, pgast.LockStmt):
             if stmt.mode not in ('ACCESS SHARE', 'ROW SHARE', 'SHARE'):
