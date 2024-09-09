@@ -2184,7 +2184,7 @@ cdef class PGConnection:
 
                         msg_buf = WriteBuffer.new_message(mtype)
                         if isinstance(tag, dbstate.TagPlain):
-                            msg_buf.write_str(tag.tag, "utf-8")
+                            msg_buf.write_bytestring(tag.tag)
 
                         elif isinstance(tag, (dbstate.TagCountMessages, dbstate.TagUnpackRow)):
                             msg_buf.write_bytes(bytes(tag.prefix, "utf-8"))
