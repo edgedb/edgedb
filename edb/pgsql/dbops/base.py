@@ -291,14 +291,14 @@ class PLTopBlock(PLBlock):
 
 
 class BaseCommand(markup.MarkupCapableMixin):
-    def generate(self, block: SQLBlock):
+    def generate(self, block: SQLBlock) -> None:
         raise NotImplementedError
 
     @classmethod
-    def as_markup(cls, self, *, ctx):
+    def as_markup(cls, self, *, ctx) -> markup.elements.lang.TreeNode:
         return markup.elements.lang.TreeNode(name=repr(self))
 
-    def dump(self):
+    def dump(self) -> str:
         return str(self)
 
 
@@ -312,7 +312,7 @@ class Command(BaseCommand):
         *,
         conditions: Optional[Iterable[str | Condition]] = None,
         neg_conditions: Optional[Iterable[str | Condition]] = None,
-    ):
+    ) -> None:
         self.opid = id(self)
         self.conditions = set(conditions) if conditions else set()
         self.neg_conditions = set(neg_conditions) if neg_conditions else set()
@@ -345,14 +345,19 @@ class Command(BaseCommand):
 class CommandGroup(Command):
     commands: MutableSequence[Command]
 
-    def __init__(self, *, conditions=None, neg_conditions=None):
+    def __init__(
+        self,
+        *,
+        conditions: Optional[Iterable[str | Condition]] = None,
+        neg_conditions: Optional[Iterable[str | Condition]] = None,
+    ) -> None:
         super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.commands = []
 
-    def add_command(self, cmd: Command):
+    def add_command(self, cmd: Command) -> None:
         self.commands.append(cmd)
 
-    def add_commands(self, cmds: Sequence[Command]):
+    def add_commands(self, cmds: Sequence[Command]) -> None:
         self.commands.extend(cmds)
 
     def generate_self_block(self, block: SQLBlock) -> Optional[PLBlock]:
@@ -367,7 +372,7 @@ class CommandGroup(Command):
         return self_block
 
     @classmethod
-    def as_markup(cls, self, *, ctx):
+    def as_markup(cls, self, *, ctx) -> markup.elements.lang.TreeNode:
         node = markup.elements.lang.TreeNode(name=repr(self))
 
         for op in self.commands:
@@ -375,10 +380,10 @@ class CommandGroup(Command):
 
         return node
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Command]:
         return iter(self.commands)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.commands)
 
 
@@ -402,10 +407,10 @@ class CompositeCommandGroup(Command):
         super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.commands = []
 
-    def add_command(self, cmd: CompositeCommand):
+    def add_command(self, cmd: CompositeCommand) -> None:
         self.commands.append(cmd)
 
-    def add_commands(self, cmds: Sequence[CompositeCommand]):
+    def add_commands(self, cmds: Sequence[CompositeCommand]) -> None:
         self.commands.extend(cmds)
 
     def generate_self_block(self, block: SQLBlock) -> Optional[PLBlock]:
@@ -472,9 +477,12 @@ class Condition(BaseCommand):
 
 class Query(Command):
     def __init__(
-        self, text: str, *, type: Optional[str | Tuple[str, str]] = None,
-        trampoline_fixup: bool=True,
-    ):
+        self,
+        text: str,
+        *,
+        type: Optional[str | Tuple[str, str]] = None,
+        trampoline_fixup: bool = True,
+    ) -> None:
         from ..import trampoline
 
         super().__init__()
@@ -483,7 +491,7 @@ class Query(Command):
         self.text = text
         self.type = type
 
-    def to_sql_expr(self):
+    def to_sql_expr(self) -> str:
         if self.type:
             return f'({self.text})::{qn(*self.type)}'
         else:
@@ -492,7 +500,7 @@ class Query(Command):
     def code(self) -> str:
         return self.text
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<Query {self.text!r}>'
 
 
@@ -511,10 +519,14 @@ class Default(metaclass=DefaultMeta):
 
 
 class DBObject:
-    def __init__(self, *, metadata: Optional[Mapping[str, Any]] = None):
+    def __init__(
+        self,
+        *,
+        metadata: Optional[Mapping[str, Any]] = None
+    ) -> None:
         self.metadata = dict(metadata) if metadata else None
 
-    def add_metadata(self, key: str, value: Any):
+    def add_metadata(self, key: str, value: Any) -> None:
         if self.metadata is None:
             self.metadata = {}
 
@@ -537,8 +549,13 @@ class DBObject:
 
 
 class InheritableDBObject(DBObject):
-    def __init__(self, *, inherit=False, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        *,
+        inherit: bool = False,
+        metadata: Optional[Mapping[str, Any]] = None,
+    ) -> None:
+        super().__init__(metadata=metadata)
         if inherit:
             self.add_metadata('ddl:inherit', inherit)
 
