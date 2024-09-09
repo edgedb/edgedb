@@ -36,7 +36,7 @@ Options = context.Options
 
 
 def resolve(
-    query: pgast.Base,
+    query: pgast.Query | pgast.CopyStmt,
     schema: s_schema.Schema,
     options: context.Options,
 ) -> Tuple[pgast.Base, Optional[dbstate.CommandCompleteTag]]:
