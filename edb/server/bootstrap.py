@@ -214,7 +214,7 @@ class PGConnectionProxy:
 class BootstrapContext:
 
     cluster: pgcluster.BaseCluster
-    conn: PGConnectionProxy
+    conn: PGConnectionProxy | pgcon.PGConnection
     args: edbargs.ServerConfig
     mode: Optional[ClusterMode] = None
 
@@ -1531,7 +1531,6 @@ async def _init_stdlib(
     StdlibBits,
     config.Spec,
     edbcompiler.Compiler,
-    Optional[dbops.SQLBlock],  # trampoline block
 ]:
     in_dev_mode = devmode.is_in_dev_mode()
     conn = ctx.conn
@@ -1554,7 +1553,7 @@ async def _init_stdlib(
         src_hash=src_hash,
         cache_dir=cache_dir,
     )
-    if args.inplace_upgrade:
+    if args.inplace_upgrade_prepare:
         tpldbdump = None
 
     tpldbdump, tpldbdump_inplace = None, None
@@ -1583,20 +1582,21 @@ async def _init_stdlib(
             )
 
     backend_params = cluster.get_runtime_params()
-    if not args.inplace_upgrade:
+    if not args.inplace_upgrade_prepare:
         logger.info('Creating the necessary PostgreSQL extensions...')
         await metaschema.create_pg_extensions(conn, backend_params)
 
     trampolines = []
     trampolines.extend(stdlib.trampolines)
 
-    eff_tpldbdump = tpldbdump_inplace if args.inplace_upgrade else tpldbdump
+    eff_tpldbdump = (
+        tpldbdump_inplace if args.inplace_upgrade_prepare else tpldbdump)
     if eff_tpldbdump is None:
         logger.info('Populating internal SQL structures...')
         assert bootstrap_commands is not None
         block = dbops.PLTopBlock()
 
-        if not args.inplace_upgrade:
+        if not args.inplace_upgrade_prepare:
             fixed_bootstrap_commands = metaschema.get_fixed_bootstrap_commands()
             fixed_bootstrap_commands.generate(block)
 
@@ -1669,7 +1669,7 @@ async def _init_stdlib(
             tpldbdump_inplace = cleanup_tpldbdump(tpldbdump_inplace)
 
             # XXX: BE SMARTER ABOUT THIS, DON'T DO ALL THAT WORK
-            if args.inplace_upgrade:
+            if args.inplace_upgrade_prepare:
                 tpldbdump = None
 
             buildmeta.write_data_cache(
@@ -1818,13 +1818,17 @@ async def _init_stdlib(
     block = dbops.PLTopBlock()
     tramps.generate(block)
 
-    if args.inplace_upgrade:
-        trampoline_block = block
+    if args.inplace_upgrade_prepare:
+        trampoline_text = block.to_string()
+        await _store_static_text_cache(
+            ctx,
+            f'trampoline_pivot_query',
+            trampoline_text,
+        )
     else:
         await _execute_block(conn, block)
-        trampoline_block = None
 
-    return stdlib, config_spec, compiler, trampoline_block
+    return stdlib, config_spec, compiler
 
 
 async def _init_defaults(schema, compiler, conn):
@@ -2436,7 +2440,7 @@ async def _bootstrap_edgedb_super_roles(ctx: BootstrapContext) -> uuid.UUID:
 async def _bootstrap(
     ctx: BootstrapContext,
     no_template: bool=False,
-) -> tuple[edbcompiler.CompilerState, Optional[dbops.SQLBlock]]:
+) -> edbcompiler.CompilerState:
     args = ctx.args
     cluster = ctx.cluster
     backend_params = cluster.get_runtime_params()
@@ -2462,7 +2466,7 @@ async def _bootstrap(
     using_template = backend_params.has_create_database and not no_template
 
     if using_template:
-        if not args.inplace_upgrade:
+        if not args.inplace_upgrade_prepare:
             new_template_db_id = await _create_edgedb_template_database(ctx)
         # XXX: THIS IS WRONG, RIGHT?
         else:
@@ -2490,7 +2494,7 @@ async def _bootstrap(
 
         await _populate_misc_instance_data(tpl_ctx)
 
-        stdlib, config_spec, compiler, trampoline_block = await _init_stdlib(
+        stdlib, config_spec, compiler = await _init_stdlib(
             tpl_ctx,
             testmode=args.testmode,
             global_ids={
@@ -2579,7 +2583,7 @@ async def _bootstrap(
                 async with iteration:
                     await _pg_ensure_database_not_connected(ctx.conn, tpl_db)
 
-    if args.inplace_upgrade:
+    if args.inplace_upgrade_prepare:
         pass
     elif backend_params.has_create_database:
         await _create_edgedb_database(
@@ -2611,7 +2615,7 @@ async def _bootstrap(
             compiler=compiler,
         )
 
-    if args.inplace_upgrade:
+    if args.inplace_upgrade_prepare:
         pass
     elif backend_params.has_create_database:
         await _create_edgedb_database(
@@ -2650,211 +2654,7 @@ async def _bootstrap(
             args.default_database_user or edbdef.EDGEDB_SUPERUSER,
         )
 
-    return compiler.state, trampoline_block
-
-
-async def _load_schema(
-    ctx: BootstrapContext, state: edbcompiler.CompilerState
-) -> s_schema.ChainedSchema:
-    assert state.global_intro_query
-    json_data = await ctx.conn.sql_fetch_val(
-        state.global_intro_query.encode('utf-8'))
-    global_schema = s_refl.parse_into(
-        base_schema=state.std_schema,
-        schema=s_schema.EMPTY_SCHEMA,
-        data=json_data,
-        schema_class_layout=state.schema_class_layout,
-    )
-
-    return s_schema.ChainedSchema(
-        state.std_schema,
-        s_schema.EMPTY_SCHEMA,
-        global_schema,
-    )
-
-
-async def _upgrade_one(
-    ctx: BootstrapContext,
-    state: edbcompiler.CompilerState,
-    upgrade_data: Optional[Any],
-) -> None:
-    if not upgrade_data:
-        return
-
-    backend_params = ctx.cluster.get_runtime_params()
-    assert backend_params.has_create_database
-
-    ddl = upgrade_data['ddl']
-    # ids:
-    schema_object_ids = {
-        (
-            sn.name_from_string(name), qltype if qltype else None
-        ): uuidgen.UUID(objid)
-        for name, qltype, objid in upgrade_data['ids']
-    }
-
-    logger.info('Populating schema tables...')
-
-    # Load the schemas
-    schema = await _load_schema(ctx, state)
-
-    compilerctx = edbcompiler.new_compiler_context(
-        compiler_state=state,
-        user_schema=schema.get_top_schema(),
-        bootstrap_mode=False,  # MAYBE?
-    )
-
-    # Apply the DDL, but *only* execute the schema storage part!!
-    for ddl_cmd in edgeql.parse_block(ddl):
-        current_block = dbops.PLTopBlock()
-
-        keys: dict[str, Any] = dict(
-            testmode=True,
-            allow_dml_in_functions=True,
-        )
-
-        if debug.flags.sdl_loading:
-            ddl_cmd.dump_edgeql()
-
-        assert isinstance(ddl_cmd, qlast.DDLCommand)
-        delta_command = s_ddl.delta_from_ddl(
-            ddl_cmd, modaliases={}, schema=schema,
-            schema_object_ids=schema_object_ids,
-            **keys,
-        )
-        schema, plan, _ = _process_delta_params(
-            delta_command,
-            schema,
-            backend_params,
-            stdmode=False,
-            **keys,
-        )
-
-        compilerctx.state.current_tx().update_schema(schema)
-
-        context = sd.CommandContext(**keys)
-        edbcompiler.compile_schema_storage_in_delta(
-            ctx=compilerctx,
-            delta=plan,
-            block=current_block,
-            context=context,
-        )
-
-        # TODO: Should we batch them all up?
-        patch = current_block.to_string()
-
-        if debug.flags.delta_execute:
-            debug.header('Patch Script')
-            debug.dump_code(patch, lexer='sql')
-
-        try:
-            await ctx.conn.sql_execute(patch.encode('utf-8'))
-        except Exception:
-            raise
-
-    new_local_spec = config.load_spec_from_schema(
-        schema,
-        only_exts=True,
-        # suppress validation because we might be in an intermediate state
-        validate=False,
-    )
-    spec_json = config.spec_to_json(new_local_spec)
-    await ctx.conn.sql_execute(trampoline.fixup_query(f'''\
-        UPDATE
-            edgedbinstdata_VER.instdata
-        SET
-            json = {pg_common.quote_literal(spec_json)}
-        WHERE
-            key = 'configspec_ext';
-    ''').encode('utf-8'))
-
-
-async def _cleanup_one(
-    ctx: BootstrapContext,
-    state: edbcompiler.CompilerState,
-    trampoline_block: dbops.SQLBlock,
-) -> None:
-    conn = ctx.conn
-
-    await _execute_block(conn, trampoline_block)
-
-    namespaces = json.loads(await conn.sql_fetch_val("""
-        select json_agg(nspname) from pg_namespace
-        where nspname like 'edgedb%\\_v%'
-    """.encode('utf-8')))
-
-    cur_suffix = pg_common.versioned_schema("")
-    to_delete = [x for x in namespaces if not x.endswith(cur_suffix)]
-
-    # TODO: Should we try to query functions/tables/views/types and
-    # pg_depend to make sure that nothing wrong is going to get
-    # cascaded??
-    # It is *really* dumb the way that CASCADE works in postgres.
-    await conn.sql_execute(f"""
-        drop schema {', '.join(to_delete)} cascade
-    """.encode('utf-8'))
-
-
-async def _upgrade_all(
-    ctx: BootstrapContext,
-    state: edbcompiler.CompilerState,
-    trampoline_block: dbops.SQLBlock,
-) -> None:
-    cluster = ctx.cluster
-
-    tpl_db = cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB)
-    conn = PGConnectionProxy(cluster, tpl_db)
-
-    # FIXME: Use the sys query instead?
-    try:
-        databases = json.loads(await conn.sql_fetch_val(
-            trampoline.fixup_query("""
-                SELECT json_agg(name) FROM edgedb_VER."_SysBranch";
-            """).encode('utf-8'),
-        ))
-    finally:
-        conn.terminate()
-
-    assert ctx.args.inplace_upgrade
-    with open(ctx.args.inplace_upgrade) as f:
-        upgrade_data = json.load(f)
-
-    # DEBUG VELOCITY HACK: You can add a failing database to EARLY
-    # when trying to upgrade the whole suite.
-    EARLY: tuple[str, ...] = ()
-    databases.sort(key=lambda k: (k not in EARLY, k))
-
-    for database in databases:
-        if database == edbdef.EDGEDB_TEMPLATE_DB:
-            continue
-
-        conn = PGConnectionProxy(cluster, ctx.cluster.get_db_name(database))
-        try:
-            subctx = dataclasses.replace(ctx, conn=conn)
-
-            logger.info(f"Upgrading database '{database}'")
-            await _bootstrap(ctx=subctx, no_template=True)
-
-            logger.info(f"Populating schema tables for '{database}'")
-            await _upgrade_one(
-                ctx=subctx,
-                state=state,
-                upgrade_data=upgrade_data.get(database),
-            )
-
-            # XXX: This is not the right place to do this. We only
-            # want to do this if everything succeeds.
-            await _cleanup_one(subctx, state, trampoline_block)
-        finally:
-            conn.terminate()
-
-    conn = PGConnectionProxy(
-        cluster, ctx.cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB))
-    try:
-        subctx = dataclasses.replace(ctx, conn=conn)
-        await _cleanup_one(subctx, state, trampoline_block)
-    finally:
-        conn.terminate()
+    return compiler.state
 
 
 async def ensure_bootstrapped(
@@ -2872,13 +2672,8 @@ async def ensure_bootstrapped(
     try:
         mode = await _get_cluster_mode(ctx)
         ctx = dataclasses.replace(ctx, mode=mode)
-        if mode == ClusterMode.pristine or args.inplace_upgrade:
-            state, trampoline_block = await _bootstrap(ctx)
-
-            if args.inplace_upgrade:
-                assert trampoline_block
-                await _upgrade_all(ctx, state, trampoline_block)
-
+        if mode == ClusterMode.pristine:
+            state = await _bootstrap(ctx)
             return True, state
         else:
             state = await _start(ctx)

@@ -1418,7 +1418,7 @@ def _compile_uncompiled_dml(
             make_globals_empty=True,  # TODO: globals in SQL
             singletons=singletons,
             anchors=anchors,
-            allow_user_specified_id=True,  # TODO: should this be enabled?
+            allow_user_specified_id=ctx.options.allow_user_specified_id,
         )
         ir_stmt = qlcompiler.compile_ast_to_ir(
             ql_stmt,

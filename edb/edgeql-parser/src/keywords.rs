@@ -14,6 +14,7 @@ pub const UNRESERVED_KEYWORDS: phf::Set<&str> = phf_set!(
     "asc",
     "assignment",
     "before",
+    "blobal",
     "branch",
     "cardinality",
     "cast",

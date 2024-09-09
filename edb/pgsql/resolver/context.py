@@ -34,7 +34,7 @@ from edb.schema import objects as s_objects
 from edb.schema import pointers as s_pointers
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True, repr=False, match_args=False)
 class Options:
     current_database: str
 
@@ -43,7 +43,10 @@ class Options:
     current_query: str
 
     # schemas that will be searched when idents don't have an explicit one
-    search_path: Sequence[str] = ("public",)
+    search_path: Sequence[str]
+
+    # allow setting id in inserts
+    allow_user_specified_id: bool
 
 
 @dataclass(kw_only=True)

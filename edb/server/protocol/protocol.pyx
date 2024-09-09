@@ -586,6 +586,16 @@ cdef class HttpProtocol:
                         int(ver_m.group(2).decode()),
                     )
 
+                    if proto_ver < edbdef.MIN_PROTOCOL:
+                        return self._bad_request(
+                            request,
+                            response,
+                            message="requested protocol version is too old and "
+                                "no longer supported",
+                        )
+                    if proto_ver > edbdef.CURRENT_PROTOCOL:
+                        proto_ver = edbdef.CURRENT_PROTOCOL
+
                     params = request.params
                     if params is None:
                         conn_params = {}
@@ -609,7 +619,10 @@ cdef class HttpProtocol:
                         tcp_transport=self.transport,
                     )
                     response.status = http.HTTPStatus.OK
-                    response.content_type = PROTO_MIME
+                    response.content_type = (
+                        f'application/x.edgedb.v_'
+                        f'{proto_ver[0]}_{proto_ver[1]}.binary'
+                    ).encode()
                     response.close_connection = True
 
             else:

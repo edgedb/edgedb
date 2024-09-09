@@ -227,7 +227,8 @@ class ServerConfig(NamedTuple):
     log_level: str
     log_to: str
     bootstrap_only: bool
-    inplace_upgrade: Optional[pathlib.Path]
+    inplace_upgrade_prepare: Optional[pathlib.Path]
+    inplace_upgrade_finalize: bool
     bootstrap_command: str
     bootstrap_command_file: pathlib.Path
     default_branch: Optional[str]
@@ -676,10 +677,15 @@ _server_options = [
         envvar="EDGEDB_SERVER_BOOTSTRAP_ONLY", cls=EnvvarResolver,
         help='bootstrap the database cluster and exit'),
     click.option(
-        '--inplace-upgrade', type=PathPath(),
-        envvar="EDGEDB_SERVER_INPLACE_UPGRADE",
+        '--inplace-upgrade-prepare', type=PathPath(),
+        envvar="EDGEDB_SERVER_INPLACE_UPGRADE_PREPARE",
         cls=EnvvarResolver,  # XXX?
         help='try to do an in-place upgrade with the specified dump file'),
+    click.option(
+        '--inplace-upgrade-finalize', type=bool, is_flag=True,
+        envvar="EDGEDB_SERVER_INPLACE_UPGRADE_FINALIZE",
+        cls=EnvvarResolver,  # XXX?
+        help='finalize an in-place upgrade'),
     click.option(
         '--default-branch', type=str,
         help='the name of the default branch to create'),

@@ -1622,6 +1622,12 @@ class DeltaRoot(CommandGroup, context_class=DeltaRootContext):
         super().__init__(**kwargs)
         self.new_types: Set[uuid.UUID] = set()
 
+    @classmethod
+    def from_commands(cls, *cmds: Command) -> DeltaRoot:
+        delta = DeltaRoot()
+        delta.update(cmds)
+        return delta
+
     def apply(
         self,
         schema: s_schema.Schema,

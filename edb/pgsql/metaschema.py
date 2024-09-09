@@ -5901,7 +5901,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         FROM all_tables at
         JOIN edgedb_VER."_SchemaModule" sm ON sm.name = at.module_name
         LEFT JOIN pg_type pt ON pt.typname = at.id::text
-        WHERE schema_name not in ('cfg', 'sys', 'schema', 'std')
+        WHERE schema_name not in (
+            'cfg', 'sys', 'schema', 'std', 'net', 'net::http'
+        )
         '''
     )
     # A few tables in here were causing problems, so let's hide them as an
