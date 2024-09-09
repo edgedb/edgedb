@@ -859,7 +859,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             ],
         )
 
-    async def test_sql_query_schemas(self):
+    async def test_sql_query_schemas_01(self):
         await self.scon.fetch('SELECT id FROM "inventory"."Item";')
         await self.scon.fetch('SELECT id FROM "public"."Person";')
 
@@ -899,6 +899,79 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         # HACK: Set search_path back to public
         await self.scon.execute('SET search_path TO public;')
+
+    async def test_sql_query_set_01(self):
+        # initial state: search_path=public
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [['public']])
+
+        # enter transaction
+        tran = self.scon.transaction()
+        await tran.start()
+
+        # set
+        await self.scon.execute('SET LOCAL search_path TO inventory;')
+
+        await self.scon.fetch('SELECT id FROM "Item";')
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [["'inventory'"]])
+
+        # finish
+        await tran.commit()
+
+        # because we used LOCAL, value should be reset after transaction is over
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [["public"]])
+
+    async def test_sql_query_set_02(self):
+        # initial state: search_path=public
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [['public']])
+
+        # enter transaction
+        tran = self.scon.transaction()
+        await tran.start()
+
+        # set
+        await self.scon.execute('SET search_path TO inventory;')
+
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [["'inventory'"]])
+
+        # commit
+        await tran.commit()
+
+        # it should still be changed, since we SET was not LOCAL
+        await self.scon.fetch('SELECT id FROM "Item";')
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [["'inventory'"]])
+
+        # reset to default value
+        await self.scon.execute('RESET search_path;')
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [["public"]])
+
+    async def test_sql_query_set_03(self):
+        # initial state: search_path=public
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [['public']])
+
+        # start
+        tran = self.scon.transaction()
+        await tran.start()
+
+        # set
+        await self.scon.execute('SET search_path TO inventory;')
+
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [["'inventory'"]])
+
+        # rollback
+        await tran.rollback()
+
+        # because transaction was rolled back, value should be reset
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [["public"]])
 
     async def test_sql_query_static_eval_01(self):
         res = await self.squery_values('select current_schema;')
@@ -988,18 +1061,21 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             ORDER BY relname;
             """
         )
-        self.assertEqual(res, [
-            ["Book", 8192],
-            ["Book.chapters", 8192],
-            ["Content", 8192],
-            ["Genre", 8192],
-            ["Movie", 8192],
-            ["Movie.actors", 8192],
-            ["Movie.director", 8192],
-            ["Person", 8192],
-            ["novel", 8192],
-            ["novel.chapters", 0],
-        ])
+        self.assertEqual(
+            res,
+            [
+                ["Book", 8192],
+                ["Book.chapters", 8192],
+                ["Content", 8192],
+                ["Genre", 8192],
+                ["Movie", 8192],
+                ["Movie.actors", 8192],
+                ["Movie.director", 8192],
+                ["Person", 8192],
+                ["novel", 8192],
+                ["novel.chapters", 0],
+            ],
+        )
 
     async def test_sql_query_be_state(self):
         con = await self.connect(database=self.con.dbname)

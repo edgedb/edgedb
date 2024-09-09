@@ -593,12 +593,15 @@ class SQLTransactionState:
 
     def current_fe_settings(self) -> SQLSettings:
         if self.in_tx:
-            return self.in_tx_settings or DEFAULT_SQL_FE_SETTINGS
-        else:
             return self.in_tx_local_settings or DEFAULT_SQL_FE_SETTINGS
+        else:
+            return self.settings or DEFAULT_SQL_FE_SETTINGS
 
     def get(self, name: str) -> Optional[str | list[str]]:
         if self.in_tx:
+            # For easier access, in_tx_local_settings is always a superset of
+            # in_tx_settings; in_tx_settings only keeps track of non-local
+            # settings, so that the local settings don't go across tx bounds
             assert self.in_tx_local_settings
             return self.in_tx_local_settings[name]
         else:
