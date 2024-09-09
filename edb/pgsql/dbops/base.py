@@ -85,11 +85,13 @@ class PLExpression(str):
 
 
 class SQLBlock:
-    def __init__(self):
+    commands: list[str | PLBlock]
+
+    def __init__(self) -> None:
         self.commands = []
         self._transactional = True
 
-    def add_block(self):
+    def add_block(self) -> PLBlock:
         block = PLTopBlock()
         self.add_command(block)
         return block
@@ -111,7 +113,7 @@ class SQLBlock:
         return [(cmd if isinstance(cmd, str) else cmd.to_string()).rstrip()
                 for cmd in self.commands]
 
-    def add_command(self, stmt) -> None:
+    def add_command(self, stmt: str | PLBlock) -> None:
         self.commands.append(stmt)
 
     def has_declarations(self) -> bool:
@@ -126,10 +128,13 @@ class SQLBlock:
 
 class PLBlock(SQLBlock):
 
+    varcounter: dict[str, int]
+    shared_vars: set[str]
+    declarations: list[tuple[str, str | tuple[str, str]]]
     conditions: Iterable[str | Condition]
     neg_conditions: Iterable[str | Condition]
 
-    def __init__(self, top_block, level):
+    def __init__(self, top_block: Optional[PLTopBlock], level: int) -> None:
         super().__init__()
         self.top_block = top_block
         self.varcounter = collections.defaultdict(int)
@@ -146,14 +151,14 @@ class PLBlock(SQLBlock):
         return bool(self.commands)
 
     def get_top_block(self) -> PLTopBlock:
-        return self.top_block
+        return typeutils.not_none(self.top_block)
 
     def add_block(self) -> PLBlock:
         block = PLBlock(top_block=self.top_block, level=self.level + 1)
         self.add_command(block)
         return block
 
-    def to_string(self):
+    def to_string(self) -> str:
         if self.declarations:
             vv = (f'    {qi(n)} {qt(t)};' for n, t in self.declarations)
             decls = 'DECLARE\n' + '\n'.join(vv) + '\n'
@@ -197,7 +202,14 @@ class PLBlock(SQLBlock):
         else:
             return body
 
-    def add_command(self, cmd, *, conditions=None, neg_conditions=None):
+    def add_command(
+        self,
+        cmd: str | PLBlock,
+        *,
+        conditions: Optional[Iterable[str | Condition]] = None,
+        neg_conditions: Optional[Iterable[str | Condition]] = None
+    ) -> None:
+        stmt: str | PLBlock
         if conditions or neg_conditions:
             exprs = []
             if conditions:
@@ -232,7 +244,7 @@ class PLBlock(SQLBlock):
 
         super().add_command(stmt)
 
-    def get_var_name(self, hint=None):
+    def get_var_name(self, hint: Optional[str] = None) -> str:
         if hint is None:
             hint = 'v'
         self.varcounter[hint] += 1
@@ -261,7 +273,7 @@ class PLBlock(SQLBlock):
 
 
 class PLTopBlock(PLBlock):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(top_block=None, level=0)
         self.declare_var('text', var_name='_dummy_text', shared=True)
 
@@ -270,7 +282,7 @@ class PLTopBlock(PLBlock):
         self.add_command(block)
         return block
 
-    def to_string(self):
+    def to_string(self) -> str:
         body = super().to_string()
         return f'DO LANGUAGE plpgsql $__$\n{body}\n$__$;'
 
