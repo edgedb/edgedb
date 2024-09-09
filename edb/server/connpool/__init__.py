@@ -22,7 +22,7 @@ from .pool2 import Pool as Pool2Impl
 # During the transition period we allow for the pool to be swapped out. The
 # current default is to use the old pool, however this will be switched to use
 # the new pool once we've fully implemented all required features.
-if os.environ.get("EDGEDB_USE_NEW_CONNPOOL", "") == "1":
+if os.environ.get("EDGEDB_USE_NEW_CONNPOOL", "") == "0":
     Pool = Pool2Impl
     Pool2 = Pool1Impl
 else:
