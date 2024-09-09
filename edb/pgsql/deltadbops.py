@@ -302,14 +302,15 @@ class MultiConstraintItem:
             self.constraint.get_subject_name())
 
 
-class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
+class AlterTableAddMultiConstraint(
+    dbops.AlterTableAddConstraint[SchemaConstraintTableConstraint]
+):
     def code_with_block(self, block: dbops.PLBlock) -> str:
         exprs = self.constraint.constraint_code(block)
 
         if isinstance(exprs, list) and len(exprs) > 1:
             chunks = []
 
-            assert isinstance(self.constraint, SchemaConstraintTableConstraint)
             for i, expr in enumerate(exprs):
                 name = self.constraint.numbered_constraint_name(i)
                 chunk = f'ADD CONSTRAINT {name} {expr}'
