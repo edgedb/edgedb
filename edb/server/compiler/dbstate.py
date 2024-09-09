@@ -529,9 +529,6 @@ class SQLQueryUnit:
     """Whether the query is completely emulated outside of backend and so
     the response should be synthesized also."""
 
-    command_tag: bytes = b""
-    """If frontend_only is True, only issue CommandComplete with this tag."""
-
     command_complete_tag: Optional[CommandCompleteTag] = None
     """When set, CommandComplete for this query will be overridden.
     This is useful, for example, for setting the tag of DML statements,
@@ -546,7 +543,7 @@ class CommandCompleteTag:
 class TagPlain(CommandCompleteTag):
     '''Set the tag verbatim'''
 
-    tag: str
+    tag: bytes
 
 
 @dataclasses.dataclass(kw_only=True)

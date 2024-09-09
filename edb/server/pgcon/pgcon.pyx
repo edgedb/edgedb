@@ -1985,9 +1985,12 @@ cdef class PGConnection:
                         buf.write_buffer(msg_buf.end_message())
                         # CommandComplete
                         msg_buf = WriteBuffer.new_message(b'C')
-                        assert action.query_unit.command_tag, \
-                            "emulated SQL unit has no command_tag"
-                        msg_buf.write_bytestring(action.query_unit.command_tag)
+                        assert isinstance(
+                            action.query_unit.command_complete_tag,
+                            dbstate.TagPlain,
+                        ), "emulated SQL unit has no command_tag"
+                        plain = action.query_unit.command_complete_tag
+                        msg_buf.write_bytestring(plain.tag)
                         buf.write_buffer(msg_buf.end_message())
 
                     dbv.on_success(action.query_unit)
@@ -2181,7 +2184,7 @@ cdef class PGConnection:
 
                         msg_buf = WriteBuffer.new_message(mtype)
                         if isinstance(tag, dbstate.TagPlain):
-                            msg_buf.write_str(tag.tag, "utf-8")
+                            msg_buf.write_bytestring(tag.tag)
 
                         elif isinstance(tag, (dbstate.TagCountMessages, dbstate.TagUnpackRow)):
                             msg_buf.write_bytes(bytes(tag.prefix, "utf-8"))
