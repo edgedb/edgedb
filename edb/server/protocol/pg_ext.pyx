@@ -70,27 +70,34 @@ def managed_error():
 @cython.final
 cdef class ConnectionView:
     def __init__(self):
-        self._settings = DEFAULT_SETTINGS
-        self._fe_settings = DEFAULT_FE_SETTINGS
         self._in_tx_explicit = False
         self._in_tx_implicit = False
+
+        # Kepp track of backend settings so that we can sync to use different
+        # backend connections (pgcon) within the same frontend connection,
+        # see serialize_state() below and its usages in pgcon.pyx.
+        self._settings = DEFAULT_SETTINGS
         self._in_tx_settings = None
+
+        # Frontend-only settings are defined by the high-level compiler, and
+        # tracked only here, syncing between the compiler process,
+        # see current_fe_settings(), fe_transaction_state() and usages below.
+        self._fe_settings = DEFAULT_FE_SETTINGS
         self._in_tx_fe_settings = None
         self._in_tx_fe_local_settings = None
+
         self._in_tx_portals = {}
         self._in_tx_new_portals = set()
         self._in_tx_savepoints = collections.deque()
         self._tx_error = False
         self._session_state_db_cache = (DEFAULT_SETTINGS, DEFAULT_STATE)
 
-    def current_settings(self):
-        if self.in_tx():
-            return self._in_tx_settings or DEFAULT_SETTINGS
-        else:
-            return self._settings or DEFAULT_SETTINGS
-
     cpdef inline current_fe_settings(self):
         if self.in_tx():
+            # For easier access, _in_tx_fe_local_settings is always a superset
+            # of _in_tx_fe_settings; _in_tx_fe_settings only keeps track of
+            # non-local settings, so that the local settings don't go across
+            # transaction boundaries; this must be consistent with dbstate.py.
             return self._in_tx_fe_local_settings or DEFAULT_FE_SETTINGS
         else:
             return self._fe_settings or DEFAULT_FE_SETTINGS
@@ -117,9 +124,7 @@ cdef class ConnectionView:
         self._in_tx_explicit = chain_explicit
         self._in_tx_settings = self._settings if self.in_tx() else None
         self._in_tx_fe_settings = self._fe_settings if self.in_tx() else None
-        self._in_tx_fe_local_settings = (
-            self._fe_settings if self.in_tx() else None
-        )
+        self._in_tx_fe_local_settings = self._in_tx_fe_settings
         self._in_tx_portals.clear()
         self._in_tx_new_portals.clear()
         self._in_tx_savepoints.clear()
@@ -247,8 +252,8 @@ cdef class ConnectionView:
             else:
                 if self.in_tx():
                     if unit.frontend_only:
-                        if unit.is_local:
-                            settings = self._in_tx_fe_local_settings.mutate()
+                        if not unit.is_local:
+                            settings = self._in_tx_fe_settings.mutate()
                             for k, v in unit.set_vars.items():
                                 if v is None:
                                     if k in DEFAULT_FE_SETTINGS:
@@ -257,8 +262,8 @@ cdef class ConnectionView:
                                         settings.pop(k, None)
                                 else:
                                     settings[k] = v
-                            self._in_tx_fe_local_settings = settings.finish()
-                        settings = self._in_tx_fe_settings.mutate()
+                            self._in_tx_fe_settings = settings.finish()
+                        settings = self._in_tx_fe_local_settings.mutate()
                     else:
                         settings = self._in_tx_settings.mutate()
                 elif not unit.is_local:
@@ -278,7 +283,7 @@ cdef class ConnectionView:
                         settings[k] = v
                 if self.in_tx():
                     if unit.frontend_only:
-                        self._in_tx_fe_settings = settings.finish()
+                        self._in_tx_fe_local_settings = settings.finish()
                     else:
                         self._in_tx_settings = settings.finish()
                 else:
@@ -991,7 +996,11 @@ cdef class PgConnection(frontend.FrontendConnection):
             PGMessage parse_action
             ConnectionView dbv
 
+        # Extended-query pre-plays on a deeply-cloned temporary dbview so as to
+        # compose the actions list with correct states; the actual changes to
+        # dbview is applied in pgcon.pyx when the actions are actually executed
         dbv = copy.deepcopy(self._dbview)
+
         actions = deque()
         fresh_stmts = set()
         in_implicit = self._dbview._in_tx_implicit
