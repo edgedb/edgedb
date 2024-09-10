@@ -21,7 +21,15 @@ from __future__ import annotations
 
 import collections
 import textwrap
-from typing import Optional, Tuple, Iterable, Sequence
+from typing import (
+    Generic,
+    Iterable,
+    Iterator,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+)
 
 from edb.common import ordered
 
@@ -37,69 +45,96 @@ from . import constraints
 from . import ddl
 
 
+TableConstraint_T = TypeVar("TableConstraint_T", bound="TableConstraint")
+
+
 class Table(composites.CompositeDBObject):
-    def __init__(self, name, *, columns=None, bases=None, constraints=None):
-        self.constraints = ordered.OrderedSet(constraints or [])
+    bases: ordered.OrderedSet[Table]
+    constraints: ordered.OrderedSet[SingleTableConstraint]
+
+    # Columns from bases and self
+    all_columns: collections.OrderedDict[str, Column]
+
+    def __init__(
+        self,
+        name: tuple[str, ...],
+        *,
+        columns: Optional[Iterable[Column]] = None,
+        bases: Optional[ordered.OrderedSet[Table]] = None,
+        constraints: Optional[ordered.OrderedSet[SingleTableConstraint]] = None
+    ) -> None:
         self.bases = ordered.OrderedSet(bases or [])
-        self.data = []
+        self.constraints = ordered.OrderedSet(constraints or [])
         super().__init__(name, columns=columns)
 
+        self.all_columns = collections.OrderedDict(
+            (c.name, c) for c in self.iter_columns()
+        )
+
     def iter_columns(
-        self, writable_only: bool = False, only_self: bool = False
+        self,
+        writable_only: bool = False,
+        only_self: bool = False,
     ) -> Iterable[Column]:
         cols: collections.OrderedDict = collections.OrderedDict()
-        cols.update((c.name, c) for c in self._columns
-                    if not writable_only or not c.readonly)
+        cols.update(
+            (c.name, c)
+            for c in self._columns
+            if not writable_only or not c.readonly
+        )
 
         if not only_self:
-            for c in reversed(self.bases):
-                cols.update((name, bc) for name, bc in c.columns.items()
-                            if not writable_only or not bc.readonly)
+            for base in reversed(self.bases):
+                cols.update(
+                    (name, bc)
+                    for name, bc in base.all_columns.items()
+                    if not writable_only or not bc.readonly
+                )
 
         return ordered.OrderedSet(cols.values())
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Column]:
         return iter(self._columns)
 
-    def add_bases(self, iterable):
+    def add_bases(self, iterable: Iterable[Table]) -> None:
         self.bases.update(iterable)
-        self.columns = collections.OrderedDict(
+        self.all_columns = collections.OrderedDict(
             (c.name, c) for c in self.iter_columns()
         )
 
-    def add_columns(self, iterable):
+    def add_columns(self, iterable: Iterable[Column]) -> None:
         super().add_columns(iterable)
-        self.columns = collections.OrderedDict(
+        self.all_columns = collections.OrderedDict(
             (c.name, c) for c in self.iter_columns()
         )
 
-    def add_constraint(self, const):
+    def add_constraint(self, const: SingleTableConstraint) -> None:
         self.constraints.add(const)
 
-    def get_column(self, name):
-        return self.columns.get(name)
+    def get_column(self, name: str) -> Optional[Column]:
+        return self.all_columns.get(name)
 
-    def get_type(self):
+    def get_type(self) -> str:
         return 'TABLE'
 
-    def get_id(self):
+    def get_id(self) -> str:
         return qn(*self.name)
 
     @property
     def record(self):
         return composites.Record(
             self.__class__.__name__ + '_record',
-            list(self.columns), default=base.Default)
+            list(self.all_columns), default=base.Default)
 
     @property
-    def system_catalog(self):
+    def system_catalog(self) -> str:
         return 'pg_class'
 
     @property
-    def oid_type(self):
+    def oid_type(self) -> str:
         return 'regclass'
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<db.Table {self.name} at {id(self):0x}>'
 
 
@@ -112,14 +147,14 @@ class InheritableTableObject(base.InheritableDBObject):
 class Column(base.DBObject):
     def __init__(
         self,
-        name: str | pgast.Star,
+        name: str,
         type: str | tuple[str, str],
         required: bool = False,
         default: Optional[str] = None,
         constraints: Sequence[ColumnConstraint] = (),
         readonly: bool = False,
         comment: Optional[str] = None,
-    ):
+    ) -> None:
         self.name = name
         self.type = type
         self.required = required
@@ -128,10 +163,10 @@ class Column(base.DBObject):
         self.readonly = readonly
         self.comment = comment
 
-    def add_constraint(self, constraint: ColumnConstraint):
+    def add_constraint(self, constraint: ColumnConstraint) -> None:
         self.constraints = list(self.constraints) + [constraint]
 
-    def code(self, short: bool = False):
+    def code(self, short: bool = False) -> str:
         code = f"{qi(self.name)} {self.type}"
         if not short:
             if self.required:
@@ -153,21 +188,21 @@ class Column(base.DBObject):
             cmd = ddl.Comment(object=col, text=self.comment)
             cmd.generate(block)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<%s.%s "%s" %s>' % (
             self.__class__.__module__, self.__class__.__name__, self.name,
             self.type)
 
 
 class TableColumn(base.DBObject):
-    def __init__(self, table_name, column):
+    def __init__(self, table_name: tuple[str, ...], column: Column) -> None:
         self.table_name = table_name
         self.column = column
 
-    def get_type(self):
+    def get_type(self) -> str:
         return 'COLUMN'
 
-    def get_id(self):
+    def get_id(self) -> str:
         return qn(
             self.table_name[0], self.table_name[1], self.column.name
         )
@@ -182,7 +217,7 @@ class ColumnConstraint:
 
 
 class GeneratedConstraint(ColumnConstraint):
-    def __init__(self, constraint_name: str, expr: str):
+    def __init__(self, constraint_name: str, expr: str) -> None:
         super().__init__(constraint_name)
         self.expr = expr
 
@@ -197,17 +232,23 @@ class TableConstraint(constraints.Constraint):
     def generate_extra(self, block: base.PLBlock) -> None:
         pass
 
-    def get_subject_type(self):
+    def get_subject_type(self) -> str:
         return ''  # For table constraints the accepted syntax is
         # simply CONSTRAINT ON "{tab_name}", not
         # CONSTRAINT ON TABLE, unlike constraints on
         # other objects.
 
 
-class PrimaryKey(TableConstraint):
+class SingleTableConstraint(TableConstraint):
+
+    def constraint_code(self, block: base.PLBlock) -> str:
+        raise NotImplementedError()
+
+
+class PrimaryKey(SingleTableConstraint):
     def __init__(
         self, table_name: Sequence[str], columns: Sequence[str | pgast.Star]
-    ):
+    ) -> None:
         super().__init__(table_name)
         self.columns = columns
 
@@ -216,10 +257,10 @@ class PrimaryKey(TableConstraint):
         return f'PRIMARY KEY ({cols})'
 
 
-class UniqueConstraint(TableConstraint):
+class UniqueConstraint(SingleTableConstraint):
     def __init__(
         self, table_name: Sequence[str], columns: Sequence[str | pgast.Star]
-    ):
+    ) -> None:
         super().__init__(table_name)
         self.columns = columns
 
@@ -228,8 +269,14 @@ class UniqueConstraint(TableConstraint):
         return f'UNIQUE ({cols})'
 
 
-class CheckConstraint(TableConstraint):
-    def __init__(self, table_name, constraint_name, expr, inherit: bool = True):
+class CheckConstraint(SingleTableConstraint):
+    def __init__(
+        self,
+        table_name,
+        constraint_name,
+        expr,
+        inherit: bool = True,
+    ) -> None:
         super().__init__(table_name, constraint_name=constraint_name)
         self.expr = expr
         self.inherit = inherit
@@ -257,7 +304,7 @@ class CheckConstraint(TableConstraint):
 
 
 class TableExists(base.Condition):
-    def __init__(self, name):
+    def __init__(self, name: tuple[str, ...]) -> None:
         self.name = name
 
     def code(self) -> str:
@@ -273,7 +320,11 @@ class TableExists(base.Condition):
 
 
 class TableInherits(base.Condition):
-    def __init__(self, name, parent_name):
+    def __init__(
+        self,
+        name: tuple[str, ...],
+        parent_name: tuple[str, ...],
+    ) -> None:
         self.name = name
         self.parent_name = parent_name
 
@@ -296,7 +347,11 @@ class TableInherits(base.Condition):
 
 
 class ColumnExists(base.Condition):
-    def __init__(self, table_name, column_name):
+    def __init__(
+        self,
+        table_name: tuple[str, ...],
+        column_name: str,
+    ) -> None:
         self.table_name = table_name
         self.column_name = column_name
 
@@ -314,7 +369,11 @@ class ColumnExists(base.Condition):
 
 
 class ColumnIsInherited(base.Condition):
-    def __init__(self, table_name, column_name):
+    def __init__(
+        self,
+        table_name: tuple[str, ...],
+        column_name: str,
+    ) -> None:
         self.table_name = table_name
         self.column_name = column_name
 
@@ -340,11 +399,12 @@ class CreateTable(ddl.SchemaObjectOperation):
         table: Table,
         temporary: bool = False,
         *,
-        conditions=None,
-        neg_conditions=None,
-    ):
+        conditions: Optional[Iterable[str | base.Condition]] = None,
+        neg_conditions: Optional[Iterable[str | base.Condition]] = None,
+    ) -> None:
         super().__init__(
-            table.name, conditions=conditions, neg_conditions=neg_conditions)
+            table.name, conditions=conditions, neg_conditions=neg_conditions
+        )
         self.table = table
         self.temporary = temporary
 
@@ -389,8 +449,8 @@ class AlterTableBaseMixin:
     contained: bool
 
     def __init__(
-        self, name: Tuple[str, ...], contained: bool = False, **kwargs
-    ):
+        self, name: Tuple[str, ...], contained: bool = False
+    ) -> None:
         self.name = name
         self.contained = contained
 
@@ -398,7 +458,7 @@ class AlterTableBaseMixin:
         return 'ALTER TABLE %s%s' % (
             'ONLY ' if self.contained else '', qn(*self.name))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<%s.%s %s>' % (
             self.__class__.__module__, self.__class__.__name__, self.name)
 
@@ -406,12 +466,12 @@ class AlterTableBaseMixin:
 class AlterTableBase(AlterTableBaseMixin, ddl.DDLOperation):
     def __init__(
         self,
-        name,
+        name: tuple[str, ...],
         *,
         contained: bool = False,
-        conditions=None,
-        neg_conditions=None,
-    ):
+        conditions: Optional[Iterable[str | base.Condition]] = None,
+        neg_conditions: Optional[Iterable[str | base.Condition]] = None,
+    ) -> None:
         ddl.DDLOperation.__init__(
             self, conditions=conditions, neg_conditions=neg_conditions)
         AlterTableBaseMixin.__init__(self, name=name, contained=contained)
@@ -421,7 +481,7 @@ class AlterTableBase(AlterTableBaseMixin, ddl.DDLOperation):
 
 
 class AlterTableFragment(ddl.DDLOperation, base.CompositeCommand):
-    def get_attribute_term(self):
+    def get_attribute_term(self) -> str:
         return 'COLUMN'
 
     def generate_extra_composite(
@@ -435,11 +495,11 @@ class AlterTable(
 ):
     def __init__(
         self,
-        name,
+        name: tuple[str, ...],
         *,
         contained: bool = False,
-        conditions=None,
-        neg_conditions=None,
+        conditions: Optional[Iterable[str | base.Condition]] = None,
+        neg_conditions: Optional[Iterable[str | base.Condition]] = None,
     ):
         base.CompositeCommandGroup.__init__(
             self, conditions=conditions, neg_conditions=neg_conditions)
@@ -551,8 +611,14 @@ class TableConstraintExists(base.Condition):
         ''')
 
 
-class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
-    def __init__(self, constraint: TableConstraint):
+class AlterTableAddConstraint(
+    AlterTableFragment,
+    TableConstraintCommand,
+    Generic[TableConstraint_T],
+):
+    constraint: TableConstraint_T
+
+    def __init__(self, constraint: TableConstraint_T):
         assert not isinstance(constraint, list)
         self.constraint = constraint
 

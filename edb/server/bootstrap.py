@@ -56,6 +56,7 @@ from edb.edgeql import ast as qlast
 
 from edb.common import debug
 from edb.common import devmode
+from edb.common import ordered
 from edb.common import retryloop
 from edb.common import uuidgen
 
@@ -2110,12 +2111,12 @@ async def _populate_misc_instance_data(
                     type='jsonb',
                 ),
             ],
-            constraints=[
+            constraints=ordered.OrderedSet([
                 dbops.PrimaryKey(
                     table_name=(sname, 'instdata'),
                     columns=['key'],
                 ),
-            ],
+            ]),
         ))
     ])
 

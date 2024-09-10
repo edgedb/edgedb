@@ -3697,7 +3697,7 @@ class CreateObjectType(
         new_table_name = self._get_table_name(self.scls, schema)
 
         self.table_name = new_table_name
-        columns: list[str] = []
+        columns: list[dbops.Column] = []
 
         objtype_table = dbops.Table(name=new_table_name, columns=columns)
         self.pgops.add(dbops.CreateTable(table=objtype_table))
@@ -4902,7 +4902,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
 
         table = dbops.Table(name=new_table_name)
         table.add_columns(columns)
-        table.constraints = constraints
+        table.constraints = ordered.OrderedSet(constraints)
 
         ct = dbops.CreateTable(table=table)
 
