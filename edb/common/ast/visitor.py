@@ -121,12 +121,22 @@ class NodeVisitor:
         return visitor.visit(node)
 
     def container_visit(self, node):
-        result = []
-        for elem in (node.values() if isinstance(node, dict) else node):
-            if base.is_ast_node(elem) or typeutils.is_container(elem):
-                result.append(self.visit(elem))
-            else:
-                result.append(elem)
+        if isinstance(node, dict):
+            result = {}
+            for key, value in node.items():
+                if base.is_ast_node(value) or typeutils.is_container(value):
+                    result[key] = self.visit(value)
+                else:
+                    result[key] = value
+
+        else:
+            result = []
+            for elem in node:
+                if base.is_ast_node(elem) or typeutils.is_container(elem):
+                    result.append(self.visit(elem))
+                else:
+                    result.append(elem)
+
         return result
 
     def repeated_node_visit(self, node):

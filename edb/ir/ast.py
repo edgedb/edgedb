@@ -829,6 +829,9 @@ class BaseConstant(ConstExpr, ImmutableExpr):
         if self.value is None:
             raise ValueError('cannot create irast.Constant without a value')
 
+    def _init_copy(self) -> BaseConstant:
+        return self.__class__(typeref=self.typeref, value=self.value)
+
 
 class BaseStrConstant(BaseConstant):
     __abstract_node__ = True
