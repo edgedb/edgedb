@@ -245,6 +245,7 @@ class ServerConfig(NamedTuple):
     daemon_user: str
     daemon_group: str
     runstate_dir: pathlib.Path
+    extensions_dir: tuple[pathlib.Path, ...]
     max_backend_connections: Optional[int]
     compiler_pool_size: int
     compiler_pool_mode: CompilerPoolMode
@@ -748,6 +749,10 @@ server_options = typeutils.chain_decorators([
         help=f'directory where UNIX sockets and other temporary '
              f'runtime files will be placed ({_get_runstate_dir_default()} '
              f'by default)'),
+    click.option(
+        '--extensions-dir', type=PathPath(), default=(), multiple=True,
+        envvar="EDGEDB_SERVER_EXTENSIONS_DIR",
+        help=f'directory where third-party extension packages are loaded from'),
     click.option(
         '--max-backend-connections', type=int, metavar='NUM',
         envvar="EDGEDB_SERVER_MAX_BACKEND_CONNECTIONS",

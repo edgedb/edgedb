@@ -211,6 +211,11 @@ def get_shared_data_dir_path() -> pathlib.Path:
         return pathlib.Path(get_build_metadata_value('SHARED_DATA_DIR'))
 
 
+def get_extension_dir_path() -> pathlib.Path:
+    # TODO: Do we want a special metadata value??
+    return get_shared_data_dir_path() / "extensions"
+
+
 def hash_dirs(
     dirs: Sequence[Tuple[str, str]],
     *,

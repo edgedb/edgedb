@@ -38,18 +38,23 @@ import contextlib
 import functools
 import json
 import logging
+import os
 import pathlib
 import pickle
 import struct
 import sys
 import time
+import tomllib
 import uuid
 import weakref
+import zipfile
 
 import immutables
 
+from edb import buildmeta
 from edb import errors
 from edb.common import retryloop
+from edb.common import verutils
 from edb.common.log import current_tenant
 
 from . import args as srvargs
@@ -115,6 +120,8 @@ class Tenant(ha_base.ClusterProtocol):
     _readiness: srvargs.ReadinessState
     _readiness_reason: str
 
+    _extensions_dirs: tuple[pathlib.Path, ...]
+
     # A set of databases that should not accept new connections.
     _block_new_connections: set[str]
     _report_config_data: dict[defines.ProtocolVersion, bytes]
@@ -133,6 +140,7 @@ class Tenant(ha_base.ClusterProtocol):
         instance_name: str,
         max_backend_connections: int,
         backend_adaptive_ha: bool = False,
+        extensions_dir: tuple[pathlib.Path, ...] = (),
     ):
         self._cluster = cluster
         self._tenant_id = self.get_backend_runtime_params().tenant_id
@@ -148,6 +156,8 @@ class Tenant(ha_base.ClusterProtocol):
         self._accept_new_tasks = False
         self._file_watch_finalizers = []
         self._introspection_locks = weakref.WeakValueDictionary()
+
+        self._extensions_dirs = extensions_dir
 
         # Never use `self.__sys_pgcon` directly; get it via
         # `async with self.use_sys_pgcon()`.
@@ -406,6 +416,11 @@ class Tenant(ha_base.ClusterProtocol):
 
         await self._introspect_dbs()
 
+        await self.load_extension_packages(buildmeta.get_extension_dir_path())
+        # Allow user-specified too.
+        for dir in self._extensions_dirs:
+            await self.load_extension_packages(dir)
+
         # Now, once all DBs have been introspected, start listening on
         # any notifications about schema/roles/etc changes.
         assert self.__sys_pgcon is not None
@@ -416,6 +431,92 @@ class Tenant(ha_base.ClusterProtocol):
         self.populate_sys_auth()
         self.reload_readiness_state()
         self._initing = False
+
+    async def load_extension_packages(self, path: pathlib.Path) -> None:
+        exts = []
+        try:
+            with os.scandir(path) as it:
+                for entry in it:
+                    if entry.is_file() and entry.name.endswith('.zip'):
+                        exts.append(entry)
+        except FileNotFoundError:
+            pass
+
+        if not exts:
+            return
+
+        async with self.use_sys_pgcon() as syscon:
+            from edb.pgsql import trampoline
+            ext_packages_json = await syscon.sql_fetch_val(
+                trampoline.fixup_query("""
+                    SELECT json_agg(o.c)
+                    FROM (
+                        SELECT
+                            json_build_array(p.name, p.version) AS c
+                        FROM
+                            edgedb_VER."_SysExtensionPackage" AS p
+                    ) AS o;
+                """).encode('utf-8')
+            )
+        ext_packages = {
+            (name, verutils.from_json(version))
+            for name, version in json.loads(ext_packages_json)
+        }
+
+        for ext in exts:
+            await self._load_extension_package(ext, ext_packages)
+
+    async def _load_extension_package(
+        self,
+        path: os.PathLike,
+        ext_packages: set[tuple[str, verutils.Version]],
+    ) -> None:
+        with zipfile.ZipFile(path) as z:
+            with z.open('MANIFEST.toml') as m:
+                manifest = tomllib.load(m)
+
+            name = manifest['name']
+            version = verutils.parse_version(manifest['version'])
+            if (name, version) in ext_packages:
+                logger.info(
+                    f"Extension package '{manifest['name']}' {version} "
+                    f"already installed"
+                )
+
+                return
+
+            scripts = []
+            for file in manifest['files']:
+                with z.open(file) as f:
+                    scripts.append(f.read().decode('utf-8'))
+
+        from edb.schema import schema as s_schema
+
+        async with self.use_sys_pgcon() as syscon:
+            global_schema = await self._server.introspect_global_schema(syscon)
+        compiler = edbcompiler.new_compiler(
+            std_schema=self._server._std_schema,
+            reflection_schema=self._server._refl_schema,
+            schema_class_layout=self._server._schema_class_layout,
+        )
+        compilerctx = edbcompiler.new_compiler_context(
+            compiler_state=compiler.state,
+            global_schema=global_schema,
+            user_schema=s_schema.FlatSchema(),
+            bootstrap_mode=True,
+            internal_schema_mode=True,
+        )
+
+        script = '\n'.join(scripts)
+        _, sql_script = edbcompiler.compile_edgeql_script(compilerctx, script)
+        logger.info(
+            f"Installing extension package '{manifest['name']}'")
+        async with self.use_sys_pgcon() as syscon:
+            await syscon.sql_execute(sql_script.encode('utf-8'))
+            global_schema = await self._server.introspect_global_schema(syscon)
+
+        assert self._dbindex
+        self._dbindex.update_global_schema(pickle.dumps(global_schema))
 
     def start_watching_files(self):
         if self._readiness_state_file is not None:
