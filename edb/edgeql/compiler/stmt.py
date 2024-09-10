@@ -1590,4 +1590,7 @@ def _is_forbidden_stdlib_type_for_mod(
         # Allow people to mess with the baseclass of user-defined objects to
         # their hearts' content
         return False
+    if name.get_module_name() == s_name.UnqualName('net::http'):
+        # Allow users to insert net module types
+        return False
     return t.get_name(schema).get_module_name() in s_schema.STD_MODULES
