@@ -66,7 +66,7 @@ class TestEdgeQLNetSchema(tb.DDLTestCase):
         await self.assert_query_result(
             '''
             with
-                nh as module net::http,
+                nh as module std::net::http,
                 response := (
                     insert nh::Response {
                         created_at := datetime_of_statement(),
@@ -78,7 +78,7 @@ class TestEdgeQLNetSchema(tb.DDLTestCase):
                 request := (
                     insert nh::ScheduledRequest {
                         created_at := datetime_of_statement(),
-                        state := net::RequestState.Completed,
+                        state := std::net::RequestState.Completed,
 
                         url := "http://example.com",
                         method := nh::Method.`GET`,
