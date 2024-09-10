@@ -356,7 +356,7 @@ def compile_FunctionCall(
             rtype, env=env,
         ),
         typemod=matched_call.func.get_return_typemod(env.schema),
-        has_empty_variadic=matched_call.has_empty_variadic,
+        has_empty_variadic=(matched_call.variadic_arg_count == 0),
         variadic_param_type=variadic_param_type,
         func_initial_value=func_initial_value,
         tuple_path_ids=tuple_path_ids,
@@ -376,8 +376,37 @@ def compile_FunctionCall(
         inline_args: dict[int | str, irast.CallArg | irast.Set] = {}
 
         for param_shortname, arg_key in param_name_to_arg_key.items():
+            if (
+                isinstance(arg_key, int)
+                and matched_call.variadic_arg_id is not None
+                and arg_key >= matched_call.variadic_arg_id
+            ):
+                continue
+
             arg = final_args[arg_key]
             inline_args[param_shortname] = arg
+
+        # Package variadic arguments into an array
+        if variadic_param is not None:
+            assert variadic_param_type is not None
+            assert matched_call.variadic_arg_id is not None
+            assert matched_call.variadic_arg_count is not None
+
+            param_shortname = variadic_param.get_parameter_name(env.schema)
+            inline_args[param_shortname] = ir_set = setgen.ensure_set(
+                irast.Array(
+                    elements=[
+                        final_args[arg_key].expr
+                        for arg_key in range(
+                            matched_call.variadic_arg_id,
+                            matched_call.variadic_arg_id
+                            + matched_call.variadic_arg_count
+                        )
+                    ],
+                    typeref=variadic_param_type,
+                ),
+                ctx=ctx,
+            )
 
         # Compile default args if necessary
         for param in matched_func_params.objects(env.schema):
@@ -1087,7 +1116,12 @@ def finalize_args(
             param_name_to_arg[param_shortname] = param_shortname
         else:
             args[position_index] = arg
-            param_name_to_arg[param_shortname] = position_index
+            if (
+                # Variadic args will all have the same name, but different
+                # indexes. We want to take the first index.
+                param_shortname not in param_name_to_arg
+            ):
+                param_name_to_arg[param_shortname] = position_index
             position_index += 1
 
     return args, param_name_to_arg
