@@ -33,6 +33,7 @@ from edb.common import debug
 from edb.common import devmode as dm
 from edb.server import args as srv_args
 from edb.server import main as srv_main
+from edb.load_ext import main as load_ext_main
 
 
 @click.group(
@@ -57,6 +58,12 @@ def server(version=False, **kwargs):
     debug.init_debug_flags()
     kwargs['security'] = srv_args.ServerSecurityMode.InsecureDevMode
     srv_main.server_main(**kwargs)
+
+
+@edbcommands.command()
+@load_ext_main.options
+def load_ext(**kwargs):
+    load_ext_main.load_ext_main(**kwargs)
 
 
 # Import at the end of the file so that "edb.tools.edb.edbcommands"
