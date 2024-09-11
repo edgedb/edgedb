@@ -12,14 +12,23 @@ PG_DIR := $(shell dirname $(shell dirname $(PG_CONFIG)))
 rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 SQL_DEPS := $(call rwildcard,$(SQL_MODULE),*.c *.h *.sql *.control Makefile)
 
-$(EXT_FNAME).zip: MANIFEST.toml $(EDGEQL_SRCS) $(SQL_DEPS) Makefile
-	make -C sql DESTDIR=$(PWD)/build/out PG_CONFIG=$(PG_DIR)/bin/pg_config install
+SQL_STAMP := build/out/.sql_stamp
 
+ifneq ($(strip $(CUSTOM_SQL_BUILD)),1)
+
+$(SQL_STAMP): MANIFEST.toml $(SQL_DEPS) $(EXTRA_DEPS) Makefile
+	make -C $(SQL_MODULE) DESTDIR=$(PWD)/build/out PG_CONFIG=$(PG_DIR)/bin/pg_config install
+	touch $(SQL_STAMP)
+endif
+
+
+$(EXT_FNAME).zip: MANIFEST.toml $(EDGEQL_SRCS) $(EXTRA_FILES) $(SQL_STAMP) Makefile
 	rm -rf build/$(EXT_FNAME)
 	mkdir build/$(EXT_FNAME)
 
 	cp -r $(PWD)/build/out/$(PG_DIR) build/$(EXT_FNAME)/install
 	cp $(EDGEQL_SRCS) build/$(EXT_FNAME)
+	if [ -n "$(EXTRA_FILES)" ]; then cp $(EXTRA_FILES) build/$(EXT_FNAME); fi
 	cp MANIFEST.toml build/$(EXT_FNAME)
 
 	rm -f $(EXT_FNAME).zip
@@ -27,3 +36,5 @@ $(EXT_FNAME).zip: MANIFEST.toml $(EDGEQL_SRCS) $(SQL_DEPS) Makefile
 
 clean:
 	rm -rf build $(EXT_FNAME).zip
+
+.DEFAULT_GOAL := $(EXT_FNAME).zip
