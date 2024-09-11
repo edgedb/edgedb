@@ -229,6 +229,7 @@ class ServerConfig(NamedTuple):
     bootstrap_only: bool
     inplace_upgrade_prepare: Optional[pathlib.Path]
     inplace_upgrade_finalize: bool
+    inplace_upgrade_rollback: bool
     bootstrap_command: str
     bootstrap_command_file: pathlib.Path
     default_branch: Optional[str]
@@ -679,12 +680,17 @@ _server_options = [
     click.option(
         '--inplace-upgrade-prepare', type=PathPath(),
         envvar="EDGEDB_SERVER_INPLACE_UPGRADE_PREPARE",
-        cls=EnvvarResolver,  # XXX?
+        cls=EnvvarResolver,
         help='try to do an in-place upgrade with the specified dump file'),
+    click.option(
+        '--inplace-upgrade-rollback', type=bool, is_flag=True,
+        envvar="EDGEDB_SERVER_INPLACE_UPGRADE_ROLLBACK",
+        cls=EnvvarResolver,
+        help='rollback a prepared upgrade'),
     click.option(
         '--inplace-upgrade-finalize', type=bool, is_flag=True,
         envvar="EDGEDB_SERVER_INPLACE_UPGRADE_FINALIZE",
-        cls=EnvvarResolver,  # XXX?
+        cls=EnvvarResolver,
         help='finalize an in-place upgrade'),
     click.option(
         '--default-branch', type=str,

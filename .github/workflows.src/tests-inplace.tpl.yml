@@ -25,6 +25,18 @@ jobs:
   test:
     runs-on: ubuntu-latest
     needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flags:
+            tests:
+          - flags: --rollback-and-test
+            tests:
+          # Do the reapply test on a smaller selection of tests, since
+          # it is slower.
+          - flags: --rollback-and-reapply
+            tests: -k test_link_on_target_delete -k test_edgeql_select -k test_dump
 
     steps:
     <<- restore_cache() >>
@@ -33,7 +45,7 @@ jobs:
     # TODO: Would it be better to split this up into multiple jobs?
     - name: Test performing in-place upgrades
       run: |
-        ./tests/inplace-testing/test.sh vt
+        ./tests/inplace-testing/test.sh ${{ matrix.flags }} vt ${{ matrix.tests }}
 
   workflow-notifications:
     if: failure() && github.event_name != 'pull_request'
