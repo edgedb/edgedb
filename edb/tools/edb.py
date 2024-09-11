@@ -70,6 +70,7 @@ def load_ext(args: tuple[str, ...]):
 # Import at the end of the file so that "edb.tools.edb.edbcommands"
 # is defined for all of the below modules when they try to import it.
 from . import cli  # noqa
+from . import config  # noqa
 from . import rm_data_dir  # noqa
 from . import dflags  # noqa
 from . import gen_errors  # noqa
