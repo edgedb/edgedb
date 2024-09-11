@@ -60,10 +60,11 @@ def server(version=False, **kwargs):
     srv_main.server_main(**kwargs)
 
 
-@edbcommands.command()
-@load_ext_main.options
-def load_ext(**kwargs):
-    load_ext_main.load_ext_main(**kwargs)
+@edbcommands.command(add_help_option=False,
+                     context_settings=dict(ignore_unknown_options=True))
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+def load_ext(args: tuple[str, ...]):
+    load_ext_main.main(args)
 
 
 # Import at the end of the file so that "edb.tools.edb.edbcommands"

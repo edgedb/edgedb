@@ -16,21 +16,25 @@
 # limitations under the License.
 #
 
-"""Command to load an extension into an edgedb installation."""
+"""Command to load an extension into an edgedb installation.
+
+It is a command distributed with the server, but it is designed so
+that it has no dependencies and does not import any server code
+if it is *only* installing the postgres part of an extension with
+a specified pg_config, so it *can* be pulled out and used standalone.
+(It requires Python 3.11 for tomllib.)
+"""
 
 from __future__ import annotations
 
 
+import argparse
 import pathlib
 import shutil
 import subprocess
+import sys
 import tomllib
 import zipfile
-
-import click
-
-from edb import buildmeta
-from edb.common import typeutils
 
 # Directories that we map to config values in pg_config.
 CONFIG_PATHS = {
@@ -103,43 +107,44 @@ def load_ext_main(
     with_pg_config: pathlib.Path | None,
 ) -> None:
     if not skip_edgedb:
+        from edb import buildmeta
+
         ext_dir = buildmeta.get_extension_dir_path()
         print("Installing", ext_dir / package.name)
         shutil.copyfile(package, ext_dir / package.name)
 
     if not skip_postgres:
         if with_pg_config is None:
+            from edb import buildmeta
             with_pg_config = buildmeta.get_pg_config_path()
-        pg_config = get_pg_config(with_pg_config)
 
+        pg_config = get_pg_config(with_pg_config)
         install_pg_extension(package, pg_config)
 
 
-# Options are pulled out like this so that an edb tool can reuse it.
-options = typeutils.chain_decorators([
-    click.argument('package', type=pathlib.Path),
-    click.option(
-        '--skip-edgedb', is_flag=True,
-        help="Skip installing the extension package into the EdgeDB "
-             "installation",
-    ),
-    click.option(
-        '--skip-postgres', is_flag=True,
-        help="Skip installing the extension package into the "
-             "Postgres installation",
-    ),
-    click.option(
-        '--with-pg-config', type=pathlib.Path,
-        help="Use the specified pg_config binary to find the Postgres "
-             "to install into (instead of using the bundled one)"
-    ),
-])
+parser = argparse.ArgumentParser(description='Install an extension package')
+parser.add_argument(
+    '--skip-edgedb', action='store_true',
+    help="Skip installing the extension package into the EdgeDB "
+          "installation",
+)
+parser.add_argument(
+    '--skip-postgres', action='store_true',
+    help="Skip installing the extension package into the "
+         "Postgres installation",
+)
+parser.add_argument(
+    '--with-pg-config', metavar='PATH',
+    help="Use the specified pg_config binary to find the Postgres "
+         "to install into (instead of using the bundled one)"
+)
+parser.add_argument('package', type=pathlib.Path)
 
 
-@click.command()
-@options
-def main(**kwargs):
-    load_ext_main(**kwargs)
+def main(argv: tuple[str, ...] | None = None):
+    argv = argv or tuple(sys.argv[1:])
+    args = parser.parse_args(argv)
+    load_ext_main(**vars(args))
 
 
 if __name__ == '__main__':
