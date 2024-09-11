@@ -24,7 +24,6 @@ from __future__ import annotations
 import pathlib
 import shutil
 import subprocess
-import sys
 import tomllib
 import zipfile
 
@@ -41,14 +40,10 @@ CONFIG_PATHS = {
 }
 
 
-def install(
+def install_pg_extension(
     pkg: pathlib.Path,
-    ext_dir: pathlib.Path,
     pg_config: dict[str, str],
 ) -> None:
-    print("Installing", ext_dir / pkg.name)
-    shutil.copyfile(pkg, ext_dir / pkg.name)
-
     with zipfile.ZipFile(pkg) as z:
         with z.open('MANIFEST.toml') as m:
             manifest = tomllib.load(m)
@@ -77,16 +72,15 @@ def install(
                 fpath = fpath.relative_to(pdir / fpath.parts[1])
 
                 target_file = config_dir / fpath
-                print("Installing", target_file)
-                with z.open(entry) as f:
-                    data = f.read()
-                with open(target_file, "wb") as f:
-                    f.write(data)
+                with z.open(entry) as src:
+                    with open(target_file, "wb") as dst:
+                        print("Installing", target_file)
+                        shutil.copyfileobj(src, dst)
 
 
-def get_pg_config() -> dict[str, str]:
+def get_pg_config(pg_config_path: pathlib.Path) -> dict[str, str]:
     output = subprocess.run(
-        buildmeta.get_pg_config_path(),
+        pg_config_path,
         capture_output=True,
         text=True,
         check=True,
@@ -102,16 +96,43 @@ def get_pg_config() -> dict[str, str]:
     return config
 
 
-def load_ext_main(package: pathlib.Path):
-    ext_dir = buildmeta.get_extension_dir_path()
-    pg_config = get_pg_config()
+def load_ext_main(
+    package: pathlib.Path,
+    skip_edgedb: bool,
+    skip_postgres: bool,
+    with_pg_config: pathlib.Path | None,
+) -> None:
+    if not skip_edgedb:
+        ext_dir = buildmeta.get_extension_dir_path()
+        print("Installing", ext_dir / package.name)
+        shutil.copyfile(package, ext_dir / package.name)
 
-    install(package, ext_dir, pg_config)
+    if not skip_postgres:
+        if with_pg_config is None:
+            with_pg_config = buildmeta.get_pg_config_path()
+        pg_config = get_pg_config(with_pg_config)
+
+        install_pg_extension(package, pg_config)
 
 
-# Option is pulled out like this so that an edb tool can reuse it.
+# Options are pulled out like this so that an edb tool can reuse it.
 options = typeutils.chain_decorators([
     click.argument('package', type=pathlib.Path),
+    click.option(
+        '--skip-edgedb', is_flag=True,
+        help="Skip installing the extension package into the EdgeDB "
+             "installation",
+    ),
+    click.option(
+        '--skip-postgres', is_flag=True,
+        help="Skip installing the extension package into the "
+             "Postgres installation",
+    ),
+    click.option(
+        '--with-pg-config', type=pathlib.Path,
+        help="Use the specified pg_config binary to find the Postgres "
+             "to install into (instead of using the bundled one)"
+    ),
 ])
 
 
@@ -122,4 +143,4 @@ def main(**kwargs):
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    main()
