@@ -373,10 +373,45 @@ def compile_FunctionCall(
     elif inline_func:
         res = fcall
 
-        inline_args: dict[int | str, irast.CallArg] = {}
+        inline_args: dict[int | str, irast.CallArg | irast.Set] = {}
+
         for param_shortname, arg_key in param_name_to_arg_key.items():
             arg = final_args[arg_key]
             inline_args[param_shortname] = arg
+
+        # Compile default args if necessary
+        for param in matched_func_params.objects(env.schema):
+            param_shortname = param.get_parameter_name(env.schema)
+
+            if param_shortname in param_name_to_arg_key:
+                continue
+
+            else:
+                # Missing named only args have their default values already
+                # compiled in try_bind_call_args.
+                if bound_args := [
+                    bound_arg
+                    for bound_arg in matched_call.args
+                    if bound_arg.param == param and bound_arg.is_default
+                ]:
+                    assert len(bound_args) == 1
+                    inline_args[param_shortname] = bound_args[0].val
+                    continue
+
+                # Check if default is available
+                p_default = param.get_default(env.schema)
+                if p_default is None:
+                    continue
+
+                # Compile default
+                assert isinstance(param, s_func.Parameter)
+                p_ir_default = param.get_ir_default(
+                    schema=env.schema,
+                    inlining_context=ctx,
+                )
+                inline_args[param_shortname] = (
+                    p_ir_default.expr
+                )
 
         argument_inliner = ArgumentInliner(inline_args, ctx=ctx)
         inline_func_expr = inline_func.irast.expr
@@ -392,7 +427,10 @@ def compile_FunctionCall(
         for arg in res.args.values():
             pathctx.register_set_in_scope(
                 arg.expr,
-                optional=arg.param_typemod == ft.TypeModifier.OptionalType,
+                optional=(
+                    arg.param_typemod == ft.TypeModifier.OptionalType
+                    or arg.is_default
+                ),
                 ctx=ctx,
             )
 
@@ -404,7 +442,7 @@ class ArgumentInliner(ast.NodeTransformer):
 
     def __init__(
         self,
-        inline_args: dict[int | str, irast.CallArg],
+        inline_args: dict[int | str, irast.CallArg | irast.Set],
         ctx: context.ContextLevel,
     ) -> None:
         super().__init__()
@@ -417,15 +455,18 @@ class ArgumentInliner(ast.NodeTransformer):
             and node.expr.name in self.inline_args
         ):
             arg = self.inline_args[node.expr.name]
-            return setgen.ensure_set(
-                irast.InlinedParameterExpr(
-                    typeref=arg.expr.typeref,
-                    required=node.expr.required,
-                    is_global=node.expr.is_global,
-                ),
-                path_id=arg.expr.path_id,
-                ctx=self.ctx,
-            )
+            if isinstance(arg, irast.CallArg):
+                return setgen.ensure_set(
+                    irast.InlinedParameterExpr(
+                        typeref=arg.expr.typeref,
+                        required=node.expr.required,
+                        is_global=node.expr.is_global,
+                    ),
+                    path_id=arg.expr.path_id,
+                    ctx=self.ctx,
+                )
+            else:
+                return arg
 
         return cast(irast.Base, self.generic_visit(node))
 
@@ -934,6 +975,7 @@ def finalize_args(
         arg_type_path_id: Optional[irast.PathId] = None
         if param is None:
             # defaults bitmask
+            param_name_to_arg['__defaults_mask__'] = -1
             args[-1] = irast.CallArg(
                 expr=arg_val,
                 param_typemod=ft.TypeModifier.SingletonType,

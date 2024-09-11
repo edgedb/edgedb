@@ -326,6 +326,7 @@ def compile_ast_fragment_to_ir(
     schema: s_schema.Schema,
     *,
     options: Optional[CompilerOptions] = None,
+    inlining_context: Optional[context.ContextLevel] = None,
 ) -> irast.Statement:
     """Compile given EdgeQL AST fragment into EdgeDB IR.
 
@@ -351,7 +352,9 @@ def compile_ast_fragment_to_ir(
     if options is None:
         options = CompilerOptions()
 
-    ctx = stmtctx_mod.init_context(schema=schema, options=options)
+    ctx = stmtctx_mod.init_context(
+        schema=schema, options=options, inlining_context=inlining_context
+    )
     ir_set = dispatch_mod.compile(tree, ctx=ctx)
 
     result_type = ctx.env.set_types[ir_set]

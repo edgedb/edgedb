@@ -227,6 +227,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
                 self.parse(),
                 schema=schema,
                 options=options,
+                inlining_context=inlining_context,
             )
         else:
             ql_expr = self.parse()
