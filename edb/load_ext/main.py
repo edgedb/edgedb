@@ -29,6 +29,7 @@ from __future__ import annotations
 
 
 import argparse
+import os
 import pathlib
 import shutil
 import subprocess
@@ -57,8 +58,6 @@ def install_pg_extension(
             pdir = pathlib.Path(dir)
 
             for entry in z.infolist():
-                if entry.is_dir():
-                    continue
                 fpath = pathlib.Path(entry.filename)
 
                 if fpath.parts[0] != dir:
@@ -76,10 +75,15 @@ def install_pg_extension(
                 fpath = fpath.relative_to(pdir / fpath.parts[1])
 
                 target_file = config_dir / fpath
-                with z.open(entry) as src:
-                    with open(target_file, "wb") as dst:
-                        print("Installing", target_file)
-                        shutil.copyfileobj(src, dst)
+
+                if entry.is_dir():
+                    print("Creating directory", f'{target_file}/')
+                    os.makedirs(target_file, exist_ok=True)
+                else:
+                    with z.open(entry) as src:
+                        with open(target_file, "wb") as dst:
+                            print("Installing", target_file)
+                            shutil.copyfileobj(src, dst)
 
 
 def get_pg_config(pg_config_path: pathlib.Path) -> dict[str, str]:
@@ -142,7 +146,7 @@ parser.add_argument('package', type=pathlib.Path)
 
 
 def main(argv: tuple[str, ...] | None = None):
-    argv = argv or tuple(sys.argv[1:])
+    argv = argv if argv is not None else tuple(sys.argv[1:])
     args = parser.parse_args(argv)
     load_ext_main(**vars(args))
 
