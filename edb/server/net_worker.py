@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 from enum import Enum
+from http.cookiejar import CookieJar
 
 import dataclasses
 import json
@@ -38,12 +39,30 @@ if typing.TYPE_CHECKING:
 
 
 logger = logging.getLogger("edb.server")
-POLLING_INTERVAL = statypes.Duration(microseconds=10 * 1_000_000)  # 10 seconds
 
+POLLING_INTERVAL = statypes.Duration(microseconds=10 * 1_000_000)  # 10 seconds
+MAX_CONCURRENT_REQUESTS = 10  # This can be replaced with a config value later
+LIMITS = httpx.Limits(max_connections=MAX_CONCURRENT_REQUESTS)
+
+
+class NullCookieJar(CookieJar):
+    """A CookieJar that rejects all cookies."""
+
+    def extract_cookies(self, *_):
+        pass
+
+    def set_cookie(self, _):
+        pass
 
 async def _http(tenant: edbtenant.Tenant) -> None:
     try:
-        async with asyncio.TaskGroup() as g:
+        async with (
+            asyncio.TaskGroup() as g,
+            httpx.AsyncClient(
+                limits=LIMITS,
+                cookies=NullCookieJar(),
+            ) as client,
+        ):
             for db in tenant.iter_dbs():
                 json_bytes = await execute.parse_execute_json(
                     db,
@@ -71,8 +90,8 @@ async def _http(tenant: edbtenant.Tenant) -> None:
                 )
                 pending_requests: list[dict] = json.loads(json_bytes)
                 for pending_request in pending_requests:
-                    g.create_task(handle_request(db, request))
                     request = ScheduledRequest(**pending_request)
+                    g.create_task(handle_request(client, db, request))
     except Exception as ex:
         logger.debug(
             "HTTP send failed (instance: %s)",
@@ -118,22 +137,16 @@ class ScheduledRequest:
     headers: typing.Optional[list[tuple[str, str]]]
 
 
-async def http_send(request: ScheduledRequest) -> httpx.Response:
-    async with httpx.AsyncClient() as client:
+async def handle_request(
+    client: httpx.AsyncClient, db: dbview.Database, request: ScheduledRequest
+) -> None:
+    try:
         response = await client.request(
             request.method,
             request.url,
             content=request.body,
             headers=request.headers,
         )
-        return response
-
-
-async def handle_request(
-    db: dbview.Database, request: ScheduledRequest
-) -> None:
-    try:
-        response = await http_send(request)
         request_state = 'Completed'
         response_status = response.status_code
         response_body = await response.aread()
