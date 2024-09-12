@@ -114,6 +114,7 @@ def load_ext_main(
         from edb import buildmeta
 
         ext_dir = buildmeta.get_extension_dir_path()
+        os.makedirs(ext_dir, exist_ok=True)
         print("Installing", ext_dir / package.name)
         shutil.copyfile(package, ext_dir / package.name)
 
