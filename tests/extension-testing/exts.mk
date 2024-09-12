@@ -27,6 +27,7 @@ $(EXT_FNAME).zip: MANIFEST.toml $(EDGEQL_SRCS) $(EXTRA_FILES) $(SQL_STAMP) Makef
 	rm -rf build/$(EXT_FNAME)
 	mkdir build/$(EXT_FNAME)
 
+	rm -rf build/$(SQL_DIR)
 	cp -r $(PWD)/build/out/$(PG_DIR) build/$(SQL_DIR)
 	cp -r build/$(SQL_DIR) build/$(EXT_FNAME)/$(SQL_DIR)
 	cp $(EDGEQL_SRCS) build/$(EXT_FNAME)
