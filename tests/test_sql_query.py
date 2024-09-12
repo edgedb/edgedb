@@ -694,6 +694,11 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         res = await self.squery_values('SELECT $1::uuid;', str(id))
         self.assertEqual(res, [[id]])
 
+    async def test_sql_query_41(self):
+        # bytea literal
+        res = await self.squery_values("SELECT x'00abcdef00';")
+        self.assertEqual(res, [[b'\x00\xab\xcd\xef\x00']])
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
