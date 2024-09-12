@@ -136,7 +136,7 @@ async def handle_request(
         response = await http_send(request)
         request_state = 'Completed'
         response_status = response.status_code
-        response_body = response.content
+        response_body = await response.aread()
         response_headers = list(response.headers.items())
     except Exception:
         request_state = 'Failed'
@@ -146,7 +146,7 @@ async def handle_request(
 
     json_bytes = await execute.parse_execute_json(
         db,
-        f"""
+        """
         with
             nh as module std::net::http,
             net as module std::net,
@@ -158,19 +158,19 @@ async def handle_request(
             response := (
                 if state = net::RequestState.Completed
                 then (
-                    insert nh::Response {{
+                    insert nh::Response {
                         status := assert_exists(response_status),
                         body := response_body,
                         headers := response_headers,
-                    }}
+                    }
                 )
-                else (<nh::Response{{}})
+                else (<nh::Response>{})
             )
         update nh::ScheduledRequest
-        set {{
+        set {
             state := state,
             response := response,
-        }}
+        }
         """,
         variables={
             'state': request_state,
