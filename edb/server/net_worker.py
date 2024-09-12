@@ -17,9 +17,9 @@
 #
 
 from __future__ import annotations
-from dataclasses import dataclass
 from enum import Enum
 
+import dataclasses
 import json
 import typing
 
@@ -71,8 +71,8 @@ async def _http(tenant: edbtenant.Tenant) -> None:
                 )
                 pending_requests: list[dict] = json.loads(json_bytes)
                 for pending_request in pending_requests:
-                    request = ScheduledRequest.from_db_record(pending_request)
                     g.create_task(handle_request(db, request))
+                    request = ScheduledRequest(**pending_request)
     except Exception as ex:
         logger.debug(
             "HTTP send failed (instance: %s)",
@@ -109,74 +109,13 @@ class HTTPMethod(str, Enum):
     PATCH = 'PATCH'
 
 
-@dataclass
+@dataclasses.dataclass
 class ScheduledRequest:
     id: str
     method: HTTPMethod
     url: str
     body: typing.Optional[bytes]
-    headers: typing.Optional[dict[str, str]]
-
-    @staticmethod
-    def from_db_record(record: dict) -> ScheduledRequest:
-        id = record['id']
-        if not isinstance(id, str):
-            type_name = type(id).__name__
-            raise TypeError(f"Expected 'id' to be str, got {type_name}")
-
-        method = record['method']
-        if not isinstance(method, str):
-            type_name = type(method).__name__
-            raise TypeError(
-                f"Expected 'method' to be str, got {type_name}"
-            )
-        else:
-            try:
-                method = HTTPMethod(method)
-            except ValueError:
-                raise ValueError(f"Invalid HTTP method: {method}")
-
-        url = record['url']
-        if not isinstance(url, str):
-            type_name = type(url).__name__
-            raise TypeError(
-                f"Expected 'url' to be str, got {type_name}"
-            )
-
-        body = record.get('body')
-        if body is not None and not isinstance(body, bytes):
-            type_name = type(body).__name__
-            raise TypeError(
-                f"Expected 'body' to be bytes or None, got {type_name}"
-            )
-
-        maybe_headers = record.get('headers')
-        if maybe_headers is not None:
-            if not isinstance(maybe_headers, list):
-                type_name = type(maybe_headers).__name__
-                raise TypeError(
-                    f"Expected 'headers' to be list or None, got {type_name}"
-                )
-            if not all(
-                isinstance(name, str) and isinstance(value, str)
-                for name, value in maybe_headers
-            ):
-                raise TypeError(
-                    "Expected 'headers' to be a list of tuples of str"
-                )
-            else:
-                maybe_headers = typing.cast(
-                    list[tuple[str, str]], maybe_headers
-                )
-        headers = dict(maybe_headers) if maybe_headers else None
-
-        return ScheduledRequest(
-            id=id,
-            method=method,
-            url=url,
-            body=body,
-            headers=headers,
-        )
+    headers: typing.Optional[list[tuple[str, str]]]
 
 
 async def http_send(request: ScheduledRequest) -> httpx.Response:
