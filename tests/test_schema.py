@@ -10662,7 +10662,7 @@ class TestDescribe(BaseDescribeTest):
             '''
             abstract constraint test::my_constr0(val: std::int64) {
                 using (SELECT
-                    (math::abs((__subject__ + val)) > 2)
+                    (std::math::abs((__subject__ + val)) > 2)
                 );
             };
             ''',
@@ -10673,7 +10673,7 @@ class TestDescribe(BaseDescribeTest):
             abstract constraint test::my_constr1(val: std::int64) {
                 using (
                     SELECT
-                        (math::abs((__subject__ + val)) > 2)
+                        (std::math::abs((__subject__ + val)) > 2)
                 );
             };
             ''',
@@ -10686,7 +10686,7 @@ class TestDescribe(BaseDescribeTest):
                         x :=
                             (__subject__ + val)
                     SELECT
-                        (math::abs(x) > 2)
+                        (std::math::abs(x) > 2)
                     );
                 };
             ''',

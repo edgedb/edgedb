@@ -155,9 +155,9 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
     async def test_edgeql_userddl_10(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r'cannot create.*module math is read-only'):
+                r'cannot create.*module std is read-only'):
             await self.con.execute('''
-                CREATE FUNCTION math::func_10(
+                CREATE FUNCTION std::math::func_10(
                     a: str
                 ) -> str
                     USING EdgeQL $$
@@ -176,9 +176,9 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
     async def test_edgeql_userddl_12(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r'cannot create.*module math is read-only'):
+                r'cannot create.*module std is read-only'):
             await self.con.execute('''
-                CREATE TYPE math::Foo_11;
+                CREATE TYPE std::math::Foo_11;
             ''')
 
     async def test_edgeql_userddl_13(self):
@@ -210,9 +210,9 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
     async def test_edgeql_userddl_18(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r'cannot delete.*module math is read-only'):
+                r'cannot delete.*module std is read-only'):
             await self.con.execute('''
-                DROP MODULE math;
+                DROP MODULE std::math;
             ''')
 
     async def test_edgeql_userddl_19(self):

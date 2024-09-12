@@ -79,7 +79,7 @@ EXT_MODULE = sn.UnqualName('ext')
 STD_MODULES = (
     sn.UnqualName('std'),
     sn.UnqualName('schema'),
-    sn.UnqualName('math'),
+    sn.UnqualName('std::math'),
     sn.UnqualName('sys'),
     sn.UnqualName('cfg'),
     sn.UnqualName('cal'),
