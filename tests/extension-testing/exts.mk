@@ -1,6 +1,7 @@
 EXT_NAME := $(shell python3 -c 'import tomllib; f = tomllib.load(open("MANIFEST.toml", "rb")); print(f["name"])')
 EXT_VERSION := $(shell python3 -c 'import tomllib; f = tomllib.load(open("MANIFEST.toml", "rb")); print(f["version"])')
 EDGEQL_SRCS := $(shell python3 -c 'import tomllib; f = tomllib.load(open("MANIFEST.toml", "rb")); print(" ".join(f["files"]))')
+SQL_DIR := $(shell python3 -c 'import tomllib; f = tomllib.load(open("MANIFEST.toml", "rb")); print(f["postgres_files"])')
 
 #
 
@@ -17,7 +18,7 @@ SQL_STAMP := build/out/.sql_stamp
 ifneq ($(strip $(CUSTOM_SQL_BUILD)),1)
 
 $(SQL_STAMP): MANIFEST.toml $(SQL_DEPS) $(EXTRA_DEPS) Makefile
-	make -C $(SQL_MODULE) DESTDIR=$(PWD)/build/out PG_CONFIG=$(PG_DIR)/bin/pg_config install
+	$(MAKE) -C $(SQL_MODULE) DESTDIR=$(PWD)/build/out PG_CONFIG=$(PG_DIR)/bin/pg_config install
 	touch $(SQL_STAMP)
 endif
 
@@ -26,7 +27,8 @@ $(EXT_FNAME).zip: MANIFEST.toml $(EDGEQL_SRCS) $(EXTRA_FILES) $(SQL_STAMP) Makef
 	rm -rf build/$(EXT_FNAME)
 	mkdir build/$(EXT_FNAME)
 
-	cp -r $(PWD)/build/out/$(PG_DIR) build/$(EXT_FNAME)/install
+	cp -r $(PWD)/build/out/$(PG_DIR) build/$(SQL_DIR)
+	cp -r build/$(SQL_DIR) build/$(EXT_FNAME)/$(SQL_DIR)
 	cp $(EDGEQL_SRCS) build/$(EXT_FNAME)
 	if [ -n "$(EXTRA_FILES)" ]; then cp $(EXTRA_FILES) build/$(EXT_FNAME); fi
 	cp MANIFEST.toml build/$(EXT_FNAME)
