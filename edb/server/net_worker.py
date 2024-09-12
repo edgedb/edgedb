@@ -148,14 +148,29 @@ async def handle_request(
             headers=request.headers,
         )
         request_state = 'Completed'
+        failure = None
         response_status = response.status_code
-        response_body = await response.aread()
         response_headers = list(response.headers.items())
-    except Exception:
+    except Exception as ex:
+        response = None
         request_state = 'Failed'
+        failure = {
+            'kind': 'NetworkError',
+            'message': str(ex),
+        }
+        response_status = None
         response_status = None
         response_body = None
         response_headers = None
+
+    if response is not None:
+        try:
+            response_body = await response.aread()
+        except Exception as ex:
+            logger.debug("Failed to read response body", exc_info=ex)
+            response_body = None
+    else:
+        response_body = None
 
     json_bytes = await execute.parse_execute_json(
         db,
@@ -164,6 +179,12 @@ async def handle_request(
             nh as module std::net::http,
             net as module std::net,
             state := <net::RequestState>$state,
+            failure := <
+                optional tuple<
+                    kind: net::FailureKind,
+                    message: str
+                >
+            >$failure,
             response_status := <optional int16>$response_status,
             response_body := <optional bytes>$response_body,
             response_headers :=
@@ -183,6 +204,7 @@ async def handle_request(
         set {
             state := state,
             response := response,
+            failure := failure,
         }
         """,
         variables={
@@ -190,6 +212,7 @@ async def handle_request(
             'response_status': response_status,
             'response_body': response_body,
             'response_headers': response_headers,
+            'failure': failure,
         },
         cached_globally=True,
     )
