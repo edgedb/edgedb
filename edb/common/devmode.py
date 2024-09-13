@@ -25,7 +25,6 @@ import json
 import logging
 import os
 import pathlib
-import sys
 
 
 logger = logging.getLogger('edb.devmode.cache')
