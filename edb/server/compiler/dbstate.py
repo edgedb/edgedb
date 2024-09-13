@@ -518,7 +518,9 @@ class SQLQueryUnit:
     execute: Optional[ExecuteData] = None
     deallocate: Optional[DeallocateData] = None
 
-    set_vars: Optional[dict[Optional[str], Optional[str | list[str]]]] = None
+    set_vars: Optional[
+        dict[Optional[str], Optional[SQLSetting]]
+    ] = None
     get_var: Optional[str] = None
     is_local: bool = False
 
@@ -573,13 +575,14 @@ class ParsedDatabase:
     protocol_version: defines.ProtocolVersion
     state_serializer: sertypes.StateSerializer
 
-
-SQLSettings = immutables.Map[Optional[str], Optional[str | list[str]]]
+SQLSetting = tuple[str | int | float, ...]
+SQLSettings = immutables.Map[Optional[str], Optional[SQLSetting]]
 DEFAULT_SQL_SETTINGS: SQLSettings = immutables.Map()
 DEFAULT_SQL_FE_SETTINGS: SQLSettings = immutables.Map({
-    "search_path": "public",
-    "server_version": defines.PGEXT_POSTGRES_VERSION,
-    "server_version_num": str(defines.PGEXT_POSTGRES_VERSION_NUM),
+    "search_path": ("public",),
+    "allow_user_specified_id": ("false",),
+    "server_version": (defines.PGEXT_POSTGRES_VERSION,),
+    "server_version_num": (defines.PGEXT_POSTGRES_VERSION_NUM,),
 })
 
 
@@ -597,7 +600,7 @@ class SQLTransactionState:
         else:
             return self.settings or DEFAULT_SQL_FE_SETTINGS
 
-    def get(self, name: str) -> Optional[str | list[str]]:
+    def get(self, name: str) -> Optional[SQLSetting]:
         if self.in_tx:
             # For easier access, in_tx_local_settings is always a superset of
             # in_tx_settings; in_tx_settings only keeps track of non-local
@@ -652,7 +655,7 @@ class SQLTransactionState:
                 self.set(name, value, query_unit.is_local)
 
     def set(
-        self, name: Optional[str], value: str | list[str] | None, is_local: bool
+        self, name: Optional[str], value: Optional[SQLSetting], is_local: bool
     ) -> None:
         def _set(attr_name: str) -> None:
             settings = getattr(self, attr_name)

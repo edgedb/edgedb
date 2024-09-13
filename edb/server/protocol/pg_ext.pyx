@@ -43,7 +43,7 @@ from edb.server import defines, metrics
 from edb.server import tenant as edbtenant
 from edb.server.compiler import dbstate
 from edb.server.pgcon import errors as pgerror
-from edb.server.pgcon.pgcon cimport PGAction, PGMessage
+from edb.server.pgcon.pgcon cimport PGAction, PGMessage, setting_to_sql
 from edb.server.protocol cimport frontend
 
 DEFAULT_SETTINGS = dbstate.DEFAULT_SQL_SETTINGS
@@ -342,7 +342,9 @@ cdef class ConnectionView:
             if self._session_state_db_cache[0] == self._settings:
                 return self._session_state_db_cache[1]
 
-        rv = json.dumps(dict(self._settings)).encode("utf-8")
+        rv = json.dumps({
+            key: setting_to_sql(val) for key, val in self._settings.items()
+        }).encode("utf-8")
         self._session_state_db_cache = (self._settings, rv)
         return rv
 
@@ -726,7 +728,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if name == "client_encoding":
                     value = client_encoding
                 elif name == "server_version":
-                    value = defines.PGEXT_POSTGRES_VERSION
+                    value = str(defines.PGEXT_POSTGRES_VERSION)
                 elif name == "session_authorization":
                     value = user
                 elif name == "application_name":

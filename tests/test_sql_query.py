@@ -919,7 +919,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         await self.scon.fetch('SELECT id FROM "Item";')
         res = await self.squery_values('SHOW search_path;')
-        self.assertEqual(res, [["'inventory'"]])
+        self.assertEqual(res, [["inventory"]])
 
         # finish
         await tran.commit()
@@ -941,7 +941,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         await self.scon.execute('SET search_path TO inventory;')
 
         res = await self.squery_values('SHOW search_path;')
-        self.assertEqual(res, [["'inventory'"]])
+        self.assertEqual(res, [["inventory"]])
 
         # commit
         await tran.commit()
@@ -949,7 +949,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         # it should still be changed, since we SET was not LOCAL
         await self.scon.fetch('SELECT id FROM "Item";')
         res = await self.squery_values('SHOW search_path;')
-        self.assertEqual(res, [["'inventory'"]])
+        self.assertEqual(res, [["inventory"]])
 
         # reset to default value
         await self.scon.execute('RESET search_path;')
@@ -969,7 +969,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         await self.scon.execute('SET search_path TO inventory;')
 
         res = await self.squery_values('SHOW search_path;')
-        self.assertEqual(res, [["'inventory'"]])
+        self.assertEqual(res, [["inventory"]])
 
         # rollback
         await tran.rollback()
