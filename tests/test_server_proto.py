@@ -23,6 +23,8 @@ import json
 import time
 import uuid
 import unittest
+import tempfile
+import shutil
 
 import edgedb
 
@@ -2076,6 +2078,25 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
     TRANSACTION_ISOLATION = False
 
+    def setUp(self):
+        super().setUp()
+        self.runstate_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        try:
+            shutil.rmtree(self.runstate_dir)
+        finally:
+            super().tearDown()
+
+    def get_adjacent_server_args(self):
+        server_args = {}
+        if self.backend_dsn:
+            server_args['backend_dsn'] = self.backend_dsn
+        else:
+            server_args['adjacent_to'] = self.con
+        server_args['runstate_dir'] = self.runstate_dir
+        return server_args
+
     @unittest.skipUnless(devmode.is_in_dev_mode(),
                          'the test requires devmode')
     async def test_server_proto_ddlprop_01(self):
@@ -2097,11 +2118,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             123
         )
 
-        server_args = {}
-        if self.backend_dsn:
-            server_args['backend_dsn'] = self.backend_dsn
-        else:
-            server_args['adjacent_to'] = self.con
+        server_args = self.get_adjacent_server_args()
         async with tb.start_edgedb_server(**server_args) as sd:
 
             con2 = await sd.connect(
@@ -2195,11 +2212,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
         conargs = self.get_connect_args()
 
-        server_args = {}
-        if self.backend_dsn:
-            server_args['backend_dsn'] = self.backend_dsn
-        else:
-            server_args['adjacent_to'] = self.con
+        server_args = self.get_adjacent_server_args()
         async with tb.start_edgedb_server(**server_args) as sd:
 
             # Run twice to make sure there is no lingering accessibility state
@@ -2277,16 +2290,11 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
     @unittest.skipUnless(devmode.is_in_dev_mode(),
                          'the test requires devmode')
     async def test_server_adjacent_extension_propagation(self):
-        server_args = {}
-        if self.backend_dsn:
-            server_args['backend_dsn'] = self.backend_dsn
-        else:
-            server_args['adjacent_to'] = self.con
-
         headers = {
             'Authorization': self.make_auth_header(),
         }
 
+        server_args = self.get_adjacent_server_args()
         async with tb.start_edgedb_server(**server_args) as sd:
 
             await self.con.execute("CREATE EXTENSION notebook;")

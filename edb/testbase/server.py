@@ -2594,12 +2594,14 @@ def start_edgedb_server(
     extra_args: Optional[List[str]] = None,
     default_branch: Optional[str] = None,
 ):
-    if not devmode.is_in_dev_mode() and not runstate_dir:
+    if (not devmode.is_in_dev_mode() or adjacent_to) and not runstate_dir:
         if backend_dsn or adjacent_to:
+            import traceback
             # We don't want to implicitly "fix the issue" for the test author
             print('WARNING: starting an EdgeDB server with the default '
                   'runstate_dir; the test is likely to fail or hang. '
                   'Consider specifying the runstate_dir parameter.')
+            print('\n'.join(traceback.format_stack(limit=5)))
 
     if mt_conf := os.environ.get("EDGEDB_SERVER_MULTITENANT_CONFIG_FILE"):
         if multitenant_config is None and max_allowed_connections == 10:
