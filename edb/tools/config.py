@@ -30,12 +30,15 @@ from edb.tools.edb import edbcommands
 @click.option(
     "--make-include",
     is_flag=True,
+    help='Print path to the include file for extension Makefiles',
 )
 @click.option(
     "--pg-config",
     is_flag=True,
+    help='Print path to bundled pg_config',
 )
 def config(make_include: bool, pg_config: bool) -> None:
+    '''Query certain parameters about an edgedb environment'''
     if make_include:
         share = buildmeta.get_extension_dir_path()
         # XXX: It should not be here.
