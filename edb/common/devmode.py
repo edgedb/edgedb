@@ -127,22 +127,7 @@ def get_dev_mode_data_dir() -> pathlib.Path:
     if data_dir_env:
         data_dir = pathlib.Path(data_dir_env)
     else:
-        if sys.platform == "darwin":
-            data_dir = (
-                pathlib.Path.home()
-                / "Library"
-                / "Application Support"
-                / "edgedb"
-                / "_localdev"
-            )
-        else:
-            xdg_data_dir = pathlib.Path(
-                os.environ.get("XDG_DATA_HOME", ".")
-            )
-            if not xdg_data_dir.is_absolute():
-                xdg_data_dir = (
-                    pathlib.Path.home() / ".local" / "share"
-                )
-            data_dir = xdg_data_dir / "edgedb" / "_localdev"
+        root = pathlib.Path(__file__).parent.parent.parent
+        data_dir = root / "tmp" / "_localdev"
 
     return data_dir
