@@ -445,6 +445,7 @@ def compile_FunctionCall(
         argument_inliner = ArgumentInliner(inline_args, ctx=ctx)
         inline_func_expr = inline_func.irast.expr
         res.body = argument_inliner.visit(inline_func_expr)
+        res.inline_arg_path_ids = argument_inliner.mapped_args
     else:
         res = fcall
 
@@ -469,6 +470,8 @@ def compile_FunctionCall(
 
 class ArgumentInliner(ast.NodeTransformer):
 
+    mapped_args: dict[irast.PathId, irast.PathId]
+
     def __init__(
         self,
         inline_args: dict[int | str, irast.CallArg | irast.Set],
@@ -477,6 +480,7 @@ class ArgumentInliner(ast.NodeTransformer):
         super().__init__()
         self.inline_args = inline_args
         self.ctx = ctx
+        self.mapped_args = {}
 
     def visit_Set(self, node: irast.Set) -> irast.Base:
         if (
@@ -485,6 +489,7 @@ class ArgumentInliner(ast.NodeTransformer):
         ):
             arg = self.inline_args[node.expr.name]
             if isinstance(arg, irast.CallArg):
+                self.mapped_args[node.path_id] = arg.expr.path_id
                 return setgen.ensure_set(
                     irast.InlinedParameterExpr(
                         typeref=arg.expr.typeref,
