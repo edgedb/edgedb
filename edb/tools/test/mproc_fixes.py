@@ -53,8 +53,12 @@ def multiprocessing_pool_worker(
     # This function is executed in the context of a spawned
     # worker process, so the pool.worker() function is the
     # original unpatched version.
-    multiprocessing.pool.worker(
-        inqueue, outqueue, initializer, *args, **kwargs)
+    try:
+        multiprocessing.pool.worker(
+            inqueue, outqueue, initializer, *args, **kwargs)
+    except KeyboardInterrupt:
+        # Try to exit with less noise when ctrl+c is pressed
+        return
 
     if destructor is not None:
         destructor()
