@@ -1072,6 +1072,10 @@ cdef class PgConnection(frontend.FrontendConnection):
                         fresh_stmts,
                         actions,
                     )
+
+                    params = parse_action.query_unit.params
+                    data = bytes(remap_arguments(data, params))
+
                     actions.append(
                         PGMessage(
                             PGAction.BIND,
@@ -1541,6 +1545,85 @@ cdef class PgConnection(frontend.FrontendConnection):
                 f"not exist",
             )
         return qu
+
+
+cdef WriteBuffer remap_arguments(data, params):
+    # The "external" parameters (that are visible to the user)
+    # are not in the same order as "internal" params and don't
+    # include the internal params for globals.
+
+    # So when we send external params to postgres, we remap them
+    # to correct positions and add the globals.
+
+    buf = WriteBuffer.new()
+
+    # remap param format codes
+    param_format_count = int.from_bytes(data[0:2], "big")
+    offset = 2
+    if params:
+        buf.write_int16(len(params))
+        for i, param in enumerate(params):
+            if isinstance(param, dbstate.SQLParamExternal):
+                if param_format_count == 0:
+                    buf.write_int16(0) # text
+                elif param_format_count == 1:
+                    buf.write_bytes(
+                        data[offset:offset+2]
+                    )
+                else:
+                    o = offset + i * 2
+                    buf.write_bytes(data[o:o+2])
+            else:
+                # this is for globals
+                buf.write_int16(1) # binary
+    else:
+        buf.write_int16(0)
+    offset += param_format_count * 2
+
+    # find positions of external args
+    param_count_external = int.from_bytes(
+        data[offset:offset+2], "big"
+    )
+    offset += 2
+    param_pos_external = []
+    for p in range(param_count_external):
+        size = int.from_bytes(
+            data[offset:offset+4], "big"
+        )
+        if size == -1:  # special case: NULL
+            size = 0
+        size += 4 # for size which is int32
+        param_pos_external.append((offset, size))
+        offset += size
+
+    # write remapped args
+    max_external_used = 0
+    if params:
+        buf.write_int16(len(params))
+        for param in params:
+            if isinstance(param, dbstate.SQLParamExternal):
+                # map external arg to internal
+                o, s = param_pos_external[param.index - 1]
+                buf.write_bytes(data[o:o+s])
+
+                if max_external_used < param.index:
+                    max_external_used = param.index
+            else:
+                # TODO: SQLParamGlobal
+                buf.write_int32(-1) # NULL
+    else:
+        buf.write_int16(0)
+
+    if max_external_used != param_count_external:
+        raise pgerror.new(
+            pgerror.ERROR_PROTOCOL_VIOLATION,
+            f'bind message supplies {param_count_external} '
+            f'parameters, but prepared statement "" requires '
+            f'{max_external_used}',
+        )
+
+    buf.write_bytes(data[offset:])
+    return buf
 
 
 def new_pg_connection(server, sslctx, endpoint_security, connection_made_at):

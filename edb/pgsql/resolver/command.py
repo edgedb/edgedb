@@ -24,6 +24,9 @@ import dataclasses
 import functools
 
 from edb.server.pgcon import errors as pgerror
+from edb.server.compiler import dbstate
+
+from edb.common import ast
 
 from edb import errors
 from edb.pgsql import ast as pgast
@@ -1415,7 +1418,7 @@ def _compile_uncompiled_dml(
         # compile synthetic ql statement into SQL
         options = qlcompiler.CompilerOptions(
             modaliases={None: 'default'},
-            make_globals_empty=True,  # TODO: globals in SQL
+            make_globals_empty=False,
             singletons=singletons,
             anchors=anchors,
             allow_user_specified_id=ctx.options.allow_user_specified_id,
@@ -1434,6 +1437,23 @@ def _compile_uncompiled_dml(
             output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
             alias_generator=ctx.alias_generator,
         )
+
+        # merge the params need for DML with params for the rest of the query
+        param_remapping: Dict[int, int] = {}
+        for arg_name, arg in sql_result.argmap.items():
+            internal_index = len(ctx.query_params) + 1
+
+            glob = next(g for g in ir_stmt.globals if g.name == arg_name)
+
+            ctx.query_params.append(
+                dbstate.SQLParamGlobal(global_name=glob.global_name)
+            )
+
+            if internal_index != arg.index:
+                param_remapping[arg.index] = internal_index
+        if len(param_remapping) > 0:
+            ParamMapper(param_remapping).visit(sql_result.ast)
+
     except errors.QueryError as e:
         raise errors.QueryError(
             msg=e.args[0],
@@ -1837,3 +1857,13 @@ def _try_inject_type_cast(
         rel.target_list[pos] = target.replace(
             val=pgast.TypeCast(arg=target.val, type_name=ty)
         )
+
+
+class ParamMapper(ast.NodeVisitor):
+
+    def __init__(self, mapping: Dict[int, int]) -> None:
+        super().__init__()
+        self.mapping = mapping
+
+    def visit_Param(self, p: pgast.Param) -> None:
+        p.index = self.mapping[p.index]

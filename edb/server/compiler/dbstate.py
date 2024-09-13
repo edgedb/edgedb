@@ -48,6 +48,7 @@ from edb.schema import delta as s_delta
 from edb.schema import migrations as s_migrations
 from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
+from edb.schema import name as s_name
 
 from edb.server import config
 from edb.server import defines
@@ -543,6 +544,8 @@ class SQLQueryUnit:
     This is useful, for example, for setting the tag of DML statements,
     which return the number of modified rows."""
 
+    params: Optional[List[SQLParam]] = None
+
 
 class CommandCompleteTag:
     '''Dictates the tag of CommandComplete message that concludes this query.'''
@@ -570,6 +573,28 @@ class TagUnpackRow(CommandCompleteTag):
     Sets the CommandComplete tag to f'{prefix} {modified_rows}'.'''
 
     prefix: str
+
+
+class SQLParam:
+    # Internal query param. Represents params in the compiled SQL, so the params
+    # that are sent to PostgreSQL.
+    pass
+
+
+@dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)
+class SQLParamExternal(SQLParam):
+    # An internal query param whose value is provided by an external param.
+    # So a user-visible param.
+
+    # External index
+    index: int
+
+
+@dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)
+class SQLParamGlobal(SQLParam):
+    # An internal query param whose value is provided by a global.
+
+    global_name: s_name.QualName
 
 
 @dataclasses.dataclass
