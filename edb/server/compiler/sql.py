@@ -92,7 +92,8 @@ def compile_sql(
             # GOTCHA: setting is frontend-only regardless of its mutability
             fe_only = stmt.name in FE_SETTINGS_MUTABLE
 
-            if fe_only and stmt.name:
+            if fe_only:
+                assert stmt.name
                 if not FE_SETTINGS_MUTABLE[stmt.name]:
                     raise errors.QueryError(
                         f'parameter "{stmt.name}" cannot be changed',
