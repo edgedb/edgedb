@@ -2073,6 +2073,7 @@ class TestServerProtoMigration(tb.QueryTestCase):
             ['123']
         )
 
+
 class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
     TRANSACTION_ISOLATION = False
@@ -2117,7 +2118,8 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             123
         )
 
-        async with tb.start_edgedb_server(**self.get_adjacent_server_args()) as sd:
+        server_args = self.get_adjacent_server_args()
+        async with tb.start_edgedb_server(**server_args) as sd:
 
             con2 = await sd.connect(
                 user=conargs.get('user'),
@@ -2210,7 +2212,8 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
         conargs = self.get_connect_args()
 
-        async with tb.start_edgedb_server(**self.get_adjacent_server_args()) as sd:
+        server_args = self.get_adjacent_server_args()
+        async with tb.start_edgedb_server(**server_args) as sd:
 
             # Run twice to make sure there is no lingering accessibility state
             for _ in range(2):
@@ -2291,7 +2294,8 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             'Authorization': self.make_auth_header(),
         }
 
-        async with tb.start_edgedb_server(**self.get_adjacent_server_args()) as sd:
+        server_args = self.get_adjacent_server_args()
+        async with tb.start_edgedb_server(**server_args) as sd:
 
             await self.con.execute("CREATE EXTENSION notebook;")
 
