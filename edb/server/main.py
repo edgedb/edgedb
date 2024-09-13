@@ -115,14 +115,8 @@ def _ensure_runstate_dir(
     runstate_dir = pathlib.Path(runstate_dir)
 
     if not runstate_dir.exists():
-        if not runstate_dir.parent.exists():
-            abort(
-                f'cannot create the runstate directory: '
-                f'{str(runstate_dir.parent)!r} does not exist; please use '
-                f'--runstate-dir to specify the correct location')
-
         try:
-            runstate_dir.mkdir()
+            runstate_dir.mkdir(parents=True)
         except PermissionError as ex:
             abort(
                 f'cannot create the runstate directory: '
