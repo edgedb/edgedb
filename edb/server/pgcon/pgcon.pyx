@@ -3345,9 +3345,20 @@ cdef inline str setting_to_sql(setting: tuple[str | int | float, ...]):
     return ', '.join(setting_val_to_sql(v) for v in setting)
 
 
+cdef set NON_QUOTABLE_STRINGS = {
+    'repeatable read',
+    'read committed',
+    'read uncommitted',
+    'off',
+    'on',
+    'yes',
+    'no',
+}
+
+
 cdef inline str setting_val_to_sql(val: str | int | float):
     if isinstance(val, str):
-        if val in ('repeatable read', 'read committed', 'read uncommitted'):
+        if val in NON_QUOTABLE_STRINGS:
             # special case: no quoting
             return val
         # quote as identifier

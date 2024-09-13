@@ -283,7 +283,8 @@ def resolve_query(
         setting = None
     if setting:
         if isinstance(setting[0], str):
-            allow_user_specified_id = setting[0].lower() in ('true', '1')
+            truthy = {'on', 'true', 'yes', '1'}
+            allow_user_specified_id = setting[0].lower() in truthy
         elif isinstance(setting[0], int):
             allow_user_specified_id = bool(setting[0])
 
