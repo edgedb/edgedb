@@ -633,13 +633,11 @@ class SQLTransactionState:
             self.in_tx_local_settings = None
             self.savepoints.clear()
         elif query_unit.tx_action == TxAction.DECLARE_SAVEPOINT:
-            self.savepoints.append(
-                (
-                    query_unit.sp_name,
-                    self.in_tx_settings,
-                    self.in_tx_local_settings,
-                )
-            )  # type: ignore
+            self.savepoints.append((
+                query_unit.sp_name,
+                self.in_tx_settings,
+                self.in_tx_local_settings,
+            ))  # type: ignore
         elif query_unit.tx_action == TxAction.ROLLBACK_TO_SAVEPOINT:
             while self.savepoints:
                 sp_name, settings, local_settings = self.savepoints[-1]
