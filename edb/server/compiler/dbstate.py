@@ -18,7 +18,17 @@
 
 
 from __future__ import annotations
-from typing import Any, Optional, Tuple, Iterator, Dict, List, NamedTuple, Self
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Iterator,
+    Dict,
+    List,
+    NamedTuple,
+    Self,
+    cast,
+)
 
 import dataclasses
 import enum
@@ -155,8 +165,7 @@ class DDLQuery(BaseQuery):
     create_db_template: Optional[str] = None
     create_db_mode: Optional[qlast.BranchType] = None
     ddl_stmt_id: Optional[str] = None
-    config_ops: List[config.Operation] = (
-        dataclasses.field(default_factory=list))
+    config_ops: List[config.Operation] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -289,8 +298,7 @@ class QueryUnit:
 
     # Cardinality of the result set.  Set to NO_RESULT if the
     # unit represents multiple queries compiled as one script.
-    cardinality: enums.Cardinality = \
-        enums.Cardinality.NO_RESULT
+    cardinality: enums.Cardinality = enums.Cardinality.NO_RESULT
 
     out_type_data: bytes = sertypes.NULL_TYPE_DESC
     out_type_id: bytes = sertypes.NULL_TYPE_ID.bytes
@@ -316,8 +324,7 @@ class QueryUnit:
     # Set only when this unit contains a CONFIGURE command which
     # alters a system configuration setting.
     is_system_config: bool = False
-    config_ops: List[config.Operation] = (
-        dataclasses.field(default_factory=list))
+    config_ops: List[config.Operation] = dataclasses.field(default_factory=list)
     modaliases: Optional[immutables.Map[Optional[str], str]] = None
 
     # If present, represents the future schema state after
@@ -490,12 +497,14 @@ class PrepareData(PreparedStmtOpData):
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class ExecuteData(PreparedStmtOpData):
     """EXECUTE statement data"""
+
     pass
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class DeallocateData(PreparedStmtOpData):
     """DEALLOCATE statement data"""
+
     pass
 
 
@@ -518,9 +527,7 @@ class SQLQueryUnit:
     execute: Optional[ExecuteData] = None
     deallocate: Optional[DeallocateData] = None
 
-    set_vars: Optional[
-        dict[Optional[str], Optional[SQLSetting]]
-    ] = None
+    set_vars: Optional[dict[Optional[str], Optional[SQLSetting]]] = None
     get_var: Optional[str] = None
     is_local: bool = False
 
@@ -575,14 +582,17 @@ class ParsedDatabase:
     protocol_version: defines.ProtocolVersion
     state_serializer: sertypes.StateSerializer
 
+
 SQLSetting = tuple[str | int | float, ...]
 SQLSettings = immutables.Map[Optional[str], Optional[SQLSetting]]
 DEFAULT_SQL_SETTINGS: SQLSettings = immutables.Map()
 DEFAULT_SQL_FE_SETTINGS: SQLSettings = immutables.Map({
     "search_path": ("public",),
     "allow_user_specified_id": ("false",),
-    "server_version": (defines.PGEXT_POSTGRES_VERSION,),
-    "server_version_num": (defines.PGEXT_POSTGRES_VERSION_NUM,),
+    "server_version": cast(SQLSetting, (defines.PGEXT_POSTGRES_VERSION,)),
+    "server_version_num": cast(
+        SQLSetting, (defines.PGEXT_POSTGRES_VERSION_NUM,)
+    ),
 })
 
 
@@ -623,11 +633,13 @@ class SQLTransactionState:
             self.in_tx_local_settings = None
             self.savepoints.clear()
         elif query_unit.tx_action == TxAction.DECLARE_SAVEPOINT:
-            self.savepoints.append((
-                query_unit.sp_name,
-                self.in_tx_settings,
-                self.in_tx_local_settings,
-            ))  # type: ignore
+            self.savepoints.append(
+                (
+                    query_unit.sp_name,
+                    self.in_tx_settings,
+                    self.in_tx_local_settings,
+                )
+            )  # type: ignore
         elif query_unit.tx_action == TxAction.ROLLBACK_TO_SAVEPOINT:
             while self.savepoints:
                 sp_name, settings, local_settings = self.savepoints[-1]
@@ -696,7 +708,7 @@ class ProposedMigrationStep(NamedTuple):
             'prompt': self.prompt,
             'prompt_id': self.prompt_id,
             'data_safe': self.data_safe,
-            'required_user_input': list(self.required_user_input)
+            'required_user_input': list(self.required_user_input),
         }
 
 
@@ -805,7 +817,8 @@ class Transaction:
     def declare_savepoint(self, name: str) -> int:
         if self.is_implicit():
             raise errors.TransactionError(
-                'savepoints can only be used in transaction blocks')
+                'savepoints can only be used in transaction blocks'
+            )
 
         return self._declare_savepoint(name)
 
@@ -824,7 +837,8 @@ class Transaction:
     def rollback_to_savepoint(self, name: str) -> TransactionState:
         if self.is_implicit():
             raise errors.TransactionError(
-                'savepoints can only be used in transaction blocks')
+                'savepoints can only be used in transaction blocks'
+            )
 
         return self._rollback_to_savepoint(name)
 
@@ -850,7 +864,8 @@ class Transaction:
     def release_savepoint(self, name: str) -> None:
         if self.is_implicit():
             raise errors.TransactionError(
-                'savepoints can only be used in transaction blocks')
+                'savepoints can only be used in transaction blocks'
+            )
 
         self._release_savepoint(name)
 
