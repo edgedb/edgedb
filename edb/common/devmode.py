@@ -128,6 +128,6 @@ def get_dev_mode_data_dir() -> pathlib.Path:
         data_dir = pathlib.Path(data_dir_env)
     else:
         root = pathlib.Path(__file__).parent.parent.parent
-        data_dir = root / "tmp" / "_localdev"
+        data_dir = root / "tmp" / "devdatadir"
 
     return data_dir
