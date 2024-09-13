@@ -5,16 +5,16 @@
 //! password during transmission. It is commonly used in applications and
 //! protocols like Postgres and SASL to enhance security against common attacks
 //! such as replay and man-in-the-middle attacks.
-//! 
+//!
 //! https://en.wikipedia.org/wiki/Salted_Challenge_Response_Authentication_Mechanism
-//! 
+//!
 //! ## Limitations of this implementation
-//! 
+//!
 //! This code implements a sufficient form of SCRAM to authenticate to most
 //! PostgreSQL instances. It does not implement channel binding, and its
 //! implementation is likely not generic enough to work with any other
 //! implementation of SCRAM that isn't designed to be PostgreSQL-compatible.
-//! 
+//!
 //! ## Transaction
 //!
 //! The transaction consists of four steps:
@@ -670,10 +670,10 @@ mod tests {
     /// Tests that use real stored keys from postgres to match normalization
     /// behaviour. This exercises the saslprep code indirectly to ensure it
     /// matches the PostgreSQL implementation.
-    /// 
+    ///
     /// Passwords in these tests were generated via `ALTER ROLE` DDL statements,
     /// and the salted password was then extracted from the roles table.
-    /// 
+    ///
     /// Note that a PostgreSQL user may have a password that is only value when
     /// interpreted as a bag of bytes and cannot be set directly via `ALTER
     /// ROLE` or the `initdb` command-line. This code _should_ support those
