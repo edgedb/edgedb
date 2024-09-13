@@ -17,7 +17,6 @@
 #
 
 from __future__ import annotations
-from enum import Enum
 from http.cookiejar import CookieJar
 
 import dataclasses
@@ -41,8 +40,9 @@ if typing.TYPE_CHECKING:
 logger = logging.getLogger("edb.server")
 
 POLLING_INTERVAL = statypes.Duration(microseconds=10 * 1_000_000)  # 10 seconds
-MAX_CONCURRENT_REQUESTS = 10  # This can be replaced with a config value later
-LIMITS = httpx.Limits(max_connections=MAX_CONCURRENT_REQUESTS)
+# TODO: Replace with config value
+MAX_CONCURRENT_CONNECTIONS = 10
+LIMITS = httpx.Limits(max_connections=MAX_CONCURRENT_CONNECTIONS)
 
 
 class NullCookieJar(CookieJar):
@@ -118,20 +118,10 @@ async def http(server: edbserver.BaseServer) -> None:
             )
 
 
-class HTTPMethod(str, Enum):
-    GET = 'GET'
-    POST = 'POST'
-    PUT = 'PUT'
-    DELETE = 'DELETE'
-    HEAD = 'HEAD'
-    OPTIONS = 'OPTIONS'
-    PATCH = 'PATCH'
-
-
 @dataclasses.dataclass
 class ScheduledRequest:
     id: str
-    method: HTTPMethod
+    method: str
     url: str
     body: typing.Optional[bytes]
     headers: typing.Optional[list[tuple[str, str]]]
