@@ -43,7 +43,7 @@ from edgedb import errors
 from edb import protocol
 from edb.common import devmode
 from edb.protocol import protocol as edb_protocol  # type: ignore
-from edb.server import args, pgcluster, pgconnparams
+from edb.server import args, pgcluster
 from edb.server import cluster as edbcluster
 from edb.testbase import server as tb
 
@@ -475,11 +475,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
         with tempfile.TemporaryDirectory() as td:
             cluster = await pgcluster.get_local_pg_cluster(
                 td, max_connections=actual, log_level='s')
-            cluster.set_connection_params(
-                pgconnparams.ConnectionParameters(
-                    user='postgres',
-                    database='template1',
-                ),
+            cluster.update_connection_params(
+                user='postgres',
+                database='template1',
             )
             self.assertTrue(await cluster.ensure_initialized())
             await cluster.start()
@@ -509,11 +507,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
         with tempfile.TemporaryDirectory() as td:
             cluster = await pgcluster.get_local_pg_cluster(td, log_level='s')
-            cluster.set_connection_params(
-                pgconnparams.ConnectionParameters(
-                    user='postgres',
-                    database='template1',
-                ),
+            cluster.update_connection_params(
+                user='postgres',
+                database='template1',
             )
             self.assertTrue(await cluster.ensure_initialized())
 
@@ -546,11 +542,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
         with tempfile.TemporaryDirectory() as td:
             cluster = await pgcluster.get_local_pg_cluster(td, log_level='s')
-            cluster.set_connection_params(
-                pgconnparams.ConnectionParameters(
-                    user='postgres',
-                    database='template1',
-                ),
+            cluster.update_connection_params(
+                user='postgres',
+                database='template1',
             )
             self.assertTrue(await cluster.ensure_initialized())
 
@@ -598,11 +592,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
         with tempfile.TemporaryDirectory() as td:
             cluster = await pgcluster.get_local_pg_cluster(td, log_level='s')
-            cluster.set_connection_params(
-                pgconnparams.ConnectionParameters(
-                    user='postgres',
-                    database='template1',
-                ),
+            cluster.update_connection_params(
+                user='postgres',
+                database='template1',
             )
             self.assertTrue(await cluster.ensure_initialized())
             await cluster.start()
@@ -633,11 +625,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
     async def test_server_ops_ignore_other_tenants(self):
         with tempfile.TemporaryDirectory() as td:
             cluster = await pgcluster.get_local_pg_cluster(td, log_level='s')
-            cluster.set_connection_params(
-                pgconnparams.ConnectionParameters(
-                    user='postgres',
-                    database='template1',
-                ),
+            cluster.update_connection_params(
+                user='postgres',
+                database='template1',
             )
             self.assertTrue(await cluster.ensure_initialized())
 
@@ -652,11 +642,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
     async def test_server_ops_ignore_other_tenants_single_role(self):
         with tempfile.TemporaryDirectory() as td:
             cluster = await pgcluster.get_local_pg_cluster(td, log_level='s')
-            cluster.set_connection_params(
-                pgconnparams.ConnectionParameters(
-                    user='postgres',
-                    database='template1',
-                ),
+            cluster.update_connection_params(
+                user='postgres',
+                database='template1',
             )
             self.assertTrue(await cluster.ensure_initialized())
             cluster.add_hba_entry(
@@ -666,7 +654,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 auth_method="trust",
             )
             await cluster.start()
-            conn = await cluster.connect()
+            conn = await cluster.connect(source_description="test_server_ops")
             setup = b"""\
                 CREATE ROLE single WITH LOGIN CREATEDB;
                 CREATE DATABASE single;
@@ -1218,11 +1206,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             cluster = await pgcluster.get_local_pg_cluster(
                 td, max_connections=20, log_level='s'
             )
-            cluster.set_connection_params(
-                pgconnparams.ConnectionParameters(
-                    user='postgres',
-                    database='template1',
-                ),
+            cluster.update_connection_params(
+                user='postgres',
+                database='template1',
             )
             self.assertTrue(await cluster.ensure_initialized())
             await cluster.start()
@@ -1276,11 +1262,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
     async def _init_pg_cluster(self, path):
         cluster = await pgcluster.get_local_pg_cluster(path, log_level='s')
-        cluster.set_connection_params(
-            pgconnparams.ConnectionParameters(
-                user='postgres',
-                database='template1',
-            ),
+        cluster.update_connection_params(
+            user='postgres',
+            database='template1',
         )
         self.assertTrue(await cluster.ensure_initialized())
         await cluster.start()

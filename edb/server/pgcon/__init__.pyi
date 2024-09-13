@@ -21,11 +21,12 @@ from __future__ import annotations
 from typing import (
     Any,
     Callable,
-    Dict,
     Optional,
 )
 
 from edb.pgsql import params as pg_params
+from edb.server import pgconnparams
+from .rust_transport import ConnectionParams
 
 class BackendError(Exception):
 
@@ -45,9 +46,10 @@ class BackendCatalogNameError(BackendError):
     ...
 
 async def connect(
-    connargs: Dict[str, Any],
-    dbname: str,
+    dsn_or_connection: str | ConnectionParams,
+    *,
     backend_params: pg_params.BackendRuntimeParams,
+    source_description: str,
     apply_init_script: bool = True,
 ) -> PGConnection:
     ...
@@ -59,6 +61,8 @@ class PGConnection:
 
     idle: bool
     backend_pid: int
+    connection: pgconnparams.ConnectionParams
+    addr: tuple[str, int]
 
     async def sql_execute(self, sql: bytes | tuple[bytes, ...]) -> None:
         ...

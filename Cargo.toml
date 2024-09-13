@@ -12,6 +12,8 @@ resolver = "2"
 [workspace.dependencies]
 pyo3 = { version = "0.22.2", features = ["extension-module", "serde"] }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "sync", "net", "io-util"] }
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
 
 [profile.release]
 debug = true

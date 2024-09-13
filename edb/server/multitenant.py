@@ -21,7 +21,6 @@ from typing import Any, Iterator, Mapping, MutableMapping, Sequence, TypedDict
 
 import asyncio
 import collections
-import dataclasses
 import json
 import logging
 import pathlib
@@ -225,17 +224,11 @@ class MultiTenantServer(server.BaseServer):
         else:
             max_conns = conf["max-backend-connections"]
 
-        conn_params = cluster.get_connection_params()
-        conn_params = dataclasses.replace(
-            conn_params,
-            server_settings={
-                **conn_params.server_settings,
-                "application_name": f'edgedb_instance_{conf["instance-name"]}',
-                "edgedb.instance_name": conf["instance-name"],
-                "edgedb.server_version": buildmeta.get_version_json(),
-            },
-        )
-        cluster.set_connection_params(conn_params)
+        cluster.update_connection_params(server_settings={
+            "application_name": f'edgedb_instance_{conf["instance-name"]}',
+            "edgedb.instance_name": conf["instance-name"],
+            "edgedb.server_version": buildmeta.get_version_json(),
+        })
 
         tenant = edbtenant.Tenant(
             cluster,

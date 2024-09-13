@@ -27,8 +27,13 @@ from .errors import (
 )
 
 from .pgcon import (
-    connect, PGConnection, SETUP_TEMP_TABLE_SCRIPT, SETUP_CONFIG_CACHE_SCRIPT,
+    PGConnection,
+)
+from .connect import (
+    connect,
     set_init_con_script_data,
+    SETUP_TEMP_TABLE_SCRIPT,
+    SETUP_CONFIG_CACHE_SCRIPT
 )
 
 __all__ = (
