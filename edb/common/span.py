@@ -251,14 +251,14 @@ class SpanPropagator(ast.NodeVisitor):
         return self.memo[node]
 
     def container_visit(self, node) -> List[Span | None]:
-        span_list = []
+        span_list: list[Span | None] = []
         for el in node:
             if isinstance(el, ast.AST) or typeutils.is_container(el):
                 span = self.visit(el)
 
                 if not span:
                     pass
-                elif isinstance(span, list):
+                elif isinstance(span, (list, tuple)):
                     span_list.extend(span)
                 elif isinstance(span, dict):
                     span_list.extend(span.values())

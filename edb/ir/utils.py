@@ -307,7 +307,7 @@ class ContainsDMLVisitor(ast.NodeVisitor):
     def combine_field_results(self, xs: Iterable[Optional[bool]]) -> bool:
         return any(
             x is True
-            or (isinstance(x, list) and self.combine_field_results(x))
+            or (isinstance(x, (list, tuple)) and self.combine_field_results(x))
             or (isinstance(x, dict) and self.combine_field_results(x.values()))
             for x in xs
         )
@@ -419,7 +419,7 @@ class FindPotentiallyVisibleVisitor(FindPathScopes):
     def combine_field_results(self, xs: Any) -> Set[irast.Set]:
         out = set()
         for x in xs:
-            if isinstance(x, list):
+            if isinstance(x, (list, tuple)):
                 x = self.combine_field_results(x)
             if isinstance(x, dict):
                 x = self.combine_field_results(x.values())
