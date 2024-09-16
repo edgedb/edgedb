@@ -1,0 +1,6 @@
+# Via http://web.archive.org/web/20240216072136/https://www.highgo.ca/2020/01/10/how-to-create-test-and-debug-an-extension-written-in-c-for-postgresql/
+# get_sum postgresql extension
+comment = 'simple sum of two integers for postgres extension using c'
+default_version = '0.0.1'
+module_pathname = '$libdir/get_sum'
+relocatable = false

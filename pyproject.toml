@@ -30,6 +30,7 @@ dependencies = [
 
 [project.scripts]
 edgedb-server = "edb.server.main:main"
+edgedb-load-ext = "edb.load_ext.main:main"
 edgedb-ls = "edb.language_server.main:main"
 edb = "edb.tools.edb:edbcommands"
 edgedb = "edb.cli:rustcli"
