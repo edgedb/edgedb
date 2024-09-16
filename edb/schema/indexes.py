@@ -73,6 +73,14 @@ def is_index_valid_for_type(
 ) -> bool:
     # HACK: currently this helper just hardcodes the permitted index & type
     # combinations, but this should be inferred based on index definition.
+
+    # TODO: remove the explicit hardcode of types compatible with indexes and
+    # make them configurable in the schema instead. This is especially
+    # important for extension types.
+    #
+    # Also, once the hardcoded `issubclass` checks are removed, we no longer
+    # need the `issubclass` allow None as parent argument (fix objects.py and
+    # types.py).
     index_name = str(index.get_name(schema))
     match index_name:
         case 'pg::hash':
@@ -91,14 +99,39 @@ def is_index_valid_for_type(
         case 'fts::index':
             return is_subclass_or_tuple(expr_type, 'fts::document', schema)
         case 'pg::gist':
-            return expr_type.is_range() or expr_type.is_multirange()
+            return (
+                expr_type.is_range()
+                or
+                expr_type.is_multirange()
+                or
+                expr_type.issubclass(
+                    schema,
+                    (
+                        schema.get('ext::postgis::geometry',
+                                   type=s_scalars.ScalarType,
+                                   default=None),
+                        schema.get('ext::postgis::geography',
+                                   type=s_scalars.ScalarType,
+                                   default=None),
+                    )
+                )
+            )
         case 'pg::spgist':
             return (
                 expr_type.is_range()
                 or
                 expr_type.issubclass(
                     schema,
-                    schema.get('std::str', type=s_scalars.ScalarType),
+                    (
+                        schema.get('std::str',
+                                   type=s_scalars.ScalarType),
+                        schema.get('ext::postgis::geometry',
+                                   type=s_scalars.ScalarType,
+                                   default=None),
+                        schema.get('ext::postgis::geography',
+                                   type=s_scalars.ScalarType,
+                                   default=None),
+                    )
                 )
             )
         case 'pg::brin':
@@ -130,6 +163,12 @@ def is_index_valid_for_type(
                                    type=s_scalars.ScalarType),
                         schema.get('cal::date_duration',
                                    type=s_scalars.ScalarType),
+                        schema.get('ext::postgis::geometry',
+                                   type=s_scalars.ScalarType,
+                                   default=None),
+                        schema.get('ext::postgis::geography',
+                                   type=s_scalars.ScalarType,
+                                   default=None),
                     )
                 )
             )

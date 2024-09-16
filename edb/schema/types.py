@@ -1088,13 +1088,19 @@ class Collection(Type, s_abc.Collection):
     def issubclass(
         self,
         schema: s_schema.Schema,
+        # TODO: once the hardcoded `issubclass` checks are removed, we no
+        # longer need the `issubclass` allow None as parent argument.
         parent: Union[
-            so.SubclassableObject,
-            typing.Tuple[so.SubclassableObject, ...],
+            Optional[so.SubclassableObject],
+            typing.Tuple[Optional[so.SubclassableObject], ...],
         ],
     ) -> bool:
         if isinstance(parent, tuple):
             return any(self.issubclass(schema, p) for p in parent)
+        # TODO: once the hardcoded `issubclass` checks are removed, we no
+        # longer need the `issubclass` allow None as parent argument.
+        elif parent is None:
+            return False
 
         if isinstance(parent, Type) and parent.is_any(schema):
             return True
