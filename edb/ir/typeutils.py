@@ -196,6 +196,28 @@ def is_persistent_tuple(typeref: irast.TypeRef) -> bool:
         return False
 
 
+def get_custom_serialization(
+    typeref: irast.TypeRef,
+) -> Optional[str]:
+    # FIXME: instead of hardcode we need to extract this from the
+    # schema/extension
+    if str(typeref.real_base_type.name_hint) in {
+        'ext::postgis::box2d',
+        'ext::postgis::box3d',
+    }:
+        return 'geometry'
+
+    return None
+
+
+def needs_custom_serialization(typeref: irast.TypeRef) -> bool:
+    # True if any component needs custom serialization
+    return contains_predicate(
+        typeref,
+        lambda typeref: get_custom_serialization(typeref) is not None
+    )
+
+
 def contains_predicate(
     typeref: irast.TypeRef,
     pred: Callable[[irast.TypeRef], bool],
