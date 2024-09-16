@@ -78,46 +78,40 @@ def compile_sql(
         unit = dbstate.SQLQueryUnit(
             orig_query=orig_text,
             fe_settings=fe_settings,
+            # by default, the query is sent to PostgreSQL unchanged
             query=orig_text,
         )
 
-        if isinstance(stmt, pgast.VariableSetStmt):
+        if isinstance(stmt, (pgast.VariableSetStmt, pgast.VariableResetStmt)):
+            value: Optional[dbstate.SQLSetting]
+            if isinstance(stmt, pgast.VariableSetStmt):
+                value = pg_arg_list_to_python(stmt.args)
+            else:
+                value = None
+
             # GOTCHA: setting is frontend-only regardless of its mutability
             fe_only = stmt.name in FE_SETTINGS_MUTABLE
 
             if fe_only:
+                assert stmt.name
                 if not FE_SETTINGS_MUTABLE[stmt.name]:
                     raise errors.QueryError(
                         f'parameter "{stmt.name}" cannot be changed',
                         pgext_code='55P02',  # cant_change_runtime_param
                     )
-                value = pg_codegen.generate_source(stmt.args)
+
                 unit.set_vars = {stmt.name: value}
-            elif stmt.scope == pgast.OptionsScope.SESSION:
-                if len(stmt.args.args) == 1 and isinstance(
-                    stmt.args.args[0], pgast.StringConstant
-                ):
-                    # this value is unquoted for restoring state in pgcon
-                    value = stmt.args.args[0].val
-                else:
-                    value = pg_codegen.generate_source(stmt.args)
-                unit.set_vars = {stmt.name: value}
-            unit.frontend_only = fe_only
-            if fe_only:
-                unit.command_complete_tag = dbstate.TagPlain(tag=b"SET")
-            unit.is_local = stmt.scope == pgast.OptionsScope.TRANSACTION
-        elif isinstance(stmt, pgast.VariableResetStmt):
-            fe_only = stmt.name in FE_SETTINGS_MUTABLE
-            if fe_only and stmt.name and not FE_SETTINGS_MUTABLE[stmt.name]:
-                raise errors.QueryError(
-                    f'parameter "{stmt.name}" cannot be changed',
-                    pgext_code='55P02',  # cant_change_runtime_param
+                unit.frontend_only = True
+                unit.command_complete_tag = dbstate.TagPlain(
+                    tag=(
+                        b"SET"
+                        if isinstance(stmt, pgast.VariableSetStmt)
+                        else b"RESET"
+                    )
                 )
-            if fe_only or stmt.scope == pgast.OptionsScope.SESSION:
-                unit.set_vars = {stmt.name: None}
-            unit.frontend_only = fe_only
-            if fe_only:
-                unit.command_complete_tag = dbstate.TagPlain(tag=b"RESET")
+            elif stmt.scope == pgast.OptionsScope.SESSION:
+                unit.set_vars = {stmt.name: value}
+
             unit.is_local = stmt.scope == pgast.OptionsScope.TRANSACTION
 
         elif isinstance(stmt, pgast.VariableShowStmt):
@@ -132,7 +126,7 @@ def compile_sql(
                     f"default_{name}": (
                         value.val
                         if isinstance(value, pgast.StringConstant)
-                        else pg_codegen.generate_source(value)
+                        else pg_codegen.generate_source(value),
                     )
                     for name, value in stmt.options.options.items()
                 }
@@ -279,18 +273,21 @@ def resolve_query(
     allow_user_specified_id: bool = False
 
     try:
-        sp = tx_state.get("search_path")
+        setting = tx_state.get("search_path")
     except KeyError:
-        sp = None
-    if isinstance(sp, str):
-        search_path = parse_search_path(sp)
+        setting = None
+    search_path = parse_search_path(setting)
 
     try:
-        allow_id = tx_state.get("allow_user_specified_id")
+        setting = tx_state.get("allow_user_specified_id")
     except KeyError:
-        allow_id = None
-    if isinstance(allow_id, str):
-        allow_user_specified_id = bool(allow_id)
+        setting = None
+    if setting:
+        if isinstance(setting[0], str):
+            truthy = {'on', 'true', 'yes', '1'}
+            allow_user_specified_id = setting[0].lower() in truthy
+        elif isinstance(setting[0], int):
+            allow_user_specified_id = bool(setting[0])
 
     options = pg_resolver.Options(
         current_user=opts.current_user,
@@ -319,13 +316,24 @@ def compute_stmt_name(text: str, tx_state: dbstate.SQLTransactionState) -> str:
 
 
 @functools.cache
-def parse_search_path(search_path_str: str) -> list[str]:
-    search_path_stmt = pg_parser.parse(f"SET search_path = {search_path_str}")[
-        0
-    ]
-    assert isinstance(search_path_stmt, pgast.VariableSetStmt)
-    return [
-        arg.val
-        for arg in search_path_stmt.args.args
-        if isinstance(arg, pgast.StringConstant)
-    ]
+def parse_search_path(search_path_str: list[str | int | float]) -> list[str]:
+    return [part for part in search_path_str if isinstance(part, str)]
+
+
+def pg_arg_list_to_python(expr: pgast.ArgsList) -> dbstate.SQLSetting:
+    return tuple(pg_const_to_python(a) for a in expr.args)
+
+
+def pg_const_to_python(expr: pgast.BaseExpr) -> str | int | float:
+    "Converts a pg const expression into a Python value"
+
+    if isinstance(expr, pgast.StringConstant):
+        return expr.val
+
+    if isinstance(expr, pgast.NumericConstant):
+        try:
+            return int(expr.val)
+        except ValueError:
+            return float(expr.val)
+
+    raise NotImplementedError()

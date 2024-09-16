@@ -171,7 +171,7 @@ def eval_FuncCall(
             val=" ".join(
                 [
                     "PostgreSQL",
-                    defines.PGEXT_POSTGRES_VERSION,
+                    str(defines.PGEXT_POSTGRES_VERSION),
                     f"(EdgeDB {edgedb_version}),",
                     platform.architecture()[0],
                 ]

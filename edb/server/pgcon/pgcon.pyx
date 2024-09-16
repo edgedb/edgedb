@@ -1946,11 +1946,13 @@ cdef class PGConnection:
                             msg_buf.write_bytestring(b'SET')
                         buf.write_buffer(msg_buf.end_message())
                     elif action.query_unit.get_var is not None:
+                        setting_name = action.query_unit.get_var
+
                         # RowDescription
                         msg_buf = WriteBuffer.new_message(b'T')
                         msg_buf.write_int16(1)  # number of fields
                         # field name
-                        msg_buf.write_str(action.query_unit.get_var, "utf-8")
+                        msg_buf.write_str(setting_name, "utf-8")
                         # object ID of the table to identify the field
                         msg_buf.write_int32(0)
                         # attribute number of the column in prev table
@@ -1968,11 +1970,8 @@ cdef class PGConnection:
                         # DataRow
                         msg_buf = WriteBuffer.new_message(b'D')
                         msg_buf.write_int16(1)  # number of column values
-                        msg_buf.write_len_prefixed_utf8(
-                            dbv.current_fe_settings()[
-                                action.query_unit.get_var
-                            ]
-                        )
+                        setting = dbv.current_fe_settings()[setting_name]
+                        msg_buf.write_len_prefixed_utf8(setting_to_sql(setting))
                         buf.write_buffer(msg_buf.end_message())
 
                         # CommandComplete
@@ -3340,3 +3339,33 @@ cdef bytes _SYNC_MESSAGE = bytes(WriteBuffer.new_message(b'S').end_message())
 cdef bytes FLUSH_MESSAGE = bytes(WriteBuffer.new_message(b'H').end_message())
 
 cdef EdegDBCodecContext DEFAULT_CODEC_CONTEXT = EdegDBCodecContext()
+
+
+cdef inline str setting_to_sql(setting: tuple[str | int | float, ...]):
+    return ', '.join(setting_val_to_sql(v) for v in setting)
+
+
+cdef set NON_QUOTABLE_STRINGS = {
+    'repeatable read',
+    'read committed',
+    'read uncommitted',
+    'off',
+    'on',
+    'yes',
+    'no',
+}
+
+
+cdef inline str setting_val_to_sql(val: str | int | float):
+    if isinstance(val, str):
+        if val in NON_QUOTABLE_STRINGS:
+            # special case: no quoting
+            return val
+        # quote as identifier
+        return pg_qi(val)
+    if isinstance(val, int):
+        return str(val)
+    if isinstance(val, float):
+        return str(val)
+    raise NotImplementedError('cannot convert setting to SQL: ', val)
+
