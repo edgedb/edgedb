@@ -402,21 +402,11 @@ async def create_postgres_connection(
     state_change_callback: Optional[StateChangeCallback] = None
 ) -> Tuple[PGRawConn, P]:
     """
-    Open a PostgreSQL connection to the address specified by the DSN.
-
-    The DSN (Data Source Name) should include connection details like host,
-    port, database, etc.
-
-    protocol_factory must be a callable returning an asyncio protocol
-    implementation.
+    Open a PostgreSQL connection to the address specified by the DSN or
+    ConnectionParams, creating the user protocol from the protocol_factory.
 
     This method establishes the connection asynchronously. When successful, it
     returns a (PGRawConn, protocol) pair.
-
-    :param dsn: Data Source Name for the PostgreSQL connection
-    :param protocol_factory: Callable that returns an asyncio protocol
-    :param state_change_callback: Optional callback for connection state changes
-    :return: Tuple of PGRawConn and asyncio.Protocol
     """
     if isinstance(dsn, str):
         dsn = ConnectionParams(dsn=dsn)

@@ -305,6 +305,7 @@ class BaseCluster:
         for flag, vals in configs:
             for val in vals:
                 args.append(f'--{flag}={val}')
+
         stdout_lines, _, _ = await _run_logged_subprocess(
             args,
             logger=pg_dump_logger,

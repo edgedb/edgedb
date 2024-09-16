@@ -15,7 +15,6 @@
 #
 import pathlib
 import platform
-import ssl
 import warnings
 from typing import TypedDict, NotRequired, Optional, Unpack, Self, Any
 from enum import IntEnum
@@ -73,9 +72,14 @@ class CreateParamsKwargs(TypedDict, total=False):
     connect_timeout: NotRequired[Optional[int]]
 
 
-# This is a Python representation of the Rust connection parameters that are
-# passed back during connection/parse.
 class ConnectionParams:
+    """
+    A Python representation of the Rust connection parameters that are
+    passed back during connection/parse.
+
+    This class encapsulates the connection parameters used for establishing
+    a connection to a PostgreSQL database.
+    """
     _params: PyConnectionParams
 
     def __init__(self, **kwargs: Unpack[CreateParamsKwargs]) -> None:
@@ -90,7 +94,6 @@ class ConnectionParams:
     def _create(
         cls,
         params: dict[str, Any],
-        ssl: Optional[ssl.SSLContext] = None
     ) -> Self:
         instance = super().__new__(cls)
         instance._params = params
