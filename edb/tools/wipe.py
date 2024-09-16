@@ -143,7 +143,7 @@ async def do_wipe(
             cluster_started_by_us = True
 
     try:
-        conn = await cluster.connect()
+        conn = await cluster.connect(source_description="Wipe")
         if tenant_id:
             tenants = list(tenant_id)
         else:
