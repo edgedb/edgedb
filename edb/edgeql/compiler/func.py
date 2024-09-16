@@ -203,7 +203,7 @@ def compile_FunctionCall(
         func.get_language(ctx.env.schema) == qlast.Language.EdgeQL
         and func.get_is_inlined(ctx.env.schema)
     ):
-        inline_func = s_func.compile_function(
+        inline_func = s_func.compile_function_inline(
             schema=ctx.env.schema,
             context=sd.CommandContext(
                 # Probably not correct. Need to store modaliases while compiling
@@ -443,8 +443,7 @@ def compile_FunctionCall(
                 )
 
         argument_inliner = ArgumentInliner(inline_args, ctx=ctx)
-        inline_func_expr = inline_func.irast.expr
-        res.body = argument_inliner.visit(inline_func_expr)
+        res.body = argument_inliner.visit(inline_func)
         res.inline_arg_path_ids = argument_inliner.mapped_args
     else:
         res = fcall
