@@ -7166,28 +7166,34 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
             lclauses.append(f'v.split {op} {pver}')
         cond = ' and '.join(lclauses) if lclauses else 'true'
 
+        ver_regexp = r'^\d+(\.\d+)+$'
         qry = textwrap.dedent(f'''\
             with v as (
                select name, version,
                string_to_array(version, '.')::int8[] as split
                from pg_available_extension_versions
-               where name = {ql(ext)}
+               where
+                 name = {ql(ext)}
+                 and
+                 version ~ '{ver_regexp}'
             )
             select edgedb_VER.raise_on_null(
               (
                  select v.version from v
                  where {cond}
                  order by split desc limit 1
-               ),
-               'feature_not_supported',
-               msg => (
-                 'could not find extension satisfying ' || {ql(ext_spec)}
-                  || ': ' ||
-                  coalesce(
-                    'only found versions ' ||
-                      (select string_agg(v.version, ', ' order by v.split)
-                       from v),
-                    'extension not found'))
+              ),
+              'feature_not_supported',
+              msg => (
+                'could not find extension satisfying ' || {ql(ext_spec)}
+                || ': ' ||
+                coalesce(
+                  'only found versions ' ||
+                    (select string_agg(v.version, ', ' order by v.split)
+                     from v),
+                  'extension not found'
+                )
+              )
             )
             into _dummy_text;
         ''')

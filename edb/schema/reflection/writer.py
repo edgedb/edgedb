@@ -40,6 +40,7 @@ from edb.edgeql import qltypes
 
 from edb.schema import constraints as s_constr
 from edb.schema import delta as sd
+from edb.schema import extensions as s_ext
 from edb.schema import objects as so
 from edb.schema import objtypes as s_objtypes
 from edb.schema import referencing as s_ref
@@ -89,10 +90,23 @@ def _hoist_if_unused_deletes(
     might move the command after something that needs to go *after*,
     like a delete of one of the union components.)
 
+    Don't hoist the if_unused all the way *outside* an extension. We want the
+    effects of deleting an extension to be contained in the DeleteExtension
+    command. If there are union/collection types used outside this extension,
+    they won't be deleted. If the union/collection types are used only by this
+    extension, there is a chance that they also rely on the types *from* the
+    extension. This means that it will be impossible to delete the base types
+    if we defer deleting the union/collection types until all extension
+    content is removed.
+
     FIXME: Could we instead *generate* the deletions at the outermost point?
     """
     new_target = target
-    if not new_target and isinstance(cmd, sd.DeleteObject):
+    if (
+        not new_target
+        and isinstance(cmd, sd.DeleteObject)
+        and not isinstance(cmd, s_ext.DeleteExtension)
+    ):
         new_target = cmd
 
     for sub in cmd.get_subcommands():
