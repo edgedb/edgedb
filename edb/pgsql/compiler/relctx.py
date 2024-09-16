@@ -1340,7 +1340,7 @@ def unpack_var(
             sval = (
                 output.output_as_value(tv, env=ctx.env)
                 if aspect == pgce.PathAspect.VALUE else
-                output.serialize_expr(tv, path_id=path_id, env=ctx.env)
+                output.serialize_expr(tv, path_id=view_path_id, env=ctx.env)
             )
             pathctx.put_path_var(
                 qry, view_path_id, sval, aspect=aspect, force=True
