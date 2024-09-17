@@ -193,6 +193,17 @@ class ScopeTreeNode:
             factoring_fence=self.factoring_fence,
         )
 
+    def fence_info_ex(
+        self, path_id: pathid.PathId, namespaces: AbstractSet[str]
+    ) -> FenceInfo:
+        finfo = self.fence_info
+        if any(
+            _paths_equal(path_id, wl, namespaces)
+            for wl in self.factoring_allowlist
+        ):
+            finfo = finfo._replace(factoring_fence=False)
+        return finfo
+
     @property
     def ancestors(self) -> Iterator[ScopeTreeNode]:
         """An iterator of node's ancestors, including self."""
@@ -501,6 +512,7 @@ class ScopeTreeNode:
         node: ScopeTreeNode,
         was_fenced: bool = False,
         span: Optional[span.Span] = None,
+        fusing: bool = False,
     ) -> None:
         """Attach a subtree to this node.
 
@@ -522,43 +534,7 @@ class ScopeTreeNode:
                 continue
 
             path_id = descendant.path_id.strip_namespace(dns)
-            visible, visible_finfo, vns = self.find_visible_ex(path_id)
-
-            if visible is not None:
-                desc_optional = (
-                    descendant.is_optional_upto(node.parent)
-                    or self.is_optional_upto(visible.parent)
-                )
-
-                if visible_finfo is not None and visible_finfo.factoring_fence:
-                    # This node is already present in the surrounding
-                    # scope and cannot be factored out, such as
-                    # a reference to a correlated set inside a DML
-                    # statement.
-                    raise errors.InvalidReferenceError(
-                        f'cannot reference correlated set '
-                        f'{path_id.pformat()!r} here',
-                        span=span,
-                    )
-
-                # This path is already present in the tree, discard,
-                # but merge its OPTIONAL status, if any.
-
-                desc_fenced = (
-                    descendant.fence is not node.fence
-                    or was_fenced
-                    or visible.fence not in {self, self.parent_fence}
-                )
-                descendant.remove()
-                descendant.optional = desc_optional
-                descendant.strip_path_namespace(dns | vns)
-                visible.fuse_subtree(
-                    descendant,
-                    self_fenced=False,
-                    node_fenced=desc_fenced,
-                    span=span)
-
-            elif descendant.parent_fence is node:
+            if descendant.parent_fence is node:
                 # Unfenced path.
 
                 # Search for occurences elsewhere in the tree that
@@ -585,6 +561,7 @@ class ScopeTreeNode:
                     (
                         existing,
                         factor_point,
+                        current_ns,
                         existing_ns,
                         existing_finfo,
                         unnest_fence,
@@ -600,15 +577,18 @@ class ScopeTreeNode:
                     if existing.is_optional_upto(factor_point):
                         existing.mark_as_optional()
 
-                    existing.remove()
-                    current.remove()
-
                     # Strip the namespaces of everything in the lifted nodes
                     # based on what they have been lifted through.
                     existing.strip_path_namespace(existing_ns)
-                    current.strip_path_namespace(existing_ns)
+                    current.strip_path_namespace(current_ns)
 
-                    factor_point.attach_child(existing)
+                    current.remove()
+                    if (
+                        factor_point is not existing.parent
+                        and factor_point is not existing
+                    ):
+                        existing.remove()
+                        factor_point.attach_child(existing)
 
                     # Discard the node from the subtree being attached.
                     existing.fuse_subtree(
@@ -618,6 +598,13 @@ class ScopeTreeNode:
                         span=span)
 
                     current = existing
+
+                    # HACK: If we are being called from fuse_subtree,
+                    # skip all but the first. This is because we don't
+                    # want to merge any children before the parent
+                    # fully finishes all of its factoring.
+                    if fusing:
+                        break
 
         for child in tuple(node.children):
             # Attach whatever is remaining in the subtree.
@@ -735,7 +722,8 @@ class ScopeTreeNode:
         else:
             subtree = node
 
-        self.attach_subtree(subtree, was_fenced=self_fenced, span=span)
+        self.attach_subtree(
+            subtree, was_fenced=self_fenced, span=span, fusing=True)
 
     def remove_subtree(self, node: ScopeTreeNode) -> None:
         """Remove the given subtree from this node."""
@@ -822,12 +810,12 @@ class ScopeTreeNode:
         allow_group: bool=False,
     ) -> Tuple[
         Optional[ScopeTreeNode],
-        Optional[FenceInfo],
+        FenceInfo,
         AbstractSet[pathid.Namespace],
     ]:
         """Find the visible node with the given *path_id*."""
         namespaces: Set[pathid.Namespace] = set()
-        finfo = None
+        finfo = FenceInfo(False, False)
         found = None
 
         for node, ans in self.ancestors_and_namespaces:
@@ -848,20 +836,7 @@ class ScopeTreeNode:
             namespaces |= ans
 
             if node is not self:
-                ans_finfo = node.fence_info
-                if any(
-                    _paths_equal(path_id, wl, namespaces)
-                    for wl in node.factoring_allowlist
-                ):
-                    ans_finfo = FenceInfo(
-                        unnest_fence=ans_finfo.unnest_fence,
-                        factoring_fence=False,
-                    )
-
-                if finfo is None:
-                    finfo = ans_finfo
-                else:
-                    finfo = finfo | ans_finfo
+                finfo |= node.fence_info_ex(path_id, namespaces)
 
         if found and found.is_group and not allow_group:
             found = None
@@ -969,6 +944,7 @@ class ScopeTreeNode:
             ScopeTreeNodeWithPathId,
             ScopeTreeNode,
             AbstractSet[pathid.Namespace],
+            AbstractSet[pathid.Namespace],
             FenceInfo,
             bool,
             bool,
@@ -990,10 +966,11 @@ class ScopeTreeNode:
         We find all such factorable nodes and return them sorted by
         factoring point, from closest to furthest up.
         """
-        namespaces: Set[str] = set()
+        namespaces: AbstractSet[str] = frozenset()
         unnest_fence_seen = False
         fence_seen = False
         points = []
+        up_finfo = FenceInfo(False, False)
 
         # Track the last seen node so that we can skip it while looking
         # for descendants, to avoid performance pathologies, but also
@@ -1011,18 +988,21 @@ class ScopeTreeNode:
                 node.descendants_and_namespaces_ex(
                     unfenced_only=fence_seen, skip=last)
             ):
-                cns: AbstractSet[str] = namespaces | dns
+                cns = namespaces | dns
                 if (has_path_id(descendant)
                         and not descendant.is_group
                         and _paths_equal(descendant.path_id, path_id, cns)):
                     points.append((
-                        descendant, node, cns, finfo,
+                        descendant, node, namespaces, dns, finfo | up_finfo,
                         unnest_fence_seen, fence_seen,
                     ))
 
             namespaces |= ans
             unnest_fence_seen |= node.unnest_fence
             fence_seen |= node.fenced
+
+            if node is not self:
+                up_finfo |= node.fence_info_ex(path_id, namespaces)
 
             last = node
 
@@ -1079,6 +1059,7 @@ class ScopeTreeNode:
         print(self.root.pdebugformat(styles=styles))
 
     def _set_parent(self, parent: Optional[ScopeTreeNode]) -> None:
+        assert self is not parent
         current_parent = self.parent
         if parent is current_parent:
             return
