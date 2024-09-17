@@ -8174,3 +8174,137 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             await self.con.execute(f"""
                 select cal::local_date(1);
             """)
+
+    async def test_edgeql_functions_complex_types_01(self):
+        await self.con.execute('''
+            create function foo(x: File | URL) -> File | URL using (
+                x
+            );
+        ''')
+        await self.assert_query_result(
+            'select foo(<File>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<URL>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<File | URL>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select File)).name',
+            ['screenshot.png'],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo((select URL)).name',
+            ['edgedb.com'],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo((select {File, URL})).name',
+            ['edgedb.com', 'screenshot.png'],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_complex_types_02(self):
+        await self.con.execute('''
+            create function foo(x: str) -> optional File | URL using (
+                select {File, URL} filter .name = x limit 1
+            );
+        ''')
+        await self.assert_query_result(
+            'select foo(<str>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo("haha")',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo("screenshot.png").name',
+            ['screenshot.png'],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo("edgedb.com").name',
+            ['edgedb.com'],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo({"edgedb.com", "screenshot.png"}).name',
+            ['edgedb.com', 'screenshot.png'],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_complex_types_03(self):
+        await self.con.execute('''
+            create function foo(x: File | URL) -> str using (
+                x.name
+            );
+        ''')
+        await self.assert_query_result(
+            'select foo(<File>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<URL>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<File | URL>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select File))',
+            ['screenshot.png'],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo((select URL))',
+            ['edgedb.com'],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo((select {File, URL}))',
+            ['edgedb.com', 'screenshot.png'],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_complex_types_04(self):
+        await self.con.execute('''
+            create function foo(x: File | URL) -> str using (
+                if x is URL
+                then assert_exists(x[is URL]).address
+                else '~/' ++ x.name
+            );
+        ''')
+        await self.assert_query_result(
+            'select foo(<File>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<URL>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<File | URL>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select File))',
+            ['~/screenshot.png'],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo((select URL))',
+            ['https://edgedb.com'],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo((select {File, URL}))',
+            ['https://edgedb.com', '~/screenshot.png'],
+            sort=True,
+        )
