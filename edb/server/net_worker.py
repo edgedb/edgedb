@@ -70,12 +70,12 @@ async def _http(tenant: edbtenant.Tenant) -> None:
                     with
                         PENDING_REQUESTS := (
                             select std::net::http::ScheduledRequest
-                            filter .status = std::net::RequestState.Pending
+                            filter .state = std::net::RequestState.Pending
                         ),
                         UPDATED := (
                             update PENDING_REQUESTS
                             set {
-                                status := std::net::RequestState.InProgress,
+                                state := std::net::RequestState.InProgress,
                             }
                         ),
                     select UPDATED {
