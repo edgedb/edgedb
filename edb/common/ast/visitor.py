@@ -19,7 +19,9 @@
 
 from __future__ import annotations
 
-from typing import Callable, Optional, Type, TypeVar, AbstractSet, Collection
+from typing import (
+    AbstractSet, Any, Callable, Collection, Optional, Iterable, Type, TypeVar
+)
 
 from edb.common import typeutils
 
@@ -120,22 +122,29 @@ class NodeVisitor:
         visitor = cls(**kwargs)
         return visitor.visit(node)
 
-    def container_visit(self, node):
+    def container_visit(self, node) -> dict[Any, Any] | Iterable[Any]:
+        def _visit_element(elem):
+            if base.is_ast_node(elem) or typeutils.is_container(elem):
+                return self.visit(elem)
+            else:
+                return elem
+
+        result: dict[Any, Any] | Iterable[Any]
+
         if isinstance(node, dict):
             result = {}
             for key, value in node.items():
-                if base.is_ast_node(value) or typeutils.is_container(value):
-                    result[key] = self.visit(value)
-                else:
-                    result[key] = value
+                result[key] = _visit_element(value)
+
+        elif isinstance(node, tuple):
+            result = ()
+            for elem in node:
+                result += (_visit_element(elem),)
 
         else:
             result = []
             for elem in node:
-                if base.is_ast_node(elem) or typeutils.is_container(elem):
-                    result.append(self.visit(elem))
-                else:
-                    result.append(elem)
+                result.append(_visit_element(elem))
 
         return result
 
