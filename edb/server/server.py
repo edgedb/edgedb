@@ -133,6 +133,7 @@ class BaseServer:
     compilation_config_serializer: sertypes.CompilationConfigSerializer
     _http_request_logger: asyncio.Task | None
     _auth_gc: asyncio.Task | None
+    _net_worker_http: asyncio.Task | None
 
     def __init__(
         self,

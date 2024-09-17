@@ -29,6 +29,7 @@ import logging
 import httpx
 
 from edb.ir import statypes
+from edb.server import defines
 from edb.server.protocol import execute
 from . import dbview
 
@@ -54,16 +55,19 @@ class NullCookieJar(CookieJar):
     def set_cookie(self, _):
         pass
 
+
 async def _http(tenant: edbtenant.Tenant) -> None:
     try:
         async with (
-            asyncio.TaskGroup() as g,
             httpx.AsyncClient(
                 limits=LIMITS,
                 cookies=NullCookieJar(),
             ) as client,
+            asyncio.TaskGroup() as g,
         ):
             for db in tenant.iter_dbs():
+                if db.name == defines.EDGEDB_SYSTEM_DB:
+                    continue
                 json_bytes = await execute.parse_execute_json(
                     db,
                     """
@@ -162,7 +166,7 @@ async def handle_request(
     else:
         response_body = None
 
-    json_bytes = await execute.parse_execute_json(
+    await execute.parse_execute_json(
         db,
         """
         with
@@ -171,33 +175,39 @@ async def handle_request(
             state := <net::RequestState>$state,
             failure := <
                 optional tuple<
-                    kind: net::FailureKind,
+                    kind: net::RequestFailureKind,
                     message: str
                 >
             >$failure,
             response_status := <optional int16>$response_status,
             response_body := <optional bytes>$response_body,
             response_headers :=
-                <optional set<tuple<str, str>>>$response_headers,
+                <optional array<tuple<str, str>>>$response_headers,
             response := (
                 if state = net::RequestState.Completed
                 then (
                     insert nh::Response {
+                        created_at := datetime_of_statement(),
                         status := assert_exists(response_status),
                         body := response_body,
                         headers := response_headers,
                     }
                 )
                 else (<nh::Response>{})
-            )
-        update nh::ScheduledRequest
-        set {
-            state := state,
-            response := response,
-            failure := failure,
-        }
+            ),
+            FOUND := <nh::ScheduledRequest><uuid>$id,
+            UPDATED := (
+                update FOUND
+                set {
+                    state := state,
+                    response := response,
+                    failure := failure,
+                }
+            ),
+        select UPDATED {*};
         """,
         variables={
+            'id': request.id,
             'state': request_state,
             'response_status': response_status,
             'response_body': response_body,
