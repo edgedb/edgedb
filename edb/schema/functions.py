@@ -226,7 +226,6 @@ class ParameterDesc(ParameterLike):
                 subtypes=[paramt_ast],
             )
 
-        assert isinstance(paramt_ast, qlast.TypeName)
         paramt = utils.ast_to_type_shell(
             paramt_ast,
             metaclass=s_types.Type,
