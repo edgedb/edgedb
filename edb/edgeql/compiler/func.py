@@ -360,7 +360,11 @@ def compile_FunctionCall(
         variadic_param_type=variadic_param_type,
         func_initial_value=func_initial_value,
         tuple_path_ids=tuple_path_ids,
-        impl_is_strict=func.get_impl_is_strict(env.schema),
+        impl_is_strict=(
+            func.get_impl_is_strict(env.schema)
+            # Inlined functions should always check for null arguments.
+            and not inline_func
+        ),
         prefer_subquery_args=func.get_prefer_subquery_args(env.schema),
         is_singleton_set_of=func.get_is_singleton_set_of(env.schema),
         global_args=global_args,
