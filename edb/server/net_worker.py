@@ -22,10 +22,8 @@ from http.cookiejar import CookieJar
 import dataclasses
 import json
 import typing
-
 import asyncio
 import logging
-
 import httpx
 
 from edb.ir import statypes
@@ -178,7 +176,7 @@ async def handle_request(
                     kind: net::RequestFailureKind,
                     message: str
                 >
-            >$failure,
+            >to_json(<str>$failure),
             response_status := <optional int16>$response_status,
             response_body := <optional bytes>$response_body,
             response_headers :=
@@ -196,15 +194,12 @@ async def handle_request(
                 else (<nh::Response>{})
             ),
             FOUND := <nh::ScheduledRequest><uuid>$id,
-            UPDATED := (
-                update FOUND
-                set {
-                    state := state,
-                    response := response,
-                    failure := failure,
-                }
-            ),
-        select UPDATED {*};
+        update FOUND
+        set {
+            state := state,
+            response := response,
+            failure := failure,
+        };
         """,
         variables={
             'id': request.id,
@@ -212,7 +207,7 @@ async def handle_request(
             'response_status': response_status,
             'response_body': response_body,
             'response_headers': response_headers,
-            'failure': failure,
+            'failure': json.dumps(failure),
         },
         cached_globally=True,
     )
