@@ -39,9 +39,6 @@ if typing.TYPE_CHECKING:
 logger = logging.getLogger("edb.server")
 
 POLLING_INTERVAL = statypes.Duration(microseconds=10 * 1_000_000)  # 10 seconds
-# TODO: Replace with config value
-MAX_CONCURRENT_CONNECTIONS = 10
-LIMITS = httpx.Limits(max_connections=MAX_CONCURRENT_CONNECTIONS)
 
 
 class NullCookieJar(CookieJar):
@@ -55,10 +52,14 @@ class NullCookieJar(CookieJar):
 
 
 async def _http(tenant: edbtenant.Tenant) -> None:
+    net_http_max_connections = tenant._server.config_lookup(
+        'net_http_max_connections', tenant.get_sys_config()
+    )
+    limits = httpx.Limits(max_connections=net_http_max_connections)
     try:
         async with (
             httpx.AsyncClient(
-                limits=LIMITS,
+                limits=limits,
                 cookies=NullCookieJar(),
             ) as client,
             asyncio.TaskGroup() as g,
