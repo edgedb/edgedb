@@ -3341,7 +3341,7 @@ cdef bytes FLUSH_MESSAGE = bytes(WriteBuffer.new_message(b'H').end_message())
 cdef EdegDBCodecContext DEFAULT_CODEC_CONTEXT = EdegDBCodecContext()
 
 
-cdef inline str setting_to_sql(setting: tuple[str | int | float, ...]):
+cdef str setting_to_sql(setting: tuple[str | int | float, ...]):
     return ', '.join(setting_val_to_sql(v) for v in setting)
 
 
