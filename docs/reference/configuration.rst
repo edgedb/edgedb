@@ -76,7 +76,7 @@ Resource usage
 
 :eql:synopsis:`net_http_max_connections -> int64`
   The maximum number of concurrent HTTP connections to allow when using the
-  `std::net::http` module.
+  ``std::net::http`` module.
 
 Query planning
 --------------
