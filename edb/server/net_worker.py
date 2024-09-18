@@ -126,18 +126,23 @@ class ScheduledRequest:
     method: str
     url: str
     body: typing.Optional[bytes]
-    headers: typing.Optional[list[tuple[str, str]]]
+    headers: typing.Optional[list[dict]]
 
 
 async def handle_request(
     client: httpx.AsyncClient, db: dbview.Database, request: ScheduledRequest
 ) -> None:
     try:
+        headers = (
+            [(header["name"], header["value"]) for header in request.headers]
+            if request.headers
+            else None
+        )
         response = await client.request(
             request.method,
             request.url,
             content=request.body,
-            headers=request.headers,
+            headers=headers,
         )
         request_state = 'Completed'
         failure = None

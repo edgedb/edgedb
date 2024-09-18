@@ -41,14 +41,14 @@ class StdNetTestCase(server.QueryTestCase):
 
     async def test_http_std_net_con_send_request(self):
         assert self.mock_server is not None
+
         example_request = (
             'GET',
             self.base_url,
             '/test',
         )
-
-        def test_endpoint(_, __):
-            return (
+        self.mock_server.register_route_handler(*example_request)(
+            (
                 json.dumps(
                     {
                         "message": "Hello, world!",
@@ -57,8 +57,8 @@ class StdNetTestCase(server.QueryTestCase):
                 200,
                 {"Content-Type": "application/json"},
             )
+        )
 
-        self.mock_server.register_route_handler(*example_request)(test_endpoint)
         await self.con.query(
             """
             with
@@ -72,7 +72,10 @@ class StdNetTestCase(server.QueryTestCase):
 
                         url := url,
                         method := nh::Method.`GET`,
-                        headers := [("Accept", "text/plain")],
+                        headers := [
+                            ("Accept", "text/plain"),
+                            ("x-test-header", "test-value"),
+                        ],
                     }
                 )
             select request {*};
@@ -101,3 +104,6 @@ class StdNetTestCase(server.QueryTestCase):
 
         requests_for_example = self.mock_server.requests[example_request]
         self.assertEqual(len(requests_for_example), 1)
+        headers = list(requests_for_example[0]["headers"].items())
+        self.assertIn(("accept", "text/plain"), headers)
+        self.assertIn(("x-test-header", "test-value"), headers)
