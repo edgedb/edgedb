@@ -222,6 +222,7 @@ ALTER TYPE cfg::AbstractConfig {
         SET default := 10;
         CREATE ANNOTATION std::description :=
             'The maximum number of concurrent HTTP connections.';
+        CREATE ANNOTATION cfg::system := 'true';
     };
 
     # Exposed backend settings follow.
