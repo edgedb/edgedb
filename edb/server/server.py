@@ -69,6 +69,7 @@ from edb.server import daemon
 from edb.server import defines
 from edb.server import instdata
 from edb.server import protocol
+from edb.server import net_worker
 from edb.server import tenant as edbtenant
 from edb.server.protocol import binary  # type: ignore
 from edb.server.protocol import pg_ext  # type: ignore
@@ -132,6 +133,7 @@ class BaseServer:
     compilation_config_serializer: sertypes.CompilationConfigSerializer
     _http_request_logger: asyncio.Task | None
     _auth_gc: asyncio.Task | None
+    _net_worker_http: asyncio.Task | None
 
     def __init__(
         self,
@@ -225,6 +227,7 @@ class BaseServer:
         self._http_last_minute_requests = windowedsum.WindowedSum()
         self._http_request_logger = None
         self._auth_gc = None
+        self._net_worker_http = None
 
         self._stop_evt = asyncio.Event()
         self._tls_cert_file: str | Any = None
@@ -1041,6 +1044,7 @@ class BaseServer:
 
         await self._after_start_servers()
         self._auth_gc = self.__loop.create_task(pkce.gc(self))
+        self._net_worker_http = self.__loop.create_task(net_worker.http(self))
 
         if self._echo_runtime_info:
             ri = {
@@ -1092,6 +1096,8 @@ class BaseServer:
             self._http_request_logger.cancel()
         if self._auth_gc is not None:
             self._auth_gc.cancel()
+        if self._net_worker_http is not None:
+            self._net_worker_http.cancel()
 
         for handle in self._file_watch_handles:
             handle.cancel()
