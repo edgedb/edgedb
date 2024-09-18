@@ -40,8 +40,8 @@ import zipfile
 # Directories that we map to config values in pg_config.
 CONFIG_PATHS = {
     'share': 'sharedir',
-    'lib': 'libdir',
-    'include': 'includedir',
+    'lib': 'pkglibdir',
+    'include': 'pkgincludedir-server',
 }
 
 
