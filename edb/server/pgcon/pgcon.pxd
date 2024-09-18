@@ -188,4 +188,4 @@ cdef class PGConnection:
     cdef inline str get_tenant_label(self)
     cpdef set_stmt_cache_size(self, int maxsize)
 
-cdef inline str setting_to_sql(self)
+cdef str setting_to_sql(self)
