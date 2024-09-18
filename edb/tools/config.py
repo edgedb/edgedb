@@ -23,6 +23,7 @@ from __future__ import annotations
 import click
 
 from edb import buildmeta
+from edb.common import devmode
 from edb.tools.edb import edbcommands
 
 
@@ -41,10 +42,12 @@ def config(make_include: bool, pg_config: bool) -> None:
     '''Query certain parameters about an edgedb environment'''
     if make_include:
         share = buildmeta.get_extension_dir_path()
+        base = share.parent.parent.parent
         # XXX: It should not be here.
+        if not devmode.is_in_dev_mode():
+            base = base / 'data'
         mk = (
-            share.parent.parent.parent / 'tests' /
-            'extension-testing' / 'exts.mk'
+            base / 'tests' / 'extension-testing' / 'exts.mk'
         )
         print(mk)
     if pg_config:

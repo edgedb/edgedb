@@ -1,13 +1,13 @@
-EXT_NAME := $(shell python3 -c 'import tomllib; f = tomllib.load(open("MANIFEST.toml", "rb")); print(f["name"])')
-EXT_VERSION := $(shell python3 -c 'import tomllib; f = tomllib.load(open("MANIFEST.toml", "rb")); print(f["version"])')
-EDGEQL_SRCS := $(shell python3 -c 'import tomllib; f = tomllib.load(open("MANIFEST.toml", "rb")); print(" ".join(f["files"]))')
-SQL_DIR := $(shell python3 -c 'import tomllib; f = tomllib.load(open("MANIFEST.toml", "rb")); print(f["postgres_files"])')
+EXT_NAME := $(shell $(PYTHON) -c 'import tomllib; f = tomllib.load(open("MANIFEST.toml", "rb")); print(f["name"])')
+EXT_VERSION := $(shell $(PYTHON) -c 'import tomllib; f = tomllib.load(open("MANIFEST.toml", "rb")); print(f["version"])')
+EDGEQL_SRCS := $(shell $(PYTHON) -c 'import tomllib; f = tomllib.load(open("MANIFEST.toml", "rb")); print(" ".join(f["files"]))')
+SQL_DIR := $(shell $(PYTHON) -c 'import tomllib; f = tomllib.load(open("MANIFEST.toml", "rb")); print(f["postgres_files"])')
 
 #
 
 EXT_FNAME := $(EXT_NAME)--$(EXT_VERSION)
 
-PG_CONFIG := $(shell edb config --pg-config)
+PG_CONFIG := $(shell $(EDB) config --pg-config)
 PG_DIR := $(shell dirname $(shell dirname $(PG_CONFIG)))
 
 rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
