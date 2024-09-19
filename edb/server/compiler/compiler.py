@@ -3085,6 +3085,8 @@ def _check_force_database_error(
         return
 
     val = _get_config_val(ctx, 'force_database_error')
+    if isinstance(ql, qlast.DDLCommand):
+        maybe_force_database_error(val, scope='ddl')
     maybe_force_database_error(val, scope=scope)
 
 

@@ -31,6 +31,7 @@ import os
 
 
 from edb import edgeql
+from edb import errors
 from edb.edgeql import ast as qlast
 
 from edb.common import debug
@@ -449,7 +450,9 @@ async def _get_databases(
     # DEBUG VELOCITY HACK: You can add a failing database to EARLY
     # when trying to upgrade the whole suite.
     EARLY: tuple[str, ...] = ()
-    databases.sort(key=lambda k: (k not in EARLY, k))
+    databases.sort(
+        key=lambda k: (k != edbdef.EDGEDB_TEMPLATE_DB, k not in EARLY, k)
+    )
 
     return databases
 
@@ -457,12 +460,20 @@ async def _get_databases(
 async def _rollback_one(
     ctx: bootstrap.BootstrapContext,
 ) -> None:
-    namespaces = await _get_namespaces(ctx.conn)
+    conn = ctx.conn
+    if (await instdata.get_instdata(conn, 'upgrade_finalized', 'text')) == b'1':
+        logger.info(f"Database upgrade already finalized")
+        raise errors.ConfigurationError(
+            f"attempting to rollback database that has already begun "
+            f"finalization: retry finalize instead"
+        )
+
+    namespaces = await _get_namespaces(conn)
 
     cur_suffix = pg_common.versioned_schema("")
     to_delete = [x for x in namespaces if x.endswith(cur_suffix)]
 
-    await _delete_schemas(ctx.conn, to_delete)
+    await _delete_schemas(conn, to_delete)
 
 
 async def _rollback_all(
@@ -525,6 +536,7 @@ async def _finalize_all(
 
     async def go(
         message: str,
+        finish_message: Optional[str],
         final_command: bytes,
         inject_failure_on: Optional[str]=None,
     ) -> None:
@@ -541,6 +553,8 @@ async def _finalize_all(
 
                 await _finalize_one(subctx)
                 await conn.sql_execute(final_command)
+                if finish_message:
+                    logger.info(f"{finish_message} database '{database}'")
             finally:
                 conn.terminate()
 
@@ -558,8 +572,8 @@ async def _finalize_all(
     # We wanted to apply them all inside transactions and then commit
     # the transactions, but that requires holding open potentially too
     # many connections.
-    await go("Testing pivot of", b'ROLLBACK')
-    await go("Pivoting", b'COMMIT', inject_failure)
+    await go("Testing pivot of", None, b'ROLLBACK')
+    await go("Pivoting", "Finished pivoting", b'COMMIT', inject_failure)
 
 
 async def inplace_upgrade(
