@@ -70,7 +70,7 @@ class BaseCluster:
         ] = None,
         net_worker_mode: Optional[
             edgedb_args.NetWorkerMode
-        ] = edgedb_args.NetWorkerMode.Disabled,
+        ] = None,
     ):
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main']
 

@@ -2234,7 +2234,7 @@ class _EdgeDBServer:
         default_branch: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
         extra_args: Optional[List[str]] = None,
-        net_worker_mode: Optional[str] = 'disabled',
+        net_worker_mode: Optional[str] = None,
     ) -> None:
         self.bind_addrs = bind_addrs
         self.auto_shutdown_after = auto_shutdown_after
@@ -2601,7 +2601,7 @@ def start_edgedb_server(
     env: Optional[Dict[str, str]] = None,
     extra_args: Optional[List[str]] = None,
     default_branch: Optional[str] = None,
-    net_worker_mode: Optional[str] = 'disabled',
+    net_worker_mode: Optional[str] = None,
 ):
     if (not devmode.is_in_dev_mode() or adjacent_to) and not runstate_dir:
         if backend_dsn or adjacent_to:
