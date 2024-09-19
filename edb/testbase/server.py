@@ -764,7 +764,7 @@ def _extract_background_errors(metrics: str) -> str | None:
 
 
 async def drop_db(conn, dbname):
-    await conn.execute(f'DROP DATABASE {dbname}')
+    await conn.execute(f'DROP DATABASE {dbname} FORCE')
 
 
 class ClusterTestCase(BaseHTTPTestCase):
