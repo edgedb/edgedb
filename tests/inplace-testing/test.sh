@@ -10,6 +10,10 @@ while [[ $# -gt 0 ]]; do
         REAPPLY=1
         shift
         ;;
+    --save-tarballs)
+        SAVE_TARBALLS=1
+        shift
+        ;;
     *)
         break
         ;;
@@ -31,7 +35,9 @@ make parsers
 
 ./tests/inplace-testing/make-and-prep.sh "$DIR" "$@"
 
-tar cf "$DIR".tar "$DIR"
+if [ $SAVE_TARBALLS = 1 ]; then
+    tar cf "$DIR".tar "$DIR"
+fi
 
 PORT=12346
 edb server -D "$DIR" -P $PORT &
@@ -89,7 +95,9 @@ kill $SPID
 wait $SPID
 SPID=
 
-tar cf "$DIR"-prepped.tar "$DIR"
+if [ $SAVE_TARBALLS = 1 ]; then
+    tar cf "$DIR"-prepped.tar "$DIR"
+fi
 
 # Try to finalize the upgrade, but inject a failure
 if EDGEDB_UPGRADE_FINALIZE_ERROR_INJECTION=main edb server --inplace-upgrade-finalize --data-dir "$DIR"; then
@@ -99,7 +107,9 @@ fi
 
 # Finalize the upgrade
 edb server --inplace-upgrade-finalize --data-dir "$DIR"
-tar cf "$DIR"-cooked.tar "$DIR"
+if [ $SAVE_TARBALLS = 1 ]; then
+    tar cf "$DIR"-cooked.tar "$DIR"
+fi
 
 # Test!
 edb test --data-dir "$DIR" --use-data-dir-dbs -v "$@"
