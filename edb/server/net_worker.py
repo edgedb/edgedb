@@ -65,6 +65,11 @@ async def _http(tenant: edbtenant.Tenant) -> None:
         ):
             for db in tenant.iter_dbs():
                 if db.name == defines.EDGEDB_SYSTEM_DB:
+                    # Don't run the net_worker for system database
+                    continue
+                if not tenant.is_database_connectable(db.name):
+                    # Don't run the net_worker if the database is not
+                    # connectable, e.g. being dropped
                     continue
                 json_bytes = await execute.parse_execute_json(
                     db,
