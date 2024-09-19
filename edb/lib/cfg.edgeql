@@ -217,6 +217,14 @@ ALTER TYPE cfg::AbstractConfig {
             'Where the query cache is finally stored';
     };
 
+    # std::net::http Configuration
+    CREATE PROPERTY net_http_max_connections -> std::int64 {
+        SET default := 10;
+        CREATE ANNOTATION std::description :=
+            'The maximum number of concurrent HTTP connections.';
+        CREATE ANNOTATION cfg::system := 'true';
+    };
+
     # Exposed backend settings follow.
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value
