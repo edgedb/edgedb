@@ -28,7 +28,11 @@ $(EXT_FNAME).zip: MANIFEST.toml $(EDGEQL_SRCS) $(EXTRA_FILES) $(SQL_STAMP) Makef
 	mkdir build/$(EXT_FNAME)
 
 	rm -rf build/$(SQL_DIR)
-	cp -r $(PWD)/build/out/$(PG_DIR) build/$(SQL_DIR)
+	mkdir build/$(SQL_DIR)
+
+	cp -r $(PWD)/build/out/$(shell $(PG_CONFIG) --pkglibdir) build/$(SQL_DIR)/lib
+	cp -r $(PWD)/build/out/$(shell $(PG_CONFIG) --sharedir) build/$(SQL_DIR)/share
+
 	cp -r build/$(SQL_DIR) build/$(EXT_FNAME)/$(SQL_DIR)
 	cp $(EDGEQL_SRCS) build/$(EXT_FNAME)
 	if [ -n "$(EXTRA_FILES)" ]; then cp $(EXTRA_FILES) build/$(EXT_FNAME); fi

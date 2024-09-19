@@ -13663,6 +13663,7 @@ type default::Foo {
                     DROP FUNCTION foo___1(a: int64);
                 ''')
 
+    @test.skip('Too flaky; see #7729')
     async def test_edgeql_ddl_migration_sdl_01(self):
         await self.con.execute('''
             CONFIGURE SESSION SET store_migration_sdl :=
