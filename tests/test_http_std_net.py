@@ -59,48 +59,53 @@ class StdNetTestCase(server.QueryTestCase):
             )
         )
 
-        await self.con.query(
-            """
-            with
-                nh as module std::net::http,
-                net as module std::net,
-                url := <str>$url,
-                request := (
-                    insert nh::ScheduledRequest {
-                        created_at := datetime_of_statement(),
-                        state := std::net::RequestState.Pending,
+        async with server.start_edgedb_server(net_worker_mode='default') as sd:
+            con = await sd.connect()
 
-                        url := url,
-                        method := nh::Method.`GET`,
-                        headers := [
-                            ("Accept", "text/plain"),
-                            ("x-test-header", "test-value"),
-                        ],
-                    }
-                )
-            select request {*};
-            """,
-            url=f"{self.base_url}/test",
-        )
+            await con.query(
+                """
+                with
+                    nh as module std::net::http,
+                    net as module std::net,
+                    url := <str>$url,
+                    request := (
+                        insert nh::ScheduledRequest {
+                            created_at := datetime_of_statement(),
+                            state := std::net::RequestState.Pending,
 
-        async for tr in self.try_until_succeeds(
-            delay=2, timeout=120, ignore=(edgedb.CardinalityViolationError,)
-        ):
-            async with tr:
-                await self.con.query(
-                    """
-                    with
-                        url := <str>$url,
-                        request := assert_exists((
-                            select std::net::http::ScheduledRequest
-                            filter .url = url
-                            and .state != std::net::RequestState.Pending
-                            limit 1
-                        ))
-                    select request {*};
-                    """,
-                    url=f"{self.base_url}/test",
-                )
+                            url := url,
+                            method := nh::Method.`GET`,
+                            headers := [
+                                ("Accept", "text/plain"),
+                                ("x-test-header", "test-value"),
+                            ],
+                        }
+                    )
+                select request {*};
+                """,
+                url=f"{self.base_url}/test",
+            )
+
+            async for tr in self.try_until_succeeds(
+                delay=2,
+                timeout=120,
+                ignore=(edgedb.CardinalityViolationError,),
+            ):
+                async with tr:
+                    await con.query(
+                        """
+                        with
+                            url := <str>$url,
+                            request := assert_exists((
+                                select std::net::http::ScheduledRequest
+                                filter .url = url
+                                and .state != std::net::RequestState.Pending
+                                limit 1
+                            ))
+                        select request {*};
+                        """,
+                        url=f"{self.base_url}/test",
+                    )
 
         requests_for_example = self.mock_server.requests[example_request]
         self.assertEqual(len(requests_for_example), 1)

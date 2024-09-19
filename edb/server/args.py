@@ -164,6 +164,11 @@ class ReloadTrigger(enum.StrEnum):
     """Watch the files for changes and reload when it happens."""
 
 
+class NetWorkerMode(enum.StrEnum):
+    Default = "default"
+    Disabled = "disabled"
+
+
 class ServerAuthMethods:
 
     def __init__(
@@ -258,6 +263,7 @@ class ServerConfig(NamedTuple):
     readiness_state_file: Optional[pathlib.Path]
     disable_dynamic_system_config: bool
     reload_config_files: ReloadTrigger
+    net_worker_mode: NetWorkerMode
 
     startup_script: Optional[StartupScript]
     status_sinks: List[Callable[[str], None]]
@@ -1043,6 +1049,16 @@ server_options = typeutils.chain_decorators([
         help='Specifies when to reload the config files. See the docstring of '
              'ReloadTrigger for more information.',
     ),
+    click.option(
+        "--net-worker-mode",
+        envvar="EDGEDB_SERVER_NET_WORKER_MODE", cls=EnvvarResolver,
+        type=click.Choice(
+            list(NetWorkerMode.__members__.values()), case_sensitive=True
+        ),
+        hidden=True,
+        default='default',
+        help='Controls how the std::net workers work.',
+    ),
 ])
 
 
@@ -1555,6 +1571,7 @@ def parse_args(**kwargs: Any):
     kwargs['reload_config_files'] = ReloadTrigger(
         kwargs['reload_config_files']
     )
+    kwargs['net_worker_mode'] = NetWorkerMode(kwargs['net_worker_mode'])
 
     if 'EDGEDB_SERVER_CONFIG_cfg::listen_addresses' in os.environ:
         abort(
