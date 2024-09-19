@@ -162,6 +162,7 @@ class BaseServer:
         disable_dynamic_system_config: bool = False,
         compiler_state: edbcompiler.CompilerState,
         use_monitor_fs: bool = False,
+        net_worker_mode: srvargs.NetWorkerMode = srvargs.NetWorkerMode.Default,
     ):
         self.__loop = asyncio.get_running_loop()
         self._use_monitor_fs = use_monitor_fs
@@ -228,6 +229,7 @@ class BaseServer:
         self._http_request_logger = None
         self._auth_gc = None
         self._net_worker_http = None
+        self._net_worker_mode = net_worker_mode
 
         self._stop_evt = asyncio.Event()
         self._tls_cert_file: str | Any = None
@@ -1044,7 +1046,10 @@ class BaseServer:
 
         await self._after_start_servers()
         self._auth_gc = self.__loop.create_task(pkce.gc(self))
-        self._net_worker_http = self.__loop.create_task(net_worker.http(self))
+        if self._net_worker_mode is srvargs.NetWorkerMode.Default:
+            self._net_worker_http = self.__loop.create_task(
+                net_worker.http(self)
+            )
 
         if self._echo_runtime_info:
             ri = {

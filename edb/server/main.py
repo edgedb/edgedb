@@ -251,6 +251,7 @@ async def _run_server(
                 srvargs.ReloadTrigger.Default,
                 srvargs.ReloadTrigger.FileSystemEvent,
             ],
+            net_worker_mode=args.net_worker_mode,
         )
         # This coroutine runs as long as the server,
         # and compiler_state is *heavy*, so make sure we don't

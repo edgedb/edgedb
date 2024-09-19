@@ -68,6 +68,9 @@ class BaseCluster:
         compiler_pool_mode: Optional[
             edgedb_args.CompilerPoolMode
         ] = None,
+        net_worker_mode: Optional[
+            edgedb_args.NetWorkerMode
+        ] = None,
     ):
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main']
 
@@ -112,6 +115,12 @@ class BaseCluster:
             self._edgedb_cmd.extend((
                 '--compiler-pool-mode',
                 str(compiler_pool_mode),
+            ))
+
+        if net_worker_mode is not None:
+            self._edgedb_cmd.extend((
+                '--net-worker-mode',
+                str(net_worker_mode),
             ))
 
         self._log_level = log_level

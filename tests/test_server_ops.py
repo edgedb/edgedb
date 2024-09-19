@@ -720,6 +720,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             async with tb.start_edgedb_server(
                 data_dir=temp_dir,
                 default_auth_method=args.ServerAuthMethod.Trust,
+                net_worker_mode='disabled',
             ) as sd:
                 con = await sd.connect()
                 try:
@@ -775,6 +776,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             async with tb.start_edgedb_server(
                 data_dir=temp_dir,
                 default_auth_method=args.ServerAuthMethod.Trust,
+                net_worker_mode='disabled',
             ) as sd:
                 con = await sd.connect()
                 try:
