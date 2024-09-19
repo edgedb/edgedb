@@ -640,7 +640,7 @@ def serialize_custom_array(
             ]
         )
     else:
-        el_sql_type = irtyputils.get_custom_serialization(el_type)
+        el_sql_type = el_type.real_base_type.custom_sql_serialization
         return pgast.TypeCast(
             arg=expr,
             type_name=pgast.TypeName(name=(f'{el_sql_type}[]',)),
@@ -715,7 +715,7 @@ def output_as_value(
         elif irtyputils.is_tuple(ser_typeref):
             return serialize_custom_tuple(expr, styperef=ser_typeref, env=env)
         else:
-            el_sql_type = irtyputils.get_custom_serialization(ser_typeref)
+            el_sql_type = ser_typeref.real_base_type.custom_sql_serialization
             assert el_sql_type is not None
             val = pgast.TypeCast(
                 arg=val,
