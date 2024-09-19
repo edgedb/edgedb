@@ -140,16 +140,15 @@ def compile_Parameter(
 
     if irtyputils.needs_custom_serialization(expr.typeref):
         if irtyputils.is_array(expr.typeref):
-            el_sql_type = irtyputils.get_custom_serialization(
-                expr.typeref.subtypes[0])
+            subt = expr.typeref.subtypes[0]
+            el_sql_type = subt.real_base_type.custom_sql_serialization
             # Arrays of text encoded types need to come in as the custom type
             result = pgast.TypeCast(
                 arg=result,
                 type_name=pgast.TypeName(name=(f'{el_sql_type}[]',)),
             )
         else:
-            el_sql_type = irtyputils.get_custom_serialization(
-                expr.typeref)
+            el_sql_type = expr.typeref.real_base_type.custom_sql_serialization
             assert el_sql_type is not None
             result = pgast.TypeCast(
                 arg=result,
