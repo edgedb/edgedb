@@ -1,3 +1,5 @@
+.. edb:tag:: js/ts
+
 .. _ref_ai_javascript:
 
 ==========

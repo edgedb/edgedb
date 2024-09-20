@@ -1,4 +1,6 @@
 .. eql:section-intro-page:: graphql
+.. edb:tag:: graphql
+
 
 .. _ref_graphql_index:
 

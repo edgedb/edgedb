@@ -212,7 +212,7 @@ for production), or rely on ``edgedb project`` (recommended for development).
 
       import * as edgedb from "edgedb";
 
-      const pool = await edgedb.connect({
+      const pool = await edgedb.createClient({
         instance: "my_instance"
       });
 
@@ -343,6 +343,8 @@ instance-level configuration object.
       - ``--password <pass>``
     * - ``EDGEDB_TLS_CA_FILE``
       - ``--tls-ca-file <path>``
+    * - ``EDGEDB_TLS_SERVER_NAME``
+      - ``--tls-server-name``
     * - ``EDGEDB_CLIENT_TLS_SECURITY``
       - ``--tls-security``
     * - ``EDGEDB_CLIENT_SECURITY``
@@ -380,7 +382,7 @@ instance-level configuration object.
   - ``"strict"`` (**default**) — certificates and hostnames will be verified
   - ``"no_host_verification"`` — verify certificates but not hostnames
   - ``"insecure"`` — client libraries will trust self-signed TLS certificates.
-    useful for self-signed or custom certificates.
+    Useful for self-signed or custom certificates.
 
   This setting defaults to ``"strict"`` unless a custom certificate is
   supplied, in which case it is set to ``"no_host_verification"``.
@@ -419,7 +421,7 @@ modified DSN: ``edgedb://newuser:newpass@hostname.com:5656``.
 Overriding across priority levels
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This override behavior only happens *same or lower priority level*. For
+Override behavior can only happen at the *same or lower priority level*. For
 instance:
 
 - ``EDGEDB_PASSWORD`` **will** override the password specified in

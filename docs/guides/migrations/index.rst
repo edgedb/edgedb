@@ -1,3 +1,5 @@
+.. edb:tag:: migrations
+
 .. _ref_guide_advanced_migrations:
 
 =================

@@ -1,4 +1,5 @@
 .. eql:section-intro-page:: changelog
+.. edb:tag:: other
 
 =========
 Changelog

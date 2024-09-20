@@ -1,4 +1,5 @@
 .. eql:section-intro-page:: stdlib
+.. edb:tag:: stdlib
 .. versioned-section::
 
 .. _ref_std:

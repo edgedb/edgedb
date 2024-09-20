@@ -31,7 +31,7 @@ Let's unpack that.
    recent version you have installed. You can also specify a version you
    *don't* have installed, in which case it will be installed.
 2. Then it asks you how you'd like to run EdgeDB: locally, in a Docker image,
-   or in the cloud (coming soon!).
+   or in the cloud.
 3. Then it asks for an instance name. If no instance currently exists with this
    name, it will be created (using the method you specified in #2).
 4. Then it **links** the current directory to that instance. A "link" is
@@ -66,8 +66,8 @@ required.
 
       import edgedb from "edgedb";
 
-    - const pool = edgedb.createPool("my_instance");
-    + const pool = edgedb.createPool();
+    - const pool = edgedb.createClient("my_instance");
+    + const pool = edgedb.createClient();
 
 What do you mean *link*?
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -152,16 +152,14 @@ project init`` inside project again to create or select a new instance.
 .. code-block:: bash
 
   $ edgedb project init
-  No `edgedb.toml` found in `~/path/to/my_project` or above.
-  Do you want to initialize a new project? [Y/n]
-  > Y
   Specify the name of EdgeDB instance to use with this project
   [default: my_project]:
   > my_project
   Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 2.x]:
+  Using 5.6 (matches `5.4`), use `=5.4` for exact version:
   > 2.x
-
+  Specify branch name: [default: main]:
+  > main
 
 How do I use ``edgedb project`` with a non-local instance?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

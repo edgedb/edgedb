@@ -1,3 +1,5 @@
+.. edb:tag:: go
+
 .. _edgedb-go-intro:
 
 ==
