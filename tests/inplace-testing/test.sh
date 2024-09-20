@@ -33,25 +33,44 @@ fi
 
 make parsers
 
-./tests/inplace-testing/make-and-prep.sh "$DIR" "$@"
+# Setup the test database
+edb inittestdb -D "$DIR" "$@"
 
-if [ $SAVE_TARBALLS = 1 ]; then
-    tar cf "$DIR".tar "$DIR"
-fi
 
 PORT=12346
 edb server -D "$DIR" -P $PORT &
 SPID=$!
+stop_server() {
+    kill $SPID
+    wait $SPID
+    SPID=
+}
 cleanup() {
     if [ -n "$SPID" ]; then
-        kill $SPID
-        wait $SPID
+        stop_server
     fi
 }
 trap cleanup EXIT
 
+EDGEDB="edgedb -H localhost -P $PORT --tls-security insecure"
+
 # Wait for the server to come up and see it is working
-edgedb -H localhost -P $PORT --tls-security insecure -b select query 'select count(User)' | grep 2
+$EDGEDB -b select query 'select count(User)' | grep 2
+
+# Block DDL
+$EDGEDB query 'configure instance set force_database_error := $${"type": "AvailabilityError", "message": "DDL is disabled due to in-place upgrade.", "_scopes": ["ddl"]}$$;'
+
+if $EDGEDB query 'create empty branch asdf'; then
+    echo Unexpected DDL success despite blocking it
+    exit 4
+fi
+
+# Prepare the upgrades
+EDGEDB_PORT=$PORT EDGEDB_CLIENT_TLS_SECURITY=insecure python3 tests/inplace-testing/prep-upgrades.py > "${DIR}/upgrade.json"
+
+if [ "$SAVE_TARBALLS" = 1 ]; then
+    tar cf "$DIR".tar "$DIR"
+fi
 
 # Upgrade to the new version
 patch -f -p1 < tests/inplace-testing/upgrade.patch
@@ -65,22 +84,25 @@ DSN=$(curl -s http://localhost:$PORT/server-info | jq -r '.pg_addr | "postgres:/
 edb server --inplace-upgrade-prepare "$DIR"/upgrade.json --backend-dsn="$DSN"
 
 # Check the server is still working
-edgedb -H localhost -P $PORT --tls-security insecure -b select query 'select count(User)' | grep 2
+$EDGEDB -b select query 'select count(User)' | grep 2
 
-if [ $ROLLBACK = 1 ]; then
+if [ "$SAVE_TARBALLS" = 1 ]; then
+    tar cf "$DIR"-prepped.tar "$DIR"
+fi
+
+if [ "$ROLLBACK" = 1 ]; then
     edb server --inplace-upgrade-rollback --backend-dsn="$DSN"
+    $EDGEDB query 'configure instance reset force_database_error'
 
     # Rollback and then run the tests on the old database
-    kill $SPID
-    wait $SPID
-    SPID=
+    stop_server
     patch -R -f -p1 < tests/inplace-testing/upgrade.patch
     make parsers
     edb test --data-dir "$DIR" --use-data-dir-dbs -v "$@"
     exit 0
 fi
 
-if [ $REAPPLY = 1 ]; then
+if [ "$REAPPLY" = 1 ]; then
     # Rollback and then reapply
     edb server --inplace-upgrade-rollback --backend-dsn="$DSN"
 
@@ -88,16 +110,10 @@ if [ $REAPPLY = 1 ]; then
 fi
 
 # Check the server is still working
-edgedb -H localhost -P $PORT --tls-security insecure -b select query 'select count(User)' | grep 2
+$EDGEDB -b select query 'select count(User)' | grep 2
 
 # Kill the old version so we can finalize the upgrade
-kill $SPID
-wait $SPID
-SPID=
-
-if [ $SAVE_TARBALLS = 1 ]; then
-    tar cf "$DIR"-prepped.tar "$DIR"
-fi
+stop_server
 
 # Try to finalize the upgrade, but inject a failure
 if EDGEDB_UPGRADE_FINALIZE_ERROR_INJECTION=main edb server --inplace-upgrade-finalize --data-dir "$DIR"; then
@@ -105,11 +121,30 @@ if EDGEDB_UPGRADE_FINALIZE_ERROR_INJECTION=main edb server --inplace-upgrade-fin
     exit 4
 fi
 
+# Try doing a rollback. It should fail, because of the partially
+# succesful finalization.
+if edb server --inplace-upgrade-rollback --data-dir "$DIR"; then
+    echo Unexpected upgrade success
+    exit 5
+fi
+
 # Finalize the upgrade
 edb server --inplace-upgrade-finalize --data-dir "$DIR"
-if [ $SAVE_TARBALLS = 1 ]; then
+if [ "$SAVE_TARBALLS" = 1 ]; then
     tar cf "$DIR"-cooked.tar "$DIR"
 fi
+
+# Start the server again so we can reenable DDL
+# XXX??
+edb server -D "$DIR" -P $PORT &
+SPID=$!
+if $EDGEDB query 'create empty branch asdf'; then
+    echo Unexpected DDL success despite blocking it
+    exit 4
+fi
+$EDGEDB query 'configure instance reset force_database_error'
+stop_server
+
 
 # Test!
 edb test --data-dir "$DIR" --use-data-dir-dbs -v "$@"
