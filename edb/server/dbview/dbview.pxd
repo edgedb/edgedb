@@ -124,6 +124,7 @@ cdef class DatabaseConnectionView:
         Database _db
         bint _query_cache_enabled
         object _protocol_version
+        public bint is_internal  # internal dbview doesn't have a frontend connection
 
         object _db_config_temp
         object _db_config_dbver
