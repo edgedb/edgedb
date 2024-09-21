@@ -3861,6 +3861,22 @@ class TestInsert(tb.QueryTestCase):
             [{'name': {'foo', 'bar'}}],
         )
 
+    async def test_edgeql_insert_unless_conflict_29(self):
+        await self.con.execute('''
+            with
+                sub := <Subordinate>{},
+                upsert := (
+                    insert InsertTest {
+                        l2 := 0,
+                        sub_ex := sub
+                    }
+                    unless conflict
+                ),
+            insert Note {
+                name := '', subject := upsert,
+            };
+        ''')
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             SELECT (
