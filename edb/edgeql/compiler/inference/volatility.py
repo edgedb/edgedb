@@ -159,7 +159,29 @@ def _infer_pointer(
     ir: irast.Pointer,
     env: context.Environment,
 ) -> InferredVolatility:
-    raise AssertionError('TODO: properly infer Pointer-as-Expr ')
+    vol = _infer_volatility(ir.source, env)
+    # If there's an expression on an rptr, and it comes from
+    # the schema, we need to actually infer it, since it won't
+    # have been processed at a shape declaration.
+    if ir.expr is not None and not ir.ptrref.defined_here:
+        vol = _max_volatility((
+            vol,
+            _infer_volatility(ir.expr, env),
+        ))
+
+    # If source is an object, then a pointer reference implies
+    # a table scan, and so we can assume STABLE at the minimum.
+    #
+    # A single dereference of a singleton path can be IMMUTABLE,
+    # though, which we need in order to enforce that indexes
+    # don't call STABLE functions.
+    if (
+        irtyputils.is_object(ir.source.typeref)
+        and ir.source.path_id not in env.singletons
+    ):
+        vol = _max_volatility((vol, STABLE))
+
+    return vol
 
 
 @_infer_volatility_inner.register
@@ -169,31 +191,8 @@ def __infer_set(
 ) -> InferredVolatility:
     vol: InferredVolatility
 
-    # TODO: Migrate to Pointer-as-Expr a little less half-assedly.
     if ir.path_id in env.singletons:
         vol = IMMUTABLE
-    elif isinstance(ir.expr, irast.Pointer):
-        vol = _infer_volatility(ir.expr.source, env)
-        # If there's an expression on an rptr, and it comes from
-        # the schema, we need to actually infer it, since it won't
-        # have been processed at a shape declaration.
-        if ir.expr.expr is not None and not ir.expr.ptrref.defined_here:
-            vol = _max_volatility((
-                vol,
-                _infer_volatility(ir.expr.expr, env),
-            ))
-
-        # If source is an object, then a pointer reference implies
-        # a table scan, and so we can assume STABLE at the minimum.
-        #
-        # A single dereference of a singleton path can be IMMUTABLE,
-        # though, which we need in order to enforce that indexes
-        # don't call STABLE functions.
-        if (
-            irtyputils.is_object(ir.expr.source.typeref)
-            and ir.expr.source.path_id not in env.singletons
-        ):
-            vol = _max_volatility((vol, STABLE))
     else:
         vol = _infer_volatility(ir.expr, env)
 
