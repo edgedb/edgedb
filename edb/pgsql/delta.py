@@ -3587,6 +3587,20 @@ class RebaseIndex(IndexCommand, adapts=s_indexes.RebaseIndex):
     pass
 
 
+class IndexMatchCommand(MetaCommand):
+    pass
+
+
+class CreateIndexMatch(IndexMatchCommand, adapts=s_indexes.CreateIndexMatch):
+    # Index match is handled by the compiler and does not need explicit
+    # representation in the backend.
+    pass
+
+
+class DeleteIndexMatch(IndexMatchCommand, adapts=s_indexes.DeleteIndexMatch):
+    pass
+
+
 class CreateUnionType(
     MetaCommand,
     adapts=s_types.CreateUnionType,

@@ -95,6 +95,7 @@ STD_MODULES = (
 SPECIAL_MODULES = (
     sn.UnqualName('__derived__'),
     sn.UnqualName('__ext_casts__'),
+    sn.UnqualName('__ext_index_matches__'),
 )
 
 # Specifies the order of processing of files and directories in lib/

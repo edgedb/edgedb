@@ -270,6 +270,14 @@ class InnerDDLStmt(Nonterm):
     def reduce_DropIndexStmt(self, *_):
         pass
 
+    @parsing.inline(0)
+    def reduce_CreateIndexMatchStmt(self, *_):
+        pass
+
+    @parsing.inline(0)
+    def reduce_DropIndexMatchStmt(self, *_):
+        pass
+
 
 class PointerName(Nonterm):
     @parsing.inline(0)
@@ -1679,6 +1687,38 @@ class DropConcreteIndexStmt(Nonterm, commondl.ProcessIndexMixin):
             expr=kids[4].val,
             except_expr=kids[5].val,
             commands=kids[6].val,
+        )
+
+
+#
+# CREATE INDEX MATCH
+#
+commands_block(
+    'CreateIndexMatch',
+    CreateAnnotationValueStmt,
+)
+
+
+class CreateIndexMatchStmt(Nonterm):
+    def reduce_CreateIndexMatch(self, *kids):
+        r"""%reduce CREATE INDEX MATCH FOR TypeName USING NodeName \
+                    OptCreateIndexMatchCommandsBlock"""
+        self.val = qlast.CreateIndexMatch(
+            valid_type=kids[4].val,
+            name=kids[6].val,
+            commands=kids[7].val,
+        )
+
+
+#
+# DROP INDEX MATCH
+#
+class DropIndexMatchStmt(Nonterm):
+    def reduce_DropIndexMatch(self, *kids):
+        r"""%reduce DROP INDEX MATCH FOR TypeName USING NodeName"""
+        self.val = qlast.DropIndexMatch(
+            valid_type=kids[4].val,
+            name=kids[6].val,
         )
 
 

@@ -262,6 +262,7 @@ class SchemaObjectClass(s_enum.StrEnum):
     FUNCTION = 'FUNCTION'
     GLOBAL = 'GLOBAL'
     INDEX = 'INDEX'
+    INDEX_MATCH = 'INDEX MATCH'
     LINK = 'LINK'
     MIGRATION = 'MIGRATION'
     MODULE = 'MODULE'

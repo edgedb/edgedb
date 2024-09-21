@@ -474,4 +474,6 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             })
         }
     };
+
+    create index match for std::str using ext::ai::index;
 };

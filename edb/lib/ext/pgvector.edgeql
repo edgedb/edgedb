@@ -220,4 +220,11 @@ create extension package pgvector version '0.5.0' {
             WITH (m = __kw_m__, ef_construction = __kw_ef_construction__)
         $$;
     };
+
+    create index match for ext::pgvector::vector using ext::pgvector::ivfflat_euclidean;
+    create index match for ext::pgvector::vector using ext::pgvector::ivfflat_ip;
+    create index match for ext::pgvector::vector using ext::pgvector::ivfflat_cosine;
+    create index match for ext::pgvector::vector using ext::pgvector::hnsw_euclidean;
+    create index match for ext::pgvector::vector using ext::pgvector::hnsw_ip;
+    create index match for ext::pgvector::vector using ext::pgvector::hnsw_cosine;
 };
