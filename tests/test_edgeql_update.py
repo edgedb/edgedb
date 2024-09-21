@@ -2849,7 +2849,7 @@ class TestUpdate(tb.QueryTestCase):
                 ) FILTER false;
             """)
 
-    async def test_edgeql_insert_multi_required_01(self):
+    async def test_edgeql_update_insert_multi_required_01(self):
         await self.con.execute("""
             insert MultiRequiredTest {
               name := "___",
@@ -2865,7 +2865,7 @@ class TestUpdate(tb.QueryTestCase):
             };
         """)
 
-    async def test_edgeql_insert_multi_required_02(self):
+    async def test_edgeql_update_insert_multi_required_02(self):
         await self.con.execute("""
             insert MultiRequiredTest {
               name := "___",

@@ -35,6 +35,9 @@ type InsertTest {
     link sub -> Subordinate {
         property note -> str;
     }
+    link sub_ex -> Subordinate {
+        constraint exclusive;
+    }
 }
 
 type DerivedTest extending InsertTest;
