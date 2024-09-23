@@ -26,6 +26,7 @@ import http.client
 import json
 import os.path
 import pathlib
+import platform
 import random
 import signal
 import subprocess
@@ -182,6 +183,10 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             finally:
                 await con.aclose()
 
+    @unittest.skipIf(
+        platform.system() == "Darwin",
+        "https://github.com/edgedb/edgedb/issues/7789"
+    )
     @unittest.skipIf(
         "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
         "--background is not supported in multi-tenante mode"
