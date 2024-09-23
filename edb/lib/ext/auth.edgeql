@@ -173,32 +173,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create required property token: std::str;
     };
 
-
-    create abstract type ext::auth::SMTPEvent extending ext::auth::Event {
-        create required property email: std::str;
-        create required property smtp_response: std::str {
-            create annotation std::description :=
-                "The response body from the SMTP server.";
-        };
-    };
-
-    create type ext::auth::SMTPRequestSent
-        extending ext::auth::SMTPEvent {
-        create annotation std::description :=
-            "An SMTP request has been sent.";
-    };
-
-    create type ext::auth::SMTPRequestSucceeded
-        extending ext::auth::SMTPEvent {
-        create annotation std::description :=
-            "An SMTP request has succeeded.";
-    };
-
-    create type ext::auth::SMTPRequestFailed
-        extending ext::auth::SMTPEvent {
-        create annotation std::description :=
-            "An SMTP request has failed.";
-    };
     create abstract type ext::auth::ProviderConfig
         extending cfg::ConfigObject {
         create required property name: std::str {
