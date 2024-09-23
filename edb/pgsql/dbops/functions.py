@@ -23,7 +23,6 @@ import textwrap
 from typing import Optional, Tuple, Sequence, List, cast
 
 from ..common import qname as qn
-from ..common import quote_col as qc
 from ..common import quote_literal as ql
 from ..common import quote_type as qt
 
@@ -33,7 +32,9 @@ from . import ddl
 FunctionArgType = str | Tuple[str, ...]
 FunctionArgTyped = Tuple[Optional[str], FunctionArgType]
 FunctionArgDefaulted = Tuple[Optional[str], FunctionArgType, str]
-FunctionArg = str | FunctionArgTyped | FunctionArgDefaulted
+FunctionArg = FunctionArgTyped | FunctionArgDefaulted
+
+NormalizedFunctionArg = Tuple[Optional[str], Tuple[str, ...], Optional[str]]
 
 
 class Function(base.DBObject):
@@ -70,10 +71,11 @@ class Function(base.DBObject):
 class FunctionExists(base.Condition):
     def __init__(self, name, args=None):
         self.name = name
-        self.args = args
+        self.args = FunctionOperation.normalize_args(args)
 
     def code(self) -> str:
-        args = f"ARRAY[{','.join(qc(a) for a in self.args)}]"
+        targs = [f"{ql('.'.join(a))}::regtype::oid" for _, a, _ in self.args]
+        args = f"ARRAY[{','.join(targs)}]"
 
         return textwrap.dedent(f'''\
             SELECT
@@ -85,43 +87,61 @@ class FunctionExists(base.Condition):
             WHERE
                 p.proname = {ql(self.name[1])}
                 AND ns.nspname = {ql(self.name[0])}
-                AND {args}::text[] = ARRAY(
+                AND {args}::oid[] = ARRAY(
                     SELECT
-                        format_type(t, NULL)::text
+                        t
                     FROM
                         unnest(p.proargtypes) AS t)
         ''')
 
 
 class FunctionOperation:
+    @staticmethod
+    def normalize_args(
+        args: Optional[Sequence[FunctionArg]]
+    ) -> Sequence[NormalizedFunctionArg]:
+        normed = []
+
+        for arg in args or ():
+            name = None
+            default = None
+            if isinstance(arg, tuple):
+                name = arg[0]
+                typ = arg[1]
+                if len(arg) > 2:
+                    arg_def = cast(FunctionArgDefaulted, arg)
+                    default = arg_def[2]
+
+            else:
+                typ = arg
+
+            ttyp = (typ,) if isinstance(typ, str) else typ
+
+            normed.append((name, ttyp, default))
+
+        return normed
+
+    @staticmethod
     def format_args(
-        self,
         args: Optional[Sequence[FunctionArg]],
         has_variadic: Optional[bool],
         *,
         include_defaults: bool = True,
-    ):
+    ) -> str:
         if not args:
             return ''
 
         args_buf = []
-        for argi, arg in enumerate(args, 1):
+        normed = FunctionOperation.normalize_args(args)
+        for argi, (arg_name, arg_typ, arg_def) in enumerate(normed, 1):
             vararg = has_variadic and (len(args) == argi)
             arg_expr = 'VARIADIC ' if vararg else ''
-
-            if isinstance(arg, tuple):
-                if arg[0] is not None:
-                    arg_expr += qn(arg[0], column=True)
-                if len(arg) > 1:
-                    arg_expr += ' ' + qt(arg[1])
-                if include_defaults:
-                    if len(arg) > 2:
-                        arg_def = cast(FunctionArgDefaulted, arg)
-                        if arg_def[2] is not None:
-                            arg_expr += ' = ' + arg_def[2]
-
-            else:
-                arg_expr = arg
+            if arg_name is not None:
+                arg_expr += qn(arg_name, column=True)
+            arg_expr += ' ' + qt(arg_typ)
+            if include_defaults:
+                if arg_def:
+                    arg_expr += ' = ' + arg_def
 
             args_buf.append(arg_expr)
 
@@ -175,16 +195,8 @@ class DropFunction(ddl.DDLOperation, FunctionOperation):
         conditions: Optional[List[str | base.Condition]] = None,
         neg_conditions: Optional[List[str | base.Condition]] = None,
     ):
+        # breakpoint()
         self.conditional = if_exists
-        if conditions:
-            c = []
-            for cond in conditions:
-                if (isinstance(cond, FunctionExists) and
-                        cond.name == name and cond.args == args):
-                    self.conditional = True
-                else:
-                    c.append(cond)
-            conditions = c
         super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.name = name
         self.args = args

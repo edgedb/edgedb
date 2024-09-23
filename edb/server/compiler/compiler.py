@@ -1766,7 +1766,14 @@ def _build_cache_function(
     pg_dbops.CreateFunction(func).generate(cf)
     df = pg_dbops.SQLBlock()
     pg_dbops.DropFunction(
-        name=func.name, args=func.args or (), if_exists=True
+        name=func.name,
+        args=func.args or (),
+        # Use a condition instead of if_exists ot reduce annoying
+        # debug spew from postgres.
+        conditions=[pg_dbops.FunctionExists(
+            name=func.name,
+            args=func.args or (),
+        )],
     ).generate(df)
     func_call = pgast.FuncCall(
         name=fname,
