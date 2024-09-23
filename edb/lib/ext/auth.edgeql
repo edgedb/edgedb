@@ -142,61 +142,37 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
     };
 
+    create scalar type ext::auth::IdentityEventType extending enum<
+        Created,
+        Deleted,
+        Authenticated,
+    >;
+
     create abstract type ext::auth::IdentityEvent extending ext::auth::Event {
+        create required property event_type: ext::auth::IdentityEventType;
+
         create required link identity: ext::auth::Identity {
             on target delete delete source;
         };
     };
 
-    create type ext::auth::IdentityCreated
-        extending ext::auth::IdentityEvent {
-        create annotation std::description :=
-            "An identity has been created.";
-    };
+    create scalar type ext::auth::EmailFactorEventType extending enum<
+        Created,
+        Verified,
+        PasswordResetRequested,
+        MagicLinkRequested,
+    >;
 
-    create type ext::auth::IdentityDeleted
-        extending ext::auth::IdentityEvent {
-        create annotation std::description :=
-            "An identity has been deleted.";
-    };
-
-    create type ext::auth::IdentityAuthenticated
-        extending ext::auth::IdentityEvent {
-        create annotation std::description :=
-            "An identity has been successfully authenticated.";
-    };
-
-    create abstract type ext::auth::EmailFactorTokenEvent
+    create abstract type ext::auth::EmailFactorEvent
         extending ext::auth::Event {
+        create required property event_type: ext::auth::EmailFactorEventType;
+
         create required link email_factor: ext::auth::EmailFactor {
             on target delete delete source;
         };
         create required property token: std::str;
     };
 
-    create type ext::auth::EmailFactorCreated
-        extending ext::auth::EmailFactorTokenEvent {
-        create annotation std::description :=
-            "An email factor has been created.";
-    };
-
-    create type ext::auth::EmailVerified
-        extending ext::auth::EmailFactorTokenEvent {
-        create annotation std::description :=
-            "An email factor has been verified.";
-    };
-
-    create type ext::auth::MagicLinkRequested
-        extending ext::auth::EmailFactorTokenEvent {
-        create annotation std::description :=
-            "A magic link has been requested.";
-    };
-
-    create type ext::auth::PasswordResetRequested
-        extending ext::auth::EmailFactorTokenEvent {
-        create annotation std::description :=
-            "A password reset has been requested.";
-    };
 
     create abstract type ext::auth::SMTPEvent extending ext::auth::Event {
         create required property email: std::str;
@@ -223,7 +199,6 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         create annotation std::description :=
             "An SMTP request has failed.";
     };
-
     create abstract type ext::auth::ProviderConfig
         extending cfg::ConfigObject {
         create required property name: std::str {
