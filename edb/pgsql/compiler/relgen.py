@@ -3459,6 +3459,50 @@ def _compile_call_args(
     return args
 
 
+def _compile_inlined_call_args(
+    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+) -> None:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    with ctx.subrel() as arg_ctx:
+        # Compile the call args but don't do anything with the resulting exprs.
+        # Their rvar will be found when compiling the inlined body.
+        _compile_call_args(ir_set, ctx=arg_ctx)
+
+        arg_rvar = relctx.rvar_for_rel(arg_ctx.rel, ctx=ctx)
+
+        for ir_arg in expr.args.values():
+            arg_path_id = ir_arg.expr.path_id
+            relctx.include_rvar(
+                ctx.rel,
+                arg_rvar,
+                arg_path_id,
+                ctx=ctx,
+            )
+            if arg_scope_stmt := relctx.maybe_get_scope_stmt(
+                arg_path_id, ctx=ctx
+            ):
+                # The rvar is joined to ctx.rel, but other sets may
+                # look for it in the scope statement. Make sure it's
+                # available.
+                pathctx.put_path_value_rvar(
+                    arg_scope_stmt,
+                    arg_path_id,
+                    arg_rvar,
+                )
+
+    if expr.inline_arg_path_ids:
+        for param_path_id, arg_path_id in (
+            expr.inline_arg_path_ids.items()
+        ):
+            pathctx.put_path_id_map(
+                arg_ctx.rel,
+                param_path_id,
+                arg_path_id
+            )
+
+
 def process_set_as_func_enumerate(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -3499,38 +3543,8 @@ def process_set_as_func_expr(
         newctx.expr_exposed = False
 
         if expr.body is not None:
-            with newctx.subrel() as arg_ctx:
-                args = _compile_call_args(ir_set, ctx=arg_ctx)
-                arg_rvar = relctx.rvar_for_rel(arg_ctx.rel, ctx=ctx)
-                for ir_arg in expr.args.values():
-                    arg_path_id = ir_arg.expr.path_id
-                    relctx.include_rvar(
-                        newctx.rel,
-                        arg_rvar,
-                        arg_path_id,
-                        ctx=newctx,
-                    )
-                    if arg_scope_stmt := relctx.maybe_get_scope_stmt(
-                        arg_path_id, ctx=newctx
-                    ):
-                        # The rvar is joined to newctx.rel, but other sets may
-                        # look for it in the scope statement. Make sure it's
-                        # available.
-                        pathctx.put_path_value_rvar(
-                            arg_scope_stmt,
-                            arg_path_id,
-                            arg_rvar,
-                        )
+            _compile_inlined_call_args(ir_set, ctx=newctx)
 
-            if expr.inline_arg_path_ids:
-                for param_path_id, arg_path_id in (
-                    expr.inline_arg_path_ids.items()
-                ):
-                    pathctx.put_path_id_map(
-                        arg_ctx.rel,
-                        param_path_id,
-                        arg_path_id
-                    )
             set_expr = dispatch.compile(expr.body, ctx=newctx)
 
         else:
