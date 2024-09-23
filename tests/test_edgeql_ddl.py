@@ -13698,7 +13698,7 @@ type default::Foo {
 
         # Migrations implicitly ordered based on parent_id.
         # Fetch the migrations and sort them here.
-        migrations = json.loads(await self.con._fetchall_json(
+        migrations = json.loads(await self.con.query_json(
             'select schema::Migration { id, parent_ids := .parents.id, sdl }'
         ))
 
