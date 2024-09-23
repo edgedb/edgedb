@@ -285,14 +285,6 @@ class Environment:
         path_scope: Optional[irast.ScopeTreeNode] = None,
         alias_result_view_name: Optional[s_name.QualName] = None,
         options: Optional[GlobalCompilerOptions] = None,
-        set_types: Optional[Dict[irast.Set, s_types.Type]] = None,
-        scope_tree_nodes: Optional[
-            MutableMapping[int, irast.ScopeTreeNode]
-        ] = None,
-        type_rewrites: Optional[dict[
-            Tuple[s_types.Type, bool],
-            irast.Set | None | Literal[True]
-        ]] = None,
     ) -> None:
         if options is None:
             options = GlobalCompilerOptions()
@@ -307,11 +299,7 @@ class Environment:
         self.schema_view_cache = {}
         self.query_parameters = {}
         self.query_globals = {}
-        self.set_types = (
-            set_types
-            if set_types is not None else
-            {}
-        )
+        self.set_types = {}
         self.type_origins = {}
         self.inferred_volatility = {}
         self.view_shapes = collections.defaultdict(list)
@@ -326,19 +314,13 @@ class Environment:
         self.pointer_derivation_map = collections.defaultdict(list)
         self.pointer_specified_info = {}
         self.singletons = []
-        self.scope_tree_nodes = (
-            scope_tree_nodes
-            if scope_tree_nodes is not None else
-            weakref.WeakValueDictionary()
-        )
+        self.scope_tree_nodes = weakref.WeakValueDictionary()
         self.materialized_sets = {}
         self.compiled_stmts = {}
         self.alias_result_view_name = alias_result_view_name
         self.script_params = {}
         self.source_map = {}
-        self.type_rewrites = (
-            type_rewrites if type_rewrites is not None else {}
-        )
+        self.type_rewrites = {}
         self.shape_type_cache = {}
         self.expr_view_cache = {}
         self.path_scope_map = {}
@@ -597,8 +579,6 @@ class ContextLevel(compiler.ContextLevel):
         mode: ContextSwitchMode,
         *,
         env: Optional[Environment] = None,
-        aliases: Optional[compiler.AliasGenerator] = None,
-        scope_id_ctr: Optional[compiler.SimpleCounter] = None,
     ) -> None:
 
         self.mode = mode
@@ -607,7 +587,7 @@ class ContextLevel(compiler.ContextLevel):
             assert env is not None
             self.env = env
             self.derived_target_module = None
-            self.aliases = aliases or compiler.AliasGenerator()
+            self.aliases = compiler.AliasGenerator()
             self.anchors = {}
             self.modaliases = {}
 
@@ -627,7 +607,7 @@ class ContextLevel(compiler.ContextLevel):
             self.view_map = collections.ChainMap()
             self.path_scope = env.path_scope
             self.iterator_path_ids = frozenset()
-            self.scope_id_ctr = scope_id_ctr or compiler.SimpleCounter()
+            self.scope_id_ctr = compiler.SimpleCounter()
             self.view_scls = None
             self.expr_exposed = Exposure.UNEXPOSED
 

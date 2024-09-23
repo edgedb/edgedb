@@ -33,6 +33,9 @@ from typing import (
     FrozenSet,
 )
 
+import collections
+import copy
+
 from edb import errors
 
 from edb.ir import ast as irast
@@ -87,22 +90,17 @@ def init_context(
         )
 
     if inlining_context:
-        env = context.Environment(
-            schema=schema,
-            options=options,
-            path_scope=inlining_context.path_scope,
-            alias_result_view_name=options.result_view_name,
-            set_types=inlining_context.env.set_types,
-            scope_tree_nodes=inlining_context.env.scope_tree_nodes,
-            type_rewrites=inlining_context.env.type_rewrites,
-        )
-        ctx = context.ContextLevel(
-            None,
-            context.ContextSwitchMode.NEW,
-            env=env,
-            aliases=inlining_context.aliases,
-            scope_id_ctr=inlining_context.scope_id_ctr,
-        )
+        env = copy.copy(inlining_context.env)
+        env.options = options
+        env.path_scope = inlining_context.path_scope
+        env.alias_result_view_name = options.result_view_name
+        env.query_parameters = {}
+        env.script_params = {}
+
+        ctx = copy.copy(inlining_context)
+        ctx.env = env
+        ctx.aliased_views = collections.ChainMap()
+
     else:
         env = context.Environment(
             schema=schema,

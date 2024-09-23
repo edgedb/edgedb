@@ -206,9 +206,6 @@ def compile_FunctionCall(
         inline_func = s_func.compile_function_inline(
             schema=ctx.env.schema,
             context=sd.CommandContext(
-                # Probably not correct. Need to store modaliases while compiling
-                # functions?
-                modaliases=ctx.modaliases,
                 schema=ctx.env.schema,
             ),
             body=not_none(func.get_nativecode(ctx.env.schema)),

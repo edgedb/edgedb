@@ -2456,13 +2456,12 @@ def compile_function_inline(
     return_type: s_types.Type,
     return_typemod: ft.TypeModifier,
     track_schema_ref_exprs: bool=False,
-    inlining_context: Optional[qlcontext.ContextLevel],
+    inlining_context: qlcontext.ContextLevel,
 ) -> irast.Set:
     """Compile a function body to be inlined."""
     assert language is qlast.Language.EdgeQL
 
     from edb.edgeql.compiler import dispatch
-    from edb.edgeql.compiler import inference
     from edb.edgeql.compiler import pathctx
     from edb.edgeql.compiler import setgen
     from edb.edgeql.compiler import stmtctx
@@ -2496,16 +2495,6 @@ def compile_function_inline(
     # Create scoped set if necessary
     if pathctx.get_set_scope(ir_set, ctx=ctx) is None:
         ir_set = setgen.scoped_set(ir_set, ctx=ctx)
-
-    # Infer cardinality, multiplicity, and volatility
-    inf_ctx = inference.make_ctx(env=ctx.env)
-    inference.infer_cardinality(
-        ir_set, scope_tree=ctx.path_scope, ctx=inf_ctx
-    )
-    inference.infer_multiplicity(
-        ir_set, scope_tree=ctx.path_scope, ctx=inf_ctx
-    )
-    inference.infer_volatility(ir_set, env=ctx.env)
 
     return ir_set
 
