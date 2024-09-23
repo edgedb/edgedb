@@ -18,6 +18,7 @@
 
 import asyncio
 import decimal
+import json
 import os
 import re
 import textwrap
@@ -13663,7 +13664,6 @@ type default::Foo {
                     DROP FUNCTION foo___1(a: int64);
                 ''')
 
-    @test.skip('Too flaky; see #7729')
     async def test_edgeql_ddl_migration_sdl_01(self):
         await self.con.execute('''
             CONFIGURE SESSION SET store_migration_sdl :=
@@ -13696,81 +13696,104 @@ type default::Foo {
             drop type A;
         ''')
 
-        await self.assert_query_result(
-            'select schema::Migration { sdl }',
+        # Migrations implicitly ordered based on parent_id.
+        # Fetch the migrations and sort them here.
+        migrations = json.loads(await self.con.query_json(
+            'select schema::Migration { id, parent_ids := .parents.id, sdl }'
+        ))
+
+        # Find migrations with no parents.
+        sdl = [
+            migration['sdl']
+            for migration in migrations
+            if not migration['parent_ids']
+        ]
+
+        # Repeatedly find descendents until no more can be found.
+        prev_ids = [
+            migration['id']
+            for migration in migrations
+            if not migration['parent_ids']
+        ]
+        while prev_ids:
+            sdl.extend(
+                migration['sdl']
+                for migration in migrations
+                if any(
+                    parent_id in prev_ids
+                    for parent_id in migration['parent_ids']
+                )
+            )
+            prev_ids = [
+                migration['id']
+                for migration in migrations
+                if any(
+                    parent_id in prev_ids
+                    for parent_id in migration['parent_ids']
+                )
+            ]
+
+        self.assert_data_shape(
+            sdl,
             [
-                {
-                    'sdl': (
-                        'module default {\n'
-                        '    type A;\n'
-                        '};'
-                    ),
-                },
-                {
-                    'sdl': (
-                        'module default {\n'
-                        '    type A;\n'
-                        '    type B {\n'
-                        '        property n: std::int64;\n'
-                        '    };\n'
-                        '};'
-                    ),
-                },
-                {
-                    'sdl': (
-                        'module default {\n'
-                        '    type A {\n'
-                        '        link b: default::B;\n'
-                        '    };\n'
-                        '    type B {\n'
-                        '        property n: std::int64;\n'
-                        '    };\n'
-                        '};'
-                    ),
-                },
-                {
-                    'sdl': (
-                        'module default {\n'
-                        '    type A {\n'
-                        '        link b: default::B {\n'
-                        '            property n: std::int64;\n'
-                        '        };\n'
-                        '    };\n'
-                        '    type B {\n'
-                        '        property n: std::int64;\n'
-                        '    };\n'
-                        '};'
-                    ),
-                },
-                {
-                    'sdl': (
-                        'module default {\n'
-                        '    type A {\n'
-                        '        link b: default::B;\n'
-                        '    };\n'
-                        '    type B {\n'
-                        '        property n: std::int64;\n'
-                        '    };\n'
-                        '};'
-                    ),
-                },
-                {
-                    'sdl': (
-                        'module default {\n'
-                        '    type A {\n'
-                        '        link b: default::B;\n'
-                        '    };\n'
-                        '    type B;\n'
-                        '};'
-                    ),
-                },
-                {
-                    'sdl': (
-                        'module default {\n'
-                        '    type B;\n'
-                        '};'
-                    ),
-                },
+                (
+                    'module default {\n'
+                    '    type A;\n'
+                    '};'
+                ),
+                (
+                    'module default {\n'
+                    '    type A;\n'
+                    '    type B {\n'
+                    '        property n: std::int64;\n'
+                    '    };\n'
+                    '};'
+                ),
+                (
+                    'module default {\n'
+                    '    type A {\n'
+                    '        link b: default::B;\n'
+                    '    };\n'
+                    '    type B {\n'
+                    '        property n: std::int64;\n'
+                    '    };\n'
+                    '};'
+                ),
+                (
+                    'module default {\n'
+                    '    type A {\n'
+                    '        link b: default::B {\n'
+                    '            property n: std::int64;\n'
+                    '        };\n'
+                    '    };\n'
+                    '    type B {\n'
+                    '        property n: std::int64;\n'
+                    '    };\n'
+                    '};'
+                ),
+                (
+                    'module default {\n'
+                    '    type A {\n'
+                    '        link b: default::B;\n'
+                    '    };\n'
+                    '    type B {\n'
+                    '        property n: std::int64;\n'
+                    '    };\n'
+                    '};'
+                ),
+                (
+                    'module default {\n'
+                    '    type A {\n'
+                    '        link b: default::B;\n'
+                    '    };\n'
+                    '    type B;\n'
+                    '};'
+                ),
+                (
+                    'module default {\n'
+                    '    type B;\n'
+                    '};'
+                ),
             ]
         )
 
