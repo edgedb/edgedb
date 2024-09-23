@@ -517,6 +517,7 @@ class IndexMatch(
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.INDEX_MATCH,
     data_safe=True,
+    abstract=False,
 ):
 
     valid_type = so.SchemaField(

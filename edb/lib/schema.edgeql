@@ -279,14 +279,6 @@ CREATE TYPE schema::Index
 };
 
 
-CREATE TYPE schema::IndexMatch
-    EXTENDING schema::AnnotationSubject
-{
-    CREATE LINK valid_type -> schema::Type;
-    CREATE LINK index -> schema::Index;
-};
-
-
 CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
     CREATE MULTI LINK indexes EXTENDING schema::reference -> schema::Index {
         CREATE CONSTRAINT std::exclusive;

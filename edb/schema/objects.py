@@ -628,6 +628,10 @@ class ObjectMeta(type):
     #: object are fully reversible without possible data loss.
     _data_safe: bool
 
+    #: Whether the type should be abstract in EdgeDB schema.
+    #: This only applies if the type wasn't specified in schema.edgeql.
+    _abstract: Optional[bool]
+
     def __new__(
         mcls,
         name: str,
@@ -638,6 +642,7 @@ class ObjectMeta(type):
         reflection: ReflectionMethod = ReflectionMethod.REGULAR,
         reflection_link: Optional[str] = None,
         data_safe: bool = False,
+        abstract: Optional[bool] = None,
         **kwargs: Any,
     ) -> ObjectMeta:
         refdicts: collections.OrderedDict[str, RefDict]
@@ -691,6 +696,7 @@ class ObjectMeta(type):
                 })
 
         cls._data_safe = data_safe
+        cls._abstract = abstract
         cls._fields = fields
         cls._schema_fields = {
             fn: f

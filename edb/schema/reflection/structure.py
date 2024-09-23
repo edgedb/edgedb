@@ -373,6 +373,7 @@ def generate_structure(
                     py_cls is s_obj.InternalObject
                     or not issubclass(py_cls, s_obj.InternalObject)
                 )
+                and py_cls._abstract is not False
             )
 
             schema = _run_ddl(
