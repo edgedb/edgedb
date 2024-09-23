@@ -764,18 +764,7 @@ def _extract_background_errors(metrics: str) -> str | None:
 
 
 async def drop_db(conn, dbname):
-    # net_worker (#7742) may issue a query while DROP DATABASE happens.
-    # This is a WIP bug that should be solved when adopting notification-
-    # driven net_worker, but hack around it with a retry loop for now.
-    # Without this, tests would flake a lot.
-    async for tr in TestCase.try_until_succeeds(
-        ignore=(edgedb.ExecutionError, edgedb.ClientConnectionError),
-        timeout=30
-    ):
-        async with tr:
-            await conn.execute(
-                f'DROP DATABASE {dbname};'
-            )
+    await conn.execute(f'DROP BRANCH {dbname}')
 
 
 class ClusterTestCase(BaseHTTPTestCase):

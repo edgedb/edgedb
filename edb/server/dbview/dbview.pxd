@@ -124,6 +124,13 @@ cdef class DatabaseConnectionView:
         Database _db
         bint _query_cache_enabled
         object _protocol_version
+        public bint is_transient
+        # transient dbviews won't cause an immediate error in
+        # ensure_database_not_connected(..., close_frontend_conns=False),
+        # which is usually called from `DROP BRANCH` or `CREATE ... FROM`.
+        # Although, transient dbviews users should guarantee the transient use
+        # of pgcons, because _pg_ensure_database_not_connected() may still time
+        # out `DROP BRANCH` if the transient pgcon is not released soon enough.
 
         object _db_config_temp
         object _db_config_dbver

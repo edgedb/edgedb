@@ -1516,7 +1516,7 @@ cdef class DatabaseIndex:
         except KeyError:
             return 0
 
-        return len((<Database>db)._views)
+        return sum(1 for dbv in (<Database>db)._views if not dbv.is_transient)
 
     def get_sys_config(self):
         return self._sys_config
