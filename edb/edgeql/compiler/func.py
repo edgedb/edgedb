@@ -374,6 +374,9 @@ def compile_FunctionCall(
     elif inline_func:
         res = fcall
 
+        # TODO: Global parameters still use the implicit globals parameter.
+        # They should be directly substituted in whenever possible.
+
         inline_args: dict[int | str, irast.CallArg | irast.Set] = {}
 
         for param_shortname, arg_key in param_name_to_arg_key.items():
