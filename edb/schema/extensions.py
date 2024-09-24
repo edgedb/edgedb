@@ -94,10 +94,6 @@ class ExtensionPackage(
     )
 
     @classmethod
-    def get_schema_class_displayname(cls) -> str:
-        return 'extension package'
-
-    @classmethod
     def get_shortname_static(cls, name: sn.Name) -> sn.UnqualName:
         return sn.UnqualName(sn.shortname_from_fullname(name).name)
 

@@ -649,7 +649,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.SchemaError,
-                  "invalid type: pseudotype 'anytype' is a generic type")
+                  "invalid type: pseudo type 'anytype' is a generic type")
     def test_schema_bad_type_12(self):
         """
             type Foo {
@@ -658,7 +658,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.SchemaError,
-                  "invalid type: pseudotype 'anytype' is a generic type")
+                  "invalid type: pseudo type 'anytype' is a generic type")
     def test_schema_bad_type_13(self):
         """
             type Foo {
@@ -667,7 +667,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.SchemaError,
-                  "invalid type: pseudotype 'anytuple' is a generic type")
+                  "invalid type: pseudo type 'anytuple' is a generic type")
     def test_schema_bad_type_14(self):
         """
             type Foo {

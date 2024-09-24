@@ -535,9 +535,7 @@ class Type(
 
 
 class QualifiedType(so.QualifiedObject, Type):
-    @classmethod
-    def get_schema_class_displayname(cls) -> str:
-        return 'type'
+    pass
 
 
 class InheritingType(so.DerivableInheritingObject, QualifiedType):
@@ -1140,6 +1138,7 @@ class Collection(Type, s_abc.Collection):
     def dump(self, schema: s_schema.Schema) -> str:
         return repr(self)
 
+    # We define this specifically to override children
     @classmethod
     def get_schema_class_displayname(cls) -> str:
         return 'collection'

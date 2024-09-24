@@ -49,6 +49,7 @@ import collections.abc
 import copy
 import enum
 import functools
+import re
 import uuid
 
 from edb import errors
@@ -608,6 +609,7 @@ class ObjectMeta(type):
     ] = {}
 
     # Instance fields (i.e. class fields on types built with ObjectMeta)
+    _displayname: str
     _fields: Dict[str, Field[Any]]
     _schema_fields: Dict[str, SchemaField[Any]]
     _hashable_fields: Set[Field[Any]]  # if f.is_schema_field and f.hashable
@@ -689,6 +691,10 @@ class ObjectMeta(type):
                     k: d.copy()
                     for k, d in parent.get_own_refdicts().items()
                 })
+
+        cls._displayname = re.sub(
+            r'([a-z])([A-Z])', r'\1 \2', cls.__name__
+        ).lower()
 
         cls._data_safe = data_safe
         cls._fields = fields
@@ -1080,7 +1086,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
 
     @classmethod
     def get_schema_class_displayname(cls) -> str:
-        return cls.__name__.lower()
+        return cls._displayname
 
     @classmethod
     def get_shortname_static(cls, name: sn.Name) -> sn.Name:
