@@ -241,7 +241,6 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
                 ql_expr,
                 schema=schema,
                 options=options,
-                inlining_context=inlining_context,
             )
 
         assert isinstance(ir, irast_.Statement)

@@ -202,7 +202,6 @@ def compile_ast_to_ir(
     *,
     script_info: Optional[irast.ScriptInfo] = None,
     options: Optional[CompilerOptions] = None,
-    inlining_context: Optional[context.ContextLevel] = None,
 ) -> irast.Statement:
     pass
 
@@ -214,7 +213,6 @@ def compile_ast_to_ir(
     *,
     script_info: Optional[irast.ScriptInfo] = None,
     options: Optional[CompilerOptions] = None,
-    inlining_context: Optional[context.ContextLevel] = None,
 ) -> irast.ConfigCommand:
     pass
 
@@ -226,7 +224,6 @@ def compile_ast_to_ir(
     *,
     script_info: Optional[irast.ScriptInfo] = None,
     options: Optional[CompilerOptions] = None,
-    inlining_context: Optional[context.ContextLevel] = None,
 ) -> irast.Statement | irast.ConfigCommand:
     pass
 
@@ -238,7 +235,6 @@ def compile_ast_to_ir(
     *,
     script_info: Optional[irast.ScriptInfo] = None,
     options: Optional[CompilerOptions] = None,
-    inlining_context: Optional[context.ContextLevel] = None,
 ) -> irast.Statement | irast.ConfigCommand:
     """Compile given EdgeQL AST into EdgeDB IR.
 
@@ -281,7 +277,6 @@ def compile_ast_to_ir(
     ctx = stmtctx_mod.init_context(
         schema=schema,
         options=options,
-        inlining_context=inlining_context,
     )
 
     if isinstance(tree, qlast.Expr) and ctx.implicit_limit:
