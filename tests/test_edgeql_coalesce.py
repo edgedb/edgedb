@@ -1960,3 +1960,12 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ''',
             [[]],
         )
+
+    async def test_edgeql_coalesce_policy_link_01(self):
+        await self.con.query('''
+            with module schema
+            select Type {
+              range_element_type_id := [is Range].element_type.id
+                  ?? [is MultiRange].element_type.id,
+            };
+        ''')
