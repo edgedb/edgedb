@@ -183,7 +183,6 @@ class ScopeTreeNode:
             parts.append('no-factor')
         if self.is_group:
             parts.append('group')
-        parts.append(f'0x{id(self):0x}')
         return ' '.join(parts)
 
     @property
