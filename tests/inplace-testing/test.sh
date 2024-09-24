@@ -37,6 +37,11 @@ make parsers
 edb inittestdb -D "$DIR" "$@"
 
 
+if [ "$SAVE_TARBALLS" = 1 ]; then
+    tar cf "$DIR".tar "$DIR"
+fi
+
+
 PORT=12346
 edb server -D "$DIR" -P $PORT &
 SPID=$!
@@ -68,10 +73,6 @@ fi
 # Prepare the upgrades
 EDGEDB_PORT=$PORT EDGEDB_CLIENT_TLS_SECURITY=insecure python3 tests/inplace-testing/prep-upgrades.py > "${DIR}/upgrade.json"
 
-if [ "$SAVE_TARBALLS" = 1 ]; then
-    tar cf "$DIR".tar "$DIR"
-fi
-
 # Upgrade to the new version
 patch -f -p1 < tests/inplace-testing/upgrade.patch
 make parsers
@@ -85,10 +86,6 @@ edb server --inplace-upgrade-prepare "$DIR"/upgrade.json --backend-dsn="$DSN"
 
 # Check the server is still working
 $EDGEDB -b select query 'select count(User)' | grep 2
-
-if [ "$SAVE_TARBALLS" = 1 ]; then
-    tar cf "$DIR"-prepped.tar "$DIR"
-fi
 
 if [ "$ROLLBACK" = 1 ]; then
     edb server --inplace-upgrade-rollback --backend-dsn="$DSN"
@@ -114,6 +111,10 @@ $EDGEDB -b select query 'select count(User)' | grep 2
 
 # Kill the old version so we can finalize the upgrade
 stop_server
+
+if [ "$SAVE_TARBALLS" = 1 ]; then
+    tar cf "$DIR"-prepped.tar "$DIR"
+fi
 
 # Try to finalize the upgrade, but inject a failure
 if EDGEDB_UPGRADE_FINALIZE_ERROR_INJECTION=main edb server --inplace-upgrade-finalize --data-dir "$DIR"; then
