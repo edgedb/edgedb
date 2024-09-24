@@ -2509,7 +2509,10 @@ def get_compiler_options(
     inlining_context: Optional[qlcontext.ContextLevel] = None,
 ) -> qlcompiler.CompilerOptions:
 
-    has_inlined_defaults = bool(params.find_named_only(schema))
+    has_inlined_defaults = (
+        bool(params.find_named_only(schema))
+        and inlining_context is None
+    )
 
     param_anchors = get_params_symtable(
         params,

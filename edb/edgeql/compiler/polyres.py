@@ -313,7 +313,13 @@ def try_bind_call_args(
     variadic_arg_id: Optional[int] = None
     variadic_arg_count: Optional[int] = None
     no_args_call = not args and not kwargs
-    has_inlined_defaults = func.has_inlined_defaults(schema)
+    has_inlined_defaults = (
+        func.has_inlined_defaults(schema)
+        and not (
+            isinstance(func, s_func.Function)
+            and func.get_is_inlined(schema)
+        )
+    )
 
     func_params = func.get_params(schema)
 

@@ -377,8 +377,9 @@ def compile_FunctionCall(
         # TODO: Global parameters still use the implicit globals parameter.
         # They should be directly substituted in whenever possible.
 
-        inline_args: dict[int | str, irast.CallArg | irast.Set] = {}
+        inline_args: dict[str, irast.CallArg | irast.Set] = {}
 
+        # Collect non-default call args to inline
         for param_shortname, arg_key in param_name_to_arg_key.items():
             if (
                 isinstance(arg_key, int)
@@ -388,6 +389,9 @@ def compile_FunctionCall(
                 continue
 
             arg = final_args[arg_key]
+            if arg.is_default:
+                continue
+
             inline_args[param_shortname] = arg
 
         # Package variadic arguments into an array
@@ -416,7 +420,7 @@ def compile_FunctionCall(
         for param in matched_func_params.objects(env.schema):
             param_shortname = param.get_parameter_name(env.schema)
 
-            if param_shortname in param_name_to_arg_key:
+            if param_shortname in inline_args:
                 continue
 
             else:
@@ -462,7 +466,6 @@ def compile_FunctionCall(
                 arg.expr,
                 optional=(
                     arg.param_typemod == ft.TypeModifier.OptionalType
-                    or arg.is_default
                 ),
                 ctx=ctx,
             )
@@ -474,10 +477,11 @@ def compile_FunctionCall(
 class ArgumentInliner(ast.NodeTransformer):
 
     mapped_args: dict[irast.PathId, irast.PathId]
+    inlined_arg_keys: list[int | str]
 
     def __init__(
         self,
-        inline_args: dict[int | str, irast.CallArg | irast.Set],
+        inline_args: dict[str, irast.CallArg | irast.Set],
         ctx: context.ContextLevel,
     ) -> None:
         super().__init__()
