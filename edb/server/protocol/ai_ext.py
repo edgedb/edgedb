@@ -1461,7 +1461,7 @@ async def _handle_rag_request(
         prompt_id = None
         prompt_name = None
         custom_prompt = None
-        custom_prompt_messages: dict[str, list[dict[str, Any]]] = {}
+        custom_prompt_messages: list[dict[str, Any]] = []
 
         prompt = body.get("prompt")
         if prompt is None:
@@ -1496,13 +1496,7 @@ async def _handle_rag_request(
                             "prompt.custom must be a list of {role, content} "
                             "objects"
                         )
-
-                    try:
-                        by_role = custom_prompt_messages[entry["role"]]
-                    except KeyError:
-                        by_role = custom_prompt_messages[entry["role"]] = []
-
-                    by_role.append(entry)
+                    custom_prompt_messages.append(entry)
 
     except Exception as ex:
         raise BadRequestError(ex.args[0])
@@ -1586,7 +1580,7 @@ async def _handle_rag_request(
             "messages": [],
         }
 
-    messages: dict[str, list[dict[str, Any]]] = {}
+    prompt_messages: list[dict[str, Any]] = []
     for message in prompt["messages"]:
         if message["participant_role"] == "User":
             content = message["content"].format(
@@ -1602,28 +1596,18 @@ async def _handle_rag_request(
 
         role = message["participant_role"].lower()
 
-        try:
-            by_role = messages[role]
-        except KeyError:
-            by_role = messages[role] = []
+        prompt_messages.append(dict(role=role, content=content))
 
-        by_role.append((dict(role=role, content=content)))
-
-    for role, role_messages in custom_prompt_messages.items():
-        try:
-            by_role = messages[role]
-        except KeyError:
-            by_role = messages[role] = []
-
-        by_role.extend(role_messages)
-
+    messages = [prompt_messages[0]]
+    messages.extend(custom_prompt_messages)
+    messages.append(prompt_messages[1])
     await _start_chat(
         protocol,
         request,
         response,
         provider,
         model,
-        list(itertools.chain.from_iterable(messages.values())),
+        messages,
         stream,
     )
 
