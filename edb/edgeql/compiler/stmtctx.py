@@ -33,7 +33,6 @@ from typing import (
     FrozenSet,
 )
 
-import collections
 import copy
 
 from edb import errors
@@ -97,9 +96,10 @@ def init_context(
         env.query_parameters = {}
         env.script_params = {}
 
-        ctx = copy.copy(inlining_context)
+        ctx = context.ContextLevel(
+            inlining_context, mode=context.ContextSwitchMode.DETACHED
+        )
         ctx.env = env
-        ctx.aliased_views = collections.ChainMap()
 
     else:
         env = context.Environment(

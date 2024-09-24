@@ -9625,6 +9625,135 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             create type Bar {
                 create required property a -> int64;
             };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function foo() -> int64 {
+                set is_inlined := true;
+                using (count(Bar));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo()',
+            [3],
+        )
+        await self.assert_query_result(
+            'select (foo(), foo())',
+            [[3, 3]],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select (Bar.a, foo())',
+            [[1, 3], [2, 3], [3, 3]],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select (foo(), Bar.a)',
+            [[3, 1], [3, 2], [3, 3]],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select (Bar.a, foo(), Bar.a, foo())',
+            [[1, 3, 1, 3], [2, 3, 2, 3], [3, 3, 3, 3]],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_object_08(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function foo() -> set of tuple<int64, int64> {
+                set is_inlined := true;
+                using ((Bar.a, count(Bar)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo()',
+            [[1, 1], [2, 1], [3, 1]],
+        )
+        await self.assert_query_result(
+            'select (foo(), foo())',
+            [
+                [[1, 1], [1, 1]], [[1, 1], [2, 1]], [[1, 1], [3, 1]],
+                [[2, 1], [1, 1]], [[2, 1], [2, 1]], [[2, 1], [3, 1]],
+                [[3, 1], [1, 1]], [[3, 1], [2, 1]], [[3, 1], [3, 1]],
+            ],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select (Bar.a, foo())',
+            [
+                [1, [1, 1]], [1, [2, 1]], [1, [3, 1]],
+                [2, [1, 1]], [2, [2, 1]], [2, [3, 1]],
+                [3, [1, 1]], [3, [2, 1]], [3, [3, 1]],
+            ],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select (foo(), Bar.a)',
+            [
+                [[1, 1], 1], [[1, 1], 2], [[1, 1], 3],
+                [[2, 1], 1], [[2, 1], 2], [[2, 1], 3],
+                [[3, 1], 1], [[3, 1], 2], [[3, 1], 3],
+            ],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_object_09(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function foo(x: Bar) -> tuple<int64, int64> {
+                set is_inlined := true;
+                using ((x.a, count(Bar)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<Bar>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select (Bar.a, foo((select Bar filter .a = 1)))',
+            [[1, [1, 3]]],
+        )
+        await self.assert_query_result(
+            'select (Bar.a, foo((select detached Bar filter .a = 1)))',
+            [[1, [1, 3]], [2, [1, 3]], [3, [1, 3]]],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select (Bar.a, foo(Bar))',
+            [[1, [1, 3]], [2, [2, 3]], [3, [3, 3]]],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select (foo(Bar), foo(Bar))',
+            [[[1, 3], [1, 3]], [[2, 3], [2, 3]], [[3, 3], [3, 3]]],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select (foo(Bar), foo(detached Bar))',
+            [
+                [[1, 3], [1, 3]], [[1, 3], [2, 3]], [[1, 3], [3, 3]],
+                [[2, 3], [1, 3]], [[2, 3], [2, 3]], [[2, 3], [3, 3]],
+                [[3, 3], [1, 3]], [[3, 3], [2, 3]], [[3, 3], [3, 3]],
+            ],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_object_10(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
             create type Baz {
                 create required property a -> int64;
                 create required property b -> int64;
@@ -9654,7 +9783,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=True,
         )
 
-    async def test_edgeql_functions_inline_object_08(self):
+    async def test_edgeql_functions_inline_object_11(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -9710,7 +9839,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=True,
         )
 
-    async def test_edgeql_functions_inline_object_09(self):
+    async def test_edgeql_functions_inline_object_12(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -9753,7 +9882,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=True,
         )
 
-    async def test_edgeql_functions_inline_object_10(self):
+    async def test_edgeql_functions_inline_object_13(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -9808,7 +9937,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=True,
         )
 
-    async def test_edgeql_functions_inline_object_11(self):
+    async def test_edgeql_functions_inline_object_14(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -9866,7 +9995,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=True,
         )
 
-    async def test_edgeql_functions_inline_object_12(self):
+    async def test_edgeql_functions_inline_object_15(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -9926,7 +10055,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=True,
         )
 
-    async def test_edgeql_functions_inline_object_13(self):
+    async def test_edgeql_functions_inline_object_16(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -9974,7 +10103,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=True,
         )
 
-    async def test_edgeql_functions_inline_object_14(self):
+    async def test_edgeql_functions_inline_object_17(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -10099,6 +10228,85 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             create type Bar {
                 create required property a -> int64;
             };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function foo() -> int64 {
+                set is_inlined := true;
+                using (count(Bar));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo()',
+            [3],
+        )
+        await self.assert_query_result(
+            'select Bar {'
+            '    a,'
+            '    n := foo(),'
+            '} order by .a',
+            [{'a': 1, 'n': 3}, {'a': 2, 'n': 3}, {'a': 3, 'n': 3}],
+        )
+
+    async def test_edgeql_functions_inline_shape_05(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function foo() -> set of tuple<int64, int64> {
+                set is_inlined := true;
+                using ((Bar.a, count(Bar)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo()',
+            [[1, 1], [2, 1], [3, 1]],
+        )
+        await self.assert_query_result(
+            'select Bar {'
+            '    a,'
+            '    n := foo(),'
+            '} order by .a',
+            [
+                {'a': 1, 'n': [[1, 1], [2, 1], [3, 1]]},
+                {'a': 2, 'n': [[1, 1], [2, 1], [3, 1]]},
+                {'a': 3, 'n': [[1, 1], [2, 1], [3, 1]]},
+            ],
+        )
+
+    async def test_edgeql_functions_inline_shape_06(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function foo(x: Bar) -> tuple<int64, int64> {
+                set is_inlined := true;
+                using ((x.a, count(Bar)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select Bar {'
+            '    a,'
+            '    n := foo(Bar),'
+            '} order by .a',
+            [
+                {'a': 1, 'n': [1, 3]},
+                {'a': 2, 'n': [2, 3]},
+                {'a': 3, 'n': [3, 3]},
+            ],
+        )
+
+    async def test_edgeql_functions_inline_shape_07(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
             create type Baz {
                 create required property a -> int64;
                 create required property b -> int64;
@@ -10126,7 +10334,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_functions_inline_shape_05(self):
+    async def test_edgeql_functions_inline_shape_08(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -10160,7 +10368,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_functions_inline_shape_06(self):
+    async def test_edgeql_functions_inline_shape_09(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -10192,7 +10400,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_functions_inline_shape_07(self):
+    async def test_edgeql_functions_inline_shape_10(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -10233,7 +10441,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_functions_inline_shape_08(self):
+    async def test_edgeql_functions_inline_shape_11(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -10274,7 +10482,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_functions_inline_shape_09(self):
+    async def test_edgeql_functions_inline_shape_12(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -10315,7 +10523,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_functions_inline_shape_10(self):
+    async def test_edgeql_functions_inline_shape_13(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
