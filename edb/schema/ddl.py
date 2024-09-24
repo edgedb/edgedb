@@ -236,6 +236,7 @@ def delta_schemas(
         excluded_modules.add(sn.UnqualName('__derived__'))
 
     excluded_modules.add(sn.UnqualName('__ext_casts__'))
+    excluded_modules.add(sn.UnqualName('__ext_index_matches__'))
 
     # Don't analyze the objects from extensions.
     if not include_extensions and isinstance(schema_b, s_schema.ChainedSchema):

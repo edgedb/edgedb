@@ -53,12 +53,12 @@ from . import objects as so
 from . import referencing
 from . import scalars as s_scalars
 from . import types as s_types
+from . import schema as s_schema
 from . import utils
 
 
 if TYPE_CHECKING:
     from . import objtypes as s_objtypes
-    from . import schema as s_schema
 
 
 # The name used for default concrete indexes
@@ -71,134 +71,19 @@ def is_index_valid_for_type(
     schema: s_schema.Schema,
     context: sd.CommandContext,
 ) -> bool:
-    # HACK: currently this helper just hardcodes the permitted index & type
-    # combinations, but this should be inferred based on index definition.
-
-    # TODO: remove the explicit hardcode of types compatible with indexes and
-    # make them configurable in the schema instead. This is especially
-    # important for extension types.
-    #
-    # Also, once the hardcoded `issubclass` checks are removed, we no longer
-    # need the `issubclass` allow None as parent argument (fix objects.py and
-    # types.py).
     index_name = str(index.get_name(schema))
-    match index_name:
-        case 'pg::hash':
+
+    for index_match in schema.get_referrers(
+        index, scls_type=IndexMatch, field_name='index',
+    ):
+        valid_type = index_match.get_valid_type(schema)
+        if index_name == 'fts::index':
+            # FTS index works not only on its valid type (document), but also
+            # on tuples comtaining document as an element.
+            if is_subclass_or_tuple(expr_type, valid_type, schema):
+                return True
+        elif expr_type.issubclass(schema, valid_type):
             return True
-        case 'pg::btree':
-            return True
-        case 'pg::gin':
-            return (
-                expr_type.is_array()
-                or
-                expr_type.issubclass(
-                    schema,
-                    schema.get('std::json', type=s_scalars.ScalarType),
-                )
-            )
-        case 'fts::index':
-            return is_subclass_or_tuple(expr_type, 'fts::document', schema)
-        case 'pg::gist':
-            return (
-                expr_type.is_range()
-                or
-                expr_type.is_multirange()
-                or
-                expr_type.issubclass(
-                    schema,
-                    (
-                        schema.get('ext::postgis::geometry',
-                                   type=s_scalars.ScalarType,
-                                   default=None),
-                        schema.get('ext::postgis::geography',
-                                   type=s_scalars.ScalarType,
-                                   default=None),
-                    )
-                )
-            )
-        case 'pg::spgist':
-            return (
-                expr_type.is_range()
-                or
-                expr_type.issubclass(
-                    schema,
-                    (
-                        schema.get('std::str',
-                                   type=s_scalars.ScalarType),
-                        schema.get('ext::postgis::geometry',
-                                   type=s_scalars.ScalarType,
-                                   default=None),
-                        schema.get('ext::postgis::geography',
-                                   type=s_scalars.ScalarType,
-                                   default=None),
-                    )
-                )
-            )
-        case 'pg::brin':
-            return (
-                expr_type.is_range()
-                or
-                expr_type.issubclass(
-                    schema,
-                    (
-                        schema.get('std::anyreal',
-                                   type=s_scalars.ScalarType),
-                        schema.get('std::bytes',
-                                   type=s_scalars.ScalarType),
-                        schema.get('std::str',
-                                   type=s_scalars.ScalarType),
-                        schema.get('std::uuid',
-                                   type=s_scalars.ScalarType),
-                        schema.get('std::datetime',
-                                   type=s_scalars.ScalarType),
-                        schema.get('std::duration',
-                                   type=s_scalars.ScalarType),
-                        schema.get('cal::local_datetime',
-                                   type=s_scalars.ScalarType),
-                        schema.get('cal::local_date',
-                                   type=s_scalars.ScalarType),
-                        schema.get('cal::local_time',
-                                   type=s_scalars.ScalarType),
-                        schema.get('cal::relative_duration',
-                                   type=s_scalars.ScalarType),
-                        schema.get('cal::date_duration',
-                                   type=s_scalars.ScalarType),
-                        schema.get('ext::postgis::geometry',
-                                   type=s_scalars.ScalarType,
-                                   default=None),
-                        schema.get('ext::postgis::geography',
-                                   type=s_scalars.ScalarType,
-                                   default=None),
-                    )
-                )
-            )
-        case (
-            'ext::pgvector::ivfflat_euclidean'
-            | 'ext::pgvector::ivfflat_ip'
-            | 'ext::pgvector::ivfflat_cosine'
-            | 'ext::pgvector::hnsw_euclidean'
-            | 'ext::pgvector::hnsw_ip'
-            | 'ext::pgvector::hnsw_cosine'
-        ):
-            return expr_type.issubclass(
-                schema,
-                schema.get('ext::pgvector::vector', type=s_scalars.ScalarType),
-            )
-        case (
-            'ext::pg_trgm::gin'
-            | 'ext::pg_trgm::gist'
-        ):
-            return expr_type.issubclass(
-                schema,
-                schema.get('std::str', type=s_scalars.ScalarType),
-            )
-        case (
-            'ext::ai::index'
-        ):
-            return expr_type.issubclass(
-                schema,
-                schema.get('std::str', type=s_scalars.ScalarType),
-            )
 
     if context.testmode and index_name == 'default::test':
         # For functional tests of abstract indexes.
@@ -211,10 +96,8 @@ def is_index_valid_for_type(
 
 
 def is_subclass_or_tuple(
-    ty: s_types.Type, parent_name: str | sn.Name, schema: s_schema.Schema
+    ty: s_types.Type, parent: s_types.Type, schema: s_schema.Schema
 ) -> bool:
-    parent = schema.get(parent_name, type=s_types.Type)
-
     if isinstance(ty, s_types.Tuple):
         for (_, st) in ty.iter_subtypes(schema):
             if not st.issubclass(schema, parent):
@@ -314,6 +197,40 @@ def merge_deferred(
             )
 
         return local_deferred  # type: ignore
+
+
+def get_index_match_fullname_from_names(
+    valid_type: sn.Name,
+    index: sn.Name,
+) -> sn.QualName:
+    std = not (
+        (
+            isinstance(valid_type, sn.QualName)
+            and sn.UnqualName(valid_type.module) not in s_schema.STD_MODULES
+        ) or (
+            isinstance(index, sn.QualName)
+            and sn.UnqualName(index.module) not in s_schema.STD_MODULES
+        )
+    )
+    module = 'std' if std else '__ext_index_matches__'
+
+    quals = [str(valid_type), str(index)]
+    shortname = sn.QualName(module, 'index_match')
+    return sn.QualName(
+        module=shortname.module,
+        name=sn.get_specialized_name(shortname, *quals),
+    )
+
+
+def get_index_match_fullname(
+    schema: s_schema.Schema,
+    valid_type: s_types.TypeShell[s_types.Type],
+    index: so.ObjectShell[Index],
+) -> sn.QualName:
+    return get_index_match_fullname_from_names(
+        valid_type.get_name(schema),
+        index.get_name(schema),
+    )
 
 
 class Index(
@@ -595,6 +512,21 @@ class IndexableSubject(so.InheritingObject):
         return self.add_classref(schema, 'indexes', index)
 
 
+class IndexMatch(
+    so.QualifiedObject,
+    s_anno.AnnotationSubject,
+    qlkind=qltypes.SchemaObjectClass.INDEX_MATCH,
+    data_safe=True,
+    abstract=False,
+):
+
+    valid_type = so.SchemaField(
+        s_types.Type, compcoef=0.5)
+
+    index = so.SchemaField(
+        Index, compcoef=0.5)
+
+
 class IndexSourceCommandContext:
     pass
 
@@ -607,6 +539,11 @@ class IndexSourceCommand(
 
 class IndexCommandContext(sd.ObjectCommandContext[Index],
                           s_anno.AnnotationSubjectCommandContext):
+    pass
+
+
+class IndexMatchCommandContext(sd.ObjectCommandContext[IndexMatch],
+                               s_anno.AnnotationSubjectCommandContext):
     pass
 
 
@@ -1816,6 +1753,152 @@ def get_effective_object_index(
         overridden = []
 
     return (effective, overridden)
+
+
+class IndexMatchCommand(sd.QualifiedObjectCommand[IndexMatch],
+                        context_class=IndexMatchCommandContext):
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        if not context.stdmode and not context.testmode:
+            raise errors.UnsupportedFeatureError(
+                'user-defined index matches are not supported',
+                span=astnode.span
+            )
+
+        return super()._cmd_tree_from_ast(schema, astnode, context)
+
+    @classmethod
+    def _classname_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext,
+    ) -> sn.QualName:
+        assert isinstance(astnode, qlast.IndexMatchCommand)
+        modaliases = context.modaliases
+
+        valid_type = utils.ast_to_type_shell(
+            astnode.valid_type,
+            metaclass=s_types.Type,
+            modaliases=modaliases,
+            schema=schema,
+        )
+
+        index = utils.ast_objref_to_object_shell(
+            astnode.name,
+            metaclass=Index,
+            modaliases=context.modaliases,
+            schema=schema,
+        )
+
+        return get_index_match_fullname(schema, valid_type, index)
+
+    def canonicalize_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().canonicalize_attributes(schema, context)
+        schema = s_types.materialize_type_in_attribute(
+            schema, context, self, 'valid_type')
+        return schema
+
+
+class CreateIndexMatch(IndexMatchCommand, sd.CreateObject[IndexMatch]):
+    astnode = qlast.CreateIndexMatch
+
+    def _create_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        fullname = self.classname
+        index_match = schema.get(fullname, None)
+        if index_match:
+            valid_type = self.get_attribute_value('valid_type')
+            index = self.get_attribute_value('index')
+
+            raise errors.DuplicateDefinitionError(
+                f'an index match for {valid_type.get_displayname(schema)!r} '
+                f'using {index.get_displayname(schema)!r} is already defined',
+                span=self.span)
+
+        return super()._create_begin(schema, context)
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+
+        assert isinstance(astnode, qlast.CreateIndexMatch)
+
+        modaliases = context.modaliases
+
+        valid_type = utils.ast_to_type_shell(
+            astnode.valid_type,
+            metaclass=s_types.Type,
+            modaliases=modaliases,
+            schema=schema,
+        )
+        cmd.set_attribute_value('valid_type', valid_type)
+
+        index = utils.ast_objref_to_object_shell(
+            qlast.ObjectRef(
+                module=astnode.name.module,
+                name=astnode.name.name,
+            ),
+            metaclass=Index,
+            modaliases=context.modaliases,
+            schema=schema,
+        )
+        cmd.set_attribute_value('index', index)
+
+        return cmd
+
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        assert isinstance(node, qlast.CreateIndexMatch)
+        new_value: Any = op.new_value
+
+        if op.property == 'valid_type':
+            # In an index match we can only have pure types, so this is going
+            # to be a TypeName.
+            node.valid_type = cast(qlast.TypeName,
+                                   utils.typeref_to_ast(schema, new_value))
+
+        else:
+            super()._apply_field_ast(schema, context, node, op)
+
+
+class DeleteIndexMatch(IndexMatchCommand, sd.DeleteObject[IndexMatch]):
+    astnode = qlast.DropIndexMatch
+
+    def _delete_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._delete_begin(schema, context)
+        if not context.canonical:
+            valid_type = self.scls.get_valid_type(schema)
+            if op := valid_type.as_type_delete_if_unused(schema):
+                self.add_caused(op)
+        return schema
 
 
 # XXX: the below hardcode should be replaced by an index scope

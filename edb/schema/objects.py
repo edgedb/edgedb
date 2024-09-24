@@ -628,6 +628,10 @@ class ObjectMeta(type):
     #: object are fully reversible without possible data loss.
     _data_safe: bool
 
+    #: Whether the type should be abstract in EdgeDB schema.
+    #: This only applies if the type wasn't specified in schema.edgeql.
+    _abstract: Optional[bool]
+
     def __new__(
         mcls,
         name: str,
@@ -638,6 +642,7 @@ class ObjectMeta(type):
         reflection: ReflectionMethod = ReflectionMethod.REGULAR,
         reflection_link: Optional[str] = None,
         data_safe: bool = False,
+        abstract: Optional[bool] = None,
         **kwargs: Any,
     ) -> ObjectMeta:
         refdicts: collections.OrderedDict[str, RefDict]
@@ -691,6 +696,7 @@ class ObjectMeta(type):
                 })
 
         cls._data_safe = data_safe
+        cls._abstract = abstract
         cls._fields = fields
         cls._schema_fields = {
             fn: f
@@ -3032,18 +3038,12 @@ class SubclassableObject(Object):
     def issubclass(
         self,
         schema: s_schema.Schema,
-        # TODO: once the hardcoded `issubclass` checks are removed, we no
-        # longer need the `issubclass` allow None as parent argument.
-        parent: Union[Optional[SubclassableObject],
-                      Tuple[Optional[SubclassableObject], ...]],
+        parent: Union[SubclassableObject,
+                      Tuple[SubclassableObject, ...]],
     ) -> bool:
         from . import types as s_types
         if isinstance(parent, tuple):
             return any(self.issubclass(schema, p) for p in parent)
-        # TODO: once the hardcoded `issubclass` checks are removed, we no
-        # longer need the `issubclass` allow None as parent argument.
-        elif parent is None:
-            return False
         if (
             isinstance(parent, s_types.Type)
             and parent.is_anyobject(schema)

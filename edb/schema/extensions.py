@@ -36,6 +36,7 @@ from edb.common import checked
 from . import annos as s_anno
 from . import casts as s_casts
 from . import delta as sd
+from . import indexes as s_indexes
 from . import name as sn
 from . import objects as so
 from . import schema as s_schema
@@ -522,6 +523,18 @@ class DeleteExtension(
                 )
                 casts_cleanup.append(drop)
 
+        # Similarly, index matches are kept in __ext_index_matches__. We can
+        # remove them first since nothing else depends on them.
+        for im in schema.get_objects(
+            included_modules=(sn.UnqualName('__ext_index_matches__'),),
+            type=s_indexes.IndexMatch,
+        ):
+            if (
+                _name_in_mod(im.get_valid_type(schema).get_name(schema))
+                or _name_in_mod(im.get_index(schema).get_name(schema))
+            ):
+                self.add(im.init_delta_command(schema, sd.DeleteObject))
+
         def filt(schema: s_schema.Schema, obj: so.Object) -> bool:
             return not _name_in_mod(obj.get_name(schema)) or obj == self.scls
 
@@ -548,7 +561,7 @@ class DeleteExtension(
             # scalar types. Cleaning casts earlier may cause issues with
             # functions that use casts in their signatures as part of the
             # default expression.
-            if isinstance(subast, qlast.DropScalarType) and casts_cleanup:
+            if casts_cleanup and isinstance(subast, qlast.DropScalarType):
                 self.update(casts_cleanup)
                 casts_cleanup.clear()
 

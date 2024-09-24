@@ -1268,6 +1268,26 @@ class DropIndex(DropObject, IndexCommand):
     pass
 
 
+class IndexMatchCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    __rust_ignore__ = True
+    object_class: qltypes.SchemaObjectClass = \
+        qltypes.SchemaObjectClass.INDEX_MATCH
+    valid_type: TypeName
+
+
+class CreateIndexMatch(CreateObject, IndexMatchCommand):
+    pass
+    # XXX: we might want to have a code field to potentially customize the
+    # default index code (to account for operator classes and similar custom
+    # type-based syntax)
+
+
+class DropIndexMatch(DropObject, IndexMatchCommand):
+    pass
+
+
 class ConcreteIndexCommand(IndexCommand):
 
     __abstract_node__ = True

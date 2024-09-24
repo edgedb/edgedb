@@ -1019,6 +1019,7 @@ pub enum CreateObjectKind {
     CreateFunction(CreateFunction),
     CreateOperator(CreateOperator),
     CreateCast(CreateCast),
+    CreateIndexMatch(CreateIndexMatch),
 }
 
 #[derive(Debug, Clone)]
@@ -1096,6 +1097,7 @@ pub enum DropObjectKind {
     DropFunction(DropFunction),
     DropOperator(DropOperator),
     DropCast(DropCast),
+    DropIndexMatch(DropIndexMatch),
 }
 
 #[derive(Debug, Clone)]
@@ -1521,6 +1523,14 @@ pub struct AlterConcreteIndex {}
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DropConcreteIndex {}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "python", derive(IntoPython))]
+pub struct CreateIndexMatch {}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "python", derive(IntoPython))]
+pub struct DropIndexMatch {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]

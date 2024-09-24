@@ -6246,6 +6246,23 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_index_match_01(self):
+        """
+        create index match for std::str using pg::brin;
+        """
+
+    def test_edgeql_syntax_ddl_index_match_02(self):
+        """
+        create index match for std::str using pg::brin {
+            create annotation description := 'foo';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_index_match_03(self):
+        """
+        drop index match for std::str using pg::brin;
+        """
+
     def test_edgeql_syntax_sdl_empty_01(self):
         """
         START MIGRATION to {
