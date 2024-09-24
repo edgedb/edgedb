@@ -189,7 +189,7 @@ class CreatePseudoType(PseudoTypeCommand, sd.CreateObject[PseudoType]):
     ) -> sd.Command:
         if not context.stdmode and not context.testmode:
             raise errors.UnsupportedFeatureError(
-                'user-defined pseudotypes are not supported',
+                'user-defined pseudo types are not supported',
                 span=astnode.span
             )
 

@@ -111,10 +111,6 @@ class ObjectType(
         default=False,
     )
 
-    @classmethod
-    def get_schema_class_displayname(cls) -> str:
-        return 'object type'
-
     def is_object_type(self) -> bool:
         return True
 
