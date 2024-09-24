@@ -9823,7 +9823,65 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             insert Baz{a := 4, b := 1};
             insert Baz{a := 5, b := 2};
             insert Baz{a := 6, b := 3};
-            create function foo(x: Bar | Baz) -> int64 {
+            create function foo(x: Bar | Baz) -> optional int64 {
+                set is_inlined := true;
+                using (
+                    x[is Baz].b
+                )
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<Bar>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<Baz>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<Bar | Baz>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar filter .a = 1))',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar))',
+            [],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo((select Baz filter .a = 4))',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo((select Baz))',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo((select {Bar, Baz}))',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_object_12(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property a -> int64;
+                create required property b -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            insert Baz{a := 4, b := 1};
+            insert Baz{a := 5, b := 2};
+            insert Baz{a := 6, b := 3};
+            create function foo(x: Bar | Baz) -> optional int64 {
                 set is_inlined := true;
                 using (
                     if x is Bar
@@ -9868,7 +9926,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=True,
         )
 
-    async def test_edgeql_functions_inline_object_12(self):
+    async def test_edgeql_functions_inline_object_13(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -9916,7 +9974,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=True,
         )
 
-    async def test_edgeql_functions_inline_object_13(self):
+    async def test_edgeql_functions_inline_object_14(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;

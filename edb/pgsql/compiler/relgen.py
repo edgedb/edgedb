@@ -1023,17 +1023,6 @@ def process_set_as_path_type_intersection(
 
         prefix_path_id = ir_set.path_id.src_path()
         assert prefix_path_id is not None, 'expected a path'
-        if pathctx.maybe_get_path_var(
-            stmt, prefix_path_id, aspect=pgce.PathAspect.VALUE, env=ctx.env
-        ) is None:
-            assert isinstance(source_rvar.query, pgast.Query)
-            # When inlining functions, the prefix path will be the argument
-            # path id, while ir_source.path_id will be the "correct" path id.
-            # Remap the argument path id here to ensure the path bond is
-            # able to find the source rvar when joining.
-            prefix_path_id = pathctx.map_path_id(
-                prefix_path_id, source_rvar.query.view_path_id_map
-            )
 
         relctx.deep_copy_primitive_rvar_path_var(
             ir_set.path_id, prefix_path_id, poly_rvar, env=ctx.env)

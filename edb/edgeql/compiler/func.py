@@ -44,6 +44,7 @@ from edb.common.typeutils import not_none
 from edb.ir import ast as irast
 from edb.ir import staeval
 from edb.ir import utils as irutils
+from edb.ir import typeutils as irtyputils
 
 from edb.schema import constraints as s_constr
 from edb.schema import delta as sd
@@ -452,7 +453,7 @@ def compile_FunctionCall(
 
         argument_inliner = ArgumentInliner(inline_args, ctx=ctx)
         res.body = argument_inliner.visit(inline_func)
-        res.inline_arg_path_ids = argument_inliner.mapped_args
+
     else:
         res = fcall
 
@@ -496,6 +497,8 @@ class ArgumentInliner(ast.NodeTransformer):
         ):
             arg = self.inline_args[node.expr.name]
             if isinstance(arg, irast.CallArg):
+                # Inline param as an expr ref. The pg compiler will find the
+                # appropriate rvar.
                 self.mapped_args[node.path_id] = arg.expr.path_id
                 return setgen.ensure_set(
                     irast.InlinedParameterExpr(
@@ -507,7 +510,31 @@ class ArgumentInliner(ast.NodeTransformer):
                     ctx=self.ctx,
                 )
             else:
+                # Directly inline the set.
+                # Used for default values, which are constants.
                 return arg
+
+        elif isinstance(node.expr, irast.Pointer):
+            # The set and source path ids must match in order for the pointer
+            # to find the correct rvar. If a pointer's source path was modified
+            # because of an inlined parameter, modify the pointer's path as
+            # well.
+            prev_source_path_id = node.expr.source.path_id
+            result = cast(irast.Set, self.generic_visit(node))
+
+            if prev_source_path_id in self.mapped_args:
+                result = setgen.new_set_from_set(
+                    result,
+                    path_id=irtyputils.replace_pathid_prefix(
+                        result.path_id,
+                        prev_source_path_id,
+                        self.mapped_args[prev_source_path_id],
+                    ),
+                    ctx=self.ctx,
+                )
+                self.mapped_args[node.path_id] = result.path_id
+
+            return result
 
         return cast(irast.Base, self.generic_visit(node))
 
