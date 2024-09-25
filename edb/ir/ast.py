@@ -547,6 +547,11 @@ class VisibleBindingExpr(RefExpr):
     pass
 
 
+class InlinedParameterExpr(RefExpr):
+    required: bool
+    is_global: bool
+
+
 T_expr_co = typing.TypeVar('T_expr_co', covariant=True, bound=Expr)
 
 
@@ -991,7 +996,9 @@ class Call(ImmutableExpr):
 
 class FunctionCall(Call):
 
-    __ast_mutable_fields__ = frozenset(('extras', 'body'))
+    __ast_mutable_fields__ = frozenset((
+        'extras', 'body', 'inline_arg_path_ids'
+    ))
 
     # If the bound callable is a "USING SQL" callable, this
     # attribute will be set to the name of the SQL function.
@@ -1034,6 +1041,12 @@ class FunctionCall(Call):
 
     # Inline body of the callable.
     body: typing.Optional[Set] = None
+
+    # The inlined body may refer to the parameter's path, such as when accessing
+    # pointers of a parameter. However, the compiled arguments will have a
+    # different path id.
+    # Map the param id to the arg id so that the argument rvar is used.
+    inline_arg_path_ids: typing.Optional[dict[PathId, PathId]] = None
 
 
 class OperatorCall(Call):

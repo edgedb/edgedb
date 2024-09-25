@@ -65,6 +65,7 @@ from . import utils
 
 
 if TYPE_CHECKING:
+    from edb.edgeql.compiler import context as qlcontext
     from edb.ir import ast as irast
     from . import schema as s_schema
 
@@ -436,7 +437,9 @@ class Parameter(
         defexpr = self.get_default(schema)
         assert defexpr is not None
         defexpr = defexpr.compiled(
-            as_fragment=True, schema=schema)
+            as_fragment=True,
+            schema=schema,
+        )
         ir = defexpr.irast
         if not irutils.is_const(ir.expr):
             raise ValueError('expression not constant')
@@ -1311,6 +1314,8 @@ class Function(
         inheritable=False,
         compcoef=0.909,
     )
+
+    is_inlined = so.SchemaField(bool, default=False)
 
     def has_inlined_defaults(self, schema: s_schema.Schema) -> bool:
         # This can be relaxed to just `language is EdgeQL` when we
@@ -2386,21 +2391,13 @@ def compile_function(
 ) -> s_expr.CompiledExpression:
     assert language is qlast.Language.EdgeQL
 
-    has_inlined_defaults = bool(params.find_named_only(schema))
-
-    param_anchors = get_params_symtable(
-        params,
-        schema,
-        inlined_defaults=has_inlined_defaults,
-    )
-
     compiled = body.compiled(
         schema,
-        options=qlcompiler.CompilerOptions(
-            anchors=param_anchors,
+        options=get_compiler_options(
+            schema,
+            context,
             func_name=func_name,
-            func_params=params,
-            apply_query_rewrites=not context.stdmode,
+            params=params,
             track_schema_ref_exprs=track_schema_ref_exprs,
         ),
     )
@@ -2440,3 +2437,95 @@ def compile_function(
         )
 
     return compiled
+
+
+def compile_function_inline(
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    *,
+    body: s_expr.Expression,
+    func_name: sn.QualName,
+    params: FuncParameterList,
+    language: qlast.Language,
+    return_type: s_types.Type,
+    return_typemod: ft.TypeModifier,
+    track_schema_ref_exprs: bool=False,
+    inlining_context: qlcontext.ContextLevel,
+) -> irast.Set:
+    """Compile a function body to be inlined."""
+    assert language is qlast.Language.EdgeQL
+
+    from edb.edgeql.compiler import dispatch
+    from edb.edgeql.compiler import pathctx
+    from edb.edgeql.compiler import setgen
+    from edb.edgeql.compiler import stmtctx
+
+    ctx = stmtctx.init_context(
+        schema=schema,
+        options=get_compiler_options(
+            schema,
+            context,
+            func_name=func_name,
+            params=params,
+            track_schema_ref_exprs=track_schema_ref_exprs,
+            inlining_context=inlining_context,
+        ),
+        inlining_context=inlining_context,
+    )
+
+    ql_expr = body.parse()
+
+    # Add implicit limit if present
+    if ctx.implicit_limit:
+        ql_expr = qlast.SelectQuery(result=ql_expr, implicit=True)
+        ql_expr.limit = qlast.Constant.integer(ctx.implicit_limit)
+
+    ir_set: irast.Set = dispatch.compile(ql_expr, ctx=ctx)
+
+    # Copy schema back to inlining context
+    if inlining_context:
+        inlining_context.env.schema = ctx.env.schema
+
+    # Create scoped set if necessary
+    if pathctx.get_set_scope(ir_set, ctx=ctx) is None:
+        ir_set = setgen.scoped_set(ir_set, ctx=ctx)
+
+    return ir_set
+
+
+def get_compiler_options(
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    *,
+    func_name: sn.QualName,
+    params: FuncParameterList,
+    track_schema_ref_exprs: bool,
+    inlining_context: Optional[qlcontext.ContextLevel] = None,
+) -> qlcompiler.CompilerOptions:
+
+    has_inlined_defaults = (
+        bool(params.find_named_only(schema))
+        and inlining_context is None
+    )
+
+    param_anchors = get_params_symtable(
+        params,
+        schema,
+        inlined_defaults=has_inlined_defaults,
+    )
+
+    return qlcompiler.CompilerOptions(
+        anchors=param_anchors,
+        func_name=(
+            inlining_context.env.options.func_name
+            if inlining_context is not None else
+            func_name
+        ),
+        func_params=(
+            inlining_context.env.options.func_params
+            if inlining_context is not None else
+            params
+        ),
+        apply_query_rewrites=not context.stdmode,
+        track_schema_ref_exprs=track_schema_ref_exprs,
+    )

@@ -796,6 +796,16 @@ def process_set_as_visible_binding(
     )
 
 
+@register_get_rvar(irast.InlinedParameterExpr)
+def process_set_as_inlined_parameter(
+    ir_set: irast.SetE[irast.InlinedParameterExpr],
+    *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    raise AssertionError(
+        f"Can't compile ref to inline parameter {ir_set.path_id}"
+    )
+
+
 @register_get_rvar(irast.EmptySet)
 def process_set_as_empty(
     ir_set: irast.SetE[irast.EmptySet], *, ctx: context.CompilerContextLevel
@@ -1013,6 +1023,7 @@ def process_set_as_path_type_intersection(
 
         prefix_path_id = ir_set.path_id.src_path()
         assert prefix_path_id is not None, 'expected a path'
+
         relctx.deep_copy_primitive_rvar_path_var(
             ir_set.path_id, prefix_path_id, poly_rvar, env=ctx.env)
         pathctx.put_rvar_path_bond(poly_rvar, prefix_path_id)
@@ -3355,7 +3366,7 @@ def _compile_call_args(
     skip: Collection[int] = (),
     no_subquery_args: bool = False,
     ctx: context.CompilerContextLevel,
-) -> List[pgast.BaseExpr]:
+) -> list[pgast.BaseExpr]:
     """
     Compiles function call arguments, whose index is not in `skip`.
     """
@@ -3437,6 +3448,50 @@ def _compile_call_args(
     return args
 
 
+def _compile_inlined_call_args(
+    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+) -> None:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    with ctx.subrel() as arg_ctx:
+        # Compile the call args but don't do anything with the resulting exprs.
+        # Their rvar will be found when compiling the inlined body.
+        _compile_call_args(ir_set, ctx=arg_ctx)
+
+        arg_rvar = relctx.rvar_for_rel(arg_ctx.rel, ctx=ctx)
+
+        for ir_arg in expr.args.values():
+            arg_path_id = ir_arg.expr.path_id
+            relctx.include_rvar(
+                ctx.rel,
+                arg_rvar,
+                arg_path_id,
+                ctx=ctx,
+            )
+            if arg_scope_stmt := relctx.maybe_get_scope_stmt(
+                arg_path_id, ctx=ctx
+            ):
+                # The rvar is joined to ctx.rel, but other sets may
+                # look for it in the scope statement. Make sure it's
+                # available.
+                pathctx.put_path_value_rvar(
+                    arg_scope_stmt,
+                    arg_path_id,
+                    arg_rvar,
+                )
+
+    if expr.inline_arg_path_ids:
+        for param_path_id, arg_path_id in (
+            expr.inline_arg_path_ids.items()
+        ):
+            pathctx.put_path_id_map(
+                arg_ctx.rel,
+                param_path_id,
+                arg_path_id
+            )
+
+
 def process_set_as_func_enumerate(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -3475,11 +3530,15 @@ def process_set_as_func_expr(
 
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
-        args = _compile_call_args(ir_set, ctx=newctx)
 
         if expr.body is not None:
+            _compile_inlined_call_args(ir_set, ctx=newctx)
+
             set_expr = dispatch.compile(expr.body, ctx=newctx)
+
         else:
+            args = _compile_call_args(ir_set, ctx=newctx)
+
             name = exprcomp.get_func_call_backend_name(expr, ctx=newctx)
 
             if expr.typemod is qltypes.TypeModifier.SetOfType:

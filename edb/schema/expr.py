@@ -213,7 +213,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         detached: bool = False,
         find_extra_refs: Optional[
             Callable[[irast_.Set], set[so.Object]]
-        ] = None
+        ] = None,
     ) -> CompiledExpression:
 
         from edb.ir import ast as irast_

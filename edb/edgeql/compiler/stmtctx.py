@@ -33,6 +33,8 @@ from typing import (
     FrozenSet,
 )
 
+import copy
+
 from edb import errors
 
 from edb.ir import ast as irast
@@ -77,6 +79,7 @@ def init_context(
     *,
     schema: s_schema.Schema,
     options: coptions.CompilerOptions,
+    inlining_context: Optional[context.ContextLevel] = None,
 ) -> context.ContextLevel:
 
     if not schema.get_global(s_mod.Module, '__derived__', None):
@@ -85,12 +88,26 @@ def init_context(
             name=s_name.UnqualName('__derived__'),
         )
 
-    env = context.Environment(
-        schema=schema,
-        options=options,
-        alias_result_view_name=options.result_view_name,
-    )
-    ctx = context.ContextLevel(None, context.ContextSwitchMode.NEW, env=env)
+    if inlining_context:
+        env = copy.copy(inlining_context.env)
+        env.options = options
+        env.path_scope = inlining_context.path_scope
+        env.alias_result_view_name = options.result_view_name
+        env.query_parameters = {}
+        env.script_params = {}
+
+        ctx = context.ContextLevel(
+            inlining_context, mode=context.ContextSwitchMode.DETACHED
+        )
+        ctx.env = env
+
+    else:
+        env = context.Environment(
+            schema=schema,
+            options=options,
+            alias_result_view_name=options.result_view_name,
+        )
+        ctx = context.ContextLevel(None, context.ContextSwitchMode.NEW, env=env)
     _ = context.CompilerContext(initial=ctx)
 
     if options.singletons:
