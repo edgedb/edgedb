@@ -11,7 +11,8 @@ members = [
     "rust/db_proto",
     "rust/pgrust",
     "rust/http",
-    "rust/pyo3_util"
+    "rust/pyo3_util",
+    "rust/frontend",
 ]
 resolver = "2"
 
