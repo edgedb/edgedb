@@ -993,7 +993,7 @@ class ParallelTextTestRunner:
                 not os.environ.get("EDGEDB_SERVER_JWS_KEY_FILE")
                 and not os.environ.get("GEL_SERVER_JWS_KEY_FILE")
             ):
-                jwk_file = pathlib.Path(tempdir.name) / "jwk.pem"
+                jwk_file = pathlib.Path(tempdir.name) / "jwk.json"
                 if self.verbosity >= 1:
                     self._echo(
                         'Generating JSON Web Key...',

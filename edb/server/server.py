@@ -48,7 +48,6 @@ import time
 import uuid
 
 import immutables
-from jwcrypto import jwk
 
 from edb import buildmeta
 from edb import errors
@@ -62,6 +61,7 @@ from edb.common.log import current_tenant
 from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
 
+from edb.server import auth
 from edb.server import args as srvargs
 from edb.server import cache
 from edb.server import config
@@ -241,7 +241,7 @@ class BaseServer:
         self._sslctx: ssl.SSLContext | Any = None
         self._sslctx_pgext: ssl.SSLContext | Any = None
 
-        self._jws_key: jwk.JWK | None = None
+        self._jws_key: auth.JWKSet | None = None
         self._jws_keys_newly_generated = False
 
         self._default_auth_method_spec = default_auth_method
@@ -1018,10 +1018,12 @@ class BaseServer:
         # TODO(fantix): include the monitor_fs() lines above
         pass
 
-    def load_jwcrypto(self, jws_key_file: pathlib.Path) -> None:
+    def load_jwcrypto(self, jws_key_file: pathlib.Path) -> auth.JWKSet:
         try:
-            self._jws_key = secretkey.load_secret_key(jws_key_file)
-        except secretkey.SecretKeyReadError as e:
+            jws_key = auth.load_secret_key(jws_key_file)
+            self._jws_key = jws_key
+            return jws_key
+        except auth.SecretKeyReadError as e:
             raise StartupError(e.args[0]) from e
 
     def init_jwcrypto(
@@ -1032,7 +1034,7 @@ class BaseServer:
         self.load_jwcrypto(jws_key_file)
         self._jws_keys_newly_generated = jws_keys_newly_generated
 
-    def get_jws_key(self) -> jwk.JWK | None:
+    def get_jws_key(self) -> auth.JWKSet | None:
         return self._jws_key
 
     async def _stop_servers(self, servers):
@@ -1264,7 +1266,7 @@ class BaseServer:
                 logger.info(
                     f'generating JOSE key pair in "{args.jws_key_file}"'
                 )
-                secretkey.generate_jwk(args.jws_key_file)
+                auth.generate_jwk(args.jws_key_file)
                 jws_keys_newly_generated = True
         return tls_cert_newly_generated, jws_keys_newly_generated
 
@@ -1764,9 +1766,10 @@ class Server(BaseServer):
         status["tenant_id"] = self._tenant.tenant_id
         return status
 
-    def load_jwcrypto(self, jws_key_file: pathlib.Path) -> None:
-        super().load_jwcrypto(jws_key_file)
-        self._tenant.load_jwcrypto()
+    def load_jwcrypto(self, jws_key_file: pathlib.Path) -> auth.JWKSet:
+        jws_key = super().load_jwcrypto(jws_key_file)
+        self._tenant.load_jwcrypto(jws_key)
+        return jws_key
 
     def request_shutdown(self):
         self._tenant.stop_accepting_connections()

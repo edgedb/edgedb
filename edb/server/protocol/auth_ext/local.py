@@ -19,26 +19,15 @@
 
 import datetime
 import json
-import base64
 
-from jwcrypto import jwk
 from typing import Any, cast
 from edb.server.protocol import execute
-
-from . import util, data
+from . import data
 
 
 class Client:
     def __init__(self, db: Any):
         self.db = db
-
-    def _get_signing_key(self) -> jwk.JWK:
-        auth_signing_key = util.get_config(
-            self.db, "ext::auth::AuthConfig::auth_signing_key"
-        )
-        key_bytes = base64.b64encode(auth_signing_key.encode())
-
-        return jwk.JWK(kty="oct", k=key_bytes.decode())
 
     async def verify_email(
         self, identity_id: str, verified_at: datetime.datetime

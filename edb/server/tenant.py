@@ -58,6 +58,7 @@ from edb.common import retryloop
 from edb.common import verutils
 from edb.common.log import current_tenant
 
+from . import auth
 from . import args as srvargs
 from . import config
 from . import connpool
@@ -1537,7 +1538,8 @@ class Tenant(ha_base.ClusterProtocol):
         if setting and setting.report and self._accept_new_tasks:
             self.create_task(self._load_reported_config(), interruptable=True)
 
-    def load_jwcrypto(self) -> None:
+    def load_jwcrypto(self, jwk_key: auth.JWKSet) -> None:
+        self._jws_key = jwk_key
         self.load_jwt_sub_allowlist()
         self.load_jwt_revocation_list()
 
@@ -1551,6 +1553,15 @@ class Tenant(ha_base.ClusterProtocol):
                 self._jwt_sub_allowlist = frozenset(
                     self._jwt_sub_allowlist_file.read_text().splitlines(),
                 )
+                if self._jws_key is not None:
+                    self._jws_key.default_validation_context.allow(
+                        "sub", self._jwt_sub_allowlist
+                    )
+                else:
+                    from . import server as edbserver
+                    raise edbserver.StartupError(
+                        "cannot load JWT sub allowlist: no secret key"
+                    )
             except Exception as e:
                 from . import server as edbserver
 
@@ -1568,39 +1579,21 @@ class Tenant(ha_base.ClusterProtocol):
                 self._jwt_revocation_list = frozenset(
                     self._jwt_revocation_list_file.read_text().splitlines(),
                 )
+                if self._jws_key is not None:
+                    self._jws_key.default_validation_context.deny(
+                        "jti", self._jwt_revocation_list
+                    )
+                else:
+                    from . import server as edbserver
+                    raise edbserver.StartupError(
+                        "cannot load JWT revocation list: no secret key"
+                    )
             except Exception as e:
                 from . import server as edbserver
 
                 raise edbserver.StartupError(
                     f"cannot load JWT revocation list: {e}"
                 ) from e
-
-    def check_jwt(self, claims: dict[str, Any]) -> None:
-        """Check JWT for validity"""
-
-        if self._jwt_sub_allowlist is not None:
-            subject = claims.get("sub")
-            if not subject:
-                raise errors.AuthenticationError(
-                    "authentication failed: "
-                    "JWT does not contain a valid subject claim"
-                )
-            if subject not in self._jwt_sub_allowlist:
-                raise errors.AuthenticationError(
-                    "authentication failed: unauthorized subject"
-                )
-
-        if self._jwt_revocation_list is not None:
-            key_id = claims.get("jti")
-            if not key_id:
-                raise errors.AuthenticationError(
-                    "authentication failed: "
-                    "JWT does not contain a valid key id"
-                )
-            if key_id in self._jwt_revocation_list:
-                raise errors.AuthenticationError(
-                    "authentication failed: revoked key"
-                )
 
     def reload_readiness_state(self) -> None:
         if self._readiness_state_file is None:
