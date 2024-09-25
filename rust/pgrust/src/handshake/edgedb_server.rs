@@ -1,6 +1,9 @@
 use crate::{
     connection::ConnectionError,
     errors::edgedb::EdbError,
+};
+
+use crate::{
     protocol::{
         edgedb::{data::*, *},
         match_message, ParseError, StructBuffer,
@@ -142,8 +145,10 @@ enum ServerStateImpl {
     Error,
 }
 
+#[derive(derive_more::Debug, Default)]
 pub struct ServerState {
     state: ServerStateImpl,
+    #[debug(skip)]
     buffer: StructBuffer<meta::Message>,
 }
 

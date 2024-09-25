@@ -1,6 +1,5 @@
 use super::gen::protocol;
 use super::message_group::message_group;
-use crate::protocol::meta::*;
 
 message_group!(
     /// The `Backend` message group contains messages sent from the backend to the frontend.
