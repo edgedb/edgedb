@@ -10,7 +10,7 @@ edition = "2021"
 workspace = true
 
 [dependencies]
-gel_auth.workspace = true
+gel-auth.workspace = true
 
 openssl = "0.10.55"
 tempfile = "3"
