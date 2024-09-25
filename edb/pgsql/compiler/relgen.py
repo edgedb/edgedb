@@ -3481,16 +3481,6 @@ def _compile_inlined_call_args(
                     arg_rvar,
                 )
 
-    if expr.inline_arg_path_ids:
-        for param_path_id, arg_path_id in (
-            expr.inline_arg_path_ids.items()
-        ):
-            pathctx.put_path_id_map(
-                arg_ctx.rel,
-                param_path_id,
-                arg_path_id
-            )
-
 
 def process_set_as_func_enumerate(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
