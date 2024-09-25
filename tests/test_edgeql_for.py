@@ -1250,3 +1250,85 @@ class TestEdgeQLFor(tb.QueryTestCase):
             Q,
             [420],
         )
+
+    async def test_edgeql_for_lprop_01(self):
+        await self.assert_query_result(
+            '''
+            SELECT User {
+                cards := (
+                    SELECT (FOR d IN .deck SELECT (d.name, d@count))
+                    ORDER BY .0
+                ),
+            }
+            filter .name = 'Carol';
+            ''',
+            [
+                {
+                    "cards": [
+                        ["Bog monster", 3],
+                        ["Djinn", 1],
+                        ["Dwarf", 4],
+                        ["Giant eagle", 3],
+                        ["Giant turtle", 2],
+                        ["Golem", 2],
+                        ["Sprite", 4]
+                    ]
+                }
+            ]
+        )
+
+        await self.assert_query_result(
+            '''
+            SELECT User {
+                cards := (
+                    SELECT (FOR d IN .deck[is SpecialCard]
+                            SELECT (d.name, d@count))
+                    ORDER BY .0
+                ),
+            }
+            filter .name = 'Carol';
+            ''',
+            [
+                {
+                    "cards": [
+                        ["Djinn", 1],
+                    ]
+                }
+            ]
+        )
+
+    async def test_edgeql_for_lprop_02(self):
+        await self.assert_query_result(
+            '''
+            SELECT Card {
+                users := (
+                    SELECT (FOR u IN .<deck[is User] SELECT (u.name, u@count))
+                    ORDER BY .0
+                ),
+            }
+            filter .name = 'Dragon'
+            ''',
+            [{"users": [["Alice", 2], ["Dave", 1]]}],
+        )
+
+        await self.assert_query_result(
+            '''
+            SELECT Card {
+                users := (
+                    SELECT (FOR u IN .owners SELECT (u.name, u@count))
+                    ORDER BY .0
+                ),
+            }
+            filter .name = 'Dragon'
+            ''',
+            [{"users": [["Alice", 2], ["Dave", 1]]}],
+        )
+
+    async def test_edgeql_for_lprop_03(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            "",
+        ):
+            await self.con.query('''
+                FOR d IN User.deck SELECT (d.name, d@count);
+            ''')

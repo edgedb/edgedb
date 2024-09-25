@@ -1744,60 +1744,18 @@ def _get_provider_config(
         )
 
 
-async def _get_model_provider(
-    db: dbview.Database,
-    base_model_type: str,
-    model_name: str,
-) -> str:
-    models = await _edgeql_query_json(
-        db=db,
-        query="""
-        WITH
-            Parent := (
-                SELECT
-                    schema::ObjectType
-                FILTER
-                    .name = <str>$base_model_type
-            ),
-            Models := Parent.<ancestors[IS schema::ObjectType],
-        SELECT
-            Models {
-                provider := (
-                    SELECT
-                        (.annotations@value, .annotations.name)
-                    FILTER
-                        .1 = "ext::ai::model_provider"
-                    LIMIT
-                        1
-                ).0,
-            }
-        FILTER
-            .annotations.name = "ext::ai::model_name"
-            AND .annotations@value = <str>$model_name
-        """,
-        variables={
-            "base_model_type": base_model_type,
-            "model_name": model_name,
-        },
-    )
-    if len(models) == 0:
-        raise BadRequestError("invalid model name")
-    elif len(models) > 1:
-        raise InternalError("multiple models defined as requested model")
-
-    return cast(str, models[0]["provider"])
-
-
-async def _get_model_annotation_as_int(
+async def _get_model_annotation_as_json(
     db: dbview.Database,
     base_model_type: str,
     model_name: str,
     annotation_name: str,
-) -> int:
+) -> Any:
     models = await _edgeql_query_json(
         db=db,
         query="""
         WITH
+            base_model_type := <str>$base_model_type,
+            model_name := <str>$model_name,
             Parent := (
                 SELECT
                     schema::ObjectType
@@ -1809,7 +1767,7 @@ async def _get_model_annotation_as_int(
             Models {
                 value := (
                     SELECT
-                        (.annotations@value, .annotations.name)
+                        (FOR ann IN .annotations SELECT (ann@value, ann.name))
                     FILTER
                         .1 = <str>$annotation_name
                     LIMIT
@@ -1817,8 +1775,11 @@ async def _get_model_annotation_as_int(
                 ).0,
             }
         FILTER
-            .annotations.name = "ext::ai::model_name"
-            AND .annotations@value = <str>$model_name
+            (FOR ann in Models.annotations
+            UNION (
+                ann.name = "ext::ai::model_name"
+                AND ann@value = <str>$model_name
+            ))
         """,
         variables={
             "base_model_type": base_model_type,
@@ -1831,7 +1792,28 @@ async def _get_model_annotation_as_int(
     elif len(models) > 1:
         raise InternalError("multiple models defined as requested model")
 
-    return int(models[0]["value"])
+    return models[0]['value']
+
+
+async def _get_model_provider(
+    db: dbview.Database,
+    base_model_type: str,
+    model_name: str,
+) -> str:
+    provider = await _get_model_annotation_as_json(
+        db, base_model_type, model_name, "ext::ai::model_name")
+    return cast(str, provider)
+
+
+async def _get_model_annotation_as_int(
+    db: dbview.Database,
+    base_model_type: str,
+    model_name: str,
+    annotation_name: str,
+) -> int:
+    value = await _get_model_annotation_as_json(
+        db, base_model_type, model_name, annotation_name)
+    return int(value)
 
 
 async def _generate_embeddings_for_type(
@@ -1868,7 +1850,7 @@ async def _generate_embeddings_for_type(
                 ObjectType.indexes {
                     model := (
                         SELECT
-                            (.annotations@value, .annotations.name)
+                            (FOR a IN .annotations SELECT (a@value, a.name))
                         FILTER
                             .1 = "ext::ai::model_name"
                         LIMIT
@@ -1876,7 +1858,7 @@ async def _generate_embeddings_for_type(
                     ).0,
                     provider := (
                         SELECT
-                            (.annotations@value, .annotations.name)
+                            (FOR a IN .annotations SELECT (a@value, a.name))
                         FILTER
                             .1 = "ext::ai::model_provider"
                         LIMIT
@@ -1884,7 +1866,7 @@ async def _generate_embeddings_for_type(
                     ).0,
                     model_embedding_dimensions := <int64>(
                         SELECT
-                            (.annotations@value, .annotations.name)
+                            (FOR a IN .annotations SELECT (a@value, a.name))
                         FILTER
                             .1 =
                             "ext::ai::embedding_model_max_output_dimensions"
@@ -1893,7 +1875,7 @@ async def _generate_embeddings_for_type(
                     ).0,
                     index_embedding_dimensions := <int64>(
                         SELECT
-                            (.annotations@value, .annotations.name)
+                            (FOR a IN .annotations SELECT (a@value, a.name))
                         FILTER
                             .1 = "ext::ai::embedding_dimensions"
                         LIMIT
