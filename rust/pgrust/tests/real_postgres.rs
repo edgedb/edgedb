@@ -1,6 +1,6 @@
 // Constants
 use gel_auth::AuthType;
-use gel_stream::client::{Connector, ResolvedTarget, Target, TlsParameters};
+use gel_stream::{Connector, ResolvedTarget, Target, TlsParameters};
 use pgrust::connection::{Credentials, PGConnectionError, RawClient};
 use pgrust::errors::PgServerError;
 use pgrust::handshake::ConnectionSslRequirement;

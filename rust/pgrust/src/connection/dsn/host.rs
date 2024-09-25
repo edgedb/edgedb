@@ -1,5 +1,5 @@
 use super::ParseError;
-use gel_stream::client::{ResolvedTarget, TargetName};
+use gel_stream::{ResolvedTarget, TargetName};
 use serde_derive::Serialize;
 use std::net::{IpAddr, Ipv6Addr};
 

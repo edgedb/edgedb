@@ -4,7 +4,7 @@ use captive_postgres::{
 use clap::Parser;
 use clap_derive::Parser;
 use gel_auth::AuthType;
-use gel_stream::client::{Connector, ResolvedTarget, Target};
+use gel_stream::{Connector, ResolvedTarget, Target};
 use pgrust::{
     connection::{
         dsn::parse_postgres_dsn_env, Client, Credentials, ExecuteSink, Format, MaxRows,

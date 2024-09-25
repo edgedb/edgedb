@@ -1,27 +1,37 @@
+use std::marker::PhantomData;
 use std::net::SocketAddr;
 
-use super::stream::UpgradableStream;
-use super::target::{MaybeResolvedTarget, ResolvedTarget};
-use super::tokio_stream::Resolver;
-use super::{ConnectionError, Ssl, Target, TlsInit};
+use crate::common::tokio_stream::{Resolver, TokioStream};
+use crate::{ConnectionError, Ssl, StreamUpgrade, TlsDriver, UpgradableStream};
+use crate::{MaybeResolvedTarget, ResolvedTarget, Target};
 
-type Connection = UpgradableStream<super::Stream, Option<super::Ssl>>;
+type Connection<S, D> = UpgradableStream<S, D>;
 
 /// A connector can be used to connect multiple times to the same target.
-pub struct Connector {
+#[allow(private_bounds)]
+pub struct Connector<D: TlsDriver = Ssl> {
     target: Target,
     resolver: Resolver,
+    driver: PhantomData<D>,
 }
 
-impl Connector {
+impl Connector<Ssl> {
     pub fn new(target: Target) -> Result<Self, std::io::Error> {
+        Self::new_explicit(target)
+    }
+}
+
+#[allow(private_bounds)]
+impl<D: TlsDriver> Connector<D> {
+    pub fn new_explicit(target: Target) -> Result<Self, std::io::Error> {
         Ok(Self {
             target,
             resolver: Resolver::new()?,
+            driver: PhantomData,
         })
     }
 
-    pub async fn connect(&self) -> Result<Connection, ConnectionError> {
+    pub async fn connect(&self) -> Result<Connection<TokioStream, D>, ConnectionError> {
         let stream = match self.target.maybe_resolved() {
             MaybeResolvedTarget::Resolved(target) => target.connect().await?,
             MaybeResolvedTarget::Unresolved(host, port, _) => {
@@ -36,13 +46,14 @@ impl Connector {
         };
 
         if let Some(ssl) = self.target.maybe_ssl() {
-            let mut stm = UpgradableStream::new(stream, Some(Ssl::init(ssl, self.target.name())?));
+            let ssl = D::init_client(ssl, self.target.name())?;
+            let mut stm = UpgradableStream::new_client(stream, Some(ssl));
             if !self.target.is_starttls() {
                 stm.secure_upgrade().await?;
             }
             Ok(stm)
         } else {
-            Ok(UpgradableStream::new(stream, None))
+            Ok(UpgradableStream::new_client(stream, None))
         }
     }
 }
