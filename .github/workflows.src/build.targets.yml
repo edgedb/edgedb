@@ -78,6 +78,7 @@ targets:
           platform: ubuntu
           platform_version: jammy
           family: debian
+          runs_on: [package-builder, self-hosted, linux, arm64]
         - name: ubuntu-noble-x86_64
           arch: x86_64
           platform: ubuntu
