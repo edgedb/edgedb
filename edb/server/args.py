@@ -984,8 +984,9 @@ server_options = typeutils.chain_decorators([
         cls=EnvvarResolver,
         hidden=True,
         help='Specifies a path to a file containing a public key in PEM '
-             'format used to verify JWT signatures. The file could also '
-             'contain a private key to sign JWT for local testing.'),
+             'or JSON JWK format used to verify JWT signatures. The file may '
+             'also contain a private key to sign JWT tokens for '
+             'SCRAM-over-HTTP.'),
     click.option(
         '--jwe-key-file',
         type=PathPath(),
