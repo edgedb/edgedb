@@ -265,7 +265,7 @@ jobs:
         path: artifacts/ubuntu-jammy
 
   build-ubuntu-jammy-aarch64:
-    runs-on: ubuntu-latest
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
     needs: prep
 
 
@@ -872,7 +872,7 @@ jobs:
 
   test-ubuntu-jammy-aarch64:
     needs: [build-ubuntu-jammy-aarch64]
-    runs-on: ubuntu-latest
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
@@ -888,7 +888,7 @@ jobs:
         PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
   test-ubuntu-noble-x86_64:
     needs: [build-ubuntu-noble-x86_64]
@@ -1741,7 +1741,7 @@ jobs:
 
   check-published-ubuntu-jammy-aarch64:
     needs: [publish-ubuntu-jammy-aarch64]
-    runs-on: ubuntu-latest
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
