@@ -1,0 +1,12 @@
+    0:d=0  hl=2 l=  89 cons: SEQUENCE          
+    2:d=1  hl=2 l=  19 cons: SEQUENCE          
+    4:d=2  hl=2 l=   7 prim: OBJECT            :id-ecPublicKey
+   13:d=2  hl=2 l=   8 prim: OBJECT            :prime256v1
+   23:d=1  hl=2 l=  66 prim: BIT STRING        
+      0000 - 00 04 c1 cf 62 6f 1c 6d-3d 02 70 13 6b 76 5d 3d   ....bo.m=.p.kv]=
+      0010 - 89 da bb 66 e8 95 fe ae-fa e3 54 14 01 89 57 c4   ...f......T...W.
+      0020 - f5 c0 56 14 cc 43 ec cd-8d d4 93 24 14 7b 7b 83   ..V..C.....$.{{.
+      0030 - a7 f8 83 12 6f 80 3b eb-a2 eb 43 97 3c 95 89 a1   ....o.;...C.<...
+      0040 - 68 21                                             h!
+-- BITSTRING at offset 23 --
+Error in encoding

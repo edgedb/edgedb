@@ -34,6 +34,7 @@ fn _rust_native(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     add_child_module(py, m, "_conn_pool", conn_pool::python::_conn_pool)?;
     add_child_module(py, m, "_pg_rust", pgrust::python::_pg_rust)?;
     add_child_module(py, m, "_http", http::python::_http)?;
+    add_child_module(py, m, "_jwt", gel_jwt::python::_jwt)?;
 
     Ok(())
 }
