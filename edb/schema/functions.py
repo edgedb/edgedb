@@ -431,12 +431,7 @@ class Parameter(
         fullname = self.get_name(schema)
         return self.paramname_from_fullname(fullname)
 
-    def get_ir_default(
-        self,
-        *,
-        schema: s_schema.Schema,
-        inlining_context: Optional[qlcontext.ContextLevel] = None,
-    ) -> irast.Statement:
+    def get_ir_default(self, *, schema: s_schema.Schema) -> irast.Statement:
         from edb.ir import utils as irutils
 
         defexpr = self.get_default(schema)
@@ -444,7 +439,6 @@ class Parameter(
         defexpr = defexpr.compiled(
             as_fragment=True,
             schema=schema,
-            inlining_context=inlining_context,
         )
         ir = defexpr.irast
         if not irutils.is_const(ir.expr):

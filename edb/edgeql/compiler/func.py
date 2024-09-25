@@ -443,13 +443,8 @@ def compile_FunctionCall(
 
                 # Compile default
                 assert isinstance(param, s_func.Parameter)
-                p_ir_default = param.get_ir_default(
-                    schema=env.schema,
-                    inlining_context=ctx,
-                )
-                inline_args[param_shortname] = (
-                    p_ir_default.expr
-                )
+                p_ir_default = dispatch.compile(p_default.parse(), ctx=ctx)
+                inline_args[param_shortname] = p_ir_default
 
         argument_inliner = ArgumentInliner(inline_args, ctx=ctx)
         res.body = argument_inliner.visit(inline_func)
