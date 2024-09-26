@@ -56,6 +56,7 @@ from edb.common import devmode
 from edb.common import lru
 from edb.common import secretkey
 from edb.common import windowedsum
+from edb.common import debug
 from edb.common.log import current_tenant
 
 from edb.schema import reflection as s_refl
@@ -1046,7 +1047,10 @@ class BaseServer:
 
         await self._after_start_servers()
         self._auth_gc = self.__loop.create_task(pkce.gc(self))
-        if self._net_worker_mode is srvargs.NetWorkerMode.Default:
+        if (
+            self._net_worker_mode is srvargs.NetWorkerMode.Default
+            and not debug.flags.disable_net_worker
+        ):
             self._net_worker_http = self.__loop.create_task(
                 net_worker.http(self)
             )

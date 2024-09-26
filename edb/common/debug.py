@@ -180,6 +180,8 @@ class flags(metaclass=FlagsMeta):
 
     zombodb = Flag(doc="Enabled zombodb and disables postgres FTS")
 
+    disable_net_worker = Flag(doc="Disables net worker")
+
 
 @contextlib.contextmanager
 def timeit(title='block'):
