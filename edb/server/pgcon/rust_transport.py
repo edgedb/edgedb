@@ -37,7 +37,7 @@ from dataclasses import dataclass
 from edb.server.pgconnparams import (
     ConnectionParams,
     SSLMode,
-    get_pg_home_directory
+    get_pg_home_directory,
 )
 from . import errors as pgerror
 
@@ -84,15 +84,11 @@ StateChangeCallback = Callable[[ConnectionStateType], None]
 
 def _parse_tls_version(tls_version: str) -> ssl_module.TLSVersion:
     if tls_version.startswith('SSL'):
-        raise ValueError(
-            f"Unsupported TLS version: {tls_version}"
-        )
+        raise ValueError(f"Unsupported TLS version: {tls_version}")
     try:
         return ssl_module.TLSVersion[tls_version.replace('.', '_')]
     except KeyError:
-        raise ValueError(
-            f"No such TLS version: {tls_version}"
-        )
+        raise ValueError(f"No such TLS version: {tls_version}")
 
 
 def _create_ssl(ssl_config: Dict[str, Any]):
@@ -112,15 +108,19 @@ def _create_ssl(ssl_config: Dict[str, Any]):
             ssl.load_verify_locations(ssl_config['sslcrl'])
             ssl.verify_flags |= ssl_module.VERIFY_CRL_CHECK_CHAIN
     if ssl_config['sslkey'] and ssl_config['sslcert']:
-        ssl.load_cert_chain(ssl_config['sslcert'],
-                            ssl_config['sslkey'],
-                            ssl_config['sslpassword'] or '')
+        ssl.load_cert_chain(
+            ssl_config['sslcert'],
+            ssl_config['sslkey'],
+            ssl_config['sslpassword'] or '',
+        )
     if ssl_config['ssl_max_protocol_version']:
         ssl.maximum_version = _parse_tls_version(
-            ssl_config['ssl_max_protocol_version'])
+            ssl_config['ssl_max_protocol_version']
+        )
     if ssl_config['ssl_min_protocol_version']:
         ssl.minimum_version = _parse_tls_version(
-            ssl_config['ssl_min_protocol_version'])
+            ssl_config['ssl_min_protocol_version']
+        )
     # OpenSSL 1.1.1 keylog file
     if hasattr(ssl, 'keylog_filename'):
         if ssl_config['keylog_filename']:
@@ -135,13 +135,14 @@ class PGConnectionProtocol(asyncio.Protocol):
     This protocol acts as an intermediary between the raw socket connection and
     the user's protocol.
     """
+
     def __init__(
-            self,
-            state: PyConnectionState,
-            protocol: asyncio.Protocol,
-            ready_future: asyncio.Future,
-            pg_state: PGState,
-        ):
+        self,
+        state: PyConnectionState,
+        protocol: asyncio.Protocol,
+        ready_future: asyncio.Future,
+        pg_state: PGState,
+    ):
         self.state = state
         self.pg_state = pg_state
         self.protocol = protocol
@@ -158,7 +159,9 @@ class PGConnectionProtocol(asyncio.Protocol):
             except Exception as e:
                 if error := self.pg_state.server_error:
                     self.pg_state.server_error = None
-                    self.ready_future.set_exception(pgerror.BackendConnectionError(fields=dict(error)))
+                    self.ready_future.set_exception(
+                        pgerror.BackendConnectionError(fields=dict(error))
+                    )
                 else:
                     self.ready_future.set_exception(ConnectionError(e))
             if self.state.is_ready():
@@ -173,9 +176,9 @@ class PGConnectionProtocol(asyncio.Protocol):
                 if exc:
                     self.ready_future.set_exception(exc)
                 else:
-                    self.ready_future.set_exception(RuntimeError(
-                        "Connection unexpectedly lost"
-                    ))
+                    self.ready_future.set_exception(
+                        RuntimeError("Connection unexpectedly lost")
+                    )
 
     def pause_writing(self):
         self._writing_paused = True
@@ -192,12 +195,14 @@ class PGConnectionProtocol(asyncio.Protocol):
 
 
 class PGRawConn(asyncio.Transport):
-    def __init__(self,
-                 source_description: Optional[str],
-                 connection: ConnectionParams,
-                 raw_transport: asyncio.Transport,
-                 pg_state: PGState,
-                 addr: tuple[str, int]):
+    def __init__(
+        self,
+        source_description: Optional[str],
+        connection: ConnectionParams,
+        raw_transport: asyncio.Transport,
+        pg_state: PGState,
+        addr: tuple[str, int],
+    ):
         super().__init__()
         self.source_description = source_description
         self.connection = connection
@@ -234,23 +239,30 @@ class PGRawConn(asyncio.Transport):
         self.raw_transport.abort()
 
     def __repr__(self):
-        params = ', '.join(f"{k}={v}" for k, v in
-                           self._pg_state.parameters.items())
-        auth_str = f", auth={self._pg_state.auth.name}" \
-            if self._pg_state.auth else ""
-        source_str = f", source={self.source_description}" \
-            if self.source_description else ""
+        params = ', '.join(
+            f"{k}={v}" for k, v in self._pg_state.parameters.items()
+        )
+        auth_str = (
+            f", auth={self._pg_state.auth.name}" if self._pg_state.auth else ""
+        )
+        source_str = (
+            f", source={self.source_description}"
+            if self.source_description
+            else ""
+        )
         raw_repr = repr(self.raw_transport)
         dsn = self.connection._params
-        return (f"<PGRawConn: connected{auth_str}{source_str}, {params}, "
-            f"dsn={dsn}, raw_connection={raw_repr}>")
+        return (
+            f"<PGRawConn: connected{auth_str}{source_str}, {params}, "
+            f"dsn={dsn}, raw_connection={raw_repr}>"
+        )
 
     def __del__(self):
         if not self.raw_transport.is_closing():
             warnings.warn(
                 f"unclosed connection {repr(self)}",
                 ResourceWarning,
-                stacklevel=2
+                stacklevel=2,
             )
             self.raw_transport.abort()
 
@@ -261,14 +273,14 @@ class RustTransportUpdate(ConnectionStateUpdate):
     state_change_callback: Optional[StateChangeCallback]
 
     def __init__(
-            self,
-            state: PyConnectionState,
-            raw_transport: asyncio.Transport,
-            state_change_callback: Optional[StateChangeCallback],
-            pg_state: PGState,
-            host: Optional[str],
-            ready_future: asyncio.Future,
-        ):
+        self,
+        state: PyConnectionState,
+        raw_transport: asyncio.Transport,
+        state_change_callback: Optional[StateChangeCallback],
+        pg_state: PGState,
+        host: Optional[str],
+        ready_future: asyncio.Future,
+    ):
         self.state = state
         self._pg_state = pg_state
         self.raw_transport = raw_transport
@@ -294,7 +306,7 @@ class RustTransportUpdate(ConnectionStateUpdate):
                     ssl_context,
                     server_side=False,
                     ssl_handshake_timeout=None,
-                    server_hostname=self._host
+                    server_hostname=self._host,
                 )
             except Exception:
                 self.raw_transport.abort()
@@ -325,42 +337,36 @@ class RustTransportUpdate(ConnectionStateUpdate):
 
 
 async def _create_connection_to(
-        protocol_factory: Callable[[], asyncio.Protocol],
-        protocol: str,
-        host: str | bytes,
-        hostname: str,
-        port: int
-    ) -> Tuple[str, str, int, asyncio.Transport]:
+    protocol_factory: Callable[[], asyncio.Protocol],
+    protocol: str,
+    host: str | bytes,
+    hostname: str,
+    port: int,
+) -> Tuple[str, str, int, asyncio.Transport]:
     if protocol == "unix":
         t, _ = await asyncio.get_running_loop().create_unix_connection(
-            protocol_factory,
-            path=host  # type: ignore
+            protocol_factory, path=host  # type: ignore
         )
         return (protocol, hostname, port, t)
     else:
         t, _ = await asyncio.get_running_loop().create_connection(
-            protocol_factory,
-            str(host), port
+            protocol_factory, str(host), port
         )
         _set_tcp_keepalive(t)
         return (protocol, hostname, port, t)
 
 
 async def _create_connection(
-        protocol_factory: Callable[[], asyncio.Protocol],
-        connect_timeout: Optional[int],
-        host_candidates: List[Tuple[str, str | bytes, str, int]]
-    ) -> Tuple[str, str, int, asyncio.Transport]:
+    protocol_factory: Callable[[], asyncio.Protocol],
+    connect_timeout: Optional[int],
+    host_candidates: List[Tuple[str, str | bytes, str, int]],
+) -> Tuple[str, str, int, asyncio.Transport]:
     e = None
     for protocol, host, hostname, port in host_candidates:
         async with asyncio.timeout(connect_timeout if connect_timeout else 60):
             try:
                 return await _create_connection_to(
-                    protocol_factory,
-                    protocol,
-                    host,
-                    hostname,
-                    port
+                    protocol_factory, protocol, host, hostname, port
                 )
             except asyncio.CancelledError as ex:
                 raise pgerror.new(
@@ -370,8 +376,9 @@ async def _create_connection(
             except Exception as ex:
                 e = ex
                 continue
-    raise ConnectionError(f"Failed to connect to any of "
-                          f"the provided hosts: {host_candidates}") from e
+    raise ConnectionError(
+        f"Failed to connect to any of " f"the provided hosts: {host_candidates}"
+    ) from e
 
 
 def _set_tcp_keepalive(transport):
@@ -391,22 +398,18 @@ def _set_tcp_keepalive(transport):
     # before TCP starts sending keepalive probes. This is socket.TCP_KEEPIDLE
     # on Linux, and socket.TCP_KEEPALIVE on macOS from Python 3.10.
     if hasattr(socket, 'TCP_KEEPIDLE'):
-        sock.setsockopt(socket.IPPROTO_TCP,
-                        socket.TCP_KEEPIDLE, TCP_KEEPIDLE)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, TCP_KEEPIDLE)
     if hasattr(socket, 'TCP_KEEPALIVE'):
-        sock.setsockopt(socket.IPPROTO_TCP,
-                        socket.TCP_KEEPALIVE, TCP_KEEPIDLE)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPALIVE, TCP_KEEPIDLE)
 
     # TCP_KEEPINTVL: The time (in seconds) between individual keepalive probes.
     if hasattr(socket, 'TCP_KEEPINTVL'):
-        sock.setsockopt(socket.IPPROTO_TCP,
-                        socket.TCP_KEEPINTVL, TCP_KEEPINTVL)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, TCP_KEEPINTVL)
 
     # TCP_KEEPCNT: The maximum number of keepalive probes TCP should send
     # before dropping the connection.
     if hasattr(socket, 'TCP_KEEPCNT'):
-        sock.setsockopt(socket.IPPROTO_TCP,
-                        socket.TCP_KEEPCNT, TCP_KEEPCNT)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, TCP_KEEPCNT)
 
 
 P = TypeVar('P', bound=asyncio.Protocol)
@@ -417,7 +420,7 @@ async def create_postgres_connection(
     protocol_factory: Callable[[], P],
     *,
     source_description: Optional[str] = None,
-    state_change_callback: Optional[StateChangeCallback] = None
+    state_change_callback: Optional[StateChangeCallback] = None,
 ) -> Tuple[PGRawConn, P]:
     """
     Open a PostgreSQL connection to the address specified by the DSN or
@@ -431,9 +434,7 @@ async def create_postgres_connection(
     connect_timeout = dsn.connect_timeout
     try:
         state = PyConnectionState(
-            dsn._params,
-            "postgres",
-            str(get_pg_home_directory())
+            dsn._params, "postgres", str(get_pg_home_directory())
         )
     except Exception as e:
         raise ValueError(e)
@@ -443,19 +444,16 @@ async def create_postgres_connection(
         cancellation_key=None,
         auth=None,
         server_error=None,
-        ssl=False
+        ssl=False,
     )
 
     user_protocol = protocol_factory()
     protocol, host, port, initial_transport = await _create_connection(
         lambda: PGConnectionProtocol(
-            state,
-            user_protocol,
-            ready_future,
-            pg_state
+            state, user_protocol, ready_future, pg_state
         ),
         connect_timeout,
-        state.config.host_candidates
+        state.config.host_candidates,
     )
 
     upgraded_transport = None
@@ -466,7 +464,7 @@ async def create_postgres_connection(
             state_change_callback,
             pg_state,
             host if protocol != "unix" else None,
-            ready_future
+            ready_future,
         )
         state.update = update
         state.drive_initial()
@@ -478,7 +476,7 @@ async def create_postgres_connection(
             ConnectionParams._create(state.config),
             upgraded_transport,
             pg_state,
-            (host, port)
+            (host, port),
         )
         upgraded_transport.set_protocol(user_protocol)
 
