@@ -32,7 +32,7 @@ import hashlib
 from typing import Any, Optional
 from jwcrypto import jwt, jwk
 
-from edgedb import QueryAssertionError
+from edgedb import QueryAssertionError, CardinalityViolationError
 from edb.testbase import http as tb
 from edb.common import assert_data_shape
 from edb.server.protocol.auth_ext import util as auth_util
@@ -350,19 +350,25 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             cls._wait_for_db_config('ext::auth::AuthConfig::providers')
         )
 
-    mock_provider: tb.MockHttpServer
+    mock_oauth_server: tb.MockHttpServer
+    mock_net_server: tb.MockHttpServer
 
     def setUp(self):
-        self.mock_provider = tb.MockHttpServer(
+        self.mock_oauth_server = tb.MockHttpServer(
             handler_type=tb.MultiHostMockHttpServerHandler
         )
-        self.mock_provider.start()
-        HTTP_TEST_PORT.set(self.mock_provider.get_base_url())
+        self.mock_oauth_server.start()
+        HTTP_TEST_PORT.set(self.mock_oauth_server.get_base_url())
+
+        self.mock_net_server = tb.MockHttpServer()
+        self.mock_net_server.start()
 
     def tearDown(self):
-        if self.mock_provider is not None:
-            self.mock_provider.stop()
-        self.mock_provider = None
+        if self.mock_oauth_server is not None:
+            self.mock_oauth_server.stop()
+        if self.mock_net_server is not None:
+            self.mock_net_server.stop()
+        self.mock_oauth_server = None
 
     @classmethod
     def get_setup_script(cls):
@@ -652,7 +658,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://github.com",
                 "login/oauth/access_token",
             )
-            self.mock_provider.register_route_handler(*token_request)(
+            self.mock_oauth_server.register_route_handler(*token_request)(
                 (
                     json.dumps(
                         {
@@ -666,7 +672,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             user_request = ("GET", "https://api.github.com", "user")
-            self.mock_provider.register_route_handler(*user_request)(
+            self.mock_oauth_server.register_route_handler(*user_request)(
                 (
                     json.dumps(
                         {
@@ -729,7 +735,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_token = self.mock_provider.requests[token_request]
+            requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
                 json.loads(requests_for_token[0]["body"]),
@@ -742,7 +748,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 },
             )
 
-            requests_for_user = self.mock_provider.requests[user_request]
+            requests_for_user = self.mock_oauth_server.requests[user_request]
             self.assertEqual(len(requests_for_user), 1)
             self.assertEqual(
                 requests_for_user[0]["headers"]["authorization"],
@@ -771,7 +777,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(pkce_object[0].auth_token, "github_access_token")
             self.assertIsNone(pkce_object[0].refresh_token)
 
-            self.mock_provider.register_route_handler(*user_request)(
+            self.mock_oauth_server.register_route_handler(*user_request)(
                 (
                     json.dumps(
                         {
@@ -815,7 +821,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://github.com",
                 "login/oauth/access_token",
             )
-            self.mock_provider.register_route_handler(*token_request)(
+            self.mock_oauth_server.register_route_handler(*token_request)(
                 (
                     json.dumps(
                         {
@@ -881,7 +887,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://github.com",
                 "login/oauth/access_token",
             )
-            self.mock_provider.register_route_handler(*token_request)(
+            self.mock_oauth_server.register_route_handler(*token_request)(
                 (
                     json.dumps(
                         {
@@ -1022,7 +1028,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://discord.com",
                 "api/oauth2/token",
             )
-            self.mock_provider.register_route_handler(*token_request)(
+            self.mock_oauth_server.register_route_handler(*token_request)(
                 (
                     json.dumps(
                         {
@@ -1036,7 +1042,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             user_request = ("GET", "https://discord.com/api/v10", "users/@me")
-            self.mock_provider.register_route_handler(*user_request)(
+            self.mock_oauth_server.register_route_handler(*user_request)(
                 (
                     json.dumps(
                         {
@@ -1098,7 +1104,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_token = self.mock_provider.requests[token_request]
+            requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
 
             self.assertEqual(
@@ -1112,7 +1118,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 },
             )
 
-            requests_for_user = self.mock_provider.requests[user_request]
+            requests_for_user = self.mock_oauth_server.requests[user_request]
             self.assertEqual(len(requests_for_user), 1)
             self.assertEqual(
                 requests_for_user[0]["headers"]["authorization"],
@@ -1141,7 +1147,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(pkce_object[0].auth_token, "discord_access_token")
             self.assertIsNone(pkce_object[0].refresh_token)
 
-            self.mock_provider.register_route_handler(*user_request)(
+            self.mock_oauth_server.register_route_handler(*user_request)(
                 (
                     json.dumps(
                         {
@@ -1188,7 +1194,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://accounts.google.com",
                 ".well-known/openid-configuration",
             )
-            self.mock_provider.register_route_handler(*discovery_request)(
+            self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
                     json.dumps(GOOGLE_DISCOVERY_DOCUMENT),
                     200,
@@ -1209,7 +1215,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 private_keys=False, as_dict=True
             )
 
-            self.mock_provider.register_route_handler(*jwks_request)(
+            self.mock_oauth_server.register_route_handler(*jwks_request)(
                 (
                     json.dumps(jwk_set),
                     200,
@@ -1232,7 +1238,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             id_token = jwt.JWT(header={"alg": "RS256"}, claims=id_token_claims)
             id_token.make_signed_token(k)
 
-            self.mock_provider.register_route_handler(*token_request)(
+            self.mock_oauth_server.register_route_handler(*token_request)(
                 (
                     json.dumps(
                         {
@@ -1293,12 +1299,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_discovery = self.mock_provider.requests[
+            requests_for_discovery = self.mock_oauth_server.requests[
                 discovery_request
             ]
             self.assertEqual(len(requests_for_discovery), 2)
 
-            requests_for_token = self.mock_provider.requests[token_request]
+            requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
                 urllib.parse.parse_qs(requests_for_token[0]["body"]),
@@ -1342,7 +1348,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://accounts.google.com",
                 ".well-known/openid-configuration",
             )
-            self.mock_provider.register_route_handler(*discovery_request)(
+            self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
                     json.dumps(GOOGLE_DISCOVERY_DOCUMENT),
                     200,
@@ -1384,7 +1390,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
-            requests_for_discovery = self.mock_provider.requests[
+            requests_for_discovery = self.mock_oauth_server.requests[
                 discovery_request
             ]
             self.assertEqual(len(requests_for_discovery), 1)
@@ -1412,7 +1418,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://login.microsoftonline.com/common/v2.0",
                 ".well-known/openid-configuration",
             )
-            self.mock_provider.register_route_handler(*discovery_request)(
+            self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
                     json.dumps(AZURE_DISCOVERY_DOCUMENT),
                     200,
@@ -1456,7 +1462,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
-            requests_for_discovery = self.mock_provider.requests[
+            requests_for_discovery = self.mock_oauth_server.requests[
                 discovery_request
             ]
             self.assertEqual(len(requests_for_discovery), 1)
@@ -1486,7 +1492,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://login.microsoftonline.com/common/v2.0",
                 ".well-known/openid-configuration",
             )
-            self.mock_provider.register_route_handler(*discovery_request)(
+            self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
                     json.dumps(AZURE_DISCOVERY_DOCUMENT),
                     200,
@@ -1506,7 +1512,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 private_keys=False, as_dict=True
             )
 
-            self.mock_provider.register_route_handler(*jwks_request)(
+            self.mock_oauth_server.register_route_handler(*jwks_request)(
                 (
                     json.dumps(jwk_set),
                     200,
@@ -1529,7 +1535,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             id_token = jwt.JWT(header={"alg": "RS256"}, claims=id_token_claims)
             id_token.make_signed_token(k)
 
-            self.mock_provider.register_route_handler(*token_request)(
+            self.mock_oauth_server.register_route_handler(*token_request)(
                 (
                     json.dumps(
                         {
@@ -1590,12 +1596,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_discovery = self.mock_provider.requests[
+            requests_for_discovery = self.mock_oauth_server.requests[
                 discovery_request
             ]
             self.assertEqual(len(requests_for_discovery), 2)
 
-            requests_for_token = self.mock_provider.requests[token_request]
+            requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
                 urllib.parse.parse_qs(requests_for_token[0]["body"]),
@@ -1630,7 +1636,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://appleid.apple.com",
                 ".well-known/openid-configuration",
             )
-            self.mock_provider.register_route_handler(*discovery_request)(
+            self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
                     json.dumps(APPLE_DISCOVERY_DOCUMENT),
                     200,
@@ -1672,7 +1678,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
-            requests_for_discovery = self.mock_provider.requests[
+            requests_for_discovery = self.mock_oauth_server.requests[
                 discovery_request
             ]
             self.assertEqual(len(requests_for_discovery), 1)
@@ -1702,7 +1708,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://appleid.apple.com",
                 ".well-known/openid-configuration",
             )
-            self.mock_provider.register_route_handler(*discovery_request)(
+            self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
                     json.dumps(APPLE_DISCOVERY_DOCUMENT),
                     200,
@@ -1722,7 +1728,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 private_keys=False, as_dict=True
             )
 
-            self.mock_provider.register_route_handler(*jwks_request)(
+            self.mock_oauth_server.register_route_handler(*jwks_request)(
                 (
                     json.dumps(jwk_set),
                     200,
@@ -1745,7 +1751,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             id_token = jwt.JWT(header={"alg": "RS256"}, claims=id_token_claims)
             id_token.make_signed_token(k)
 
-            self.mock_provider.register_route_handler(*token_request)(
+            self.mock_oauth_server.register_route_handler(*token_request)(
                 (
                     json.dumps(
                         {
@@ -1811,12 +1817,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_discovery = self.mock_provider.requests[
+            requests_for_discovery = self.mock_oauth_server.requests[
                 discovery_request
             ]
             self.assertEqual(len(requests_for_discovery), 2)
 
-            requests_for_token = self.mock_provider.requests[token_request]
+            requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
                 urllib.parse.parse_qs(requests_for_token[0]["body"]),
@@ -1846,7 +1852,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://appleid.apple.com",
                 ".well-known/openid-configuration",
             )
-            self.mock_provider.register_route_handler(*discovery_request)(
+            self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
                     json.dumps(APPLE_DISCOVERY_DOCUMENT),
                     200,
@@ -1866,7 +1872,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 private_keys=False, as_dict=True
             )
 
-            self.mock_provider.register_route_handler(*jwks_request)(
+            self.mock_oauth_server.register_route_handler(*jwks_request)(
                 (
                     json.dumps(jwk_set),
                     200,
@@ -1889,7 +1895,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             id_token = jwt.JWT(header={"alg": "RS256"}, claims=id_token_claims)
             id_token.make_signed_token(k)
 
-            self.mock_provider.register_route_handler(*token_request)(
+            self.mock_oauth_server.register_route_handler(*token_request)(
                 (
                     json.dumps(
                         {
@@ -1994,7 +2000,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://slack.com",
                 ".well-known/openid-configuration",
             )
-            self.mock_provider.register_route_handler(*discovery_request)(
+            self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
                     json.dumps(SLACK_DISCOVERY_DOCUMENT),
                     200,
@@ -2015,7 +2021,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 private_keys=False, as_dict=True
             )
 
-            self.mock_provider.register_route_handler(*jwks_request)(
+            self.mock_oauth_server.register_route_handler(*jwks_request)(
                 (
                     json.dumps(jwk_set),
                     200,
@@ -2038,7 +2044,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             id_token = jwt.JWT(header={"alg": "RS256"}, claims=id_token_claims)
             id_token.make_signed_token(k)
 
-            self.mock_provider.register_route_handler(*token_request)(
+            self.mock_oauth_server.register_route_handler(*token_request)(
                 (
                     json.dumps(
                         {
@@ -2099,12 +2105,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_discovery = self.mock_provider.requests[
+            requests_for_discovery = self.mock_oauth_server.requests[
                 discovery_request
             ]
             self.assertEqual(len(requests_for_discovery), 2)
 
-            requests_for_token = self.mock_provider.requests[token_request]
+            requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
                 urllib.parse.parse_qs(requests_for_token[0]["body"]),
@@ -2148,7 +2154,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://slack.com",
                 ".well-known/openid-configuration",
             )
-            self.mock_provider.register_route_handler(*discovery_request)(
+            self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
                     json.dumps(SLACK_DISCOVERY_DOCUMENT),
                     200,
@@ -2190,7 +2196,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
-            requests_for_discovery = self.mock_provider.requests[
+            requests_for_discovery = self.mock_oauth_server.requests[
                 discovery_request
             ]
             self.assertEqual(len(requests_for_discovery), 1)
@@ -2226,7 +2232,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://example.com",
                 ".well-known/openid-configuration",
             )
-            self.mock_provider.register_route_handler(*discovery_request)(
+            self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
                     json.dumps(GENERIC_OIDC_DISCOVERY_DOCUMENT),
                     200,
@@ -2271,7 +2277,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
-            requests_for_discovery = self.mock_provider.requests[
+            requests_for_discovery = self.mock_oauth_server.requests[
                 discovery_request
             ]
             self.assertEqual(len(requests_for_discovery), 1)
@@ -2301,7 +2307,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "https://example.com",
                 ".well-known/openid-configuration",
             )
-            self.mock_provider.register_route_handler(*discovery_request)(
+            self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
                     json.dumps(GENERIC_OIDC_DISCOVERY_DOCUMENT),
                     200,
@@ -2322,7 +2328,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 private_keys=False, as_dict=True
             )
 
-            self.mock_provider.register_route_handler(*jwks_request)(
+            self.mock_oauth_server.register_route_handler(*jwks_request)(
                 (
                     json.dumps(jwk_set),
                     200,
@@ -2345,7 +2351,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             id_token = jwt.JWT(header={"alg": "RS256"}, claims=id_token_claims)
             id_token.make_signed_token(k)
 
-            self.mock_provider.register_route_handler(*token_request)(
+            self.mock_oauth_server.register_route_handler(*token_request)(
                 (
                     json.dumps(
                         {
@@ -2406,12 +2412,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(url.hostname, server_url.hostname)
             self.assertEqual(url.path, f"{server_url.path}/some/path")
 
-            requests_for_discovery = self.mock_provider.requests[
+            requests_for_discovery = self.mock_oauth_server.requests[
                 discovery_request
             ]
             self.assertEqual(len(requests_for_discovery), 2)
 
-            requests_for_token = self.mock_provider.requests[token_request]
+            requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
                 urllib.parse.parse_qs(requests_for_token[0]["body"]),
@@ -2820,216 +2826,296 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 400)
 
     async def test_http_auth_ext_local_password_authenticate_01(self):
-        with self.http_con() as http_con:
-            provider_config = await self.get_builtin_provider_config_by_name(
-                "local_emailpassword"
-            )
-            provider_name = provider_config.name
-            email = f"{uuid.uuid4()}@example.com"
+        base_url = self.mock_net_server.get_base_url().rstrip("/")
+        await self.con.query(
+            f"""
+            CONFIGURE CURRENT DATABASE
+            INSERT ext::auth::WebhookConfig {{
+                url := '{base_url}/webhook',
+                events := {{
+                    ext::auth::WebhookEvent.IdentityAuthenticated,
+                }},
+            }};
+            """
+        )
 
-            # Register a new user
-            form_data = {
-                "provider": provider_name,
-                "email": email,
-                "password": "test_auth_password",
-                "challenge": str(uuid.uuid4()),
-            }
-            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+        try:
+            with self.http_con() as http_con:
+                webhook_request = (
+                    "POST",
+                    base_url,
+                    "/webhook",
+                )
 
-            self.http_con_request(
-                http_con,
-                None,
-                path="register",
-                method="POST",
-                body=form_data_encoded,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
+                self.mock_net_server.register_route_handler(*webhook_request)(
+                    (
+                        "",
+                        204,
+                    )
+                )
+                provider_config = (
+                    await self.get_builtin_provider_config_by_name(
+                        "local_emailpassword"
+                    )
+                )
+                provider_name = provider_config.name
+                email = f"{uuid.uuid4()}@example.com"
 
-            auth_data = {
-                "provider": form_data["provider"],
-                "email": form_data["email"],
-                "password": form_data["password"],
-                "challenge": str(uuid.uuid4()),
-            }
-            auth_data_encoded = urllib.parse.urlencode(auth_data).encode()
+                # Register a new user
+                form_data = {
+                    "provider": provider_name,
+                    "email": email,
+                    "password": "test_auth_password",
+                    "challenge": str(uuid.uuid4()),
+                }
+                form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
-            body, _headers, status = self.http_con_request(
-                http_con,
-                None,
-                path="authenticate",
-                method="POST",
-                body=auth_data_encoded,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
+                self.http_con_request(
+                    http_con,
+                    None,
+                    path="register",
+                    method="POST",
+                    body=form_data_encoded,
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                )
 
-            self.assertEqual(status, 200)
+                auth_data = {
+                    "provider": form_data["provider"],
+                    "email": form_data["email"],
+                    "password": form_data["password"],
+                    "challenge": str(uuid.uuid4()),
+                }
+                auth_data_encoded = urllib.parse.urlencode(auth_data).encode()
 
-            identity = await self.con.query(
+                body, _headers, status = self.http_con_request(
+                    http_con,
+                    None,
+                    path="authenticate",
+                    method="POST",
+                    body=auth_data_encoded,
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                )
+
+                self.assertEqual(status, 200)
+
+                identity = await self.con.query(
+                    """
+                    SELECT ext::auth::LocalIdentity
+                    FILTER .<identity[is ext::auth::EmailPasswordFactor]
+                           .email = <str>$email;
+                    """,
+                    email=email,
+                )
+
+                self.assertEqual(len(identity), 1)
+
+                pkce_challenge = await self.con.query_single(
+                    """
+                    SELECT ext::auth::PKCEChallenge { * }
+                    FILTER .challenge = <str>$challenge
+                    AND .identity.id = <uuid>$identity_id
+                    """,
+                    challenge=auth_data["challenge"],
+                    identity_id=identity[0].id,
+                )
+
+                self.assertEqual(
+                    json.loads(body),
+                    {
+                        "code": str(pkce_challenge.id),
+                    },
+                )
+
+                # Test Webhook side effect
+                async for tr in self.try_until_succeeds(
+                    delay=2, timeout=120, ignore=(CardinalityViolationError,)
+                ):
+                    async with tr:
+                        await self.con.query(
+                            """
+                            with
+                                url := <str>$url,
+                                request := assert_exists((
+                                    select std::net::http::ScheduledRequest
+                                    filter .url = url
+                                    and .state != std::net::RequestState.Pending
+                                    limit 1
+                                ))
+                            select request {*};
+                            """,
+                            url=f"{base_url}/webhook",
+                        )
+
+                requests_for_webhook = self.mock_net_server.requests[
+                    webhook_request
+                ]
+                self.assertEqual(len(requests_for_webhook), 1)
+                event_data = json.loads(requests_for_webhook[0]["body"])
+                self.assertEqual(
+                    event_data["event_type"],
+                    "IdentityAuthenticated",
+                )
+                self.assertEqual(event_data["identity_id"], str(identity[0].id))
+
+                # Attempt to authenticate with wrong password
+                auth_data_wrong_password = {
+                    "provider": form_data["provider"],
+                    "email": form_data["email"],
+                    "password": "wrong_password",
+                    "challenge": str(uuid.uuid4()),
+                }
+                auth_data_encoded_wrong_password = urllib.parse.urlencode(
+                    auth_data_wrong_password
+                ).encode()
+
+                _, _, wrong_password_status = self.http_con_request(
+                    http_con,
+                    None,
+                    path="authenticate",
+                    method="POST",
+                    body=auth_data_encoded_wrong_password,
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                )
+
+                self.assertEqual(wrong_password_status, 403)
+
+                # Attempt to authenticate with a random email
+                random_email = f"{uuid.uuid4()}@example.com"
+                auth_data_random_handle = {
+                    "provider": form_data["provider"],
+                    "email": random_email,
+                    "password": form_data["password"],
+                    "challenge": str(uuid.uuid4()),
+                }
+                auth_data_encoded_random_handle = urllib.parse.urlencode(
+                    auth_data_random_handle
+                ).encode()
+
+                _, _, wrong_handle_status = self.http_con_request(
+                    http_con,
+                    None,
+                    path="authenticate",
+                    method="POST",
+                    body=auth_data_encoded_random_handle,
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                )
+
+                self.assertEqual(wrong_handle_status, 403)
+
+                # Attempt to authenticate with a random email (redirect flow)
+                auth_data_redirect_to = {
+                    "provider": form_data["provider"],
+                    "email": random_email,
+                    "password": form_data["password"],
+                    "redirect_to": "https://example.com/app/some/path",
+                    "challenge": str(uuid.uuid4()),
+                }
+                auth_data_encoded_redirect_to = urllib.parse.urlencode(
+                    auth_data_redirect_to
+                ).encode()
+
+                _, redirect_to_headers, redirect_to_status = (
+                    self.http_con_request(
+                        http_con,
+                        None,
+                        path="authenticate",
+                        method="POST",
+                        body=auth_data_encoded_redirect_to,
+                        headers={
+                            "Content-Type": "application/x-www-form-urlencoded"
+                        },
+                    )
+                )
+
+                self.assertEqual(redirect_to_status, 302)
+                location = redirect_to_headers.get("location")
+                assert location is not None
+                parsed_location = urllib.parse.urlparse(location)
+                parsed_query = urllib.parse.parse_qs(parsed_location.query)
+                self.assertEqual(
+                    urllib.parse.urlunparse(
+                        (
+                            parsed_location.scheme,
+                            parsed_location.netloc,
+                            parsed_location.path,
+                            '',
+                            '',
+                            '',
+                        )
+                    ),
+                    auth_data_redirect_to["redirect_to"],
+                )
+
+                self.assertEqual(
+                    parsed_query.get("error"),
+                    [
+                        (
+                            "Could not find an Identity matching the provided "
+                            "credentials"
+                        )
+                    ],
+                )
+
+                # Attempt to authenticate with a random email
+                # (redirect flow with redirect_on_failure)
+                auth_data_redirect_on_failure = {
+                    "provider": form_data["provider"],
+                    "email": random_email,
+                    "password": form_data["password"],
+                    "redirect_to": "https://example.com/app/some/path",
+                    "redirect_on_failure": "https://example.com/app/failure/path",
+                    "challenge": str(uuid.uuid4()),
+                }
+                auth_data_encoded_redirect_on_failure = urllib.parse.urlencode(
+                    auth_data_redirect_on_failure
+                ).encode()
+
+                (
+                    _,
+                    redirect_on_failure_headers,
+                    redirect_on_failure_status,
+                ) = self.http_con_request(
+                    http_con,
+                    None,
+                    path="authenticate",
+                    method="POST",
+                    body=auth_data_encoded_redirect_on_failure,
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                )
+
+                self.assertEqual(redirect_on_failure_status, 302)
+                location = redirect_on_failure_headers.get("location")
+                assert location is not None
+                parsed_location = urllib.parse.urlparse(location)
+                self.assertEqual(
+                    urllib.parse.urlunparse(
+                        (
+                            parsed_location.scheme,
+                            parsed_location.netloc,
+                            parsed_location.path,
+                            '',
+                            '',
+                            '',
+                        )
+                    ),
+                    auth_data_redirect_on_failure["redirect_on_failure"],
+                )
+        finally:
+            await self.con.query(
                 """
-                SELECT ext::auth::LocalIdentity
-                FILTER .<identity[is ext::auth::EmailPasswordFactor]
-                       .email = <str>$email;
-                """,
-                email=email,
-            )
-
-            self.assertEqual(len(identity), 1)
-
-            pkce_challenge = await self.con.query_single(
+                CONFIGURE CURRENT DATABASE
+                RESET ext::auth::WebhookConfig;
                 """
-                SELECT ext::auth::PKCEChallenge { * }
-                FILTER .challenge = <str>$challenge
-                AND .identity.id = <uuid>$identity_id
-                """,
-                challenge=auth_data["challenge"],
-                identity_id=identity[0].id,
-            )
-
-            self.assertEqual(
-                json.loads(body),
-                {
-                    "code": str(pkce_challenge.id),
-                },
-            )
-
-            # Attempt to authenticate with wrong password
-            auth_data_wrong_password = {
-                "provider": form_data["provider"],
-                "email": form_data["email"],
-                "password": "wrong_password",
-                "challenge": str(uuid.uuid4()),
-            }
-            auth_data_encoded_wrong_password = urllib.parse.urlencode(
-                auth_data_wrong_password
-            ).encode()
-
-            _, _, wrong_password_status = self.http_con_request(
-                http_con,
-                None,
-                path="authenticate",
-                method="POST",
-                body=auth_data_encoded_wrong_password,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-
-            self.assertEqual(wrong_password_status, 403)
-
-            # Attempt to authenticate with a random email
-            random_email = f"{uuid.uuid4()}@example.com"
-            auth_data_random_handle = {
-                "provider": form_data["provider"],
-                "email": random_email,
-                "password": form_data["password"],
-                "challenge": str(uuid.uuid4()),
-            }
-            auth_data_encoded_random_handle = urllib.parse.urlencode(
-                auth_data_random_handle
-            ).encode()
-
-            _, _, wrong_handle_status = self.http_con_request(
-                http_con,
-                None,
-                path="authenticate",
-                method="POST",
-                body=auth_data_encoded_random_handle,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-
-            self.assertEqual(wrong_handle_status, 403)
-
-            # Attempt to authenticate with a random email (redirect flow)
-            auth_data_redirect_to = {
-                "provider": form_data["provider"],
-                "email": random_email,
-                "password": form_data["password"],
-                "redirect_to": "https://example.com/app/some/path",
-                "challenge": str(uuid.uuid4()),
-            }
-            auth_data_encoded_redirect_to = urllib.parse.urlencode(
-                auth_data_redirect_to
-            ).encode()
-
-            _, redirect_to_headers, redirect_to_status = self.http_con_request(
-                http_con,
-                None,
-                path="authenticate",
-                method="POST",
-                body=auth_data_encoded_redirect_to,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-
-            self.assertEqual(redirect_to_status, 302)
-            location = redirect_to_headers.get("location")
-            assert location is not None
-            parsed_location = urllib.parse.urlparse(location)
-            parsed_query = urllib.parse.parse_qs(parsed_location.query)
-            self.assertEqual(
-                urllib.parse.urlunparse(
-                    (
-                        parsed_location.scheme,
-                        parsed_location.netloc,
-                        parsed_location.path,
-                        '',
-                        '',
-                        '',
-                    )
-                ),
-                auth_data_redirect_to["redirect_to"],
-            )
-
-            self.assertEqual(
-                parsed_query.get("error"),
-                [
-                    (
-                        "Could not find an Identity matching the provided "
-                        "credentials"
-                    )
-                ],
-            )
-
-            # Attempt to authenticate with a random email
-            # (redirect flow with redirect_on_failure)
-            auth_data_redirect_on_failure = {
-                "provider": form_data["provider"],
-                "email": random_email,
-                "password": form_data["password"],
-                "redirect_to": "https://example.com/app/some/path",
-                "redirect_on_failure": "https://example.com/app/failure/path",
-                "challenge": str(uuid.uuid4()),
-            }
-            auth_data_encoded_redirect_on_failure = urllib.parse.urlencode(
-                auth_data_redirect_on_failure
-            ).encode()
-
-            (
-                _,
-                redirect_on_failure_headers,
-                redirect_on_failure_status,
-            ) = self.http_con_request(
-                http_con,
-                None,
-                path="authenticate",
-                method="POST",
-                body=auth_data_encoded_redirect_on_failure,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-
-            self.assertEqual(redirect_on_failure_status, 302)
-            location = redirect_on_failure_headers.get("location")
-            assert location is not None
-            parsed_location = urllib.parse.urlparse(location)
-            self.assertEqual(
-                urllib.parse.urlunparse(
-                    (
-                        parsed_location.scheme,
-                        parsed_location.netloc,
-                        parsed_location.path,
-                        '',
-                        '',
-                        '',
-                    )
-                ),
-                auth_data_redirect_on_failure["redirect_on_failure"],
             )
 
     async def test_http_auth_ext_resend_verification_email(self):
