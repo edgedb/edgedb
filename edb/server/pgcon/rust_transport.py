@@ -151,7 +151,7 @@ class PGConnectionProtocol(asyncio.Protocol):
         if self._ready:
             self.protocol.connection_lost(exc)
         else:
-            if not self.ready_future.done:
+            if not self.ready_future.done():
                 if exc:
                     self.ready_future.set_exception(exc)
                 else:
