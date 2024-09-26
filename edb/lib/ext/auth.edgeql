@@ -384,7 +384,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
                 "The events to send webhooks for.";
         };
 
-        create property webhook_secret_key: std::str {
+        create property signing_secret_key: std::str {
             set secret := true;
 
             create annotation std::description :=
