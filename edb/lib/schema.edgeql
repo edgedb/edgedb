@@ -35,7 +35,7 @@ CREATE SCALAR TYPE schema::OperatorKind
     EXTENDING enum<Infix, Postfix, Prefix, Ternary>;
 
 CREATE SCALAR TYPE schema::Volatility
-    EXTENDING enum<Immutable, Stable, Volatile>;
+    EXTENDING enum<Immutable, Stable, Volatile, Modifying>;
 
 CREATE SCALAR TYPE schema::ParameterKind
     EXTENDING enum<VariadicParam, NamedOnlyParam, PositionalParam>;
