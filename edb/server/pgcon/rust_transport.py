@@ -44,6 +44,7 @@ from . import errors as pgerror
 TCP_KEEPIDLE = 24
 TCP_KEEPINTVL = 2
 TCP_KEEPCNT = 3
+DEFAULT_CONNECT_TIMEOUT = 60
 
 
 class ConnectionStateType(Enum):
@@ -363,7 +364,9 @@ async def _create_connection(
 ) -> Tuple[str, str, int, asyncio.Transport]:
     e = None
     for protocol, host, hostname, port in host_candidates:
-        async with asyncio.timeout(connect_timeout if connect_timeout else 60):
+        async with asyncio.timeout(
+            connect_timeout if connect_timeout else DEFAULT_CONNECT_TIMEOUT
+        ):
             try:
                 return await _create_connection_to(
                     protocol_factory, protocol, host, hostname, port
