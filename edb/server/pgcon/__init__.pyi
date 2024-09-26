@@ -22,10 +22,11 @@ from typing import (
     Any,
     Callable,
     Optional,
+    TYPE_CHECKING
 )
 
 from edb.pgsql import params as pg_params
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from edb.server import pgconnparams
 
 class BackendError(Exception):
@@ -46,7 +47,7 @@ class BackendCatalogNameError(BackendError):
     ...
 
 async def connect(
-    dsn_or_connection: str | ConnectionParams,
+    dsn_or_connection: str | pgconnparams.ConnectionParams,
     *,
     backend_params: pg_params.BackendRuntimeParams,
     source_description: str,

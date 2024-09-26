@@ -25,9 +25,10 @@ import textwrap
 from edb.pgsql.common import quote_ident as pg_qi
 from edb.pgsql.common import quote_literal as pg_ql
 from edb.pgsql import params as pg_params
+
 from . import errors as pgerror
-from .rust_transport import ConnectionParams, create_postgres_connection
-from .pgcon import PGConnection
+from . import pgcon
+from . import rust_transport
 
 logger = logging.getLogger('edb.server')
 
@@ -124,39 +125,39 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
 
 
 async def connect(
-    dsn_or_connection: str | ConnectionParams,
+    dsn_or_connection: str | rust_transport.ConnectionParams,
     *,
     backend_params: pg_params.BackendRuntimeParams,
     source_description: str,
     apply_init_script: bool = True,
-) -> PGConnection:
+) -> pgcon.PGConnection:
     global INIT_CON_SCRIPT
 
-    pgcon = None
+    pgconn = None
 
     if isinstance(dsn_or_connection, str):
-        connection = ConnectionParams(dsn=dsn_or_connection)
+        connection = rust_transport.ConnectionParams(dsn=dsn_or_connection)
     else:
         connection = dsn_or_connection
 
     # Note that we intentionally differ from the libpq connection behaviour
     # here: if we fail to connect with SSL enabled, we DO NOT retry with SSL
     # disabled.
-    pgrawcon, pgcon = await create_postgres_connection(
+    pgrawcon, pgconn = await rust_transport.create_postgres_connection(
         connection,
-        lambda: PGConnection(dbname=connection.database),
+        lambda: pgcon.PGConnection(dbname=connection.database),
         source_description=source_description,
     )
 
     connection = pgrawcon.connection
-    pgcon.connection = pgrawcon.connection
-    pgcon.parameter_status = pgrawcon.state.parameters
+    pgconn.connection = pgrawcon.connection
+    pgconn.parameter_status = pgrawcon.state.parameters
     cancellation_key = pgrawcon.state.cancellation_key
     if cancellation_key:
-        pgcon.backend_pid = cancellation_key[0]
-        pgcon.backend_secret = cancellation_key[1]
-    pgcon.is_ssl = pgrawcon.state.ssl
-    pgcon.addr = pgrawcon.addr
+        pgconn.backend_pid = cancellation_key[0]
+        pgconn.backend_secret = cancellation_key[1]
+    pgconn.is_ssl = pgrawcon.state.ssl
+    pgconn.addr = pgrawcon.addr
 
     if (
         backend_params.has_create_role
@@ -169,13 +170,13 @@ async def connect(
             # accessing Postgres directly through EdgeDB, SET ROLE is mostly
             # fine here. (Also hosted backends like Postgres on DigitalOcean
             # support only SET ROLE)
-            await pgcon.sql_execute(f'SET ROLE {pg_qi(sup_role)}'.encode())
+            await pgconn.sql_execute(f'SET ROLE {pg_qi(sup_role)}'.encode())
 
-    if 'in_hot_standby' in pgcon.parameter_status:
+    if 'in_hot_standby' in pgconn.parameter_status:
         # in_hot_standby is always present in Postgres 14 and above
-        if pgcon.parameter_status['in_hot_standby'] == 'on':
+        if pgconn.parameter_status['in_hot_standby'] == 'on':
             # Abort if we're connecting to a hot standby
-            pgcon.terminate()
+            pgconn.terminate()
             raise pgerror.BackendError(
                 fields=dict(
                     M="cannot use a hot standby",
@@ -189,19 +190,19 @@ async def connect(
                 # On lower versions of Postgres we use pg_is_in_recovery() to
                 # check if it is a hot standby, and error out if it is.
                 check_pg_is_in_recovery=(
-                    'in_hot_standby' not in pgcon.parameter_status
+                    'in_hot_standby' not in pgconn.parameter_status
                 ),
             )
         try:
-            await pgcon.sql_execute(INIT_CON_SCRIPT)
+            await pgconn.sql_execute(INIT_CON_SCRIPT)
         except Exception:
             logger.exception(
-                f"Failed to run init script for {pgcon.connection.to_dsn()}"
+                f"Failed to run init script for {pgconn.connection.to_dsn()}"
             )
-            await pgcon.close()
+            await pgconn.close()
             raise
 
-    return pgcon
+    return pgconn
 
 
 def set_init_con_script_data(cfg):
