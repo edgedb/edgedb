@@ -13,18 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+from __future__ import annotations
+from typing import TypedDict, NotRequired, Optional, Unpack, Self, Any
+
+import enum
 import pathlib
 import platform
 import warnings
-from typing import TypedDict, NotRequired, Optional, Unpack, Self, Any
-from enum import IntEnum
+
 from edb.server._pg_rust import PyConnectionParams
 
 _system = platform.uname().system
 if _system == 'Windows':
     import ctypes.wintypes
 
-    CSIDL_APPDATA = 0x001a
+    CSIDL_APPDATA = 0x001A
 
     def get_pg_home_directory() -> pathlib.Path:
         # We cannot simply use expanduser() as that returns the user's
@@ -32,19 +36,22 @@ if _system == 'Windows':
         # %AppData% on Windows.
         buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
         r = ctypes.windll.shell32.SHGetFolderPathW(  # type: ignore
-            0, CSIDL_APPDATA, 0, 0, buf)
+            0, CSIDL_APPDATA, 0, 0, buf
+        )
         if r:
             # Fall back to the home directory
             warnings.warn("Could not resolve %AppData%", stacklevel=2)
             return pathlib.Path.home()
         else:
             return pathlib.Path(buf.value) / 'postgresql'
+
 else:
+
     def get_pg_home_directory() -> pathlib.Path:
         return pathlib.Path.home() / '.postgresql'
 
 
-class SSLMode(IntEnum):
+class SSLMode(enum.IntEnum):
     disable = 0
     allow = 1
     prefer = 2
@@ -80,6 +87,7 @@ class ConnectionParams:
     This class encapsulates the connection parameters used for establishing
     a connection to a PostgreSQL database.
     """
+
     _params: PyConnectionParams
 
     def __init__(self, **kwargs: Unpack[CreateParamsKwargs]) -> None:

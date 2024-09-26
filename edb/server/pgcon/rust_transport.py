@@ -339,22 +339,22 @@ class RustTransportUpdate(ConnectionStateUpdate):
 
 async def _create_connection_to(
     protocol_factory: Callable[[], asyncio.Protocol],
-    protocol: str,
+    address_family: str,
     host: str | bytes,
     hostname: str,
     port: int,
 ) -> Tuple[str, str, int, asyncio.Transport]:
-    if protocol == "unix":
+    if address_family == "unix":
         t, _ = await asyncio.get_running_loop().create_unix_connection(
             protocol_factory, path=host  # type: ignore
         )
-        return (protocol, hostname, port, t)
+        return (address_family, hostname, port, t)
     else:
         t, _ = await asyncio.get_running_loop().create_connection(
             protocol_factory, str(host), port
         )
         _set_tcp_keepalive(t)
-        return (protocol, hostname, port, t)
+        return (address_family, hostname, port, t)
 
 
 async def _create_connection(
@@ -363,13 +363,13 @@ async def _create_connection(
     host_candidates: List[Tuple[str, str | bytes, str, int]],
 ) -> Tuple[str, str, int, asyncio.Transport]:
     e = None
-    for protocol, host, hostname, port in host_candidates:
+    for address_family, host, hostname, port in host_candidates:
         async with asyncio.timeout(
             connect_timeout if connect_timeout else DEFAULT_CONNECT_TIMEOUT
         ):
             try:
                 return await _create_connection_to(
-                    protocol_factory, protocol, host, hostname, port
+                    protocol_factory, address_family, host, hostname, port
                 )
             except asyncio.CancelledError as ex:
                 raise pgerror.new(
