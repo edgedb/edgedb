@@ -54,6 +54,7 @@ from . import (
     email as auth_emails,
     webauthn,
     magic_link,
+    webhook,
 )
 
 if TYPE_CHECKING:
@@ -393,6 +394,13 @@ class Router:
             ),
             {"code": pkce_code, "provider": provider_name},
         )
+        await self._maybe_send_webhook(
+            webhook.IdentityAuthenticated(
+                event_id=str(uuid.uuid4()),
+                timestamp=datetime.datetime.now(datetime.timezone.utc),
+                identity_id=identity.id,
+            )
+        )
         response.status = http.HTTPStatus.FOUND
         response.custom_headers["Location"] = new_url
 
@@ -434,6 +442,14 @@ class Router:
 
         if base64_url_encoded_verifier.decode() == pkce_object.challenge:
             await pkce.delete(self.db, code)
+
+            await self._maybe_send_webhook(
+                webhook.IdentityAuthenticated(
+                    event_id=str(uuid.uuid4()),
+                    timestamp=datetime.datetime.now(datetime.timezone.utc),
+                    identity_id=pkce_object.identity_id,
+                )
+            )
             session_token = self._make_session_token(pkce_object.identity_id)
             response.status = http.HTTPStatus.OK
             response.content_type = b"application/json"
@@ -574,6 +590,13 @@ class Router:
 
             pkce_code = await pkce.link_identity_challenge(
                 self.db, local_identity.id, maybe_challenge
+            )
+            await self._maybe_send_webhook(
+                webhook.IdentityAuthenticated(
+                    event_id=str(uuid.uuid4()),
+                    timestamp=datetime.datetime.now(datetime.timezone.utc),
+                    identity_id=local_identity.id,
+                )
             )
             if maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
@@ -1697,6 +1720,35 @@ class Router:
             dark_logo_url=app_details.dark_logo_url,
             brand_color=app_details.brand_color,
         )
+
+    def _get_webhook_config(self) -> list[config.WebhookConfig]:
+        raw_webhook_configs = util.get_config(
+            self.db,
+            "ext::auth::AuthConfig::webhooks",
+            frozenset,
+        )
+        return [
+            config.WebhookConfig(
+                events=raw_config.events,
+                url=raw_config.url,
+                signing_secret_key=raw_config.signing_secret_key,
+            )
+            for raw_config in raw_webhook_configs
+        ]
+
+    async def _maybe_send_webhook(self, event: webhook.Event) -> None:
+        webhook_configs = self._get_webhook_config()
+        for webhook_config in webhook_configs:
+            if event.event_type in webhook_config.events:
+                request_id = await webhook.send(
+                    db=self.db,
+                    url=webhook_config.url,
+                    secret=webhook_config.signing_secret_key,
+                    event=event,
+                )
+                logger.info(
+                    f"Sent webhook request {request_id} for event {event!r}"
+                )
 
     def _get_callback_url(self) -> str:
         return f"{self.base_path}/callback"
