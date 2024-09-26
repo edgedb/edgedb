@@ -25,8 +25,8 @@ from typing import (
 )
 
 from edb.pgsql import params as pg_params
-from edb.server import pgconnparams
-from .rust_transport import ConnectionParams
+if typing.TYPE_CHECKING:
+    from edb.server import pgconnparams
 
 class BackendError(Exception):
 
