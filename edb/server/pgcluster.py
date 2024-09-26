@@ -813,8 +813,8 @@ class Cluster(BaseCluster):
                 asyncio.TimeoutError,
                 pgcon.BackendConnectionError,
             ) as e:
-                if n % 10 == 0 and n > 0:
-                    logger.error("_test_connection failed", e)
+                if n % 10 == 0 and 0 < n < timeout + 9 - 1:
+                    logger.error("cannot connect to the backend cluster: %s, retrying...", e)
                 await asyncio.sleep(sleep_time)
                 continue
             except pgcon.BackendError:
