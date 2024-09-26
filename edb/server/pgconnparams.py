@@ -129,7 +129,7 @@ class ConnectionParams:
             self._params.resolve("", str(get_pg_home_directory())),
         )
 
-    def clone(self) -> Self:
+    def __copy__(self) -> Self:
         return self._create(self._params.clone())
 
     @property

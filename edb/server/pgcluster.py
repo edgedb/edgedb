@@ -35,6 +35,7 @@ from typing import (
 )
 
 import asyncio
+import copy
 import functools
 import hashlib
 import json
@@ -171,7 +172,7 @@ class BaseCluster:
         connection parameters before the connection takes place."""
         from edb.server import pgcon
 
-        connection = self.get_connection_params().clone()
+        connection = copy.copy(self.get_connection_params())
         addr = self._get_connection_addr()
         assert addr is not None
         connection.update(hosts=[addr])
@@ -220,7 +221,7 @@ class BaseCluster:
         assert self._connection_params is not None
         addr = self._get_connection_addr()
         assert addr is not None
-        params = self._connection_params.clone()
+        params = copy.copy(self._connection_params)
         params.update(hosts=[addr])
         return params
 
@@ -243,7 +244,7 @@ class BaseCluster:
         self,
         dbname: str,
     ) -> tuple[list[str], dict[str, str]]:
-        params = self.get_connection_params().clone()
+        params = copy.copy(self.get_connection_params())
         addr = self._get_connection_addr()
         assert addr is not None
         params.update(database=dbname, hosts=[addr])

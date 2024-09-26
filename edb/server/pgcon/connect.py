@@ -129,25 +129,15 @@ async def connect(
         connection = ConnectionParams(dsn=dsn_or_connection)
     else:
         connection = dsn_or_connection
-    try:
-        pgrawcon, pgcon = await create_postgres_connection(
-            connection,
-            lambda: PGConnection(dbname=connection.database),
-            source_description=source_description
-        )
-    except pgerror.BackendConnectionError:
-        # If we don't mandate SSL, try again with no SSL
-        if (connection.sslmode == SSLMode.allow or
-            connection.sslmode == SSLMode.prefer):
-            connection = connection.clone()
-            connection.update(sslmode=SSLMode.disable)
-            pgrawcon, pgcon = await create_postgres_connection(
-                connection,
-                lambda: PGConnection(dbname=connection.database),
-                source_description=source_description
-            )
-        else:
-            raise
+
+    # Note that we intentionally differ from the libpq connection behaviour
+    # here: if we fail to connect with SSL enabled, we DO NOT retry with SSL
+    # disabled.
+    pgrawcon, pgcon = await create_postgres_connection(
+        connection,
+        lambda: PGConnection(dbname=connection.database),
+        source_description=source_description
+    )
 
     connection = pgrawcon.connection
     pgcon.connection = pgrawcon.connection
