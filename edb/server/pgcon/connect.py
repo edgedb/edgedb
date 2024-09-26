@@ -16,11 +16,12 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
+
 import json
 import logging
 import textwrap
 
-from edb.server.pgconnparams import SSLMode
 from edb.pgsql.common import quote_ident as pg_qi
 from edb.pgsql.common import quote_literal as pg_ql
 from edb.pgsql import params as pg_params

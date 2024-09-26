@@ -26,19 +26,24 @@ and authentication, while presenting a simple asyncio-like transport interface
 to the caller.
 """
 
+from __future__ import annotations
+from typing import Optional, List, Tuple, Protocol, Callable, Dict, Any, TypeVar
+
 import asyncio
 import ssl as ssl_module
 import socket
 import warnings
-from typing import Optional, List, Tuple, Protocol, Callable, Dict, Any, TypeVar
+
 from enum import Enum, auto
-from edb.server._pg_rust import PyConnectionState
 from dataclasses import dataclass
+
+from edb.server import _pg_rust as pgrust
 from edb.server.pgconnparams import (
     ConnectionParams,
     SSLMode,
     get_pg_home_directory,
 )
+
 from . import errors as pgerror
 
 TCP_KEEPIDLE = 24
@@ -139,7 +144,7 @@ class PGConnectionProtocol(asyncio.Protocol):
 
     def __init__(
         self,
-        state: PyConnectionState,
+        state: pgrust.PyConnectionState,
         protocol: asyncio.Protocol,
         ready_future: asyncio.Future,
         pg_state: PGState,
@@ -270,12 +275,12 @@ class PGRawConn(asyncio.Transport):
 
 class RustTransportUpdate(ConnectionStateUpdate):
     raw_transport: asyncio.Transport
-    state: PyConnectionState
+    state: pgrust.PyConnectionState
     state_change_callback: Optional[StateChangeCallback]
 
     def __init__(
         self,
-        state: PyConnectionState,
+        state: pgrust.PyConnectionState,
         raw_transport: asyncio.Transport,
         state_change_callback: Optional[StateChangeCallback],
         pg_state: PGState,
@@ -436,7 +441,7 @@ async def create_postgres_connection(
         dsn = ConnectionParams(dsn=dsn)
     connect_timeout = dsn.connect_timeout
     try:
-        state = PyConnectionState(
+        state = pgrust.PyConnectionState(
             dsn._params, "postgres", str(get_pg_home_directory())
         )
     except Exception as e:
