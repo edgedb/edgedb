@@ -30,14 +30,14 @@ from .pgcon import (
     PGConnection,
 )
 from .connect import (
-    connect,
+    pg_connect,
     set_init_con_script_data,
     SETUP_TEMP_TABLE_SCRIPT,
     SETUP_CONFIG_CACHE_SCRIPT
 )
 
 __all__ = (
-    'connect',
+    'pg_connect',
     'set_init_con_script_data',
     'PGConnection',
     'BackendError',

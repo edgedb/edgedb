@@ -22,12 +22,11 @@ from typing import (
     Any,
     Callable,
     Optional,
-    TYPE_CHECKING
 )
 
-from edb.pgsql import params as pg_params
-if TYPE_CHECKING:
-    from edb.server import pgconnparams
+import asyncio
+
+from edb.server import pgconnparams
 
 class BackendError(Exception):
 
@@ -46,24 +45,24 @@ class BackendPrivilegeError(BackendError):
 class BackendCatalogNameError(BackendError):
     ...
 
-async def connect(
-    dsn_or_connection: str | pgconnparams.ConnectionParams,
-    *,
-    backend_params: pg_params.BackendRuntimeParams,
-    source_description: str,
-    apply_init_script: bool = True,
-) -> PGConnection:
-    ...
-
 def set_init_con_script_data(cfg: list[dict[str, Any]]):
     ...
 
-class PGConnection:
+class PGConnection(asyncio.Protocol):
 
     idle: bool
     backend_pid: int
     connection: pgconnparams.ConnectionParams
     addr: tuple[str, int]
+    parameter_status: dict[str, str]
+    backend_secret: int
+    is_ssl: bool
+
+    def __init__(self, dbname):
+        ...
+
+    async def close(self):
+        ...
 
     async def sql_execute(self, sql: bytes | tuple[bytes, ...]) -> None:
         ...

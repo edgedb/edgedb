@@ -177,7 +177,7 @@ class BaseCluster:
         assert addr is not None
         connection.update(hosts=[addr])
         connection.update(**kwargs)
-        conn = await pgcon.connect(
+        conn = await pgcon.pg_connect(
             connection,
             source_description=source_description,
             backend_params=self.get_runtime_params(),
@@ -801,7 +801,7 @@ class Cluster(BaseCluster):
             try:
                 params.update(hosts=[conn_addr])
                 con = await asyncio.wait_for(
-                    pgcon.connect(
+                    pgcon.pg_connect(
                         params,
                         source_description=f"{self.__class__}._test_connection",
                         backend_params=self.get_runtime_params(),
@@ -1190,7 +1190,7 @@ async def get_remote_pg_cluster(
         return rv
 
     probe_connection = pgconnparams.ConnectionParams(dsn=dsn)
-    conn = await pgcon.connect(
+    conn = await pgcon.pg_connect(
         probe_connection,
         source_description="remote cluster probe",
         backend_params=pgparams.get_default_runtime_params(),

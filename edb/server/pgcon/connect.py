@@ -25,9 +25,9 @@ import textwrap
 from edb.pgsql.common import quote_ident as pg_qi
 from edb.pgsql.common import quote_literal as pg_ql
 from edb.pgsql import params as pg_params
+from edb.server import pgcon
 
 from . import errors as pgerror
-from . import pgcon
 from . import rust_transport
 
 logger = logging.getLogger('edb.server')
@@ -124,7 +124,7 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     )
 
 
-async def connect(
+async def pg_connect(
     dsn_or_connection: str | rust_transport.ConnectionParams,
     *,
     backend_params: pg_params.BackendRuntimeParams,
