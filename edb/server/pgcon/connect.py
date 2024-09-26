@@ -62,7 +62,8 @@ SETUP_CONFIG_CACHE_SCRIPT = '''
 
 def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     if check_pg_is_in_recovery:
-        pg_is_in_recovery = ('''
+        pg_is_in_recovery = (
+            '''
         SELECT CASE WHEN pg_is_in_recovery() THEN
             edgedb.raise(
                 NULL::bigint,
@@ -70,11 +71,14 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
                 msg => 'cannot use a hot standby'
             )
         END;
-        ''').strip()
+        '''
+        ).strip()
     else:
         pg_is_in_recovery = ''
 
-    return textwrap.dedent(f'''
+    return (
+        textwrap.dedent(
+            f'''
         {pg_is_in_recovery}
 
         {SETUP_TEMP_TABLE_SCRIPT}
@@ -111,7 +115,11 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
                 pg_catalog.set_config(e.key, e.value, false) AS value
             FROM
                 jsonb_each_text($1::jsonb) AS e;
-    ''').strip().encode('utf-8')
+    '''
+        )
+        .strip()
+        .encode('utf-8')
+    )
 
 
 async def connect(
@@ -136,7 +144,7 @@ async def connect(
     pgrawcon, pgcon = await create_postgres_connection(
         connection,
         lambda: PGConnection(dbname=connection.database),
-        source_description=source_description
+        source_description=source_description,
     )
 
     connection = pgrawcon.connection
@@ -167,10 +175,12 @@ async def connect(
         if pgcon.parameter_status['in_hot_standby'] == 'on':
             # Abort if we're connecting to a hot standby
             pgcon.terminate()
-            raise pgerror.BackendError(fields=dict(
-                M="cannot use a hot standby",
-                C=pgerror.ERROR_READ_ONLY_SQL_TRANSACTION,
-            ))
+            raise pgerror.BackendError(
+                fields=dict(
+                    M="cannot use a hot standby",
+                    C=pgerror.ERROR_READ_ONLY_SQL_TRANSACTION,
+                )
+            )
 
     if apply_init_script:
         if INIT_CON_SCRIPT is None:
@@ -196,8 +206,10 @@ async def connect(
 def set_init_con_script_data(cfg):
     global INIT_CON_SCRIPT, INIT_CON_SCRIPT_DATA
     INIT_CON_SCRIPT = None
-    INIT_CON_SCRIPT_DATA = (f'''
+    INIT_CON_SCRIPT_DATA = (
+        f'''
         INSERT INTO _edgecon_state
         SELECT * FROM jsonb_to_recordset({pg_ql(json.dumps(cfg))}::jsonb)
         AS cfg(name text, value jsonb, type text);
-    ''').strip()
+    '''
+    ).strip()
