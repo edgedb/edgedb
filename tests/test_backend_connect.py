@@ -622,7 +622,7 @@ class TestConnectParams(tb.TestCase):
 
             with self.assertRaises(errors.BackendConnectionError):
                 async with asyncio.timeout(4):  # failsafe
-                    await pgcon.connect(
+                    await pgcon.pg_connect(
                         conn_spec,
                         source_description="test_connection_connect_timeout",
                         backend_params=pg_params.get_default_runtime_params(),
