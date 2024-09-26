@@ -1036,9 +1036,11 @@ class TestNoSSLConnection(BaseTestSSLConnection):
                     con.terminate()
                 self.loop.set_exception_handler(old_handler)
 
+        # We no longer retry without SSL if SSL is presented but
+        # fails to authenticate.
         await verify_works('disable')
-        await verify_works('allow')
-        await verify_works('prefer')
+        await verify_fails('allow')
+        await verify_fails('prefer')
         await verify_fails('require')
         with mock_dot_postgresql():
             await verify_fails('require')
