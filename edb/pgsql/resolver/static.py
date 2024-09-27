@@ -209,6 +209,9 @@ def eval_FuncCall(
 
                 if name.val == "jit":
                     return value
+
+        elif args := eval_list(expr.args[1:], ctx=ctx):
+            value, is_local = args
             if (
                 isinstance(value, pgast.StringConstant)
                 and isinstance(is_local, pgast.BooleanConstant)
