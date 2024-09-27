@@ -1618,8 +1618,8 @@ def _compile_ql_query(
 
         return dbstate.NullQuery()
 
-    # If requested, embed the EdgeQL text in the SQL.
-    if debug.flags.edgeql_text_in_sql and source:
+    # Embed the EdgeQL text in the SQL.
+    if source:
         sql_debug_obj = dict(edgeql=source.text())
         sql_debug_prefix = '-- ' + json.dumps(sql_debug_obj) + '\n'
         sql_text = sql_debug_prefix + sql_text
