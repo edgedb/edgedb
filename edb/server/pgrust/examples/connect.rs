@@ -71,7 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.username = conn.user;
         args.password = conn.password.password().unwrap_or_default().to_string();
         'outer: for host in conn.hosts {
-            for target in ResolvedTarget::to_addrs_sync(host)? {
+            for target in ResolvedTarget::to_addrs_sync(&host)? {
                 socket_address = Some(target);
                 break 'outer;
             }
