@@ -1564,3 +1564,25 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             SELECT similar_to FROM "Movie"
             """
         )
+
+    async def test_sql_query_computed_10(self):
+        # globals
+
+        tran = self.scon.transaction()
+        await tran.start()
+
+        await self.scon.execute(
+            """
+            SET LOCAL "global default::username_prefix" TO user_;
+            """
+        )
+
+        res = await self.squery_values(
+            """
+            SELECT username FROM "Person"
+            ORDER BY first_name LIMIT 1
+            """
+        )
+        self.assertEqual(res, [["user_robin"]])
+
+        await tran.rollback()

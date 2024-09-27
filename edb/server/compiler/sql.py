@@ -86,12 +86,15 @@ def compile_sql(
             else:
                 value = None
 
-            # GOTCHA: setting is frontend-only regardless of its mutability
-            fe_only = stmt.name in FE_SETTINGS_MUTABLE
+            fe_only = stmt.name and (
+                # GOTCHA: setting is frontend-only regardless of its mutability
+                stmt.name in FE_SETTINGS_MUTABLE
+                or stmt.name.startswith('global ')
+            )
 
             if fe_only:
                 assert stmt.name
-                if not FE_SETTINGS_MUTABLE[stmt.name]:
+                if not FE_SETTINGS_MUTABLE.get(stmt.name, True):
                     raise errors.QueryError(
                         f'parameter "{stmt.name}" cannot be changed',
                         pgext_code='55P02',  # cant_change_runtime_param
@@ -113,7 +116,10 @@ def compile_sql(
 
         elif isinstance(stmt, pgast.VariableShowStmt):
             unit.get_var = stmt.name
-            unit.frontend_only = stmt.name in FE_SETTINGS_MUTABLE
+            unit.frontend_only = (
+                stmt.name in FE_SETTINGS_MUTABLE
+                or stmt.name.startswith('global ')
+            )
             if unit.frontend_only:
                 unit.command_complete_tag = dbstate.TagPlain(tag=b"SHOW")
 

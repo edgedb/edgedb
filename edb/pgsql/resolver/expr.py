@@ -41,6 +41,7 @@ from edb.edgeql import compiler as qlcompiler
 from . import dispatch
 from . import context
 from . import static
+from . import command
 
 Context = context.ResolverContextLevel
 
@@ -156,7 +157,7 @@ def resolve_column_kind(
                 anchors={'__source__': source},
                 path_prefix_anchor='__source__',
                 singletons=singletons,
-                make_globals_empty=True,  # TODO: globals in SQL
+                make_globals_empty=False,
             )
             compiled = expr.compiled(ctx.schema, options=options)
 
@@ -172,6 +173,8 @@ def resolve_column_kind(
                 },
                 output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
             )
+            command.merge_params(sql_tree, compiled.irast, ctx)
+
             assert isinstance(sql_tree.ast, pgast.BaseExpr)
             return sql_tree.ast
         case _:

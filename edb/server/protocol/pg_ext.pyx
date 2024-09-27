@@ -953,16 +953,26 @@ cdef class PgConnection(frontend.FrontendConnection):
                 )
             parse_unit = parse_action.query_unit
             actions.append(parse_action)
+
+            # remap argumnets, which will inject globals
+            bind_data = bytes(
+                remap_arguments(
+                    b"\x00\x01\x00\x01\x00\x00\x00\x00",
+                    parse_unit.params,
+                    dbv.current_fe_settings(),
+                )
+            )
             actions.append(
                 PGMessage(
                     PGAction.BIND,
                     portal_name="",
                     stmt_name=parse_unit.stmt_name,
-                    args=b"\x00\x01\x00\x01\x00\x00\x00\x00",
+                    args=bind_data,
                     query_unit=parse_unit,
                     injected=True,
                 )
             )
+
             actions.append(
                 PGMessage(
                     PGAction.DESCRIBE_STMT_ROWS,
@@ -1078,7 +1088,8 @@ cdef class PgConnection(frontend.FrontendConnection):
 
                     try:
                         params = parse_action.query_unit.params
-                        data = bytes(remap_arguments(data, params))
+                        fe_settings = dbv.current_fe_settings()
+                        data = bytes(remap_arguments(data, params, fe_settings))
                     except Exception as e:
                         # we return here instead of raising the exception
                         # because we want to also return the previous actions
@@ -1555,7 +1566,11 @@ cdef class PgConnection(frontend.FrontendConnection):
         return qu
 
 
-cdef WriteBuffer remap_arguments(data, params):
+cdef WriteBuffer remap_arguments(
+    data: bytes,
+    params: list[dbstate.SQLParam] | None,
+    fe_settings: dbstate.SQLSettings
+):    
     # The "external" parameters (that are visible to the user)
     # are not in the same order as "internal" params and don't
     # include the internal params for globals.
@@ -1566,7 +1581,7 @@ cdef WriteBuffer remap_arguments(data, params):
     buf = WriteBuffer.new()
 
     # remap param format codes
-    param_format_count = int.from_bytes(data[0:2], "big")
+    param_format_count = read_int16(data[0:2])
     offset = 2
     if params:
         buf.write_int16(len(params))
@@ -1589,15 +1604,11 @@ cdef WriteBuffer remap_arguments(data, params):
     offset += param_format_count * 2
 
     # find positions of external args
-    param_count_external = int.from_bytes(
-        data[offset:offset+2], "big"
-    )
+    param_count_external = read_int16(data[offset:offset+2])
     offset += 2
     param_pos_external = []
     for p in range(param_count_external):
-        size = int.from_bytes(
-            data[offset:offset+4], "big"
-        )
+        size = read_int32(data[offset:offset+4])
         if size == -1:  # special case: NULL
             size = 0
         size += 4 # for size which is int32
@@ -1616,9 +1627,16 @@ cdef WriteBuffer remap_arguments(data, params):
 
                 if max_external_used < param.index:
                     max_external_used = param.index
-            else:
-                # TODO: SQLParamGlobal
-                buf.write_int32(-1) # NULL
+            elif isinstance(param, dbstate.SQLParamGlobal):
+                name = param.global_name
+                setting_name = f'global {name.module}::{name.name}'
+                values = fe_settings.get(setting_name, None)
+
+                if values == None:
+                    buf.write_int32(-1) # NULL
+                else:
+                    val = str(values[0]).encode('UTF-8')
+                    buf.write_len_prefixed_bytes(val)
     else:
         buf.write_int16(0)
 
@@ -1632,6 +1650,14 @@ cdef WriteBuffer remap_arguments(data, params):
 
     buf.write_bytes(data[offset:])
     return buf
+
+
+cdef inline int16_t read_int16(data: bytes):
+    return int.from_bytes(data[0:2], "big", signed=True)
+
+
+cdef inline int32_t read_int32(data: bytes):
+    return int.from_bytes(data[0:4], "big", signed=True)
 
 
 def new_pg_connection(server, sslctx, endpoint_security, connection_made_at):

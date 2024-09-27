@@ -511,12 +511,15 @@ class DeallocateData(PreparedStmtOpData):
 
 @dataclasses.dataclass(kw_only=True)
 class SQLQueryUnit:
-    query: str
+    query: str = dataclasses.field(repr=False)
     """Translated query text."""
-    orig_query: str
+
+    orig_query: str = dataclasses.field(repr=False)
     """Original query text before translation."""
+
     translation_data: Optional[pgcodegen.TranslationData] = None
     """Translation source map."""
+
     fe_settings: SQLSettings
     """Frontend-only settings effective during translation of this unit."""
 

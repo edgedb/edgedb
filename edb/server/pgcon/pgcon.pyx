@@ -1753,16 +1753,14 @@ cdef class PGConnection:
                     msg_buf.write_bytestring(action.stmt_name)
 
                     # skim over param format codes
-                    param_formats = int.from_bytes(action.args[0:2], "big")
+                    param_formats = read_int16(action.args[0:2])
                     offset = 2 + param_formats * 2
 
                     # skim over param values
-                    params = int.from_bytes(action.args[offset:offset+2], "big")
+                    params = read_int16(action.args[offset:offset+2])
                     offset += 2
                     for p in range(params):
-                        size = int.from_bytes(
-                            action.args[offset:offset+4], "big"
-                        )
+                        size = read_int32(action.args[offset:offset+4])
                         if size == -1:  # special case: NULL
                             size = 0
                         offset += 4 + size
@@ -2178,10 +2176,10 @@ cdef class PGConnection:
                     # unpack a single row with a single column
                     data = self.buffer.consume_message()
 
-                    field_size = int.from_bytes(data[2:6], "big")
+                    field_size = read_int32(data[2:6])
                     val_bytes = data[6:6 + field_size]
 
-                    row_count = int.from_bytes(val_bytes, "big")
+                    row_count = int.from_bytes(val_bytes, "big", signed=True)
                 elif (
                     # CommandComplete, EmptyQueryResponse, PortalSuspended
                     mtype == b'C' or mtype == b'I' or mtype == b's'
@@ -3399,3 +3397,9 @@ cdef inline str setting_val_to_sql(val: str | int | float):
         return str(val)
     raise NotImplementedError('cannot convert setting to SQL: ', val)
 
+
+cdef inline int16_t read_int16(data: bytes):
+    return int.from_bytes(data[0:2], "big", signed=True)
+
+cdef inline int32_t read_int32(data: bytes):
+    return int.from_bytes(data[0:4], "big", signed=True)
