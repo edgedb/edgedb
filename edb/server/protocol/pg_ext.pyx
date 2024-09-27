@@ -873,11 +873,10 @@ cdef class PgConnection(frontend.FrontendConnection):
             mtype == b'C'  # or Close
         ):
             try:
-                actions = await self.extended_query()
+                actions, exception = await self.extended_query()
             except ExtendedQueryError as ex:
-                self.write_error(ex.args[0])
-                self.flush()
-                self.ignore_till_sync = True
+                actions = ()
+                exception = ex
             else:
                 async with self.with_pgcon() as conn:
                     try:
@@ -888,6 +887,10 @@ cdef class PgConnection(frontend.FrontendConnection):
                         self.write_error(ex)
                         self.flush()
                         self.ignore_till_sync = True
+            if exception:
+                self.write_error(exception.args[0])
+                self.flush()
+                self.ignore_till_sync = True
 
         elif mtype == b'H':  # Flush
             self.buffer.finish_message()
@@ -1073,8 +1076,13 @@ cdef class PgConnection(frontend.FrontendConnection):
                         actions,
                     )
 
-                    params = parse_action.query_unit.params
-                    data = bytes(remap_arguments(data, params))
+                    try:
+                        params = parse_action.query_unit.params
+                        data = bytes(remap_arguments(data, params))
+                    except Exception as e:
+                        # we return here instead of raising the exception
+                        # because we want to also return the previous actions
+                        return actions, ExtendedQueryError(e)
 
                     actions.append(
                         PGMessage(
@@ -1206,7 +1214,7 @@ cdef class PgConnection(frontend.FrontendConnection):
 
         if self.debug:
             self.debug_print("extended_query", actions)
-        return actions
+        return actions, None
 
     async def _ensure_ps_locality(
         self,
