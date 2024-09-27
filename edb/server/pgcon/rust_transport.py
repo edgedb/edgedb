@@ -331,12 +331,12 @@ async def _create_connection_to(
 ) -> Tuple[asyncio.Transport, PGConnectionProtocol]:
     if address_family == "unix":
         t, protocol = await asyncio.get_running_loop().create_unix_connection(
-            lambda: protocol_factory(None, host, port), path=host  # type: ignore
+            lambda: protocol_factory(None, hostname, port), path=host  # type: ignore
         )
         return (t, protocol)
     else:
         t, protocol = await asyncio.get_running_loop().create_connection(
-            lambda: protocol_factory(hostname, str(host), port), str(host), port
+            lambda: protocol_factory(hostname, hostname, port), str(host), port
         )
         _set_tcp_keepalive(t)
         return (t, protocol)
