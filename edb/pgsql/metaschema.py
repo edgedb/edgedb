@@ -5115,15 +5115,16 @@ async def create_pg_extensions(
     commands.add_command(
         dbops.CreateSchema(name=ext_schema, conditional=True),
     )
-    if (
-        inst_params.existing_exts is None
-        or inst_params.existing_exts.get("uuid-ossp") is None
-    ):
-        commands.add_commands([
-            dbops.CreateExtension(
-                dbops.Extension(name='uuid-ossp', schema=ext_schema),
-            ),
-        ])
+    for ext in ["uuid-ossp", "edb_stat_statements"]:
+        if (
+            inst_params.existing_exts is None
+            or inst_params.existing_exts.get(ext) is None
+        ):
+            commands.add_commands([
+                dbops.CreateExtension(
+                    dbops.Extension(name=ext, schema=ext_schema),
+                ),
+            ])
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)

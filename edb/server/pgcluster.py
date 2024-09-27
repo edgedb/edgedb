@@ -560,6 +560,12 @@ class Cluster(BaseCluster):
             # `max_connections` scenarios.
             'max_locks_per_transaction': 1024,
             'max_pred_locks_per_transaction': 1024,
+            "shared_preload_libraries": ",".join(
+                [
+                    "edb_stat_statements",
+                ]
+            ),
+            "edb_stat_statements.track_planning": "true",
         }
 
         if os.getenv('EDGEDB_DEBUG_PGSERVER'):
