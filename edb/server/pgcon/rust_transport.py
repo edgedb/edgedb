@@ -179,9 +179,12 @@ class PGConnectionProtocol(asyncio.Protocol):
         if exc:
             self.ready_future.set_exception(exc)
         else:
-            self.ready_future.set_exception(
-                RuntimeError("Connection unexpectedly lost")
+            ex = pgerror.new(
+                pgerror.ERROR_CONNECTION_FAILURE,
+                "Unexpected connection error",
             )
+            ex.__cause__ = exc
+            self.ready_future.set_exception(ex)
 
     # This may be called multiple times if we upgrade to SSL
     def connection_made(self, transport) -> None:
