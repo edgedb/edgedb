@@ -349,23 +349,23 @@ async def _create_connection(
 ) -> Tuple[asyncio.Transport, PGConnectionProtocol]:
     e = None
     for address_family, host, hostname, port in host_candidates:
-        async with asyncio.timeout(
-            connect_timeout if connect_timeout else DEFAULT_CONNECT_TIMEOUT
-        ):
-            try:
+        try:
+            async with asyncio.timeout(
+                connect_timeout if connect_timeout else DEFAULT_CONNECT_TIMEOUT
+            ):
                 return await _create_connection_to(
                     protocol_factory, address_family, host, hostname, port
                 )
-            except asyncio.CancelledError as ex:
-                raise pgerror.new(
-                    pgerror.ERROR_CONNECTION_FAILURE,
-                    "timed out connecting to backend",
-                ) from ex
-            except Exception as ex:
-                e = ex
-                continue
+        except asyncio.TimeoutError as ex:
+            raise pgerror.new(
+                pgerror.ERROR_CONNECTION_FAILURE,
+                "timed out connecting to backend",
+            ) from ex
+        except Exception as ex:
+            e = ex
+            continue
     raise ConnectionError(
-        f"Failed to connect to any of " f"the provided hosts: {host_candidates}"
+        f"Failed to connect to any of the provided hosts: {host_candidates}"
     ) from e
 
 
