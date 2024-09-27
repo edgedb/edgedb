@@ -137,12 +137,12 @@ static JsonParseErrorType
 edbss_json_ofield_start(void *semstate, char *fname, bool isnull) {
     EdbStmtInfoSemState *state = (EdbStmtInfoSemState *) semstate;
     Assert(fname != NULL);
-    if (strcmp(fname, "query") == 0) {
-        state->state = EDB_STMT_INFO_PARSE_QUERY;
-    } else if (strcmp(fname, "queryId") == 0) {
-        state->state = EDB_STMT_INFO_PARSE_QUERYID;
-    } else {
-        state->state = EDB_STMT_INFO_PARSE_NOOP;
+    if (state->nested_level == 1) {
+        if (strcmp(fname, "query") == 0) {
+            state->state = EDB_STMT_INFO_PARSE_QUERY;
+        } else if (strcmp(fname, "queryId") == 0) {
+            state->state = EDB_STMT_INFO_PARSE_QUERYID;
+        }
     }
     return JSON_SUCCESS;
 }
