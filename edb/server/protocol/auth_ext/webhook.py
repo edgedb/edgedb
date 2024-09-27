@@ -139,4 +139,11 @@ insert nh::ScheduledRequest {
     )
     result = json.loads(result_json)
 
-    return result[0]["id"]
+    match result[0]["id"]:
+        case str(id):
+            return id
+        case _:
+            raise ValueError(
+                "Expected single result with 'id' string property, got "
+                f"{result[0]!r}"
+            )
