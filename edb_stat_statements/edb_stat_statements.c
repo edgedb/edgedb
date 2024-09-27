@@ -44,37 +44,37 @@ typedef struct EdbStmtInfoSemState {
 static post_parse_analyze_hook_type prev_post_parse_analyze_hook = NULL;
 
 static void
-pgsedb_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate);
+edbss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate);
 
 static bool
-pgsedb_overwrite_stmt_info(ParseState *pstate, Query *query);
+edbss_overwrite_stmt_info(ParseState *pstate, Query *query);
 
 static JsonParseErrorType
-pgsedb_json_struct_start(void *semstate);
+edbss_json_struct_start(void *semstate);
 
 static JsonParseErrorType
-pgsedb_json_struct_end(void *semstate);
+edbss_json_struct_end(void *semstate);
 
 static JsonParseErrorType
-pgsedb_json_ofield_start(void *semstate, char *fname, bool isnull);
+edbss_json_ofield_start(void *semstate, char *fname, bool isnull);
 
 static JsonParseErrorType
-pgsedb_json_scalar(void *semstate, char *token, JsonTokenType tokenType);
+edbss_json_scalar(void *semstate, char *token, JsonTokenType tokenType);
 
 void
 _PG_init(void) {
     prev_post_parse_analyze_hook = post_parse_analyze_hook;
-    post_parse_analyze_hook = pgsedb_post_parse_analyze;
+    post_parse_analyze_hook = edbss_post_parse_analyze;
 }
 
 /*
  * Post-parse-analysis hook: mark query with a queryId
  */
 static void
-pgsedb_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate) {
+edbss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate) {
     const char *orig_sourcetext = pstate->p_sourcetext;
 
-    if (!pgsedb_overwrite_stmt_info(pstate, query))
+    if (!edbss_overwrite_stmt_info(pstate, query))
         jstate = NULL;
 
     if (prev_post_parse_analyze_hook)
@@ -87,7 +87,7 @@ pgsedb_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
  * Extract EdgeDB statement info and overwrite source text and queryId
  */
 static bool
-pgsedb_overwrite_stmt_info(ParseState *pstate, Query *query) {
+edbss_overwrite_stmt_info(ParseState *pstate, Query *query) {
     if (strncmp(pstate->p_sourcetext, EDB_STMT_MAGIC_PREFIX, strlen(EDB_STMT_MAGIC_PREFIX)) == 0) {
         EdbStmtInfoSemState state;
         JsonSemAction sem;
@@ -98,12 +98,12 @@ pgsedb_overwrite_stmt_info(ParseState *pstate, Query *query) {
         memset(&sem, 0, sizeof(sem));
         state.state = EDB_STMT_INFO_PARSE_NOOP;
         sem.semstate = (void *) &state;
-        sem.object_start = pgsedb_json_struct_start;
-        sem.object_end = pgsedb_json_struct_end;
-        sem.array_start = pgsedb_json_struct_start;
-        sem.array_end = pgsedb_json_struct_end;
-        sem.object_field_start = pgsedb_json_ofield_start;
-        sem.scalar = pgsedb_json_scalar;
+        sem.object_start = edbss_json_struct_start;
+        sem.object_end = edbss_json_struct_end;
+        sem.array_start = edbss_json_struct_start;
+        sem.array_end = edbss_json_struct_end;
+        sem.object_field_start = edbss_json_ofield_start;
+        sem.scalar = edbss_json_scalar;
 
         if (pg_parse_json(lex, &sem) == JSON_SUCCESS && state.query!= NULL) {
             pstate->p_sourcetext = state.query;
@@ -120,21 +120,21 @@ pgsedb_overwrite_stmt_info(ParseState *pstate, Query *query) {
 }
 
 static JsonParseErrorType
-pgsedb_json_struct_start(void *semstate) {
+edbss_json_struct_start(void *semstate) {
     EdbStmtInfoSemState *state = (EdbStmtInfoSemState *) semstate;
     state->nested_level += 1;
     return JSON_SUCCESS;
 }
 
 static JsonParseErrorType
-pgsedb_json_struct_end(void *semstate) {
+edbss_json_struct_end(void *semstate) {
     EdbStmtInfoSemState *state = (EdbStmtInfoSemState *) semstate;
     state->nested_level -= 1;
     return JSON_SUCCESS;
 }
 
 static JsonParseErrorType
-pgsedb_json_ofield_start(void *semstate, char *fname, bool isnull) {
+edbss_json_ofield_start(void *semstate, char *fname, bool isnull) {
     EdbStmtInfoSemState *state = (EdbStmtInfoSemState *) semstate;
     Assert(fname != NULL);
     if (strcmp(fname, "query") == 0) {
@@ -148,7 +148,7 @@ pgsedb_json_ofield_start(void *semstate, char *fname, bool isnull) {
 }
 
 static JsonParseErrorType
-pgsedb_json_scalar(void *semstate, char *token, JsonTokenType tokenType) {
+edbss_json_scalar(void *semstate, char *token, JsonTokenType tokenType) {
     EdbStmtInfoSemState *state = (EdbStmtInfoSemState *) semstate;
     switch (state->state) {
         case EDB_STMT_INFO_PARSE_QUERY:
