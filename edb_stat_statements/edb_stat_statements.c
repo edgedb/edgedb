@@ -72,11 +72,15 @@ _PG_init(void) {
  */
 static void
 pgsedb_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate) {
+    const char *orig_sourcetext = pstate->p_sourcetext;
+
     if (!pgsedb_overwrite_stmt_info(pstate, query))
         jstate = NULL;
 
     if (prev_post_parse_analyze_hook)
         prev_post_parse_analyze_hook(pstate, query, jstate);
+
+    pstate->p_sourcetext = orig_sourcetext;
 }
 
 /*
