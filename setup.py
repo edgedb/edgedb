@@ -70,7 +70,7 @@ EXT_INC_DIRS = [
 EXT_LIB_DIRS = [
     (ROOT_PATH / 'edb' / 'pgsql' / 'parser' / 'libpg_query').as_posix()
 ]
-EDBSS_DIR = (ROOT_PATH / 'edb_stat_statements').as_posix()
+EDBSS_DIR = ROOT_PATH / 'edb_stat_statements'
 
 
 if platform.uname().system != 'Windows':
@@ -419,7 +419,14 @@ def _get_pg_source_stamp():
         cwd=ROOT_PATH,
     )
     revision, _, _ = output[1:].partition(' ')
-    edbss_hash = hash_dirs([(EDBSS_DIR, '.c'), (EDBSS_DIR, '.sql')])
+    edbss_dir = EDBSS_DIR.as_posix()
+    edbss_hash = hash_dirs(
+        [(edbss_dir, '.c'), (edbss_dir, '.sql')],
+        extra_files=[
+            EDBSS_DIR / 'Makefile',
+            EDBSS_DIR / 'edb_stat_statements.control',
+        ],
+    )
     edbss = binascii.hexlify(edbss_hash).decode()
     source_stamp = '+'.join([revision, PGVECTOR_COMMIT, edbss])
     return source_stamp.strip()
