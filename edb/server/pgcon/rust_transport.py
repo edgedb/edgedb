@@ -144,60 +144,106 @@ class PGConnectionProtocol(asyncio.Protocol):
 
     def __init__(
         self,
+        hostname: Optional[str],
         state: pgrust.PyConnectionState,
-        protocol: asyncio.Protocol,
-        ready_future: asyncio.Future,
         pg_state: PGState,
+        complete_callback: Callable[
+            [asyncio.BaseTransport], Tuple[PGRawConn, asyncio.Protocol]
+        ],
     ):
         self.state = state
         self.pg_state = pg_state
-        self.protocol = protocol
-        self.ready_future = ready_future
-        self._writing_paused = False
-        self._ready = False
+        self.ready_future: asyncio.Future = asyncio.Future()
+        self._complete_callback = complete_callback
+        self._host = hostname
+        self._transport: Optional[asyncio.Transport] = None
 
     def data_received(self, data: bytes):
-        if self._ready:
-            self.protocol.data_received(data)
-        else:
-            try:
-                self.state.drive_message(memoryview(data))
-            except Exception as e:
-                if error := self.pg_state.server_error:
-                    self.pg_state.server_error = None
-                    self.ready_future.set_exception(
-                        pgerror.BackendConnectionError(fields=dict(error))
-                    )
-                else:
-                    self.ready_future.set_exception(ConnectionError(e))
+        if self.ready_future.done():
+            return
+
+        try:
+            self.state.drive_message(memoryview(data))
             if self.state.is_ready():
-                self._ready = True
-                self.ready_future.set_result(True)
+                assert self._transport is not None
+                self.ready_future.set_result(
+                    self._complete_callback(self._transport)
+                )
+        except Exception as e:
+            if not self.ready_future.done():
+                self.ready_future.set_exception(ConnectionError(e))
 
     def connection_lost(self, exc):
-        if self._ready:
-            self.protocol.connection_lost(exc)
+        if self.ready_future.done():
+            return
+        if exc:
+            self.ready_future.set_exception(exc)
         else:
+            self.ready_future.set_exception(
+                RuntimeError("Connection unexpectedly lost")
+            )
+
+    # This may be called multiple times if we upgrade to SSL
+    def connection_made(self, transport) -> None:
+        try:
+            if self._transport is None:
+                # Initial connection
+                self._transport = transport
+                self.state.update = self
+                self.state.drive_initial()
+            else:
+                # Upgrade path
+                self._transport = transport
+        except Exception:
+            pass
+        return super().connection_made(transport)
+
+    def send(self, message: memoryview) -> None:
+        assert self._transport is not None
+        self._transport.write(bytes(message))
+
+    def upgrade(self) -> None:
+        asyncio.create_task(self._upgrade_to_ssl())
+
+    async def _upgrade_to_ssl(self):
+        transport = self._transport
+        assert transport is not None
+        try:
+            ssl_context = _create_ssl(self.state.config)
+            loop = asyncio.get_running_loop()
+            new_transport = await loop.start_tls(
+                transport,
+                self,
+                ssl_context,
+                server_side=False,
+                ssl_handshake_timeout=None,
+                server_hostname=self._host,
+            )
+            self._transport = new_transport
+            self.state.drive_ssl_ready()
+            self.pg_state.ssl = True
+        except Exception as e:
             if not self.ready_future.done():
-                if exc:
-                    self.ready_future.set_exception(exc)
-                else:
-                    self.ready_future.set_exception(
-                        RuntimeError("Connection unexpectedly lost")
-                    )
+                self.ready_future.set_exception(e)
+            transport.abort()
 
-    def pause_writing(self):
-        self._writing_paused = True
-        if self._ready:
-            self.protocol.pause_writing()
+    def parameter(self, name: str, value: str) -> None:
+        self.pg_state.parameters[name] = value
 
-    def resume_writing(self):
-        self._writing_paused = False
-        if self._ready:
-            self.protocol.resume_writing()
+    def cancellation_key(self, pid: int, key: int) -> None:
+        self.pg_state.cancellation_key = (pid, key)
 
-    def is_ready(self):
-        return self._ready
+    def state_changed(self, _: int) -> None:
+        pass
+
+    def auth(self, auth: int) -> None:
+        self.pg_state.auth = Authentication(auth)
+
+    def server_error(self, error: list[tuple[str, str]]) -> None:
+        if not self.ready_future.done():
+            self.ready_future.set_exception(
+                pgerror.BackendConnectionError(fields=dict(error))
+            )
 
 
 class PGRawConn(asyncio.Transport):
@@ -273,100 +319,31 @@ class PGRawConn(asyncio.Transport):
             self.raw_transport.abort()
 
 
-class RustTransportUpdate(ConnectionStateUpdate):
-    raw_transport: asyncio.Transport
-    state: pgrust.PyConnectionState
-    state_change_callback: Optional[StateChangeCallback]
-
-    def __init__(
-        self,
-        state: pgrust.PyConnectionState,
-        raw_transport: asyncio.Transport,
-        state_change_callback: Optional[StateChangeCallback],
-        pg_state: PGState,
-        host: Optional[str],
-        ready_future: asyncio.Future,
-    ):
-        self.state = state
-        self._pg_state = pg_state
-        self.raw_transport = raw_transport
-        self._state_change_callback = state_change_callback
-        self._host = host
-        self._ready_future = ready_future
-
-    def send(self, message: memoryview) -> None:
-        self.raw_transport.write(bytes(message))
-
-    def upgrade(self) -> None:
-        asyncio.create_task(self._upgrade_to_ssl())
-
-    async def _upgrade_to_ssl(self):
-        try:
-            config = self.state.config
-            ssl_context = _create_ssl(config)
-            loop = asyncio.get_running_loop()
-            try:
-                new_transport = await loop.start_tls(
-                    self.raw_transport,
-                    self.raw_transport.get_protocol(),
-                    ssl_context,
-                    server_side=False,
-                    ssl_handshake_timeout=None,
-                    server_hostname=self._host,
-                )
-            except Exception:
-                self.raw_transport.abort()
-                raise
-            self.raw_transport = new_transport
-            self.state.drive_ssl_ready()
-            self._pg_state.ssl = True
-        except Exception as e:
-            self._ready_future.set_exception(e)
-            self.raw_transport.abort()
-            raise
-
-    def parameter(self, name: str, value: str) -> None:
-        self._pg_state.parameters[name] = value
-
-    def cancellation_key(self, pid: int, key: int) -> None:
-        self._pg_state.cancellation_key = (pid, key)
-
-    def state_changed(self, state: int) -> None:
-        if self._state_change_callback is not None:
-            self._state_change_callback(ConnectionStateType(state))
-
-    def auth(self, auth: int) -> None:
-        self._pg_state.auth = Authentication(auth)
-
-    def server_error(self, error: list[tuple[str, str]]) -> None:
-        self._pg_state.server_error = error
-
-
 async def _create_connection_to(
-    protocol_factory: Callable[[], asyncio.Protocol],
+    protocol_factory: Callable[[Optional[str], str, int], PGConnectionProtocol],
     address_family: str,
     host: str | bytes,
     hostname: str,
     port: int,
-) -> Tuple[str, str, int, asyncio.Transport]:
+) -> Tuple[asyncio.Transport, PGConnectionProtocol]:
     if address_family == "unix":
-        t, _ = await asyncio.get_running_loop().create_unix_connection(
-            protocol_factory, path=host  # type: ignore
+        t, protocol = await asyncio.get_running_loop().create_unix_connection(
+            lambda: protocol_factory(None, host, port), path=host  # type: ignore
         )
-        return (address_family, hostname, port, t)
+        return (t, protocol)
     else:
-        t, _ = await asyncio.get_running_loop().create_connection(
-            protocol_factory, str(host), port
+        t, protocol = await asyncio.get_running_loop().create_connection(
+            lambda: protocol_factory(hostname, str(host), port), str(host), port
         )
         _set_tcp_keepalive(t)
-        return (address_family, hostname, port, t)
+        return (t, protocol)
 
 
 async def _create_connection(
-    protocol_factory: Callable[[], asyncio.Protocol],
+    protocol_factory: Callable[[Optional[str], str, int], PGConnectionProtocol],
     connect_timeout: Optional[int],
     host_candidates: List[Tuple[str, str | bytes, str, int]],
-) -> Tuple[str, str, int, asyncio.Transport]:
+) -> Tuple[asyncio.Transport, PGConnectionProtocol]:
     e = None
     for address_family, host, hostname, port in host_candidates:
         async with asyncio.timeout(
@@ -423,12 +400,37 @@ def _set_tcp_keepalive(transport):
 P = TypeVar('P', bound=asyncio.Protocol)
 
 
+def complete_connection_callback(
+    host, port, source_description, state, protocol_factory, pg_state
+) -> Callable[[asyncio.BaseTransport], Tuple[PGRawConn, asyncio.Protocol]]:
+    def complete_connection(upgraded_transport):
+        conn = PGRawConn(
+            source_description,
+            ConnectionParams._create(state.config),
+            upgraded_transport,
+            pg_state,
+            (host, port),
+        )
+
+        # We've successfully upgraded the protocol at this point, and the remote
+        # PG server is sitting in the idle state, waiting for us to send the
+        # next message. We transition to the user protocol here, synthesizing
+        # a `connection_made` event.
+        user_protocol = protocol_factory()
+        upgraded_transport.set_protocol(user_protocol)
+
+        # Notify the user protocol of successful connection
+        user_protocol.connection_made(conn)
+        return conn, user_protocol
+
+    return complete_connection
+
+
 async def create_postgres_connection(
     dsn: str | ConnectionParams,
     protocol_factory: Callable[[], P],
     *,
     source_description: Optional[str] = None,
-    state_change_callback: Optional[StateChangeCallback] = None,
 ) -> Tuple[PGRawConn, P]:
     """
     Open a PostgreSQL connection to the address specified by the DSN or
@@ -446,7 +448,6 @@ async def create_postgres_connection(
         )
     except Exception as e:
         raise ValueError(e)
-    ready_future: asyncio.Future = asyncio.Future()
     pg_state = PGState(
         parameters={},
         cancellation_key=None,
@@ -455,49 +456,34 @@ async def create_postgres_connection(
         ssl=False,
     )
 
-    user_protocol = protocol_factory()
+    # The PGConnectionProtocol will drive the PyConnectionState from network
+    # bytes it receives, as well as driving the connection from the messages
+    # from PyConnectionState.
+    connect_protocol_factory = (
+        lambda hostname, host, port: PGConnectionProtocol(
+            hostname,
+            state,
+            pg_state,
+            complete_connection_callback(
+                host,
+                port,
+                source_description,
+                state,
+                protocol_factory,
+                pg_state,
+            ),
+        )
+    )
+
+    # Create a transport to the backend based off the host candidates.
     host_candidates = await asyncio.get_running_loop().run_in_executor(
         executor=None, func=lambda: state.config.host_candidates
     )
-
-    protocol, host, port, initial_transport = await _create_connection(
-        lambda: PGConnectionProtocol(
-            state, user_protocol, ready_future, pg_state
-        ),
+    _, protocol = await _create_connection(
+        connect_protocol_factory,
         connect_timeout,
         host_candidates,
     )
 
-    upgraded_transport = None
-    try:
-        update = RustTransportUpdate(
-            state,
-            initial_transport,
-            state_change_callback,
-            pg_state,
-            host if protocol != "unix" else None,
-            ready_future,
-        )
-        state.update = update
-        state.drive_initial()
-
-        await ready_future
-        upgraded_transport = update.raw_transport
-        conn = PGRawConn(
-            source_description,
-            ConnectionParams._create(state.config),
-            upgraded_transport,
-            pg_state,
-            (host, port),
-        )
-        upgraded_transport.set_protocol(user_protocol)
-
-        # Notify the user protocol of successful connection
-        user_protocol.connection_made(conn)
-    except:
-        initial_transport.abort()
-        if upgraded_transport:
-            upgraded_transport.abort()
-        raise
-
+    conn, user_protocol = await protocol.ready_future
     return conn, user_protocol

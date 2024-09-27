@@ -863,44 +863,38 @@ class TestSSLConnection(BaseTestSSLConnection):
         finally:
             self.loop.set_exception_handler(old_handler)
 
-    async def test_tls_version(self):
-        # XXX: uvloop artifact
-        old_handler = self.loop.get_exception_handler()
-        try:
-            self.loop.set_exception_handler(lambda *args: None)
-            with self.assertRaisesRegex(ssl.SSLError, 'protocol version'):
+    async def test_tls_version_bad(self):
+        with self.assertRaisesRegex(ssl.SSLError, 'protocol version'):
+            await self.connect(
+                dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
+                    '?sslmode=require&ssl_min_protocol_version=TLSv1.3'
+            )
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', DeprecationWarning)
+            with self.assertRaises(ssl.SSLError):
                 await self.connect(
                     dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
-                        '?sslmode=require&ssl_min_protocol_version=TLSv1.3'
+                        '?sslmode=require'
+                        '&ssl_min_protocol_version=TLSv1.1'
+                        '&ssl_max_protocol_version=TLSv1.1'
                 )
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore', DeprecationWarning)
-                with self.assertRaises(ssl.SSLError):
-                    await self.connect(
-                        dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
-                            '?sslmode=require'
-                            '&ssl_min_protocol_version=TLSv1.1'
-                            '&ssl_max_protocol_version=TLSv1.1'
-                    )
-                with self.assertRaisesRegex(ssl.SSLError, 'no protocols'):
-                    await self.connect(
-                        dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
-                            '?sslmode=require'
-                            '&ssl_min_protocol_version=TLSv1.2'
-                            '&ssl_max_protocol_version=TLSv1.1'
-                    )
-            con = await self.connect(
-                dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
-                    '?sslmode=require'
-                    '&ssl_min_protocol_version=TLSv1.2'
-                    '&ssl_max_protocol_version=TLSv1.2'
-            )
-            try:
-                await self.assertConnected(con)
-            finally:
-                con.terminate()
+            with self.assertRaisesRegex(ssl.SSLError, 'no protocols'):
+                await self.connect(
+                    dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
+                        '?sslmode=require'
+                        '&ssl_min_protocol_version=TLSv1.2'
+                        '&ssl_max_protocol_version=TLSv1.1'
+                )
+
+    async def test_tls_version_ok(self):
+        con = await self.connect(
+            dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
+                '?sslmode=require'
+        )
+        try:
+            await self.assertConnected(con)
         finally:
-            self.loop.set_exception_handler(old_handler)
+            con.terminate()
 
 
 class TestClientSSLConnection(BaseTestSSLConnection):
