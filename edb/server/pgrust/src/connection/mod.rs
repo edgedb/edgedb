@@ -96,20 +96,20 @@ pub enum ResolvedTarget {
 
 impl ResolvedTarget {
     /// Resolves the target addresses for a given host.
-    pub fn to_addrs_sync(host: dsn::Host) -> Result<Vec<ResolvedTarget>, std::io::Error> {
+    pub fn to_addrs_sync(host: &dsn::Host) -> Result<Vec<ResolvedTarget>, std::io::Error> {
         use std::net::{SocketAddr, ToSocketAddrs};
 
         let mut resolved_targets = Vec::new();
         let dsn::Host(host_type, port) = host;
         match host_type {
             HostType::Hostname(hostname) => {
-                let socket_addrs = (hostname.as_str(), port).to_socket_addrs()?;
+                let socket_addrs = (hostname.as_str(), *port).to_socket_addrs()?;
                 for addr in socket_addrs {
                     resolved_targets.push(Self::SocketAddr(addr));
                 }
             }
             HostType::IP(ip, None) => {
-                resolved_targets.push(ResolvedTarget::SocketAddr(SocketAddr::new(ip, port)))
+                resolved_targets.push(ResolvedTarget::SocketAddr(SocketAddr::new(*ip, *port)))
             }
             HostType::IP(std::net::IpAddr::V4(_), Some(_)) => {
                 return Err(std::io::Error::new(
@@ -118,9 +118,9 @@ impl ResolvedTarget {
                 ));
             }
             HostType::IP(std::net::IpAddr::V6(ip), Some(scope_id)) => {
-                if let Ok(scope_id) = str::parse::<u32>(&scope_id) {
+                if let Ok(scope_id) = str::parse::<u32>(scope_id) {
                     resolved_targets.push(ResolvedTarget::SocketAddr(
-                        std::net::SocketAddrV6::new(ip, port, 0, scope_id).into(),
+                        std::net::SocketAddrV6::new(*ip, *port, 0, scope_id).into(),
                     ));
                 } else {
                     // TODO: Resolve non-numeric scope IDs

@@ -456,12 +456,16 @@ async def create_postgres_connection(
     )
 
     user_protocol = protocol_factory()
+    host_candidates = await asyncio.get_running_loop().run_in_executor(
+        executor=None, func=lambda: state.config.host_candidates
+    )
+
     protocol, host, port, initial_transport = await _create_connection(
         lambda: PGConnectionProtocol(
             state, user_protocol, ready_future, pg_state
         ),
         connect_timeout,
-        state.config.host_candidates,
+        host_candidates,
     )
 
     upgraded_transport = None

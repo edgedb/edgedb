@@ -88,13 +88,22 @@ impl PyConnectionParams {
         &self,
         py: Python,
     ) -> PyResult<Vec<(&'static str, Py<PyAny>, String, u16)>> {
+        // As this might be blocking, drop the GIL while we allow for
+        // resolution to take place.
+        let hosts = self.inner.hosts()?;
+        let hosts = py.allow_threads(|| {
+            hosts.into_iter().map(|host| {
+                let addrs = ResolvedTarget::to_addrs_sync(&host);
+                (host, addrs)
+            })
+        });
         let mut errors = Vec::new();
         let mut resolved_hosts = Vec::new();
 
-        for host in self.inner.hosts()? {
+        for (host, resolved) in hosts {
             let hostname = host.0.to_string();
             let port = host.1;
-            match ResolvedTarget::to_addrs_sync(host) {
+            match resolved {
                 Ok(addrs) => {
                     for addr in addrs {
                         match addr {
