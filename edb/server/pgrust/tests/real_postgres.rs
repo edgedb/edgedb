@@ -352,7 +352,7 @@ async fn test_auth_real(
     ssl.set_connect_state();
 
     let socket_address = match mode {
-        Mode::Unix => ResolvedTarget::to_addrs_sync(Host(
+        Mode::Unix => ResolvedTarget::to_addrs_sync(&Host(
             HostType::Path(data_dir.to_string_lossy().to_string()),
             port,
         ))?,
