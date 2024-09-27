@@ -70,6 +70,7 @@ EXT_INC_DIRS = [
 EXT_LIB_DIRS = [
     (ROOT_PATH / 'edb' / 'pgsql' / 'parser' / 'libpg_query').as_posix()
 ]
+EDBSS_DIR = (ROOT_PATH / 'edb_stat_statements').as_posix()
 
 
 if platform.uname().system != 'Windows':
@@ -195,7 +196,7 @@ def _get_env_with_openssl_flags():
     return env
 
 
-def _compile_postgres(build_base, *,
+def _compile_postgres(build_base, build_temp, *,
                       force_build=False, fresh_build=True,
                       run_configure=True, build_contrib=True,
                       produce_compile_commands_json=False):
@@ -279,6 +280,12 @@ def _compile_postgres(build_base, *,
                 ['make', '-C', 'contrib', 'MAKELEVEL=0', 'install'],
                 cwd=str(build_dir), check=True)
 
+        pg_config = (
+            build_base / 'postgres' / 'install' / 'bin' / 'pg_config'
+        ).resolve()
+        _compile_pgvector(pg_config, build_temp)
+        _compile_edb_stat_statements(pg_config, build_temp)
+
         with open(postgres_build_stamp, 'w') as f:
             f.write(source_stamp)
 
@@ -289,7 +296,7 @@ def _compile_postgres(build_base, *,
             )
 
 
-def _compile_pgvector(build_base, build_temp):
+def _compile_pgvector(pg_config, build_temp):
     git_rev = _get_git_rev(PGVECTOR_REPO, PGVECTOR_COMMIT)
 
     pgv_root = (build_temp / 'pgvector').resolve()
@@ -317,10 +324,6 @@ def _compile_pgvector(build_base, build_temp):
         cwd=pgv_root,
     )
 
-    pg_config = (
-        build_base / 'postgres' / 'install' / 'bin' / 'pg_config'
-    ).resolve()
-
     cflags = os.environ.get("CFLAGS", "")
     cflags = f"{cflags} {' '.join(SAFE_EXT_CFLAGS)} -std=gnu99"
 
@@ -340,6 +343,27 @@ def _compile_pgvector(build_base, build_temp):
             f'PG_CONFIG={pg_config}',
         ],
         cwd=pgv_root,
+        check=True,
+    )
+
+
+def _compile_edb_stat_statements(pg_config, build_temp):
+    subprocess.run(
+        [
+            'make',
+            f'PG_CONFIG={pg_config}',
+        ],
+        cwd=EDBSS_DIR,
+        check=True,
+    )
+
+    subprocess.run(
+        [
+            'make',
+            'install',
+            f'PG_CONFIG={pg_config}',
+        ],
+        cwd=EDBSS_DIR,
         check=True,
     )
 
@@ -387,13 +411,17 @@ def _get_git_rev(repo, ref):
 
 
 def _get_pg_source_stamp():
+    from edb.buildmeta import hash_dirs
+
     output = subprocess.check_output(
         ['git', 'submodule', 'status', '--cached', 'postgres'],
         universal_newlines=True,
         cwd=ROOT_PATH,
     )
     revision, _, _ = output[1:].partition(' ')
-    source_stamp = revision + '+' + PGVECTOR_COMMIT
+    edbss_hash = hash_dirs([(EDBSS_DIR, '.c'), (EDBSS_DIR, '.sql')])
+    edbss = binascii.hexlify(edbss_hash).decode()
+    source_stamp = '+'.join([revision, PGVECTOR_COMMIT, edbss])
     return source_stamp.strip()
 
 
@@ -647,15 +675,12 @@ class build_postgres(setuptools.Command):
         build = self.get_finalized_command('build')
         _compile_postgres(
             pathlib.Path(build.build_base).resolve(),
+            pathlib.Path(build.build_temp).resolve(),
             force_build=True,
             fresh_build=self.fresh_build,
             run_configure=self.configure,
             build_contrib=self.build_contrib,
             produce_compile_commands_json=self.compile_commands,
-        )
-        _compile_pgvector(
-            pathlib.Path(build.build_base).resolve(),
-            pathlib.Path(build.build_temp).resolve(),
         )
 
 

@@ -1,0 +1,3 @@
+comment = 'track planning and execution statistics of EdgeDB statements executed'
+default_version = '0.1'
+requires = 'pg_stat_statements'
