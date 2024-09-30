@@ -123,7 +123,7 @@
         steps.postgres-cache.outputs.cache-hit != 'true'
       run: |
         sudo apt-get update
-        sudo apt-get install -y uuid-dev libreadline-dev bison flex
+        sudo apt-get install -y uuid-dev libreadline-dev bison flex libprotobuf-c-dev
 
     - name: Install Rust toolchain
       if: |

@@ -572,6 +572,7 @@ class BaseHTTPTestCase(TestCase):
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
                 command_text=query,
+                input_language=protocol.InputLanguage.EDGEQL,
                 output_format=protocol.OutputFormat.JSON,
                 expected_cardinality=protocol.Cardinality.AT_MOST_ONE,
                 input_typedesc_id=b"\0" * 16,

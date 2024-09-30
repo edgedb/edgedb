@@ -3,7 +3,8 @@
 *.pyo
 *.o
 *.so
-.vscode
+.vscode/
+.zed/
 *~
 .#*
 .*.swp
@@ -37,3 +38,4 @@ docs/_build
 /.vagga
 /.dmypy.json
 /compile_commands.json
+/pyrightconfig.json

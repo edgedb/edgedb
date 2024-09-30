@@ -43,6 +43,8 @@ from edb import buildmeta
 from edb import edgeql
 from edb.edgeql import qltypes
 
+from edb.pgsql import parser as pgparser
+
 from edb.server.pgproto cimport hton
 from edb.server.pgproto.pgproto cimport (
     WriteBuffer,
@@ -94,6 +96,10 @@ cdef object CARD_AT_MOST_ONE = compiler.Cardinality.AT_MOST_ONE
 cdef object CARD_MANY = compiler.Cardinality.MANY
 
 cdef object FMT_NONE = compiler.OutputFormat.NONE
+cdef object FMT_BINARY = compiler.OutputFormat.BINARY
+
+cdef object LANG_EDGEQL = compiler.InputLanguage.EDGEQL
+cdef object LANG_SQL = compiler.InputLanguage.SQL
 
 cdef tuple DUMP_VER_MIN = (0, 7)
 cdef tuple DUMP_VER_MAX = edbdef.CURRENT_PROTOCOL
@@ -486,12 +492,25 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 fe_conn=self,
             )
 
-    def _tokenize(self, eql: bytes) -> edgeql.Source:
+    def _tokenize(
+        self,
+        eql: bytes,
+        lang: enums.InputLanguage,
+    ) -> edgeql.Source:
         text = eql.decode('utf-8')
-        if debug.flags.edgeql_disable_normalization:
-            return edgeql.Source.from_string(text)
+        if lang is LANG_EDGEQL:
+            if debug.flags.edgeql_disable_normalization:
+                return edgeql.Source.from_string(text)
+            else:
+                return edgeql.NormalizedSource.from_string(text)
+        elif lang is LANG_SQL:
+            if debug.flags.edgeql_disable_normalization:
+                return pgparser.Source.from_string(text)
+            else:
+                return pgparser.NormalizedSource.from_string(text)
         else:
-            return edgeql.NormalizedSource.from_string(text)
+            raise errors.UnsupportedFeatureError(
+                f"unsupported input language: {lang}")
 
     async def _suppress_tx_timeout(self):
         async with self.with_pgcon() as conn:
@@ -529,6 +548,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 'Cache key',
                 source.cache_key(),
                 f"protocol_version={query_req.protocol_version}",
+                f"input_language={query_req.input_language}",
                 f"output_format={query_req.output_format}",
                 f"expect_one={query_req.expect_one}",
                 f"implicit_limit={query_req.implicit_limit}",
@@ -550,9 +570,18 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             if suppress_timeout:
                 await self._suppress_tx_timeout()
             try:
-                return await dbv.parse(
-                    query_req, allow_capabilities=allow_capabilities
-                )
+                if query_req.input_language is LANG_SQL:
+                    async with self.with_pgcon() as pg_conn:
+                        return await dbv.parse(
+                            query_req,
+                            allow_capabilities=allow_capabilities,
+                            pgcon=pg_conn,
+                        )
+                else:
+                    return await dbv.parse(
+                        query_req,
+                        allow_capabilities=allow_capabilities,
+                    )
             finally:
                 if suppress_timeout:
                     await self._restore_tx_timeout(dbv)
@@ -752,6 +781,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             bint inline_typenames = False
             bint inline_typeids = False
             bint inline_objectids = False
+            object cardinality
             object output_format
             bint expect_one = False
             bytes query
@@ -779,10 +809,29 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             & messages.CompilationFlag.INJECT_OUTPUT_OBJECT_IDS
         )
 
+        if self.protocol_version >= (3, 0):
+            lang = rpc.deserialize_input_language(self.buffer.read_byte())
+        else:
+            lang = LANG_EDGEQL
+
         output_format = rpc.deserialize_output_format(self.buffer.read_byte())
-        expect_one = (
-            self.parse_cardinality(self.buffer.read_byte()) is CARD_AT_MOST_ONE
-        )
+        if (
+            lang is LANG_SQL
+            and output_format is not FMT_NONE
+            and output_format is not FMT_BINARY
+        ):
+            raise errors.UnsupportedFeatureError(
+                "non-binary output format is not supported with "
+                "SQL as the input language"
+            )
+
+        cardinality = self.parse_cardinality(self.buffer.read_byte())
+        expect_one = cardinality is CARD_AT_MOST_ONE
+        if lang is LANG_SQL and cardinality is not CARD_MANY:
+            raise errors.UnsupportedFeatureError(
+                "output cardinality assertions are not supported with "
+                "SQL as the input language"
+            )
 
         query = self.buffer.read_len_prefixed_bytes()
         if not query:
@@ -803,10 +852,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         cfg_ser = self.server.compilation_config_serializer
         rv = rpc.CompilationRequest(
-            source=self._tokenize(query),
+            source=self._tokenize(query, lang),
             protocol_version=self.protocol_version,
             schema_version=_dbview.schema_version,
             compilation_config_serializer=cfg_ser,
+            input_language=lang,
             output_format=output_format,
             expect_one=expect_one,
             implicit_limit=implicit_limit,
@@ -817,6 +867,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             session_config=_dbview.get_session_config(),
             database_config=_dbview.get_database_config(),
             system_config=_dbview.get_compilation_system_config(),
+            role_name=self.username,
+            branch_name=self.dbname,
         )
         return rv, allow_capabilities
 
@@ -892,6 +944,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     raise ConnectionAbortedError
             else:
                 compiled = _dbview.as_compiled(query_req, query_unit_group)
+
+        if query_req.input_language is LANG_SQL and len(query_unit_group) > 1:
+            raise errors.UnsupportedFeatureError(
+                "multi-statement SQL scripts are not supported yet")
 
         self._query_count += 1
 
@@ -1438,6 +1494,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             protocol_version=self.protocol_version,
             schema_version=_dbview.schema_version,
             compilation_config_serializer=cfg_ser,
+            role_name=self.username,
+            branch_name=self.dbname,
         )
 
         compiled = await _dbview.parse(query_req)
@@ -1838,6 +1896,8 @@ async def run_script(
                 schema_version=_dbview.schema_version,
                 compilation_config_serializer=cfg_ser,
                 output_format=FMT_NONE,
+                role_name=user,
+                branch_name=database,
             ),
         )
         if len(compiled.query_unit_group) > 1:
