@@ -691,8 +691,8 @@ class build_ext(setuptools_build_ext.build_ext):
     user_options = setuptools_build_ext.build_ext.user_options + [
         ('cython-annotate', None,
             'Produce a colorized HTML version of the Cython source.'),
-        ('cython-directives=', None,
-            'Cython compiler directives'),
+        ('cython-extra-directives=', None,
+            'Extra Cython compiler directives'),
     ]
 
     def initialize_options(self):
@@ -707,17 +707,17 @@ class build_ext(setuptools_build_ext.build_ext):
         if os.environ.get('EDGEDB_DEBUG'):
             self.cython_always = True
             self.cython_annotate = True
-            self.cython_directives = "linetrace=True"
+            self.cython_extra_directives = "linetrace=True"
             self.define = 'PG_DEBUG,CYTHON_TRACE,CYTHON_TRACE_NOGIL'
             self.debug = True
         else:
             self.cython_always = False
             self.cython_annotate = None
-            self.cython_directives = None
+            self.cython_extra_directives = None
             self.debug = False
         self.build_mode = os.environ.get('BUILD_EXT_MODE', 'both')
 
-    def finalize_options(self):
+    def finalize_options(self) -> None:
         # finalize_options() may be called multiple times on the
         # same command object, so make sure not to override previously
         # set options.
@@ -731,12 +731,12 @@ class build_ext(setuptools_build_ext.build_ext):
             super(build_ext, self).finalize_options()
             return
 
-        directives = {
+        directives: dict[str, str | bool] = {
             'language_level': '3'
         }
 
-        if self.cython_directives:
-            for directive in self.cython_directives.split(','):
+        if self.cython_extra_directives:
+            for directive in self.cython_extra_directives.split(','):
                 k, _, v = directive.partition('=')
                 if v.lower() == 'false':
                     v = False

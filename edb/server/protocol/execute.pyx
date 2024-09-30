@@ -275,8 +275,9 @@ async def execute(
                         if ddl_ret and ddl_ret['new_types']:
                             new_types = ddl_ret['new_types']
                 else:
+                    data_types = []
                     bound_args_buf = args_ser.recode_bind_args(
-                        dbv, compiled, bind_args)
+                        dbv, compiled, bind_args, None, data_types)
 
                     assert not (query_unit.database_config
                                 and query_unit.needs_readback), (
@@ -289,6 +290,7 @@ async def execute(
                         query=query_unit,
                         fe_conn=fe_conn if not read_data else None,
                         bind_data=bound_args_buf,
+                        param_data_types=data_types,
                         use_prep_stmt=use_prep_stmt,
                         state=state,
                         dbver=dbv.dbver,

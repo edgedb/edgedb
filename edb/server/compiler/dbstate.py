@@ -208,6 +208,8 @@ class Param:
 class QueryUnit:
     sql: bytes
 
+    introspection_sql: Optional[bytes] = None
+
     # Status-line for the compiled command; returned to front-end
     # in a CommandComplete protocol message if the command is
     # executed successfully.  When a QueryUnit contains multiple
@@ -514,11 +516,22 @@ class SQLQueryUnit:
     query: str = dataclasses.field(repr=False)
     """Translated query text."""
 
+    translation_data: Optional[pgcodegen.TranslationData] = None
+    """Translation source map."""
+
+    eql_format_query: Optional[str] = dataclasses.field(
+        repr=False, default=None)
+    """Translated query text returning data in single-column format."""
+
+    eql_format_translation_data: Optional[pgcodegen.TranslationData] = None
+    """Translation source map for single-column format query."""
+
     orig_query: str = dataclasses.field(repr=False)
     """Original query text before translation."""
 
-    translation_data: Optional[pgcodegen.TranslationData] = None
-    """Translation source map."""
+    cardinality: enums.Cardinality = enums.Cardinality.NO_RESULT
+
+    capabilities: enums.Capability = enums.Capability.NONE
 
     fe_settings: SQLSettings
     """Frontend-only settings effective during translation of this unit."""

@@ -262,7 +262,7 @@ def _compile_and_apply_ddl_stmt(
                         (SELECT
                             json_object_agg(
                                 "id"::text,
-                                "backend_id"
+                                json_build_array("backend_id", "name")
                             )
                             FROM
                             edgedb_VER."_SchemaType"

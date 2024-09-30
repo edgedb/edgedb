@@ -118,7 +118,7 @@ class CompilerDatabaseState:
     cached_reflection: immutables.Map[str, Tuple[str, ...]]
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class CompileContext:
 
     compiler_state: CompilerState
@@ -145,6 +145,8 @@ class CompileContext:
     log_ddl_as_migrations: bool = True
     dump_restore_mode: bool = False
     notebook: bool = False
+    branch_name: Optional[str] = None
+    role_name: Optional[str] = None
     cache_key: Optional[uuid.UUID] = None
 
     def get_cache_mode(self) -> config.QueryCacheMode:
@@ -583,7 +585,7 @@ class Compiler:
             self.state.compilation_config_serializer,
         )
 
-        units, cstate = self.compile(
+        return self.compile(
             user_schema=user_schema,
             global_schema=global_schema,
             reflection_cache=reflection_cache,
@@ -591,7 +593,6 @@ class Compiler:
             system_config=system_config,
             request=request,
         )
-        return units, cstate
 
     def compile(
         self,
@@ -641,10 +642,21 @@ class Compiler:
             json_parameters=request.input_format is enums.InputFormat.JSON,
             source=request.source,
             protocol_version=request.protocol_version,
+            role_name=request.role_name,
+            branch_name=request.branch_name,
             cache_key=request.get_cache_key(),
         )
 
-        unit_group = compile(ctx=ctx, source=request.source)
+        match request.input_language:
+            case enums.InputLanguage.EDGEQL:
+                unit_group = compile(ctx=ctx, source=request.source)
+            case enums.InputLanguage.SQL:
+                unit_group = compile_sql_as_unit_group(
+                    ctx=ctx, source=request.source)
+            case _:
+                raise NotImplementedError(
+                    f"unnsupported input language: {request.input_language}")
+
         tx_started = False
         for unit in unit_group:
             if unit.tx_id:
@@ -727,8 +739,17 @@ class Compiler:
             cache_key=request.get_cache_key(),
         )
 
-        units = compile(ctx=ctx, source=request.source)
-        return units, ctx.state
+        match request.input_language:
+            case enums.InputLanguage.EDGEQL:
+                unit_group = compile(ctx=ctx, source=request.source)
+            case enums.InputLanguage.SQL:
+                unit_group = compile_sql_as_unit_group(
+                    ctx=ctx, source=request.source)
+            case _:
+                raise NotImplementedError(
+                    f"unnsupported input language: {request.input_language}")
+
+        return unit_group, ctx.state
 
     def interpret_backend_error(
         self,
@@ -2341,6 +2362,129 @@ def compile(
                     "Normalized query is broken while original is valid")
         else:
             raise original_err
+
+
+def compile_sql_as_unit_group(
+    *,
+    ctx: CompileContext,
+    source: edgeql.Source,
+) -> dbstate.QueryUnitGroup:
+
+    setting = _get_config_val(ctx, 'allow_user_specified_id')
+    allow_user_specified_id = None
+    if setting:
+        allow_user_specified_id = sql.is_setting_truthy(setting)
+
+    apply_access_policies_sql = None
+    setting = _get_config_val(ctx, 'apply_access_policies_sql')
+    if setting:
+        apply_access_policies_sql = sql.is_setting_truthy(setting)
+
+    tx_state = ctx.state.current_tx()
+    schema = tx_state.get_schema(ctx.compiler_state.std_schema)
+
+    settings = dbstate.DEFAULT_SQL_FE_SETTINGS
+    sql_tx_state = dbstate.SQLTransactionState(
+        in_tx=not tx_state.is_implicit(),
+        settings=settings,
+        in_tx_settings=settings,
+        in_tx_local_settings=settings,
+        savepoints=[
+            (not_none(tx.name), settings, settings)
+            for tx in tx_state._savepoints.values()
+        ],
+    )
+
+    sql_units = sql.compile_sql(
+        source.text(),
+        schema=schema,
+        tx_state=sql_tx_state,
+        prepared_stmt_map={},
+        current_database=ctx.branch_name or "<unknown>",
+        current_user=ctx.role_name or "<unknown>",
+        allow_user_specified_id=allow_user_specified_id,
+        apply_access_policies_sql=apply_access_policies_sql,
+        include_edgeql_io_format_alternative=True,
+        allow_prepared_statements=False,
+    )
+
+    qug = dbstate.QueryUnitGroup(
+        cardinality=sql_units[-1].cardinality,
+        cacheable=False,
+    )
+
+    for sql_unit in sql_units:
+        if sql_unit.eql_format_query is not None:
+            value_sql = sql_unit.eql_format_query.encode("utf-8")
+            intro_sql = sql_unit.query.encode("utf-8")
+        else:
+            value_sql = sql_unit.query.encode("utf-8")
+            intro_sql = None
+        if isinstance(sql_unit.command_complete_tag, dbstate.TagPlain):
+            status = sql_unit.command_complete_tag.tag
+        elif isinstance(
+            sql_unit.command_complete_tag,
+            (dbstate.TagCountMessages, dbstate.TagUnpackRow),
+        ):
+            status = sql_unit.command_complete_tag.prefix.encode("utf-8")
+        elif sql_unit.command_complete_tag is None:
+            status = b"SELECT"  # XXX
+        else:
+            raise AssertionError(
+                f"unexpected SQLQueryUnit.command_complete_tag type: "
+                f"{sql_unit.command_complete_tag}"
+            )
+        unit = dbstate.QueryUnit(
+            sql=value_sql,
+            introspection_sql=intro_sql,
+            status=status,
+            cardinality=sql_unit.cardinality,
+            capabilities=sql_unit.capabilities,
+            globals=[
+                (str(sp.global_name), False) for sp in sql_unit.params
+                if isinstance(sp, dbstate.SQLParamGlobal)
+            ] if sql_unit.params else [],
+            output_format=(
+                enums.OutputFormat.NONE
+                if sql_unit.cardinality is enums.Cardinality.NO_RESULT
+                else enums.OutputFormat.BINARY
+            ),
+        )
+        match sql_unit.tx_action:
+            case dbstate.TxAction.START:
+                ctx.state.start_tx()
+                tx_state = ctx.state.current_tx()
+                unit.tx_id = tx_state.id
+            case dbstate.TxAction.COMMIT:
+                ctx.state.commit_tx()
+                unit.tx_commit = True
+            case dbstate.TxAction.ROLLBACK:
+                ctx.state.rollback_tx()
+                unit.tx_rollback = True
+            case dbstate.TxAction.DECLARE_SAVEPOINT:
+                assert sql_unit.sp_name is not None
+                unit.tx_savepoint_declare = True
+                unit.sp_id = tx_state.declare_savepoint(sql_unit.sp_name)
+                unit.sp_name = sql_unit.sp_name
+            case dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
+                assert sql_unit.sp_name is not None
+                tx_state.rollback_to_savepoint(sql_unit.sp_name)
+                unit.tx_savepoint_rollback = True
+                unit.sp_name = sql_unit.sp_name
+            case dbstate.TxAction.RELEASE_SAVEPOINT:
+                assert sql_unit.sp_name is not None
+                tx_state.release_savepoint(sql_unit.sp_name)
+                unit.sp_name = sql_unit.sp_name
+            case None:
+                pass
+            case _:
+                raise AssertionError(
+                    f"unexpected SQLQueryUnit.tx_action: {sql_unit.tx_action}"
+                )
+
+        qug.append(unit)
+
+    return qug
 
 
 def _try_compile(

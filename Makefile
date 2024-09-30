@@ -43,6 +43,10 @@ parsers:
 	python setup.py build_parsers --inplace
 
 
+libpg-query:
+	python setup.py build_libpg_query
+
+
 ui: build-reqs
 	python setup.py build_ui
 
