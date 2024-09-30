@@ -46,26 +46,25 @@ INIT_CON_SCRIPT_DATA = ''
 # * 'A': an instance-level config setting from command-line arguments
 # * 'E': an instance-level config setting from environment variable
 SETUP_TEMP_TABLE_SCRIPT = '''
-    CREATE TEMPORARY TABLE _edgecon_state (
-        name text NOT NULL,
-        value jsonb NOT NULL,
-        type text NOT NULL CHECK(
-            type = 'C' OR type = 'B' OR type = 'A' OR type = 'E'),
-        UNIQUE(name, type)
-    );
-'''
+        CREATE TEMPORARY TABLE _edgecon_state (
+            name text NOT NULL,
+            value jsonb NOT NULL,
+            type text NOT NULL CHECK(
+                type = 'C' OR type = 'B' OR type = 'A' OR type = 'E'),
+            UNIQUE(name, type)
+        );
+'''.strip()
 SETUP_CONFIG_CACHE_SCRIPT = '''
-    CREATE TEMPORARY TABLE _config_cache (
-        source edgedb._sys_config_source_t,
-        value edgedb._sys_config_val_t NOT NULL
-    );
-'''
+        CREATE TEMPORARY TABLE _config_cache (
+            source edgedb._sys_config_source_t,
+            value edgedb._sys_config_val_t NOT NULL
+        );
+'''.strip()
 
 
 def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     if check_pg_is_in_recovery:
-        pg_is_in_recovery = (
-            '''
+        pg_is_in_recovery = ('''
         SELECT CASE WHEN pg_is_in_recovery() THEN
             edgedb.raise(
                 NULL::bigint,
@@ -73,14 +72,11 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
                 msg => 'cannot use a hot standby'
             )
         END;
-        '''
-        ).strip()
+        ''').strip()
     else:
         pg_is_in_recovery = ''
 
-    return (
-        textwrap.dedent(
-            f'''
+    return textwrap.dedent(f'''
         {pg_is_in_recovery}
 
         {SETUP_TEMP_TABLE_SCRIPT}
@@ -117,11 +113,7 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
                 pg_catalog.set_config(e.key, e.value, false) AS value
             FROM
                 jsonb_each_text($1::jsonb) AS e;
-    '''
-        )
-        .strip()
-        .encode('utf-8')
-    )
+    ''').strip().encode('utf-8')
 
 
 async def pg_connect(
@@ -132,8 +124,6 @@ async def pg_connect(
     apply_init_script: bool = True,
 ) -> pgcon.PGConnection:
     global INIT_CON_SCRIPT
-
-    pgconn = None
 
     if isinstance(dsn_or_connection, str):
         connection = rust_transport.ConnectionParams(dsn=dsn_or_connection)
