@@ -369,6 +369,8 @@ cdef class PgConnection(frontend.FrontendConnection):
         self.endpoint_security = endpoint_security
         self.is_tls = False
 
+        self._disable_cache = debug.flags.disable_qcache
+
     cdef _main_task_created(self):
         self.server.on_pgext_client_connected(self)
         # complete the client initial message with a mocked type
@@ -1493,6 +1495,9 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.debug_print("Compile", query_str)
         fe_settings = dbv.current_fe_settings()
         key = (hashlib.sha1(query_str.encode("utf-8")).digest(), fe_settings)
+
+        ignore_cache |= self._disable_cache
+
         if not ignore_cache:
             result = self.database.lookup_compiled_sql(key)
             if result is not None:
@@ -1576,7 +1581,7 @@ cdef WriteBuffer remap_arguments(
     data: bytes,
     params: list[dbstate.SQLParam] | None,
     fe_settings: dbstate.SQLSettings
-):  
+):
     cdef:
         int16_t param_format_count
         int32_t offset
