@@ -435,7 +435,10 @@ async def _get_databases(
     cluster = ctx.cluster
 
     tpl_db = cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB)
-    conn = await cluster.connect(database=tpl_db)
+    conn = await cluster.connect(
+        source_description="inplace upgrade",
+        database=tpl_db
+    )
 
     # FIXME: Use the sys query instead?
     try:
@@ -511,7 +514,10 @@ async def _upgrade_all(
             continue
 
         conn = bootstrap.PGConnectionProxy(
-            cluster, cluster.get_db_name(database))
+            cluster,
+            source_description="inplace upgrade: upgrade all",
+            dbname=cluster.get_db_name(database)
+        )
         try:
             subctx = dataclasses.replace(ctx, conn=conn)
 
@@ -541,7 +547,10 @@ async def _finalize_all(
         inject_failure_on: Optional[str]=None,
     ) -> None:
         for database in databases:
-            conn = await cluster.connect(database=cluster.get_db_name(database))
+            conn = await cluster.connect(
+                source_description="inplace upgrade: finish",
+                database=cluster.get_db_name(database)
+            )
             try:
                 subctx = dataclasses.replace(ctx, conn=conn)
 
@@ -581,7 +590,10 @@ async def inplace_upgrade(
     args: edbargs.ServerConfig,
 ) -> None:
     """Perform some or all of the inplace upgrade operations"""
-    pgconn = bootstrap.PGConnectionProxy(cluster)
+    pgconn = bootstrap.PGConnectionProxy(
+        cluster,
+        source_description="inplace_upgrade"
+    )
     ctx = bootstrap.BootstrapContext(cluster=cluster, conn=pgconn, args=args)
 
     try:

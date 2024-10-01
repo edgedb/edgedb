@@ -320,17 +320,13 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.write(buf)
 
+        # In dev mode we expose the backend postgres DSN
         if self.server.in_dev_mode():
-            pgaddr = dict(self.tenant.get_pgaddr())
-            if pgaddr.get('password'):
-                pgaddr['password'] = '********'
-            pgaddr['database'] = self.tenant.get_pg_dbname(
+            params = self.tenant.get_pgaddr()
+            params.update(database=self.tenant.get_pg_dbname(
                 self.get_dbview().dbname
-            )
-            pgaddr.pop('ssl', None)
-            if 'sslmode' in pgaddr:
-                pgaddr['sslmode'] = pgaddr['sslmode'].name
-            self.write_status(b'pgaddr', json.dumps(pgaddr).encode())
+            ))
+            self.write_status(b'pgdsn', params.to_dsn().encode())
 
         self.write_status(
             b'suggested_pool_concurrency',

@@ -35,7 +35,6 @@ from edb.tools.edb import edbcommands
 from edb.server import compiler as edbcompiler
 from edb.server import defines as edbdef
 from edb.server import pgcluster
-from edb.server import pgconnparams
 
 from edb.pgsql import common as pgcommon
 from edb.pgsql.common import quote_ident as qi
@@ -118,11 +117,9 @@ async def do_wipe(
             data_dir,
             tenant_id='<unknown>',
         )
-        cluster.set_connection_params(
-            pgconnparams.ConnectionParameters(
-                user='postgres',
-                database='template1',
-            ),
+        cluster.update_connection_params(
+            user='postgres',
+            database='template1',
         )
     else:
         raise click.UsageError(
@@ -146,7 +143,7 @@ async def do_wipe(
             cluster_started_by_us = True
 
     try:
-        conn = await cluster.connect()
+        conn = await cluster.connect(source_description="Wipe")
         if tenant_id:
             tenants = list(tenant_id)
         else:
@@ -197,7 +194,10 @@ async def wipe_tenant(
     )
 
     try:
-        tpl_conn = await cluster.connect(database=tpl_db)
+        tpl_conn = await cluster.connect(
+            database=tpl_db,
+            source_description="wipe_tenant",
+        )
     except pgcon.BackendCatalogNameError:
         click.secho(
             f'Instance tenant {tenant!r} does not have the '

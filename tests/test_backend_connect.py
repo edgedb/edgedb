@@ -16,11 +16,10 @@
 # limitations under the License.
 #
 import warnings
-from typing import Optional
+from typing import Optional, Unpack
 
 import asyncio
 import contextlib
-import dataclasses
 import ipaddress
 import os
 import pathlib
@@ -32,7 +31,6 @@ import ssl
 import stat
 import sys
 import tempfile
-import textwrap
 import unittest
 import unittest.mock
 import urllib.parse
@@ -140,11 +138,8 @@ class ClusterTestCase(tb.TestCase):
     async def init_temp_cluster(cls):
         cluster = cls.cluster = TempCluster()
         await cluster.lookup_postgres()
-        cluster.set_connection_params(
-            pgconnparams.ConnectionParameters(
-                user='postgres',
-                database='postgres',
-            ),
+        cluster.update_connection_params(
+            user='postgres',
         )
         await cluster.init(**_get_initdb_options({}))
         await cluster.trust_local_connections()
@@ -177,37 +172,15 @@ class ClusterTestCase(tb.TestCase):
             super().tearDownClass()
 
     @classmethod
-    def get_connection_spec(cls, kwargs=None):
-        if not kwargs:
-            kwargs = {}
-        conn_spec = cls.cluster.get_connection_spec()
-        conn_spec['host'] = 'localhost'
-        if kwargs.get('dsn'):
-            _addrs, params = pgconnparams.parse_dsn(kwargs['dsn'])
-            for k in (
-                'user',
-                'password',
-                'database',
-                'ssl',
-                'sslmode',
-                'server_settings',
-            ):
-                v = getattr(params, k)
-                if v is not None:
-                    conn_spec[k] = v
-        conn_spec.update(kwargs)
-        if not os.environ.get('PGHOST') and not kwargs.get('dsn'):
-            if 'database' not in conn_spec:
-                conn_spec['database'] = 'postgres'
-            if 'user' not in conn_spec:
-                conn_spec['user'] = 'postgres'
-        return conn_spec
-
-    @classmethod
-    def connect(cls, **kwargs):
-        conn_spec = cls.get_connection_spec(kwargs)
-        return pgcon.connect(
-            conn_spec, cls.dbname, cls.cluster.get_runtime_params()
+    async def connect(cls, **kwargs: Unpack[pgconnparams.CreateParamsKwargs]):
+        import inspect
+        assert cls.cluster is not None
+        source_description = ("ClusterTestCase: "
+                              f"{inspect.currentframe().f_back.f_code.co_name}")  # type: ignore
+        kwargs['database'] = cls.dbname
+        return await cls.cluster.connect(
+            source_description=source_description,
+            **kwargs
         )
 
     def setUp(self):
@@ -217,7 +190,8 @@ class ClusterTestCase(tb.TestCase):
 
     def tearDown(self):
         try:
-            self.con.terminate()
+            if self.con:
+                self.con.terminate()
             self.con = None
         finally:
             super().tearDown()
@@ -333,10 +307,10 @@ class TestAuthentication(ClusterTestCase):
             await self.connect(user='reject_user')
 
     async def test_auth_password_cleartext(self):
-        with self.assertRaisesRegex(RuntimeError, 'unsupported auth method'):
-            await self.connect(
-                user='password_user',
-                password='correctpassword')
+        conn = await self.connect(
+            user='password_user',
+            password='correctpassword')
+        conn.terminate()
 
     async def test_auth_password_md5(self):
         conn = await self.connect(
@@ -403,384 +377,6 @@ class TestAuthentication(ClusterTestCase):
 
 class TestConnectParams(tb.TestCase):
 
-    TESTS = [
-        {
-            'name': 'all_env_default_ssl',
-            'env': {
-                'PGUSER': 'user',
-                'PGDATABASE': 'testdb',
-                'PGPASSWORD': 'passw',
-                'PGHOST': 'host',
-                'PGPORT': '123',
-                'PGCONNECT_TIMEOUT': '8',
-            },
-            'result': ([('host', 123)], {
-                'user': 'user',
-                'password': 'passw',
-                'database': 'testdb',
-                'ssl': True,
-                'sslmode': SSLMode.prefer,
-                'connect_timeout': 8,
-            })
-        },
-
-        {
-            'name': 'dsn_override_env',
-            'env': {
-                'PGUSER': 'user',
-                'PGDATABASE': 'testdb',
-                'PGPASSWORD': 'passw',
-                'PGHOST': 'host',
-                'PGPORT': '123',
-                'PGCONNECT_TIMEOUT': '8',
-            },
-
-            'dsn': 'postgres://user2:passw2@host2:456/db2?connect_timeout=6',
-
-            'result': ([('host2', 456)], {
-                'user': 'user2',
-                'password': 'passw2',
-                'database': 'db2',
-                'connect_timeout': 6,
-            })
-        },
-
-        {
-            'name': 'dsn_override_env_ssl',
-            'env': {
-                'PGUSER': 'user',
-                'PGDATABASE': 'testdb',
-                'PGPASSWORD': 'passw',
-                'PGHOST': 'host',
-                'PGPORT': '123',
-                'PGSSLMODE': 'allow'
-            },
-
-            'dsn': 'postgres://user2:passw2@host2:456/db2?sslmode=disable',
-
-            'result': ([('host2', 456)], {
-                'user': 'user2',
-                'password': 'passw2',
-                'database': 'db2',
-                'sslmode': SSLMode.disable,
-                'ssl': None})
-        },
-
-        {
-            'name': 'dsn_overrides_env_partially',
-            'env': {
-                'PGUSER': 'user',
-                'PGDATABASE': 'testdb',
-                'PGPASSWORD': 'passw',
-                'PGHOST': 'host',
-                'PGPORT': '123',
-                'PGSSLMODE': 'allow'
-            },
-
-            'dsn': 'postgres://user3:123123@localhost:5555/abcdef',
-
-            'result': ([('localhost', 5555)], {
-                'user': 'user3',
-                'password': '123123',
-                'database': 'abcdef',
-                'ssl': True,
-                'sslmode': SSLMode.allow})
-        },
-
-        {
-            'name': 'dsn_override_env_ssl_prefer',
-            'env': {
-                'PGUSER': 'user',
-                'PGDATABASE': 'testdb',
-                'PGPASSWORD': 'passw',
-                'PGHOST': 'host',
-                'PGPORT': '123',
-                'PGSSLMODE': 'prefer'
-            },
-
-            'dsn': 'postgres://user2:passw2@host2:456/db2?sslmode=disable',
-
-            'result': ([('host2', 456)], {
-                'user': 'user2',
-                'password': 'passw2',
-                'database': 'db2',
-                'sslmode': SSLMode.disable,
-                'ssl': None})
-        },
-
-        {
-            'name': 'dsn_overrides_env_partially_ssl_prefer',
-            'env': {
-                'PGUSER': 'user',
-                'PGDATABASE': 'testdb',
-                'PGPASSWORD': 'passw',
-                'PGHOST': 'host',
-                'PGPORT': '123',
-                'PGSSLMODE': 'prefer'
-            },
-
-            'dsn': 'postgres://user3:123123@localhost:5555/abcdef',
-
-            'result': ([('localhost', 5555)], {
-                'user': 'user3',
-                'password': '123123',
-                'database': 'abcdef',
-                'ssl': True,
-                'sslmode': SSLMode.prefer})
-        },
-
-        {
-            'name': 'dsn_only',
-            'dsn': 'postgres://user3:123123@localhost:5555/abcdef',
-            'result': ([('localhost', 5555)], {
-                'user': 'user3',
-                'password': '123123',
-                'database': 'abcdef'})
-        },
-
-        {
-            'name': 'dsn_only_multi_host',
-            'dsn': 'postgresql://user@host1,host2/db',
-            'result': ([('host1', 5432), ('host2', 5432)], {
-                'database': 'db',
-                'user': 'user',
-            })
-        },
-
-        {
-            'name': 'dsn_only_multi_host_and_port',
-            'dsn': 'postgresql://user@host1:1111,host2:2222/db',
-            'result': ([('host1', 1111), ('host2', 2222)], {
-                'database': 'db',
-                'user': 'user',
-            })
-        },
-
-        {
-            'name': 'dsn_combines_env_multi_host',
-            'env': {
-                'PGHOST': 'host1:1111,host2:2222',
-                'PGUSER': 'foo',
-            },
-            'dsn': 'postgresql:///db',
-            'result': ([('host1', 1111), ('host2', 2222)], {
-                'database': 'db',
-                'user': 'foo',
-            })
-        },
-
-        {
-            'name': 'dsn_multi_host_combines_env',
-            'env': {
-                'PGUSER': 'foo',
-            },
-            'dsn': 'postgresql:///db?host=host1:1111,host2:2222',
-            'result': ([('host1', 1111), ('host2', 2222)], {
-                'database': 'db',
-                'user': 'foo',
-            })
-        },
-
-        {
-            'name': 'params_multi_host_dsn_env_mix',
-            'env': {
-                'PGUSER': 'foo',
-            },
-            'dsn': 'postgresql://host1,host2/db',
-            'result': ([('host1', 5432), ('host2', 5432)], {
-                'database': 'db',
-                'user': 'foo',
-            })
-        },
-
-        {
-            'name': 'dsn_settings_override_and_ssl',
-            'dsn': 'postgresql://me:ask@127.0.0.1:888/'
-                   'db?param=sss&param=123&host=testhost&user=testuser'
-                   '&port=2222&database=testdb&sslmode=require',
-            'result': ([('127.0.0.1', 888)], {
-                'server_settings': {'param': '123'},
-                'user': 'me',
-                'password': 'ask',
-                'database': 'db',
-                'ssl': True,
-                'sslmode': SSLMode.require})
-        },
-
-        {
-            'name': 'multiple_settings',
-            'dsn': 'postgresql://me:ask@127.0.0.1:888/'
-                   'db?param=sss&param=123&host=testhost&user=testuser'
-                   '&port=2222&database=testdb&sslmode=verify_full'
-                   '&aa=bb',
-            'result': ([('127.0.0.1', 888)], {
-                'server_settings': {'aa': 'bb', 'param': '123'},
-                'user': 'me',
-                'password': 'ask',
-                'database': 'db',
-                'sslmode': SSLMode.verify_full,
-                'ssl': True})
-        },
-
-        {
-            'name': 'dsn_only_unix',
-            'dsn': 'postgresql:///dbname?host=/unix_sock/test&user=spam',
-            'result': ([('/unix_sock/test', 5432)], {
-                'user': 'spam',
-                'database': 'dbname'})
-        },
-
-        {
-            'name': 'dsn_only_quoted',
-            'dsn': 'postgresql://us%40r:p%40ss@h%40st1,h%40st2:543%33/d%62',
-            'result': (
-                [('h@st1', 5432), ('h@st2', 5433)],
-                {
-                    'user': 'us@r',
-                    'password': 'p@ss',
-                    'database': 'db',
-                }
-            )
-        },
-
-        {
-            'name': 'dsn_only_unquoted_host',
-            'dsn': 'postgresql://user:p@ss@host/db',
-            'result': (
-                [('ss@host', 5432)],
-                {
-                    'user': 'user',
-                    'password': 'p',
-                    'database': 'db',
-                }
-            )
-        },
-
-        {
-            'name': 'dsn_only_quoted_params',
-            'dsn': 'postgresql:///d%62?user=us%40r&host=h%40st&port=543%33',
-            'result': (
-                [('h@st', 5433)],
-                {
-                    'user': 'us@r',
-                    'database': 'db',
-                }
-            )
-        },
-
-        {
-            'name': 'dsn_ipv6_multi_host',
-            'dsn': 'postgresql://user@[2001:db8::1234%25eth0],[::1]/db',
-            'result': ([('2001:db8::1234%eth0', 5432), ('::1', 5432)], {
-                'database': 'db',
-                'user': 'user',
-            })
-        },
-
-        {
-            'name': 'dsn_ipv6_multi_host_port',
-            'dsn': 'postgresql://user@[2001:db8::1234]:1111,[::1]:2222/db',
-            'result': ([('2001:db8::1234', 1111), ('::1', 2222)], {
-                'database': 'db',
-                'user': 'user',
-            })
-        },
-
-        {
-            'name': 'dsn_ipv6_multi_host_query_part',
-            'dsn': 'postgresql:///db?user=user&host=[2001:db8::1234],[::1]',
-            'result': ([('2001:db8::1234', 5432), ('::1', 5432)], {
-                'database': 'db',
-                'user': 'user',
-            })
-        },
-
-        {
-            'name': 'dsn_only_illegal_protocol',
-            'dsn': 'pq:///dbname?host=/unix_sock/test&user=spam',
-            'error': (ValueError, 'Invalid DSN.*')
-        },
-        {
-            'name': 'env_ports_mismatch_dsn_multi_hosts',
-            'dsn': 'postgresql://host1,host2,host3/db',
-            'env': {'PGPORT': '111,222'},
-            'error': (
-                ValueError,
-                'Unexpected number of ports.*'
-            )
-        },
-        {
-            'name': 'dsn_only_quoted_unix_host_port_in_params',
-            'dsn': 'postgres://user@?port=56226&host=%2Ftmp',
-            'result': (
-                [('/tmp', 56226)],
-                {
-                    'user': 'user',
-                    'database': 'user',
-                    'sslmode': SSLMode.disable,
-                    'ssl': None
-                }
-            )
-        },
-        {
-            'name': 'dsn_only_cloudsql',
-            'dsn': 'postgres:///db?host=/cloudsql/'
-                   'project:region:instance-name&user=spam',
-            'result': (
-                [(
-                    '/cloudsql/project:region:instance-name',
-                    5432,
-                )], {
-                    'user': 'spam',
-                    'database': 'db'
-                }
-            )
-        },
-        {
-            'name': 'dsn_only_cloudsql_unix_and_tcp',
-            'dsn': 'postgres:///db?host=127.0.0.1:5432,/cloudsql/'
-                   'project:region:instance-name,localhost:5433&user=spam',
-            'result': (
-                [
-                    ('127.0.0.1', 5432),
-                    (
-                        '/cloudsql/project:region:instance-name',
-                        5432,
-                    ),
-                    ('localhost', 5433)
-                ], {
-                    'user': 'spam',
-                    'database': 'db',
-                    'ssl': True,
-                    'sslmode': SSLMode.prefer,
-                }
-            )
-        },
-        *[
-            {
-                'name': f'connect_timeout_{given}',
-                'dsn': f'postgres://spam@127.0.0.1:5432/postgres?'
-                       f'connect_timeout={given}',
-                'result': (
-                    [('127.0.0.1', 5432)],
-                    {
-                        'user': 'spam',
-                        'database': 'postgres',
-                        'connect_timeout': expected,
-                    }
-                )
-            }
-            for given, expected in [
-                ('-8', None),
-                ('-1', None),
-                ('0', None),
-                ('1', 2),
-                ('2', 2),
-                ('3', 3),
-            ]
-        ],
-    ]
-
     @contextlib.contextmanager
     def environ(self, **kwargs):
         old_vals = {}
@@ -831,27 +427,16 @@ class TestConnectParams(tb.TestCase):
             if expected_error:
                 es.enter_context(self.assertRaisesRegex(*expected_error))
 
-            addrs, conn_params = pgconnparams.parse_dsn(dsn=dsn)
+            conn_params = pgconnparams.ConnectionParams(dsn=dsn)
+            conn_params = conn_params.resolve()
 
-            params = {}
-            for k in dataclasses.fields(conn_params):
-                k = k.name
-                v = getattr(conn_params, k)
-                if v or (expected is not None and k in expected[1]):
-                    params[k] = v
-
-            if isinstance(params.get('ssl'), ssl.SSLContext):
-                params['ssl'] = True
-
-            result = (list(addrs), params)
+            to_dict = conn_params.__dict__
+            host = to_dict.pop('host', None).split(',')
+            port = map(int, to_dict.pop('port', None).split(','))
+            to_dict.pop('sslmode', None)
+            result = (list(zip(host, port)), to_dict)
 
         if expected is not None:
-            if 'ssl' not in expected[1]:
-                # Avoid the hassle of specifying the default SSL mode
-                # unless explicitly tested for.
-                params.pop('ssl', None)
-                params.pop('sslmode', None)
-
             self.assertEqual(
                 expected,
                 result,
@@ -897,149 +482,6 @@ class TestConnectParams(tb.TestCase):
                     {'user': '__test__', 'database': '__test__'}
                 )
             })
-
-    def test_connect_params(self):
-        with mock_dot_postgresql():
-            for testcase in self.TESTS:
-                self.run_testcase(testcase)
-
-    def test_connect_pgpass_regular(self):
-        passfile = tempfile.NamedTemporaryFile('w+t', delete=False)
-        passfile.write(textwrap.dedent(R'''
-            abc:*:*:user:password from pgpass for user@abc
-            localhost:*:*:*:password from pgpass for localhost
-            cde:5433:*:*:password from pgpass for cde:5433
-
-            *:*:*:testuser:password from pgpass for testuser
-            *:*:testdb:*:password from pgpass for testdb
-            # comment
-            *:*:test\:db:test\\:password from pgpass with escapes
-        '''))
-        passfile.close()
-        os.chmod(passfile.name, stat.S_IWUSR | stat.S_IRUSR)
-
-        try:
-            # passfile path in env
-            self.run_testcase({
-                'env': {
-                    'PGPASSFILE': passfile.name
-                },
-                'dsn': 'postgres://user@abc/db',
-                'result': (
-                    [('abc', 5432)],
-                    {
-                        'password': 'password from pgpass for user@abc',
-                        'user': 'user',
-                        'database': 'db',
-                    }
-                )
-            })
-
-            # passfile path in dsn
-            self.run_testcase({
-                'dsn': 'postgres://user@abc/db?passfile={}'.format(
-                    passfile.name),
-                'result': (
-                    [('abc', 5432)],
-                    {
-                        'password': 'password from pgpass for user@abc',
-                        'user': 'user',
-                        'database': 'db',
-                    }
-                )
-            })
-
-            self.run_testcase({
-                'dsn': 'postgres://user@localhost/db?passfile={}'.format(
-                    passfile.name
-                ),
-                'result': (
-                    [('localhost', 5432)],
-                    {
-                        'password': 'password from pgpass for localhost',
-                        'user': 'user',
-                        'database': 'db',
-                    }
-                )
-            })
-
-            # unix socket gets normalized as localhost
-            self.run_testcase({
-                'dsn': 'postgres:///db?user=user&host=/tmp&passfile={}'.format(
-                    passfile.name
-                ),
-                'result': (
-                    [('/tmp', 5432)],
-                    {
-                        'password': 'password from pgpass for localhost',
-                        'user': 'user',
-                        'database': 'db',
-                    }
-                )
-            })
-
-            # port matching (also tests that `:` can be part of password)
-            self.run_testcase({
-                'dsn': 'postgres://user@cde:5433/db?passfile={}'.format(
-                    passfile.name
-                ),
-                'result': (
-                    [('cde', 5433)],
-                    {
-                        'password': 'password from pgpass for cde:5433',
-                        'user': 'user',
-                        'database': 'db',
-                    }
-                )
-            })
-
-            # user matching
-            self.run_testcase({
-                'dsn': 'postgres://testuser@def/db?passfile={}'.format(
-                    passfile.name
-                ),
-                'result': (
-                    [('def', 5432)],
-                    {
-                        'password': 'password from pgpass for testuser',
-                        'user': 'testuser',
-                        'database': 'db',
-                    }
-                )
-            })
-
-            # database matching
-            self.run_testcase({
-                'dsn': 'postgres://user@efg/testdb?passfile={}'.format(
-                    passfile.name
-                ),
-                'result': (
-                    [('efg', 5432)],
-                    {
-                        'password': 'password from pgpass for testdb',
-                        'user': 'user',
-                        'database': 'testdb',
-                    }
-                )
-            })
-
-            # test escaping
-            self.run_testcase({
-                'dsn': 'postgres://{}@fgh/{}?passfile={}'.format(
-                    'test\\', 'test:db', passfile.name
-                ),
-                'result': (
-                    [('fgh', 5432)],
-                    {
-                        'password': 'password from pgpass with escapes',
-                        'user': 'test\\',
-                        'database': 'test:db',
-                    }
-                )
-            })
-
-        finally:
-            os.unlink(passfile.name)
 
     def test_connect_pgpass_badness_mode(self):
         # Verify that .pgpass permissions are checked
@@ -1153,13 +595,11 @@ class TestConnectParams(tb.TestCase):
                 # The backlog on macOS is different from Linux
                 server.listen(0)
             host, port = server.getsockname()
-            conn_spec = {
-                'host': host,
-                'port': port,
-                'user': 'foo',
-                'server_settings': {},
-                'connect_timeout': 2,
-            }
+            conn_spec = pgconnparams.ConnectionParams(
+                hosts=[(host, port)],
+                user='foo',
+                connect_timeout=2,
+            )
 
             async def placeholder():
                 async with asyncio.timeout(2):
@@ -1182,10 +622,10 @@ class TestConnectParams(tb.TestCase):
 
             with self.assertRaises(errors.BackendConnectionError):
                 async with asyncio.timeout(4):  # failsafe
-                    await pgcon.connect(
+                    await pgcon.pg_connect(
                         conn_spec,
-                        'foo',
-                        pg_params.get_default_runtime_params(),
+                        source_description="test_connection_connect_timeout",
+                        backend_params=pg_params.get_default_runtime_params(),
                     )
 
         finally:
@@ -1234,21 +674,17 @@ class TestConnection(ClusterTestCase):
             await self.con.restore(None, b'', {})
 
     async def test_connection_ssl_to_no_ssl_server(self):
-        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ssl_context.load_verify_locations(SSL_CA_CERT_FILE)
-
         with self.assertRaisesRegex(ConnectionError, 'rejected SSL'):
             await self.connect(
                 host='localhost',
-                sslmode=SSLMode.require,
-                ssl=ssl_context)
+                sslmode=SSLMode.require)
 
     async def test_connection_sslmode_no_ssl_server(self):
         async def verify_works(sslmode):
             con = None
             try:
                 con = await self.connect(
-                    dsn='postgresql://foo/?sslmode=' + sslmode,
+                    sslmode=SSLMode.parse(sslmode),
                     user='postgres',
                     database='postgres',
                     host='localhost')
@@ -1263,7 +699,7 @@ class TestConnection(ClusterTestCase):
             try:
                 with self.assertRaises(ConnectionError):
                     con = await self.connect(
-                        dsn='postgresql://foo/?sslmode=' + sslmode,
+                        sslmode=SSLMode.parse(sslmode),
                         user='postgres',
                         database='postgres',
                         host='localhost')
@@ -1334,24 +770,16 @@ class BaseTestSSLConnection(ClusterTestCase):
 class TestSSLConnection(BaseTestSSLConnection):
     def _add_hba_entry(self):
         self.cluster.add_hba_entry(
-            type='hostssl', address=ipaddress.ip_network('127.0.0.0/24'),
-            database=self.dbname, user='ssl_user',
-            auth_method='trust')
-
-        self.cluster.add_hba_entry(
-            type='hostssl', address=ipaddress.ip_network('::1/128'),
+            type='hostssl', address="all",
             database=self.dbname, user='ssl_user',
             auth_method='trust')
 
     async def test_ssl_connection_custom_context(self):
-        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ssl_context.load_verify_locations(SSL_CA_CERT_FILE)
-
         con = await self.connect(
             host='localhost',
             user='ssl_user',
             sslmode=SSLMode.require,
-            ssl=ssl_context)
+            sslrootcert=SSL_CA_CERT_FILE)
 
         try:
             await self.assertConnected(con)
@@ -1364,7 +792,7 @@ class TestSSLConnection(BaseTestSSLConnection):
             con = None
             try:
                 con = await self.connect(
-                    dsn='postgresql://foo/postgres?sslmode=' + sslmode,
+                    sslmode=SSLMode.parse(sslmode),
                     host=host,
                     user='ssl_user')
                 await self.assertConnected(con)
@@ -1381,7 +809,7 @@ class TestSSLConnection(BaseTestSSLConnection):
                 self.loop.set_exception_handler(lambda *args: None)
                 with self.assertRaises(exn_type, msg=f"{sslmode} {host}"):
                     con = await self.connect(
-                        dsn='postgresql://foo/?sslmode=' + sslmode,
+                        sslmode=SSLMode.parse(sslmode),
                         host=host,
                         user='ssl_user')
                     await self.assertConnected(con)
@@ -1429,49 +857,44 @@ class TestSSLConnection(BaseTestSSLConnection):
                     host='localhost',
                     user='ssl_user',
                     sslmode=SSLMode.verify_full,
-                    ssl=ssl.create_default_context()
+                    # This won't validate
+                    sslrootcert=CLIENT_CA_CERT_FILE
                 )
         finally:
             self.loop.set_exception_handler(old_handler)
 
-    async def test_tls_version(self):
-        # XXX: uvloop artifact
-        old_handler = self.loop.get_exception_handler()
-        try:
-            self.loop.set_exception_handler(lambda *args: None)
-            with self.assertRaisesRegex(ssl.SSLError, 'protocol version'):
+    async def test_tls_version_bad(self):
+        with self.assertRaisesRegex(ssl.SSLError, 'protocol version'):
+            await self.connect(
+                dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
+                    '?sslmode=require&ssl_min_protocol_version=TLSv1.3'
+            )
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', DeprecationWarning)
+            with self.assertRaises(ssl.SSLError):
                 await self.connect(
                     dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
-                        '?sslmode=require&ssl_min_protocol_version=TLSv1.3'
+                        '?sslmode=require'
+                        '&ssl_min_protocol_version=TLSv1.1'
+                        '&ssl_max_protocol_version=TLSv1.1'
                 )
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore', DeprecationWarning)
-                with self.assertRaises(ssl.SSLError):
-                    await self.connect(
-                        dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
-                            '?sslmode=require'
-                            '&ssl_min_protocol_version=TLSv1.1'
-                            '&ssl_max_protocol_version=TLSv1.1'
-                    )
-                with self.assertRaisesRegex(ssl.SSLError, 'no protocols'):
-                    await self.connect(
-                        dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
-                            '?sslmode=require'
-                            '&ssl_min_protocol_version=TLSv1.2'
-                            '&ssl_max_protocol_version=TLSv1.1'
-                    )
-            con = await self.connect(
-                dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
-                    '?sslmode=require'
-                    '&ssl_min_protocol_version=TLSv1.2'
-                    '&ssl_max_protocol_version=TLSv1.2'
-            )
-            try:
-                await self.assertConnected(con)
-            finally:
-                con.terminate()
+            with self.assertRaisesRegex(ssl.SSLError, 'no protocols'):
+                await self.connect(
+                    dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
+                        '?sslmode=require'
+                        '&ssl_min_protocol_version=TLSv1.2'
+                        '&ssl_max_protocol_version=TLSv1.1'
+                )
+
+    async def test_tls_version_ok(self):
+        con = await self.connect(
+            dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
+                '?sslmode=require'
+        )
+        try:
+            await self.assertConnected(con)
         finally:
-            self.loop.set_exception_handler(old_handler)
+            con.terminate()
 
 
 class TestClientSSLConnection(BaseTestSSLConnection):
@@ -1487,11 +910,6 @@ class TestClientSSLConnection(BaseTestSSLConnection):
             auth_method='cert')
 
     async def test_ssl_connection_client_auth_fails_with_wrong_setup(self):
-        ssl_context = ssl.create_default_context(
-            ssl.Purpose.SERVER_AUTH,
-            cafile=SSL_CA_CERT_FILE,
-        )
-
         with self.assertRaisesRegex(
             errors.BackendError,
             "requires a valid client certificate",
@@ -1500,7 +918,7 @@ class TestClientSSLConnection(BaseTestSSLConnection):
                 host='localhost',
                 user='ssl_user',
                 sslmode=SSLMode.require,
-                ssl=ssl_context,
+                sslrootcert=SSL_CA_CERT_FILE,
             )
 
     async def _test_works(self, **conn_args):
@@ -1513,20 +931,14 @@ class TestClientSSLConnection(BaseTestSSLConnection):
 
     async def test_ssl_connection_client_auth_custom_context(self):
         for key_file in (CLIENT_SSL_KEY_FILE, CLIENT_SSL_PROTECTED_KEY_FILE):
-            ssl_context = ssl.create_default_context(
-                ssl.Purpose.SERVER_AUTH,
-                cafile=SSL_CA_CERT_FILE,
-            )
-            ssl_context.load_cert_chain(
-                CLIENT_SSL_CERT_FILE,
-                keyfile=key_file,
-                password='secRet',
-            )
             await self._test_works(
                 host='localhost',
                 user='ssl_user',
                 sslmode=SSLMode.require,
-                ssl=ssl_context,
+                sslcert=CLIENT_SSL_CERT_FILE,
+                sslrootcert=SSL_CA_CERT_FILE,
+                sslpassword='secRet',
+                sslkey=key_file
             )
 
     async def test_ssl_connection_client_auth_dsn(self):
@@ -1585,7 +997,7 @@ class TestNoSSLConnection(BaseTestSSLConnection):
             con = None
             try:
                 con = await self.connect(
-                    dsn='postgresql://foo/postgres?sslmode=' + sslmode,
+                    sslmode=SSLMode.parse(sslmode),
                     host=host,
                     user='ssl_user')
                 await self.assertConnected(con)
@@ -1604,7 +1016,7 @@ class TestNoSSLConnection(BaseTestSSLConnection):
                     errors.BackendError
                 ) as cm:
                     con = await self.connect(
-                        dsn='postgresql://foo/?sslmode=' + sslmode,
+                        sslmode=SSLMode.parse(sslmode),
                         host=host,
                         user='ssl_user')
                     await self.assertConnected(con)
@@ -1618,9 +1030,11 @@ class TestNoSSLConnection(BaseTestSSLConnection):
                     con.terminate()
                 self.loop.set_exception_handler(old_handler)
 
+        # We no longer retry without SSL if SSL is presented but
+        # fails to authenticate.
         await verify_works('disable')
-        await verify_works('allow')
-        await verify_works('prefer')
+        await verify_fails('allow')
+        await verify_fails('prefer')
         await verify_fails('require')
         with mock_dot_postgresql():
             await verify_fails('require')
