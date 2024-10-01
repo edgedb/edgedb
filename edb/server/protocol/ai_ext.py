@@ -1598,7 +1598,7 @@ async def _handle_rag_request(
 
         prompt_messages.append(dict(role=role, content=content))
 
-    messages = prompt_messages+custom_prompt_messages
+    messages = prompt_messages + custom_prompt_messages
 
     await _start_chat(
         protocol,
