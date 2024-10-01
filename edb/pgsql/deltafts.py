@@ -525,7 +525,7 @@ def _zombo_create_fts_document(
 
 def _zombo_type_name(
     tbl_name: Tuple[str, str],
-) -> Tuple[str, ...]:
+) -> Tuple[str, str]:
     return (
         tbl_name[0],
         common.edgedb_name_to_pg_name(tbl_name[1] + '_zombo_type'),
