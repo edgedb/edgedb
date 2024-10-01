@@ -377,7 +377,7 @@ def _pg_create_trigger(
         name=trigger_name,
         table_name=table_name,
         events=('insert', 'update'),
-        timing='before',
+        timing=dbops.TriggerTiming.Before,
         procedure=func_name,
     )
     ops.add_command(dbops.CreateTrigger(trigger))
