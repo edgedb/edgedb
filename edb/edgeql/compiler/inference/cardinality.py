@@ -187,6 +187,7 @@ def _union_cardinality(
 
 
 VOLATILE = qltypes.Volatility.Volatile
+MODIFYING = qltypes.Volatility.Modifying
 
 
 def _check_op_volatility(
@@ -774,6 +775,15 @@ def __infer_func_call(
                 'returning SET OF',
                 span=ir.span,
             )
+
+    if ir.volatility == MODIFYING and any(
+        card.is_multi()
+        for card in cards
+    ):
+        raise errors.QueryError(
+            'possibly more than one element passed into modifying function',
+            span=ir.span,
+        )
 
     return call_card
 

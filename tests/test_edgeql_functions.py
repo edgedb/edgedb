@@ -10662,3 +10662,27 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [2, 3, 4],
             sort=True,
         )
+
+    async def test_edgeql_functions_inline_modifying_cardinality_01(self):
+        await self.con.execute('''
+            create function foo(x: int64) -> int64 {
+                set is_inlined := true;
+                set volatility := schema::Volatility.Modifying;
+                using (x)
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            'possibly more than one element passed into modifying function'
+        ):
+            await self.con.execute('''
+                select foo({1, 2, 3})
+            ''')
