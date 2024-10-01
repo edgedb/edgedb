@@ -27,7 +27,7 @@ from typing import (
     Iterator,
     Optional,
     Sequence,
-    Tuple,
+    TypeAlias,
     TypeVar,
 )
 
@@ -46,6 +46,8 @@ from . import ddl
 
 
 TableConstraint_T = TypeVar("TableConstraint_T", bound="TableConstraint")
+TableName: TypeAlias = tuple[str, ...]
+ColumnName: TypeAlias = str
 
 
 class Table(composites.CompositeDBObject):
@@ -57,7 +59,7 @@ class Table(composites.CompositeDBObject):
 
     def __init__(
         self,
-        name: tuple[str, ...],
+        name: TableName,
         *,
         columns: Optional[Iterable[Column]] = None,
         bases: Optional[ordered.OrderedSet[Table]] = None,
@@ -76,7 +78,9 @@ class Table(composites.CompositeDBObject):
         writable_only: bool = False,
         only_self: bool = False,
     ) -> Iterable[Column]:
-        cols: collections.OrderedDict = collections.OrderedDict()
+        cols: collections.OrderedDict[ColumnName, Column] = (
+            collections.OrderedDict()
+        )
         cols.update(
             (c.name, c)
             for c in self._columns
@@ -111,7 +115,7 @@ class Table(composites.CompositeDBObject):
     def add_constraint(self, const: SingleTableConstraint) -> None:
         self.constraints.add(const)
 
-    def get_column(self, name: str) -> Optional[Column]:
+    def get_column(self, name: ColumnName) -> Optional[Column]:
         return self.all_columns.get(name)
 
     def get_type(self) -> str:
@@ -121,7 +125,7 @@ class Table(composites.CompositeDBObject):
         return qn(*self.name)
 
     @property
-    def record(self):
+    def record(self) -> composites.Record:
         return composites.Record(
             self.__class__.__name__ + '_record',
             list(self.all_columns), default=base.Default)
@@ -139,15 +143,17 @@ class Table(composites.CompositeDBObject):
 
 
 class InheritableTableObject(base.InheritableDBObject):
+    name: str
+
     @property
-    def name_in_catalog(self):
+    def name_in_catalog(self) -> str:
         return self.name
 
 
 class Column(base.DBObject):
     def __init__(
         self,
-        name: str,
+        name: ColumnName,
         type: str | tuple[str, str],
         required: bool = False,
         default: Optional[str] = None,
@@ -195,7 +201,7 @@ class Column(base.DBObject):
 
 
 class TableColumn(base.DBObject):
-    def __init__(self, table_name: tuple[str, ...], column: Column) -> None:
+    def __init__(self, table_name: TableName, column: Column) -> None:
         self.table_name = table_name
         self.column = column
 
@@ -247,7 +253,7 @@ class SingleTableConstraint(TableConstraint):
 
 class PrimaryKey(SingleTableConstraint):
     def __init__(
-        self, table_name: Sequence[str], columns: Sequence[str | pgast.Star]
+        self, table_name: TableName, columns: Sequence[str | pgast.Star]
     ) -> None:
         super().__init__(table_name)
         self.columns = columns
@@ -259,7 +265,7 @@ class PrimaryKey(SingleTableConstraint):
 
 class UniqueConstraint(SingleTableConstraint):
     def __init__(
-        self, table_name: Sequence[str], columns: Sequence[str | pgast.Star]
+        self, table_name: TableName, columns: Sequence[str | pgast.Star]
     ) -> None:
         super().__init__(table_name)
         self.columns = columns
@@ -272,9 +278,9 @@ class UniqueConstraint(SingleTableConstraint):
 class CheckConstraint(SingleTableConstraint):
     def __init__(
         self,
-        table_name,
-        constraint_name,
-        expr,
+        table_name: TableName,
+        constraint_name: str,
+        expr: base.Query | str,
         inherit: bool = True,
     ) -> None:
         super().__init__(table_name, constraint_name=constraint_name)
@@ -304,7 +310,7 @@ class CheckConstraint(SingleTableConstraint):
 
 
 class TableExists(base.Condition):
-    def __init__(self, name: tuple[str, ...]) -> None:
+    def __init__(self, name: TableName) -> None:
         self.name = name
 
     def code(self) -> str:
@@ -322,8 +328,8 @@ class TableExists(base.Condition):
 class TableInherits(base.Condition):
     def __init__(
         self,
-        name: tuple[str, ...],
-        parent_name: tuple[str, ...],
+        name: TableName,
+        parent_name: TableName,
     ) -> None:
         self.name = name
         self.parent_name = parent_name
@@ -349,8 +355,8 @@ class TableInherits(base.Condition):
 class ColumnExists(base.Condition):
     def __init__(
         self,
-        table_name: tuple[str, ...],
-        column_name: str,
+        table_name: TableName,
+        column_name: ColumnName,
     ) -> None:
         self.table_name = table_name
         self.column_name = column_name
@@ -371,8 +377,8 @@ class ColumnExists(base.Condition):
 class ColumnIsInherited(base.Condition):
     def __init__(
         self,
-        table_name: tuple[str, ...],
-        column_name: str,
+        table_name: TableName,
+        column_name: ColumnName,
     ) -> None:
         self.table_name = table_name
         self.column_name = column_name
@@ -445,11 +451,11 @@ class CreateTable(ddl.SchemaObjectOperation):
 
 class AlterTableBaseMixin:
 
-    name: Tuple[str, ...]
+    name: TableName
     contained: bool
 
     def __init__(
-        self, name: Tuple[str, ...], contained: bool = False
+        self, name: TableName, contained: bool = False
     ) -> None:
         self.name = name
         self.contained = contained
@@ -466,7 +472,7 @@ class AlterTableBaseMixin:
 class AlterTableBase(AlterTableBaseMixin, ddl.DDLOperation):
     def __init__(
         self,
-        name: tuple[str, ...],
+        name: TableName,
         *,
         contained: bool = False,
         conditions: Optional[Iterable[str | base.Condition]] = None,
@@ -476,7 +482,7 @@ class AlterTableBase(AlterTableBaseMixin, ddl.DDLOperation):
             self, conditions=conditions, neg_conditions=neg_conditions)
         AlterTableBaseMixin.__init__(self, name=name, contained=contained)
 
-    def get_attribute_term(self):
+    def get_attribute_term(self) -> str:
         return 'COLUMN'
 
 
@@ -495,7 +501,7 @@ class AlterTable(
 ):
     def __init__(
         self,
-        name: tuple[str, ...],
+        name: TableName,
         *,
         contained: bool = False,
         conditions: Optional[Iterable[str | base.Condition]] = None,
@@ -510,27 +516,27 @@ class AlterTable(
 
 
 class AlterTableAddParent(AlterTableFragment):
-    def __init__(self, parent_name, **kwargs):
+    def __init__(self, parent_name: TableName, **kwargs) -> None:
         super().__init__(**kwargs)
         self.parent_name = parent_name
 
     def code(self) -> str:
         return f'INHERIT {qn(*self.parent_name)}'
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<%s.%s %s>' % (
             self.__class__.__module__, self.__class__.__name__,
             self.parent_name)
 
 
 class AlterTableDropParent(AlterTableFragment):
-    def __init__(self, parent_name):
+    def __init__(self, parent_name: TableName):
         self.parent_name = parent_name
 
     def code(self) -> str:
         return f'NO INHERIT {qn(*self.parent_name)}'
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<%s.%s %s>' % (
             self.__class__.__module__, self.__class__.__name__,
             self.parent_name)
@@ -552,7 +558,7 @@ class AlterTableAlterColumnType(
 
 
 class AlterTableAlterColumnNull(AlterTableFragment):
-    def __init__(self, column_name, null):
+    def __init__(self, column_name: ColumnName, null) -> None:
         self.column_name = column_name
         self.null = null
 
@@ -560,14 +566,14 @@ class AlterTableAlterColumnNull(AlterTableFragment):
         action = 'DROP' if self.null else 'SET'
         return f'ALTER COLUMN {qi(self.column_name)} {action} NOT NULL'
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<{}.{} "{}" {} NOT NULL>'.format(
             self.__class__.__module__, self.__class__.__name__,
             self.column_name, 'DROP' if self.null else 'SET')
 
 
 class AlterTableAlterColumnDefault(AlterTableFragment):
-    def __init__(self, column_name, default):
+    def __init__(self, column_name: ColumnName, default: Optional[str]):
         self.column_name = column_name
         self.default = default
 
@@ -578,7 +584,7 @@ class AlterTableAlterColumnDefault(AlterTableFragment):
             return (f'ALTER COLUMN {qi(self.column_name)} '
                     f'SET DEFAULT {self.default}')
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<{}.{} "{}" {} DEFAULT{}>'.format(
             self.__class__.__module__, self.__class__.__name__,
             self.column_name, 'DROP' if self.default is None else 'SET', ''
@@ -590,7 +596,7 @@ class TableConstraintCommand:
 
 
 class TableConstraintExists(base.Condition):
-    def __init__(self, table_name, constraint_name):
+    def __init__(self, table_name: TableName, constraint_name: str):
         self.table_name = table_name
         self.constraint_name = constraint_name
 
@@ -643,20 +649,20 @@ class AlterTableAddConstraint(
     ) -> None:
         return self.constraint.generate_extra(block)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<%s.%s %r>' % (
             self.__class__.__module__, self.__class__.__name__,
             self.constraint)
 
 
 class AlterTableDropConstraint(AlterTableFragment, TableConstraintCommand):
-    def __init__(self, constraint):
+    def __init__(self, constraint) -> None:
         self.constraint = constraint
 
     def code(self) -> str:
         return f'DROP CONSTRAINT {self.constraint.constraint_name()}'
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<%s.%s %r>' % (
             self.__class__.__module__, self.__class__.__name__,
             self.constraint)
