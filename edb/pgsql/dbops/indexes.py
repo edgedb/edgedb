@@ -44,10 +44,10 @@ class Index(tables.InheritableTableObject):
         exprs: Iterable[str] | None = None,
         with_clause: Dict[str, str] | None = None,
         predicate: str | None = None,
-        inherit=False,
+        inherit: bool = False,
         metadata: Dict[str, Any] | None = None,
         columns: Iterable[str | pgast.Star] | None = None,
-    ):
+    ) -> None:
         super().__init__(inherit=inherit, metadata=metadata)
 
         assert table_name[1] != 'feature'
@@ -65,10 +65,10 @@ class Index(tables.InheritableTableObject):
         self.add_metadata('fullname', self.name)
 
     @property
-    def name_in_catalog(self):
+    def name_in_catalog(self) -> str:
         return self.name
 
-    def add_columns(self, columns: Iterable[str | pgast.Star]):
+    def add_columns(self, columns: Iterable[str | pgast.Star]) -> None:
         for col in columns:
             if isinstance(col, pgast.Star):
                 raise NotImplementedError()
@@ -151,14 +151,20 @@ class Index(tables.InheritableTableObject):
 
         return base.Query(text=qry)
 
-    def copy(self):
+    def copy(self) -> Index:
         return self.__class__(
-            name=self.name, table_name=self.table_name, unique=self.unique,
-            expr=self.expr, predicate=self.predicate, columns=self.columns,
-            metadata=self.metadata.copy()
-            if self.metadata is not None else None)
+            name=self.name,
+            table_name=self.table_name,
+            unique=self.unique,
+            exprs=self.exprs,
+            predicate=self.predicate,
+            columns=self.columns,
+            metadata=(
+                self.metadata.copy() if self.metadata is not None else None
+            )
+        )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return \
             '<%(mod)s.%(cls)s table=%(table)s name=%(name)s ' \
             'cols=(%(cols)s) unique=%(uniq)s predicate=%(pred)s>' % \
@@ -172,7 +178,7 @@ class Index(tables.InheritableTableObject):
 
 
 class IndexExists(base.Condition):
-    def __init__(self, index_name):
+    def __init__(self, index_name: tuple[str, str]):
         self.index_name = index_name
 
     def code(self) -> str:
@@ -192,7 +198,13 @@ class IndexExists(base.Condition):
 
 
 class CreateIndex(ddl.CreateObject):
-    def __init__(self, index: Index, *, conditional=False, **kwargs):
+    def __init__(
+        self,
+        index: Index,
+        *,
+        conditional: bool = False,
+        **kwargs: Any
+    ) -> None:
         super().__init__(index, **kwargs)
         self.index = index
         if conditional:
@@ -205,7 +217,13 @@ class CreateIndex(ddl.CreateObject):
 
 
 class DropIndex(ddl.DropObject):
-    def __init__(self, index, *, conditional=False, **kwargs):
+    def __init__(
+        self,
+        index: Index,
+        *,
+        conditional: bool = False,
+        **kwargs: Any
+    ):
         super().__init__(index, **kwargs)
         if conditional:
             self.conditions.add(
@@ -213,5 +231,6 @@ class DropIndex(ddl.DropObject):
             )
 
     def code(self) -> str:
+        assert isinstance(self.object, Index)
         name = qn(self.object.table_name[0], self.object.name_in_catalog)
         return f'DROP INDEX {name}'
