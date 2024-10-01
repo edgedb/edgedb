@@ -241,8 +241,11 @@ def compile_ForQuery(
                 node.factoring_allowlist.update(ctx.iterator_path_ids)
                 node = node.attach_branch()
 
-            node.attach_subtree(view_scope_info.path_scope,
-                                span=iterator.span)
+            node.attach_subtree(
+                view_scope_info.path_scope,
+                span=iterator.span,
+                ctx=ctx,
+            )
 
         # Compile the body
         with sctx.newscope(fenced=True) as bctx:

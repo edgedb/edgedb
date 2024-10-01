@@ -32,6 +32,7 @@ from typing import (
     Set,
     FrozenSet,
     NamedTuple,
+    Protocol,
     cast,
     TYPE_CHECKING,
 )
@@ -50,6 +51,11 @@ from edb.common.typeutils import not_none
 
 from . import pathid
 from . import ast as irast
+
+
+class WarningContext(Protocol):
+    def log_warning(self, warning: errors.EdgeDBError) -> None:
+        ...
 
 
 class FenceInfo(NamedTuple):
@@ -443,6 +449,7 @@ class ScopeTreeNode:
         *,
         optional: bool=False,
         span: Optional[span.Span],
+        ctx: WarningContext,
     ) -> None:
         """Attach a scope subtree representing *path_id*."""
 
@@ -512,7 +519,7 @@ class ScopeTreeNode:
             if not prefix.is_tuple_indirection_path():
                 parent = new_child
 
-        self.attach_subtree(subtree, span=span)
+        self.attach_subtree(subtree, span=span, ctx=ctx)
 
     def attach_subtree(
         self,
@@ -520,6 +527,8 @@ class ScopeTreeNode:
         was_fenced: bool = False,
         span: Optional[span.Span] = None,
         fusing: bool = False,
+        *,
+        ctx: WarningContext,
     ) -> None:
         """Attach a subtree to this node.
 
@@ -616,7 +625,7 @@ class ScopeTreeNode:
                                 f'{path_id.pformat()!r} here',
                                 span=span,
                             )
-                            raise ex
+                            ctx.log_warning(ex)
                     # XXX: HMMMMMM??? including current_warn causes bad problems
                     # if current_warn or existing_warn:
                     if existing_warn:
@@ -640,7 +649,9 @@ class ScopeTreeNode:
                         current,
                         self_fenced=existing_fenced,
                         node_fenced=node_fenced,
-                        span=span)
+                        span=span,
+                        ctx=ctx,
+                    )
 
                     current = existing
                     moved = True
@@ -752,6 +763,8 @@ class ScopeTreeNode:
         self_fenced: bool=False,
         node_fenced: bool=False,
         span: Optional[span.Span]=None,
+        *,
+        ctx: WarningContext,
     ) -> None:
         node.remove()
 
@@ -769,7 +782,8 @@ class ScopeTreeNode:
             subtree = node
 
         self.attach_subtree(
-            subtree, was_fenced=self_fenced, span=span, fusing=True)
+            subtree, was_fenced=self_fenced, span=span, fusing=True, ctx=ctx
+        )
 
     def remove_subtree(self, node: ScopeTreeNode) -> None:
         """Remove the given subtree from this node."""

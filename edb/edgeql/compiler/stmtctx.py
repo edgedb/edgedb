@@ -125,7 +125,8 @@ def init_context(
             had_optional |= optional
             path_id = compile_anchor('__', singleton, ctx=ctx).path_id
             ctx.env.path_scope.attach_path(
-                path_id, optional=optional, span=None)
+                path_id, optional=optional, span=None, ctx=ctx
+            )
             if not optional:
                 ctx.env.singletons.append(path_id)
             ctx.iterator_path_ids |= {path_id}
