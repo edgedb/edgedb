@@ -72,15 +72,33 @@ _PG_init(void) {
  */
 static void
 edbss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate) {
-    const char *orig_sourcetext = pstate->p_sourcetext;
+    if (jstate) {
+        // Keep old data
+        const char *orig_sourcetext = pstate->p_sourcetext;
+        int orig_stmt_location = query->stmt_location;
+        int orig_clocations_count = jstate->clocations_count;
 
-    if (!edbss_overwrite_stmt_info(pstate, query))
-        jstate = NULL;
+        // Parse EdgeDB query info JSON and overwrite
+        if (edbss_overwrite_stmt_info(pstate, query)) {
+            query->stmt_location = -1;  // CleanQuerytext will fix this and stmt_len
+            jstate->clocations_count = 0;  // Skip the SQL generate_normalized_query()
+        } else {
+            // Skip all non-EdgeDB queries
+            jstate = NULL;
+        }
 
-    if (prev_post_parse_analyze_hook)
+        // This would call pgss_store()
+        if (prev_post_parse_analyze_hook)
+            prev_post_parse_analyze_hook(pstate, query, jstate);
+
+        // Restore values after pgss_store()
+        pstate->p_sourcetext = orig_sourcetext;
+        query->stmt_location = orig_stmt_location;
+        if (jstate)
+            jstate->clocations_count = orig_clocations_count;
+
+    } else if (prev_post_parse_analyze_hook)
         prev_post_parse_analyze_hook(pstate, query, jstate);
-
-    pstate->p_sourcetext = orig_sourcetext;
 }
 
 /*
