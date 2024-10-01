@@ -1920,6 +1920,7 @@ pub enum Volatility {
     Immutable,
     Stable,
     Volatile,
+    Modifying,
 }
 
 #[derive(Debug, Clone)]

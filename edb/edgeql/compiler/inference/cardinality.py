@@ -202,7 +202,7 @@ def _check_op_volatility(
     # and making sure that the resulting cartesian cardinality isn't
     # multi.
     for i, vol in enumerate(vols):
-        if vol == VOLATILE:
+        if vol.is_volatile():
             cards2 = list(cards)
             cards2[i] = AT_MOST_ONE
             if cartesian_cardinality(cards2).is_multi():

@@ -38,13 +38,14 @@ InferredVolatility = context.InferredVolatility
 IMMUTABLE = qltypes.Volatility.Immutable
 STABLE = qltypes.Volatility.Stable
 VOLATILE = qltypes.Volatility.Volatile
+MODIFYING = qltypes.Volatility.Modifying
 
 
 # Volatility inference computes two volatility results:
 # A basic one, and one for consumption by materialization.
 #
 # The one for consumption by materialization differs in that it
-# (counterintuitively) does not consider DML to be volatile
+# (counterintuitively) does not consider DML to be volatile/modifying
 # (since DML has its own "materialization" mechanism).
 #
 # We represent this output as a pair, but for ergonomics, inference
@@ -219,13 +220,17 @@ def __infer_func_call(
     ir: irast.FunctionCall,
     env: context.Environment,
 ) -> InferredVolatility:
+    func_volatility = (
+        _infer_volatility(ir.body, env) if ir.body else ir.volatility
+    )
+
     if ir.args:
         return _max_volatility([
             _common_volatility((arg.expr for arg in ir.args.values()), env),
-            ir.volatility
+            func_volatility
         ])
     else:
-        return ir.volatility
+        return func_volatility
 
 
 @_infer_volatility_inner.register
@@ -352,7 +357,7 @@ def __infer_dml_stmt(
 ) -> InferredVolatility:
     # For materialization purposes, DML is not volatile.  (Since it
     # has its *own* elaborate mechanism using top-level CTEs).
-    return VOLATILE, STABLE
+    return MODIFYING, STABLE
 
 
 @_infer_volatility_inner.register
@@ -421,7 +426,7 @@ def infer_volatility(
 ) -> qltypes.Volatility:
     result = _normalize_volatility(_infer_volatility(ir, env))[exclude_dml]
 
-    if result not in {VOLATILE, STABLE, IMMUTABLE}:
+    if result not in {VOLATILE, STABLE, IMMUTABLE, MODIFYING}:
         raise errors.QueryError(
             'could not determine the volatility of '
             'set produced by expression',

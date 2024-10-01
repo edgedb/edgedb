@@ -52,6 +52,9 @@ class Function(base.DBObject):
         parallel_safe: bool = False,
         set_returning: bool = False,
     ):
+        if volatility.lower() == 'modifying':
+            volatility = 'volatile'
+
         self.name = name
         self.args = args
         self.returns = returns

@@ -1296,9 +1296,6 @@ class Function(
     initial_value = so.SchemaField(
         s_expr.Expression, default=None, compcoef=0.4, coerce=True)
 
-    has_dml = so.SchemaField(
-        bool, default=False)
-
     # This flag indicates that this function is intended to be used as
     # a generic fallback implementation for a particular polymorphic
     # function. The fallback implementation is exempted from the
@@ -1647,11 +1644,12 @@ class FunctionCommand(
         ir = expr.irast
 
         if ir.dml_exprs:
-            if context.allow_dml_in_functions:
+            if not (
+                context.allow_dml_in_functions
+                or self._get_attribute_value(schema, context, 'is_inlined')
+            ):
                 # DML inside function body detected. Right now is a good
                 # opportunity to raise exceptions or give warnings.
-                self.set_attribute_value('has_dml', True)
-            else:
                 raise errors.InvalidFunctionDefinitionError(
                     'data-modifying statements are not allowed in function'
                     ' bodies',
@@ -1662,8 +1660,7 @@ class FunctionCommand(
             self.get_specified_attribute_value('volatility', schema, context))
 
         if spec_volatility is None:
-            self.set_attribute_value('volatility', ir.volatility,
-                                     computed=True)
+            self.set_attribute_value('volatility', ir.volatility, computed=True)
 
         # If a volatility is specified, it can be more volatile than the
         # inferred volatility but not less.

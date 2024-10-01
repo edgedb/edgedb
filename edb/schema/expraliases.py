@@ -492,7 +492,7 @@ def compile_alias_expr(
         ),
     )
 
-    if ir.volatility == qltypes.Volatility.Volatile:
+    if ir.volatility.is_volatile():
         raise errors.SchemaDefinitionError(
             f'volatile functions are not permitted in schema-defined '
             f'computed expressions',
