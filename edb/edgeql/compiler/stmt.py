@@ -168,7 +168,7 @@ def compile_ForQuery(
         if isinstance(iterator, qlast.Set) and len(iterator.elements) == 1:
             iterator = iterator.elements[0]
 
-        contains_dml = qlutils.contains_dml(qlstmt.result)
+        contains_dml = astutils.contains_dml(qlstmt.result, ctx=ctx)
 
         with sctx.new() as ectx:
             if ectx.expr_exposed:
