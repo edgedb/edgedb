@@ -1552,7 +1552,7 @@ async def _handle_rag_request(
                 messages: {
                     participant_role,
                     content,
-                } ORDER BY .participant_role,
+                },
             }
         FILTER
     """
