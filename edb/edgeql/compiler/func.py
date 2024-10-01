@@ -220,7 +220,7 @@ def compile_FunctionCall(
         )
 
     # Record this node in the list of potential DML expressions.
-    if func.get_has_dml(env.schema):
+    if func.get_volatility(env.schema) == ft.Volatility.Modifying:
         ctx.env.dml_exprs.append(expr)
 
         # This is some kind of mutation, so we need to check if it is

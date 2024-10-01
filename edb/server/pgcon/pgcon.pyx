@@ -31,8 +31,6 @@ import hashlib
 import json
 import logging
 import os.path
-import socket
-import ssl as ssl_mod
 import sys
 import struct
 import textwrap
@@ -80,7 +78,6 @@ from edb.server.cache cimport stmt_cache
 from edb.server.dbview cimport dbview
 from edb.server.protocol cimport args_ser
 from edb.server.protocol cimport pg_ext
-from edb.server import pgconnparams
 from edb.server import metrics
 
 from edb.server.protocol cimport frontend
@@ -89,13 +86,8 @@ from edb.common import debug
 
 from . import errors as pgerror
 
-include "scram.pyx"
-
 DEF DATA_BUFFER_SIZE = 100_000
 DEF PREP_STMTS_CACHE = 100
-DEF TCP_KEEPIDLE = 24
-DEF TCP_KEEPINTVL = 2
-DEF TCP_KEEPCNT = 3
 
 DEF COPY_SIGNATURE = b"PGCOPY\n\377\r\n\0"
 
@@ -108,347 +100,9 @@ cdef dict POSTGRES_SHUTDOWN_ERR_CODES = {
     '57P02': 'crash_shutdown',
 }
 
-cdef bytes INIT_CON_SCRIPT = None
-cdef str INIT_CON_SCRIPT_DATA = ''
 cdef object EMPTY_SQL_STATE = b"{}"
 
 cdef object logger = logging.getLogger('edb.server')
-
-# The '_edgecon_state table' is used to store information about
-# the current session. The `type` column is one character, with one
-# of the following values:
-#
-# * 'C': a session-level config setting
-#
-# * 'B': a session-level config setting that's implemented by setting
-#   a corresponding Postgres config setting.
-# * 'A': an instance-level config setting from command-line arguments
-# * 'E': an instance-level config setting from environment variable
-SETUP_TEMP_TABLE_SCRIPT = '''
-    CREATE TEMPORARY TABLE _edgecon_state (
-        name text NOT NULL,
-        value jsonb NOT NULL,
-        type text NOT NULL CHECK(
-            type = 'C' OR type = 'B' OR type = 'A' OR type = 'E'),
-        UNIQUE(name, type)
-    );
-'''
-SETUP_CONFIG_CACHE_SCRIPT = '''
-    CREATE TEMPORARY TABLE _config_cache (
-        source edgedb._sys_config_source_t,
-        value edgedb._sys_config_val_t NOT NULL
-    );
-'''
-
-def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
-    if check_pg_is_in_recovery:
-        pg_is_in_recovery = ('''
-        SELECT CASE WHEN pg_is_in_recovery() THEN
-            edgedb.raise(
-                NULL::bigint,
-                'read_only_sql_transaction',
-                msg => 'cannot use a hot standby'
-            )
-        END;
-        ''').strip()
-    else:
-        pg_is_in_recovery = ''
-
-    return textwrap.dedent(f'''
-        {pg_is_in_recovery}
-
-        {SETUP_TEMP_TABLE_SCRIPT}
-        {SETUP_CONFIG_CACHE_SCRIPT}
-
-        {INIT_CON_SCRIPT_DATA}
-
-        PREPARE _clear_state AS
-            WITH x1 AS (
-                DELETE FROM _config_cache
-            )
-            DELETE FROM _edgecon_state WHERE type = 'C' OR type = 'B';
-
-        PREPARE _apply_state(jsonb) AS
-            INSERT INTO
-                _edgecon_state(name, value, type)
-            SELECT
-                (CASE
-                    WHEN e->'type' = '"B"'::jsonb
-                    THEN edgedb._apply_session_config(e->>'name', e->'value')
-                    ELSE e->>'name'
-                END) AS name,
-                e->'value' AS value,
-                e->>'type' AS type
-            FROM
-                jsonb_array_elements($1::jsonb) AS e;
-
-        PREPARE _reset_session_config AS
-            SELECT edgedb._reset_session_config();
-
-        PREPARE _apply_sql_state(jsonb) AS
-            SELECT
-                e.key AS name,
-                pg_catalog.set_config(e.key, e.value, false) AS value
-            FROM
-                jsonb_each_text($1::jsonb) AS e;
-    ''').strip().encode('utf-8')
-
-
-def _set_tcp_keepalive(transport):
-    # TCP keepalive was initially added here for special cases where idle
-    # connections are dropped silently on GitHub Action running test suite
-    # against AWS RDS. We are keeping the TCP keepalive for generic
-    # Postgres connections as the kernel overhead is considered low, and
-    # in certain cases it does save us some reconnection time.
-    #
-    # In case of high-availability Postgres, TCP keepalive is necessary to
-    # disconnect from a failing master node, if no other failover information
-    # is available.
-    sock = transport.get_extra_info('socket')
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-
-    # TCP_KEEPIDLE: the time (in seconds) the connection needs to remain idle
-    # before TCP starts sending keepalive probes. This is socket.TCP_KEEPIDLE
-    # on Linux, and socket.TCP_KEEPALIVE on macOS from Python 3.10.
-    if hasattr(socket, 'TCP_KEEPIDLE'):
-        sock.setsockopt(socket.IPPROTO_TCP,
-                        socket.TCP_KEEPIDLE, TCP_KEEPIDLE)
-    if hasattr(socket, 'TCP_KEEPALIVE'):
-        sock.setsockopt(socket.IPPROTO_TCP,
-                        socket.TCP_KEEPALIVE, TCP_KEEPIDLE)
-
-    # TCP_KEEPINTVL: The time (in seconds) between individual keepalive probes.
-    if hasattr(socket, 'TCP_KEEPINTVL'):
-        sock.setsockopt(socket.IPPROTO_TCP,
-                        socket.TCP_KEEPINTVL, TCP_KEEPINTVL)
-
-    # TCP_KEEPCNT: The maximum number of keepalive probes TCP should send
-    # before dropping the connection.
-    if hasattr(socket, 'TCP_KEEPCNT'):
-        sock.setsockopt(socket.IPPROTO_TCP,
-                        socket.TCP_KEEPCNT, TCP_KEEPCNT)
-
-
-async def _create_ssl_connection(protocol_factory, host, port, *,
-                                 loop, ssl_context, ssl_is_advisory,
-                                 connect_timeout):
-    async with asyncio.timeout(connect_timeout):
-        tr, pr = await loop.create_connection(
-            lambda: TLSUpgradeProto(loop, host, port,
-                                    ssl_context, ssl_is_advisory),
-            host, port)
-    _set_tcp_keepalive(tr)
-
-    tr.write(struct.pack('!ll', 8, 80877103))  # SSLRequest message.
-
-    try:
-        do_ssl_upgrade = await pr.on_data
-    except (Exception, asyncio.CancelledError):
-        tr.close()
-        raise
-
-    if do_ssl_upgrade:
-        try:
-            new_tr = await loop.start_tls(
-                tr, pr, ssl_context, server_hostname=host)
-        except (Exception, asyncio.CancelledError):
-            tr.close()
-            raise
-    else:
-        new_tr = tr
-
-    pg_proto = protocol_factory()
-    pg_proto.is_ssl = do_ssl_upgrade
-    pg_proto.connection_made(new_tr)
-    new_tr.set_protocol(pg_proto)
-
-    return new_tr, pg_proto
-
-
-class _RetryConnectSignal(Exception):
-    pass
-
-
-async def _connect(connargs, dbname, ssl):
-
-    loop = asyncio.get_running_loop()
-
-    host = connargs.get("host")
-    port = connargs.get("port")
-    sslmode = connargs.get('sslmode', pgconnparams.SSLMode.prefer)
-    timeout = connargs.get('connect_timeout')
-
-    try:
-        if host.startswith('/'):
-            addr = os.path.join(host, f'.s.PGSQL.{port}')
-            async with asyncio.timeout(timeout):
-                _, pgcon = await loop.create_unix_connection(
-                    lambda: PGConnection(dbname, loop, connargs), addr)
-
-        else:
-            if ssl:
-                _, pgcon = await _create_ssl_connection(
-                    lambda: PGConnection(dbname, loop, connargs),
-                    host,
-                    port,
-                    loop=loop,
-                    ssl_context=ssl,
-                    ssl_is_advisory=(
-                        sslmode == pgconnparams.SSLMode.prefer
-                    ),
-                    connect_timeout=timeout,
-                )
-            else:
-                async with asyncio.timeout(timeout):
-                    trans, pgcon = await loop.create_connection(
-                        lambda: PGConnection(dbname, loop, connargs),
-                        host=host, port=port)
-                _set_tcp_keepalive(trans)
-    except TimeoutError as ex:
-        raise pgerror.new(
-            pgerror.ERROR_CONNECTION_FAILURE,
-            "timed out connecting to backend",
-        ) from ex
-
-    try:
-        await pgcon.connect()
-    except pgerror.BackendError as e:
-        pgcon.terminate()
-        if not e.code_is(pgerror.ERROR_INVALID_AUTHORIZATION_SPECIFICATION):
-            raise
-
-        if (
-            sslmode == pgconnparams.SSLMode.allow and not pgcon.is_ssl or
-            sslmode == pgconnparams.SSLMode.prefer and pgcon.is_ssl
-        ):
-            # Trigger retry when:
-            #   1. First attempt with sslmode=allow, ssl=None failed
-            #   2. First attempt with sslmode=prefer, ssl=ctx failed while the
-            #      server claimed to support SSL (returning "S" for SSLRequest)
-            #      (likely because pg_hba.conf rejected the connection)
-            raise _RetryConnectSignal()
-
-        else:
-            # but will NOT retry if:
-            #   1. First attempt with sslmode=prefer failed but the server
-            #      doesn't support SSL (returning 'N' for SSLRequest), because
-            #      we already tried to connect without SSL thru ssl_is_advisory
-            #   2. Second attempt with sslmode=prefer, ssl=None failed
-            #   3. Second attempt with sslmode=allow, ssl=ctx failed
-            #   4. Any other sslmode
-            raise
-
-    return pgcon
-
-
-async def connect(
-    connargs: Dict[str, Any],
-    dbname: str,
-    backend_params: pg_params.BackendRuntimeParams,
-    apply_init_script: bool = True,
-):
-    global INIT_CON_SCRIPT
-
-    # This is different than parsing DSN and use the default sslmode=prefer,
-    # because connargs can be set manually thru set_connection_params(), and
-    # the caller should be responsible for aligning sslmode with ssl.
-    sslmode = connargs.get('sslmode', pgconnparams.SSLMode.disable)
-    ssl = connargs.get('ssl')
-    if sslmode == pgconnparams.SSLMode.allow:
-        try:
-            pgcon = await _connect(connargs, dbname, ssl=None)
-        except _RetryConnectSignal:
-            pgcon = await _connect(connargs, dbname, ssl=ssl)
-    elif sslmode == pgconnparams.SSLMode.prefer:
-        try:
-            pgcon = await _connect(connargs, dbname, ssl=ssl)
-        except _RetryConnectSignal:
-            pgcon = await _connect(connargs, dbname, ssl=None)
-    else:
-        pgcon = await _connect(connargs, dbname, ssl=ssl)
-
-    if (
-        backend_params.has_create_role
-        and backend_params.session_authorization_role
-    ):
-        sup_role = backend_params.session_authorization_role
-        if connargs['user'] != sup_role:
-            # We used to use SET SESSION AUTHORIZATION here, there're some
-            # security differences over SET ROLE, but as we don't allow
-            # accessing Postgres directly through EdgeDB, SET ROLE is mostly
-            # fine here. (Also hosted backends like Postgres on DigitalOcean
-            # support only SET ROLE)
-            await pgcon.sql_execute(f'SET ROLE {pg_qi(sup_role)}'.encode())
-
-    if 'in_hot_standby' in pgcon.parameter_status:
-        # in_hot_standby is always present in Postgres 14 and above
-        if pgcon.parameter_status['in_hot_standby'] == 'on':
-            # Abort if we're connecting to a hot standby
-            pgcon.terminate()
-            raise pgerror.BackendError(fields=dict(
-                M="cannot use a hot standby",
-                C=pgerror.ERROR_READ_ONLY_SQL_TRANSACTION,
-            ))
-
-    if apply_init_script:
-        if INIT_CON_SCRIPT is None:
-            INIT_CON_SCRIPT = _build_init_con_script(
-                # On lower versions of Postgres we use pg_is_in_recovery() to
-                # check if it is a hot standby, and error out if it is.
-                check_pg_is_in_recovery=(
-                    'in_hot_standby' not in pgcon.parameter_status
-                ),
-            )
-        try:
-            await pgcon.sql_execute(INIT_CON_SCRIPT)
-        except Exception:
-            await pgcon.close()
-            raise
-
-    return pgcon
-
-
-def set_init_con_script_data(cfg):
-    global INIT_CON_SCRIPT, INIT_CON_SCRIPT_DATA
-    INIT_CON_SCRIPT = None
-    INIT_CON_SCRIPT_DATA = (f'''
-        INSERT INTO _edgecon_state
-        SELECT * FROM jsonb_to_recordset({pg_ql(json.dumps(cfg))}::jsonb)
-        AS cfg(name text, value jsonb, type text);
-    ''').strip()
-
-
-class TLSUpgradeProto(asyncio.Protocol):
-    def __init__(self, loop, host, port, ssl_context, ssl_is_advisory):
-        self.on_data = loop.create_future()
-        self.host = host
-        self.port = port
-        self.ssl_context = ssl_context
-        self.ssl_is_advisory = ssl_is_advisory
-
-    def data_received(self, data):
-        if data == b'S':
-            self.on_data.set_result(True)
-        elif (self.ssl_is_advisory and
-              self.ssl_context.verify_mode == ssl_mod.CERT_NONE and
-              data == b'N'):
-            # ssl_is_advisory will imply that ssl.verify_mode == CERT_NONE,
-            # since the only way to get ssl_is_advisory is from
-            # sslmode=prefer. But be extra sure to disallow insecure
-            # connections when the ssl context asks for real security.
-            self.on_data.set_result(False)
-        else:
-            self.on_data.set_exception(
-                ConnectionError(
-                    'PostgreSQL server at "{host}:{port}" '
-                    'rejected SSL upgrade'.format(
-                        host=self.host, port=self.port)))
-
-    def connection_lost(self, exc):
-        if not self.on_data.done():
-            if exc is None:
-                exc = ConnectionError('unexpected connection_lost() call')
-            self.on_data.set_exception(exc)
 
 
 @cython.final
@@ -561,18 +215,19 @@ cdef class PGMessage:
 @cython.final
 cdef class PGConnection:
 
-    def __init__(self, dbname, loop, addr):
+    def __init__(self, dbname):
         self.buffer = ReadBuffer()
 
-        self.loop = loop
+        self.loop = asyncio.get_running_loop()
         self.dbname = dbname
 
+        self.connection = None
         self.transport = None
         self.msg_waiter = None
 
         self.prep_stmts = stmt_cache.StatementsCache(maxsize=PREP_STMTS_CACHE)
 
-        self.connected_fut = loop.create_future()
+        self.connected_fut = self.loop.create_future()
         self.connected = False
 
         self.waiting_for_sync = 0
@@ -587,7 +242,6 @@ cdef class PGConnection:
 
         self.log_listeners = []
 
-        self.pgaddr = addr
         self.server = None
         self.tenant = None
         self.is_system_db = False
@@ -625,9 +279,6 @@ cdef class PGConnection:
             *args,
             file=sys.stderr,
         )
-
-    def get_pgaddr(self):
-        return self.pgaddr
 
     def in_tx(self):
         return (
@@ -2812,97 +2463,6 @@ cdef class PGConnection:
         finally:
             await self.after_command()
 
-    async def connect(self):
-        cdef:
-            WriteBuffer outbuf
-            WriteBuffer buf
-            char mtype
-            int32_t status
-
-        if self.connected_fut is not None:
-            await self.connected_fut
-        if self.connected:
-            raise RuntimeError('already connected')
-        if self.transport is None:
-            raise RuntimeError('no transport object in connect()')
-
-        buf = WriteBuffer()
-
-        # protocol version
-        buf.write_int16(3)
-        buf.write_int16(0)
-
-        for k, v in self.pgaddr['server_settings'].items():
-            buf.write_bytestring(k.encode('utf-8'))
-            buf.write_bytestring(v.encode('utf-8'))
-
-        buf.write_bytestring(b'user')
-        buf.write_bytestring(self.pgaddr['user'].encode('utf-8'))
-
-        buf.write_bytestring(b'database')
-        buf.write_bytestring(self.dbname.encode('utf-8'))
-
-        buf.write_bytestring(b'')
-
-        # Send the buffer
-        outbuf = WriteBuffer()
-        outbuf.write_int32(buf.len() + 4)
-        outbuf.write_buffer(buf)
-        self.write(outbuf)
-
-        # Need this to handle first ReadyForQuery
-        self.waiting_for_sync += 1
-
-        while True:
-            if not self.buffer.take_message():
-                await self.wait_for_message()
-            mtype = self.buffer.get_message_type()
-
-            try:
-                if mtype == b'R':
-                    # Authentication...
-                    status = self.buffer.read_int32()
-                    if status == PGAUTH_SUCCESSFUL:
-                        pass
-                    elif status == PGAUTH_REQUIRED_PASSWORDMD5:
-                        # Note: MD5 salt is passed as a four-byte sequence
-                        md5_salt = self.buffer.read_bytes(4)
-                        self.write(
-                            self.make_auth_password_md5_message(md5_salt))
-
-                    elif status == PGAUTH_REQUIRED_SASL:
-                        await self._auth_sasl()
-
-                    else:
-                        raise RuntimeError(f'unsupported auth method: {status}')
-
-                elif mtype == b'K':
-                    # BackendKeyData
-                    self.backend_pid = self.buffer.read_int32()
-                    self.backend_secret = self.buffer.read_int32()
-
-                elif mtype == b'E':
-                    # ErrorResponse
-                    er_cls, er_fields = self.parse_error_message()
-                    raise er_cls(fields=er_fields)
-
-                elif mtype == b'Z':
-                    # ReadyForQuery
-                    self.parse_sync_message()
-                    self.connected = True
-                    break
-
-                elif mtype == b'S':
-                    # ParameterStatus
-                    name, value = self.parse_parameter_status_message()
-                    self.parameter_status[name] = value
-
-                else:
-                    self.fallthrough()
-
-            finally:
-                self.buffer.finish_message()
-
     def is_healthy(self):
         return (
             self.connected and
@@ -3159,114 +2719,6 @@ cdef class PGConnection:
         buf.write_bytestring(stmt_name)
         return buf.end_message()
 
-    cdef make_auth_password_md5_message(self, bytes salt):
-        cdef WriteBuffer msg
-
-        msg = WriteBuffer.new_message(b'p')
-
-        user = self.pgaddr.get('user') or ''
-        password = self.pgaddr.get('password') or ''
-
-        # 'md5' + md5(md5(password + username) + salt))
-        userpass = (password + user).encode('ascii')
-        hash = hashlib.md5(hashlib.md5(userpass).hexdigest().\
-                encode('ascii') + salt).hexdigest().encode('ascii')
-
-        msg.write_bytestring(b'md5' + hash)
-        return msg.end_message()
-
-    async def _auth_sasl(self):
-        methods = []
-        auth_method = self.buffer.read_null_str()
-        while auth_method:
-            methods.append(auth_method)
-            auth_method = self.buffer.read_null_str()
-        self.buffer.finish_message()
-
-        if not methods:
-            raise RuntimeError(
-                'the backend requested SASL authentication but did not '
-                'offer any methods')
-
-        for method in methods:
-            if method in SCRAMAuthentication.AUTHENTICATION_METHODS:
-                break
-        else:
-            raise RuntimeError(
-                f'the backend offered the following SASL authentication '
-                f'methods: {b", ".join(methods).decode()}, neither are '
-                f'supported.'
-            )
-
-        user = self.pgaddr.get('user') or ''
-        password = self.pgaddr.get('password') or ''
-        scram = SCRAMAuthentication(method)
-
-        msg = WriteBuffer.new_message(b'p')
-        msg.write_bytes(scram.create_client_first_message(user))
-        msg.end_message()
-        self.write(msg)
-
-        while True:
-            if not self.buffer.take_message():
-                await self.wait_for_message()
-            mtype = self.buffer.get_message_type()
-
-            if mtype == b'E':
-                # ErrorResponse
-                er_cls, er_fields = self.parse_error_message()
-                raise er_cls(fields=er_fields)
-
-            elif mtype == b'R':
-                # Authentication...
-                break
-
-            else:
-                self.fallthrough()
-
-        status = self.buffer.read_int32()
-        if status != PGAUTH_SASL_CONTINUE:
-            raise RuntimeError(
-                f'expected SASLContinue from the server, received {status}')
-
-        server_response = self.buffer.consume_message()
-        scram.parse_server_first_message(server_response)
-        msg = WriteBuffer.new_message(b'p')
-        client_final_message = scram.create_client_final_message(password)
-        msg.write_bytes(client_final_message)
-        msg.end_message()
-
-        self.write(msg)
-
-        while True:
-            if not self.buffer.take_message():
-                await self.wait_for_message()
-            mtype = self.buffer.get_message_type()
-
-            if mtype == b'E':
-                # ErrorResponse
-                er_cls, er_fields = self.parse_error_message()
-                raise er_cls(fields=er_fields)
-
-            elif mtype == b'R':
-                # Authentication...
-                break
-
-            else:
-                self.fallthrough()
-
-        status = self.buffer.read_int32()
-        if status != PGAUTH_SASL_FINAL:
-            raise RuntimeError(
-                f'expected SASLFinal from the server, received {status}')
-
-        server_response = self.buffer.consume_message()
-        if not scram.verify_server_final_message(server_response):
-            raise pgerror.BackendError(fields=dict(
-                M="server SCRAM proof does not match",
-                C=pgerror.ERROR_INVALID_PASSWORD,
-            ))
-
     async def wait_for_message(self):
         if self.buffer.take_message():
             return
@@ -3279,6 +2731,7 @@ cdef class PGConnection:
         if self.transport is not None:
             raise RuntimeError('connection_made: invalid connection status')
         self.transport = transport
+        self.connected = True
         self.connected_fut.set_result(True)
         self.connected_fut = None
 

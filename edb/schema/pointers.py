@@ -1422,7 +1422,7 @@ class PointerCommandOrFragment(
 
         if (
             not is_view_source(source, schema)
-            and expression.irast.volatility == qltypes.Volatility.Volatile
+            and expression.irast.volatility.is_volatile()
         ):
             span = self.get_attribute_span('target')
             raise errors.SchemaDefinitionError(

@@ -18,7 +18,14 @@
 
 
 from __future__ import annotations
-from typing import Any, Optional, Union, Iterable, Mapping
+from typing import (
+    Any,
+    Iterable,
+    Mapping,
+    Optional,
+    Union,
+    TypeAlias,
+)
 
 import json
 import textwrap
@@ -31,10 +38,13 @@ from . import base
 from . import ddl
 
 
+RoleName: TypeAlias = str
+
+
 class Role(base.DBObject):
     def __init__(
         self,
-        name: str,
+        name: RoleName,
         *,
         allow_login: Union[bool, base.NotSpecifiedT] = base.NotSpecified,
         allow_createdb: Union[bool, base.NotSpecifiedT] = base.NotSpecified,
@@ -55,10 +65,10 @@ class Role(base.DBObject):
         self.membership = membership
         self.members = members
 
-    def get_type(self):
+    def get_type(self) -> str:
         return 'ROLE'
 
-    def get_id(self):
+    def get_id(self) -> str:
         return qi(self.name)
 
 
@@ -72,12 +82,12 @@ class SingleRole(Role):
         super().__init__('current_user', password=password)
         self.single_role_metadata = metadata
 
-    def get_id(self):
+    def get_id(self) -> str:
         return self.name
 
 
 class RoleExists(base.Condition):
-    def __init__(self, name):
+    def __init__(self, name: RoleName):
         self.name = name
 
     def code(self) -> str:
@@ -93,10 +103,12 @@ class RoleExists(base.Condition):
 
 class RoleCommand:
 
-    def _role(self):
+    object: Role
+
+    def _role(self) -> str:
         return f'ROLE {self.object.get_id()}'
 
-    def _attrs(self):
+    def _attrs(self) -> str:
         attrs = []
 
         attrmap = {
@@ -172,7 +184,14 @@ class DropRole(ddl.SchemaObjectOperation):
 
 class AlterRoleAddMember(ddl.SchemaObjectOperation):
 
-    def __init__(self, name, member, *, conditions=None, neg_conditions=None):
+    def __init__(
+        self,
+        name: RoleName,
+        member: str,
+        *,
+        conditions: Optional[Iterable[str | base.Condition]] = None,
+        neg_conditions: Optional[Iterable[str | base.Condition]] = None,
+    ):
         super().__init__(
             name, conditions=conditions, neg_conditions=neg_conditions
         )
@@ -184,9 +203,17 @@ class AlterRoleAddMember(ddl.SchemaObjectOperation):
 
 class AlterRoleDropMember(ddl.SchemaObjectOperation):
 
-    def __init__(self, name, member, *, conditions=None, neg_conditions=None):
+    def __init__(
+        self,
+        name: RoleName,
+        member: str,
+        *,
+        conditions: Optional[Iterable[str | base.Condition]] = None,
+        neg_conditions: Optional[Iterable[str | base.Condition]] = None,
+    ) -> None:
         super().__init__(
-            name, conditions=conditions, neg_conditions=neg_conditions)
+            name, conditions=conditions, neg_conditions=neg_conditions
+        )
         self.member = member
 
     def code(self) -> str:
@@ -196,10 +223,16 @@ class AlterRoleDropMember(ddl.SchemaObjectOperation):
 class AlterRoleAddMembership(ddl.SchemaObjectOperation):
 
     def __init__(
-        self, name, membership, *, conditions=None, neg_conditions=None
+        self,
+        name: RoleName,
+        membership: Iterable[str],
+        *,
+        conditions: Optional[Iterable[str | base.Condition]] = None,
+        neg_conditions: Optional[Iterable[str | base.Condition]] = None,
     ):
         super().__init__(
-            name, conditions=conditions, neg_conditions=neg_conditions)
+            name, conditions=conditions, neg_conditions=neg_conditions
+        )
         self.membership = membership
 
     def code(self) -> str:

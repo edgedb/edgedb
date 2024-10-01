@@ -364,6 +364,34 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
     };
 
+    create scalar type ext::auth::WebhookEvent extending std::enum<
+        IdentityCreated,
+        IdentityAuthenticated,
+        EmailFactorCreated,
+        EmailVerified,
+        PasswordResetRequested,
+        MagicLinkRequested,
+    >;
+
+    create type ext::auth::WebhookConfig extending cfg::ConfigObject {
+        create required property url: std::str {
+            create annotation std::description :=
+                "The url to send webhooks to.";
+        };
+
+        create required multi property events: ext::auth::WebhookEvent {
+            create annotation std::description :=
+                "The events to send webhooks for.";
+        };
+
+        create property signing_secret_key: std::str {
+            set secret := true;
+
+            create annotation std::description :=
+                "The secret key used to sign webhook requests.";
+        };
+    };
+
     create type ext::auth::AuthConfig extending cfg::ExtensionConfig {
         create multi link providers -> ext::auth::ProviderConfig {
             create annotation std::description :=
@@ -374,6 +402,11 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             create annotation std::description :=
                 "Configuration for builtin auth UI. If not set the builtin \
                 UI is disabled.";
+        };
+
+        create multi link webhooks: ext::auth::WebhookConfig {
+            create annotation std::description :=
+                "Configuration for webhooks.";
         };
 
         create property app_name: std::str {

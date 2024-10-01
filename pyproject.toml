@@ -146,6 +146,7 @@ show_column_numbers = true
 show_error_codes = true
 # This being an error seems super confused to me.
 disable_error_code = "type-abstract"
+enable_incomplete_feature = ["Unpack"]
 
 [[tool.mypy.overrides]]
 module = [

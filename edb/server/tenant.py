@@ -26,7 +26,6 @@ from typing import (
     Mapping,
     Coroutine,
     AsyncGenerator,
-    Dict,
     Set,
     Optional,
     TypedDict,
@@ -66,6 +65,7 @@ from . import instdata
 from . import metrics
 from . import pgcon
 from . import compiler as edbcompiler
+from . import pgconnparams
 
 from .ha import adaptive as adaptive_ha
 from .ha import base as ha_base
@@ -287,8 +287,8 @@ class Tenant(ha_base.ClusterProtocol):
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
 
-    def get_pgaddr(self) -> Dict[str, Any]:
-        return self._cluster.get_connection_spec()
+    def get_pgaddr(self) -> pgconnparams.ConnectionParams:
+        return self._cluster.get_pgaddr()
 
     @functools.lru_cache
     def get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
@@ -360,7 +360,10 @@ class Tenant(ha_base.ClusterProtocol):
 
     async def init_sys_pgcon(self) -> None:
         self._sys_pgcon_waiter = asyncio.Lock()
-        self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
+        self.__sys_pgcon = await self._pg_connect(
+            defines.EDGEDB_SYSTEM_DB,
+            source_description="init_sys_pgcon",
+        )
         self._sys_pgcon_ready_evt = asyncio.Event()
         self._sys_pgcon_reconnect_evt = asyncio.Event()
 
@@ -638,7 +641,11 @@ class Tenant(ha_base.ClusterProtocol):
             self.__sys_pgcon = None
         del self._sys_pgcon_waiter
 
-    async def _pg_connect(self, dbname: str) -> pgcon.PGConnection:
+    async def _pg_connect(
+        self,
+        dbname: str,
+        source_description: str="pool connection"
+    ) -> pgcon.PGConnection:
         ha_serial = self._ha_master_serial
         if self.get_backend_runtime_params().has_create_database:
             pg_dbname = self.get_pg_dbname(dbname)
@@ -646,8 +653,10 @@ class Tenant(ha_base.ClusterProtocol):
             pg_dbname = self.get_pg_dbname(defines.EDGEDB_SUPERUSER_DB)
         started_at = time.monotonic()
         try:
-            rv = await pgcon.connect(
-                self.get_pgaddr(), pg_dbname, self.get_backend_runtime_params()
+            rv = await self._cluster.connect(
+                source_description=source_description,
+                database=pg_dbname,
+                apply_init_script=True
             )
             if self._server.stmt_cache_size is not None:
                 rv.set_stmt_cache_size(self._server.stmt_cache_size)
@@ -693,7 +702,10 @@ class Tenant(ha_base.ClusterProtocol):
     ) -> AsyncGenerator[pgcon.PGConnection, None]:
         conn = None
         try:
-            conn = await self._pg_connect(dbname)
+            conn = await self._pg_connect(
+                dbname,
+                source_description="direct_pgcon"
+            )
             yield conn
         finally:
             if conn is not None:
@@ -805,7 +817,10 @@ class Tenant(ha_base.ClusterProtocol):
                 #   1. This tenant is still running
                 #   2. We still cannot connect to the Postgres cluster
                 try:
-                    conn = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
+                    conn = await self._pg_connect(
+                        defines.EDGEDB_SYSTEM_DB,
+                        source_description="_reconnect_sys_pgcon"
+                    )
                     break
                 except OSError:
                     pass
@@ -1790,9 +1805,7 @@ class Tenant(ha_base.ClusterProtocol):
             instance_config=config.debug_serialize_config(
                 self.get_sys_config()),
             user_roles=self._roles,
-            pg_addr={
-                k: v for k, v in self.get_pgaddr().items() if k not in ["ssl"]
-            },
+            pg_addr=vars(self._cluster.get_connection_params()),
             pg_pool=self._pg_pool._build_snapshot(now=time.monotonic()),
         )
 

@@ -38,6 +38,7 @@ from edb.edgeql import quote
 
 from edb.server import args as edgedb_args
 from edb.server import defines as edgedb_defines
+from edb.server import pgconnparams
 
 from . import pgcluster
 
@@ -127,7 +128,7 @@ class BaseCluster:
         self._runstate_dir = runstate_dir
         self._edgedb_cmd.extend(['--runstate-dir', str(runstate_dir)])
         self._pg_cluster: Optional[pgcluster.BaseCluster] = None
-        self._pg_connect_args: Dict[str, Any] = {}
+        self._pg_connect_args: pgconnparams.CreateParamsKwargs = {}
         self._daemon_process: Optional[subprocess.Popen[str]] = None
         self._port = port
         self._effective_port = None
@@ -155,7 +156,7 @@ class BaseCluster:
         conn = None
         try:
             conn = await pg_cluster.connect(
-                timeout=5,
+                source_description=f"{self.__class__.__name__}.get_status",
                 **self._pg_connect_args,
             )
 
@@ -323,37 +324,38 @@ class BaseCluster:
             started = time.monotonic()
             await test()
             left -= (time.monotonic() - started)
-
-        if self._admin_query("SELECT ();", f"{max(1, int(left))}s"):
+        if res := self._admin_query("SELECT ();", f"{max(1, int(left))}s"):
             raise ClusterError(
                 f'could not connect to edgedb-server '
-                f'within {timeout} seconds') from None
+                f'within {timeout} seconds (exit code = {res})') from None
 
     def _admin_query(
         self,
         query: str,
         wait_until_available: str = "0s",
     ) -> int:
-        return subprocess.call(
-            [
-                "edgedb",
-                "--host",
-                str(os.path.abspath(self._runstate_dir)),
-                "--port",
-                str(self._effective_port),
-                "--admin",
-                "--user",
-                edgedb_defines.EDGEDB_SUPERUSER,
-                "--database",
-                edgedb_defines.EDGEDB_SUPERUSER_DB,
-                "--wait-until-available",
-                wait_until_available,
-                "-c",
-                query,
-            ],
+        args = [
+            "edgedb",
+            "query",
+            "--unix-path",
+            str(os.path.abspath(self._runstate_dir)),
+            "--port",
+            str(self._effective_port),
+            "--admin",
+            "--user",
+            edgedb_defines.EDGEDB_SUPERUSER,
+            "--branch",
+            edgedb_defines.EDGEDB_SUPERUSER_DB,
+            "--wait-until-available",
+            wait_until_available,
+            query,
+        ]
+        res = subprocess.call(
+            args=args,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.STDOUT,
         )
+        return res
 
     async def set_test_config(self) -> None:
         self._admin_query(f'''

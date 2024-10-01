@@ -18,6 +18,14 @@
 
 
 from __future__ import annotations
+from typing import (
+    Any,
+    Iterable,
+    Mapping,
+    Optional,
+    Sequence,
+    TypeAlias,
+)
 
 import textwrap
 
@@ -30,8 +38,11 @@ from . import constraints
 from . import ddl
 
 
+DomainName: TypeAlias = tuple[str, ...]
+
+
 class DomainExists(base.Condition):
-    def __init__(self, name):
+    def __init__(self, name: DomainName):
         self.name = name
 
     def code(self) -> str:
@@ -48,7 +59,14 @@ class DomainExists(base.Condition):
 
 class Domain(base.DBObject):
 
-    def __init__(self, name, *, base, constraints=(), metadata=None):
+    def __init__(
+        self,
+        name: DomainName,
+        *,
+        base: str | DomainName,
+        constraints: Sequence[DomainConstraint] = (),
+        metadata: Optional[Mapping[str, Any]] = None
+    ):
         self.constraints = tuple(constraints)
         self.base = base
         self.name = name
@@ -56,13 +74,20 @@ class Domain(base.DBObject):
 
 
 class CreateDomain(ddl.SchemaObjectOperation):
-    def __init__(self, domain, *, conditions=None, neg_conditions=None):
+    def __init__(
+        self,
+        domain: Domain,
+        *,
+        conditions: Optional[Iterable[str | base.Condition]] = None,
+        neg_conditions: Optional[Iterable[str | base.Condition]] = None,
+    ) -> None:
         super().__init__(
-            domain.name, conditions=conditions, neg_conditions=neg_conditions)
+            domain.name, conditions=conditions, neg_conditions=neg_conditions
+        )
         self.domain = domain
 
     def code_with_block(self, block: base.PLBlock) -> str:
-        extra = []
+        extra: list[str] = []
         for constraint in self.domain.constraints:
             extra.append(constraint.constraint_code(block))
 
@@ -74,19 +99,29 @@ class CreateDomain(ddl.SchemaObjectOperation):
 
 
 class AlterDomain(ddl.DDLOperation):
-    def __init__(self, name, *, conditions=None, neg_conditions=None):
+    def __init__(
+        self,
+        name: DomainName,
+        *,
+        conditions: Optional[Iterable[str | base.Condition]] = None,
+        neg_conditions: Optional[Iterable[str | base.Condition]] = None,
+    ) -> None:
         super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.name = name
 
     def prefix_code(self) -> str:
         return f'ALTER DOMAIN {qn(*self.name)}'
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<edb.sync.%s %s>' % (self.__class__.__name__, self.name)
 
 
 class AlterDomainAlterDefault(AlterDomain):
-    def __init__(self, name, default):
+    def __init__(
+        self,
+        name: DomainName,
+        default: Optional[str]
+    ) -> None:
         super().__init__(name)
         self.default = default
 
@@ -104,7 +139,7 @@ class AlterDomainAlterDefault(AlterDomain):
 
 
 class AlterDomainAlterNull(AlterDomain):
-    def __init__(self, name, null):
+    def __init__(self, name: DomainName, null: bool) -> None:
         super().__init__(name)
         self.null = null
 
@@ -119,21 +154,35 @@ class AlterDomainAlterNull(AlterDomain):
 
 class AlterDomainAlterConstraint(AlterDomain):
     def __init__(
-        self, name, constraint, *, conditions=None, neg_conditions=None
-    ):
+        self,
+        name: DomainName,
+        constraint: DomainConstraint,
+        *,
+        conditions: Optional[Iterable[str | base.Condition]] = None,
+        neg_conditions: Optional[Iterable[str | base.Condition]] = None,
+    ) -> None:
         super().__init__(
             name, conditions=conditions, neg_conditions=neg_conditions)
         self._constraint = constraint
 
 
 class DomainConstraint(constraints.Constraint):
-    def get_subject_type(self):
+    def get_subject_type(self) -> str:
         return 'DOMAIN'
+
+    def constraint_code(self, block: base.PLBlock) -> str:
+        raise NotImplementedError()
 
 
 class DomainCheckConstraint(DomainConstraint):
 
-    def __init__(self, domain_name, constraint_name=None, *, expr):
+    def __init__(
+        self,
+        domain_name: DomainName,
+        constraint_name: Optional[str] = None,
+        *,
+        expr: base.Query | str,
+    ) -> None:
         super().__init__(domain_name, constraint_name=constraint_name)
         self.expr = expr
 

@@ -68,7 +68,7 @@ from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import pgcluster
 from edb.server import defines as edgedb_defines
-from edb.server import pgconnparams
+from edb.server.pgconnparams import ConnectionParams
 
 from edb.common import assert_data_shape
 from edb.common import devmode
@@ -1187,31 +1187,14 @@ class ConnectedTestCase(ClusterTestCase):
     @classmethod
     def get_backend_sql_dsn(cls, dbname=None):
         settings = cls.con.get_settings()
-        pgaddr = settings.get('pgaddr')
-        if pgaddr is None:
+        pgdsn = settings.get('pgdsn')
+        if pgdsn is None:
             raise unittest.SkipTest('raw SQL test skipped: not in devmode')
-        pgaddr = json.loads(pgaddr)
-
-        # Try to grab a password from the specified DSN, if one is
-        # present, since the pgaddr won't have a real one. (The non
-        # specified DSN test suite setup doesn't have one, so it is
-        # fine.)
-        password = None
-        spec_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
-        if spec_dsn:
-            _, params = pgconnparams.parse_dsn(spec_dsn)
-            password = params.password
-
-        if dbname is None:
-            dbname = pgaddr["database"]
-
-        pgdsn = (
-            f'postgres:///{dbname}?user={pgaddr["user"]}'
-            f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
-        )
-        if password is not None:
-            pgdsn += f'&password={password}'
-        return pgdsn
+        params = ConnectionParams(dsn=pgdsn.decode('utf8'))
+        if dbname:
+            params.update(database=dbname)
+        params.clear_server_settings()
+        return params.to_dsn()
 
     @classmethod
     async def get_backend_sql_connection(cls, dbname=None):
@@ -1845,6 +1828,11 @@ class StablePGDumpTestCase(BaseQueryTestCase):
         conargs = cls.get_connect_args()
         src_dbname = cls.con.dbname
         tgt_dbname = f'restored_{src_dbname}'
+        try:
+            newdsn = cls.get_backend_sql_dsn(dbname=tgt_dbname)
+        except Exception:
+            super().tearDownClass()
+            raise
 
         cls._pg_bin_dir = cls.loop.run_until_complete(
             pgcluster.get_pg_bin_dir())
@@ -1871,7 +1859,6 @@ class StablePGDumpTestCase(BaseQueryTestCase):
                 cls.backend.execute(f'create database {tgt_dbname}')
             )
 
-            newdsn = cls.get_backend_sql_dsn(dbname=tgt_dbname)
             # Populate the new database using the dump
             cmd = [
                 cls._pg_bin_dir / 'psql',
@@ -2345,16 +2332,11 @@ class _EdgeDBServer:
             ])
         elif self.adjacent_to is not None:
             settings = self.adjacent_to.get_settings()
-            pgaddr = settings.get('pgaddr')
-            if pgaddr is None:
-                raise RuntimeError('test requires devmode')
-            pgaddr = json.loads(pgaddr)
-            pgdsn = (
-                f'postgres:///?user={pgaddr["user"]}&port={pgaddr["port"]}'
-                f'&host={pgaddr["host"]}'
-            )
+            pgdsn = settings.get('pgdsn')
+            if pgdsn is None:
+                raise RuntimeError('test requires devmode to access pgdsn')
             cmd += [
-                '--backend-dsn', pgdsn
+                '--backend-dsn', pgdsn.decode('utf-8')
             ]
         elif self.multitenant_config:
             cmd += ['--multitenant-config-file', self.multitenant_config]

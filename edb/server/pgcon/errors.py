@@ -169,29 +169,29 @@ def new(
 
 class FeatureNotSupported(BackendError):
     def __init__(self, message="feature not supported", **kwargs):
-        super().__init__(fields=_build_fields(
-            ERROR_FEATURE_NOT_SUPPORTED, message, **kwargs
-        ))
+        super().__init__(
+            fields=_build_fields(ERROR_FEATURE_NOT_SUPPORTED, message, **kwargs)
+        )
 
 
 class ProtocolViolation(BackendError):
     def __init__(self, message="protocol violation", **kwargs):
-        super().__init__(fields=_build_fields(
-            ERROR_PROTOCOL_VIOLATION, message, **kwargs
-        ))
+        super().__init__(
+            fields=_build_fields(ERROR_PROTOCOL_VIOLATION, message, **kwargs)
+        )
 
 
 class CannotConnectNowError(BackendError):
     def __init__(self, message="cannot connect now", **kwargs):
-        super().__init__(fields=_build_fields(
-            ERROR_CANNOT_CONNECT_NOW, message, **kwargs
-        ))
+        super().__init__(
+            fields=_build_fields(ERROR_CANNOT_CONNECT_NOW, message, **kwargs)
+        )
 
 
 class InvalidAuthSpec(BackendError):
-    def __init__(
-        self, message="invalid authorization specification", **kwargs
-    ):
-        super().__init__(fields=_build_fields(
-            ERROR_INVALID_AUTHORIZATION_SPECIFICATION, message, **kwargs
-        ))
+    def __init__(self, message="invalid authorization specification", **kwargs):
+        super().__init__(
+            fields=_build_fields(
+                ERROR_INVALID_AUTHORIZATION_SPECIFICATION, message, **kwargs
+            )
+        )

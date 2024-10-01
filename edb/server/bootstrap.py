@@ -118,6 +118,7 @@ class PGConnectionProxy:
     def __init__(
         self,
         cluster: pgcluster.BaseCluster,
+        source_description: str,
         dbname: Optional[str] = None,
         log_listener: Optional[Callable[[str, str], None]] = None,
     ):
@@ -125,15 +126,21 @@ class PGConnectionProxy:
         self._cluster = cluster
         self._dbname = dbname
         self._log_listener = log_listener or _pg_log_listener
+        self._source_description = source_description
 
     async def connect(self) -> None:
         if self._conn is not None:
             self._conn.terminate()
 
         if self._dbname:
-            self._conn = await self._cluster.connect(database=self._dbname)
+            self._conn = await self._cluster.connect(
+                source_description=self._source_description,
+                database=self._dbname
+            )
         else:
-            self._conn = await self._cluster.connect()
+            self._conn = await self._cluster.connect(
+                source_description=self._source_description
+            )
 
         if self._log_listener is not None:
             self._conn.add_log_listener(self._log_listener)
@@ -308,6 +315,7 @@ async def _ensure_edgedb_role(
 
     members = set()
     login_role = ctx.cluster.get_connection_params().user
+    assert login_role is not None
     sup_role = ctx.cluster.get_role_name(edbdef.EDGEDB_SUPERUSER)
     if login_role != sup_role:
         members.add(login_role)
@@ -2310,7 +2318,11 @@ async def _check_catalog_compatibility(
             )
         )
 
-    conn = PGConnectionProxy(ctx.cluster, sys_db.decode("utf-8"))
+    conn = PGConnectionProxy(
+        ctx.cluster,
+        source_description="_check_catalog_compatibility",
+        dbname=sys_db.decode("utf-8")
+    )
 
     try:
         instancedata = await _get_instance_data(conn)
@@ -2473,7 +2485,11 @@ async def _bootstrap(
         else:
             new_template_db_id = uuidgen.uuid1mc()
         tpl_db = cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB)
-        conn = PGConnectionProxy(cluster, tpl_db)
+        conn = PGConnectionProxy(
+            cluster,
+            source_description="_bootstrap",
+            dbname=tpl_db
+        )
 
         tpl_ctx = dataclasses.replace(ctx, conn=conn)
     else:
@@ -2596,7 +2612,8 @@ async def _bootstrap(
 
         sys_conn = PGConnectionProxy(
             cluster,
-            cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB),
+            source_description="_bootstrap",
+            dbname=cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB),
         )
 
         try:
@@ -2667,7 +2684,10 @@ async def ensure_bootstrapped(
     Returns True if bootstrap happened and False if the instance was already
     bootstrapped, along with the bootstrap compiler state.
     """
-    pgconn = PGConnectionProxy(cluster)
+    pgconn = PGConnectionProxy(
+        cluster,
+        source_description="ensure_bootstrapped"
+    )
     ctx = BootstrapContext(cluster=cluster, conn=pgconn, args=args)
 
     try:

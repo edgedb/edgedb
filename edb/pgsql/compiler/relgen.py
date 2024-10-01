@@ -3294,7 +3294,7 @@ def _compile_func_epilogue(
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
 
-    if expr.volatility is qltypes.Volatility.Volatile:
+    if expr.volatility.is_volatile():
         relctx.apply_volatility_ref(func_rel, ctx=ctx)
 
     pathctx.put_path_var_if_not_exists(

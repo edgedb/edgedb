@@ -1023,7 +1023,10 @@ class Compiler:
                 type=s_func.Function,
                 exclude_stdlib=True,
             ):
-                if func.get_has_dml(schema):
+                if (
+                    func.get_volatility(schema) == qltypes.Volatility.Modifying
+                    and not func.get_is_inlined(schema)
+                ):
                     break
             else:
                 ddl_source = edgeql.Source.from_string(

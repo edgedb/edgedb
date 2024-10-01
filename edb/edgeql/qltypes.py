@@ -162,9 +162,10 @@ class Volatility(s_enum.OrderedEnumMixin, s_enum.StrEnum):
     Immutable = 'Immutable'
     Stable = 'Stable'
     Volatile = 'Volatile'
+    Modifying = 'Modifying'
 
     def is_volatile(self) -> bool:
-        return self is Volatility.Volatile
+        return self in (Volatility.Volatile, Volatility.Modifying)
 
     @classmethod
     def _missing_(cls, name):

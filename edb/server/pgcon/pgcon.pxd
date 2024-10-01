@@ -34,8 +34,6 @@ from edb.server.pgproto.debug cimport PG_DEBUG
 
 from edb.server.cache cimport stmt_cache
 
-include "scram.pxd"
-
 
 cdef enum PGTransactionStatus:
     PQTRANS_IDLE = 0                 # connection idle
@@ -111,9 +109,9 @@ cdef class PGConnection:
         int32_t waiting_for_sync
         PGTransactionStatus xact_status
 
-        readonly int32_t backend_pid
-        readonly int32_t backend_secret
-        readonly object parameter_status
+        public int32_t backend_pid
+        public int32_t backend_secret
+        public object parameter_status
 
         readonly object aborted_with_error
 
@@ -124,7 +122,8 @@ cdef class PGConnection:
 
         bint debug
 
-        object pgaddr
+        public object connection
+        public object addr
         object server
         object tenant
         bint is_system_db
@@ -157,7 +156,6 @@ cdef class PGConnection:
     cdef write_sync(self, WriteBuffer outbuf)
 
     cdef make_clean_stmt_message(self, bytes stmt_name)
-    cdef make_auth_password_md5_message(self, bytes salt)
     cdef send_query_unit_group(
         self, object query_unit_group, bint sync,
         object bind_datas, bytes state,
