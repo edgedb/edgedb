@@ -954,12 +954,17 @@ cdef class PgConnection(frontend.FrontendConnection):
             parse_unit = parse_action.query_unit
             actions.append(parse_action)
 
+            # 2 bytes: number of format codes (1)
+            # 2 bytes: first format code (1) is binary
+            #          (this implies that all args are binary)
+            # 2 bytes: number of arguments (0)
+            # 2 bytes: number of result format codes (0)
+            #          (this implies that )
+            bind_data = b"\x00\x01\x00\x01\x00\x00\x00\x00"
             # remap argumnets, which will inject globals
             bind_data = bytes(
                 remap_arguments(
-                    b"\x00\x01\x00\x01\x00\x00\x00\x00",
-                    parse_unit.params,
-                    dbv.current_fe_settings(),
+                    bind_data, parse_unit.params, dbv.current_fe_settings(),
                 )
             )
             actions.append(
@@ -1570,7 +1575,13 @@ cdef WriteBuffer remap_arguments(
     data: bytes,
     params: list[dbstate.SQLParam] | None,
     fe_settings: dbstate.SQLSettings
-):    
+):  
+    cdef:
+        int16_t param_format_count
+        int32_t offset
+        int16_t max_external_used
+        int32_t size
+
     # The "external" parameters (that are visible to the user)
     # are not in the same order as "internal" params and don't
     # include the internal params for globals.
