@@ -120,6 +120,18 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
                 f'EdgeDB message code is not set (type: {cls.__name__})')
         return cls._code
 
+    def to_json(self):
+        err_dct = {
+            'message': str(self),
+            'type': str(type(self).__name__),
+            'code': self.get_code(),
+        }
+        for name, field in _JSON_FIELDS.items():
+            if field in self._attrs:
+                err_dct[name] = self._attrs[field]
+
+        return err_dct
+
     def set_filename(self, filename):
         self._attrs[FIELD_FILENAME] = filename
 
@@ -232,3 +244,14 @@ FIELD_UTF16_COLUMN_END = 0x_FF_F8
 FIELD_CHARACTER_START = 0x_FF_F9
 FIELD_CHARACTER_END = 0x_FF_FA
 FIELD_FILENAME = 0x_FF_FB
+
+# Fields to include in the json dump of the type
+_JSON_FIELDS = {
+    'filename': FIELD_FILENAME,
+    'hint': FIELD_HINT,
+    'details': FIELD_DETAILS,
+    'start': FIELD_CHARACTER_START,
+    'end': FIELD_CHARACTER_END,
+    'line': FIELD_LINE_START,
+    'col': FIELD_COLUMN_START,
+}
