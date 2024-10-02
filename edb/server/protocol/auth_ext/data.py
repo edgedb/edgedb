@@ -139,13 +139,38 @@ class OpenIDConnectAccessTokenResponse(OAuthAccessTokenResponse):
 
 
 @dataclasses.dataclass
-class WebAuthnFactor:
+class EmailFactor:
     id: str
     created_at: datetime.datetime
     modified_at: datetime.datetime
     identity: LocalIdentity
     email: str
     verified_at: Optional[datetime.datetime]
+
+    def __init__(
+        self,
+        *,
+        id: str,
+        created_at: datetime.datetime,
+        modified_at: datetime.datetime,
+        identity: LocalIdentity,
+        email: str,
+        verified_at: Optional[datetime.datetime],
+    ):
+        self.id = id
+        self.created_at = created_at
+        self.modified_at = modified_at
+        self.identity = (
+            LocalIdentity(**identity)
+            if isinstance(identity, dict)
+            else identity
+        )
+        self.email = email
+        self.verified_at = verified_at
+
+
+@dataclasses.dataclass
+class WebAuthnFactor(EmailFactor):
     user_handle: bytes
     credential_id: bytes
     public_key: bytes
@@ -187,14 +212,14 @@ class WebAuthnAuthenticationChallenge:
     factors: list[WebAuthnFactor]
 
     def __init__(
-            self,
-            *,
-            id: str,
-            created_at: datetime.datetime,
-            modified_at: datetime.datetime,
-            challenge: bytes,
-            factors: list[WebAuthnFactor],
-        ):
+        self,
+        *,
+        id: str,
+        created_at: datetime.datetime,
+        modified_at: datetime.datetime,
+        challenge: bytes,
+        factors: list[WebAuthnFactor],
+    ):
         self.id = id
         self.created_at = created_at
         self.modified_at = modified_at

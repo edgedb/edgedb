@@ -79,6 +79,7 @@ class EmailFactorCreated(Event, HasIdentity, HasEmailFactor):
         default="EmailFactorCreated",
         init=False,
     )
+    verification_token: str
 
 
 @dataclasses.dataclass
