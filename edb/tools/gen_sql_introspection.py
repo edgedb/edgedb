@@ -39,8 +39,8 @@ async def run():
         host='localhost',
         database='postgres',
         user='postgres',
-        password='pass',
-        port='5433',
+        password='pass1234',
+        port='5432',
     )
 
     res = await c.fetch(
@@ -94,7 +94,7 @@ def print_header(f):
 
         """Declarations of information schema and pg_catalog"""
 
-        from typing import *  # NoQA
+        from typing import Tuple, Dict, List
 
         ColumnName = str
         ColumnType = str | None
