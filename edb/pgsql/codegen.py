@@ -995,7 +995,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write("SET ")
         if node.scope == pgast.OptionsScope.TRANSACTION:
             self.write("LOCAL ")
-        self.write(node.name)
+        self.write(common.qname(node.name))
         self.write(" TO ")
         self.visit(node.args)
 
@@ -1010,7 +1010,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write("SET ")
             if node.scope == pgast.OptionsScope.TRANSACTION:
                 self.write("LOCAL ")
-            self.write(node.name)
+            self.write(common.qname(node.name))
             self.write(" TO DEFAULT")
 
     def visit_SetTransactionStmt(self, node: pgast.SetTransactionStmt) -> None:
@@ -1023,7 +1023,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_VariableShowStmt(self, node: pgast.VariableShowStmt) -> None:
         self.write("SHOW ")
-        self.write(node.name)
+        self.write(common.qname(node.name))
 
     def visit_BeginStmt(self, node: pgast.BeginStmt) -> None:
         self.write("BEGIN")

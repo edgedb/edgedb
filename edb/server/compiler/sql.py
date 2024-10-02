@@ -18,13 +18,7 @@
 
 
 from __future__ import annotations
-from typing import (
-    Optional,
-    Tuple,
-    Mapping,
-    Sequence,
-    List,
-)
+from typing import Tuple, Mapping, Sequence, List, TYPE_CHECKING, Optional
 
 import dataclasses
 import functools
@@ -41,6 +35,9 @@ from edb.pgsql import codegen as pg_codegen
 from edb.pgsql import parser as pg_parser
 
 from . import dbstate
+
+if TYPE_CHECKING:
+    from edb.pgsql import resolver as pg_resolver
 
 
 # Frontend-only settings. Maps setting name into their mutability flag.
@@ -89,12 +86,15 @@ def compile_sql(
             else:
                 value = None
 
-            # GOTCHA: setting is frontend-only regardless of its mutability
-            fe_only = stmt.name in FE_SETTINGS_MUTABLE
+            fe_only = stmt.name and (
+                # GOTCHA: setting is frontend-only regardless of its mutability
+                stmt.name in FE_SETTINGS_MUTABLE
+                or stmt.name.startswith('global ')
+            )
 
             if fe_only:
                 assert stmt.name
-                if not FE_SETTINGS_MUTABLE[stmt.name]:
+                if not FE_SETTINGS_MUTABLE.get(stmt.name, True):
                     raise errors.QueryError(
                         f'parameter "{stmt.name}" cannot be changed',
                         pgext_code='55P02',  # cant_change_runtime_param
@@ -116,7 +116,10 @@ def compile_sql(
 
         elif isinstance(stmt, pgast.VariableShowStmt):
             unit.get_var = stmt.name
-            unit.frontend_only = stmt.name in FE_SETTINGS_MUTABLE
+            unit.frontend_only = (
+                stmt.name in FE_SETTINGS_MUTABLE
+                or stmt.name.startswith('global ')
+            )
             if unit.frontend_only:
                 unit.command_complete_tag = dbstate.TagPlain(tag=b"SHOW")
 
@@ -124,9 +127,11 @@ def compile_sql(
             if stmt.scope == pgast.OptionsScope.SESSION:
                 unit.set_vars = {
                     f"default_{name}": (
-                        value.val
-                        if isinstance(value, pgast.StringConstant)
-                        else pg_codegen.generate_source(value),
+                        (
+                            value.val
+                            if isinstance(value, pgast.StringConstant)
+                            else pg_codegen.generate_source(value)
+                        ),
                     )
                     for name, value in stmt.options.options.items()
                 }
@@ -159,7 +164,7 @@ def compile_sql(
             )
         elif isinstance(stmt, pgast.PrepareStmt):
             # Translate the underlying query.
-            stmt_source, complete_tag = resolve_query(
+            stmt_resolved, stmt_source = resolve_query(
                 stmt.query, schema, tx_state, opts
             )
             if stmt.argtypes:
@@ -230,11 +235,14 @@ def compile_sql(
             unit.query = "DO $$ BEGIN END $$;"
         else:
             assert isinstance(stmt, (pgast.Query, pgast.CopyStmt))
-            source, complete_tag = resolve_query(stmt, schema, tx_state, opts)
+            stmt_resolved, stmt_source = resolve_query(
+                stmt, schema, tx_state, opts
+            )
 
-            unit.query = source.text
-            unit.translation_data = source.translation_data
-            unit.command_complete_tag = complete_tag
+            unit.query = stmt_source.text
+            unit.translation_data = stmt_source.translation_data
+            unit.command_complete_tag = stmt_resolved.command_complete_tag
+            unit.params = stmt_resolved.params
 
         unit.stmt_name = compute_stmt_name(unit.query, tx_state).encode("utf-8")
 
@@ -266,7 +274,7 @@ def resolve_query(
     schema: s_schema.Schema,
     tx_state: dbstate.SQLTransactionState,
     opts: ResolverOptionsPartial,
-) -> Tuple[pg_codegen.SQLSource, Optional[dbstate.CommandCompleteTag]]:
+) -> Tuple[pg_resolver.ResolvedSQL, pg_codegen.SQLSource]:
     from edb.pgsql import resolver as pg_resolver
 
     search_path: Sequence[str] = ("public",)
@@ -296,11 +304,9 @@ def resolve_query(
         search_path=search_path,
         allow_user_specified_id=allow_user_specified_id,
     )
-    resolved, complete_tag = pg_resolver.resolve(stmt, schema, options)
-    return (
-        pg_codegen.generate(resolved, with_translation_data=True),
-        complete_tag,
-    )
+    resolved = pg_resolver.resolve(stmt, schema, options)
+    source = pg_codegen.generate(resolved.ast, with_translation_data=True)
+    return resolved, source
 
 
 def compute_stmt_name(text: str, tx_state: dbstate.SQLTransactionState) -> str:

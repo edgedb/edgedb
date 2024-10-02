@@ -625,7 +625,7 @@ class Command(Base):
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Param:
-    """Query parameter with it's schema type and IR type"""
+    """Query parameter with its schema type and IR type"""
 
     name: str
     """Parameter name"""

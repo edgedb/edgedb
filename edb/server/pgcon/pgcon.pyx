@@ -1404,16 +1404,14 @@ cdef class PGConnection:
                     msg_buf.write_bytestring(action.stmt_name)
 
                     # skim over param format codes
-                    param_formats = int.from_bytes(action.args[0:2], "big")
+                    param_formats = read_int16(action.args[0:2])
                     offset = 2 + param_formats * 2
 
                     # skim over param values
-                    params = int.from_bytes(action.args[offset:offset+2], "big")
+                    params = read_int16(action.args[offset:offset+2])
                     offset += 2
                     for p in range(params):
-                        size = int.from_bytes(
-                            action.args[offset:offset+4], "big"
-                        )
+                        size = read_int32(action.args[offset:offset+4])
                         if size == -1:  # special case: NULL
                             size = 0
                         offset += 4 + size
@@ -1775,6 +1773,36 @@ cdef class PGConnection:
                     self.buffer.consume_message()
 
                 elif (
+                    mtype == b't'  # ParameterDescription
+                ):
+                    # remap parameter descriptions
+
+                    # The "external" parameters (that are visible to the user)
+                    # are not in the same order as "internal" params and don't
+                    # include the internal params for globals.
+                    # This chunk of code remaps the descriptions of internal
+                    # params into external ones.
+                    count_internal = self.buffer.read_int16()
+                    data_internal = self.buffer.consume_message()
+
+                    msg_buf = WriteBuffer.new_message(b't')
+                    external_params = []
+                    if action.query_unit.params:
+                        for i_int, param in enumerate(action.query_unit.params):
+                            if isinstance(param, dbstate.SQLParamExternal):
+                                i_ext = param.index - 1
+                                external_params.append((i_ext, i_int))
+
+                    msg_buf.write_int16(len(external_params))
+
+                    external_params.sort()
+                    for _, i_int in external_params:
+                        oid = data_internal[i_int * 4:(i_int + 1) * 4]
+                        msg_buf.write_bytes(oid)
+
+                    buf.write_buffer(msg_buf.end_message())
+
+                elif (
                     mtype == b'T'  # RowDescription
                     and action.action == PGAction.EXECUTE
                     and isinstance(
@@ -1799,10 +1827,10 @@ cdef class PGConnection:
                     # unpack a single row with a single column
                     data = self.buffer.consume_message()
 
-                    field_size = int.from_bytes(data[2:6], "big")
+                    field_size = read_int32(data[2:6])
                     val_bytes = data[6:6 + field_size]
 
-                    row_count = int.from_bytes(val_bytes, "big")
+                    row_count = int.from_bytes(val_bytes, "big", signed=True)
                 elif (
                     # CommandComplete, EmptyQueryResponse, PortalSuspended
                     mtype == b'C' or mtype == b'I' or mtype == b's'
@@ -2822,3 +2850,9 @@ cdef inline str setting_val_to_sql(val: str | int | float):
         return str(val)
     raise NotImplementedError('cannot convert setting to SQL: ', val)
 
+
+cdef inline int16_t read_int16(data: bytes):
+    return int.from_bytes(data[0:2], "big", signed=True)
+
+cdef inline int32_t read_int32(data: bytes):
+    return int.from_bytes(data[0:4], "big", signed=True)

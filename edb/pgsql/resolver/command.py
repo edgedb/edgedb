@@ -24,10 +24,14 @@ import dataclasses
 import functools
 
 from edb.server.pgcon import errors as pgerror
+from edb.server.compiler import dbstate
+
+from edb.common import ast
 
 from edb import errors
 from edb.pgsql import ast as pgast
 from edb.pgsql import compiler as pgcompiler
+from edb.pgsql import types as pgtypes
 from edb.pgsql.compiler import enums as pgce
 
 from edb.edgeql import ast as qlast
@@ -1415,7 +1419,7 @@ def _compile_uncompiled_dml(
         # compile synthetic ql statement into SQL
         options = qlcompiler.CompilerOptions(
             modaliases={None: 'default'},
-            make_globals_empty=True,  # TODO: globals in SQL
+            make_globals_empty=False,
             singletons=singletons,
             anchors=anchors,
             allow_user_specified_id=ctx.options.allow_user_specified_id,
@@ -1434,6 +1438,9 @@ def _compile_uncompiled_dml(
             output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
             alias_generator=ctx.alias_generator,
         )
+
+        merge_params(sql_result, ir_stmt, ctx)
+
     except errors.QueryError as e:
         raise errors.QueryError(
             msg=e.args[0],
@@ -1665,7 +1672,7 @@ def _resolve_dml_value_rel(compiled_dml: context.CompiledDML, *, ctx: Context):
             from_clause=[
                 pgast.RangeSubselect(
                     subquery=val_rel,
-                    alias=pgast.Alias(aliasname=val_table.alias)
+                    alias=pgast.Alias(aliasname=val_table.alias),
                 )
             ],
             target_list=value_target_list,
@@ -1837,3 +1844,56 @@ def _try_inject_type_cast(
         rel.target_list[pos] = target.replace(
             val=pgast.TypeCast(arg=target.val, type_name=ty)
         )
+
+
+def merge_params(
+    sql_result: pgcompiler.CompileResult, ir_stmt: irast.Statement, ctx: Context
+):
+    # Merge the params produced by the main compiler with params for the rest of
+    # the query that the resolved is keeping track of.
+    param_remapping: Dict[int, int] = {}
+    for arg_name, arg in sql_result.argmap.items():
+        # find the global
+        glob = next(g for g in ir_stmt.globals if g.name == arg_name)
+
+        # search for existing params for this global
+        existing_param = next(
+            (
+                i
+                for i, p in enumerate(ctx.query_params)
+                if isinstance(p, dbstate.SQLParamGlobal)
+                and p.global_name == glob.name
+            ),
+            None,
+        )
+        internal_index: int
+        if existing_param is not None:
+            internal_index = existing_param
+        else:
+            # append a new param
+            internal_index = len(ctx.query_params) + 1
+
+            pg_type = pgtypes.pg_type_from_ir_typeref(
+                glob.ir_type.base_type or glob.ir_type
+            )
+            ctx.query_params.append(
+                dbstate.SQLParamGlobal(
+                    global_name=glob.global_name, pg_type=pg_type
+                )
+            )
+
+        # remap if necessary
+        if internal_index != arg.index:
+            param_remapping[arg.index] = internal_index
+    if len(param_remapping) > 0:
+        ParamMapper(param_remapping).visit(sql_result.ast)
+
+
+class ParamMapper(ast.NodeVisitor):
+
+    def __init__(self, mapping: Dict[int, int]) -> None:
+        super().__init__()
+        self.mapping = mapping
+
+    def visit_Param(self, p: pgast.Param) -> None:
+        p.index = self.mapping[p.index]

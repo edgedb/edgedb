@@ -48,6 +48,7 @@ from edb.schema import delta as s_delta
 from edb.schema import migrations as s_migrations
 from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
+from edb.schema import name as s_name
 
 from edb.server import config
 from edb.server import defines
@@ -510,12 +511,15 @@ class DeallocateData(PreparedStmtOpData):
 
 @dataclasses.dataclass(kw_only=True)
 class SQLQueryUnit:
-    query: str
+    query: str = dataclasses.field(repr=False)
     """Translated query text."""
-    orig_query: str
+
+    orig_query: str = dataclasses.field(repr=False)
     """Original query text before translation."""
+
     translation_data: Optional[pgcodegen.TranslationData] = None
     """Translation source map."""
+
     fe_settings: SQLSettings
     """Frontend-only settings effective during translation of this unit."""
 
@@ -542,6 +546,8 @@ class SQLQueryUnit:
     """When set, CommandComplete for this query will be overridden.
     This is useful, for example, for setting the tag of DML statements,
     which return the number of modified rows."""
+
+    params: Optional[List[SQLParam]] = None
 
 
 class CommandCompleteTag:
@@ -570,6 +576,30 @@ class TagUnpackRow(CommandCompleteTag):
     Sets the CommandComplete tag to f'{prefix} {modified_rows}'.'''
 
     prefix: str
+
+
+class SQLParam:
+    # Internal query param. Represents params in the compiled SQL, so the params
+    # that are sent to PostgreSQL.
+    pass
+
+
+@dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)
+class SQLParamExternal(SQLParam):
+    # An internal query param whose value is provided by an external param.
+    # So a user-visible param.
+
+    # External index
+    index: int
+
+
+@dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)
+class SQLParamGlobal(SQLParam):
+    # An internal query param whose value is provided by a global.
+
+    global_name: s_name.QualName
+
+    pg_type: Tuple[str, ...]
 
 
 @dataclasses.dataclass

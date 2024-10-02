@@ -51,7 +51,7 @@ type Movie extending Content {
 
 type Book extending Content {
     required pages: int16;
-multi chapters: str;
+    multi chapters: str;
 }
 
 type novel extending Book {
