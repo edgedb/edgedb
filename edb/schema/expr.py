@@ -51,6 +51,7 @@ from edb.edgeql import qltypes
 from . import abc as s_abc
 from . import objects as so
 from . import name as sn
+from . import delta as sd
 
 
 if TYPE_CHECKING:
@@ -214,6 +215,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         find_extra_refs: Optional[
             Callable[[irast_.Set], set[so.Object]]
         ] = None,
+        context: Optional[sd.CommandContext],
     ) -> CompiledExpression:
 
         from edb.ir import ast as irast_
@@ -241,6 +243,11 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
         assert isinstance(ir, irast_.Statement)
 
+        if context and ir.warnings:
+            delta_root = context.top().op
+            if isinstance(delta_root, sd.DeltaRoot):
+                delta_root.warnings.extend(ir.warnings)
+
         # XXX: ref stuff - why doesn't it go into the delta tree? - temporary??
         srefs: set[so.Object] = {
             ref for ref in ir.schema_refs if schema.has_object(ref.id)
@@ -263,12 +270,14 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         *,
         options: Optional[qlcompiler.CompilerOptions] = None,
         as_fragment: bool = False,
+        context: Optional[sd.CommandContext],
     ) -> CompiledExpression:
         if self._irast:
             return self  # type: ignore
         else:
             return self.compiled(
-                schema, options=options, as_fragment=as_fragment)
+                schema, options=options, as_fragment=as_fragment,
+                context=context)
 
     def assert_compiled(self) -> CompiledExpression:
         if self._irast:

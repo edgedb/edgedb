@@ -302,6 +302,7 @@ class AliasCommand(
                 in_ddl_context_name='alias definition',
                 track_schema_ref_exprs=track_schema_ref_exprs,
             ),
+            context=context,
         )
 
 

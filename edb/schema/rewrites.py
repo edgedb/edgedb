@@ -271,6 +271,7 @@ class RewriteCommand(
                     detached=True,
                 ),
                 find_extra_refs=find_extra_refs,
+                context=context,
             )
         else:
             return super().compile_expr_field(

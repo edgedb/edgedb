@@ -177,3 +177,33 @@ class TestSession(tb.QueryTestCase):
             )
         finally:
             await tx.rollback()
+
+    async def test_session_warnings_01(self):
+        # N.B: The testbase warning system always raises
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "Test warning please ignore"
+        ):
+            await self.con.query('''
+                select _warn_on_call()
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "Test warning please ignore"
+        ):
+            await self.con.execute('''
+                create function asdf() -> int64 using (_warn_on_call())
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "Test warning please ignore"
+        ):
+            await self.con.execute('''
+                start migration to {
+                module default {
+                    function asdf() -> int64 using (_warn_on_call())
+                }
+                }
+            ''')

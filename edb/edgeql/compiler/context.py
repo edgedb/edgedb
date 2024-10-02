@@ -51,6 +51,8 @@ from edb.common import compiler
 from edb.common import ordered
 from edb.common import parsing
 
+from edb import errors
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
@@ -278,6 +280,9 @@ class Environment:
     dml_rewrites: Dict[irast.Set, irast.Rewrites]
     """Compiled rewrites that should be attached to InsertStmt or UpdateStmt"""
 
+    warnings: list[errors.EdgeDBError]
+    """List of warnings to emit"""
+
     def __init__(
         self,
         *,
@@ -325,6 +330,7 @@ class Environment:
         self.expr_view_cache = {}
         self.path_scope_map = {}
         self.dml_rewrites = {}
+        self.warnings = []
 
     def add_schema_ref(
         self, sobj: s_obj.Object, expr: Optional[qlast.Base]
@@ -792,6 +798,9 @@ class ContextLevel(compiler.ContextLevel):
         # since we clear cached rewrites when compiling them in the
         # *pgsql* compiler.
         return bool(self.suppress_rewrites)
+
+    def log_warning(self, warning: errors.EdgeDBError) -> None:
+        self.env.warnings.append(warning)
 
 
 class CompilerContext(compiler.CompilerContext[ContextLevel]):

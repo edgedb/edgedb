@@ -243,6 +243,7 @@ class TriggerCommand(
                         trigger_type=source,
                         trigger_kinds=kinds,
                     ),
+                    context=context,
                 )
             except errors.QueryError as e:
                 if not e.has_span():
