@@ -42,7 +42,7 @@ from edgedb import enums as edgedb_enums
 from edgedb import options
 from edgedb.protocol import protocol  # type: ignore
 
-from edb.protocol import protocol as edb_protocol  # type: ignore
+from edb.protocol import protocol as edb_protocol # type: ignore
 
 
 class TransactionState(enum.Enum):
@@ -289,6 +289,9 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
                 )
             await self.start()
 
+    def _get_state(self) -> options.State:
+        return self._connection._get_state()
+
 
 class Retry:
     def __init__(self, connection, raw=False):
@@ -336,7 +339,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         self._transport = None
         self._query_cache = abstract.QueryCache(
             codecs_registry=protocol.CodecsRegistry(),
-            query_cache=protocol.QueryCodecsCache(),
+            query_cache=protocol.LRUMapping(maxsize=1000),
         )
         self._test_no_tls = test_no_tls
         self._params = None
@@ -378,14 +381,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
     async def _execute(self, script: abstract.ExecuteContext) -> None:
         await self.ensure_connected()
         await self._protocol.execute(
-            query=script.query.query,
-            args=script.query.args,
-            kwargs=script.query.kwargs,
-            reg=script.cache.codecs_registry,
-            qc=script.cache.query_cache,
-            output_format=protocol.OutputFormat.NONE,
-            allow_capabilities=edgedb_enums.Capability.ALL,  # type: ignore
-            state=script.state and script.state.as_dict(),
+            script.lower(allow_capabilities=edgedb_enums.Capability.ALL)
         )
 
     async def ensure_connected(self):
@@ -395,16 +391,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
 
     async def raw_query(self, query_context: abstract.QueryContext):
         return await self._protocol.query(
-            query=query_context.query.query,
-            args=query_context.query.args,
-            kwargs=query_context.query.kwargs,
-            reg=query_context.cache.codecs_registry,
-            qc=query_context.cache.query_cache,
-            output_format=query_context.query_options.output_format,
-            expect_one=query_context.query_options.expect_one,
-            required_one=query_context.query_options.required_one,
-            allow_capabilities=edgedb_enums.Capability.ALL,  # type: ignore
-            state=query_context.state and query_context.state.as_dict(),
+            query_context.lower(allow_capabilities=edgedb_enums.Capability.ALL)
         )
 
     async def _fetchall(
@@ -420,16 +407,18 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
     ):
         await self.ensure_connected()
         return await self._protocol.query(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=self._query_cache.codecs_registry,
-            qc=self._query_cache.query_cache,
-            implicit_limit=__limit__,
-            inline_typeids=__typeids__,
-            inline_typenames=__typenames__,
-            output_format=protocol.OutputFormat.BINARY,
-            allow_capabilities=__allow_capabilities__,
+            protocol.ExecuteContext(
+                query=query,
+                args=args,
+                kwargs=kwargs,
+                reg=self._query_cache.codecs_registry,
+                qc=self._query_cache.query_cache,
+                implicit_limit=__limit__,
+                inline_typeids=__typeids__,
+                inline_typenames=__typenames__,
+                output_format=protocol.OutputFormat.BINARY,
+                allow_capabilities=__allow_capabilities__,
+            )
         )
 
     async def _fetchall_json(
@@ -441,26 +430,30 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
     ):
         await self.ensure_connected()
         return await self._protocol.query(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=self._query_cache.codecs_registry,
-            qc=self._query_cache.query_cache,
-            implicit_limit=__limit__,
-            inline_typenames=False,
-            output_format=protocol.OutputFormat.JSON,
+            protocol.ExecuteContext(
+                query=query,
+                args=args,
+                kwargs=kwargs,
+                reg=self._query_cache.codecs_registry,
+                qc=self._query_cache.query_cache,
+                implicit_limit=__limit__,
+                inline_typenames=False,
+                output_format=protocol.OutputFormat.JSON,
+            )
         )
 
     async def _fetchall_json_elements(self, query: str, *args, **kwargs):
         await self.ensure_connected()
         return await self._protocol.query(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=self._query_cache.codecs_registry,
-            qc=self._query_cache.query_cache,
-            output_format=protocol.OutputFormat.JSON_ELEMENTS,
-            allow_capabilities=edgedb_enums.Capability.EXECUTE,  # type: ignore
+            protocol.ExecuteContext(
+                query=query,
+                args=args,
+                kwargs=kwargs,
+                reg=self._query_cache.codecs_registry,
+                qc=self._query_cache.query_cache,
+                output_format=protocol.OutputFormat.JSON_ELEMENTS,
+                allow_capabilities=edgedb_enums.Capability.EXECUTE,  # type: ignore
+            )
         )
 
     def _clear_codecs_cache(self):
@@ -638,6 +631,7 @@ async def async_connect_test_client(
     user: typing.Optional[str] = None,
     password: typing.Optional[str] = None,
     secret_key: typing.Optional[str] = None,
+    branch: typing.Optional[str] = None,
     database: typing.Optional[str] = None,
     tls_ca: typing.Optional[str] = None,
     tls_ca_file: typing.Optional[str] = None,
@@ -657,6 +651,7 @@ async def async_connect_test_client(
             "user": user,
             "password": password,
             "secret_key": secret_key,
+            "branch": branch,
             "database": database,
             "timeout": timeout,
             "tls_ca": tls_ca,
