@@ -32,7 +32,7 @@ from . import rust_transport
 
 logger = logging.getLogger('edb.server')
 
-INIT_CON_SCRIPT = None
+INIT_CON_SCRIPT: bytes | None = None
 INIT_CON_SCRIPT_DATA = ''
 
 # The '_edgecon_state table' is used to store information about
