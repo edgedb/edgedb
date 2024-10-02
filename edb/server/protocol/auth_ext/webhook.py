@@ -79,6 +79,16 @@ class EmailFactorCreated(Event, HasIdentity, HasEmailFactor):
         default="EmailFactorCreated",
         init=False,
     )
+
+
+@dataclasses.dataclass
+class EmailVerificationRequested(Event, HasIdentity, HasEmailFactor):
+    event_type: typing.Literal["EmailVerificationRequested"] = (
+        dataclasses.field(
+            default="EmailVerificationRequested",
+            init=False,
+        )
+    )
     verification_token: str
 
 
@@ -88,6 +98,24 @@ class EmailVerified(Event, HasIdentity, HasEmailFactor):
         default="EmailVerified",
         init=False,
     )
+
+
+@dataclasses.dataclass
+class PasswordResetRequested(Event, HasIdentity, HasEmailFactor):
+    event_type: typing.Literal["PasswordResetRequested"] = dataclasses.field(
+        default="PasswordResetRequested",
+        init=False,
+    )
+    reset_token: str
+
+
+@dataclasses.dataclass
+class MagicLinkRequested(Event, HasIdentity, HasEmailFactor):
+    event_type: typing.Literal["MagicLinkRequested"] = dataclasses.field(
+        default="MagicLinkRequested",
+        init=False,
+    )
+    magic_link_token: str
 
 
 class DateTimeEncoder(json.JSONEncoder):

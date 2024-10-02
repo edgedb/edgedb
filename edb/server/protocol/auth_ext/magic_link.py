@@ -61,7 +61,7 @@ class Client(local.Client):
             provider_name, f"Provider is not configured"
         )
 
-    async def register(self, email: str) -> data.LocalIdentity:
+    async def register(self, email: str) -> data.EmailFactor:
         try:
             result = await execute.parse_execute_json(
                 self.db,
@@ -76,7 +76,7 @@ with
         email := email,
         identity := identity,
     })
-select identity { * };""",
+select email_factor { ** };""",
                 variables={
                     "email": email,
                 },
@@ -92,28 +92,35 @@ select identity { * };""",
 
         result_json = json.loads(result.decode())
         assert len(result_json) == 1
+        factor_dict = result_json[0]
+        return data.EmailFactor(**factor_dict)
 
-        return data.LocalIdentity(**result_json[0])
-
-    async def send_magic_link(
-        self,
-        email: str,
-        callback_url: str,
-        link_url: str,
-        challenge: str,
-        redirect_on_failure: str,
-    ) -> None:
-        initial_key_material = self._get_signing_key()
-        identity_id = await self.get_identity_id_by_email(
-            email, factor_type='MagicLinkFactor'
+    async def get_email_factor_by_email(self, email: str) -> data.EmailFactor:
+        result = await execute.parse_execute_json(
+            self.db,
+            """\
+with
+    email := <str>$email,
+select ext::auth::MagicLinkFactor {**}
+filter .email = email;
+""",
+            variables={"email": email},
         )
+        result_json = json.loads(result.decode())
+        assert len(result_json) == 1
+        factor_dict = result_json[0]
+        return data.EmailFactor(**factor_dict)
 
-        if identity_id is None:
-            await auth_emails.send_fake_email(self.tenant)
-            return
-
+    def make_magic_link_token(
+        self,
+        *,
+        identity_id: str,
+        callback_url: str,
+        challenge: str,
+    ) -> str:
+        initial_key_material = self._get_signing_key()
         signing_key = util.derive_key(initial_key_material, "magic_link")
-        token = util.make_token(
+        return util.make_token(
             signing_key=signing_key,
             issuer=self.issuer,
             subject=identity_id,
@@ -125,6 +132,14 @@ select identity { * };""",
             expires_in=self.provider.token_time_to_live.to_timedelta(),
         )
 
+    async def send_magic_link(
+        self,
+        *,
+        email: str,
+        link_url: str,
+        token: str,
+        redirect_on_failure: str,
+    ) -> None:
         link = util.join_url_params(
             link_url,
             {
@@ -132,7 +147,6 @@ select identity { * };""",
                 "redirect_on_failure": redirect_on_failure,
             },
         )
-
         try:
             await auth_emails.send_magic_link_email(
                 db=self.db,
