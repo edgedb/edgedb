@@ -599,6 +599,8 @@ class SQLParamGlobal(SQLParam):
 
     global_name: s_name.QualName
 
+    pg_type: Tuple[str, ...]
+
 
 @dataclasses.dataclass
 class ParsedDatabase:

@@ -28,6 +28,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from collections import deque
 
 cimport cython
@@ -1646,8 +1647,7 @@ cdef WriteBuffer remap_arguments(
                 if values == None:
                     buf.write_int32(-1) # NULL
                 else:
-                    val = str(values[0]).encode('UTF-8')
-                    buf.write_len_prefixed_bytes(val)
+                    write_arg(buf, param.pg_type, values)
     else:
         buf.write_int16(0)
 
@@ -1661,6 +1661,38 @@ cdef WriteBuffer remap_arguments(
 
     buf.write_bytes(data[offset:])
     return buf
+
+
+cdef write_arg(
+    buf: WriteBuffer, pg_type: tuple, values: dbstate.SQLSetting
+):
+    if pg_type == ('text',) and isinstance(values[0], str):
+        val = str(values[0]).encode('UTF-8')
+        buf.write_len_prefixed_bytes(val)
+    if pg_type == ('uuid',) and isinstance(values[0], str):
+        try:
+            id = uuid.UUID(values[0])
+            buf.write_len_prefixed_bytes(id.bytes)
+        except ValueError:
+            buf.write_int32(-1) # NULL
+    elif pg_type == ('int8',) and isinstance(values[0], int):
+        buf.write_int32(8)
+        buf.write_int64(values[0])
+    elif pg_type == ('int4',) and isinstance(values[0], int):
+        buf.write_int32(4)
+        buf.write_int32(values[0])
+    elif pg_type == ('int2',) and isinstance(values[0], int):
+        buf.write_int32(2)
+        buf.write_int16(values[0])
+    elif pg_type == ('bool',) and isinstance(values[0], int):
+        buf.write_int32(1)
+        buf.write_byte(0 if values[0] == 0 else 1)
+    elif pg_type == ('float8',) and isinstance(values[0], float):
+        buf.write_int32(8)
+        buf.write_double(values[0])
+    elif pg_type == ('float4',) and isinstance(values[0], float):
+        buf.write_int32(4)
+        buf.write_float(values[0])
 
 
 cdef inline int16_t read_int16(data: bytes):

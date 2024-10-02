@@ -31,6 +31,7 @@ from edb.common import ast
 from edb import errors
 from edb.pgsql import ast as pgast
 from edb.pgsql import compiler as pgcompiler
+from edb.pgsql import types as pgtypes
 from edb.pgsql.compiler import enums as pgce
 
 from edb.edgeql import ast as qlast
@@ -1871,8 +1872,14 @@ def merge_params(
         else:
             # append a new param
             internal_index = len(ctx.query_params) + 1
+
+            pg_type = pgtypes.pg_type_from_ir_typeref(
+                glob.ir_type.base_type or glob.ir_type
+            )
             ctx.query_params.append(
-                dbstate.SQLParamGlobal(global_name=glob.global_name)
+                dbstate.SQLParamGlobal(
+                    global_name=glob.global_name, pg_type=pg_type
+                )
             )
 
         # remap if necessary
