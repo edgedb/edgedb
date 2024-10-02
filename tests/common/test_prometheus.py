@@ -24,7 +24,7 @@ try:
     import prometheus_client as pmc_root
     import prometheus_client.registry as pmc_reg
 except ImportError:
-    PMC = None
+    PMC = None  # type: ignore
 else:
     class PMC:  # type: ignore
 
