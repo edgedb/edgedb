@@ -1188,6 +1188,7 @@ def compile_ext_ai_search(
             df = df_expr.ensure_compiled(
                 schema,
                 as_fragment=True,
+                context=None,
             ).as_python_value()
         else:
             df = "Cosine"
@@ -1365,3 +1366,13 @@ def compile_fts_with_options(
             env=ctx.env,
         )
     )
+
+
+@_special_case('std::_warn_on_call')
+def compile_warn_on_call(
+    call: irast.FunctionCall, *, ctx: context.ContextLevel
+) -> irast.Expr:
+    ctx.log_warning(
+        errors.QueryError('Test warning please ignore', span=call.span)
+    )
+    return call

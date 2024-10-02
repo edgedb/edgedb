@@ -1515,7 +1515,10 @@ class PointerCommandOrFragment(
             )
 
             compiled = expr.compiled(
-                schema=schema, options=options, detached=detached
+                schema=schema,
+                options=options,
+                detached=detached,
+                context=context,
             )
 
             if singleton_result_expected and compiled.cardinality.is_multi():
@@ -2230,6 +2233,7 @@ class AlterPointer(
                 singletons=frozenset([source]),
                 apply_query_rewrites=not context.stdmode,
             ),
+            context=context,
         )
 
         target = expression.irast.stype

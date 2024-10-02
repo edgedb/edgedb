@@ -377,6 +377,10 @@ create function std::_set_config(sqlname: std::str, val: std::str) -> std::str {
     $$;
 };
 
+create function std::_warn_on_call() -> std::int64 {
+    using (0)
+};
+
 
 CREATE MODULE std::_test;
 

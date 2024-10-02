@@ -321,6 +321,7 @@ def fini_expression(
         dml_exprs=ctx.env.dml_exprs,
         singletons=ctx.env.singletons,
         triggers=ir_triggers,
+        warnings=tuple(ctx.env.warnings),
     )
     return result
 

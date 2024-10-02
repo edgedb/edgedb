@@ -204,6 +204,7 @@ def update_fts_document(
     index_expr = index_sexpr.ensure_compiled(
         schema=schema,
         options=options,
+        context=None,
     )
     exprs = _compile_ir_index_exprs(index, index_expr.irast.expr, schema)
 
@@ -234,6 +235,7 @@ def _refresh_fts_document(
     index_expr = index_sexpr.ensure_compiled(
         schema=schema,
         options=options,
+        context=context,
     )
 
     exprs = _compile_ir_index_exprs(index, index_expr.irast.expr, schema)

@@ -2972,6 +2972,7 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
                 in_ddl_context_name='type definition',
                 track_schema_ref_exprs=track_schema_ref_exprs,
             ),
+            context=context,
         )
 
     def get_dummy_expr_field_value(

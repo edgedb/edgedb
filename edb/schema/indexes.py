@@ -463,6 +463,7 @@ class Index(
                 options=qlcompiler.CompilerOptions(
                     schema_object_context=s_func.Parameter,
                 ),
+                context=None,
             )
 
         return kwargs
@@ -825,6 +826,7 @@ class IndexCommand(
                     track_schema_ref_exprs=track_schema_ref_exprs,
                     detached=True,
                 ),
+                context=context,
             )
 
             # Check that the inferred cardinality is no more than 1
@@ -896,6 +898,7 @@ class IndexCommand(
                     in_ddl_context_name=idx_name,
                     detached=True,
                 ),
+                context=context,
             )
         else:
             return super().compile_expr_field(
@@ -1123,7 +1126,8 @@ class CreateIndex(
                 )
 
             param_type = param.get_type(schema)
-            comp_expr = s_expr.Expression.compiled(expr, schema=schema)
+            comp_expr = s_expr.Expression.compiled(
+                expr, schema=schema, context=None)
             expr_type = comp_expr.irast.stype
 
             if (
@@ -1312,7 +1316,7 @@ class CreateIndex(
                 schema_object_context=self.get_schema_metaclass(),
             )
             comp_expr = s_expr.Expression.compiled(
-                expr, schema=schema, options=options
+                expr, schema=schema, options=options, context=context
             )
             expr_type = comp_expr.irast.stype
 

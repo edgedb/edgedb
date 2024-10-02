@@ -1078,6 +1078,7 @@ class FunctionCommand(MetaCommand):
             comp = default.compiled(
                 schema=schema,
                 as_fragment=True,
+                context=None,
             )
 
             ir = comp.irast
@@ -3362,6 +3363,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         index_expr = index_sexpr.ensure_compiled(
             schema=schema,
             options=options,
+            context=None,
         )
         ir = index_expr.irast
 
@@ -3370,6 +3372,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             except_expr = except_expr.ensure_compiled(
                 schema=schema,
                 options=options,
+                context=None,
             )
             assert except_expr.irast
             except_res = compiler.compile_ir_to_sql_tree(

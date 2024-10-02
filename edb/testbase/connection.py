@@ -53,6 +53,10 @@ class TransactionState(enum.Enum):
     FAILED = 4
 
 
+def raise_first_warning(warnings, res):
+    raise warnings[0]
+
+
 class BaseTransaction(abc.ABC):
 
     ID_COUNTER = 0
@@ -292,6 +296,9 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
     def _get_state(self) -> options.State:
         return self._connection._get_state()
 
+    def _get_warning_handler(self) -> options.WarningHandler:
+        return raise_first_warning
+
 
 class Retry:
     def __init__(self, connection, raw=False):
@@ -355,6 +362,9 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
     def _get_state(self):
         return self._options.state
 
+    def _get_warning_handler(self) -> options.WarningHandler:
+        return raise_first_warning
+
     def _on_log_message(self, msg):
         if self._log_listeners:
             loop = asyncio.get_running_loop()
@@ -380,9 +390,10 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
 
     async def _execute(self, script: abstract.ExecuteContext) -> None:
         await self.ensure_connected()
-        await self._protocol.execute(
-            script.lower(allow_capabilities=edgedb_enums.Capability.ALL)
-        )
+        ctx = script.lower(allow_capabilities=edgedb_enums.Capability.ALL)
+        res = await self._protocol.execute(ctx)
+        if ctx.warnings:
+            script.warning_handler(ctx.warnings, res)
 
     async def ensure_connected(self):
         if self.is_closed():
@@ -390,9 +401,19 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         return self
 
     async def raw_query(self, query_context: abstract.QueryContext):
-        return await self._protocol.query(
-            query_context.lower(allow_capabilities=edgedb_enums.Capability.ALL)
-        )
+        ctx = query_context.lower(
+            allow_capabilities=edgedb_enums.Capability.ALL)
+        res = await self._protocol.query(ctx)
+        if ctx.warnings:
+            res = query_context.warning_handler(ctx.warnings, res)
+        return res
+
+    async def _fetchall_generic(self, ctx):
+        await self.ensure_connected()
+        res = await self._protocol.query(ctx)
+        if ctx.warnings:
+            res = self._get_warning_handler()(ctx.warnings, res)
+        return res
 
     async def _fetchall(
         self,
@@ -405,8 +426,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             edgedb_enums.Capability.ALL),
         **kwargs,
     ):
-        await self.ensure_connected()
-        return await self._protocol.query(
+        return await self._fetchall_generic(
             protocol.ExecuteContext(
                 query=query,
                 args=args,
@@ -428,8 +448,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         __limit__: int = 0,
         **kwargs,
     ):
-        await self.ensure_connected()
-        return await self._protocol.query(
+        return await self._fetchall_generic(
             protocol.ExecuteContext(
                 query=query,
                 args=args,
@@ -443,8 +462,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         )
 
     async def _fetchall_json_elements(self, query: str, *args, **kwargs):
-        await self.ensure_connected()
-        return await self._protocol.query(
+        return await self._fetchall_generic(
             protocol.ExecuteContext(
                 query=query,
                 args=args,

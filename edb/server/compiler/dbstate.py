@@ -90,6 +90,9 @@ class BaseQuery:
     cache_func_call: Optional[Tuple[bytes, bytes]] = dataclasses.field(
         kw_only=True, default=None
     )
+    warnings: tuple[errors.EdgeDBError, ...] = dataclasses.field(
+        kw_only=True, default=()
+    )
 
     @property
     def is_transactional(self) -> bool:
@@ -309,6 +312,8 @@ class QueryUnit:
     in_type_args_real_count: int = 0
     globals: Optional[list[tuple[str, bool]]] = None
 
+    warnings: tuple[errors.EdgeDBError, ...] = ()
+
     # Set only when this unit contains a CONFIGURE INSTANCE command.
     system_config: bool = False
     # Set only when this unit contains a CONFIGURE DATABASE command.
@@ -408,6 +413,8 @@ class QueryUnitGroup:
     in_type_args_real_count: int = 0
     globals: Optional[list[tuple[str, bool]]] = None
 
+    warnings: Optional[list[errors.EdgeDBError]] = None
+
     # Cacheable QueryUnit is serialized in the compiler, so that the I/O server
     # doesn't need to serialize it again for persistence.
     _units: List[QueryUnit | bytes] = dataclasses.field(default_factory=list)
@@ -467,6 +474,10 @@ class QueryUnitGroup:
             if self.globals is None:
                 self.globals = []
             self.globals.extend(query_unit.globals)
+        if query_unit.warnings is not None:
+            if self.warnings is None:
+                self.warnings = []
+            self.warnings.extend(query_unit.warnings)
 
         if not serialize or query_unit.cache_sql is None:
             self._units.append(query_unit)

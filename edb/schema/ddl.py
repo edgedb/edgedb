@@ -468,7 +468,7 @@ def apply_sdl(
     stdmode: bool = False,
     testmode: bool = False,
     allow_dml_in_functions: bool=False,
-) -> s_schema.Schema:
+) -> tuple[s_schema.Schema, list[errors.EdgeDBError]]:
     # group declarations by module
     documents: Dict[str, List[qlast.DDL]] = defaultdict(list)
     # initialize the "default" module
@@ -520,6 +520,7 @@ def apply_sdl(
         collect(decl, None)
 
     target_schema = base_schema
+    warnings = []
 
     def process(ddl_stmt: qlast.DDLCommand) -> None:
         nonlocal target_schema
@@ -532,6 +533,7 @@ def apply_sdl(
             delta.add(cmd)
             target_schema = delta.apply(target_schema, context)
             context.schema = target_schema
+        warnings.extend(delta.warnings)
 
     # Process all the extensions first, since sdl_to_ddl needs to be
     # able to see their contents.  While we do so, also collect any
@@ -591,7 +593,7 @@ def apply_sdl(
     for ddl_stmt in itertools.chain(futures.values(), ddl_stmts):
         process(ddl_stmt)
 
-    return target_schema
+    return target_schema, warnings
 
 
 def apply_ddl_script(

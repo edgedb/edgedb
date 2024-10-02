@@ -227,7 +227,7 @@ class GlobalCommand(
         default_expr = scls.get_default(schema)
 
         if default_expr is not None:
-            default_expr = default_expr.ensure_compiled(schema)
+            default_expr = default_expr.ensure_compiled(schema, context=context)
 
             default_schema = default_expr.irast.schema
             default_type = default_expr.irast.stype
@@ -301,6 +301,7 @@ class GlobalCommand(
                     track_schema_ref_exprs=track_schema_ref_exprs,
                     in_ddl_context_name=in_ddl_context_name,
                 ),
+                context=context,
             )
         else:
             return super().compile_expr_field(
@@ -456,7 +457,7 @@ class AlterGlobal(
             ):
                 self.set_attribute_value(
                     'expr',
-                    s_expr.Expression.not_compiled(old_expr)
+                    s_expr.Expression.not_compiled(old_expr),
                 )
 
             # Produce an error when setting a type on something with

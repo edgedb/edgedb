@@ -159,7 +159,7 @@ def resolve_column_kind(
                 singletons=singletons,
                 make_globals_empty=False,
             )
-            compiled = expr.compiled(ctx.schema, options=options)
+            compiled = expr.compiled(ctx.schema, options=options, context=None)
 
             sql_tree = pgcompiler.compile_ir_to_sql_tree(
                 compiled.irast,

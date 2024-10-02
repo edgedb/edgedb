@@ -635,7 +635,17 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'T')
-        msg.write_int16(0)  # no headers
+
+        if query.query_unit_group.warnings:
+            warnings = json.dumps(
+                [w.to_json() for w in query.query_unit_group.warnings]
+            ).encode('utf-8')
+            msg.write_int16(1)
+            msg.write_len_prefixed_bytes(b'warnings')
+            msg.write_len_prefixed_bytes(warnings)
+        else:
+            msg.write_int16(0)  # no headers
+
         msg.write_int64(<int64_t><uint64_t>query.query_unit_group.capabilities)
         msg.write_byte(self.render_cardinality(query.query_unit_group))
 
@@ -901,7 +911,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 "types inferred from specified command(s)"
             )
 
-        if query_unit_group.out_type_id != out_tid:
+        if (
+            query_unit_group.out_type_id != out_tid
+            or query_unit_group.warnings
+        ):
             # The client has no up-to-date information about the output,
             # so provide one.
             self.write(self.make_command_data_description_msg(compiled))

@@ -9445,7 +9445,7 @@ class BaseDescribeTest(tb.BaseSchemaLoadTest):
         elif explicit_modules:
             sdl_schema = qlparser.parse_sdl(schema_text)
             schema = tb._load_std_schema()
-            schema = s_ddl.apply_sdl(
+            schema, _ = s_ddl.apply_sdl(
                 sdl_schema,
                 base_schema=schema,
                 current_schema=schema,
@@ -11121,7 +11121,7 @@ class TestSDLTextFromSchema(BaseDescribeTest):
         elif explicit_modules:
             sdl_schema = qlparser.parse_sdl(schema_text)
             schema = tb._load_std_schema()
-            schema = s_ddl.apply_sdl(
+            schema, _ = s_ddl.apply_sdl(
                 sdl_schema,
                 base_schema=schema,
                 current_schema=schema,
