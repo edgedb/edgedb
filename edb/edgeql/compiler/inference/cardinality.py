@@ -716,7 +716,7 @@ def __infer_func_call(
     for glob_arg in (ir.global_args or ()):
         infer_cardinality(glob_arg, scope_tree=scope_tree, ctx=ctx)
 
-    cards = []
+    cards: list[qltypes.Cardinality] = []
     for arg in ir.args.values():
         card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
         cards.append(card)
@@ -776,14 +776,18 @@ def __infer_func_call(
                 span=ir.span,
             )
 
-    if ir.volatility == MODIFYING and any(
-        card.is_multi()
-        for card in cards
-    ):
-        raise errors.QueryError(
-            'possibly more than one element passed into modifying function',
-            span=ir.span,
-        )
+    if ir.volatility == MODIFYING:
+        if any(card.is_multi() for card in cards):
+            raise errors.QueryError(
+                'possibly more than one element passed into modifying function',
+                span=ir.span,
+            )
+
+        if any(card.can_be_zero() for card in cards):
+            raise errors.QueryError(
+                'possibly an empty set passed into modifying function',
+                span=ir.span,
+            )
 
     return call_card
 
