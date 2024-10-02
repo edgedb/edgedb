@@ -13069,3 +13069,812 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 {'a': [], 'b': 6},
             ],
         )
+
+    async def test_edgeql_functions_inline_delete_basic_01(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function foo(x: int64) -> set of Bar {
+                set is_inlined := true;
+                using ((delete Bar filter .a <= x));
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(1).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(2).a',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+
+    async def test_edgeql_functions_inline_delete_basic_02(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function foo(x: int64) -> set of int64 {
+                set is_inlined := true;
+                using ((delete Bar filter .a <= x).a);
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+            ''')
+
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0)',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(2)',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(3)',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [],
+        )
+
+    async def test_edgeql_functions_inline_delete_basic_03(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function foo(named only m: int64) -> set of int64 {
+                set is_inlined := true;
+                using ((delete Bar filter .a <= m).a);
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(m := 0)',
+            [],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(m := 1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(m := 2)',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(m := 3)',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [],
+        )
+
+    async def test_edgeql_functions_inline_delete_basic_04(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function foo(x: optional int64) -> set of int64 {
+                set is_inlined := true;
+                using ((delete Bar filter .a <= x ?? 9).a);
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [],
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0)',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(2)',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(3)',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [],
+        )
+
+    async def test_edgeql_functions_inline_delete_basic_05(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function foo(
+                variadic x: int64,
+            ) -> set of int64 {
+                set is_inlined := true;
+                using (
+                    (
+                        delete Bar
+                        filter .a <= sum(array_unpack(x))
+                    ).a
+                );
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0)',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0, 1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0, 1, 2)',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [],
+        )
+
+    async def test_edgeql_functions_inline_delete_iterator_01(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function foo(x: int64) -> set of int64 {
+                set is_inlined := true;
+                using ((delete Bar filter .a <= x).a);
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0)',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(2)',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(3)',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [],
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'for x in {0, 1} union (select foo(x))',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(x))',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [],
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'select if true then foo(2) else 99',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select if false then foo(2) else 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select if true then 99 else foo(2)',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select if false then 99 else foo(2)',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0) ?? 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(2) ?? 99',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select 99 ?? foo(2)',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_delete_iterator_02(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function foo(x: int64) -> set of int64 {
+                set is_inlined := true;
+                using (
+                    for z in {0, 1} union (
+                        (delete Bar filter .a <= x).a
+                    )
+                );
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0)',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(2)',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(3)',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [],
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'for x in {0, 1} union (select foo(x))',
+            [1],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(x))',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [],
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'select if true then foo(2) else 99',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select if false then foo(2) else 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select if true then 99 else foo(2)',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select if false then 99 else foo(2)',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0) ?? 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(2) ?? 99',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select 99 ?? foo(2)',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_delete_iterator_03(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function foo(
+                x: int64, y: bool
+            ) -> set of int64 {
+                set is_inlined := true;
+                using (
+                    if y
+                    then (delete Bar filter .a <= x).a
+                    else <int64>{}
+                );
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(2, false)',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(3, false)',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(2, true)',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(3, true)',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [],
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'for x in {0, 1} union (select foo(x, false))',
+            [],
+        )
+        await self.assert_query_result(
+            'for x in {2, 3} union (select foo(x, false))',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'for x in {0, 1} union (select foo(x, true))',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'for x in {2, 3} union (select foo(x, true))',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [],
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'select if true then foo(2, false) else 99',
+            [],
+        )
+        await self.assert_query_result(
+            'select if false then foo(2, false) else 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select if true then 99 else foo(2, false)',
+            [99],
+        )
+        await self.assert_query_result(
+            'select if false then 99 else foo(2, false)',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select if true then foo(2, true) else 99',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select if false then foo(2, true) else 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select if true then 99 else foo(2, true)',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select if false then 99 else foo(2, true)',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+            sort=True,
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0, false) ?? 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select foo(2, false) ?? 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select 99 ?? foo(2, false)',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0, true) ?? 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(2, true) ?? 99',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select 99 ?? foo(2, true)',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
