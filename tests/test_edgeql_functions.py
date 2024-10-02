@@ -11990,7 +11990,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 insert Bar{a := 3};
             ''')
 
-
         await reset_data()
         await self.assert_query_result(
             'select foo(0, 0)',
@@ -13128,7 +13127,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 insert Bar{a := 2};
                 insert Bar{a := 3};
             ''')
-
 
         await reset_data()
         await self.assert_query_result(
