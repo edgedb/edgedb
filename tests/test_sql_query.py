@@ -49,38 +49,39 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             );
         };
 
-        create global glob_str: str;
-        create global glob_uuid: uuid;
-        create global glob_int64: int64;
-        create global glob_int32: int32;
-        create global glob_int16: int16;
-        create global glob_bool: bool;
-        create global glob_float64: float64;
-        create global glob_float32: float32;
-        create type G {
+        create module glob_mod;
+        create global glob_mod::glob_str: str;
+        create global glob_mod::glob_uuid: uuid;
+        create global glob_mod::glob_int64: int64;
+        create global glob_mod::glob_int32: int32;
+        create global glob_mod::glob_int16: int16;
+        create global glob_mod::glob_bool: bool;
+        create global glob_mod::glob_float64: float64;
+        create global glob_mod::glob_float32: float32;
+        create type glob_mod::G {
             create property p_str: str {
-                set default := global glob_str
+                set default := global glob_mod::glob_str
             };
             create property p_uuid: uuid {
-                set default := global glob_uuid
+                set default := global glob_mod::glob_uuid
             };
             create property p_int64: int64 {
-                set default := global glob_int64
+                set default := global glob_mod::glob_int64
             };
             create property p_int32: int32 {
-                set default := global glob_int32
+                set default := global glob_mod::glob_int32
             };
             create property p_int16: int16 {
-                set default := global glob_int16
+                set default := global glob_mod::glob_int16
             };
             create property p_bool: bool {
-                set default := global glob_bool
+                set default := global glob_mod::glob_bool
             };
             create property p_float64: float64 {
-                set default := global glob_float64
+                set default := global glob_mod::glob_float64
             };
             create property p_float32: float32 {
-                set default := global glob_float32
+                set default := global glob_mod::glob_float32
             };
         };
         ''',
@@ -1630,22 +1631,22 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         await self.scon.execute(
             f"""
-            SET LOCAL "global default::glob_str" TO hello;
-            SET LOCAL "global default::glob_uuid" TO
+            SET LOCAL "global glob_mod::glob_str" TO hello;
+            SET LOCAL "global glob_mod::glob_uuid" TO
                 'f527c032-ad4c-461e-95e2-67c4e2b42ca7';
-            SET LOCAL "global default::glob_int64" TO 42;
-            SET LOCAL "global default::glob_int32" TO 42;
-            SET LOCAL "global default::glob_int16" TO 42;
-            SET LOCAL "global default::glob_bool" TO 1;
-            SET LOCAL "global default::glob_float64" TO 42.1;
-            SET LOCAL "global default::glob_float32" TO 42.1;
+            SET LOCAL "global glob_mod::glob_int64" TO 42;
+            SET LOCAL "global glob_mod::glob_int32" TO 42;
+            SET LOCAL "global glob_mod::glob_int16" TO 42;
+            SET LOCAL "global glob_mod::glob_bool" TO 1;
+            SET LOCAL "global glob_mod::glob_float64" TO 42.1;
+            SET LOCAL "global glob_mod::glob_float32" TO 42.1;
             """
         )
-        await self.scon.execute('INSERT INTO "G" DEFAULT VALUES')
+        await self.scon.execute('INSERT INTO glob_mod."G" DEFAULT VALUES')
 
         res = await self.squery_values(
             '''
-            SELECT 
+            SELECT
                 p_str,
                 p_uuid,
                 p_int64,
@@ -1654,7 +1655,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 p_bool,
                 p_float64,
                 p_float32
-            FROM "G"
+            FROM glob_mod."G"
             '''
         )
         self.assertEqual(
