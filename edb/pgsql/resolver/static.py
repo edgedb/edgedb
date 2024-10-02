@@ -179,9 +179,13 @@ def eval_FuncCall(
         )
 
     if fn_name == "set_config":
-        # HACK: allow set_config('search_path', '', false) to support pg_dump
-        # HACK: allow set_config('bytea_output','hex',false) to support pgadmin
-        # HACK: allow set_config('jit', ...) to support asyncpg
+        # HACK: pg_dump
+        #       - set_config('search_path', '', false)
+        #       - set_config(name, 'view, foreign-table', false)
+        # HACK: pgadmin
+        #       - set_config('bytea_output','hex',false)
+        # HACK: asyncpg
+        #       - set_config('jit', ...)
         if args := eval_list(expr.args, ctx=ctx):
             name, value, is_local = args
             if isinstance(name, pgast.StringConstant):
@@ -204,6 +208,18 @@ def eval_FuncCall(
                         return value
 
                 if name.val == "jit":
+                    return value
+
+        elif args := eval_list(expr.args[1:], ctx=ctx):
+            value, is_local = args
+            if (
+                isinstance(value, pgast.StringConstant)
+                and isinstance(is_local, pgast.BooleanConstant)
+            ):
+                if (
+                    value.val == "view, foreign-table"
+                    and not is_local.val
+                ):
                     return value
 
         raise errors.QueryError(
