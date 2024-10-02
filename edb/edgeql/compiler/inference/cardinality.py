@@ -187,6 +187,7 @@ def _union_cardinality(
 
 
 VOLATILE = qltypes.Volatility.Volatile
+MODIFYING = qltypes.Volatility.Modifying
 
 
 def _check_op_volatility(
@@ -715,10 +716,12 @@ def __infer_func_call(
     for glob_arg in (ir.global_args or ()):
         infer_cardinality(glob_arg, scope_tree=scope_tree, ctx=ctx)
 
-    cards = []
+    cards: list[qltypes.Cardinality] = []
+    arg_typemods: list[qltypes.TypeModifier] = []
     for arg in ir.args.values():
         card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
         cards.append(card)
+        arg_typemods.append(arg.param_typemod)
         if ctx.make_updates:
             arg.cardinality = card
 
@@ -772,6 +775,26 @@ def __infer_func_call(
                 'inline function body expression possibly returns more '
                 'than one element, while the function is not declared as '
                 'returning SET OF',
+                span=ir.span,
+            )
+
+    if ir.volatility == MODIFYING:
+        if any(card.is_multi() for card in cards):
+            raise errors.QueryError(
+                'possibly more than one element passed into modifying function',
+                span=ir.span,
+            )
+
+        if any(
+            (
+                card.can_be_zero()
+                and typemod == qltypes.TypeModifier.SingletonType
+            )
+            for card, typemod in zip(cards, arg_typemods)
+        ):
+            raise errors.QueryError(
+                'possibly an empty set passed as non-optional argument '
+                'into modifying function',
                 span=ir.span,
             )
 

@@ -10662,3 +10662,85 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [2, 3, 4],
             sort=True,
         )
+
+    async def test_edgeql_functions_inline_modifying_cardinality_01(self):
+        await self.con.execute('''
+            create function foo(x: int64) -> int64 {
+                set volatility := schema::Volatility.Modifying;
+                using (x)
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+
+    async def test_edgeql_functions_inline_modifying_cardinality_02(self):
+        await self.con.execute('''
+            create function foo(x: int64) -> int64 {
+                set volatility := schema::Volatility.Modifying;
+                using (x)
+            };
+        ''')
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            'possibly an empty set passed as non-optional argument '
+            'into modifying function'
+        ):
+            await self.con.execute('''
+                select foo(<int64>{})
+            ''')
+
+    async def test_edgeql_functions_inline_modifying_cardinality_03(self):
+        await self.con.execute('''
+            create function foo(x: int64) -> int64 {
+                set volatility := schema::Volatility.Modifying;
+                using (x)
+            };
+        ''')
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            'possibly more than one element passed into modifying function'
+        ):
+            await self.con.execute('''
+                select foo({1, 2, 3})
+            ''')
+
+    async def test_edgeql_functions_inline_modifying_cardinality_04(self):
+        await self.con.execute('''
+            create function foo(x: optional int64) -> optional int64 {
+                set volatility := schema::Volatility.Modifying;
+                using (x)
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+
+    async def test_edgeql_functions_inline_modifying_cardinality_05(self):
+        await self.con.execute('''
+            create function foo(x: optional int64) -> optional int64 {
+                set volatility := schema::Volatility.Modifying;
+                using (x)
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+
+    async def test_edgeql_functions_inline_modifying_cardinality_06(self):
+        await self.con.execute('''
+            create function foo(x: optional int64) -> optional int64 {
+                set volatility := schema::Volatility.Modifying;
+                using (x)
+            };
+        ''')
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            'possibly more than one element passed into modifying function'
+        ):
+            await self.con.execute('''
+                select foo({1, 2, 3})
+            ''')
