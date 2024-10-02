@@ -19,7 +19,7 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import List, Optional, Dict, Tuple, Iterable, Mapping, Set, cast
+from typing import List, Optional, Dict, Tuple, Iterable, Mapping, Set
 import dataclasses
 import functools
 
