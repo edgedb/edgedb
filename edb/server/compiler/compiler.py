@@ -1623,7 +1623,7 @@ def _compile_ql_query(
 
     # Embed the EdgeQL text in the SQL.
     if source:
-        sql_debug_obj = dict(query=source.text())
+        sql_debug_obj: Dict[str, Any] = dict(query=source.text())
         if ctx.cache_key is not None:
             sql_debug_obj['queryId'] = ctx.cache_key.int >> 64
             sql_debug_obj['cacheKey'] = str(ctx.cache_key)
