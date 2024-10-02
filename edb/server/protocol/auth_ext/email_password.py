@@ -42,7 +42,7 @@ class Client(local.Client):
         super().__init__(db)
         self.config = self._get_provider_config("builtin::local_emailpassword")
 
-    async def register(self, input: dict[str, Any]) -> data.LocalIdentity:
+    async def register(self, input: dict[str, Any]) -> data.EmailFactor:
         match (input.get("email"), input.get("password")):
             case (str(e), str(p)):
                 email = e
@@ -63,13 +63,20 @@ class Client(local.Client):
         issuer := "local",
         subject := "",
       }),
-      password := (insert ext::auth::EmailPasswordFactor {
+      factor := (insert ext::auth::EmailPasswordFactor {
         password_hash := password_hash,
         email := email,
         identity := identity,
       }),
 
-    select identity { * };""",
+    select factor {
+        id,
+        email,
+        verified_at,
+        created_at,
+        modified_at,
+        identity: { * },
+    };""",
                 variables={
                     "email": email,
                     "password_hash": ph.hash(password),
@@ -85,8 +92,7 @@ class Client(local.Client):
 
         result_json = json.loads(r.decode())
         assert len(result_json) == 1
-
-        return data.LocalIdentity(**result_json[0])
+        return data.EmailFactor(**result_json[0])
 
     async def authenticate(self, input: dict[str, Any]) -> data.LocalIdentity:
         if 'email' not in input or 'password' not in input:
@@ -144,7 +150,8 @@ set { password_hash := new_hash };""",
         return local_identity
 
     async def get_identity_and_secret(
-        self, input: dict[str, Any],
+        self,
+        input: dict[str, Any],
     ) -> tuple[data.LocalIdentity, str]:
         if 'email' not in input:
             raise errors.InvalidData("Missing 'email' in data")
@@ -178,7 +185,9 @@ select ext::auth::EmailPasswordFactor {
         return (local_identity, secret)
 
     async def validate_reset_secret(
-        self, identity_id: str, secret: str,
+        self,
+        identity_id: str,
+        secret: str,
     ) -> Optional[data.LocalIdentity]:
         r = await execute.parse_execute_json(
             db=self.db,

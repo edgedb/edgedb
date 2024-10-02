@@ -61,7 +61,7 @@ if TYPE_CHECKING:
     from edb.server.protocol import protocol
 
 
-logger = logging.getLogger('edb.server')
+logger = logging.getLogger('edb.server.ext.auth')
 
 
 class Router:
@@ -72,7 +72,7 @@ class Router:
         *,
         db: edbtenant.dbview.Database,
         base_path: str,
-        tenant: edbtenant.Tenant
+        tenant: edbtenant.Tenant,
     ):
         self.db = db
         self.base_path = base_path
@@ -486,7 +486,34 @@ class Router:
         pkce_code: Optional[str] = None
 
         try:
-            identity = await email_password_client.register(data)
+            email_factor = await email_password_client.register(data)
+            identity = email_factor.identity
+
+            verify_url = data.get("verify_url", f"{self.base_path}/ui/verify")
+            verification_token = self._make_verification_token(
+                identity_id=identity.id,
+                verify_url=verify_url,
+                maybe_challenge=maybe_challenge,
+                maybe_redirect_to=maybe_redirect_to,
+            )
+
+            await self._maybe_send_webhook(
+                webhook.IdentityCreated(
+                    event_id=str(uuid.uuid4()),
+                    timestamp=datetime.datetime.now(datetime.timezone.utc),
+                    identity_id=identity.id,
+                )
+            )
+            await self._maybe_send_webhook(
+                webhook.EmailFactorCreated(
+                    event_id=str(uuid.uuid4()),
+                    timestamp=datetime.datetime.now(datetime.timezone.utc),
+                    identity_id=identity.id,
+                    email_factor_id=email_factor.id,
+                    verification_token=verification_token,
+                )
+            )
+
             if not require_verification:
                 if maybe_challenge is None:
                     raise errors.InvalidData(
@@ -499,13 +526,9 @@ class Router:
 
             await self._send_verification_email(
                 provider=register_provider_name,
-                identity_id=identity.id,
+                verification_token=verification_token,
                 to_addr=data["email"],
-                verify_url=data.get(
-                    "verify_url", f"{self.base_path}/ui/verify"
-                ),
-                maybe_challenge=maybe_challenge,
-                maybe_redirect_to=maybe_redirect_to,
+                verify_url=verify_url,
             )
 
             now_iso8601 = datetime.datetime.now(
@@ -743,13 +766,17 @@ class Router:
         if identity_id is None or email is None:
             await auth_emails.send_fake_email(self.tenant)
         else:
-            await self._send_verification_email(
-                provider=data["provider"],
+            verification_token = self._make_verification_token(
                 identity_id=identity_id,
-                to_addr=email,
                 verify_url=verify_url,
                 maybe_challenge=maybe_challenge,
                 maybe_redirect_to=maybe_redirect_to,
+            )
+            await self._send_verification_email(
+                provider=data["provider"],
+                verification_token=verification_token,
+                to_addr=email,
+                verify_url=verify_url,
             )
 
         response.status = http.HTTPStatus.OK
@@ -1212,13 +1239,18 @@ class Router:
                 self.db, identity.id, pkce_challenge
             )
 
-        await self._send_verification_email(
-            provider=provider_name,
+        verification_token = self._make_verification_token(
             identity_id=identity.id,
-            to_addr=data["email"],
             verify_url=verify_url,
             maybe_challenge=pkce_challenge,
             maybe_redirect_to=None,
+        )
+
+        await self._send_verification_email(
+            provider=provider_name,
+            verification_token=verification_token,
+            to_addr=data["email"],
+            verify_url=verify_url,
         )
 
         _set_cookie(
@@ -1501,7 +1533,8 @@ class Router:
                     is_valid = (
                         await email_password_client.validate_reset_secret(
                             identity_id, secret
-                        ) is not None
+                        )
+                        is not None
                     )
                 except Exception:
                     is_valid = False
@@ -1677,13 +1710,19 @@ class Router:
                     "Could not find email for provided identity"
                 )
 
-            await self._send_verification_email(
-                provider=password_provider.name,
+            verify_url = f"{self.base_path}/ui/verify"
+            verification_token = self._make_verification_token(
                 identity_id=identity_id,
-                to_addr=email,
-                verify_url=f"{self.base_path}/ui/verify",
+                verify_url=verify_url,
                 maybe_challenge=maybe_challenge,
                 maybe_redirect_to=maybe_redirect_to,
+            )
+
+            await self._send_verification_email(
+                provider=password_provider.name,
+                verification_token=verification_token,
+                to_addr=email,
+                verify_url=verify_url,
             )
         except Exception:
             is_valid = False
@@ -1861,8 +1900,7 @@ class Router:
             signing_key = util.derive_key(input_key_material, key_info)
         verified = jwt.JWT(key=signing_key, jwt=jwtStr)
         return cast(
-            dict[str, str | int | float | bool],
-            json.loads(verified.claims)
+            dict[str, str | int | float | bool], json.loads(verified.claims)
         )
 
     def _get_data_from_magic_link_token(
@@ -1958,7 +1996,8 @@ class Router:
         return return_value
 
     def _get_data_from_request(
-        self, request: protocol.HttpRequest,
+        self,
+        request: protocol.HttpRequest,
     ) -> dict[Any, Any]:
         content_type = request.content_type
         match content_type:
@@ -2031,24 +2070,20 @@ class Router:
         else:
             return None
 
-    async def _send_verification_email(
+    def _make_verification_token(
         self,
-        *,
-        verify_url: str,
-        provider: str,
         identity_id: str,
-        to_addr: str,
+        verify_url: str,
         maybe_challenge: str | None,
         maybe_redirect_to: str | None,
-    ) -> None:
+    ) -> str:
         if not self._is_url_allowed(verify_url):
             raise errors.InvalidData(
                 "Verify URL does not match any allowed URLs.",
             )
 
-        # Generate verification token
         issued_at = datetime.datetime.now(datetime.timezone.utc).timestamp()
-        verification_token = self._make_secret_token(
+        return self._make_secret_token(
             identity_id=identity_id,
             secret=str(uuid.uuid4()),
             derive_for_info="verify",
@@ -2060,6 +2095,15 @@ class Router:
             },
             expires_in=datetime.timedelta(seconds=0),
         )
+
+    async def _send_verification_email(
+        self,
+        *,
+        verification_token: str,
+        verify_url: str,
+        provider: str,
+        to_addr: str,
+    ) -> None:
         await auth_emails.send_verification_email(
             db=self.db,
             tenant=self.tenant,
@@ -2218,9 +2262,9 @@ def _set_cookie(
     same_site: str = "Strict",
     path: Optional[str] = None,
 ) -> None:
-    val: http.cookies.Morsel[str] = (
-        http.cookies.SimpleCookie({name: value})[name]
-    )
+    val: http.cookies.Morsel[str] = http.cookies.SimpleCookie({name: value})[
+        name
+    ]
     val["httponly"] = http_only
     val["secure"] = secure
     val["samesite"] = same_site

@@ -2440,181 +2440,275 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(len(identity), 1)
 
     async def test_http_auth_ext_local_password_register_form_01(self):
-        with self.http_con() as http_con:
-            provider_config = await self.get_builtin_provider_config_by_name(
-                "local_emailpassword"
-            )
-            provider_name = provider_config.name
-            email = f"{uuid.uuid4()}@example.com"
+        base_url = self.mock_net_server.get_base_url().rstrip("/")
+        url = f"{base_url}/webhook-01"
+        await self.con.query(
+            f"""
+            CONFIGURE CURRENT DATABASE
+            INSERT ext::auth::WebhookConfig {{
+                url := <str>$url,
+                events := {{
+                    ext::auth::WebhookEvent.IdentityCreated,
+                    ext::auth::WebhookEvent.EmailFactorCreated,
+                }},
+            }};
+            """,
+            url=url,
+        )
+        webhook_request = (
+            "POST",
+            base_url,
+            "/webhook-01",
+        )
+        try:
+            with self.http_con() as http_con:
+                self.mock_net_server.register_route_handler(*webhook_request)(
+                    (
+                        "",
+                        204,
+                    )
+                )
+                provider_config = (
+                    await self.get_builtin_provider_config_by_name(
+                        "local_emailpassword"
+                    )
+                )
+                provider_name = provider_config.name
+                email = f"{uuid.uuid4()}@example.com"
 
-            form_data = {
-                "provider": provider_name,
-                "email": email,
-                "password": "test_password",
-                "redirect_to": "https://oauth.example.com/app/path",
-                "challenge": str(uuid.uuid4()),
-            }
-            form_data_encoded = urllib.parse.urlencode(form_data).encode()
+                form_data = {
+                    "provider": provider_name,
+                    "email": email,
+                    "password": "test_password",
+                    "redirect_to": "https://oauth.example.com/app/path",
+                    "challenge": str(uuid.uuid4()),
+                }
+                form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
-            _, headers, status = self.http_con_request(
-                http_con,
-                None,
-                path="register",
-                method="POST",
-                body=form_data_encoded,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
+                _, headers, status = self.http_con_request(
+                    http_con,
+                    None,
+                    path="register",
+                    method="POST",
+                    body=form_data_encoded,
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                )
 
-            identity = await self.con.query(
-                """
-                SELECT ext::auth::LocalIdentity
-                FILTER .<identity[is ext::auth::EmailPasswordFactor]
-                       .email = <str>$email;
-                """,
-                email=email,
-            )
+                identity = await self.con.query(
+                    """
+                    SELECT ext::auth::LocalIdentity
+                    FILTER .<identity[is ext::auth::EmailPasswordFactor]
+                        .email = <str>$email;
+                    """,
+                    email=email,
+                )
 
-            self.assertEqual(len(identity), 1)
+                self.assertEqual(len(identity), 1)
 
-            pkce_challenge = await self.con.query_single(
-                """
-                SELECT ext::auth::PKCEChallenge { * }
-                FILTER .challenge = <str>$challenge
-                AND .identity.id = <uuid>$identity_id;
-                """,
-                challenge=form_data["challenge"],
-                identity_id=identity[0].id,
-            )
+                pkce_challenge = await self.con.query_required_single(
+                    """
+                    SELECT ext::auth::PKCEChallenge { * }
+                    FILTER .challenge = <str>$challenge
+                    AND .identity.id = <uuid>$identity_id;
+                    """,
+                    challenge=form_data["challenge"],
+                    identity_id=identity[0].id,
+                )
 
-            self.assertEqual(status, 302)
-            location = headers.get("location")
-            assert location is not None
-            parsed_location = urllib.parse.urlparse(location)
-            parsed_query = urllib.parse.parse_qs(parsed_location.query)
-            self.assertEqual(parsed_location.scheme, "https")
-            self.assertEqual(parsed_location.netloc, "oauth.example.com")
-            self.assertEqual(parsed_location.path, "/app/path")
-            self.assertEqual(
-                parsed_query,
-                {
-                    "code": [str(pkce_challenge.id)],
-                    "provider": ["builtin::local_emailpassword"],
-                },
-            )
-
-            password_credential = await self.con.query(
-                """
-                SELECT ext::auth::EmailPasswordFactor { password_hash }
-                FILTER .identity.id = <uuid>$identity
-                """,
-                identity=identity[0].id,
-            )
-            self.assertTrue(
-                ph.verify(password_credential[0].password_hash, "test_password")
-            )
-
-            # Try to register the same user again (no redirect_to)
-            _, _, conflict_status = self.http_con_request(
-                http_con,
-                None,
-                path="register",
-                method="POST",
-                body=urllib.parse.urlencode(
+                self.assertEqual(status, 302)
+                location = headers.get("location")
+                assert location is not None
+                parsed_location = urllib.parse.urlparse(location)
+                parsed_query = urllib.parse.parse_qs(parsed_location.query)
+                self.assertEqual(parsed_location.scheme, "https")
+                self.assertEqual(parsed_location.netloc, "oauth.example.com")
+                self.assertEqual(parsed_location.path, "/app/path")
+                self.assertEqual(
+                    parsed_query,
                     {
-                        **{
-                            k: v
-                            for k, v in form_data.items()
-                            if k != 'redirect_to'
+                        "code": [str(pkce_challenge.id)],
+                        "provider": ["builtin::local_emailpassword"],
+                    },
+                )
+
+                password_credential = await self.con.query(
+                    """
+                    SELECT ext::auth::EmailPasswordFactor { password_hash }
+                    FILTER .identity.id = <uuid>$identity
+                    """,
+                    identity=identity[0].id,
+                )
+                self.assertTrue(
+                    ph.verify(
+                        password_credential[0].password_hash, "test_password"
+                    )
+                )
+
+                # Test Webhook side effect
+                async for tr in self.try_until_succeeds(
+                    delay=2, timeout=120, ignore=(QueryAssertionError,)
+                ):
+                    async with tr:
+                        result = await self.con.query(
+                            """
+                            with
+                                net as module std::net,
+                                nh as module std::net::http,
+                                url := <str>$url,
+                                request := (
+                                    select nh::ScheduledRequest
+                                    filter .url = url
+                                    and .state != net::RequestState.Pending
+                                )
+                            select request {*};
+                            """,
+                            url=url,
+                        )
+                        if len(result) != 2:
+                            raise QueryAssertionError(
+                                f"Expected 2 results, got {len(result)}"
+                            )
+
+                requests_for_webhook = self.mock_net_server.requests[
+                    webhook_request
+                ]
+                self.assertEqual(len(requests_for_webhook), 2)
+                event_types = {
+                    "IdentityCreated": False,
+                    "EmailFactorCreated": False,
+                }
+                for request in requests_for_webhook:
+                    event_data = json.loads(request["body"])
+                    event_type = event_data["event_type"]
+                    self.assertIn(event_type, event_types)
+                    self.assertEqual(
+                        event_data["identity_id"], str(identity[0].id)
+                    )
+                    event_types[event_type] = True
+
+                self.assertTrue(all(event_types.values()))
+
+                # Try to register the same user again (no redirect_to)
+                _, _, conflict_status = self.http_con_request(
+                    http_con,
+                    None,
+                    path="register",
+                    method="POST",
+                    body=urllib.parse.urlencode(
+                        {
+                            **{
+                                k: v
+                                for k, v in form_data.items()
+                                if k != 'redirect_to'
+                            },
+                            "challenge": str(uuid.uuid4()),
+                        }
+                    ).encode(),
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                )
+
+                self.assertEqual(conflict_status, 409)
+
+                # Try to register the same user again (no redirect_on_failure)
+                _, redirect_to_headers, redirect_to_status = (
+                    self.http_con_request(
+                        http_con,
+                        None,
+                        path="register",
+                        method="POST",
+                        body=urllib.parse.urlencode(
+                            {
+                                **form_data,
+                                "challenge": str(uuid.uuid4()),
+                            }
+                        ).encode(),
+                        headers={
+                            "Content-Type": "application/x-www-form-urlencoded"
                         },
-                        "challenge": str(uuid.uuid4()),
-                    }
-                ).encode(),
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-
-            self.assertEqual(conflict_status, 409)
-
-            # Try to register the same user again (no redirect_on_failure)
-            _, redirect_to_headers, redirect_to_status = self.http_con_request(
-                http_con,
-                None,
-                path="register",
-                method="POST",
-                body=urllib.parse.urlencode(
-                    {
-                        **form_data,
-                        "challenge": str(uuid.uuid4()),
-                    }
-                ).encode(),
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-
-            self.assertEqual(redirect_to_status, 302)
-            location = redirect_to_headers.get("location")
-            assert location is not None
-            parsed_location = urllib.parse.urlparse(location)
-            parsed_query = urllib.parse.parse_qs(parsed_location.query)
-            self.assertEqual(
-                urllib.parse.urlunparse(
-                    (
-                        parsed_location.scheme,
-                        parsed_location.netloc,
-                        parsed_location.path,
-                        '',
-                        '',
-                        '',
                     )
-                ),
-                form_data["redirect_to"],
-            )
+                )
 
-            self.assertEqual(
-                parsed_query.get("error"),
-                ["This user has already been registered"],
-            )
+                self.assertEqual(redirect_to_status, 302)
+                location = redirect_to_headers.get("location")
+                assert location is not None
+                parsed_location = urllib.parse.urlparse(location)
+                parsed_query = urllib.parse.parse_qs(parsed_location.query)
+                self.assertEqual(
+                    urllib.parse.urlunparse(
+                        (
+                            parsed_location.scheme,
+                            parsed_location.netloc,
+                            parsed_location.path,
+                            '',
+                            '',
+                            '',
+                        )
+                    ),
+                    form_data["redirect_to"],
+                )
 
-            # Try to register the same user again (with redirect_on_failure)
-            redirect_on_failure_url = "https://example.com/app/path/different"
-            (
-                _,
-                redirect_on_failure_headers,
-                redirect_on_failure_status,
-            ) = self.http_con_request(
-                http_con,
-                None,
-                path="register",
-                method="POST",
-                body=urllib.parse.urlencode(
-                    {
-                        **form_data,
-                        "redirect_on_failure": redirect_on_failure_url,
-                        "challenge": str(uuid.uuid4()),
-                    }
-                ).encode(),
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
+                self.assertEqual(
+                    parsed_query.get("error"),
+                    ["This user has already been registered"],
+                )
 
-            self.assertEqual(redirect_on_failure_status, 302)
-            location = redirect_on_failure_headers.get("location")
-            assert location is not None
-            parsed_location = urllib.parse.urlparse(location)
-            parsed_query = urllib.parse.parse_qs(parsed_location.query)
-            self.assertEqual(
-                urllib.parse.urlunparse(
-                    (
-                        parsed_location.scheme,
-                        parsed_location.netloc,
-                        parsed_location.path,
-                        '',
-                        '',
-                        '',
-                    )
-                ),
-                redirect_on_failure_url,
-            )
-            self.assertEqual(
-                parsed_query.get("error"),
-                ["This user has already been registered"],
+                # Try to register the same user again (with redirect_on_failure)
+                redirect_on_failure_url = (
+                    "https://example.com/app/path/different"
+                )
+                (
+                    _,
+                    redirect_on_failure_headers,
+                    redirect_on_failure_status,
+                ) = self.http_con_request(
+                    http_con,
+                    None,
+                    path="register",
+                    method="POST",
+                    body=urllib.parse.urlencode(
+                        {
+                            **form_data,
+                            "redirect_on_failure": redirect_on_failure_url,
+                            "challenge": str(uuid.uuid4()),
+                        }
+                    ).encode(),
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                )
+
+                self.assertEqual(redirect_on_failure_status, 302)
+                location = redirect_on_failure_headers.get("location")
+                assert location is not None
+                parsed_location = urllib.parse.urlparse(location)
+                parsed_query = urllib.parse.parse_qs(parsed_location.query)
+                self.assertEqual(
+                    urllib.parse.urlunparse(
+                        (
+                            parsed_location.scheme,
+                            parsed_location.netloc,
+                            parsed_location.path,
+                            '',
+                            '',
+                            '',
+                        )
+                    ),
+                    redirect_on_failure_url,
+                )
+                self.assertEqual(
+                    parsed_query.get("error"),
+                    ["This user has already been registered"],
+                )
+        finally:
+            await self.con.query(
+                f"""
+                CONFIGURE CURRENT DATABASE
+                RESET ext::auth::WebhookConfig;
+                """
             )
 
     async def test_http_auth_ext_local_password_register_form_02(self):
@@ -2827,26 +2921,27 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     async def test_http_auth_ext_local_password_authenticate_01(self):
         base_url = self.mock_net_server.get_base_url().rstrip("/")
+        url = f"{base_url}/webhook-02"
         await self.con.query(
             f"""
             CONFIGURE CURRENT DATABASE
             INSERT ext::auth::WebhookConfig {{
-                url := '{base_url}/webhook',
+                url := <str>$url,
                 events := {{
                     ext::auth::WebhookEvent.IdentityAuthenticated,
                 }},
             }};
-            """
+            """,
+            url=url,
+        )
+        webhook_request = (
+            "POST",
+            base_url,
+            "/webhook-02",
         )
 
         try:
             with self.http_con() as http_con:
-                webhook_request = (
-                    "POST",
-                    base_url,
-                    "/webhook",
-                )
-
                 self.mock_net_server.register_route_handler(*webhook_request)(
                     (
                         "",
@@ -2906,7 +3001,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     """
                     SELECT ext::auth::LocalIdentity
                     FILTER .<identity[is ext::auth::EmailPasswordFactor]
-                           .email = <str>$email;
+                            .email = <str>$email;
                     """,
                     email=email,
                 )
@@ -2947,7 +3042,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                                 ))
                             select request {*};
                             """,
-                            url=f"{base_url}/webhook",
+                            url=url,
                         )
 
                 requests_for_webhook = self.mock_net_server.requests[
@@ -3112,7 +3207,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
         finally:
             await self.con.query(
-                """
+                f"""
                 CONFIGURE CURRENT DATABASE
                 RESET ext::auth::WebhookConfig;
                 """
