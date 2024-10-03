@@ -326,6 +326,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             params.update(database=self.tenant.get_pg_dbname(
                 self.get_dbview().dbname
             ))
+            params.clear_server_settings()
             self.write_status(b'pgdsn', params.to_dsn().encode())
 
         self.write_status(
