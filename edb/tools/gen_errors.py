@@ -114,7 +114,6 @@ class ErrorsTree:
 
     DEFAULT_BASE_IMPORT = 'from edb.errors.base import *'
     DEFAULT_BASE_CLASS = 'EdgeDBError'
-    DEFAULT_MESSAGE_BASE_CLASS = 'EdgeDBMessage'
     DEFAULT_EXTRA_ALL = 'base.__all__'
 
     def __init__(self):
@@ -305,9 +304,6 @@ def main(
     cmd_line = '#    $ edb gen-errors'
     if base_class != ErrorsTree.DEFAULT_BASE_CLASS:
         cmd_line += f' \\\n#        --base-class "{base_class}"'
-    if message_base_class != ErrorsTree.DEFAULT_MESSAGE_BASE_CLASS:
-        cmd_line += \
-            f' \\\n#        --message-base-class "{message_base_class}"'
     if base_import != ErrorsTree.DEFAULT_BASE_IMPORT:
         cmd_line += f' \\\n#        --import {repr(base_import)}'
     if extra_all != ErrorsTree.DEFAULT_EXTRA_ALL:
@@ -337,9 +333,6 @@ def main(
 @edbcommands.command('gen-errors')
 @click.option(
     '--base-class', type=str, default=ErrorsTree.DEFAULT_BASE_CLASS)
-@click.option(
-    '--message-base-class', type=str,
-    default=ErrorsTree.DEFAULT_MESSAGE_BASE_CLASS)
 @click.option(
     '--import', 'base_import', type=str,
     default=ErrorsTree.DEFAULT_BASE_IMPORT)

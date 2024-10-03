@@ -28,7 +28,7 @@ import contextlib
 
 
 __all__ = (
-    'EdgeDBError', 'EdgeDBMessage', 'ensure_span',
+    'EdgeDBError', 'ensure_span',
 )
 
 
@@ -63,18 +63,6 @@ class EdgeDBErrorMeta(type):
     @classmethod
     def get_error_class_from_name(mcls, name: str) -> Type[EdgeDBError]:
         return mcls._name_map[name]
-
-
-class EdgeDBMessage(Warning):
-
-    _code: Optional[int] = None
-
-    @classmethod
-    def get_code(cls):
-        if cls._code is None:
-            raise RuntimeError(
-                f'EdgeDB message code is not set (type: {cls.__name__})')
-        return cls._code
 
 
 class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):

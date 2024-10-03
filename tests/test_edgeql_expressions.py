@@ -9658,7 +9658,7 @@ aa \
             try:
                 await self.con.query("""SELECT assert(false)""")
             except edgedb.InvalidValueError as e:
-                self.assertEqual(e._code, errors.QueryAssertionError._code)
+                self.assertEqual(e._code, errors.QueryAssertionError.get_code())
                 raise
 
     async def test_edgeql_assert_01(self):

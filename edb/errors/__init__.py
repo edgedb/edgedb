@@ -437,11 +437,3 @@ class BackendError(EdgeDBError):
 
 class UnsupportedBackendFeatureError(BackendError):
     _code = 0x_09_00_01_00
-
-
-class LogMessage(EdgeDBMessage):
-    _code = 0x_F0_00_00_00
-
-
-class WarningMessage(LogMessage):
-    _code = 0x_F0_01_00_00
