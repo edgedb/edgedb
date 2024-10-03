@@ -21,7 +21,9 @@
 
 #include "fmgr.h"
 #include "common/jsonapi.h"
+#include "executor/executor.h"
 #include "mb/pg_wchar.h"
+#include "optimizer/planner.h"
 #include "parser/analyze.h"
 
 PG_MODULE_MAGIC;
@@ -42,12 +44,23 @@ typedef struct EdbStmtInfoSemState {
 } EdbStmtInfoSemState;
 
 static post_parse_analyze_hook_type prev_post_parse_analyze_hook = NULL;
+static planner_hook_type prev_planner_hook = NULL;
+static ExecutorEnd_hook_type prev_ExecutorEnd = NULL;
 
 static void
 edbss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate);
 
-static bool
-edbss_overwrite_stmt_info(ParseState *pstate, Query *query);
+static PlannedStmt *
+edbss_planner(Query *parse,
+              const char *query_string,
+              int cursorOptions,
+              ParamListInfo boundParams);
+
+static void
+edbss_ExecutorEnd(QueryDesc *queryDesc);
+
+static uint64
+edbss_extract_stmt_info(char **query_str);
 
 static JsonParseErrorType
 edbss_json_struct_start(void *semstate);
@@ -65,51 +78,61 @@ void
 _PG_init(void) {
     prev_post_parse_analyze_hook = post_parse_analyze_hook;
     post_parse_analyze_hook = edbss_post_parse_analyze;
+    prev_planner_hook = planner_hook;
+    planner_hook = edbss_planner;
+    prev_ExecutorEnd = ExecutorEnd_hook;
+    ExecutorEnd_hook = edbss_ExecutorEnd;
 }
 
 /*
- * Post-parse-analysis hook: mark query with a queryId
+ * Post-parse-analysis hook: mark query with custom queryId
  */
 static void
 edbss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate) {
-    if (jstate) {
-        // Keep old data
-        const char *orig_sourcetext = pstate->p_sourcetext;
-        int orig_stmt_location = query->stmt_location;
-        int orig_clocations_count = jstate->clocations_count;
+    // Parse EdgeDB query info JSON and overwrite query->queryId
+    char *query_str = (char *) pstate->p_sourcetext;
+    query->queryId = edbss_extract_stmt_info(&query_str);
 
-        // Parse EdgeDB query info JSON and overwrite
-        if (edbss_overwrite_stmt_info(pstate, query)) {
-            query->stmt_location = -1;  // CleanQuerytext will fix this and stmt_len
-            jstate->clocations_count = 0;  // Skip the SQL generate_normalized_query()
-        } else {
-            // Skip all non-EdgeDB queries
-            jstate = NULL;
-        }
+    // But skip pgss_store() as we don't need the early entry
+    if (prev_post_parse_analyze_hook)
+        prev_post_parse_analyze_hook(pstate, query, NULL);
+}
 
-        // This would call pgss_store()
-        if (prev_post_parse_analyze_hook)
-            prev_post_parse_analyze_hook(pstate, query, jstate);
+static PlannedStmt *
+edbss_planner(Query *parse,
+              const char *query_string,
+              int cursorOptions,
+              ParamListInfo boundParams) {
+    char *query_str = (char *) query_string;
+    edbss_extract_stmt_info(&query_str);
+    if (prev_planner_hook)
+        return prev_planner_hook(parse, query_str, cursorOptions,
+                                 boundParams);
+    else
+        return standard_planner(parse, query_str, cursorOptions,
+                                boundParams);
+}
 
-        // Restore values after pgss_store()
-        pstate->p_sourcetext = orig_sourcetext;
-        query->stmt_location = orig_stmt_location;
-        if (jstate)
-            jstate->clocations_count = orig_clocations_count;
-
-    } else if (prev_post_parse_analyze_hook)
-        prev_post_parse_analyze_hook(pstate, query, jstate);
+static void
+edbss_ExecutorEnd(QueryDesc *queryDesc) {
+    const char *orig_sourceText = queryDesc->sourceText;
+    edbss_extract_stmt_info((char **) &queryDesc->sourceText);
+    if (prev_ExecutorEnd)
+        prev_ExecutorEnd(queryDesc);
+    else
+        standard_ExecutorEnd(queryDesc);
+    queryDesc->sourceText = orig_sourceText;
 }
 
 /*
  * Extract EdgeDB statement info and overwrite source text and queryId
  */
-static bool
-edbss_overwrite_stmt_info(ParseState *pstate, Query *query) {
-    if (strncmp(pstate->p_sourcetext, EDB_STMT_MAGIC_PREFIX, strlen(EDB_STMT_MAGIC_PREFIX)) == 0) {
+static uint64
+edbss_extract_stmt_info(char **query_str) {
+    if (strncmp(*query_str, EDB_STMT_MAGIC_PREFIX, strlen(EDB_STMT_MAGIC_PREFIX)) == 0) {
         EdbStmtInfoSemState state;
         JsonSemAction sem;
-        char *info_str = (char *) pstate->p_sourcetext + 3;
+        char *info_str = *query_str + 3;
         JsonLexContext *lex = makeJsonLexContextCstringLen(info_str, (int) (strchr(info_str, '\n') - info_str), PG_UTF8,
                                                            true);
         memset(&state, 0, sizeof(state));
@@ -123,18 +146,16 @@ edbss_overwrite_stmt_info(ParseState *pstate, Query *query) {
         sem.object_field_start = edbss_json_ofield_start;
         sem.scalar = edbss_json_scalar;
 
-        if (pg_parse_json(lex, &sem) == JSON_SUCCESS && state.query!= NULL) {
-            pstate->p_sourcetext = state.query;
-            if (state.queryId != 0) {
-                query->queryId = state.queryId;
+        if (pg_parse_json(lex, &sem) == JSON_SUCCESS && state.query != NULL) {
+            *query_str = state.query;
+            if (state.queryId != UINT64CONST(0)) {
+                return state.queryId;
             }
-            return true;
         }
     }
 
-    // Don't track non-EdgeDB statements
-    query->queryId = UINT64CONST(0);
-    return false;
+    // Don't track non-EdgeDB cacheable statements
+    return UINT64CONST(0);
 }
 
 static JsonParseErrorType
@@ -171,9 +192,6 @@ edbss_json_scalar(void *semstate, char *token, JsonTokenType tokenType) {
     switch (state->state) {
         case EDB_STMT_INFO_PARSE_QUERY:
             if (tokenType == JSON_TOKEN_STRING) {
-                // DEBUG: copy?
-                // state->query = palloc(strlen(token) + 1);
-                // strcpy(state->query, token);
                 state->query = token;
                 state->state = EDB_STMT_INFO_PARSE_NOOP;
                 break;

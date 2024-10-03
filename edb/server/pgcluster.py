@@ -566,6 +566,7 @@ class Cluster(BaseCluster):
                     "edb_stat_statements",
                 ]
             ),
+            "pg_stat_statements.track_planning": "true",
         }
 
         if os.getenv('EDGEDB_DEBUG_PGSERVER'):

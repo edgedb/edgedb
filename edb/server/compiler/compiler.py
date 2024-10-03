@@ -1627,6 +1627,16 @@ def _compile_ql_query(
         if ctx.cache_key is not None:
             sql_debug_obj['queryId'] = ctx.cache_key.int >> 64
             sql_debug_obj['cacheKey'] = str(ctx.cache_key)
+            query_debug_obj = {
+                'type': 'EdgeQL',
+                'id': str(ctx.cache_key),
+            }
+            sql_debug_obj["query"] = (
+                "## "
+                + json.dumps(query_debug_obj)
+                + "\n"
+                + sql_debug_obj["query"]
+            )
         sql_debug_prefix = '-- ' + json.dumps(sql_debug_obj) + '\n'
         sql_text = sql_debug_prefix + sql_text
         if func_call_sql is not None:

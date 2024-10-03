@@ -56,6 +56,7 @@ from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import properties as s_props
+from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
@@ -5758,6 +5759,83 @@ def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
     return views
 
 
+def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
+    QueryStats = schema.get(
+        'sys::QueryStats',
+        type=s_objtypes.ObjectType,
+    )
+    QueryType = schema.get(
+        'sys::QueryType',
+        type=s_scalars.ScalarType,
+    )
+    query_type_domain = common.get_backend_name(schema, QueryType)
+
+    def float64_to_duration_t(val: str) -> str:
+        return f"({val} * interval '1ms')::edgedbt.duration_t"
+
+    query_stats_fields = {
+        'id': "(v.meta->>'id')::uuid",
+        'name': "v.meta->>'id'",
+        'name__internal': "s.queryid::text",
+        'builtin': "false",
+        'internal': "false",
+        'computed_fields': 'ARRAY[]::text[]',
+
+        'branch': "((d.description)->>'id')::uuid",
+        'query': r"substring(s.query, position(E'\n' IN s.query) + 1)",
+        'query_id': "s.queryid",
+        'query_type': f"(v.meta->>'type')::{query_type_domain}",
+
+        'plans': 's.plans',
+        'total_plan_time': float64_to_duration_t('s.total_plan_time'),
+        'min_plan_time': float64_to_duration_t('s.min_plan_time'),
+        'max_plan_time': float64_to_duration_t('s.max_plan_time'),
+        'mean_plan_time': float64_to_duration_t('s.mean_plan_time'),
+        'stddev_plan_time': float64_to_duration_t('s.stddev_plan_time'),
+
+        'calls': 's.calls',
+        'total_exec_time': float64_to_duration_t('s.total_exec_time'),
+        'min_exec_time': float64_to_duration_t('s.min_exec_time'),
+        'max_exec_time': float64_to_duration_t('s.max_exec_time'),
+        'mean_exec_time': float64_to_duration_t('s.mean_exec_time'),
+        'stddev_exec_time': float64_to_duration_t('s.stddev_exec_time'),
+
+        'rows': 's.rows',
+    }
+
+    query_stats_query = fr'''
+        SELECT
+            {format_fields(schema, QueryStats, query_stats_fields)}
+        FROM
+            edgedbext.pg_stat_statements AS s
+            CROSS JOIN LATERAL (
+                SELECT
+                    substring(split_part(s.query, E'\n', 1), 4)::jsonb
+                        AS meta
+            ) AS v
+            INNER JOIN pg_database dat ON s.dbid = dat.oid
+            CROSS JOIN LATERAL (
+                SELECT
+                    edgedb_VER.shobj_metadata(dat.oid, 'pg_database')
+                        AS description
+            ) AS d
+        WHERE
+            left(s.query, 11) IN ('## {{"type":', '-- {{"type":')
+    '''
+
+    objects = {
+        QueryStats: query_stats_query,
+    }
+
+    views: list[dbops.View] = []
+    for obj, query in objects.items():
+        tabview = trampoline.VersionedView(
+            name=tabname(schema, obj), query=query)
+        views.append(tabview)
+
+    return views
+
+
 def _make_json_caster(
     schema: s_schema.Schema,
     stype: s_types.Type,
@@ -7227,6 +7305,9 @@ def get_synthetic_type_views(
 
     for verview in _generate_schema_ver_views(schema):
         commands.add_command(dbops.CreateView(verview, or_replace=True))
+
+    for stats_view in _generate_stats_views(schema):
+        commands.add_command(dbops.CreateView(stats_view, or_replace=True))
 
     return commands
 
