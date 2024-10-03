@@ -831,6 +831,7 @@ PG_CATALOG: Dict[str, List[Tuple[ColumnName, ColumnType]]] = {
         ("attisdropped", "boolean"),
         ("attislocal", "boolean"),
         ("attinhcount", "smallint"),
+        ("attstattarget", "int2"),
         ("attcollation", "oid"),
         ("attacl", None),
         ("attoptions", None),
