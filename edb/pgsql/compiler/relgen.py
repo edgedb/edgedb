@@ -60,6 +60,7 @@ from edb.pgsql import types as pg_types
 from edb.common.typeutils import not_none
 
 from . import astutils
+from . import clauses
 from . import context
 from . import dispatch
 from . import dml
@@ -3453,13 +3454,74 @@ def _compile_inlined_call_args(
 ) -> None:
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
+    assert expr.body is not None
 
-    with ctx.subrel() as arg_ctx:
-        # Compile the call args but don't do anything with the resulting exprs.
-        # Their rvar will be found when compiling the inlined body.
-        _compile_call_args(ir_set, ctx=arg_ctx)
+    if irutils.contains_dml(expr.body):
+        last_iterator = ctx.enclosing_cte_iterator
 
-        arg_rvar = relctx.rvar_for_rel(arg_ctx.rel, ctx=ctx)
+        # Compile args into an iterator CTE
+        with ctx.newrel() as arg_ctx:
+            dml.merge_iterator(last_iterator, arg_ctx.rel, ctx=arg_ctx)
+            clauses.setup_iterator_volatility(last_iterator, ctx=arg_ctx)
+
+            _compile_call_args(ir_set, ctx=arg_ctx)
+
+            # Add iterator identity
+            args_pathid = irast.PathId.new_dummy(ctx.env.aliases.get('args'))
+            with arg_ctx.subrel() as args_pathid_ctx:
+                relctx.create_iterator_identity_for_path(
+                    args_pathid, args_pathid_ctx.rel, ctx=args_pathid_ctx
+                )
+            args_id_rvar = relctx.rvar_for_rel(
+                args_pathid_ctx.rel, lateral=True, ctx=arg_ctx
+            )
+            relctx.include_rvar(
+                arg_ctx.rel, args_id_rvar, path_id=args_pathid, ctx=arg_ctx
+            )
+
+            for ir_arg in expr.args.values():
+                arg_path_id = ir_arg.expr.path_id
+                # Ensure args appear in arg CTE
+                pathctx.get_path_output(
+                    arg_ctx.rel,
+                    arg_path_id,
+                    aspect=pgce.PathAspect.VALUE,
+                    env=arg_ctx.env,
+                )
+                pathctx.put_path_bond(arg_ctx.rel, arg_path_id, iterator=True)
+
+        arg_cte = pgast.CommonTableExpr(
+            name=ctx.env.aliases.get('args'),
+            query=arg_ctx.rel,
+            materialized=False,
+        )
+
+        arg_iterator = pgast.IteratorCTE(
+            path_id=args_pathid,
+            cte=arg_cte,
+            parent=last_iterator,
+            other_paths=tuple(
+                (ir_arg.expr.path_id, pgce.PathAspect.VALUE)
+                for ir_arg in expr.args.values()
+            ),
+            iterator_bond=True,
+        )
+        ctx.toplevel_stmt.append_cte(arg_cte)
+
+        # Merge the new iterator
+        ctx.path_scope = ctx.path_scope.new_child()
+        dml.merge_iterator(arg_iterator, ctx.rel, ctx=ctx)
+        clauses.setup_iterator_volatility(arg_iterator, ctx=ctx)
+
+        ctx.enclosing_cte_iterator = arg_iterator
+
+    else:
+        with ctx.subrel() as arg_ctx:
+            # Compile the call args but don't do anything with the resulting
+            # exprs. Their rvar will be found when compiling the inlined body.
+            _compile_call_args(ir_set, ctx=arg_ctx)
+
+            arg_rvar = relctx.rvar_for_rel(arg_ctx.rel, ctx=ctx)
 
         for ir_arg in expr.args.values():
             arg_path_id = ir_arg.expr.path_id
@@ -3480,16 +3542,6 @@ def _compile_inlined_call_args(
                     arg_path_id,
                     arg_rvar,
                 )
-
-    if expr.inline_arg_path_ids:
-        for param_path_id, arg_path_id in (
-            expr.inline_arg_path_ids.items()
-        ):
-            pathctx.put_path_id_map(
-                arg_ctx.rel,
-                param_path_id,
-                arg_path_id
-            )
 
 
 def process_set_as_func_enumerate(

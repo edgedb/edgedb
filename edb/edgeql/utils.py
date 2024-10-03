@@ -216,26 +216,6 @@ def subject_substitute(
     return ast
 
 
-def contains_dml(ql_expr: qlast.Base) -> bool:
-    """Check whether a expression contains any DML in a subtree."""
-    # If this ends up being a perf problem, we can use a visitor
-    # directly and cache.
-    dml_types = (qlast.InsertQuery, qlast.UpdateQuery, qlast.DeleteQuery)
-    if isinstance(ql_expr, dml_types):
-        return True
-
-    res = ast.find_children(
-        ql_expr, qlast.Base,
-        lambda x: (
-            isinstance(x, dml_types)
-            or (isinstance(x, qlast.IRAnchor) and x.has_dml)
-        ),
-        terminate_early=True,
-    )
-
-    return bool(res)
-
-
 def is_enum(type_name: qlast.TypeName):
     return (
         isinstance(type_name.maintype, (qlast.TypeName, qlast.ObjectRef))
