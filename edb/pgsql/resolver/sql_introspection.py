@@ -823,6 +823,7 @@ PG_CATALOG: Dict[str, List[Tuple[ColumnName, ColumnType]]] = {
         ("atttypmod", "integer"),
         ("attbyval", "boolean"),
         ("attalign", "\"char\""),
+        ("attstorage", "\"char\""),
         ("attnotnull", "boolean"),
         ("atthasdef", "boolean"),
         ("atthasmissing", "boolean"),
