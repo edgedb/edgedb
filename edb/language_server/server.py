@@ -142,7 +142,7 @@ def _get_schema(ls: EdgeDBLanguageServer) -> Optional[s_schema.Schema]:
 
     # apply SDL to std schema
     std_schema = _load_std_schema(ls.state)
-    schema = s_ddl.apply_sdl(
+    schema, _warnings = s_ddl.apply_sdl(
         sdl,
         base_schema=std_schema,
         current_schema=std_schema,

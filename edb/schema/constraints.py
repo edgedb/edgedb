@@ -581,6 +581,7 @@ class ConstraintCommand(
                         apply_query_rewrites=False,
                         track_schema_ref_exprs=track_schema_ref_exprs,
                     ),
+                    context=context,
                 )
 
                 # compile the expression to sql to preempt errors downstream
@@ -613,6 +614,7 @@ class ConstraintCommand(
                     apply_query_rewrites=not context.stdmode,
                     track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
+                context=context,
             )
 
             # compile the expression to sql to preempt errors downstream
@@ -846,6 +848,7 @@ class ConstraintCommand(
                 apply_query_rewrites=False,
                 schema_object_context=self.get_schema_metaclass(),
             ),
+            context=context,
         )
 
         bool_t = schema.get('std::bool', type=s_scalars.ScalarType)
@@ -872,7 +875,7 @@ class ConstraintCommand(
             )
 
             final_subjectexpr = subjectexpr.compiled(
-                schema=schema, options=options
+                schema=schema, options=options, context=context
             )
 
             refs = ir_utils.get_longest_paths(final_expr.irast)
@@ -880,7 +883,7 @@ class ConstraintCommand(
             final_except_expr: s_expr.CompiledExpression | None = None
             if except_expr:
                 final_except_expr = except_expr.compiled(
-                    schema=schema, options=options
+                    schema=schema, options=options, context=context
                 )
                 refs |= ir_utils.get_longest_paths(final_except_expr.irast)
 

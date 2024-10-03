@@ -256,6 +256,7 @@ def _compile_ai_embeddings_source_view_expr(
         except_expr = except_expr.ensure_compiled(
             schema=schema,
             options=options,
+            context=None,
         )
         assert except_expr.irast
         except_res = compiler.compile_ir_to_sql_tree(

@@ -72,6 +72,8 @@ import uuid
 
 from edb.common import ast, compiler, span, markup, enum as s_enum
 
+from edb import errors
+
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as so
@@ -625,7 +627,7 @@ class Command(Base):
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Param:
-    """Query parameter with it's schema type and IR type"""
+    """Query parameter with its schema type and IR type"""
 
     name: str
     """Parameter name"""
@@ -801,6 +803,7 @@ class Statement(Command):
     type_rewrites: typing.Dict[typing.Tuple[uuid.UUID, bool], Set]
     singletons: typing.List[PathId]
     triggers: tuple[tuple[Trigger, ...], ...]
+    warnings: tuple[errors.EdgeDBError, ...]
 
 
 class TypeIntrospection(ImmutableExpr):
@@ -997,7 +1000,7 @@ class Call(ImmutableExpr):
 class FunctionCall(Call):
 
     __ast_mutable_fields__ = frozenset((
-        'extras', 'body', 'inline_arg_path_ids'
+        'extras', 'body'
     ))
 
     # If the bound callable is a "USING SQL" callable, this
@@ -1041,12 +1044,6 @@ class FunctionCall(Call):
 
     # Inline body of the callable.
     body: typing.Optional[Set] = None
-
-    # The inlined body may refer to the parameter's path, such as when accessing
-    # pointers of a parameter. However, the compiled arguments will have a
-    # different path id.
-    # Map the param id to the arg id so that the argument rvar is used.
-    inline_arg_path_ids: typing.Optional[dict[PathId, PathId]] = None
 
 
 class OperatorCall(Call):

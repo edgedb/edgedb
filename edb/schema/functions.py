@@ -431,7 +431,9 @@ class Parameter(
         fullname = self.get_name(schema)
         return self.paramname_from_fullname(fullname)
 
-    def get_ir_default(self, *, schema: s_schema.Schema) -> irast.Statement:
+    def get_ir_default(
+        self, *, schema: s_schema.Schema, context: sd.CommandContext,
+    ) -> irast.Statement:
         from edb.ir import utils as irutils
 
         defexpr = self.get_default(schema)
@@ -439,6 +441,7 @@ class Parameter(
         defexpr = defexpr.compiled(
             as_fragment=True,
             schema=schema,
+            context=context,
         )
         ir = defexpr.irast
         if not irutils.is_const(ir.expr):
@@ -548,6 +551,7 @@ class ParameterCommand(
                     apply_query_rewrites=not context.stable_ids,
                     track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
+                context=context,
             )
         else:
             return super().compile_expr_field(
@@ -1539,6 +1543,7 @@ class FunctionCommand(
                     apply_query_rewrites=not context.stdmode,
                     track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
+                context=context,
             )
         elif field.name == 'nativecode':
             return self.compile_this_function(
@@ -1922,7 +1927,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
             p_type = p.get_type(schema)
 
             try:
-                ir_default = p.get_ir_default(schema=schema)
+                ir_default = p.get_ir_default(schema=schema, context=context)
             except Exception as ex:
                 raise errors.InvalidFunctionDefinitionError(
                     f'cannot create the `{signature}` function: '
@@ -2397,6 +2402,7 @@ def compile_function(
             params=params,
             track_schema_ref_exprs=track_schema_ref_exprs,
         ),
+        context=context,
     )
 
     ir = compiled.irast

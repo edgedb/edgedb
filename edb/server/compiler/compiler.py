@@ -1571,7 +1571,6 @@ def _compile_ql_query(
         script_info=script_info,
         options=options,
     )
-
     result_cardinality = enums.cardinality_from_ir_value(ir.cardinality)
 
     # This low-hanging-fruit is temporary; persistent cache should cover all
@@ -1716,6 +1715,7 @@ def _compile_ql_query(
         cacheable=cacheable,
         has_dml=bool(ir.dml_exprs),
         query_asts=query_asts,
+        warnings=ir.warnings,
     )
 
 
@@ -2428,6 +2428,7 @@ def _try_compile(
             output_format=stmt_ctx.output_format,
             cache_key=ctx.cache_key,
             user_schema_version=schema_version,
+            warnings=comp.warnings,
         )
 
         if not comp.is_transactional:
@@ -2638,6 +2639,10 @@ def _try_compile(
                 len(p.sub_params[0]) if p.sub_params else 1
                 for p in unit.in_type_args
             )
+
+        if unit.warnings:
+            for warning in unit.warnings:
+                warning.__traceback__ = None
 
         rv.append(unit)
 

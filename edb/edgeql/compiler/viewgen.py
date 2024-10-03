@@ -64,7 +64,6 @@ from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
-from edb.edgeql import utils as qlutils
 
 from . import astutils
 from . import context
@@ -482,7 +481,7 @@ def _process_view(
                             'Default expression uses __source__',
                         )
 
-                    if qlutils.contains_dml(default_ast_expr):
+                    if astutils.contains_dml(default_ast_expr, ctx=ctx):
                         raise make_error(
                             compexpr_default_span,
                             'Default expression uses DML',

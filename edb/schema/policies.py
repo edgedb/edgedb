@@ -226,6 +226,7 @@ class AccessPolicyCommand(
                     in_ddl_context_name=in_ddl_context_name,
                     detached=True,
                 ),
+                context=context,
             )
         else:
             return super().compile_expr_field(

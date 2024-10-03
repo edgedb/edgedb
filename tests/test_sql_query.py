@@ -48,6 +48,42 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 fts::with_options(.foo, language := fts::Language.eng)
             );
         };
+
+        create module glob_mod;
+        create global glob_mod::glob_str: str;
+        create global glob_mod::glob_uuid: uuid;
+        create global glob_mod::glob_int64: int64;
+        create global glob_mod::glob_int32: int32;
+        create global glob_mod::glob_int16: int16;
+        create global glob_mod::glob_bool: bool;
+        create global glob_mod::glob_float64: float64;
+        create global glob_mod::glob_float32: float32;
+        create type glob_mod::G {
+            create property p_str: str {
+                set default := global glob_mod::glob_str
+            };
+            create property p_uuid: uuid {
+                set default := global glob_mod::glob_uuid
+            };
+            create property p_int64: int64 {
+                set default := global glob_mod::glob_int64
+            };
+            create property p_int32: int32 {
+                set default := global glob_mod::glob_int32
+            };
+            create property p_int16: int16 {
+                set default := global glob_mod::glob_int16
+            };
+            create property p_bool: bool {
+                set default := global glob_mod::glob_bool
+            };
+            create property p_float64: float64 {
+                set default := global glob_mod::glob_float64
+            };
+            create property p_float32: float32 {
+                set default := global glob_mod::glob_float32
+            };
+        };
         ''',
         os.path.join(
             os.path.dirname(__file__), 'schemas', 'movies_setup.edgeql'
@@ -1564,3 +1600,78 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             SELECT similar_to FROM "Movie"
             """
         )
+
+    async def test_sql_query_computed_10(self):
+        # globals
+
+        tran = self.scon.transaction()
+        await tran.start()
+
+        await self.scon.execute(
+            """
+            SET LOCAL "global default::username_prefix" TO user_;
+            """
+        )
+
+        res = await self.squery_values(
+            """
+            SELECT username FROM "Person"
+            ORDER BY first_name LIMIT 1
+            """
+        )
+        self.assertEqual(res, [["user_robin"]])
+
+        await tran.rollback()
+
+    async def test_sql_query_computed_11(self):
+        # globals
+
+        tran = self.scon.transaction()
+        await tran.start()
+
+        await self.scon.execute(
+            f"""
+            SET LOCAL "global glob_mod::glob_str" TO hello;
+            SET LOCAL "global glob_mod::glob_uuid" TO
+                'f527c032-ad4c-461e-95e2-67c4e2b42ca7';
+            SET LOCAL "global glob_mod::glob_int64" TO 42;
+            SET LOCAL "global glob_mod::glob_int32" TO 42;
+            SET LOCAL "global glob_mod::glob_int16" TO 42;
+            SET LOCAL "global glob_mod::glob_bool" TO 1;
+            SET LOCAL "global glob_mod::glob_float64" TO 42.1;
+            SET LOCAL "global glob_mod::glob_float32" TO 42.1;
+            """
+        )
+        await self.scon.execute('INSERT INTO glob_mod."G" DEFAULT VALUES')
+
+        res = await self.squery_values(
+            '''
+            SELECT
+                p_str,
+                p_uuid,
+                p_int64,
+                p_int32,
+                p_int16,
+                p_bool,
+                p_float64,
+                p_float32
+            FROM glob_mod."G"
+            '''
+        )
+        self.assertEqual(
+            res,
+            [
+                [
+                    'hello',
+                    uuid.UUID('f527c032-ad4c-461e-95e2-67c4e2b42ca7'),
+                    42,
+                    42,
+                    42,
+                    True,
+                    42.1,
+                    42.099998474121094,
+                ]
+            ],
+        )
+
+        await tran.rollback()
