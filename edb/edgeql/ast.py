@@ -580,6 +580,8 @@ class UpdateQuery(Query):
 
     where: typing.Optional[Expr] = None
 
+    sql_mode_link_only: bool = False
+
 
 class DeleteQuery(Query):
     subject: Expr
