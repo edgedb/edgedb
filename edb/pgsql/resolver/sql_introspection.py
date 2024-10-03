@@ -1986,6 +1986,7 @@ PG_CATALOG: Dict[str, List[Tuple[ColumnName, ColumnType]]] = {
         ("stxname", "name"),
         ("stxnamespace", "oid"),
         ("stxowner", "oid"),
+        ("stxstattarget", "smallint"),
         ("stxkeys", None),
         ("stxkind", None),
     ],
