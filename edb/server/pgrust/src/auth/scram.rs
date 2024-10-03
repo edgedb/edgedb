@@ -157,7 +157,6 @@ impl ServerTransaction {
                     &stored_key,
                 );
 
-                eprintln!("{calculated_stored_key:?} {stored_key:?}");
                 if calculated_stored_key.as_slice() != stored_key {
                     return Err(SCRAMError::ProtocolError);
                 }
