@@ -6415,7 +6415,6 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         SELECT attrelid,
             attname,
             atttypid,
-            attstattarget,
             attlen,
             attnum,
             attnum as attnum_internal,
@@ -6434,6 +6433,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             attislocal,
             attinhcount,
             attcollation,
+            attstattarget,
             attacl,
             attoptions,
             attfdwoptions,
@@ -6458,7 +6458,6 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         SELECT pc_oid as attrelid,
             col_name as attname,
             COALESCE(atttypid, 25) as atttypid, -- defaults to TEXT
-            COALESCE(attstattarget, -1) as attstattarget,
             COALESCE(attlen, -1) as attlen,
             (ROW_NUMBER() OVER (
                 PARTITION BY pc_oid
@@ -6481,6 +6480,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             COALESCE(attislocal, TRUE) as attislocal,
             COALESCE(attinhcount, 0) as attinhcount,
             COALESCE(attcollation, 0) as attcollation,
+            COALESCE(attstattarget, -1) as attstattarget,
             attacl,
             attoptions,
             attfdwoptions,
@@ -6581,7 +6581,6 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
           attrelid,
           attname,
           atttypid,
-          attstattarget,
           attlen,
           attnum,
           attndims,
@@ -6599,6 +6598,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
           attislocal,
           attinhcount,
           attcollation,
+          attstattarget,
           attacl,
           attoptions,
           attfdwoptions,
