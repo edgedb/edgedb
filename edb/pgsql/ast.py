@@ -173,6 +173,11 @@ class EdgeQLPathInfo(Base):
     # A subset of paths necessary to perform joining.
     path_bonds: typing.Set[tuple[irast.PathId, bool]] = ast.field(factory=set)
 
+    # Whether to ignore namespaces when looking at path outputs.
+    # TODO: Maybe instead, Relation should have a way of specifying
+    # output by PointerRef instead.
+    strip_output_namespaces: bool = False
+
     # Map of res target names corresponding to paths.
     path_outputs: typing.Dict[
         typing.Tuple[irast.PathId, PathAspect], OutputVar

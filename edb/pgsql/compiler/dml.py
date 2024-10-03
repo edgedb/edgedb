@@ -296,6 +296,10 @@ def gen_dml_cte(
     # need them.
     ctx.path_scope.maps.clear()
 
+    skip_rel = (
+        isinstance(ir_stmt, irast.UpdateStmt) and ir_stmt.sql_mode_link_only
+    )
+
     if range_rvar is not None:
         relctx.pull_path_namespace(
             target=dml_stmt, source=range_rvar, ctx=ctx)
@@ -303,14 +307,15 @@ def gen_dml_cte(
         # Auxiliary relations are always joined via the WHERE
         # clause due to the structure of the UPDATE/DELETE SQL statements.
         assert isinstance(dml_stmt, (pgast.SelectStmt, pgast.DeleteStmt))
-        dml_stmt.where_clause = astutils.new_binop(
-            lexpr=pgast.ColumnRef(name=[
-                relation.alias.aliasname, 'id'
-            ]),
-            op='=',
-            rexpr=pathctx.get_rvar_path_identity_var(
-                range_rvar, target_ir_set.path_id, env=ctx.env)
-        )
+        if not skip_rel:
+            dml_stmt.where_clause = astutils.new_binop(
+                lexpr=pgast.ColumnRef(name=[
+                    relation.alias.aliasname, 'id'
+                ]),
+                op='=',
+                rexpr=pathctx.get_rvar_path_identity_var(
+                    range_rvar, target_ir_set.path_id, env=ctx.env)
+            )
         # Do any read-side filtering
         if pol_expr := ir_stmt.read_policies.get(typeref.id):
             with ctx.newrel() as sctx:
@@ -329,7 +334,8 @@ def gen_dml_cte(
 
         # SELECT has "FROM", while DELETE has "USING".
         if isinstance(dml_stmt, pgast.SelectStmt):
-            dml_stmt.from_clause.append(relation)
+            if not skip_rel:
+                dml_stmt.from_clause.append(relation)
             dml_stmt.from_clause.append(range_rvar)
         elif isinstance(dml_stmt, pgast.DeleteStmt):
             dml_stmt.using_clause.append(range_rvar)

@@ -1141,6 +1141,7 @@ def _get_rel_path_output(
         result = pgast.ColumnRef(name=[name], nullable=True)
     else:
         if ptrref is None or ptr_info is None:
+            breakpoint()
             raise LookupError(
                 f'could not resolve trailing pointer class for {path_id}')
 
@@ -1221,6 +1222,10 @@ def get_path_output(
 
     if isinstance(rel, pgast.Query) and flavor == 'normal':
         path_id = map_path_id(path_id, rel.view_path_id_map)
+
+    # XXX: This is a haaaaack.
+    if rel.strip_output_namespaces:
+        path_id = path_id.strip_namespace(path_id.namespace)
 
     return _get_path_output(rel, path_id=path_id, aspect=aspect,
                             disable_output_fusion=disable_output_fusion,
