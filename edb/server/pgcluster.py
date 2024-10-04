@@ -1170,6 +1170,13 @@ async def get_remote_pg_cluster(
         if roles['rolcreatedb']:
             caps |= pgparams.BackendCapabilities.CREATE_DATABASE
 
+        stats_ver = await conn.sql_fetch_val(b"""
+            SELECT default_version FROM pg_available_extensions
+            WHERE name = 'edb_stat_statements';
+        """)
+        if stats_ver in (b"1.0",):
+            caps |= pgparams.BackendCapabilities.STAT_STATEMENTS
+
         return caps
 
     async def _get_pg_settings(
