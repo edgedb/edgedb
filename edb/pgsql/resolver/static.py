@@ -139,6 +139,88 @@ PRIVILEGE_INQUIRY_FUNCTIONS_ARGS = {
     'pg_has_role': 2,
 }
 
+# Allowed functions from pg_catalog that start with `pg_`.
+# By default, all such functions are forbidden by default.
+# To see the list of forbidden functions, use `edb ls-forbidden-functions`.
+ALLOWED_ADMIN_FUNCTIONS = frozenset(
+    {
+        'pg_is_in_recovery',
+        'pg_is_wal_replay_paused',
+        'pg_get_wal_replay_pause_state',
+        'pg_column_size',
+        'pg_column_compression',
+        'pg_database_size',
+        'pg_indexes_size',
+        'pg_relation_size',
+        'pg_size_bytes',
+        'pg_size_pretty',
+        'pg_table_size',
+        'pg_tablespace_size',
+        'pg_total_relation_size',
+        'pg_relation_filenode',
+        'pg_relation_filepath',
+        'pg_filenode_relation',
+        'pg_char_to_encoding',
+        'pg_column_is_updatable',
+        'pg_conf_load_time',
+        'pg_current_xact_id',
+        'pg_current_xact_id_if_assigned',
+        'pg_describe_object',
+        'pg_encoding_max_length',
+        'pg_encoding_to_char',
+        'pg_get_constraintdef',
+        'pg_get_expr',
+        'pg_get_function_arg_default',
+        'pg_get_function_arguments',
+        'pg_get_function_identity_arguments',
+        'pg_get_function_result',
+        'pg_get_functiondef',
+        'pg_get_indexdef',
+        'pg_get_keywords',
+        'pg_get_multixact_members',
+        'pg_get_object_address',
+        'pg_get_partition_constraintdef',
+        'pg_get_partkeydef',
+        'pg_get_publication_tables',
+        'pg_get_replica_identity_index',
+        'pg_get_replication_slots',
+        'pg_get_ruledef',
+        'pg_get_serial_sequence',
+        'pg_get_shmem_allocations',
+        'pg_get_statisticsobjdef',
+        'pg_get_triggerdef',
+        'pg_get_userbyid',
+        'pg_get_viewdef',
+        'pg_options_to_table',
+        'pg_has_role',
+        'pg_function_is_visible',
+        'pg_opclass_is_visible',
+        'pg_operator_is_visible',
+        'pg_opfamily_is_visible',
+        'pg_statistics_obj_is_visible',
+        'pg_table_is_visible',
+        'pg_ts_config_is_visible',
+        'pg_ts_dict_is_visible',
+        'pg_ts_parser_is_visible',
+        'pg_ts_template_is_visible',
+        'pg_type_is_visible',
+        'pg_index_column_has_property',
+        'pg_index_has_property',
+        'pg_is_in_backup',
+        'pg_is_other_temp_schema',
+        'pg_jit_available',
+        'pg_relation_is_updatable',
+        'pg_sequence_last_value',
+        'pg_sequence_parameters',
+        'pg_timezone_abbrevs',
+        'pg_timezone_names',
+        'pg_typeof',
+        'pg_visible_in_snapshot',
+        'pg_xact_commit_timestamp',
+        'pg_xact_status',
+    }
+)
+
 
 @eval.register
 def eval_FuncCall(
@@ -152,6 +234,13 @@ def eval_FuncCall(
     fn_name = name_in_pg_catalog(expr.name)
     if not fn_name:
         return None
+
+    if fn_name.startswith('pg_') and fn_name not in ALLOWED_ADMIN_FUNCTIONS:
+        raise errors.QueryError(
+            "forbidden function",
+            span=expr.span,
+            pgext_code=pgerror.ERROR_INSUFFICIENT_PRIVILEGE,
+        )
 
     if fn_name == 'current_schemas':
         return eval_current_schemas(expr, ctx=ctx)
