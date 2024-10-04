@@ -1150,6 +1150,19 @@ class TestSQL(tb.SQLQueryTestCase):
                 'foo' FROM "Movie" ORDER BY id'''
             )
 
+    async def test_sql_query_error_13(self):
+        # forbidden functions
+
+        with self.assertRaisesRegex(
+            asyncpg.InsufficientPrivilegeError,
+            'forbidden function',
+            position="8",
+        ):
+            await self.scon.fetch("""SELECT pg_ls_dir('/')""")
+
+        res = await self.squery_values("""SELECT pg_is_in_recovery()""")
+        self.assertEqual(res, [[False]])
+
     @unittest.skip("this test flakes: #5783")
     async def test_sql_query_prepare_01(self):
         await self.scon.execute(

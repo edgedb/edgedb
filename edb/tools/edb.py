@@ -75,4 +75,5 @@ from . import gen_test_dumps  # noqa
 from . import gen_sql_introspection  # noqa
 from . import gen_rust_ast  # noqa
 from . import parser_demo  # noqa
+from . import ls_forbidden_functions  # noqa
 from .profiling import cli as prof_cli  # noqa
