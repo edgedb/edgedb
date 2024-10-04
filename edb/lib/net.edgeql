@@ -71,12 +71,21 @@ ALTER TYPE std::net::http::Response {
 CREATE FUNCTION
 std::net::http::schedule_request(
     url: str,
-    named only body: optional std::bytes,
-    named only method: std::net::http::Method = std::net::http::Method.`GET`,
-    named only headers: optional std::array<std::tuple<name: std::str, value: std::str>>,
-) -> std::int16
+    named only body: optional std::bytes = <std::bytes>{},
+    named only method: optional std::net::http::Method = std::net::http::Method.`GET`,
+    named only headers: optional std::array<std::tuple<name: std::str, value: std::str>> = <std::array<std::tuple<name: std::str, value: std::str>>>{},
+) -> std::net::http::ScheduledRequest
 {
-    USING SQL $$
-        SELECT 42;
-    $$
+    SET is_inlined := true;
+    USING ((
+        INSERT std::net::http::ScheduledRequest {
+            url := url,
+            method := method,
+            headers := headers,
+            body := body,
+
+            created_at := std::datetime_of_statement(),
+            state := std::net::RequestState.Pending,
+        }
+    ));
 };
