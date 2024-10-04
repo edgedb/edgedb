@@ -2791,7 +2791,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_to_local_time_05(self):
         with self.assertRaisesRegex(
             edgedb.InvalidValueError,
-            'cal::local_time field value out of range'
+            'std::cal::local_time field value out of range'
         ):
             async with self.con.transaction():
                 # including time zone
@@ -2803,7 +2803,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_to_local_time_06(self):
         with self.assertRaisesRegex(
             edgedb.InvalidValueError,
-            'cal::local_time field value out of range'
+            'std::cal::local_time field value out of range'
         ):
             async with self.con.transaction():
                 # including time zone
@@ -2815,7 +2815,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_to_local_time_07(self):
         with self.assertRaisesRegex(
             edgedb.InvalidValueError,
-            'cal::local_time field value out of range'
+            'std::cal::local_time field value out of range'
         ):
             async with self.con.transaction():
                 # including time zone
@@ -2827,7 +2827,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_to_local_time_08(self):
         with self.assertRaisesRegex(
             edgedb.InvalidValueError,
-            'cal::local_time field value out of range'
+            'std::cal::local_time field value out of range'
         ):
             async with self.con.transaction():
                 # including time zone
@@ -8170,7 +8170,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         async with self.assertRaisesRegexTx(
             edgedb.errors.InvalidReferenceError,
             "does not exist",
-            _hint="did you mean to cast to 'cal::local_date'?",
+            _hint="did you mean to cast to 'std::cal::local_date'?",
         ):
             await self.con.execute(f"""
                 select cal::local_date(1);

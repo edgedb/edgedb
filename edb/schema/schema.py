@@ -82,7 +82,7 @@ STD_MODULES = (
     sn.UnqualName('std::math'),
     sn.UnqualName('sys'),
     sn.UnqualName('cfg'),
-    sn.UnqualName('cal'),
+    sn.UnqualName('std::cal'),
     sn.UnqualName('std::net'),
     sn.UnqualName('std::net::http'),
     sn.UnqualName('pg'),

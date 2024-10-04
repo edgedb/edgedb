@@ -824,7 +824,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                'invalid input syntax for type cal::local_time'):
+                'invalid input syntax for type std::cal::local_time'):
             await self.con.query_single(
                 "SELECT <cal::local_time>'2018-05-07 20:01:22'")
 
@@ -2431,7 +2431,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                'invalid input syntax for type cal::local_time'):
+                'invalid input syntax for type std::cal::local_time'):
             await self.con.query_single(
                 "SELECT <cal::local_time><json>'2018-05-07 20:01:22'")
 

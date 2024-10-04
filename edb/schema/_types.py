@@ -54,15 +54,15 @@ TYPE_IDS = {
         UUID('00000000-0000-0000-0000-00000000010f'),
     sn.name_from_string('std::bigint'):
         UUID('00000000-0000-0000-0000-000000000110'),
-    sn.name_from_string('cal::local_datetime'):
+    sn.name_from_string('std::cal::local_datetime'):
         UUID('00000000-0000-0000-0000-00000000010b'),
-    sn.name_from_string('cal::local_date'):
+    sn.name_from_string('std::cal::local_date'):
         UUID('00000000-0000-0000-0000-00000000010c'),
-    sn.name_from_string('cal::local_time'):
+    sn.name_from_string('std::cal::local_time'):
         UUID('00000000-0000-0000-0000-00000000010d'),
-    sn.name_from_string('cal::relative_duration'):
+    sn.name_from_string('std::cal::relative_duration'):
         UUID('00000000-0000-0000-0000-000000000111'),
-    sn.name_from_string('cal::date_duration'):
+    sn.name_from_string('std::cal::date_duration'):
         UUID('00000000-0000-0000-0000-000000000112'),
     sn.name_from_string('cfg::memory'):
         UUID('00000000-0000-0000-0000-000000000130'),
