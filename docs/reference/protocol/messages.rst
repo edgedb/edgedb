@@ -182,6 +182,8 @@ Format:
 
 .. eql:struct:: edb.protocol.TransactionState
 
+.. eql:struct:: edb.protocol.Annotation
+
 .. _ref_protocol_msg_restore_ready:
 
 RestoreReady
@@ -196,6 +198,8 @@ Format:
 
 .. eql:struct:: edb.protocol.RestoreReady
 
+.. eql:struct:: edb.protocol.Annotation
+
 .. _ref_protocol_msg_command_complete:
 
 CommandComplete
@@ -206,6 +210,8 @@ Sent by: server.
 Format:
 
 .. eql:struct:: edb.protocol.CommandComplete
+
+.. eql:struct:: edb.protocol.Annotation
 
 
 .. _ref_protocol_msg_dump:
@@ -221,6 +227,8 @@ Format:
 
 .. eql:struct:: edb.protocol.Dump
 
+.. eql:struct:: edb.protocol.Annotation
+
 
 .. _ref_protocol_msg_command_data_description:
 
@@ -234,6 +242,8 @@ Format:
 .. eql:struct:: edb.protocol.CommandDataDescription
 
 .. eql:struct:: edb.protocol.enums.Cardinality
+
+.. eql:struct:: edb.protocol.Annotation
 
 
 The format of the *input_typedesc* and *output_typedesc* fields is described
@@ -325,6 +335,8 @@ Format:
 
 .. eql:struct:: edb.protocol.OutputFormat
 
+.. eql:struct:: edb.protocol.Annotation
+
 Use:
 
 * ``BINARY`` to return data encoded in binary.
@@ -356,6 +368,8 @@ Sent by: client.
 .. eql:struct:: edb.protocol.Parse
 
 .. eql:struct:: edb.protocol.Capability
+
+.. eql:struct:: edb.protocol.Annotation
 
 See RFC1004_ for more information on capability flags.
 
