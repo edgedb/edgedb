@@ -116,7 +116,7 @@ class BackendRuntimeParams(NamedTuple):
 
     @property
     def has_stat_statements(self) -> bool:
-        return bool(
+        return self.has_superuser_access and bool(
             self.instance_params.capabilities
             & BackendCapabilities.STAT_STATEMENTS
         )
