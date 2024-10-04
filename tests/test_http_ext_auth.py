@@ -2460,6 +2460,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             base_url,
             "/webhook-01",
         )
+        await self._wait_for_db_config("ext::auth::AuthConfig::webhooks")
         try:
             with self.http_con() as http_con:
                 self.mock_net_server.register_route_handler(*webhook_request)(
@@ -2707,8 +2708,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             await self.con.query(
                 f"""
                 CONFIGURE CURRENT DATABASE
-                RESET ext::auth::WebhookConfig;
-                """
+                RESET ext::auth::WebhookConfig filter .url = <str>$url;
+                """,
+                url=url,
             )
 
     async def test_http_auth_ext_local_password_register_form_02(self):
@@ -2939,6 +2941,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             base_url,
             "/webhook-02",
         )
+        await self._wait_for_db_config("ext::auth::AuthConfig::webhooks")
 
         try:
             with self.http_con() as http_con:
@@ -3209,8 +3212,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             await self.con.query(
                 f"""
                 CONFIGURE CURRENT DATABASE
-                RESET ext::auth::WebhookConfig;
-                """
+                RESET ext::auth::WebhookConfig filter .url = <str>$url;
+                """,
+                url=url,
             )
 
     async def test_http_auth_ext_resend_verification_email(self):
