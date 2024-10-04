@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import Type, TYPE_CHECKING
 
 import random
 import re
@@ -3082,6 +3082,146 @@ class TestSchema(tb.BaseSchemaLoadTest):
             property x := (introspect C).name;
         }
         """
+
+    def _run_migration_to(self, schema_text: str) -> None:
+        migration_text = f'''
+            START MIGRATION TO {{
+                {schema_text}
+            }};
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        '''
+
+        self.run_ddl(self.schema, migration_text)
+
+    def _check_valid_queries(
+        self,
+        schema_text: str,
+        valid_queries: list[str],
+    ) -> None:
+
+        for query in valid_queries:
+            query_text = f'''
+                module default {{ alias query := ({query}); }}
+            '''
+            self._run_migration_to(schema_text + query_text)
+
+    def _check_invalid_queries(
+        self,
+        schema_text: str,
+        invalid_queries: list[str],
+        error_type: Type,
+        error_message: str,
+    ) -> None:
+        for query in invalid_queries:
+            query_text = f'''
+                module default {{ alias query := ({query}); }}
+            '''
+            with self.assertRaisesRegex(error_type, error_message):
+                self._run_migration_to(schema_text + query_text)
+
+    def test_schema_with_module_01(self):
+        schema_text = f'''
+            module dummy {{}}
+        '''
+        valid_queries = [
+            'SELECT <int64>{} = 1',
+            'SELECT <std::int64>{} = 1',
+            'WITH MODULE dummy SELECT <int64>{} = 1',
+            'WITH MODULE dummy SELECT <std::int64>{} = 1',
+            'WITH MODULE std SELECT <int64>{} = 1',
+            'WITH MODULE std SELECT <std::int64>{} = 1',
+        ]
+        self._check_valid_queries(schema_text, valid_queries)
+
+    def test_schema_with_module_02(self):
+        schema_text = f'''
+            module dummy {{}}
+            module default {{ type int64; }}
+        '''
+        valid_queries = [
+            'SELECT <std::int64>{} = 1',
+            'WITH MODULE dummy SELECT <int64>{} = 1',
+            'WITH MODULE dummy SELECT <std::int64>{} = 1',
+            'WITH MODULE std SELECT <int64>{} = 1',
+            'WITH MODULE std SELECT <std::int64>{} = 1',
+        ]
+        invalid_queries = [
+            'SELECT <int64>{} = 1',
+            'SELECT <default::int64>{} = 1',
+            'WITH MODULE dummy SELECT <default::int64>{} = 1',
+            'WITH MODULE std SELECT <default::int64>{} = 1',
+        ]
+        self._check_valid_queries(schema_text, valid_queries)
+        self._check_invalid_queries(
+            schema_text,
+            invalid_queries,
+            errors.InvalidTypeError,
+            "operator '=' cannot be applied",
+        )
+
+    def test_schema_with_module_03(self):
+        schema_text = f'''
+            module dummy {{}}
+        '''
+        valid_queries = [
+            'select _test::abs(1)',
+            'select std::_test::abs(1)',
+            'with module dummy select _test::abs(1)',
+            'with module dummy select std::_test::abs(1)',
+            'with module _test select abs(1)',
+            'with module _test select _test::abs(1)',
+            'with module _test select std::_test::abs(1)',
+            'with module std select _test::abs(1)',
+            'with module std select std::_test::abs(1)',
+            'with module std::_test select abs(1)',
+            'with module std::_test select _test::abs(1)',
+            'with module std::_test select std::_test::abs(1)',
+        ]
+        invalid_queries = [
+            'select abs(1)',
+            'with module dummy select abs(1)',
+            'with module std select abs(1)',
+        ]
+        self._check_valid_queries(schema_text, valid_queries)
+        self._check_invalid_queries(
+            schema_text,
+            invalid_queries,
+            errors.InvalidReferenceError,
+            "abs' does not exist",
+        )
+
+    def test_schema_with_module_04(self):
+        schema_text = f'''
+            module dummy {{}}
+            module _test {{}}
+        '''
+        valid_queries = [
+            'select std::_test::abs(1)',
+            'with module dummy select std::_test::abs(1)',
+            'with module _test select std::_test::abs(1)',
+            'with module std select std::_test::abs(1)',
+            'with module std::_test select abs(1)',
+            'with module std::_test select std::_test::abs(1)',
+        ]
+        invalid_queries = [
+            'select abs(1)',
+            'select _test::abs(1)',
+            'with module dummy select abs(1)',
+            'with module dummy select _test::abs(1)',
+            'with module _test select abs(1)',
+            'with module _test select _test::abs(1)',
+            'with module std select abs(1)',
+            'with module std select _test::abs(1)',
+            'with module std::_test select _test::abs(1)',
+        ]
+        self._check_valid_queries(schema_text, valid_queries)
+        self._check_invalid_queries(
+            schema_text,
+            invalid_queries,
+            errors.InvalidReferenceError,
+            "abs' does not exist",
+        )
 
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
@@ -11103,6 +11243,149 @@ class TestDescribe(BaseDescribeTest):
             };
             """,
         )
+
+    def test_schema_describe_with_module_01(self):
+        schema_text = f'''
+            module dummy {{}}
+        '''
+        valid_queries = [
+            'SELECT <int64>{} = 1',
+            'SELECT <std::int64>{} = 1',
+            'WITH MODULE dummy SELECT <int64>{} = 1',
+            'WITH MODULE dummy SELECT <std::int64>{} = 1',
+            'WITH MODULE std SELECT <int64>{} = 1',
+            'WITH MODULE std SELECT <std::int64>{} = 1',
+        ]
+        normalized = 'SELECT (<std::int64>{} = 1)'
+        for query in valid_queries:
+            self._assert_describe(
+                schema_text + f'''
+                    module default {{ alias query := ({query}); }}
+                ''',
+
+                'describe module default as sdl',
+
+                f'''
+                    alias default::query := ({normalized});
+                ''',
+                explicit_modules=True,
+            )
+
+    def test_schema_describe_with_module_02a(self):
+        schema_text = f'''
+            module dummy {{}}
+            module default {{ type int64; }}
+        '''
+        valid_queries = [
+            'SELECT <std::int64>{} = 1',
+            'WITH MODULE dummy SELECT <int64>{} = 1',
+            'WITH MODULE dummy SELECT <std::int64>{} = 1',
+            'WITH MODULE std SELECT <int64>{} = 1',
+            'WITH MODULE std SELECT <std::int64>{} = 1',
+        ]
+        normalized = 'SELECT (<std::int64>{} = 1)'
+        for query in valid_queries:
+            self._assert_describe(
+                schema_text + f'''
+                    module default {{ alias query := ({query}); }}
+                ''',
+
+                'describe module default as sdl',
+
+                f'''
+                    alias default::query := ({normalized});
+                    type default::int64;
+                ''',
+                explicit_modules=True,
+            )
+
+    def test_schema_describe_with_module_02b(self):
+        schema_text = f'''
+            module dummy {{}}
+            module default {{ type int64; }}
+        '''
+        valid_queries = [
+            'SELECT <int64>{}',
+            'SELECT <default::int64>{}',
+            'WITH MODULE dummy SELECT <default::int64>{}',
+            'WITH MODULE std SELECT <default::int64>{}',
+        ]
+        normalized = 'SELECT <default::int64>{}'
+        for query in valid_queries:
+            self._assert_describe(
+                schema_text + f'''
+                    module default {{ alias query := ({query}); }}
+                ''',
+
+                'describe module default as sdl',
+
+                f'''
+                    alias default::query := ({normalized});
+                    type default::int64;
+                ''',
+                explicit_modules=True,
+            )
+
+    def test_schema_describe_with_module_03(self):
+        schema_text = f'''
+            module dummy {{}}
+        '''
+        valid_queries = [
+            'select _test::abs(1)',
+            'select std::_test::abs(1)',
+            'with module dummy select _test::abs(1)',
+            'with module dummy select std::_test::abs(1)',
+            'with module _test select abs(1)',
+            'with module _test select _test::abs(1)',
+            'with module _test select std::_test::abs(1)',
+            'with module std select _test::abs(1)',
+            'with module std select std::_test::abs(1)',
+            'with module std::_test select abs(1)',
+            'with module std::_test select _test::abs(1)',
+            'with module std::_test select std::_test::abs(1)',
+        ]
+        normalized = 'SELECT std::_test::abs(1)'
+        for query in valid_queries:
+            self._assert_describe(
+                schema_text + f'''
+                    module default {{ alias query := ({query}); }}
+                ''',
+
+                'describe module default as sdl',
+
+                f'''
+                    alias default::query := ({normalized});
+                ''',
+                explicit_modules=True,
+            )
+
+    def test_schema_describe_with_module_04(self):
+        schema_text = f'''
+            module dummy {{}}
+            module _test {{}}
+        '''
+        valid_queries = [
+            'select std::_test::abs(1)',
+            'with module dummy select std::_test::abs(1)',
+            'with module _test select std::_test::abs(1)',
+            'with module std select std::_test::abs(1)',
+            'with module std::_test select abs(1)',
+            'with module std::_test select std::_test::abs(1)',
+        ]
+        normalized = 'SELECT std::_test::abs(1)'
+        for query in valid_queries:
+            self._assert_describe(
+                schema_text + f'''
+                    module default {{ alias query := ({query}); }}
+                ''',
+
+                'describe module default as sdl',
+
+                f'''
+                    alias default::query := ({normalized});
+                ''',
+                explicit_modules=True,
+            )
 
 
 class TestSDLTextFromSchema(BaseDescribeTest):
