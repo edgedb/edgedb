@@ -1019,6 +1019,7 @@ pub enum CreateObjectKind {
     CreateFunction(CreateFunction),
     CreateOperator(CreateOperator),
     CreateCast(CreateCast),
+    CreateIndexMatch(CreateIndexMatch),
 }
 
 #[derive(Debug, Clone)]
@@ -1096,6 +1097,7 @@ pub enum DropObjectKind {
     DropFunction(DropFunction),
     DropOperator(DropOperator),
     DropCast(DropCast),
+    DropIndexMatch(DropIndexMatch),
 }
 
 #[derive(Debug, Clone)]
@@ -1524,6 +1526,14 @@ pub struct DropConcreteIndex {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
+pub struct CreateIndexMatch {}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "python", derive(IntoPython))]
+pub struct DropIndexMatch {}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateAnnotationValue {
     pub value: Box<Expr>,
 }
@@ -1910,6 +1920,7 @@ pub enum Volatility {
     Immutable,
     Stable,
     Volatile,
+    Modifying,
 }
 
 #[derive(Debug, Clone)]

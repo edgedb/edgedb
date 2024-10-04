@@ -36,7 +36,7 @@ EdgeDB project. It supports two configuration settings across two tables:
 ``[project]`` table
 ===================
 
-- ``schema-directory``- The directory where schema files will be stored.
+- ``schema-dir``- The directory where schema files will be stored.
   Defaults to ``dbschema``.
 
 

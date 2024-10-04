@@ -28,6 +28,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from collections import deque
 
 cimport cython
@@ -43,7 +44,7 @@ from edb.server import defines, metrics
 from edb.server import tenant as edbtenant
 from edb.server.compiler import dbstate
 from edb.server.pgcon import errors as pgerror
-from edb.server.pgcon.pgcon cimport PGAction, PGMessage
+from edb.server.pgcon.pgcon cimport PGAction, PGMessage, setting_to_sql
 from edb.server.protocol cimport frontend
 
 DEFAULT_SETTINGS = dbstate.DEFAULT_SQL_SETTINGS
@@ -70,27 +71,34 @@ def managed_error():
 @cython.final
 cdef class ConnectionView:
     def __init__(self):
-        self._settings = DEFAULT_SETTINGS
-        self._fe_settings = DEFAULT_FE_SETTINGS
         self._in_tx_explicit = False
         self._in_tx_implicit = False
+
+        # Kepp track of backend settings so that we can sync to use different
+        # backend connections (pgcon) within the same frontend connection,
+        # see serialize_state() below and its usages in pgcon.pyx.
+        self._settings = DEFAULT_SETTINGS
         self._in_tx_settings = None
+
+        # Frontend-only settings are defined by the high-level compiler, and
+        # tracked only here, syncing between the compiler process,
+        # see current_fe_settings(), fe_transaction_state() and usages below.
+        self._fe_settings = DEFAULT_FE_SETTINGS
         self._in_tx_fe_settings = None
         self._in_tx_fe_local_settings = None
+
         self._in_tx_portals = {}
         self._in_tx_new_portals = set()
         self._in_tx_savepoints = collections.deque()
         self._tx_error = False
         self._session_state_db_cache = (DEFAULT_SETTINGS, DEFAULT_STATE)
 
-    def current_settings(self):
-        if self.in_tx():
-            return self._in_tx_settings or DEFAULT_SETTINGS
-        else:
-            return self._settings or DEFAULT_SETTINGS
-
     cpdef inline current_fe_settings(self):
         if self.in_tx():
+            # For easier access, _in_tx_fe_local_settings is always a superset
+            # of _in_tx_fe_settings; _in_tx_fe_settings only keeps track of
+            # non-local settings, so that the local settings don't go across
+            # transaction boundaries; this must be consistent with dbstate.py.
             return self._in_tx_fe_local_settings or DEFAULT_FE_SETTINGS
         else:
             return self._fe_settings or DEFAULT_FE_SETTINGS
@@ -117,9 +125,7 @@ cdef class ConnectionView:
         self._in_tx_explicit = chain_explicit
         self._in_tx_settings = self._settings if self.in_tx() else None
         self._in_tx_fe_settings = self._fe_settings if self.in_tx() else None
-        self._in_tx_fe_local_settings = (
-            self._fe_settings if self.in_tx() else None
-        )
+        self._in_tx_fe_local_settings = self._in_tx_fe_settings
         self._in_tx_portals.clear()
         self._in_tx_new_portals.clear()
         self._in_tx_savepoints.clear()
@@ -247,8 +253,8 @@ cdef class ConnectionView:
             else:
                 if self.in_tx():
                     if unit.frontend_only:
-                        if unit.is_local:
-                            settings = self._in_tx_fe_local_settings.mutate()
+                        if not unit.is_local:
+                            settings = self._in_tx_fe_settings.mutate()
                             for k, v in unit.set_vars.items():
                                 if v is None:
                                     if k in DEFAULT_FE_SETTINGS:
@@ -257,8 +263,8 @@ cdef class ConnectionView:
                                         settings.pop(k, None)
                                 else:
                                     settings[k] = v
-                            self._in_tx_fe_local_settings = settings.finish()
-                        settings = self._in_tx_fe_settings.mutate()
+                            self._in_tx_fe_settings = settings.finish()
+                        settings = self._in_tx_fe_local_settings.mutate()
                     else:
                         settings = self._in_tx_settings.mutate()
                 elif not unit.is_local:
@@ -278,7 +284,7 @@ cdef class ConnectionView:
                         settings[k] = v
                 if self.in_tx():
                     if unit.frontend_only:
-                        self._in_tx_fe_settings = settings.finish()
+                        self._in_tx_fe_local_settings = settings.finish()
                     else:
                         self._in_tx_settings = settings.finish()
                 else:
@@ -337,7 +343,9 @@ cdef class ConnectionView:
             if self._session_state_db_cache[0] == self._settings:
                 return self._session_state_db_cache[1]
 
-        rv = json.dumps(dict(self._settings)).encode("utf-8")
+        rv = json.dumps({
+            key: setting_to_sql(val) for key, val in self._settings.items()
+        }).encode("utf-8")
         self._session_state_db_cache = (self._settings, rv)
         return rv
 
@@ -721,7 +729,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if name == "client_encoding":
                     value = client_encoding
                 elif name == "server_version":
-                    value = defines.PGEXT_POSTGRES_VERSION
+                    value = str(defines.PGEXT_POSTGRES_VERSION)
                 elif name == "session_authorization":
                     value = user
                 elif name == "application_name":
@@ -866,11 +874,10 @@ cdef class PgConnection(frontend.FrontendConnection):
             mtype == b'C'  # or Close
         ):
             try:
-                actions = await self.extended_query()
+                actions, exception = await self.extended_query()
             except ExtendedQueryError as ex:
-                self.write_error(ex.args[0])
-                self.flush()
-                self.ignore_till_sync = True
+                actions = ()
+                exception = ex
             else:
                 async with self.with_pgcon() as conn:
                     try:
@@ -881,6 +888,10 @@ cdef class PgConnection(frontend.FrontendConnection):
                         self.write_error(ex)
                         self.flush()
                         self.ignore_till_sync = True
+            if exception:
+                self.write_error(exception.args[0])
+                self.flush()
+                self.ignore_till_sync = True
 
         elif mtype == b'H':  # Flush
             self.buffer.finish_message()
@@ -943,16 +954,31 @@ cdef class PgConnection(frontend.FrontendConnection):
                 )
             parse_unit = parse_action.query_unit
             actions.append(parse_action)
+
+            # 2 bytes: number of format codes (1)
+            # 2 bytes: first format code (1) is binary
+            #          (this implies that all args are binary)
+            # 2 bytes: number of arguments (0)
+            # 2 bytes: number of result format codes (0)
+            #          (this implies that )
+            bind_data = b"\x00\x01\x00\x01\x00\x00\x00\x00"
+            # remap argumnets, which will inject globals
+            bind_data = bytes(
+                remap_arguments(
+                    bind_data, parse_unit.params, dbv.current_fe_settings(),
+                )
+            )
             actions.append(
                 PGMessage(
                     PGAction.BIND,
                     portal_name="",
                     stmt_name=parse_unit.stmt_name,
-                    args=b"\x00\x01\x00\x01\x00\x00\x00\x00",
+                    args=bind_data,
                     query_unit=parse_unit,
                     injected=True,
                 )
             )
+
             actions.append(
                 PGMessage(
                     PGAction.DESCRIBE_STMT_ROWS,
@@ -991,7 +1017,11 @@ cdef class PgConnection(frontend.FrontendConnection):
             PGMessage parse_action
             ConnectionView dbv
 
+        # Extended-query pre-plays on a deeply-cloned temporary dbview so as to
+        # compose the actions list with correct states; the actual changes to
+        # dbview is applied in pgcon.pyx when the actions are actually executed
         dbv = copy.deepcopy(self._dbview)
+
         actions = deque()
         fresh_stmts = set()
         in_implicit = self._dbview._in_tx_implicit
@@ -1061,6 +1091,16 @@ cdef class PgConnection(frontend.FrontendConnection):
                         fresh_stmts,
                         actions,
                     )
+
+                    try:
+                        params = parse_action.query_unit.params
+                        fe_settings = dbv.current_fe_settings()
+                        data = bytes(remap_arguments(data, params, fe_settings))
+                    except Exception as e:
+                        # we return here instead of raising the exception
+                        # because we want to also return the previous actions
+                        return actions, ExtendedQueryError(e)
+
                     actions.append(
                         PGMessage(
                             PGAction.BIND,
@@ -1191,7 +1231,7 @@ cdef class PgConnection(frontend.FrontendConnection):
 
         if self.debug:
             self.debug_print("extended_query", actions)
-        return actions
+        return actions, None
 
     async def _ensure_ps_locality(
         self,
@@ -1530,6 +1570,137 @@ cdef class PgConnection(frontend.FrontendConnection):
                 f"not exist",
             )
         return qu
+
+
+cdef WriteBuffer remap_arguments(
+    data: bytes,
+    params: list[dbstate.SQLParam] | None,
+    fe_settings: dbstate.SQLSettings
+):  
+    cdef:
+        int16_t param_format_count
+        int32_t offset
+        int16_t max_external_used
+        int32_t size
+
+    # The "external" parameters (that are visible to the user)
+    # are not in the same order as "internal" params and don't
+    # include the internal params for globals.
+
+    # So when we send external params to postgres, we remap them
+    # to correct positions and add the globals.
+
+    buf = WriteBuffer.new()
+
+    # remap param format codes
+    param_format_count = read_int16(data[0:2])
+    offset = 2
+    if params:
+        buf.write_int16(len(params))
+        for i, param in enumerate(params):
+            if isinstance(param, dbstate.SQLParamExternal):
+                if param_format_count == 0:
+                    buf.write_int16(0) # text
+                elif param_format_count == 1:
+                    buf.write_bytes(
+                        data[offset:offset+2]
+                    )
+                else:
+                    o = offset + i * 2
+                    buf.write_bytes(data[o:o+2])
+            else:
+                # this is for globals
+                buf.write_int16(1) # binary
+    else:
+        buf.write_int16(0)
+    offset += param_format_count * 2
+
+    # find positions of external args
+    param_count_external = read_int16(data[offset:offset+2])
+    offset += 2
+    param_pos_external = []
+    for p in range(param_count_external):
+        size = read_int32(data[offset:offset+4])
+        if size == -1:  # special case: NULL
+            size = 0
+        size += 4 # for size which is int32
+        param_pos_external.append((offset, size))
+        offset += size
+
+    # write remapped args
+    max_external_used = 0
+    if params:
+        buf.write_int16(len(params))
+        for param in params:
+            if isinstance(param, dbstate.SQLParamExternal):
+                # map external arg to internal
+                o, s = param_pos_external[param.index - 1]
+                buf.write_bytes(data[o:o+s])
+
+                if max_external_used < param.index:
+                    max_external_used = param.index
+            elif isinstance(param, dbstate.SQLParamGlobal):
+                name = param.global_name
+                setting_name = f'global {name.module}::{name.name}'
+                values = fe_settings.get(setting_name, None)
+
+                if values == None:
+                    buf.write_int32(-1) # NULL
+                else:
+                    write_arg(buf, param.pg_type, values)
+    else:
+        buf.write_int16(0)
+
+    if max_external_used != param_count_external:
+        raise pgerror.new(
+            pgerror.ERROR_PROTOCOL_VIOLATION,
+            f'bind message supplies {param_count_external} '
+            f'parameters, but prepared statement "" requires '
+            f'{max_external_used}',
+        )
+
+    buf.write_bytes(data[offset:])
+    return buf
+
+
+cdef write_arg(
+    buf: WriteBuffer, pg_type: tuple, values: dbstate.SQLSetting
+):
+    if pg_type == ('text',) and isinstance(values[0], str):
+        val = str(values[0]).encode('UTF-8')
+        buf.write_len_prefixed_bytes(val)
+    if pg_type == ('uuid',) and isinstance(values[0], str):
+        try:
+            id = uuid.UUID(values[0])
+            buf.write_len_prefixed_bytes(id.bytes)
+        except ValueError:
+            buf.write_int32(-1) # NULL
+    elif pg_type == ('int8',) and isinstance(values[0], int):
+        buf.write_int32(8)
+        buf.write_int64(values[0])
+    elif pg_type == ('int4',) and isinstance(values[0], int):
+        buf.write_int32(4)
+        buf.write_int32(values[0])
+    elif pg_type == ('int2',) and isinstance(values[0], int):
+        buf.write_int32(2)
+        buf.write_int16(values[0])
+    elif pg_type == ('bool',) and isinstance(values[0], int):
+        buf.write_int32(1)
+        buf.write_byte(0 if values[0] == 0 else 1)
+    elif pg_type == ('float8',) and isinstance(values[0], float):
+        buf.write_int32(8)
+        buf.write_double(values[0])
+    elif pg_type == ('float4',) and isinstance(values[0], float):
+        buf.write_int32(4)
+        buf.write_float(values[0])
+
+
+cdef inline int16_t read_int16(data: bytes):
+    return int.from_bytes(data[0:2], "big", signed=True)
+
+
+cdef inline int32_t read_int32(data: bytes):
+    return int.from_bytes(data[0:4], "big", signed=True)
 
 
 def new_pg_connection(server, sslctx, endpoint_security, connection_made_at):

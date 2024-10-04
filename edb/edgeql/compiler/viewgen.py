@@ -64,7 +64,6 @@ from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
-from edb.edgeql import utils as qlutils
 
 from . import astutils
 from . import context
@@ -482,7 +481,7 @@ def _process_view(
                             'Default expression uses __source__',
                         )
 
-                    if qlutils.contains_dml(default_ast_expr):
+                    if astutils.contains_dml(default_ast_expr, ctx=ctx):
                         raise make_error(
                             compexpr_default_span,
                             'Default expression uses DML',
@@ -1945,8 +1944,14 @@ def _normalize_view_ptr_expr(
     if materialized and is_mutation and any(
         x.is_binding == irast.BindingKind.With
         and x.expr
+        # If it is a computed pointer, look just at the definition.
+        # TODO: It is a weird artifact of how our shapes are defined
+        # that if a shape element is defined to be some WITH-bound variable,
+        # that set can is both a is_binding and an irast.Pointer. It seems like
+        # the is_binding part should be nested inside it.
+        and (y := x.expr.expr if isinstance(x.expr, irast.Pointer) else x.expr)
         and inference.infer_volatility(
-            x.expr, ctx.env, exclude_dml=True).is_volatile()
+            y, ctx.env, exclude_dml=True).is_volatile()
 
         for reason in materialized
         if isinstance(reason, irast.MaterializeVisible)

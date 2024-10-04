@@ -68,7 +68,7 @@ from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import pgcluster
 from edb.server import defines as edgedb_defines
-from edb.server import pgconnparams
+from edb.server.pgconnparams import ConnectionParams
 
 from edb.common import assert_data_shape
 from edb.common import devmode
@@ -764,7 +764,7 @@ def _extract_background_errors(metrics: str) -> str | None:
 
 
 async def drop_db(conn, dbname):
-    await conn.execute(f'DROP DATABASE {dbname}')
+    await conn.execute(f'DROP BRANCH {dbname}')
 
 
 class ClusterTestCase(BaseHTTPTestCase):
@@ -1163,7 +1163,10 @@ class ConnectedTestCase(ClusterTestCase):
 
     async def assert_index_use(self, query, *args, index_type):
         def look(obj):
-            if isinstance(obj, dict) and obj.get('plan_type') == "IndexScan":
+            if (
+                isinstance(obj, dict)
+                and "IndexScan" in obj.get('plan_type', '')
+            ):
                 return any(
                     prop['title'] == 'index_name'
                     and index_type in prop['value']
@@ -1184,31 +1187,14 @@ class ConnectedTestCase(ClusterTestCase):
     @classmethod
     def get_backend_sql_dsn(cls, dbname=None):
         settings = cls.con.get_settings()
-        pgaddr = settings.get('pgaddr')
-        if pgaddr is None:
+        pgdsn = settings.get('pgdsn')
+        if pgdsn is None:
             raise unittest.SkipTest('raw SQL test skipped: not in devmode')
-        pgaddr = json.loads(pgaddr)
-
-        # Try to grab a password from the specified DSN, if one is
-        # present, since the pgaddr won't have a real one. (The non
-        # specified DSN test suite setup doesn't have one, so it is
-        # fine.)
-        password = None
-        spec_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
-        if spec_dsn:
-            _, params = pgconnparams.parse_dsn(spec_dsn)
-            password = params.password
-
-        if dbname is None:
-            dbname = pgaddr["database"]
-
-        pgdsn = (
-            f'postgres:///{dbname}?user={pgaddr["user"]}'
-            f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
-        )
-        if password is not None:
-            pgdsn += f'&password={password}'
-        return pgdsn
+        params = ConnectionParams(dsn=pgdsn.decode('utf8'))
+        if dbname:
+            params.update(database=dbname)
+        params.clear_server_settings()
+        return params.to_dsn()
 
     @classmethod
     async def get_backend_sql_connection(cls, dbname=None):
@@ -1842,6 +1828,11 @@ class StablePGDumpTestCase(BaseQueryTestCase):
         conargs = cls.get_connect_args()
         src_dbname = cls.con.dbname
         tgt_dbname = f'restored_{src_dbname}'
+        try:
+            newdsn = cls.get_backend_sql_dsn(dbname=tgt_dbname)
+        except Exception:
+            super().tearDownClass()
+            raise
 
         cls._pg_bin_dir = cls.loop.run_until_complete(
             pgcluster.get_pg_bin_dir())
@@ -1868,7 +1859,6 @@ class StablePGDumpTestCase(BaseQueryTestCase):
                 cls.backend.execute(f'create database {tgt_dbname}')
             )
 
-            newdsn = cls.get_backend_sql_dsn(dbname=tgt_dbname)
             # Populate the new database using the dump
             cmd = [
                 cls._pg_bin_dir / 'psql',
@@ -2231,6 +2221,7 @@ class _EdgeDBServer:
         default_branch: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
         extra_args: Optional[List[str]] = None,
+        net_worker_mode: Optional[str] = None,
     ) -> None:
         self.bind_addrs = bind_addrs
         self.auto_shutdown_after = auto_shutdown_after
@@ -2265,6 +2256,7 @@ class _EdgeDBServer:
         self.default_branch = default_branch
         self.env = env
         self.extra_args = extra_args
+        self.net_worker_mode = net_worker_mode
 
     async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
         while True:
@@ -2340,16 +2332,11 @@ class _EdgeDBServer:
             ])
         elif self.adjacent_to is not None:
             settings = self.adjacent_to.get_settings()
-            pgaddr = settings.get('pgaddr')
-            if pgaddr is None:
-                raise RuntimeError('test requires devmode')
-            pgaddr = json.loads(pgaddr)
-            pgdsn = (
-                f'postgres:///?user={pgaddr["user"]}&port={pgaddr["port"]}'
-                f'&host={pgaddr["host"]}'
-            )
+            pgdsn = settings.get('pgdsn')
+            if pgdsn is None:
+                raise RuntimeError('test requires devmode to access pgdsn')
             cmd += [
-                '--backend-dsn', pgdsn
+                '--backend-dsn', pgdsn.decode('utf-8')
             ]
         elif self.multitenant_config:
             cmd += ['--multitenant-config-file', self.multitenant_config]
@@ -2434,6 +2421,9 @@ class _EdgeDBServer:
 
         if not self.multitenant_config:
             cmd += ['--instance-name=localtest']
+
+        if self.net_worker_mode:
+            cmd += ['--net-worker-mode', self.net_worker_mode]
 
         if self.extra_args:
             cmd.extend(self.extra_args)
@@ -2593,13 +2583,16 @@ def start_edgedb_server(
     env: Optional[Dict[str, str]] = None,
     extra_args: Optional[List[str]] = None,
     default_branch: Optional[str] = None,
+    net_worker_mode: Optional[str] = None,
 ):
-    if not devmode.is_in_dev_mode() and not runstate_dir:
+    if (not devmode.is_in_dev_mode() or adjacent_to) and not runstate_dir:
         if backend_dsn or adjacent_to:
+            import traceback
             # We don't want to implicitly "fix the issue" for the test author
             print('WARNING: starting an EdgeDB server with the default '
                   'runstate_dir; the test is likely to fail or hang. '
                   'Consider specifying the runstate_dir parameter.')
+            print('\n'.join(traceback.format_stack(limit=5)))
 
     if mt_conf := os.environ.get("EDGEDB_SERVER_MULTITENANT_CONFIG_FILE"):
         if multitenant_config is None and max_allowed_connections == 10:
@@ -2660,6 +2653,7 @@ def start_edgedb_server(
         env=env,
         extra_args=extra_args,
         default_branch=default_branch,
+        net_worker_mode=net_worker_mode,
     )
 
 

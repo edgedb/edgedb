@@ -268,7 +268,7 @@ class T_IDENT(Token):
     pass
 
 
-class T_EOF(Token):
+class T_EOI(Token):
     pass
 
 

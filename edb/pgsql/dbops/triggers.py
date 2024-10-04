@@ -20,8 +20,14 @@
 from __future__ import annotations
 
 import textwrap
-from typing import Tuple
+from typing import (
+    Any,
+    Mapping,
+    Optional,
+    TypeAlias,
+)
 
+from ...common import enum as s_enum
 from ..common import qname as qn
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql
@@ -31,8 +37,24 @@ from . import ddl
 from . import tables
 
 
+TriggerName: TypeAlias = str
+
+
+class TriggerTiming(s_enum.StrEnum):
+    Before = 'before'
+    After = 'after'
+
+
+class TriggerGranularity(s_enum.StrEnum):
+    Row = 'row'
+
+
 class TriggerExists(base.Condition):
-    def __init__(self, trigger_name: str, table_name: Tuple[str, ...]):
+    def __init__(
+        self,
+        trigger_name: TriggerName,
+        table_name: tables.TableName
+    ) -> None:
         self.trigger_name = trigger_name
         self.table_name = table_name
 
@@ -58,19 +80,19 @@ class TriggerExists(base.Condition):
 class Trigger(tables.InheritableTableObject):
     def __init__(
         self,
-        name,
+        name: TriggerName,
         *,
-        table_name: Tuple[str, ...],
-        events: Tuple[str, ...],
-        timing='after',
-        granularity='row',
+        table_name: tables.TableName,
+        events: tuple[str, ...],
+        timing: TriggerTiming = TriggerTiming.After,
+        granularity: TriggerGranularity = TriggerGranularity.Row,
         procedure,
         condition=None,
-        is_constraint=False,
-        deferred=False,
-        inherit=False,
-        metadata=None,
-    ):
+        is_constraint: bool = False,
+        deferred: bool = False,
+        inherit: bool = False,
+        metadata: Optional[Mapping[str, Any]] = None,
+    ) -> None:
         super().__init__(inherit=inherit, metadata=metadata)
 
         self.name = name
@@ -83,7 +105,7 @@ class Trigger(tables.InheritableTableObject):
         self.is_constraint = is_constraint
         self.deferred = deferred
 
-        if is_constraint and granularity != 'row':
+        if is_constraint and granularity != TriggerGranularity.Row:
             msg = 'invalid granularity for ' 'constraint trigger: {}'.format(
                 granularity
             )
@@ -92,13 +114,13 @@ class Trigger(tables.InheritableTableObject):
         if deferred and not is_constraint:
             raise ValueError('only constraint triggers can be deferred')
 
-    def get_type(self):
+    def get_type(self) -> str:
         return 'TRIGGER'
 
-    def get_id(self):
+    def get_id(self) -> str:
         return f'{qi(self.name)} ON {qn(*self.table_name)}'
 
-    def get_oid(self):
+    def get_oid(self) -> base.Query:
         qry = textwrap.dedent(
             f'''\
             SELECT
@@ -118,7 +140,7 @@ class Trigger(tables.InheritableTableObject):
 
         return base.Query(text=qry)
 
-    def copy(self):
+    def copy(self) -> Trigger:
         return self.__class__(
             name=self.name,
             table_name=self.table_name,
@@ -129,10 +151,12 @@ class Trigger(tables.InheritableTableObject):
             condition=self.condition,
             is_constraint=self.is_constraint,
             deferred=self.deferred,
-            metadata=self.metadata.copy(),
+            metadata=(
+                self.metadata.copy() if self.metadata is not None else None
+            ),
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<{mod}.{cls} {name} ON {table_name} {timing} {events}>'.format(
             mod=self.__class__.__module__,
             cls=self.__class__.__name__,
@@ -144,7 +168,13 @@ class Trigger(tables.InheritableTableObject):
 
 
 class CreateTrigger(ddl.CreateObject):
-    def __init__(self, object, *, conditional=False, **kwargs):
+    def __init__(
+        self,
+        object: Trigger,
+        *,
+        conditional: bool = False,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(object, **kwargs)
         self.trigger = object
         if conditional:
@@ -183,7 +213,13 @@ class CreateTrigger(ddl.CreateObject):
 
 
 class DropTrigger(ddl.DropObject):
-    def __init__(self, object, *, conditional=False, **kwargs):
+    def __init__(
+        self,
+        object: Trigger,
+        *,
+        conditional: bool = False,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(object, **kwargs)
         self.trigger = object
         self.conditional = conditional
@@ -201,7 +237,13 @@ class DropTrigger(ddl.DropObject):
 
 
 class DisableTrigger(ddl.DDLOperation):
-    def __init__(self, trigger, *, self_only=False, **kwargs):
+    def __init__(
+        self,
+        trigger: Trigger,
+        *,
+        self_only: bool = False,
+        **kwargs: Any,
+    ):
         super().__init__(**kwargs)
         self.trigger = trigger
         self.self_only = self_only
@@ -213,7 +255,7 @@ class DisableTrigger(ddl.DDLOperation):
             f'DISABLE TRIGGER {qi(self.trigger.name)}'
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<{mod}.{cls} {trigger!r}>'.format(
             mod=self.__class__.__module__,
             cls=self.__class__.__name__,
@@ -222,7 +264,11 @@ class DisableTrigger(ddl.DDLOperation):
 
 
 class EnableTrigger(ddl.DDLOperation):
-    def __init__(self, trigger, **kwargs):
+    def __init__(
+        self,
+        trigger: Trigger,
+        **kwargs: Any,
+    ):
         super().__init__(**kwargs)
         self.trigger = trigger
 
@@ -232,7 +278,7 @@ class EnableTrigger(ddl.DDLOperation):
             f'ENABLE TRIGGER {qi(self.trigger.name)}'
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<{mod}.{cls} {trigger!r}>'.format(
             mod=self.__class__.__module__,
             cls=self.__class__.__name__,

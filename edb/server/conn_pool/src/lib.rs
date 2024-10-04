@@ -7,9 +7,9 @@ pub(crate) mod pool;
 pub(crate) mod waitqueue;
 
 mod time {
-    #[cfg(not(test))]
+    #[cfg(not(any(test, feature = "optimizer")))]
     pub use std::time::Instant;
-    #[cfg(test)]
+    #[cfg(any(test, feature = "optimizer"))]
     pub use tokio::time::Instant;
 }
 
@@ -21,7 +21,7 @@ pub use algo::knobs;
 pub use conn::Connector;
 pub use pool::{Pool, PoolConfig, PoolHandle};
 
-#[cfg(test)]
+#[cfg(any(test, feature = "optimizer"))]
 pub mod test;
 
 #[cfg(feature = "python_extension")]

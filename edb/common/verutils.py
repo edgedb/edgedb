@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import Tuple, NamedTuple
+from typing import Any, Tuple, NamedTuple
 
 import enum
 import re
@@ -96,4 +96,14 @@ def parse_version(ver: str) -> Version:
         stage=stage,
         stage_no=stage_no,
         local=tuple(local),
+    )
+
+
+def from_json(data: dict[str, Any]) -> Version:
+    return Version(
+        data['major'],
+        data['minor'],
+        VersionStage[data['stage'].upper()],
+        data['stage_no'],
+        tuple(data['local']),
     )

@@ -27,6 +27,7 @@ from typing import (
     Mapping,
     Sequence,
     Coroutine,
+    Unpack,
     Dict,
     List,
     cast,
@@ -34,6 +35,7 @@ from typing import (
 )
 
 import asyncio
+import copy
 import functools
 import hashlib
 import json
@@ -56,15 +58,13 @@ from edb.common import uuidgen
 
 from edb.server import args as srvargs
 from edb.server import defines
+from edb.server import pgconnparams
 from edb.server.ha import base as ha_base
 from edb.pgsql import common as pgcommon
 from edb.pgsql import params as pgparams
 
-from . import pgconnparams
-
 if TYPE_CHECKING:
     from edb.server import pgcon
-
 
 logger = logging.getLogger('edb.pgcluster')
 pg_dump_logger = logging.getLogger('pg_dump')
@@ -76,6 +76,15 @@ postgres_logger = logging.getLogger('postgres')
 
 get_database_backend_name = pgcommon.get_database_backend_name
 get_role_backend_name = pgcommon.get_role_backend_name
+
+EDGEDB_SERVER_SETTINGS = {
+    'client_encoding': 'utf-8',
+    'search_path': 'edgedb',
+    'timezone': 'UTC',
+    'intervalstyle': 'iso_8601',
+    'jit': 'off',
+    'default_transaction_isolation': 'serializable',
+}
 
 
 class ClusterError(Exception):
@@ -94,9 +103,8 @@ class BaseCluster:
         instance_params: Optional[pgparams.BackendInstanceParams] = None,
     ) -> None:
         self._connection_addr: Optional[Tuple[str, int]] = None
-        self._connection_params: Optional[
-            pgconnparams.ConnectionParameters
-        ] = None
+        self._connection_params: pgconnparams.ConnectionParams = \
+            pgconnparams.ConnectionParams(server_settings=EDGEDB_SERVER_SETTINGS)
         self._pg_config_data: Dict[str, str] = {}
         self._pg_bin_dir: Optional[pathlib.Path] = None
         if instance_params is None:
@@ -129,7 +137,9 @@ class BaseCluster:
             assert (
                 role_name == defines.EDGEDB_SUPERUSER
             ), f"role_name={role_name} is not allowed"
-            return self.get_connection_params().user
+            rv = self.get_connection_params().user
+            assert rv is not None
+            return rv
 
         return get_database_backend_name(
             role_name,
@@ -151,19 +161,29 @@ class BaseCluster:
     def destroy(self) -> None:
         raise NotImplementedError
 
-    async def connect(self, **kwargs: Any) -> pgcon.PGConnection:
+    async def connect(self,
+                      *,
+                      source_description: str,
+                      apply_init_script: bool = False,
+                      **kwargs: Unpack[pgconnparams.CreateParamsKwargs]
+    ) -> pgcon.PGConnection:
+        """Connect to this cluster, with optional overriding parameters. If
+        overriding parameters are specified, they are applied to a copy of the
+        connection parameters before the connection takes place."""
         from edb.server import pgcon
 
-        conn_info = self.get_connection_spec()
-        conn_info.update(kwargs)
-        dbname = conn_info.get("database") or conn_info.get("user")
-        assert isinstance(dbname, str)
-        return await pgcon.connect(
-            conn_info,
-            dbname=dbname,
+        connection = copy.copy(self.get_connection_params())
+        addr = self._get_connection_addr()
+        assert addr is not None
+        connection.update(hosts=[addr])
+        connection.update(**kwargs)
+        conn = await pgcon.pg_connect(
+            connection,
+            source_description=source_description,
             backend_params=self.get_runtime_params(),
-            apply_init_script=False,
+            apply_init_script=apply_init_script,
         )
+        return conn
 
     async def start_watching(
         self, failover_cb: Optional[Callable[[], None]] = None
@@ -191,55 +211,25 @@ class BaseCluster:
             capabilities=caps
         )
 
-    def get_connection_addr(self) -> Optional[Tuple[str, int]]:
-        return self._get_connection_addr()
-
-    def set_connection_params(
+    def update_connection_params(
         self,
-        params: pgconnparams.ConnectionParameters,
+        **kwargs: Unpack[pgconnparams.CreateParamsKwargs],
     ) -> None:
-        self._connection_params = params
+        self._connection_params.update(**kwargs)
+
+    def get_pgaddr(self) -> pgconnparams.ConnectionParams:
+        assert self._connection_params is not None
+        addr = self._get_connection_addr()
+        assert addr is not None
+        params = copy.copy(self._connection_params)
+        params.update(hosts=[addr])
+        return params
 
     def get_connection_params(
         self,
-    ) -> pgconnparams.ConnectionParameters:
+    ) -> pgconnparams.ConnectionParams:
         assert self._connection_params is not None
         return self._connection_params
-
-    def get_connection_spec(self) -> Dict[str, Any]:
-        conn_dict: Dict[str, Any] = {}
-        addr = self.get_connection_addr()
-        assert addr is not None
-        conn_dict['host'] = addr[0]
-        conn_dict['port'] = addr[1]
-        params = self.get_connection_params()
-        for k in (
-            'user',
-            'password',
-            'database',
-            'ssl',
-            'sslmode',
-            'server_settings',
-            'connect_timeout',
-        ):
-            v = getattr(params, k)
-            if v is not None:
-                conn_dict[k] = v
-
-        cluster_settings = conn_dict.get('server_settings', {})
-
-        edgedb_settings = {
-            'client_encoding': 'utf-8',
-            'search_path': 'edgedb',
-            'timezone': 'UTC',
-            'intervalstyle': 'iso_8601',
-            'jit': 'off',
-            'default_transaction_isolation': 'serializable',
-        }
-
-        conn_dict['server_settings'] = {**cluster_settings, **edgedb_settings}
-
-        return conn_dict
 
     def _get_connection_addr(self) -> Optional[Tuple[str, int]]:
         return self._connection_addr
@@ -254,18 +244,21 @@ class BaseCluster:
         self,
         dbname: str,
     ) -> tuple[list[str], dict[str, str]]:
-        conn_spec = self.get_connection_spec()
+        params = copy.copy(self.get_connection_params())
+        addr = self._get_connection_addr()
+        assert addr is not None
+        params.update(database=dbname, hosts=[addr])
 
         args = [
-            f'--dbname={dbname}',
-            f'--host={conn_spec["host"]}',
-            f'--port={conn_spec["port"]}',
-            f'--username={conn_spec["user"]}',
+            f'--dbname={params.database}',
+            f'--host={params.host}',
+            f'--port={params.port}',
+            f'--username={params.user}',
         ]
 
         env = os.environ.copy()
-        if conn_spec.get("password"):
-            env['PGPASSWORD'] = conn_spec["password"]
+        if params.password:
+            env['PGPASSWORD'] = params.password
 
         return args, env
 
@@ -776,6 +769,10 @@ class Cluster(BaseCluster):
         self._connection_addr = None
         connected = False
 
+        params = pgconnparams.ConnectionParams(
+            user="postgres",
+            database="postgres")
+
         for n in range(timeout + 9):
             # pg usually comes up pretty quickly, but not so quickly
             # that we don't hit the wait case. Make our first several
@@ -802,16 +799,11 @@ class Cluster(BaseCluster):
                 continue
 
             try:
+                params.update(hosts=[conn_addr])
                 con = await asyncio.wait_for(
-                    pgcon.connect(
-                        dbname="postgres",
-                        connargs={
-                            "user": "postgres",
-                            "database": "postgres",
-                            "host": conn_addr[0],
-                            "port": conn_addr[1],
-                            "server_settings": {},
-                        },
+                    pgcon.pg_connect(
+                        params,
+                        source_description=f"{self.__class__}._test_connection",
                         backend_params=self.get_runtime_params(),
                         apply_init_script=False,
                     ),
@@ -821,7 +813,10 @@ class Cluster(BaseCluster):
                 OSError,
                 asyncio.TimeoutError,
                 pgcon.BackendConnectionError,
-            ):
+            ) as e:
+                if n % 10 == 0 and 0 < n < timeout + 9 - 1:
+                    logger.error("cannot connect to the backend cluster:"
+                                 " %s, retrying...", e)
                 await asyncio.sleep(sleep_time)
                 continue
             except pgcon.BackendError:
@@ -843,15 +838,18 @@ class Cluster(BaseCluster):
 class RemoteCluster(BaseCluster):
     def __init__(
         self,
-        addr: Tuple[str, int],
-        params: pgconnparams.ConnectionParameters,
         *,
+        connection_addr: tuple[str, int],
+        connection_params: pgconnparams.ConnectionParams,
         instance_params: Optional[pgparams.BackendInstanceParams] = None,
         ha_backend: Optional[ha_base.HABackend] = None,
     ):
         super().__init__(instance_params=instance_params)
-        self._connection_addr = addr
-        self._connection_params = params
+        self._connection_params = connection_params
+        self._connection_params.update(
+            server_settings=EDGEDB_SERVER_SETTINGS
+        )
+        self._connection_addr = connection_addr
         self._ha_backend = ha_backend
 
     def _get_connection_addr(self) -> Optional[Tuple[str, int]]:
@@ -987,6 +985,7 @@ async def get_remote_pg_cluster(
     tenant_id: Optional[str] = None,
     specified_capabilities: Optional[srvargs.BackendCapabilitySets] = None,
 ) -> RemoteCluster:
+    from edb.server import pgcon
     parsed = urllib.parse.urlparse(dsn)
     ha_backend = None
 
@@ -1019,14 +1018,10 @@ async def get_remote_pg_cluster(
             if query:
                 dsn += f"?{urllib.parse.urlencode(query)}"
 
-    addrs, params = pgconnparams.parse_dsn(dsn)
-    if len(addrs) > 1:
-        raise ValueError('multiple hosts in Postgres DSN are not supported')
     if tenant_id is None:
         t_id = buildmeta.get_default_tenant_id()
     else:
         t_id = tenant_id
-    rcluster = RemoteCluster(addrs[0], params)
 
     async def _get_cluster_type(
         conn: pgcon.PGConnection,
@@ -1194,7 +1189,16 @@ async def get_remote_pg_cluster(
                 rv += int(value)
         return rv
 
-    conn = await rcluster.connect()
+    probe_connection = pgconnparams.ConnectionParams(dsn=dsn)
+    conn = await pgcon.pg_connect(
+        probe_connection,
+        source_description="remote cluster probe",
+        backend_params=pgparams.get_default_runtime_params(),
+        apply_init_script=False
+    )
+    params = conn.connection
+    addr = conn.addr
+
     try:
         data = json.loads(await conn.sql_fetch_val(
             b"""
@@ -1208,12 +1212,17 @@ async def get_remote_pg_cluster(
                 )
             )""",
         ))
-        user = data["user"]
-        dbname = data["dbname"]
+        params.update(
+            user=data["user"],
+            database=data["dbname"]
+        )
         cluster_type, superuser_name = await _get_cluster_type(conn)
         max_connections = data["connlimit"]
-        if max_connections == -1:
-            max_connections = await _get_pg_settings(conn, 'max_connections')
+        pg_max_connections = await _get_pg_settings(conn, 'max_connections')
+        if max_connections == -1 or not isinstance(max_connections, int):
+            max_connections = pg_max_connections
+        else:
+            max_connections = min(max_connections, pg_max_connections)
         capabilities = await _detect_capabilities(conn)
 
         if (
@@ -1299,11 +1308,9 @@ async def get_remote_pg_cluster(
     finally:
         conn.terminate()
 
-    params.user = user
-    params.database = dbname
     return cluster_type(
-        addrs[0],
-        params,
+        connection_addr=addr,
+        connection_params=params,
         instance_params=instance_params,
         ha_backend=ha_backend,
     )

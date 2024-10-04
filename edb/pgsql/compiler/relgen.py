@@ -60,6 +60,7 @@ from edb.pgsql import types as pg_types
 from edb.common.typeutils import not_none
 
 from . import astutils
+from . import clauses
 from . import context
 from . import dispatch
 from . import dml
@@ -796,6 +797,16 @@ def process_set_as_visible_binding(
     )
 
 
+@register_get_rvar(irast.InlinedParameterExpr)
+def process_set_as_inlined_parameter(
+    ir_set: irast.SetE[irast.InlinedParameterExpr],
+    *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    raise AssertionError(
+        f"Can't compile ref to inline parameter {ir_set.path_id}"
+    )
+
+
 @register_get_rvar(irast.EmptySet)
 def process_set_as_empty(
     ir_set: irast.SetE[irast.EmptySet], *, ctx: context.CompilerContextLevel
@@ -1013,6 +1024,7 @@ def process_set_as_path_type_intersection(
 
         prefix_path_id = ir_set.path_id.src_path()
         assert prefix_path_id is not None, 'expected a path'
+
         relctx.deep_copy_primitive_rvar_path_var(
             ir_set.path_id, prefix_path_id, poly_rvar, env=ctx.env)
         pathctx.put_rvar_path_bond(poly_rvar, prefix_path_id)
@@ -3283,7 +3295,7 @@ def _compile_func_epilogue(
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
 
-    if expr.volatility is qltypes.Volatility.Volatile:
+    if expr.volatility.is_volatile():
         relctx.apply_volatility_ref(func_rel, ctx=ctx)
 
     pathctx.put_path_var_if_not_exists(
@@ -3355,7 +3367,7 @@ def _compile_call_args(
     skip: Collection[int] = (),
     no_subquery_args: bool = False,
     ctx: context.CompilerContextLevel,
-) -> List[pgast.BaseExpr]:
+) -> list[pgast.BaseExpr]:
     """
     Compiles function call arguments, whose index is not in `skip`.
     """
@@ -3437,6 +3449,101 @@ def _compile_call_args(
     return args
 
 
+def _compile_inlined_call_args(
+    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+) -> None:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+    assert expr.body is not None
+
+    if irutils.contains_dml(expr.body):
+        last_iterator = ctx.enclosing_cte_iterator
+
+        # Compile args into an iterator CTE
+        with ctx.newrel() as arg_ctx:
+            dml.merge_iterator(last_iterator, arg_ctx.rel, ctx=arg_ctx)
+            clauses.setup_iterator_volatility(last_iterator, ctx=arg_ctx)
+
+            _compile_call_args(ir_set, ctx=arg_ctx)
+
+            # Add iterator identity
+            args_pathid = irast.PathId.new_dummy(ctx.env.aliases.get('args'))
+            with arg_ctx.subrel() as args_pathid_ctx:
+                relctx.create_iterator_identity_for_path(
+                    args_pathid, args_pathid_ctx.rel, ctx=args_pathid_ctx
+                )
+            args_id_rvar = relctx.rvar_for_rel(
+                args_pathid_ctx.rel, lateral=True, ctx=arg_ctx
+            )
+            relctx.include_rvar(
+                arg_ctx.rel, args_id_rvar, path_id=args_pathid, ctx=arg_ctx
+            )
+
+            for ir_arg in expr.args.values():
+                arg_path_id = ir_arg.expr.path_id
+                # Ensure args appear in arg CTE
+                pathctx.get_path_output(
+                    arg_ctx.rel,
+                    arg_path_id,
+                    aspect=pgce.PathAspect.VALUE,
+                    env=arg_ctx.env,
+                )
+                pathctx.put_path_bond(arg_ctx.rel, arg_path_id, iterator=True)
+
+        arg_cte = pgast.CommonTableExpr(
+            name=ctx.env.aliases.get('args'),
+            query=arg_ctx.rel,
+            materialized=False,
+        )
+
+        arg_iterator = pgast.IteratorCTE(
+            path_id=args_pathid,
+            cte=arg_cte,
+            parent=last_iterator,
+            other_paths=tuple(
+                (ir_arg.expr.path_id, pgce.PathAspect.VALUE)
+                for ir_arg in expr.args.values()
+            ),
+            iterator_bond=True,
+        )
+        ctx.toplevel_stmt.append_cte(arg_cte)
+
+        # Merge the new iterator
+        ctx.path_scope = ctx.path_scope.new_child()
+        dml.merge_iterator(arg_iterator, ctx.rel, ctx=ctx)
+        clauses.setup_iterator_volatility(arg_iterator, ctx=ctx)
+
+        ctx.enclosing_cte_iterator = arg_iterator
+
+    else:
+        with ctx.subrel() as arg_ctx:
+            # Compile the call args but don't do anything with the resulting
+            # exprs. Their rvar will be found when compiling the inlined body.
+            _compile_call_args(ir_set, ctx=arg_ctx)
+
+            arg_rvar = relctx.rvar_for_rel(arg_ctx.rel, ctx=ctx)
+
+        for ir_arg in expr.args.values():
+            arg_path_id = ir_arg.expr.path_id
+            relctx.include_rvar(
+                ctx.rel,
+                arg_rvar,
+                arg_path_id,
+                ctx=ctx,
+            )
+            if arg_scope_stmt := relctx.maybe_get_scope_stmt(
+                arg_path_id, ctx=ctx
+            ):
+                # The rvar is joined to ctx.rel, but other sets may
+                # look for it in the scope statement. Make sure it's
+                # available.
+                pathctx.put_path_value_rvar(
+                    arg_scope_stmt,
+                    arg_path_id,
+                    arg_rvar,
+                )
+
+
 def process_set_as_func_enumerate(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -3475,11 +3582,15 @@ def process_set_as_func_expr(
 
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
-        args = _compile_call_args(ir_set, ctx=newctx)
 
         if expr.body is not None:
+            _compile_inlined_call_args(ir_set, ctx=newctx)
+
             set_expr = dispatch.compile(expr.body, ctx=newctx)
+
         else:
+            args = _compile_call_args(ir_set, ctx=newctx)
+
             name = exprcomp.get_func_call_backend_name(expr, ctx=newctx)
 
             if expr.typemod is qltypes.TypeModifier.SetOfType:

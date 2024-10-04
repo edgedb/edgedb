@@ -101,6 +101,7 @@ from . import sertypes
 from . import status
 from . import ddl
 from . import rpc
+from . import sql
 
 if TYPE_CHECKING:
     from edb.pgsql import metaschema
@@ -543,280 +544,14 @@ class Compiler:
         )
         schema = state.current_tx().get_schema(self.state.std_schema)
 
-        from edb.pgsql import parser as pg_parser
-        from edb.pgsql import resolver as pg_resolver
-        from edb.pgsql import codegen as pg_codegen
-
-        @functools.cache
-        def parse_search_path(search_path_str: str) -> list[str]:
-            search_path_stmt = pg_parser.parse(
-                f"SET search_path = {search_path_str}"
-            )[0]
-            assert isinstance(search_path_stmt, pgast.VariableSetStmt)
-            return [
-                arg.val for arg in search_path_stmt.args.args
-                if isinstance(arg, pgast.StringConstant)
-            ]
-
-        def translate_query(
-            stmt: pgast.Base
-        ) -> Tuple[pg_codegen.SQLSource, Optional[dbstate.CommandCompleteTag]]:
-            args = {}
-            try:
-                search_path = tx_state.get("search_path")
-            except KeyError:
-                search_path = None
-            if isinstance(search_path, str):
-                args['search_path'] = parse_search_path(search_path)
-            options = pg_resolver.Options(
-                current_user=current_user,
-                current_database=current_database,
-                current_query=query_str,
-                **args
-            )
-            resolved, complete_tag = pg_resolver.resolve(
-                stmt, schema, options
-            )
-            return (
-                pg_codegen.generate(
-                    resolved, with_translation_data=True
-                ),
-                complete_tag,
-            )
-
-        def compute_stmt_name(text: str) -> str:
-            stmt_hash = hashlib.sha1(text.encode("utf-8"))
-            for setting_name in sorted(fe_settings_mutable):
-                try:
-                    setting_value = tx_state.get(setting_name)
-                except KeyError:
-                    pass
-                else:
-                    stmt_hash.update(
-                        f"{setting_name}:{setting_value}".encode("utf-8"))
-            return f"edb{stmt_hash.hexdigest()}"
-
-        pg_gen_source = functools.partial(
-            pg_codegen.generate_source, pretty=False)
-
-        # frontend-only settings (key) and their mutability (value)
-        fe_settings_mutable = {
-            'search_path': True,
-            'server_version': False,
-            'server_version_num': False,
-        }
-        stmts = pg_parser.parse(query_str, propagate_spans=True)
-        sql_units = []
-        for stmt in stmts:
-            orig_text = pg_gen_source(stmt)
-
-            unit_ctor = functools.partial(
-                dbstate.SQLQueryUnit,
-                orig_query=orig_text,
-                fe_settings=tx_state.current_fe_settings(),
-            )
-
-            if isinstance(stmt, pgast.VariableSetStmt):
-                # GOTCHA: setting is frontend-only regardless of its mutability
-                fe_only = stmt.name in fe_settings_mutable
-
-                args = {
-                    "query": orig_text,
-                    "frontend_only": fe_only,
-                    "command_tag": b"SET",
-                    "is_local": stmt.scope == pgast.OptionsScope.TRANSACTION,
-                }
-                if fe_only:
-                    if not fe_settings_mutable[stmt.name]:
-                        raise errors.QueryError(
-                            f'parameter "{stmt.name}" cannot be changed',
-                            pgext_code='55P02',  # cant_change_runtime_param
-                        )
-                    value = pg_codegen.generate_source(stmt.args)
-                    args["set_vars"] = {stmt.name: value}
-                elif stmt.scope == pgast.OptionsScope.SESSION:
-                    if len(stmt.args.args) == 1 and isinstance(
-                        stmt.args.args[0], pgast.StringConstant
-                    ):
-                        # this value is unquoted for restoring state in pgcon
-                        value = stmt.args.args[0].val
-                    else:
-                        value = pg_gen_source(stmt.args)
-                    args["set_vars"] = {stmt.name: value}
-                unit = unit_ctor(**args)
-            elif isinstance(stmt, pgast.VariableResetStmt):
-                fe_only = stmt.name in fe_settings_mutable
-                if (
-                    fe_only and stmt.name
-                    and not fe_settings_mutable[stmt.name]
-                ):
-                    raise errors.QueryError(
-                        f'parameter "{stmt.name}" cannot be changed',
-                        pgext_code='55P02',  # cant_change_runtime_param
-                    )
-                args = {
-                    "query": orig_text,
-                    "frontend_only": fe_only,
-                    "command_tag": b"RESET",
-                    "is_local": stmt.scope == pgast.OptionsScope.TRANSACTION,
-                }
-                if fe_only or stmt.scope == pgast.OptionsScope.SESSION:
-                    args["set_vars"] = {stmt.name: None}
-                unit = unit_ctor(**args)
-            elif isinstance(stmt, pgast.VariableShowStmt):
-                unit = unit_ctor(
-                    query=orig_text,
-                    get_var=stmt.name,
-                    frontend_only=stmt.name in fe_settings_mutable,
-                    command_tag=b"SHOW",
-                )
-            elif isinstance(stmt, pgast.SetTransactionStmt):
-                args = {"query": orig_text}
-                if stmt.scope == pgast.OptionsScope.SESSION:
-                    args["set_vars"] = {
-                        f"default_{name}": value.val
-                        if isinstance(value, pgast.StringConstant)
-                        else pg_gen_source(value)
-                        for name, value in stmt.options.options.items()
-                    }
-                unit = unit_ctor(**args)
-            elif isinstance(stmt, (pgast.BeginStmt, pgast.StartStmt)):
-                unit = unit_ctor(
-                    query=orig_text,
-                    tx_action=dbstate.TxAction.START,
-                )
-            elif isinstance(stmt, pgast.CommitStmt):
-                unit = unit_ctor(
-                    query=orig_text,
-                    tx_action=dbstate.TxAction.COMMIT,
-                    tx_chain=stmt.chain or False,
-                )
-            elif isinstance(stmt, pgast.RollbackStmt):
-                unit = unit_ctor(
-                    query=orig_text,
-                    tx_action=dbstate.TxAction.ROLLBACK,
-                    tx_chain=stmt.chain or False,
-                )
-            elif isinstance(stmt, pgast.SavepointStmt):
-                unit = unit_ctor(
-                    query=orig_text,
-                    tx_action=dbstate.TxAction.DECLARE_SAVEPOINT,
-                    sp_name=stmt.savepoint_name,
-                )
-            elif isinstance(stmt, pgast.ReleaseStmt):
-                unit = unit_ctor(
-                    query=orig_text,
-                    tx_action=dbstate.TxAction.RELEASE_SAVEPOINT,
-                    sp_name=stmt.savepoint_name,
-                )
-            elif isinstance(stmt, pgast.RollbackToStmt):
-                unit = unit_ctor(
-                    query=orig_text,
-                    tx_action=dbstate.TxAction.ROLLBACK_TO_SAVEPOINT,
-                    sp_name=stmt.savepoint_name,
-                )
-            elif isinstance(stmt, pgast.TwoPhaseTransactionStmt):
-                raise NotImplementedError(
-                    "two-phase transactions are not supported"
-                )
-            elif isinstance(stmt, pgast.PrepareStmt):
-                # Translate the underlying query.
-                stmt_source, complete_tag = translate_query(stmt.query)
-                if stmt.argtypes:
-                    param_types = []
-                    for pt in stmt.argtypes:
-                        param_types.append(pg_gen_source(pt))
-                    param_text = f"({', '.join(param_types)})"
-                else:
-                    param_text = ""
-
-                sql_trailer = f"{param_text} AS ({stmt_source.text})"
-
-                mangled_stmt_name = compute_stmt_name(
-                    f"PREPARE {pg_common.quote_ident(stmt.name)}{sql_trailer}"
-                )
-
-                sql_text = (
-                    f"PREPARE {pg_common.quote_ident(mangled_stmt_name)}"
-                    f"{sql_trailer}"
-                )
-
-                unit = unit_ctor(
-                    query=sql_text,
-                    prepare=dbstate.PrepareData(
-                        stmt_name=stmt.name,
-                        be_stmt_name=mangled_stmt_name.encode("utf-8"),
-                        query=stmt_source.text,
-                        translation_data=stmt_source.translation_data,
-                    ),
-                    command_tag=b"PREPARE",
-                    command_complete_tag=complete_tag,
-                )
-            elif isinstance(stmt, pgast.ExecuteStmt):
-                orig_name = stmt.name
-                mangled_name = prepared_stmt_map.get(orig_name)
-                if not mangled_name:
-                    raise errors.QueryError(
-                        f"prepared statement \"{orig_name}\" does "
-                        f"not exist",
-                        pgext_code='26000',  # invalid_sql_statement_name
-                    )
-                stmt.name = mangled_name
-
-                unit = unit_ctor(
-                    query=pg_gen_source(stmt),
-                    execute=dbstate.ExecuteData(
-                        stmt_name=orig_name,
-                        be_stmt_name=mangled_name.encode("utf-8"),
-                    ),
-                )
-            elif isinstance(stmt, pgast.DeallocateStmt):
-                orig_name = stmt.name
-                mangled_name = prepared_stmt_map.get(orig_name)
-                if not mangled_name:
-                    raise errors.QueryError(
-                        f"prepared statement \"{orig_name}\" does "
-                        f"not exist",
-                        pgext_code='26000',  # invalid_sql_statement_name
-                    )
-                stmt.name = mangled_name
-                unit = unit_ctor(
-                    query=pg_gen_source(stmt),
-                    deallocate=dbstate.DeallocateData(
-                        stmt_name=orig_name,
-                        be_stmt_name=mangled_name.encode("utf-8"),
-                    ),
-                    command_tag=b"DEALLOCATE",
-                )
-            elif isinstance(stmt, pgast.LockStmt):
-                if stmt.mode not in ('ACCESS SHARE', 'ROW SHARE', 'SHARE'):
-                    raise NotImplementedError(
-                        "exclusive lock is not supported"
-                    )
-                # just ignore
-                unit = unit_ctor(query="DO $$ BEGIN END $$;")
-            else:
-                source, complete_tag = translate_query(stmt)
-                unit = unit_ctor(
-                    query=source.text,
-                    translation_data=source.translation_data,
-                    command_complete_tag=complete_tag,
-                )
-
-            unit.stmt_name = compute_stmt_name(unit.query).encode("utf-8")
-
-            tx_state.apply(unit)
-            sql_units.append(unit)
-
-        if not sql_units:
-            # Cluvio will try to execute an empty query
-            sql_units.append(dbstate.SQLQueryUnit(
-                orig_query='',
-                query='',
-                fe_settings=tx_state.current_fe_settings()
-            ))
-
-        return sql_units
+        return sql.compile_sql(
+            query_str,
+            schema=schema,
+            tx_state=tx_state,
+            prepared_stmt_map=prepared_stmt_map,
+            current_database=current_database,
+            current_user=current_user,
+        )
 
     def compile_request(
         self,
@@ -1288,7 +1023,10 @@ class Compiler:
                 type=s_func.Function,
                 exclude_stdlib=True,
             ):
-                if func.get_has_dml(schema):
+                if (
+                    func.get_volatility(schema) == qltypes.Volatility.Modifying
+                    and not func.get_is_inlined(schema)
+                ):
                     break
             else:
                 ddl_source = edgeql.Source.from_string(
@@ -1833,7 +1571,6 @@ def _compile_ql_query(
         script_info=script_info,
         options=options,
     )
-
     result_cardinality = enums.cardinality_from_ir_value(ir.cardinality)
 
     # This low-hanging-fruit is temporary; persistent cache should cover all
@@ -1965,6 +1702,7 @@ def _compile_ql_query(
         cacheable=cacheable,
         has_dml=bool(ir.dml_exprs),
         query_asts=query_asts,
+        warnings=ir.warnings,
     )
 
 
@@ -2031,7 +1769,14 @@ def _build_cache_function(
     pg_dbops.CreateFunction(func).generate(cf)
     df = pg_dbops.SQLBlock()
     pg_dbops.DropFunction(
-        name=func.name, args=func.args or (), if_exists=True
+        name=func.name,
+        args=func.args or (),
+        # Use a condition instead of if_exists ot reduce annoying
+        # debug spew from postgres.
+        conditions=[pg_dbops.FunctionExists(
+            name=func.name,
+            args=func.args or (),
+        )],
     ).generate(df)
     func_call = pgast.FuncCall(
         name=fname,
@@ -2670,6 +2415,7 @@ def _try_compile(
             output_format=stmt_ctx.output_format,
             cache_key=ctx.cache_key,
             user_schema_version=schema_version,
+            warnings=comp.warnings,
         )
 
         if not comp.is_transactional:
@@ -2880,6 +2626,10 @@ def _try_compile(
                 len(p.sub_params[0]) if p.sub_params else 1
                 for p in unit.in_type_args
             )
+
+        if unit.warnings:
+            for warning in unit.warnings:
+                warning.__traceback__ = None
 
         rv.append(unit)
 
@@ -3350,6 +3100,8 @@ def _check_force_database_error(
         return
 
     val = _get_config_val(ctx, 'force_database_error')
+    if isinstance(ql, qlast.DDLCommand):
+        maybe_force_database_error(val, scope='ddl')
     maybe_force_database_error(val, scope=scope)
 
 

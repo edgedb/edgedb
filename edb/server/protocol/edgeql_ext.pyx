@@ -135,12 +135,6 @@ async def handle_request(
 
         ex = await execute.interpret_error(ex, db)
 
-        err_dct = {
-            'message': str(ex),
-            'type': str(type(ex).__name__),
-            'code': ex.get_code(),
-        }
-
-        response.body = json.dumps({'error': err_dct}).encode()
+        response.body = json.dumps({'error': ex.to_json()}).encode()
     else:
         response.body = b'{"data":' + result + b'}'

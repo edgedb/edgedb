@@ -99,10 +99,6 @@ class AccessPolicy(
         special_ddl_syntax=True,
     )
 
-    @classmethod
-    def get_schema_class_displayname(cls) -> str:
-        return 'access policy'
-
     def get_expr_refs(self, schema: s_schema.Schema) -> List[so.Object]:
         objs: List[so.Object] = []
         if (condition := self.get_condition(schema)) and condition.refs:
@@ -230,6 +226,7 @@ class AccessPolicyCommand(
                     in_ddl_context_name=in_ddl_context_name,
                     detached=True,
                 ),
+                context=context,
             )
         else:
             return super().compile_expr_field(

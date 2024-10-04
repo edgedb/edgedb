@@ -48,6 +48,42 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 fts::with_options(.foo, language := fts::Language.eng)
             );
         };
+
+        create module glob_mod;
+        create global glob_mod::glob_str: str;
+        create global glob_mod::glob_uuid: uuid;
+        create global glob_mod::glob_int64: int64;
+        create global glob_mod::glob_int32: int32;
+        create global glob_mod::glob_int16: int16;
+        create global glob_mod::glob_bool: bool;
+        create global glob_mod::glob_float64: float64;
+        create global glob_mod::glob_float32: float32;
+        create type glob_mod::G {
+            create property p_str: str {
+                set default := global glob_mod::glob_str
+            };
+            create property p_uuid: uuid {
+                set default := global glob_mod::glob_uuid
+            };
+            create property p_int64: int64 {
+                set default := global glob_mod::glob_int64
+            };
+            create property p_int32: int32 {
+                set default := global glob_mod::glob_int32
+            };
+            create property p_int16: int16 {
+                set default := global glob_mod::glob_int16
+            };
+            create property p_bool: bool {
+                set default := global glob_mod::glob_bool
+            };
+            create property p_float64: float64 {
+                set default := global glob_mod::glob_float64
+            };
+            create property p_float32: float32 {
+                set default := global glob_mod::glob_float32
+            };
+        };
         ''',
         os.path.join(
             os.path.dirname(__file__), 'schemas', 'movies_setup.edgeql'
@@ -694,6 +730,11 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         res = await self.squery_values('SELECT $1::uuid;', str(id))
         self.assertEqual(res, [[id]])
 
+    async def test_sql_query_41(self):
+        # bytea literal
+        res = await self.squery_values("SELECT x'00abcdef00';")
+        self.assertEqual(res, [[b'\x00\xab\xcd\xef\x00']])
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
@@ -859,7 +900,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             ],
         )
 
-    async def test_sql_query_schemas(self):
+    async def test_sql_query_schemas_01(self):
         await self.scon.fetch('SELECT id FROM "inventory"."Item";')
         await self.scon.fetch('SELECT id FROM "public"."Person";')
 
@@ -899,6 +940,79 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         # HACK: Set search_path back to public
         await self.scon.execute('SET search_path TO public;')
+
+    async def test_sql_query_set_01(self):
+        # initial state: search_path=public
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [['public']])
+
+        # enter transaction
+        tran = self.scon.transaction()
+        await tran.start()
+
+        # set
+        await self.scon.execute('SET LOCAL search_path TO inventory;')
+
+        await self.scon.fetch('SELECT id FROM "Item";')
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [["inventory"]])
+
+        # finish
+        await tran.commit()
+
+        # because we used LOCAL, value should be reset after transaction is over
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [["public"]])
+
+    async def test_sql_query_set_02(self):
+        # initial state: search_path=public
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [['public']])
+
+        # enter transaction
+        tran = self.scon.transaction()
+        await tran.start()
+
+        # set
+        await self.scon.execute('SET search_path TO inventory;')
+
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [["inventory"]])
+
+        # commit
+        await tran.commit()
+
+        # it should still be changed, since we SET was not LOCAL
+        await self.scon.fetch('SELECT id FROM "Item";')
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [["inventory"]])
+
+        # reset to default value
+        await self.scon.execute('RESET search_path;')
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [["public"]])
+
+    async def test_sql_query_set_03(self):
+        # initial state: search_path=public
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [['public']])
+
+        # start
+        tran = self.scon.transaction()
+        await tran.start()
+
+        # set
+        await self.scon.execute('SET search_path TO inventory;')
+
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [["inventory"]])
+
+        # rollback
+        await tran.rollback()
+
+        # because transaction was rolled back, value should be reset
+        res = await self.squery_values('SHOW search_path;')
+        self.assertEqual(res, [["public"]])
 
     async def test_sql_query_static_eval_01(self):
         res = await self.squery_values('select current_schema;')
@@ -988,18 +1102,21 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             ORDER BY relname;
             """
         )
-        self.assertEqual(res, [
-            ["Book", 8192],
-            ["Book.chapters", 8192],
-            ["Content", 8192],
-            ["Genre", 8192],
-            ["Movie", 8192],
-            ["Movie.actors", 8192],
-            ["Movie.director", 8192],
-            ["Person", 8192],
-            ["novel", 8192],
-            ["novel.chapters", 0],
-        ])
+        self.assertEqual(
+            res,
+            [
+                ["Book", 8192],
+                ["Book.chapters", 8192],
+                ["Content", 8192],
+                ["Genre", 8192],
+                ["Movie", 8192],
+                ["Movie.actors", 8192],
+                ["Movie.director", 8192],
+                ["Person", 8192],
+                ["novel", 8192],
+                ["novel.chapters", 0],
+            ],
+        )
 
     async def test_sql_query_be_state(self):
         con = await self.connect(database=self.con.dbname)
@@ -1483,3 +1600,78 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             SELECT similar_to FROM "Movie"
             """
         )
+
+    async def test_sql_query_computed_10(self):
+        # globals
+
+        tran = self.scon.transaction()
+        await tran.start()
+
+        await self.scon.execute(
+            """
+            SET LOCAL "global default::username_prefix" TO user_;
+            """
+        )
+
+        res = await self.squery_values(
+            """
+            SELECT username FROM "Person"
+            ORDER BY first_name LIMIT 1
+            """
+        )
+        self.assertEqual(res, [["user_robin"]])
+
+        await tran.rollback()
+
+    async def test_sql_query_computed_11(self):
+        # globals
+
+        tran = self.scon.transaction()
+        await tran.start()
+
+        await self.scon.execute(
+            f"""
+            SET LOCAL "global glob_mod::glob_str" TO hello;
+            SET LOCAL "global glob_mod::glob_uuid" TO
+                'f527c032-ad4c-461e-95e2-67c4e2b42ca7';
+            SET LOCAL "global glob_mod::glob_int64" TO 42;
+            SET LOCAL "global glob_mod::glob_int32" TO 42;
+            SET LOCAL "global glob_mod::glob_int16" TO 42;
+            SET LOCAL "global glob_mod::glob_bool" TO 1;
+            SET LOCAL "global glob_mod::glob_float64" TO 42.1;
+            SET LOCAL "global glob_mod::glob_float32" TO 42.1;
+            """
+        )
+        await self.scon.execute('INSERT INTO glob_mod."G" DEFAULT VALUES')
+
+        res = await self.squery_values(
+            '''
+            SELECT
+                p_str,
+                p_uuid,
+                p_int64,
+                p_int32,
+                p_int16,
+                p_bool,
+                p_float64,
+                p_float32
+            FROM glob_mod."G"
+            '''
+        )
+        self.assertEqual(
+            res,
+            [
+                [
+                    'hello',
+                    uuid.UUID('f527c032-ad4c-461e-95e2-67c4e2b42ca7'),
+                    42,
+                    42,
+                    42,
+                    True,
+                    42.1,
+                    42.099998474121094,
+                ]
+            ],
+        )
+
+        await tran.rollback()

@@ -60,16 +60,34 @@ class NodeTransformer(visitor.NodeVisitor):
     """
 
     def generic_visit(self, node):
-        for field, old_value in base.iter_fields(node, include_meta=False):
-            old_value = getattr(node, field, None)
+        if isinstance(node, base.ImmutableASTMixin):
+            changes = {}
 
-            if typeutils.is_container(old_value):
-                new_values = old_value.__class__(self.visit(old_value))
-                setattr(node, field, old_value.__class__(new_values))
+            for field, old_value in base.iter_fields(node, include_meta=False):
+                old_value = getattr(node, field, None)
 
-            elif isinstance(old_value, base.AST):
-                new_node = self.visit(old_value)
-                if new_node is not old_value:
-                    setattr(node, field, new_node)
+                if typeutils.is_container(old_value):
+                    new_values = old_value.__class__(self.visit(old_value))
+                    changes[field] = old_value.__class__(new_values)
+
+                elif isinstance(old_value, base.AST):
+                    new_node = self.visit(old_value)
+                    if new_node is not old_value:
+                        changes[field] = new_node
+
+            node = node.replace(**changes)
+
+        else:
+            for field, old_value in base.iter_fields(node, include_meta=False):
+                old_value = getattr(node, field, None)
+
+                if typeutils.is_container(old_value):
+                    new_values = old_value.__class__(self.visit(old_value))
+                    setattr(node, field, old_value.__class__(new_values))
+
+                elif isinstance(old_value, base.AST):
+                    new_node = self.visit(old_value)
+                    if new_node is not old_value:
+                        setattr(node, field, new_node)
 
         return node

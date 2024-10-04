@@ -83,8 +83,8 @@ STD_MODULES = (
     sn.UnqualName('sys'),
     sn.UnqualName('cfg'),
     sn.UnqualName('cal'),
-    sn.UnqualName('net'),
-    sn.UnqualName('net::http'),
+    sn.UnqualName('std::net'),
+    sn.UnqualName('std::net::http'),
     sn.UnqualName('pg'),
     sn.UnqualName('std::_test'),
     sn.UnqualName('fts'),
@@ -95,6 +95,7 @@ STD_MODULES = (
 SPECIAL_MODULES = (
     sn.UnqualName('__derived__'),
     sn.UnqualName('__ext_casts__'),
+    sn.UnqualName('__ext_index_matches__'),
 )
 
 # Specifies the order of processing of files and directories in lib/
@@ -109,6 +110,7 @@ STD_SOURCES = (
     sn.UnqualName('enc'),
     sn.UnqualName('pg'),
     sn.UnqualName('fts'),
+    sn.UnqualName('net'),
 )
 TESTMODE_SOURCES = (
     sn.UnqualName('_testmode'),

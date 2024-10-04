@@ -17,14 +17,15 @@
 #
 import edb.server._conn_pool
 import asyncio
+import time
 import typing
-import logging
 import dataclasses
 import os
+import pickle
 
 from . import config
+from .config import logger
 
-logger = logging.getLogger("edb.server.connpool")
 guard = edb.server._conn_pool.LoggingGuard()
 
 # Connections must be hashable because we use them to reverse-lookup
@@ -101,6 +102,8 @@ class Pool(typing.Generic[C]):
     _conns_held: dict[C, int]
     _loop: asyncio.AbstractEventLoop
     _skip_reads: int
+    _counts: typing.Any
+    _stats_collector: typing.Optional[StatsCollector]
 
     def __init__(self, *, connect: Connector[C],
                  disconnect: Disconnector[C],
@@ -108,12 +111,17 @@ class Pool(typing.Generic[C]):
                  stats_collector: typing.Optional[StatsCollector]=None,
                  min_idle_time_before_gc: float = config.MIN_IDLE_TIME_BEFORE_GC
         ) -> None:
+        # Re-load the logger if it's been mocked for testing
+        global logger
+        logger = config.logger
+
         logger.info(f'Creating a connection pool with \
                     max_capacity={max_capacity}')
         self._connect = connect
         self._disconnect = disconnect
         self._pool = edb.server._conn_pool.ConnPool(max_capacity,
-                                                    min_idle_time_before_gc)
+                                                    min_idle_time_before_gc,
+                                                    config.STATS_COLLECT_INTERVAL)
         self._max_capacity = max_capacity
         self._cur_capacity = 0
         self._next_conn_id = 0
@@ -132,8 +140,11 @@ class Pool(typing.Generic[C]):
         self._successful_connects = 0
         self._successful_disconnects = 0
 
+        self._counts = None
+        self._stats_collector = stats_collector
         if stats_collector:
-            stats_collector(self._build_snapshot(now=0))
+            stats_collector(self._build_snapshot(now=time.monotonic()))
+
         pass
 
     def __del__(self) -> None:
@@ -213,6 +224,11 @@ class Pool(typing.Generic[C]):
                     f.set_exception(error)
                 else:
                     logger.warn(f"Duplicate exception for acquire {msg[1]}")
+        elif msg[0] == 6:
+            # Pickled metrics
+            self._counts = pickle.loads(msg[1])
+            if self._stats_collector:
+                self._stats_collector(self._build_snapshot(now=time.monotonic()))
         else:
             logger.critical(f'Unexpected message: {msg}')
 
@@ -286,7 +302,12 @@ class Pool(typing.Generic[C]):
                 c = self._conns[conn]
                 self._conns_held[c] = id
                 return c
-            except Exception:
+            except Exception as e:
+                # 3D000 - INVALID CATALOG NAME, database does not exist
+                # Skip retry and propagate the error immediately
+                if getattr(e, 'fields', {}).get('C') == '3D000':
+                    raise
+
                 # Allow the final exception to escape
                 if i == config.CONNECT_FAILURE_RETRIES:
                     logger.exception('Failed to acquire connection, will not '
@@ -333,9 +354,26 @@ class Pool(typing.Generic[C]):
             yield conn
 
     def _build_snapshot(self, *, now: float) -> Snapshot:
+        blocks: list[BlockSnapshot] = []
+        if self._counts:
+            block_stats = self._counts['blocks']
+            for dbname, stats in block_stats.items():
+                v = stats['value']
+                block_snapshot = BlockSnapshot(
+                    dbname=dbname,
+                    nconns=v[edb.server._conn_pool.METRIC_ACTIVE],
+                    nwaiters_avg=v[edb.server._conn_pool.METRIC_WAITING],
+                    npending=v[edb.server._conn_pool.METRIC_CONNECTING] +
+                        v[edb.server._conn_pool.METRIC_RECONNECTING],
+                    nwaiters=v[edb.server._conn_pool.METRIC_WAITING],
+                    quota=stats['target']
+                )
+                blocks.append(block_snapshot)
+            pass
+
         return Snapshot(
             timestamp=now,
-            blocks=[],
+            blocks=blocks,
             capacity=self._cur_capacity,
             log=[],
 

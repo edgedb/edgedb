@@ -42,6 +42,7 @@ import psutil
 from edb import buildmeta
 from edb.common import devmode
 from edb.common import enum
+from edb.common import typeutils
 from edb.schema import defines as schema_defines
 from edb.pgsql import params as pgsql_params
 
@@ -163,6 +164,11 @@ class ReloadTrigger(enum.StrEnum):
     """Watch the files for changes and reload when it happens."""
 
 
+class NetWorkerMode(enum.StrEnum):
+    Default = "default"
+    Disabled = "disabled"
+
+
 class ServerAuthMethods:
 
     def __init__(
@@ -227,7 +233,9 @@ class ServerConfig(NamedTuple):
     log_level: str
     log_to: str
     bootstrap_only: bool
-    inplace_upgrade: Optional[pathlib.Path]
+    inplace_upgrade_prepare: Optional[pathlib.Path]
+    inplace_upgrade_finalize: bool
+    inplace_upgrade_rollback: bool
     bootstrap_command: str
     bootstrap_command_file: pathlib.Path
     default_branch: Optional[str]
@@ -242,6 +250,7 @@ class ServerConfig(NamedTuple):
     daemon_user: str
     daemon_group: str
     runstate_dir: pathlib.Path
+    extensions_dir: tuple[pathlib.Path, ...]
     max_backend_connections: Optional[int]
     compiler_pool_size: int
     compiler_pool_mode: CompilerPoolMode
@@ -254,6 +263,7 @@ class ServerConfig(NamedTuple):
     readiness_state_file: Optional[pathlib.Path]
     disable_dynamic_system_config: bool
     reload_config_files: ReloadTrigger
+    net_worker_mode: NetWorkerMode
 
     startup_script: Optional[StartupScript]
     status_sinks: List[Callable[[str], None]]
@@ -607,7 +617,7 @@ class EnvvarResolver(click.Option):
         return None
 
 
-_server_options = [
+server_options = typeutils.chain_decorators([
     click.option(
         '-D', '--data-dir', type=PathPath(),
         envvar="EDGEDB_SERVER_DATADIR", cls=EnvvarResolver,
@@ -676,10 +686,20 @@ _server_options = [
         envvar="EDGEDB_SERVER_BOOTSTRAP_ONLY", cls=EnvvarResolver,
         help='bootstrap the database cluster and exit'),
     click.option(
-        '--inplace-upgrade', type=PathPath(),
-        envvar="EDGEDB_SERVER_INPLACE_UPGRADE",
-        cls=EnvvarResolver,  # XXX?
+        '--inplace-upgrade-prepare', type=PathPath(),
+        envvar="EDGEDB_SERVER_INPLACE_UPGRADE_PREPARE",
+        cls=EnvvarResolver,
         help='try to do an in-place upgrade with the specified dump file'),
+    click.option(
+        '--inplace-upgrade-rollback', type=bool, is_flag=True,
+        envvar="EDGEDB_SERVER_INPLACE_UPGRADE_ROLLBACK",
+        cls=EnvvarResolver,
+        help='rollback a prepared upgrade'),
+    click.option(
+        '--inplace-upgrade-finalize', type=bool, is_flag=True,
+        envvar="EDGEDB_SERVER_INPLACE_UPGRADE_FINALIZE",
+        cls=EnvvarResolver,
+        help='finalize an in-place upgrade'),
     click.option(
         '--default-branch', type=str,
         help='the name of the default branch to create'),
@@ -735,6 +755,10 @@ _server_options = [
         help=f'directory where UNIX sockets and other temporary '
              f'runtime files will be placed ({_get_runstate_dir_default()} '
              f'by default)'),
+    click.option(
+        '--extensions-dir', type=PathPath(), default=(), multiple=True,
+        envvar="EDGEDB_SERVER_EXTENSIONS_DIR",
+        help=f'directory where third-party extension packages are loaded from'),
     click.option(
         '--max-backend-connections', type=int, metavar='NUM',
         envvar="EDGEDB_SERVER_MAX_BACKEND_CONNECTIONS",
@@ -1025,16 +1049,20 @@ _server_options = [
         help='Specifies when to reload the config files. See the docstring of '
              'ReloadTrigger for more information.',
     ),
-]
+    click.option(
+        "--net-worker-mode",
+        envvar="EDGEDB_SERVER_NET_WORKER_MODE", cls=EnvvarResolver,
+        type=click.Choice(
+            list(NetWorkerMode.__members__.values()), case_sensitive=True
+        ),
+        hidden=True,
+        default='default',
+        help='Controls how the std::net workers work.',
+    ),
+])
 
 
-def server_options(func):
-    for option in reversed(_server_options):
-        func = option(func)
-    return func
-
-
-_compiler_options = [
+compiler_options = typeutils.chain_decorators([
     click.option(
         "--pool-size",
         type=int,
@@ -1071,13 +1099,7 @@ _compiler_options = [
         '--metrics-port', type=PortType(),
         help=f'Port to listen on for metrics HTTP API.',
     ),
-]
-
-
-def compiler_options(func):
-    for option in reversed(_compiler_options):
-        func = option(func)
-    return func
+])
 
 
 def parse_args(**kwargs: Any):
@@ -1549,6 +1571,7 @@ def parse_args(**kwargs: Any):
     kwargs['reload_config_files'] = ReloadTrigger(
         kwargs['reload_config_files']
     )
+    kwargs['net_worker_mode'] = NetWorkerMode(kwargs['net_worker_mode'])
 
     if 'EDGEDB_SERVER_CONFIG_cfg::listen_addresses' in os.environ:
         abort(

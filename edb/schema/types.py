@@ -535,9 +535,7 @@ class Type(
 
 
 class QualifiedType(so.QualifiedObject, Type):
-    @classmethod
-    def get_schema_class_displayname(cls) -> str:
-        return 'type'
+    pass
 
 
 class InheritingType(so.DerivableInheritingObject, QualifiedType):
@@ -1134,6 +1132,7 @@ class Collection(Type, s_abc.Collection):
     def dump(self, schema: s_schema.Schema) -> str:
         return repr(self)
 
+    # We define this specifically to override children
     @classmethod
     def get_schema_class_displayname(cls) -> str:
         return 'collection'
@@ -2973,6 +2972,7 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
                 in_ddl_context_name='type definition',
                 track_schema_ref_exprs=track_schema_ref_exprs,
             ),
+            context=context,
         )
 
     def get_dummy_expr_field_value(

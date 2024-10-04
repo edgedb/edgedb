@@ -13,9 +13,11 @@ python_extension = ["pyo3/extension-module", "pyo3/serde"]
 optimizer = []
 
 [dependencies]
+pyo3.workspace = true
+tokio.workspace = true
+
 futures = "0"
 scopeguard = "1"
-pyo3 = "0"
 itertools = "0"
 thiserror = "1"
 tracing = "0"
@@ -23,13 +25,16 @@ tracing-subscriber = "0"
 strum = { version = "0.26", features = ["derive"] }
 consume_on_drop = "0"
 smart-default = "0"
-openssl = "0.10.66"
+openssl = { version = "0.10.66", features = ["v111"] }
+tokio-openssl = "0.6.4"
 paste = "1"
 unicode-normalization = "0.1.23"
 stringprep = "0.1.5"
 hmac = "0.12"
 base64 = "0.22"
 sha2 = "0.10"
+hex = "0.4.3"
+md5 = "0.7.0"
 rand = "0"
 hexdump = "0"
 url = "2"
@@ -37,10 +42,7 @@ serde = "1"
 serde_derive = "1"
 serde-pickle = "1"
 percent-encoding = "2"
-
-[dependencies.tokio]
-version = "1"
-features = ["rt", "time", "sync", "net", "io-util"]
+roaring = "0.10.6"
 
 [dependencies.derive_more]
 version = "1.0.0-beta.6"
@@ -57,6 +59,9 @@ byteorder = "1.5"
 clap = "4"
 clap_derive = "4"
 hex-literal = "0.4"
+tempfile = "3"
+socket2 = "0.5.7"
+libc = "0.2.158"
 
 [dev-dependencies.tokio]
 version = "1"

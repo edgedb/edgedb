@@ -204,6 +204,7 @@ def update_fts_document(
     index_expr = index_sexpr.ensure_compiled(
         schema=schema,
         options=options,
+        context=None,
     )
     exprs = _compile_ir_index_exprs(index, index_expr.irast.expr, schema)
 
@@ -234,6 +235,7 @@ def _refresh_fts_document(
     index_expr = index_sexpr.ensure_compiled(
         schema=schema,
         options=options,
+        context=context,
     )
 
     exprs = _compile_ir_index_exprs(index, index_expr.irast.expr, schema)
@@ -377,7 +379,7 @@ def _pg_create_trigger(
         name=trigger_name,
         table_name=table_name,
         events=('insert', 'update'),
-        timing='before',
+        timing=dbops.TriggerTiming.Before,
         procedure=func_name,
     )
     ops.add_command(dbops.CreateTrigger(trigger))
@@ -525,7 +527,7 @@ def _zombo_create_fts_document(
 
 def _zombo_type_name(
     tbl_name: Tuple[str, str],
-) -> Tuple[str, ...]:
+) -> Tuple[str, str]:
     return (
         tbl_name[0],
         common.edgedb_name_to_pg_name(tbl_name[1] + '_zombo_type'),

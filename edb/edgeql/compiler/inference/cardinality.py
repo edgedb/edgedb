@@ -187,6 +187,7 @@ def _union_cardinality(
 
 
 VOLATILE = qltypes.Volatility.Volatile
+MODIFYING = qltypes.Volatility.Modifying
 
 
 def _check_op_volatility(
@@ -202,7 +203,7 @@ def _check_op_volatility(
     # and making sure that the resulting cartesian cardinality isn't
     # multi.
     for i, vol in enumerate(vols):
-        if vol == VOLATILE:
+        if vol.is_volatile():
             cards2 = list(cards)
             cards2[i] = AT_MOST_ONE
             if cartesian_cardinality(cards2).is_multi():
@@ -715,10 +716,12 @@ def __infer_func_call(
     for glob_arg in (ir.global_args or ()):
         infer_cardinality(glob_arg, scope_tree=scope_tree, ctx=ctx)
 
-    cards = []
+    cards: list[qltypes.Cardinality] = []
+    arg_typemods: list[qltypes.TypeModifier] = []
     for arg in ir.args.values():
         card = infer_cardinality(arg.expr, scope_tree=scope_tree, ctx=ctx)
         cards.append(card)
+        arg_typemods.append(arg.param_typemod)
         if ctx.make_updates:
             arg.cardinality = card
 
@@ -775,6 +778,26 @@ def __infer_func_call(
                 span=ir.span,
             )
 
+    if ir.volatility == MODIFYING:
+        if any(card.is_multi() for card in cards):
+            raise errors.QueryError(
+                'possibly more than one element passed into modifying function',
+                span=ir.span,
+            )
+
+        if any(
+            (
+                card.can_be_zero()
+                and typemod == qltypes.TypeModifier.SingletonType
+            )
+            for card, typemod in zip(cards, arg_typemods)
+        ):
+            raise errors.QueryError(
+                'possibly an empty set passed as non-optional argument '
+                'into modifying function',
+                span=ir.span,
+            )
+
     return call_card
 
 
@@ -827,6 +850,16 @@ def __infer_const(
 @_infer_cardinality.register
 def __infer_param(
     ir: irast.Parameter,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    return ONE if ir.required else AT_MOST_ONE
+
+
+@_infer_cardinality.register
+def __infer_inlined_param(
+    ir: irast.InlinedParameterExpr,
     *,
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,

@@ -138,6 +138,23 @@ def compile_Parameter(
         index = ctx.argmap[expr.name].index
         result = pgast.ParamRef(number=index, nullable=not expr.required)
 
+    if irtyputils.needs_custom_serialization(expr.typeref):
+        if irtyputils.is_array(expr.typeref):
+            subt = expr.typeref.subtypes[0]
+            el_sql_type = subt.real_base_type.custom_sql_serialization
+            # Arrays of text encoded types need to come in as the custom type
+            result = pgast.TypeCast(
+                arg=result,
+                type_name=pgast.TypeName(name=(f'{el_sql_type}[]',)),
+            )
+        else:
+            el_sql_type = expr.typeref.real_base_type.custom_sql_serialization
+            assert el_sql_type is not None
+            result = pgast.TypeCast(
+                arg=result,
+                type_name=pgast.TypeName(name=(el_sql_type,)),
+            )
+
     return pgast.TypeCast(
         arg=result,
         type_name=pgast.TypeName(

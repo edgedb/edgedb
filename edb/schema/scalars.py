@@ -88,9 +88,8 @@ class ScalarType(
         compcoef=0.0,
     )
 
-    @classmethod
-    def get_schema_class_displayname(cls) -> str:
-        return 'scalar type'
+    custom_sql_serialization = so.SchemaField(
+        str, default=None, inheritable=False, compcoef=0.0)
 
     def is_scalar(self) -> bool:
         return True

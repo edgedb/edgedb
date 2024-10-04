@@ -16,23 +16,23 @@
 # limitations under the License.
 #
 
-CREATE MODULE net;
+CREATE MODULE std::net;
 
-CREATE SCALAR TYPE net::RequestState EXTENDING std::enum<
+CREATE SCALAR TYPE std::net::RequestState EXTENDING std::enum<
     Pending,
     InProgress,
     Completed,
     Failed
 >;
 
-CREATE SCALAR TYPE net::RequestFailureKind EXTENDING std::enum<
+CREATE SCALAR TYPE std::net::RequestFailureKind EXTENDING std::enum<
     NetworkError,
     Timeout
 >;
 
-CREATE MODULE net::http;
+CREATE MODULE std::net::http;
 
-CREATE SCALAR TYPE net::http::Method EXTENDING std::enum<
+CREATE SCALAR TYPE std::net::http::Method EXTENDING std::enum<
     `GET`,
     POST,
     PUT,
@@ -42,36 +42,39 @@ CREATE SCALAR TYPE net::http::Method EXTENDING std::enum<
     PATCH
 >;
 
-CREATE TYPE net::http::ScheduledRequest extending std::BaseObject {
-    CREATE REQUIRED PROPERTY state: net::RequestState;
+CREATE TYPE std::net::http::Response EXTENDING std::BaseObject {
     CREATE REQUIRED PROPERTY created_at: std::datetime;
-    CREATE PROPERTY failure: tuple<kind: net::RequestFailureKind, message: str>;
+    CREATE PROPERTY status: std::int16;
+    CREATE PROPERTY headers: std::array<std::tuple<name: std::str, value: std::str>>;
+    CREATE PROPERTY body: std::bytes;
+};
 
-    CREATE REQUIRED PROPERTY url: str;
-    CREATE REQUIRED PROPERTY method: net::http::Method;
-    CREATE PROPERTY headers: array<tuple<name: str, value: str>>;
-    CREATE PROPERTY body: bytes;
+CREATE TYPE std::net::http::ScheduledRequest extending std::BaseObject {
+    CREATE REQUIRED PROPERTY state: std::net::RequestState;
+    CREATE REQUIRED PROPERTY created_at: std::datetime;
+    CREATE PROPERTY failure: tuple<kind: std::net::RequestFailureKind, message: str>;
 
-    CREATE LINK response: net::http::Response {
-        CREATE CONSTRAINT EXCLUSIVE;
+    CREATE REQUIRED PROPERTY url: std::str;
+    CREATE REQUIRED PROPERTY method: std::net::http::Method;
+    CREATE PROPERTY headers: std::array<std::tuple<name: std::str, value: std::str>>;
+    CREATE PROPERTY body: std::bytes;
+
+    CREATE LINK response: std::net::http::Response {
+        CREATE CONSTRAINT exclusive;
     };
 };
 
-CREATE TYPE net::http::Response EXTENDING std::BaseObject {
-    CREATE REQUIRED PROPERTY created_at: datetime;
-    CREATE PROPERTY status: int16;
-    CREATE PROPERTY headers: array<tuple<name: str, value: str>>;
-    CREATE PROPERTY body: bytes;
-    CREATE PROPERTY request: .<response[is net::http::ScheduledRequest];
+ALTER TYPE std::net::http::Response {
+    CREATE LINK request := .<response[is std::net::http::ScheduledRequest];
 };
 
 CREATE FUNCTION
-net::http::schedule_request(
+std::net::http::schedule_request(
     url: str,
-    named only body: optional bytes,
-    named only method: net::HttpMethod = net::HttpMethod::`GET`,
-    named only headers: optional array<tuple<name: str, value: str>>,
-) -> net::http::ScheduledRequest
+    named only body: optional std::bytes,
+    named only method: std::net::http::Method = std::net::http::Method.`GET`,
+    named only headers: optional std::array<std::tuple<name: std::str, value: std::str>>,
+) -> std::int16
 {
     USING SQL $$
         SELECT 42;

@@ -154,4 +154,7 @@ create extension package pg_trgm version '1.6' {
         set code :=
             'GIST (__col__ gist_trgm_ops(siglen = __kw_siglen__))';
     };
+
+    create index match for std::str using ext::pg_trgm::gin;
+    create index match for std::str using ext::pg_trgm::gist;
 };

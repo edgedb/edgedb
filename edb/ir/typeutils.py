@@ -196,6 +196,15 @@ def is_persistent_tuple(typeref: irast.TypeRef) -> bool:
         return False
 
 
+def needs_custom_serialization(typeref: irast.TypeRef) -> bool:
+    # True if any component needs custom serialization
+    return contains_predicate(
+        typeref,
+        lambda typeref:
+            typeref.real_base_type.custom_sql_serialization is not None
+    )
+
+
 def contains_predicate(
     typeref: irast.TypeRef,
     pred: Callable[[irast.TypeRef], bool],
@@ -405,6 +414,7 @@ def _type_to_typeref(
 
         sql_type = None
         needs_custom_json_cast = False
+        custom_sql_serialization = None
         if isinstance(t, s_scalars.ScalarType):
             sql_type = t.resolve_sql_type(schema)
             if material_typeref is None:
@@ -414,6 +424,8 @@ def _type_to_typeref(
                 jcast = schema.get(cast_name, type=s_casts.Cast, default=None)
                 if jcast:
                     needs_custom_json_cast = bool(jcast.get_code(schema))
+
+            custom_sql_serialization = t.get_custom_sql_serialization(schema)
 
         result = irast.TypeRef(
             id=t.id,
@@ -435,6 +447,7 @@ def _type_to_typeref(
             is_opaque_union=t.get_is_opaque_union(schema),
             needs_custom_json_cast=needs_custom_json_cast,
             sql_type=sql_type,
+            custom_sql_serialization=custom_sql_serialization,
         )
     elif isinstance(t, s_types.Tuple) and t.is_named(schema):
         schema, material_type = t.material_type(schema)

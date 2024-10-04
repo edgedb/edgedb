@@ -17,7 +17,8 @@
 #
 
 from __future__ import annotations
-from typing import Tuple, Optional
+from typing import Optional, List
+import dataclasses
 
 from edb.common import debug
 from edb.pgsql import ast as pgast
@@ -35,11 +36,23 @@ from . import command  # NOQA
 Options = context.Options
 
 
+@dataclasses.dataclass(kw_only=True, eq=False, frozen=True, repr=False)
+class ResolvedSQL:
+    # AST representing the query that can be sent to PostgreSQL
+    ast: pgast.Base
+
+    # Special behavior for "tag" of "CommandComplete" message of this query.
+    command_complete_tag: Optional[dbstate.CommandCompleteTag]
+
+    # query parameters
+    params: List[dbstate.SQLParam]
+
+
 def resolve(
     query: pgast.Base,
     schema: s_schema.Schema,
     options: context.Options,
-) -> Tuple[pgast.Base, Optional[dbstate.CommandCompleteTag]]:
+) -> ResolvedSQL:
 
     if debug.flags.sql_input:
         debug.header('SQL Input')
@@ -94,4 +107,8 @@ def resolve(
         )
         debug.dump_code(debug_sql_text, lexer='sql')
 
-    return (resolved, command_complete_tag)
+    return ResolvedSQL(
+        ast=resolved,
+        command_complete_tag=command_complete_tag,
+        params=ctx.query_params,
+    )

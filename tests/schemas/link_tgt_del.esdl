@@ -111,3 +111,12 @@ abstract type AbsSource1 extending Named {
 }
 
 type ChildSource1 extending AbsSource1;
+
+type SchemaSource extending Named {
+    link schema_restrict -> schema::Object {
+        on target delete restrict;
+    }
+    link schema_m_restrict -> schema::Object {
+        on target delete restrict;
+    }
+}

@@ -14,10 +14,10 @@ you can confidently know what sort of behavior to expect from your data.
 Laying a type-safe foundation means a bit more thinking up front, but saves
 you all kinds of headaches down the road.
 
-It's not unlikely though that you'll define your schema up perfectly with
-your first try, or that you'll build an application that never needs
-its schema revised. When you *do* eventually need to make a change, you will
-need to migrate your schema from its current state to a new state.
+It's unlikely though that you'll define your schema perfectly on your first
+try, or that you'll build an application that never needs its schema revised.
+When you *do* eventually need to make a change, you'll need to migrate
+your schema from its current state to a new state.
 
 The basics of creating a project, modifying its schema, and migrating
 it in EdgeDB are pretty easy:

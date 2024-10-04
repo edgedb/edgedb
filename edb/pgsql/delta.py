@@ -1078,6 +1078,7 @@ class FunctionCommand(MetaCommand):
             comp = default.compiled(
                 schema=schema,
                 as_fragment=True,
+                context=None,
             )
 
             ir = comp.irast
@@ -3362,6 +3363,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         index_expr = index_sexpr.ensure_compiled(
             schema=schema,
             options=options,
+            context=None,
         )
         ir = index_expr.irast
 
@@ -3370,6 +3372,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             except_expr = except_expr.ensure_compiled(
                 schema=schema,
                 options=options,
+                context=None,
             )
             assert except_expr.irast
             except_res = compiler.compile_ir_to_sql_tree(
@@ -3587,6 +3590,20 @@ class RebaseIndex(IndexCommand, adapts=s_indexes.RebaseIndex):
     pass
 
 
+class IndexMatchCommand(MetaCommand):
+    pass
+
+
+class CreateIndexMatch(IndexMatchCommand, adapts=s_indexes.CreateIndexMatch):
+    # Index match is handled by the compiler and does not need explicit
+    # representation in the backend.
+    pass
+
+
+class DeleteIndexMatch(IndexMatchCommand, adapts=s_indexes.DeleteIndexMatch):
+    pass
+
+
 class CreateUnionType(
     MetaCommand,
     adapts=s_types.CreateUnionType,
@@ -3697,7 +3714,7 @@ class CreateObjectType(
         new_table_name = self._get_table_name(self.scls, schema)
 
         self.table_name = new_table_name
-        columns: list[str] = []
+        columns: list[dbops.Column] = []
 
         objtype_table = dbops.Table(name=new_table_name, columns=columns)
         self.pgops.add(dbops.CreateTable(table=objtype_table))
@@ -4902,7 +4919,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
 
         table = dbops.Table(name=new_table_name)
         table.add_columns(columns)
-        table.constraints = constraints
+        table.constraints = ordered.OrderedSet(constraints)
 
         ct = dbops.CreateTable(table=table)
 
@@ -7166,28 +7183,34 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
             lclauses.append(f'v.split {op} {pver}')
         cond = ' and '.join(lclauses) if lclauses else 'true'
 
+        ver_regexp = r'^\d+(\.\d+)+$'
         qry = textwrap.dedent(f'''\
             with v as (
                select name, version,
                string_to_array(version, '.')::int8[] as split
                from pg_available_extension_versions
-               where name = {ql(ext)}
+               where
+                 name = {ql(ext)}
+                 and
+                 version ~ '{ver_regexp}'
             )
             select edgedb_VER.raise_on_null(
               (
                  select v.version from v
                  where {cond}
                  order by split desc limit 1
-               ),
-               'feature_not_supported',
-               msg => (
-                 'could not find extension satisfying ' || {ql(ext_spec)}
-                  || ': ' ||
-                  coalesce(
-                    'only found versions ' ||
-                      (select string_agg(v.version, ', ' order by v.split)
-                       from v),
-                    'extension not found'))
+              ),
+              'feature_not_supported',
+              msg => (
+                'could not find extension satisfying ' || {ql(ext_spec)}
+                || ': ' ||
+                coalesce(
+                  'only found versions ' ||
+                    (select string_agg(v.version, ', ' order by v.split)
+                     from v),
+                  'extension not found'
+                )
+              )
             )
             into _dummy_text;
         ''')

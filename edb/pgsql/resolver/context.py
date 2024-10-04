@@ -28,13 +28,14 @@ from edb.pgsql import ast as pgast
 from edb.pgsql.compiler import aliases
 
 from edb.common import compiler
+from edb.server.compiler import dbstate
 
 from edb.schema import schema as s_schema
 from edb.schema import objects as s_objects
 from edb.schema import pointers as s_pointers
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True, repr=False, match_args=False)
 class Options:
     current_database: str
 
@@ -43,7 +44,10 @@ class Options:
     current_query: str
 
     # schemas that will be searched when idents don't have an explicit one
-    search_path: Sequence[str] = ("public",)
+    search_path: Sequence[str]
+
+    # allow setting id in inserts
+    allow_user_specified_id: bool
 
 
 @dataclass(kw_only=True)
@@ -198,6 +202,11 @@ class ResolverContextLevel(compiler.ContextLevel):
 
     options: Options
 
+    query_params: List[dbstate.SQLParam]
+    """List of params needed by the compiled query. Gets populated during
+    compilation and also includes params needed for globals, from calls to ql
+    compiler."""
+
     def __init__(
         self,
         prevlevel: Optional[ResolverContextLevel],
@@ -218,6 +227,7 @@ class ResolverContextLevel(compiler.ContextLevel):
             self.ctes_buffer = []
             self.inheritance_ctes = dict()
             self.compiled_dml = dict()
+            self.query_params = []
 
         else:
             self.schema = prevlevel.schema
@@ -228,6 +238,7 @@ class ResolverContextLevel(compiler.ContextLevel):
             self.ctes_buffer = prevlevel.ctes_buffer
             self.inheritance_ctes = prevlevel.inheritance_ctes
             self.compiled_dml = prevlevel.compiled_dml
+            self.query_params = prevlevel.query_params
 
             if mode == ContextSwitchMode.EMPTY:
                 self.scope = Scope(ctes=prevlevel.scope.ctes)

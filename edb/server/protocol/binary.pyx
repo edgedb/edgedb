@@ -320,17 +320,14 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self.write(buf)
 
+        # In dev mode we expose the backend postgres DSN
         if self.server.in_dev_mode():
-            pgaddr = dict(self.tenant.get_pgaddr())
-            if pgaddr.get('password'):
-                pgaddr['password'] = '********'
-            pgaddr['database'] = self.tenant.get_pg_dbname(
+            params = self.tenant.get_pgaddr()
+            params.update(database=self.tenant.get_pg_dbname(
                 self.get_dbview().dbname
-            )
-            pgaddr.pop('ssl', None)
-            if 'sslmode' in pgaddr:
-                pgaddr['sslmode'] = pgaddr['sslmode'].name
-            self.write_status(b'pgaddr', json.dumps(pgaddr).encode())
+            ))
+            params.clear_server_settings()
+            self.write_status(b'pgdsn', params.to_dsn().encode())
 
         self.write_status(
             b'suggested_pool_concurrency',
@@ -639,7 +636,17 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'T')
-        msg.write_int16(0)  # no headers
+
+        if query.query_unit_group.warnings:
+            warnings = json.dumps(
+                [w.to_json() for w in query.query_unit_group.warnings]
+            ).encode('utf-8')
+            msg.write_int16(1)
+            msg.write_len_prefixed_bytes(b'warnings')
+            msg.write_len_prefixed_bytes(warnings)
+        else:
+            msg.write_int16(0)  # no headers
+
         msg.write_int64(<int64_t><uint64_t>query.query_unit_group.capabilities)
         msg.write_byte(self.render_cardinality(query.query_unit_group))
 
@@ -905,7 +912,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 "types inferred from specified command(s)"
             )
 
-        if query_unit_group.out_type_id != out_tid:
+        if (
+            query_unit_group.out_type_id != out_tid
+            or query_unit_group.warnings
+        ):
             # The client has no up-to-date information about the output,
             # so provide one.
             self.write(self.make_command_data_description_msg(compiled))

@@ -649,7 +649,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.SchemaError,
-                  "invalid type: pseudotype 'anytype' is a generic type")
+                  "invalid type: pseudo type 'anytype' is a generic type")
     def test_schema_bad_type_12(self):
         """
             type Foo {
@@ -658,7 +658,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.SchemaError,
-                  "invalid type: pseudotype 'anytype' is a generic type")
+                  "invalid type: pseudo type 'anytype' is a generic type")
     def test_schema_bad_type_13(self):
         """
             type Foo {
@@ -667,7 +667,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.SchemaError,
-                  "invalid type: pseudotype 'anytuple' is a generic type")
+                  "invalid type: pseudo type 'anytuple' is a generic type")
     def test_schema_bad_type_14(self):
         """
             type Foo {
@@ -9445,7 +9445,7 @@ class BaseDescribeTest(tb.BaseSchemaLoadTest):
         elif explicit_modules:
             sdl_schema = qlparser.parse_sdl(schema_text)
             schema = tb._load_std_schema()
-            schema = s_ddl.apply_sdl(
+            schema, _ = s_ddl.apply_sdl(
                 sdl_schema,
                 base_schema=schema,
                 current_schema=schema,
@@ -11121,7 +11121,7 @@ class TestSDLTextFromSchema(BaseDescribeTest):
         elif explicit_modules:
             sdl_schema = qlparser.parse_sdl(schema_text)
             schema = tb._load_std_schema()
-            schema = s_ddl.apply_sdl(
+            schema, _ = s_ddl.apply_sdl(
                 sdl_schema,
                 base_schema=schema,
                 current_schema=schema,

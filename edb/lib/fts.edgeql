@@ -68,6 +68,8 @@ CREATE SCALAR TYPE fts::document {
     SET transient := true;
 };
 
+create index match for fts::document using fts::index;
+
 CREATE FUNCTION fts::with_options(
     text: std::str,
     NAMED ONLY language: anyenum,

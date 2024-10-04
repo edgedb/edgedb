@@ -199,6 +199,7 @@ async def _parse(
         query_cache=query_cache_enabled,
         protocol_version=edbdef.CURRENT_PROTOCOL,
     )
+    dbv.is_transient = True
     if use_metrics:
         metrics.query_size.observe(
             len(query.encode('utf-8')), tenant.get_instance_name(), 'edgeql'

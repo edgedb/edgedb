@@ -60,7 +60,7 @@ from edb.common import verutils
 # The merge conflict there is a nice reminder that you probably need
 # to write a patch in edb/pgsql/patches.py, and then you should preserve
 # the old value.
-EDGEDB_CATALOG_VERSION = 2024_08_29_00_00
+EDGEDB_CATALOG_VERSION = 2024_10_02_00_00
 EDGEDB_MAJOR_VERSION = 6
 
 
@@ -209,6 +209,11 @@ def get_shared_data_dir_path() -> pathlib.Path:
         return devmode.get_dev_mode_cache_dir()  # type: ignore[return-value]
     else:
         return pathlib.Path(get_build_metadata_value('SHARED_DATA_DIR'))
+
+
+def get_extension_dir_path() -> pathlib.Path:
+    # TODO: Do we want a special metadata value??
+    return get_shared_data_dir_path() / "extensions"
 
 
 def hash_dirs(

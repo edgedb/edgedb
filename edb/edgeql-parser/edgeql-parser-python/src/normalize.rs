@@ -220,7 +220,7 @@ fn is_operator(token: &Token) -> bool {
         | OpenBrace | CloseBrace | Dot | Semicolon | Colon | Add | Sub | Mul | Div | Modulo
         | Pow | Less | Greater | Eq | Ampersand | Pipe | At => true,
         DecimalConst | FloatConst | IntConst | BigIntConst | BinStr | Parameter
-        | ParameterAndType | Str | BacktickName | Keyword(_) | Ident | Substitution | EOF | EOI
+        | ParameterAndType | Str | BacktickName | Keyword(_) | Ident | Substitution | EOI
         | Epsilon | StartBlock | StartExtension | StartFragment | StartMigration
         | StartSDLDocument => false,
     }
@@ -232,7 +232,7 @@ fn serialize_tokens(tokens: &[Token]) -> String {
     let mut buf = String::new();
     let mut needs_space = false;
     for token in tokens {
-        if matches!(token.kind, Kind::EOF | Kind::EOI) {
+        if matches!(token.kind, Kind::EOI) {
             break;
         }
 

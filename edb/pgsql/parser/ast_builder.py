@@ -199,16 +199,6 @@ def _unwrap_string(n: Node) -> Node:
     return n
 
 
-def _probe(n: Node, keys: List[str | int]) -> bool:
-    for key in keys:
-        contained = key in n if isinstance(key, str) else key < len(n)
-        if contained:
-            n = n[key]
-        else:
-            return False
-    return True
-
-
 def _as_column_ref(name: str) -> pgast.ColumnRef:
     return pgast.ColumnRef(
         name=(name,),
@@ -888,9 +878,15 @@ def _build_const(n: Node, c: Context) -> pgast.BaseConstant:
 
     if "String" in n or "sval" in n:
         return pgast.StringConstant(
-            val=_build_str(_unwrap_string(n), c), span=span
+            val=_unwrap_string(n), span=span
         )
-
+    if "BitString" in n or "bsval" in n:
+        n = _unwrap(n, 'BitString')
+        n = _unwrap(n, 'str')
+        n = _unwrap(n, 'bsval')
+        n = _unwrap(n, 'bsval')
+        val = bytes.fromhex(n[1:])
+        return pgast.ByteaConstant(val=val, span=span)
     raise PSqlUnsupportedError(n)
 
 

@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import Any, Optional, Tuple, Dict, List, FrozenSet
 
+import dataclasses
 import json
 import textwrap
 
@@ -163,6 +164,7 @@ def compile_and_apply_ddl_stmt(
             sql=(b'SELECT LIMIT 0',),
             user_schema=current_tx.get_user_schema(),
             is_transactional=True,
+            warnings=tuple(delta.warnings),
         )
 
     store_migration_sdl = compiler._get_config_val(ctx, 'store_migration_sdl')
@@ -193,6 +195,7 @@ def compile_and_apply_ddl_stmt(
             sql=(b'SELECT LIMIT 0',),
             user_schema=current_tx.get_user_schema(),
             is_transactional=True,
+            warnings=tuple(delta.warnings),
         )
 
     # Apply and adapt delta, build native delta plan, which
@@ -281,6 +284,7 @@ def compile_and_apply_ddl_stmt(
         cached_reflection=current_tx.get_cached_reflection_if_updated(),
         global_schema=current_tx.get_global_schema_if_updated(),
         config_ops=config_ops,
+        warnings=tuple(delta.warnings),
     )
 
 
@@ -459,7 +463,7 @@ def _start_migration(
             s_schema.EMPTY_SCHEMA,
             current_tx.get_global_schema(),
         )
-        target_schema = s_ddl.apply_sdl(
+        target_schema, warnings = s_ddl.apply_sdl(
             ql.target,
             base_schema=base_schema,
             current_schema=schema,
@@ -468,6 +472,7 @@ def _start_migration(
                 compiler._get_config_val(ctx, 'allow_dml_in_functions')
             ),
         )
+        query = dataclasses.replace(query, warnings=tuple(warnings))
 
     current_tx.update_migration_state(
         dbstate.MigrationState(
@@ -959,7 +964,7 @@ def _start_migration_rewrite(
         s_schema.EMPTY_SCHEMA,
         current_tx.get_global_schema(),
     )
-    base_schema = s_ddl.apply_sdl(  # type: ignore
+    new_base_schema, _ = s_ddl.apply_sdl(
         qlast.Schema(
             declarations=[
                 qlast.ModuleDeclaration(
@@ -973,7 +978,7 @@ def _start_migration_rewrite(
     )
 
     # Set our current schema to be the empty one
-    current_tx.update_schema(base_schema)
+    current_tx.update_schema(new_base_schema)
     current_tx.update_migration_rewrite_state(
         dbstate.MigrationRewriteState(
             target_schema=schema,
@@ -1112,7 +1117,7 @@ def _reset_schema(
         s_schema.EMPTY_SCHEMA,
         current_tx.get_global_schema(),
     )
-    empty_schema = s_ddl.apply_sdl(  # type: ignore
+    empty_schema, _ = s_ddl.apply_sdl(  # type: ignore
         qlast.Schema(
             declarations=[
                 qlast.ModuleDeclaration(

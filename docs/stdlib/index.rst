@@ -35,6 +35,7 @@ Standard Library
     cfg
     pgcrypto
     pg_trgm
+    pg_unaccent
     pgvector
     deprecated
 

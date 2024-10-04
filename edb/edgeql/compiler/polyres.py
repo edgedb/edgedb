@@ -81,7 +81,8 @@ class BoundCall(NamedTuple):
     args: List[BoundArg]
     null_args: Set[str]
     return_type: s_types.Type
-    has_empty_variadic: bool
+    variadic_arg_id: Optional[int]
+    variadic_arg_count: Optional[int]
 
 
 _VARIADIC = ft.ParameterKind.VariadicParam
@@ -309,9 +310,16 @@ def try_bind_call_args(
         ctx.env.options.func_params.has_polymorphic(schema)
     )
 
-    has_empty_variadic = False
+    variadic_arg_id: Optional[int] = None
+    variadic_arg_count: Optional[int] = None
     no_args_call = not args and not kwargs
-    has_inlined_defaults = func.has_inlined_defaults(schema)
+    has_inlined_defaults = (
+        func.has_inlined_defaults(schema)
+        and not (
+            isinstance(func, s_func.Function)
+            and func.get_is_inlined(schema)
+        )
+    )
 
     func_params = func.get_params(schema)
 
@@ -330,8 +338,8 @@ def try_bind_call_args(
                     ctx=ctx)
                 bargs = [BoundArg(None, bytes_t, argval, bytes_t, 0, -1)]
             return BoundCall(
-                func, bargs, set(),
-                return_type, False)
+                func, bargs, set(), return_type, None, None
+            )
         else:
             # No match: `func` is a function without parameters
             # being called with some arguments.
@@ -430,6 +438,9 @@ def try_bind_call_args(
                         BoundArg(param, param_type, arg_val, arg_type, cd,
                                  ai + di))
 
+                variadic_arg_id = ai - 1
+                variadic_arg_count = nargs - ai + 1
+
                 break
 
             cd = _get_cast_distance(arg_val, arg_type, param_type)
@@ -458,7 +469,8 @@ def try_bind_call_args(
             bound_args_prep.append(MissingArg(param, param_type))
 
         elif param_kind is _VARIADIC:
-            has_empty_variadic = True
+            variadic_arg_id = i
+            variadic_arg_count = 0
 
         elif param_kind is _NAMED_ONLY:
             # impossible condition
@@ -592,7 +604,13 @@ def try_bind_call_args(
                 )
 
     return BoundCall(
-        func, bound_param_args, null_args, return_type, has_empty_variadic)
+        func,
+        bound_param_args,
+        null_args,
+        return_type,
+        variadic_arg_id,
+        variadic_arg_count,
+    )
 
 
 def compile_arg(

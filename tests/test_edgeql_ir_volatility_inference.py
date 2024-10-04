@@ -114,7 +114,7 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
                 cost := 1,
             }
 % OK %
-        Volatile
+        Modifying
         """
 
     def test_edgeql_ir_volatility_inference_07(self):
@@ -125,7 +125,7 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
                 name := 'foo',
         }
 % OK %
-        Volatile
+        Modifying
         """
 
     def test_edgeql_ir_volatility_inference_08(self):
@@ -133,7 +133,7 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
         DELETE
             Card
 % OK %
-        Volatile
+        Modifying
         """
 
     def test_edgeql_ir_volatility_inference_09(self):

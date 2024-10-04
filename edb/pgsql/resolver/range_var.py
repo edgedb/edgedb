@@ -24,7 +24,6 @@ from typing import Optional, Tuple, Union, Iterable, List, cast
 
 from edb import errors
 from edb.common.parsing import Span
-from edb.server.pgcon import errors as pgerror
 
 from edb.pgsql import ast as pgast
 from edb.pgsql.compiler import astutils as pgastutils
@@ -363,6 +362,7 @@ def _zip_column_alias(
     columns = [c for c in columns if not c.hidden]
 
     if len(columns) != len(alias.colnames):
+        from edb.server.pgcon import errors as pgerror
         raise errors.QueryError(
             f'Table alias for `{alias.aliasname}` contains '
             f'{len(alias.colnames)} columns, but the query resolves to '

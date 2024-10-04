@@ -47,7 +47,6 @@ from edb.schema import utils as s_utils
 from edb.schema import expr as s_expr
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import utils
 
 from . import astutils
 from . import casts
@@ -131,7 +130,7 @@ def compile_BinOp(expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
             )
             return dispatch.compile(balanced, ctx=ctx)
 
-    if expr.op == '??' and utils.contains_dml(expr.right):
+    if expr.op == '??' and astutils.contains_dml(expr.right, ctx=ctx):
         return _compile_dml_coalesce(expr, ctx=ctx)
 
     return func.compile_operator(
@@ -516,8 +515,8 @@ def compile_IfElse(
 ) -> irast.Set:
 
     if (
-        utils.contains_dml(expr.if_expr)
-        or utils.contains_dml(expr.else_expr)
+        astutils.contains_dml(expr.if_expr, ctx=ctx)
+        or astutils.contains_dml(expr.else_expr, ctx=ctx)
     ):
         return _compile_dml_ifelse(expr, ctx=ctx)
 

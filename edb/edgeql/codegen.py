@@ -2078,6 +2078,27 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             node, 'INDEX', named=node.name.name != 'idx',
             after_name=lambda: self._after_index(node))
 
+    def visit_CreateIndexMatch(self, node: qlast.CreateIndexMatch) -> None:
+        def after_name() -> None:
+            self.visit(node.valid_type)
+            self._write_keywords(' using ')
+            self.visit(node.name)
+
+        self._visit_CreateObject(
+            node, 'index match', 'for',
+            named=False, after_name=after_name,
+        )
+
+    def visit_DropIndexMatch(self, node: qlast.DropIndexMatch) -> None:
+        def after_name() -> None:
+            self.visit(node.valid_type)
+            self._write_keywords(' using ')
+            self.visit(node.name)
+        self._visit_DropObject(
+            node, 'index match', 'for',
+            named=False, after_name=after_name,
+        )
+
     def visit_CreateOperator(self, node: qlast.CreateOperator) -> None:
         def after_name() -> None:
             self.write('(')

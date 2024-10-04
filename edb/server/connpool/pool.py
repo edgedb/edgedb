@@ -18,7 +18,6 @@
 
 from __future__ import annotations
 
-import logging
 import typing
 
 import asyncio
@@ -28,8 +27,7 @@ import time
 
 from . import rolavg
 from . import config
-
-logger = logging.getLogger("edb.server")
+from .config import logger
 
 CP1 = typing.TypeVar('CP1', covariant=True)
 CP2 = typing.TypeVar('CP2', contravariant=True)

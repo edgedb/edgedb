@@ -4,7 +4,7 @@ description = "EdgeDB Server"
 requires-python = '>=3.12.0'
 dynamic = ["version"]
 dependencies = [
-    'edgedb==1.9.0',
+    'edgedb~=2.1.0',
 
     'httptools>=0.6.0',
     'immutables>=0.18',
@@ -30,6 +30,7 @@ dependencies = [
 
 [project.scripts]
 edgedb-server = "edb.server.main:main"
+edgedb-load-ext = "edb.load_ext.main:main"
 edgedb-ls = "edb.language_server.main:main"
 edb = "edb.tools.edb:edbcommands"
 edgedb = "edb.cli:rustcli"
@@ -98,7 +99,7 @@ requires = [
     "wheel",
 
     "parsing ~= 2.0",
-    'edgedb == 1.9.0',
+    'edgedb~=2.1.0',
 ]
 # Custom backend needed to set up build-time sys.path because
 # setup.py needs to import `edb.buildmeta`.
@@ -143,6 +144,7 @@ warn_redundant_casts = true
 warn_unused_configs = true
 show_column_numbers = true
 show_error_codes = true
+local_partial_types = true
 # This being an error seems super confused to me.
 disable_error_code = "type-abstract"
 

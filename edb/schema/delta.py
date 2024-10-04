@@ -1621,6 +1621,13 @@ class DeltaRoot(CommandGroup, context_class=DeltaRootContext):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.new_types: Set[uuid.UUID] = set()
+        self.warnings: list[errors.EdgeDBError] = []
+
+    @classmethod
+    def from_commands(cls, *cmds: Command) -> DeltaRoot:
+        delta = DeltaRoot()
+        delta.update(cmds)
+        return delta
 
     def apply(
         self,
@@ -1718,7 +1725,8 @@ class Query(Command):
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
                     apply_query_rewrites=False,
-                )
+                ),
+                context=context,
             )
         return schema
 

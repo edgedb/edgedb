@@ -367,6 +367,7 @@ def compile_ast_fragment_to_ir(
         type_rewrites={},
         singletons=[],
         triggers=(),
+        warnings=tuple(ctx.env.warnings),
     )
 
 

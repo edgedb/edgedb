@@ -302,6 +302,7 @@ class AliasCommand(
                 in_ddl_context_name='alias definition',
                 track_schema_ref_exprs=track_schema_ref_exprs,
             ),
+            context=context,
         )
 
 
@@ -492,7 +493,7 @@ def compile_alias_expr(
         ),
     )
 
-    if ir.volatility == qltypes.Volatility.Volatile:
+    if ir.volatility.is_volatile():
         raise errors.SchemaDefinitionError(
             f'volatile functions are not permitted in schema-defined '
             f'computed expressions',

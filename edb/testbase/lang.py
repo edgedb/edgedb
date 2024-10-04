@@ -313,7 +313,7 @@ class BaseSchemaTest(BaseDocTest):
                 if target_schema is None:
                     target_schema = _load_std_schema()
 
-                migration_target = s_ddl.apply_sdl(
+                migration_target, _ = s_ddl.apply_sdl(
                     stmt.target,
                     base_schema=target_schema,
                     current_schema=current_schema,
@@ -448,7 +448,7 @@ class BaseSchemaTest(BaseDocTest):
             sdl_schema,
             base_schema=schema,
             current_schema=schema,
-        )
+        )[0]
 
     @classmethod
     def get_schema_script(cls):

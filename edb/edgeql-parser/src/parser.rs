@@ -28,7 +28,7 @@ impl<'s> Context<'s> {
 /// when changing.
 const UNEXPECTED: &str = "Unexpected";
 
-pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode<'a>>, Vec<Error>) {
+pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<CSTNode<'a>>, Vec<Error>) {
     let stack_top = ctx.arena.alloc(StackNode {
         parent: None,
         state: 0,
@@ -43,7 +43,15 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
         has_custom_error: false,
     };
 
-    // append EIO
+    // Append EIO token.
+    // We have a weird setup that requires two EOI tokens:
+    // - one is consumed by the grammar generator and does not contribute to
+    //   span of the nodes.
+    // - second is consumed by explicit EOF tokens in EdgeQLGrammar NonTerm.
+    //   Since these are children of productions, they do contribute to the
+    //   spans of the top-level nodes.
+    // First EOI is produced by tokenizer (with correct offset) and second one
+    // is injected here.
     let end = input.last().map(|t| t.span.end).unwrap_or_default();
     let eoi = ctx.alloc_terminal(Terminal {
         kind: Kind::EOI,
@@ -52,7 +60,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
         value: None,
         is_placeholder: false,
     });
-    let input = input.iter().chain(Some(eoi));
+    let input = input.iter().chain([eoi]);
 
     let mut parsers = vec![initial_track];
     let mut prev_span: Option<Span> = None;
@@ -127,7 +135,7 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                 let mut skip = parser;
                 let error = Error::new(format!("{UNEXPECTED} {token}")).with_span(token.span);
                 skip.push_error(error, ERROR_COST_SKIP);
-                if token.kind == Kind::EOF || token.kind == Kind::Semicolon {
+                if token.kind == Kind::EOI || token.kind == Kind::Semicolon {
                     // extra penalty
                     skip.error_cost += ERROR_COST_INJECT_MAX;
                     skip.can_recover = false;
@@ -158,16 +166,16 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
                     new_parsers.push(recovered);
                 }
             }
-        }
 
-        // prune: pick only 1 best parsers that has cost > ERROR_COST_INJECT_MAX
-        if new_parsers[0].error_cost > ERROR_COST_INJECT_MAX {
-            new_parsers.drain(1..);
-        }
+            // prune: pick only 1 best parsers that has cost > ERROR_COST_INJECT_MAX
+            if new_parsers[0].error_cost > ERROR_COST_INJECT_MAX {
+                new_parsers.drain(1..);
+            }
 
-        // prune: pick only X best parsers
-        if new_parsers.len() > PARSER_COUNT_MAX {
-            new_parsers.drain(PARSER_COUNT_MAX..);
+            // prune: pick only X best parsers
+            if new_parsers.len() > PARSER_COUNT_MAX {
+                new_parsers.drain(PARSER_COUNT_MAX..);
+            }
         }
 
         assert!(parsers.is_empty());
@@ -177,16 +185,28 @@ pub fn parse<'a>(input: &'a [Terminal], ctx: &'a Context) -> (Option<&'a CSTNode
 
     // there will always be a parser left,
     // since we always allow a token to be skipped
-    let mut parser = parsers.into_iter().min_by_key(|p| p.error_cost).unwrap();
-    parser.finish();
+    let parser = parsers
+        .into_iter()
+        .min_by(|a, b| {
+            Ord::cmp(&a.error_cost, &b.error_cost).then_with(|| {
+                Ord::cmp(
+                    &starts_with_unexpected_error(a),
+                    &starts_with_unexpected_error(b),
+                )
+                .reverse()
+            })
+        })
+        .unwrap();
 
-    let node = if parser.can_recover {
-        Some(&parser.stack_top.value)
-    } else {
-        None
-    };
+    let node = parser.finish(ctx);
     let errors = custom_errors::post_process(parser.errors);
     (node, errors)
+}
+
+fn starts_with_unexpected_error(a: &Parser) -> bool {
+    a.errors
+        .first()
+        .map_or(true, |x| x.message.starts_with(UNEXPECTED))
 }
 
 impl<'s> Context<'s> {
@@ -397,29 +417,37 @@ impl<'s> Parser<'s> {
         self.stack_top = ctx.arena.alloc(node);
     }
 
-    pub fn finish(&mut self) {
-        // XXX: This assert was failing. Should it be fixed or removed?
-        // debug_assert!(matches!(
-        //     &self.stack_top.value,
-        //     CSTNode::Terminal(Terminal {
-        //         kind: Kind::EOI,
-        //         ..
-        //     })
-        // ));
-        self.stack_top = self.stack_top.parent.unwrap();
+    pub fn finish(&self, _ctx: &'s Context) -> Option<CSTNode<'s>> {
+        if !self.can_recover || self.has_custom_error {
+            return None;
+        }
 
-        // self.print_stack();
+        // pop the EOI from the top of the stack
+        assert!(
+            matches!(
+                &self.stack_top.value,
+                CSTNode::Terminal(Terminal {
+                    kind: Kind::EOI,
+                    ..
+                })
+            ),
+            "expected EOI CST node, got {:?}",
+            self.stack_top.value
+        );
+
+        let final_node = self.stack_top.parent.unwrap();
+
+        // self.print_stack(_ctx);
         // println!("   --> accept");
 
-        #[cfg(debug_assertions)]
-        {
-            let first = self.stack_top.parent.unwrap();
-            assert!(
-                matches!(&first.value, CSTNode::Empty),
-                "expected 'Empty' found {:?}",
-                first.value
-            );
-        }
+        let first = final_node.parent.unwrap();
+        assert!(
+            matches!(&first.value, CSTNode::Empty),
+            "expected empty CST node, found {:?}",
+            first.value
+        );
+
+        Some(final_node.value)
     }
 
     #[cfg(never)]
@@ -588,7 +616,9 @@ fn injection_cost(kind: &Kind) -> u16 {
 impl std::fmt::Display for Terminal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if (self.is_placeholder && self.kind == Kind::Ident) || self.text.is_empty() {
-            return write!(f, "{}", self.kind.user_friendly_text().unwrap_or_default());
+            if let Some(user_friendly) = self.kind.user_friendly_text() {
+                return write!(f, "{}", user_friendly);
+            }
         }
 
         match self.kind {
@@ -695,8 +725,7 @@ fn get_token_kind(token_name: &str) -> Kind {
         ">" => Greater,
 
         "IDENT" => Ident,
-        "EOF" => EOF,
-        "<$>" => EOI,
+        "EOI" | "<$>" => EOI,
         "<e>" => Epsilon,
 
         "BCONST" => BinStr,

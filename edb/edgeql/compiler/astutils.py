@@ -22,12 +22,21 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Optional, Tuple, Dict, List
+from typing import Optional, Tuple, Dict, List, TYPE_CHECKING
 
 from edb.common import ast
 from edb.common import view_patterns
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
+
+from edb.schema import name as sn
+
+if TYPE_CHECKING:
+
+    from edb.schema import functions as s_func
+
+    from . import context
 
 
 def extend_binop(
@@ -192,3 +201,55 @@ class alias_view(
             ):
                 return alias, rest
         raise view_patterns.NoMatch
+
+
+def contains_dml(
+    ql_expr: qlast.Base,
+    *,
+    ctx: context.ContextLevel
+    ) -> bool:
+    """Check whether a expression contains any DML in a subtree."""
+    # If this ends up being a perf problem, we can use a visitor
+    # directly and cache.
+    dml_types = (qlast.InsertQuery, qlast.UpdateQuery, qlast.DeleteQuery)
+    if isinstance(ql_expr, dml_types):
+        return True
+
+    res = ast.find_children(
+        ql_expr, qlast.Base,
+        lambda x: (
+            isinstance(x, dml_types)
+            or (isinstance(x, qlast.IRAnchor) and x.has_dml)
+            or (
+                isinstance(x, qlast.FunctionCall)
+                and any(
+                    (
+                        func.get_volatility(ctx.env.schema)
+                        == qltypes.Volatility.Modifying
+                    )
+                    for func in _get_functions_from_call(x, ctx=ctx)
+                )
+            )
+        ),
+        terminate_early=True,
+    )
+
+    return bool(res)
+
+
+def _get_functions_from_call(
+    expr: qlast.FunctionCall,
+    *,
+    ctx: context.ContextLevel,
+) -> tuple[s_func.Function, ...]:
+    funcname: sn.Name
+    if isinstance(expr.func, str):
+        funcname = sn.UnqualName(expr.func)
+    else:
+        funcname = sn.QualName(*expr.func)
+
+    return ctx.env.schema.get_functions(
+        funcname,
+        default=(),
+        module_aliases=ctx.modaliases,
+    )

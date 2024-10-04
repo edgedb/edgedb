@@ -1,6 +1,6 @@
-mod conn_string;
-
-pub use conn_string::{parse_postgres_url, Host, ParseError};
+pub mod auth;
+pub mod connection;
+pub mod protocol;
 
 #[cfg(feature = "python_extension")]
-mod python;
+pub mod python;

@@ -25,11 +25,15 @@ CREATE ABSTRACT INDEX pg::hash {
     SET code := 'hash ((__col__))';
 };
 
+create index match for anytype using pg::hash;
+
 CREATE ABSTRACT INDEX pg::btree {
     CREATE ANNOTATION std::description :=
         'B-tree index can be used to retrieve data in sorted order.';
     SET code := 'btree ((__col__) NULLS FIRST)';
 };
+
+create index match for anytype using pg::btree;
 
 CREATE ABSTRACT INDEX pg::gin {
     CREATE ANNOTATION std::description :=
@@ -38,11 +42,18 @@ CREATE ABSTRACT INDEX pg::gin {
     SET code := 'gin ((__col__))';
 };
 
+create index match for array<anytype> using pg::gin;
+create index match for std::json using pg::gin;
+
 CREATE ABSTRACT INDEX pg::gist {
     CREATE ANNOTATION std::description :=
         'GIST index can be used to optimize searches involving ranges.';
     SET code := 'gist ((__col__))';
 };
+
+create index match for array<anytype> using pg::gist;
+create index match for range<std::anypoint> using pg::gist;
+create index match for multirange<std::anypoint> using pg::gist;
 
 CREATE ABSTRACT INDEX pg::spgist {
     CREATE ANNOTATION std::description :=
@@ -51,9 +62,25 @@ CREATE ABSTRACT INDEX pg::spgist {
     SET code := 'spgist ((__col__))';
 };
 
+create index match for range<std::anypoint> using pg::spgist;
+create index match for std::str using pg::spgist;
+
 CREATE ABSTRACT INDEX pg::brin {
     CREATE ANNOTATION std::description :=
         'BRIN (Block Range INdex) index works with summaries about the values \
         stored in consecutive physical block ranges in the database.';
     SET code := 'brin ((__col__))';
 };
+
+create index match for range<std::anypoint> using pg::brin;
+create index match for std::anyreal using pg::brin;
+create index match for std::bytes using pg::brin;
+create index match for std::str using pg::brin;
+create index match for std::uuid using pg::brin;
+create index match for std::datetime using pg::brin;
+create index match for std::duration using pg::brin;
+create index match for cal::local_datetime using pg::brin;
+create index match for cal::local_date using pg::brin;
+create index match for cal::local_time using pg::brin;
+create index match for cal::relative_duration using pg::brin;
+create index match for cal::date_duration using pg::brin;

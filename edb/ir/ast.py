@@ -72,6 +72,8 @@ import uuid
 
 from edb.common import ast, compiler, span, markup, enum as s_enum
 
+from edb import errors
+
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as so
@@ -185,6 +187,8 @@ class TypeRef(ImmutableBase):
     needs_custom_json_cast: bool = False
     # If this has a schema-configured backend type, what is it
     sql_type: typing.Optional[str] = None
+    # If this has a schema-configured custom sql serialization, what is it
+    custom_sql_serialization: typing.Optional[str] = None
 
     def __repr__(self) -> str:
         return f'<ir.TypeRef \'{self.name_hint}\' at 0x{id(self):x}>'
@@ -545,6 +549,11 @@ class VisibleBindingExpr(RefExpr):
     pass
 
 
+class InlinedParameterExpr(RefExpr):
+    required: bool
+    is_global: bool
+
+
 T_expr_co = typing.TypeVar('T_expr_co', covariant=True, bound=Expr)
 
 
@@ -618,7 +627,7 @@ class Command(Base):
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Param:
-    """Query parameter with it's schema type and IR type"""
+    """Query parameter with its schema type and IR type"""
 
     name: str
     """Parameter name"""
@@ -794,6 +803,7 @@ class Statement(Command):
     type_rewrites: typing.Dict[typing.Tuple[uuid.UUID, bool], Set]
     singletons: typing.List[PathId]
     triggers: tuple[tuple[Trigger, ...], ...]
+    warnings: tuple[errors.EdgeDBError, ...]
 
 
 class TypeIntrospection(ImmutableExpr):
@@ -828,6 +838,9 @@ class BaseConstant(ConstExpr, ImmutableExpr):
             raise ValueError('cannot create irast.Constant without a type')
         if self.value is None:
             raise ValueError('cannot create irast.Constant without a value')
+
+    def _init_copy(self) -> BaseConstant:
+        return self.__class__(typeref=self.typeref, value=self.value)
 
 
 class BaseStrConstant(BaseConstant):
@@ -986,7 +999,9 @@ class Call(ImmutableExpr):
 
 class FunctionCall(Call):
 
-    __ast_mutable_fields__ = frozenset(('extras', 'body'))
+    __ast_mutable_fields__ = frozenset((
+        'extras', 'body'
+    ))
 
     # If the bound callable is a "USING SQL" callable, this
     # attribute will be set to the name of the SQL function.

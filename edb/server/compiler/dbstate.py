@@ -18,7 +18,17 @@
 
 
 from __future__ import annotations
-from typing import Any, Optional, Tuple, Iterator, Dict, List, NamedTuple, Self
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    Iterator,
+    Dict,
+    List,
+    NamedTuple,
+    Self,
+    cast,
+)
 
 import dataclasses
 import enum
@@ -38,6 +48,7 @@ from edb.schema import delta as s_delta
 from edb.schema import migrations as s_migrations
 from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
+from edb.schema import name as s_name
 
 from edb.server import config
 from edb.server import defines
@@ -78,6 +89,9 @@ class BaseQuery:
     )  # (persist, evict)
     cache_func_call: Optional[Tuple[bytes, bytes]] = dataclasses.field(
         kw_only=True, default=None
+    )
+    warnings: tuple[errors.EdgeDBError, ...] = dataclasses.field(
+        kw_only=True, default=()
     )
 
     @property
@@ -155,8 +169,7 @@ class DDLQuery(BaseQuery):
     create_db_template: Optional[str] = None
     create_db_mode: Optional[qlast.BranchType] = None
     ddl_stmt_id: Optional[str] = None
-    config_ops: List[config.Operation] = (
-        dataclasses.field(default_factory=list))
+    config_ops: List[config.Operation] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -289,8 +302,7 @@ class QueryUnit:
 
     # Cardinality of the result set.  Set to NO_RESULT if the
     # unit represents multiple queries compiled as one script.
-    cardinality: enums.Cardinality = \
-        enums.Cardinality.NO_RESULT
+    cardinality: enums.Cardinality = enums.Cardinality.NO_RESULT
 
     out_type_data: bytes = sertypes.NULL_TYPE_DESC
     out_type_id: bytes = sertypes.NULL_TYPE_ID.bytes
@@ -299,6 +311,8 @@ class QueryUnit:
     in_type_args: Optional[List[Param]] = None
     in_type_args_real_count: int = 0
     globals: Optional[list[tuple[str, bool]]] = None
+
+    warnings: tuple[errors.EdgeDBError, ...] = ()
 
     # Set only when this unit contains a CONFIGURE INSTANCE command.
     system_config: bool = False
@@ -316,8 +330,7 @@ class QueryUnit:
     # Set only when this unit contains a CONFIGURE command which
     # alters a system configuration setting.
     is_system_config: bool = False
-    config_ops: List[config.Operation] = (
-        dataclasses.field(default_factory=list))
+    config_ops: List[config.Operation] = dataclasses.field(default_factory=list)
     modaliases: Optional[immutables.Map[Optional[str], str]] = None
 
     # If present, represents the future schema state after
@@ -400,6 +413,8 @@ class QueryUnitGroup:
     in_type_args_real_count: int = 0
     globals: Optional[list[tuple[str, bool]]] = None
 
+    warnings: Optional[list[errors.EdgeDBError]] = None
+
     # Cacheable QueryUnit is serialized in the compiler, so that the I/O server
     # doesn't need to serialize it again for persistence.
     _units: List[QueryUnit | bytes] = dataclasses.field(default_factory=list)
@@ -459,6 +474,10 @@ class QueryUnitGroup:
             if self.globals is None:
                 self.globals = []
             self.globals.extend(query_unit.globals)
+        if query_unit.warnings is not None:
+            if self.warnings is None:
+                self.warnings = []
+            self.warnings.extend(query_unit.warnings)
 
         if not serialize or query_unit.cache_sql is None:
             self._units.append(query_unit)
@@ -490,23 +509,28 @@ class PrepareData(PreparedStmtOpData):
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class ExecuteData(PreparedStmtOpData):
     """EXECUTE statement data"""
+
     pass
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class DeallocateData(PreparedStmtOpData):
     """DEALLOCATE statement data"""
+
     pass
 
 
 @dataclasses.dataclass(kw_only=True)
 class SQLQueryUnit:
-    query: str
+    query: str = dataclasses.field(repr=False)
     """Translated query text."""
-    orig_query: str
+
+    orig_query: str = dataclasses.field(repr=False)
     """Original query text before translation."""
+
     translation_data: Optional[pgcodegen.TranslationData] = None
     """Translation source map."""
+
     fe_settings: SQLSettings
     """Frontend-only settings effective during translation of this unit."""
 
@@ -518,7 +542,7 @@ class SQLQueryUnit:
     execute: Optional[ExecuteData] = None
     deallocate: Optional[DeallocateData] = None
 
-    set_vars: Optional[dict[Optional[str], Optional[str | list[str]]]] = None
+    set_vars: Optional[dict[Optional[str], Optional[SQLSetting]]] = None
     get_var: Optional[str] = None
     is_local: bool = False
 
@@ -529,13 +553,12 @@ class SQLQueryUnit:
     """Whether the query is completely emulated outside of backend and so
     the response should be synthesized also."""
 
-    command_tag: bytes = b""
-    """If frontend_only is True, only issue CommandComplete with this tag."""
-
     command_complete_tag: Optional[CommandCompleteTag] = None
     """When set, CommandComplete for this query will be overridden.
     This is useful, for example, for setting the tag of DML statements,
     which return the number of modified rows."""
+
+    params: Optional[List[SQLParam]] = None
 
 
 class CommandCompleteTag:
@@ -546,7 +569,7 @@ class CommandCompleteTag:
 class TagPlain(CommandCompleteTag):
     '''Set the tag verbatim'''
 
-    tag: str
+    tag: bytes
 
 
 @dataclasses.dataclass(kw_only=True)
@@ -566,6 +589,30 @@ class TagUnpackRow(CommandCompleteTag):
     prefix: str
 
 
+class SQLParam:
+    # Internal query param. Represents params in the compiled SQL, so the params
+    # that are sent to PostgreSQL.
+    pass
+
+
+@dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)
+class SQLParamExternal(SQLParam):
+    # An internal query param whose value is provided by an external param.
+    # So a user-visible param.
+
+    # External index
+    index: int
+
+
+@dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)
+class SQLParamGlobal(SQLParam):
+    # An internal query param whose value is provided by a global.
+
+    global_name: s_name.QualName
+
+    pg_type: Tuple[str, ...]
+
+
 @dataclasses.dataclass
 class ParsedDatabase:
     user_schema_pickle: bytes
@@ -577,12 +624,16 @@ class ParsedDatabase:
     state_serializer: sertypes.StateSerializer
 
 
-SQLSettings = immutables.Map[Optional[str], Optional[str | list[str]]]
+SQLSetting = tuple[str | int | float, ...]
+SQLSettings = immutables.Map[Optional[str], Optional[SQLSetting]]
 DEFAULT_SQL_SETTINGS: SQLSettings = immutables.Map()
 DEFAULT_SQL_FE_SETTINGS: SQLSettings = immutables.Map({
-    "search_path": "public",
-    "server_version": defines.PGEXT_POSTGRES_VERSION,
-    "server_version_num": str(defines.PGEXT_POSTGRES_VERSION_NUM),
+    "search_path": ("public",),
+    "allow_user_specified_id": ("false",),
+    "server_version": cast(SQLSetting, (defines.PGEXT_POSTGRES_VERSION,)),
+    "server_version_num": cast(
+        SQLSetting, (defines.PGEXT_POSTGRES_VERSION_NUM,)
+    ),
 })
 
 
@@ -596,12 +647,15 @@ class SQLTransactionState:
 
     def current_fe_settings(self) -> SQLSettings:
         if self.in_tx:
-            return self.in_tx_settings or DEFAULT_SQL_FE_SETTINGS
-        else:
             return self.in_tx_local_settings or DEFAULT_SQL_FE_SETTINGS
+        else:
+            return self.settings or DEFAULT_SQL_FE_SETTINGS
 
-    def get(self, name: str) -> Optional[str | list[str]]:
+    def get(self, name: str) -> Optional[SQLSetting]:
         if self.in_tx:
+            # For easier access, in_tx_local_settings is always a superset of
+            # in_tx_settings; in_tx_settings only keeps track of non-local
+            # settings, so that the local settings don't go across tx bounds
             assert self.in_tx_local_settings
             return self.in_tx_local_settings[name]
         else:
@@ -652,7 +706,7 @@ class SQLTransactionState:
                 self.set(name, value, query_unit.is_local)
 
     def set(
-        self, name: Optional[str], value: str | list[str] | None, is_local: bool
+        self, name: Optional[str], value: Optional[SQLSetting], is_local: bool
     ) -> None:
         def _set(attr_name: str) -> None:
             settings = getattr(self, attr_name)
@@ -693,7 +747,7 @@ class ProposedMigrationStep(NamedTuple):
             'prompt': self.prompt,
             'prompt_id': self.prompt_id,
             'data_safe': self.data_safe,
-            'required_user_input': list(self.required_user_input)
+            'required_user_input': list(self.required_user_input),
         }
 
 
@@ -802,7 +856,8 @@ class Transaction:
     def declare_savepoint(self, name: str) -> int:
         if self.is_implicit():
             raise errors.TransactionError(
-                'savepoints can only be used in transaction blocks')
+                'savepoints can only be used in transaction blocks'
+            )
 
         return self._declare_savepoint(name)
 
@@ -821,7 +876,8 @@ class Transaction:
     def rollback_to_savepoint(self, name: str) -> TransactionState:
         if self.is_implicit():
             raise errors.TransactionError(
-                'savepoints can only be used in transaction blocks')
+                'savepoints can only be used in transaction blocks'
+            )
 
         return self._rollback_to_savepoint(name)
 
@@ -847,7 +903,8 @@ class Transaction:
     def release_savepoint(self, name: str) -> None:
         if self.is_implicit():
             raise errors.TransactionError(
-                'savepoints can only be used in transaction blocks')
+                'savepoints can only be used in transaction blocks'
+            )
 
         self._release_savepoint(name)
 
