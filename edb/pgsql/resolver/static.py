@@ -194,6 +194,7 @@ ALLOWED_ADMIN_FUNCTIONS = frozenset(
         'pg_get_triggerdef',
         'pg_get_userbyid',
         'pg_get_viewdef',
+        'pg_options_to_table',
         'pg_has_role',
         'pg_function_is_visible',
         'pg_opclass_is_visible',
