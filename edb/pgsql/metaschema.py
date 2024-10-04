@@ -5052,7 +5052,10 @@ async def create_pg_extensions(
     commands.add_command(
         dbops.CreateSchema(name=ext_schema, conditional=True),
     )
-    for ext in ["uuid-ossp", "edb_stat_statements"]:
+    extensions = ["uuid-ossp"]
+    if backend_params.has_stat_statements:
+        extensions.append("edb_stat_statements")
+    for ext in extensions:
         if (
             inst_params.existing_exts is None
             or inst_params.existing_exts.get(ext) is None
@@ -7306,8 +7309,9 @@ def get_synthetic_type_views(
     for verview in _generate_schema_ver_views(schema):
         commands.add_command(dbops.CreateView(verview, or_replace=True))
 
-    for stats_view in _generate_stats_views(schema):
-        commands.add_command(dbops.CreateView(stats_view, or_replace=True))
+    if backend_params.has_stat_statements:
+        for stats_view in _generate_stats_views(schema):
+            commands.add_command(dbops.CreateView(stats_view, or_replace=True))
 
     return commands
 
