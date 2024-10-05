@@ -116,16 +116,11 @@ CREATE TYPE sys::QueryStats EXTENDING sys::ExternalObject {
 
 CREATE FUNCTION
 sys::reset_query_stats(
-    branch_name: OPTIONAL std::str,
-    query_id: OPTIONAL std::int64,
+    named only branch_name: OPTIONAL std::str = {},
+    named only query_id: OPTIONAL std::int64 = {},
 ) -> std::bool {
     SET volatility := 'Volatile';
-    USING SQL $$
-        SELECT CASE
-            WHEN (edgedbext.pg_stat_statements_reset()) IS NULL THEN true
-            ELSE false
-        END;
-    $$;
+    USING SQL FUNCTION 'edgedb.reset_query_stats';
 };
 
 

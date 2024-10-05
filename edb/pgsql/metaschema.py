@@ -4838,6 +4838,110 @@ class PadBase64StringFunction(trampoline.VersionedFunction):
         )
 
 
+class ResetQueryStatsFunction(trampoline.VersionedFunction):
+    text = r"""
+    DECLARE
+        tenant_id TEXT;
+        other_tenant_exists BOOLEAN;
+        db_oid OID;
+    BEGIN
+        tenant_id := edgedb_VER.get_backend_tenant_id();
+
+        SELECT EXISTS (
+            SELECT 1
+            FROM
+                pg_database dat
+                CROSS JOIN LATERAL (
+                    SELECT
+                        edgedb_VER.shobj_metadata(dat.oid, 'pg_database')
+                            AS description
+                ) AS d
+            WHERE
+                (d.description)->>'id' IS NOT NULL
+                AND (d.description)->>'tenant_id' != tenant_id
+        ) INTO other_tenant_exists;
+
+        IF branch_name IS NULL THEN
+            IF other_tenant_exists THEN
+                FOR db_oid IN
+                    SELECT
+                        dat.oid
+                    FROM
+                        pg_database dat
+                        CROSS JOIN LATERAL (
+                            SELECT
+                                edgedb_VER.shobj_metadata(dat.oid,
+                                                          'pg_database')
+                                    AS description
+                        ) AS d
+                    WHERE
+                        (d.description)->>'id' IS NOT NULL
+                        AND (d.description)->>'tenant_id' = tenant_id
+                LOOP
+                    PERFORM edgedbext.pg_stat_statements_reset(
+                        0,  -- userid
+                        db_oid,
+                        COALESCE(query_id, 0)
+                    );
+                END LOOP;
+            ELSE
+                PERFORM edgedbext.pg_stat_statements_reset(
+                    0,  -- userid
+                    0,  -- database oid
+                    COALESCE(query_id, 0)
+                );
+            END IF;
+        ELSE
+            SELECT
+                dat.oid INTO db_oid
+            FROM
+                pg_database dat
+                CROSS JOIN LATERAL (
+                    SELECT
+                        edgedb_VER.shobj_metadata(dat.oid, 'pg_database')
+                            AS description
+                ) AS d
+            WHERE
+                (d.description)->>'id' IS NOT NULL
+                AND (d.description)->>'tenant_id' = tenant_id
+                AND edgedb_VER.get_database_frontend_name(dat.datname) =
+                    branch_name;
+
+            IF db_oid IS NULL THEN
+                RETURN false;
+            END IF;
+
+            PERFORM edgedbext.pg_stat_statements_reset(
+                0,  -- userid
+                db_oid,
+                COALESCE(query_id, 0)
+            );
+        END IF;
+
+        RETURN true;
+    END;
+    """
+
+    noop_text = r"""
+        BEGIN
+        RETURN false;
+        END;
+    """
+
+    def __init__(self, enable_stats: bool) -> None:
+        super().__init__(
+            name=('edgedb', 'reset_query_stats'),
+            args=[
+                ('branch_name', ('text',)),
+                ('query_id', ('bigint',)),
+            ],
+            returns=('boolean',),
+            volatility='volatile',
+            language='plpgsql',
+            text=self.text if enable_stats else self.noop_text,
+        )
+
+
 def _maybe_trampoline(
     cmd: dbops.Command, out: list[trampoline.Trampoline]
 ) -> None:
@@ -5031,6 +5135,7 @@ def get_bootstrap_commands(
         dbops.CreateFunction(FTSNormalizeDocFunction()),
         dbops.CreateFunction(FTSToRegconfig()),
         dbops.CreateFunction(PadBase64StringFunction()),
+        dbops.CreateFunction(ResetQueryStatsFunction(False)),
     ]
 
     commands = dbops.CommandGroup()
@@ -7315,6 +7420,11 @@ def get_synthetic_type_views(
     if backend_params.has_stat_statements:
         for stats_view in _generate_stats_views(schema):
             commands.add_command(dbops.CreateView(stats_view, or_replace=True))
+        commands.add_command(
+            dbops.CreateFunction(
+                ResetQueryStatsFunction(True), or_replace=True
+            )
+        )
 
     return commands
 
