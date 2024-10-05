@@ -71,9 +71,14 @@ ALTER TYPE std::net::http::Response {
 CREATE FUNCTION
 std::net::http::schedule_request(
     url: str,
-    named only body: optional std::bytes = <std::bytes>{},
-    named only method: optional std::net::http::Method = std::net::http::Method.`GET`,
-    named only headers: optional std::array<std::tuple<name: std::str, value: std::str>> = <std::array<std::tuple<name: std::str, value: std::str>>>{},
+    named only body: optional std::bytes = {},
+    named only headers: optional std::array<
+        std::tuple<
+            name: std::str,
+            value: std::str
+        >
+    > = {},
+    named only method: std::net::http::Method = std::net::http::Method.`GET`,
 ) -> std::net::http::ScheduledRequest
 {
     SET is_inlined := true;

@@ -17,6 +17,7 @@
 #
 
 from edb.testbase import server as tb
+from edgedb import errors
 
 
 class TestEdgeQLNetSchema(tb.DDLTestCase):
@@ -139,3 +140,20 @@ class TestEdgeQLNetSchema(tb.DDLTestCase):
                 'response_is_empty': True,
             }],
         )
+
+    async def test_edgeql_net_http_schedule_request_empty_method_01(self):
+        with self.assertRaisesRegex(errors.QueryError, "possibly an empty set"):
+            await self.con.query(
+                '''
+                with
+                    nh as module std::net::http,
+                    request := (
+                        nh::schedule_request(
+                            "http://example.com",
+                            method := <nh::Method>{},
+                            headers := [("Accept", "text/plain")],
+                        )
+                    ),
+                select request;
+                ''',
+            )
