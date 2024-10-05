@@ -32,7 +32,7 @@ FROM edb_stat_statements
 WHERE query LIKE '%STMTTS%';
 
 -- Perform single min/max reset
-SELECT edb_stat_statements_reset(0, 0, queryid, true) AS minmax_reset_ts
+SELECT edb_stat_statements_reset(0, '{}', queryid, true) AS minmax_reset_ts
 FROM edb_stat_statements
 WHERE query LIKE '%STMTTS1%' \gset
 
@@ -67,7 +67,7 @@ stats_reset = :'minmax_reset_ts' AS stats_reset_ts_match
 FROM edb_stat_statements_info;
 
 -- Perform common min/max reset
-SELECT edb_stat_statements_reset(0, 0, 0, true) AS minmax_reset_ts \gset
+SELECT edb_stat_statements_reset(0, '{}', 0, true) AS minmax_reset_ts \gset
 
 -- check again
 SELECT

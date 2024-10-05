@@ -397,7 +397,7 @@ static char *qtext_fetch(Size query_offset, int query_len,
 						 char *buffer, Size buffer_size);
 static bool need_gc_qtexts(void);
 static void gc_qtexts(void);
-static TimestampTz entry_reset(Oid userid, Oid dbid, uint64 queryid, bool minmax_only);
+static TimestampTz entry_reset(Oid userid, const Datum *dbids, int dbids_len, uint64 queryid, bool minmax_only);
 static char *generate_normalized_query(JumbleState *jstate, const char *query,
 									   int query_loc, int *query_len_p);
 static void fill_in_constant_lengths(JumbleState *jstate, const char *query,
@@ -1758,16 +1758,20 @@ Datum
 edb_stat_statements_reset(PG_FUNCTION_ARGS)
 {
 	Oid			userid;
-	Oid			dbid;
+	ArrayType	*dbids_array;
+	Datum		*dbids;
+	int			dbids_len;
 	uint64		queryid;
 	bool		minmax_only;
 
 	userid = PG_GETARG_OID(0);
-	dbid = PG_GETARG_OID(1);
+	dbids_array = PG_GETARG_ARRAYTYPE_P(1);
 	queryid = (uint64) PG_GETARG_INT64(2);
 	minmax_only = PG_GETARG_BOOL(3);
 
-	PG_RETURN_TIMESTAMPTZ(entry_reset(userid, dbid, queryid, minmax_only));
+	deconstruct_array_builtin(dbids_array, OIDOID, &dbids, NULL, &dbids_len);
+
+	PG_RETURN_TIMESTAMPTZ(entry_reset(userid, dbids, dbids_len, queryid, minmax_only));
 }
 
 /* Number of output arguments (columns) for various API versions */
@@ -2729,7 +2733,7 @@ if (e) { \
  * Reset entries corresponding to parameters passed.
  */
 static TimestampTz
-entry_reset(Oid userid, Oid dbid, uint64 queryid, bool minmax_only)
+entry_reset(Oid userid, const Datum *dbids, int dbids_len, uint64 queryid, bool minmax_only)
 {
 	HASH_SEQ_STATUS hash_seq;
 	pgssEntry  *entry;
@@ -2749,12 +2753,12 @@ entry_reset(Oid userid, Oid dbid, uint64 queryid, bool minmax_only)
 
 	stats_reset = GetCurrentTimestamp();
 
-	if (userid != 0 && dbid != 0 && queryid != UINT64CONST(0))
+	if (userid != 0 && dbids_len == 1 && queryid != UINT64CONST(0))
 	{
 		/* If all the parameters are available, use the fast path. */
 		memset(&key, 0, sizeof(pgssHashKey));
 		key.userid = userid;
-		key.dbid = dbid;
+		key.dbid = DatumGetObjectId(dbids[0]);
 		key.queryid = queryid;
 
 		/*
@@ -2772,17 +2776,28 @@ entry_reset(Oid userid, Oid dbid, uint64 queryid, bool minmax_only)
 
 		SINGLE_ENTRY_RESET(entry);
 	}
-	else if (userid != 0 || dbid != 0 || queryid != UINT64CONST(0))
+	else if (userid != 0 || dbids_len > 0 || queryid != UINT64CONST(0))
 	{
 		/* Reset entries corresponding to valid parameters. */
 		hash_seq_init(&hash_seq, pgss_hash);
-		while ((entry = hash_seq_search(&hash_seq)) != NULL)
-		{
-			if ((!userid || entry->key.userid == userid) &&
-				(!dbid || entry->key.dbid == dbid) &&
-				(!queryid || entry->key.queryid == queryid))
-			{
-				SINGLE_ENTRY_RESET(entry);
+		if (dbids_len > 0) {
+			while ((entry = hash_seq_search(&hash_seq)) != NULL) {
+				for (int i = 0; i < dbids_len; i++) {
+					Oid dbid = DatumGetObjectId(dbids[i]);
+					if ((!userid || entry->key.userid == userid) &&
+						(entry->key.dbid == dbid) &&
+						(!queryid || entry->key.queryid == queryid)) {
+						SINGLE_ENTRY_RESET(entry);
+						break;
+					}
+				}
+			}
+		} else {
+			while ((entry = hash_seq_search(&hash_seq)) != NULL) {
+				if ((!userid || entry->key.userid == userid) &&
+					(!queryid || entry->key.queryid == queryid)) {
+					SINGLE_ENTRY_RESET(entry);
+				}
 			}
 		}
 	}

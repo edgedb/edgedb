@@ -77,10 +77,24 @@ class TestEdgeQLSys(tb.QueryTestCase):
             select sum(stats.calls)
         '''
         calls = await self.con.query_single(stats_query)
+
         self.assertEqual(await self.con.query('select TestEdgeQLSys'), [])
         self.assertEqual(await self.con.query_single(stats_query), calls + 1)
+
         async with self.assertRaisesRegexTx(
             edgedb.InvalidReferenceError, 'does not exist'
         ):
             await self.con.query('select TestEdgeQLSys_NoSuchType')
         self.assertEqual(await self.con.query_single(stats_query), calls + 1)
+
+        self.assertIsNone(
+            await self.con.query_single(
+                "select sys::reset_query_stats(branch_name := 'non_exdb')"
+            )
+        )
+        self.assertEqual(await self.con.query_single(stats_query), calls + 1)
+
+        self.assertIsNotNone(
+            await self.con.query('select sys::reset_query_stats()')
+        )
+        self.assertEqual(await self.con.query_single(stats_query), 0)

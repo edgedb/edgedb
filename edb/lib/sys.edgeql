@@ -111,6 +111,17 @@ CREATE TYPE sys::QueryStats EXTENDING sys::ExternalObject {
 };
 
 
+CREATE FUNCTION
+sys::reset_query_stats(
+    named only branch_name: OPTIONAL std::str = {},
+    named only query_id: OPTIONAL std::int64 = {},
+    named only minmax_only: OPTIONAL std::bool = {},
+) -> OPTIONAL std::datetime {
+    SET volatility := 'Volatile';
+    USING SQL FUNCTION 'edgedb.reset_query_stats';
+};
+
+
 # An intermediate function is needed because we can't
 # cast JSON to tuples yet.  DO NOT use directly, it'll go away.
 CREATE FUNCTION

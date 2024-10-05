@@ -85,7 +85,7 @@ SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C";
 --
 SELECT edb_stat_statements_reset(
 	(SELECT r.oid FROM pg_roles AS r WHERE r.rolname = 'regress_stats_user2'),
-	(SELECT d.oid FROM pg_database As d where datname = current_database()),
+	ARRAY(SELECT d.oid FROM pg_database As d where datname = current_database()),
 	(SELECT s.queryid FROM edb_stat_statements AS s
 				WHERE s.query = 'SELECT $1+$2 AS "TWO"' LIMIT 1))
 	IS NOT NULL AS t;
@@ -95,31 +95,31 @@ SELECT edb_stat_statements_reset(
 (1 row)
 
 SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C";
-                                      query                                       | calls | rows 
-----------------------------------------------------------------------------------+-------+------
- CREATE ROLE regress_stats_user1                                                  |     1 |    0
- CREATE ROLE regress_stats_user2                                                  |     1 |    0
- RESET ROLE                                                                       |     2 |    0
- SELECT $1 AS "ONE"                                                               |     1 |    1
- SELECT $1 AS "ONE"                                                               |     1 |    1
- SELECT $1+$2 AS "TWO"                                                            |     1 |    1
- SELECT edb_stat_statements_reset(                                               +|     1 |    1
-         (SELECT r.oid FROM pg_roles AS r WHERE r.rolname = $1),                 +|       | 
-         (SELECT d.oid FROM pg_database As d where datname = current_database()),+|       | 
-         (SELECT s.queryid FROM edb_stat_statements AS s                         +|       | 
-                                 WHERE s.query = $2 LIMIT $3))                   +|       | 
-         IS NOT NULL AS t                                                         |       | 
- SELECT edb_stat_statements_reset($1) IS NOT NULL AS t                            |     1 |    1
- SELECT edb_stat_statements_reset() IS NOT NULL AS t                              |     1 |    1
- SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C"    |     2 |   22
- SET ROLE regress_stats_user1                                                     |     1 |    0
- SET ROLE regress_stats_user2                                                     |     1 |    0
+                                         query                                         | calls | rows 
+---------------------------------------------------------------------------------------+-------+------
+ CREATE ROLE regress_stats_user1                                                       |     1 |    0
+ CREATE ROLE regress_stats_user2                                                       |     1 |    0
+ RESET ROLE                                                                            |     2 |    0
+ SELECT $1 AS "ONE"                                                                    |     1 |    1
+ SELECT $1 AS "ONE"                                                                    |     1 |    1
+ SELECT $1+$2 AS "TWO"                                                                 |     1 |    1
+ SELECT edb_stat_statements_reset(                                                    +|     1 |    1
+         (SELECT r.oid FROM pg_roles AS r WHERE r.rolname = $1),                      +|       | 
+         ARRAY(SELECT d.oid FROM pg_database As d where datname = current_database()),+|       | 
+         (SELECT s.queryid FROM edb_stat_statements AS s                              +|       | 
+                                 WHERE s.query = $2 LIMIT $3))                        +|       | 
+         IS NOT NULL AS t                                                              |       | 
+ SELECT edb_stat_statements_reset($1) IS NOT NULL AS t                                 |     1 |    1
+ SELECT edb_stat_statements_reset() IS NOT NULL AS t                                   |     1 |    1
+ SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C"         |     2 |   22
+ SET ROLE regress_stats_user1                                                          |     1 |    0
+ SET ROLE regress_stats_user2                                                          |     1 |    0
 (12 rows)
 
 --
 -- remove query ('SELECT $1 AS "ONE"') executed by two users
 --
-SELECT edb_stat_statements_reset(0,0,s.queryid) IS NOT NULL AS t
+SELECT edb_stat_statements_reset(0,'{}',s.queryid) IS NOT NULL AS t
 	FROM edb_stat_statements AS s WHERE s.query = 'SELECT $1 AS "ONE"';
  t 
 ---
@@ -128,25 +128,25 @@ SELECT edb_stat_statements_reset(0,0,s.queryid) IS NOT NULL AS t
 (2 rows)
 
 SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C";
-                                      query                                       | calls | rows 
-----------------------------------------------------------------------------------+-------+------
- CREATE ROLE regress_stats_user1                                                  |     1 |    0
- CREATE ROLE regress_stats_user2                                                  |     1 |    0
- RESET ROLE                                                                       |     2 |    0
- SELECT $1+$2 AS "TWO"                                                            |     1 |    1
- SELECT edb_stat_statements_reset(                                               +|     1 |    1
-         (SELECT r.oid FROM pg_roles AS r WHERE r.rolname = $1),                 +|       | 
-         (SELECT d.oid FROM pg_database As d where datname = current_database()),+|       | 
-         (SELECT s.queryid FROM edb_stat_statements AS s                         +|       | 
-                                 WHERE s.query = $2 LIMIT $3))                   +|       | 
-         IS NOT NULL AS t                                                         |       | 
- SELECT edb_stat_statements_reset($1) IS NOT NULL AS t                            |     1 |    1
- SELECT edb_stat_statements_reset($1,$2,s.queryid) IS NOT NULL AS t              +|     1 |    2
-         FROM edb_stat_statements AS s WHERE s.query = $3                         |       | 
- SELECT edb_stat_statements_reset() IS NOT NULL AS t                              |     1 |    1
- SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C"    |     3 |   34
- SET ROLE regress_stats_user1                                                     |     1 |    0
- SET ROLE regress_stats_user2                                                     |     1 |    0
+                                         query                                         | calls | rows 
+---------------------------------------------------------------------------------------+-------+------
+ CREATE ROLE regress_stats_user1                                                       |     1 |    0
+ CREATE ROLE regress_stats_user2                                                       |     1 |    0
+ RESET ROLE                                                                            |     2 |    0
+ SELECT $1+$2 AS "TWO"                                                                 |     1 |    1
+ SELECT edb_stat_statements_reset(                                                    +|     1 |    1
+         (SELECT r.oid FROM pg_roles AS r WHERE r.rolname = $1),                      +|       | 
+         ARRAY(SELECT d.oid FROM pg_database As d where datname = current_database()),+|       | 
+         (SELECT s.queryid FROM edb_stat_statements AS s                              +|       | 
+                                 WHERE s.query = $2 LIMIT $3))                        +|       | 
+         IS NOT NULL AS t                                                              |       | 
+ SELECT edb_stat_statements_reset($1) IS NOT NULL AS t                                 |     1 |    1
+ SELECT edb_stat_statements_reset($1,$2,s.queryid) IS NOT NULL AS t                   +|     1 |    2
+         FROM edb_stat_statements AS s WHERE s.query = $3                              |       | 
+ SELECT edb_stat_statements_reset() IS NOT NULL AS t                                   |     1 |    1
+ SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C"         |     3 |   34
+ SET ROLE regress_stats_user1                                                          |     1 |    0
+ SET ROLE regress_stats_user2                                                          |     1 |    0
 (11 rows)
 
 --
@@ -160,40 +160,40 @@ SELECT edb_stat_statements_reset(r.oid) IS NOT NULL AS t
 (1 row)
 
 SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C";
-                                      query                                       | calls | rows 
-----------------------------------------------------------------------------------+-------+------
- CREATE ROLE regress_stats_user1                                                  |     1 |    0
- CREATE ROLE regress_stats_user2                                                  |     1 |    0
- RESET ROLE                                                                       |     2 |    0
- SELECT edb_stat_statements_reset(                                               +|     1 |    1
-         (SELECT r.oid FROM pg_roles AS r WHERE r.rolname = $1),                 +|       | 
-         (SELECT d.oid FROM pg_database As d where datname = current_database()),+|       | 
-         (SELECT s.queryid FROM edb_stat_statements AS s                         +|       | 
-                                 WHERE s.query = $2 LIMIT $3))                   +|       | 
-         IS NOT NULL AS t                                                         |       | 
- SELECT edb_stat_statements_reset($1) IS NOT NULL AS t                            |     1 |    1
- SELECT edb_stat_statements_reset($1,$2,s.queryid) IS NOT NULL AS t              +|     1 |    2
-         FROM edb_stat_statements AS s WHERE s.query = $3                         |       | 
- SELECT edb_stat_statements_reset() IS NOT NULL AS t                              |     1 |    1
- SELECT edb_stat_statements_reset(r.oid) IS NOT NULL AS t                        +|     1 |    1
-                 FROM pg_roles AS r WHERE r.rolname = $1                          |       | 
- SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C"    |     4 |   45
- SET ROLE regress_stats_user2                                                     |     1 |    0
+                                         query                                         | calls | rows 
+---------------------------------------------------------------------------------------+-------+------
+ CREATE ROLE regress_stats_user1                                                       |     1 |    0
+ CREATE ROLE regress_stats_user2                                                       |     1 |    0
+ RESET ROLE                                                                            |     2 |    0
+ SELECT edb_stat_statements_reset(                                                    +|     1 |    1
+         (SELECT r.oid FROM pg_roles AS r WHERE r.rolname = $1),                      +|       | 
+         ARRAY(SELECT d.oid FROM pg_database As d where datname = current_database()),+|       | 
+         (SELECT s.queryid FROM edb_stat_statements AS s                              +|       | 
+                                 WHERE s.query = $2 LIMIT $3))                        +|       | 
+         IS NOT NULL AS t                                                              |       | 
+ SELECT edb_stat_statements_reset($1) IS NOT NULL AS t                                 |     1 |    1
+ SELECT edb_stat_statements_reset($1,$2,s.queryid) IS NOT NULL AS t                   +|     1 |    2
+         FROM edb_stat_statements AS s WHERE s.query = $3                              |       | 
+ SELECT edb_stat_statements_reset() IS NOT NULL AS t                                   |     1 |    1
+ SELECT edb_stat_statements_reset(r.oid) IS NOT NULL AS t                             +|     1 |    1
+                 FROM pg_roles AS r WHERE r.rolname = $1                               |       | 
+ SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C"         |     4 |   45
+ SET ROLE regress_stats_user2                                                          |     1 |    0
 (10 rows)
 
 --
 -- reset all
 --
-SELECT edb_stat_statements_reset(0,0,0) IS NOT NULL AS t;
+SELECT edb_stat_statements_reset(0,'{}',0) IS NOT NULL AS t;
  t 
 ---
  t
 (1 row)
 
 SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C";
-                          query                           | calls | rows 
-----------------------------------------------------------+-------+------
- SELECT edb_stat_statements_reset(0,0,0) IS NOT NULL AS t |     1 |    1
+                            query                            | calls | rows 
+-------------------------------------------------------------+-------+------
+ SELECT edb_stat_statements_reset(0,'{}',0) IS NOT NULL AS t |     1 |    1
 (1 row)
 
 --

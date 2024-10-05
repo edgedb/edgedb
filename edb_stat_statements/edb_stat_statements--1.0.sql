@@ -3,7 +3,7 @@
 
 -- Register functions.
 CREATE FUNCTION edb_stat_statements_reset(IN userid Oid DEFAULT 0,
-    IN dbid Oid DEFAULT 0,
+    IN dbids Oid[] DEFAULT '{}',
     IN queryid bigint DEFAULT 0,
     IN minmax_only boolean DEFAULT false
 )
@@ -89,4 +89,4 @@ CREATE VIEW edb_stat_statements_info AS
 GRANT SELECT ON edb_stat_statements_info TO PUBLIC;
 
 -- Don't want this to be available to non-superusers.
-REVOKE ALL ON FUNCTION edb_stat_statements_reset(Oid, Oid, bigint, boolean) FROM PUBLIC;
+REVOKE ALL ON FUNCTION edb_stat_statements_reset(Oid, Oid[], bigint, boolean) FROM PUBLIC;

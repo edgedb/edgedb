@@ -33,7 +33,7 @@ SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C";
 --
 SELECT edb_stat_statements_reset(
 	(SELECT r.oid FROM pg_roles AS r WHERE r.rolname = 'regress_stats_user2'),
-	(SELECT d.oid FROM pg_database As d where datname = current_database()),
+	ARRAY(SELECT d.oid FROM pg_database As d where datname = current_database()),
 	(SELECT s.queryid FROM edb_stat_statements AS s
 				WHERE s.query = 'SELECT $1+$2 AS "TWO"' LIMIT 1))
 	IS NOT NULL AS t;
@@ -42,7 +42,7 @@ SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C";
 --
 -- remove query ('SELECT $1 AS "ONE"') executed by two users
 --
-SELECT edb_stat_statements_reset(0,0,s.queryid) IS NOT NULL AS t
+SELECT edb_stat_statements_reset(0,'{}',s.queryid) IS NOT NULL AS t
 	FROM edb_stat_statements AS s WHERE s.query = 'SELECT $1 AS "ONE"';
 SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C";
 
@@ -56,7 +56,7 @@ SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C";
 --
 -- reset all
 --
-SELECT edb_stat_statements_reset(0,0,0) IS NOT NULL AS t;
+SELECT edb_stat_statements_reset(0,'{}',0) IS NOT NULL AS t;
 SELECT query, calls, rows FROM edb_stat_statements ORDER BY query COLLATE "C";
 
 --

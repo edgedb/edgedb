@@ -12,13 +12,13 @@ SELECT pg_get_functiondef('edb_stat_statements_info'::regproc);
 (1 row)
 
 SELECT pg_get_functiondef('edb_stat_statements_reset'::regproc);
-                                                                         pg_get_functiondef                                                                         
---------------------------------------------------------------------------------------------------------------------------------------------------------------------
- CREATE OR REPLACE FUNCTION public.edb_stat_statements_reset(userid oid DEFAULT 0, dbid oid DEFAULT 0, queryid bigint DEFAULT 0, minmax_only boolean DEFAULT false)+
-  RETURNS timestamp with time zone                                                                                                                                 +
-  LANGUAGE c                                                                                                                                                       +
-  PARALLEL SAFE STRICT                                                                                                                                             +
- AS '$libdir/edb_stat_statements', $function$edb_stat_statements_reset$function$                                                                                   +
+                                                                               pg_get_functiondef                                                                                
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ CREATE OR REPLACE FUNCTION public.edb_stat_statements_reset(userid oid DEFAULT 0, dbids oid[] DEFAULT '{}'::oid[], queryid bigint DEFAULT 0, minmax_only boolean DEFAULT false)+
+  RETURNS timestamp with time zone                                                                                                                                              +
+  LANGUAGE c                                                                                                                                                                    +
+  PARALLEL SAFE STRICT                                                                                                                                                          +
+ AS '$libdir/edb_stat_statements', $function$edb_stat_statements_reset$function$                                                                                                +
  
 (1 row)
 
