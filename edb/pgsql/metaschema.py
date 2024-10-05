@@ -5877,6 +5877,9 @@ def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
             ) AS d
         WHERE
             s.cache_key IS NOT NULL
+            AND (d.description)->>'id' IS NOT NULL
+            AND (d.description)->>'tenant_id'
+                = edgedb_VER.get_backend_tenant_id()
     '''
 
     objects = {
