@@ -1131,17 +1131,35 @@ class FlatSchema(Schema):
         if not local and (
             orig_module is None
             or (
-                not alias_hit and module and not (
-                    self.has_module(fmod := module.split('::')[0])
-                    or (disallow_module and disallow_module(fmod))
-                )
+                not alias_hit and module
             )
         ):
-            mod_name = 'std' if orig_module is None else f'std::{orig_module}'
-            fqname = sn.QualName(mod_name, shortname)
-            result = getter(self, fqname)
-            if result is not None:
-                return result
+            # If no module was specified, look in std
+            if orig_module is None:
+                mod_name = 'std'
+                fqname = sn.QualName(mod_name, shortname)
+                result = getter(self, fqname)
+                if result is not None:
+                    return result
+
+            # If a module was specified in the name, ensure that no base module
+            # of the same name exists.
+            #
+            # If no module was specified, try the default module name as a part
+            # of std. The same condition applies.
+            if module and not (
+                self.has_module(fmod := module.split('::')[0])
+                or (disallow_module and disallow_module(fmod))
+            ):
+                mod_name = (
+                    f'std::{module}'
+                    if orig_module is None
+                    else f'std::{orig_module}'
+                )
+                fqname = sn.QualName(mod_name, shortname)
+                result = getter(self, fqname)
+                if result is not None:
+                    return result
 
         return default
 

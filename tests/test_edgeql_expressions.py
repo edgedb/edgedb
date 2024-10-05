@@ -9905,3 +9905,196 @@ aa \
             await self.con.execute(f"""
                 select <cal::to_local_date>1;
             """)
+
+    async def test_edgeql_expr_with_module_01(self):
+        await self.con.execute(f"""
+            create module dummy;
+        """)
+
+        valid_queries = [
+            'SELECT <int64>{} = 1',
+            'SELECT <std::int64>{} = 1',
+            'WITH MODULE dummy SELECT <int64>{} = 1',
+            'WITH MODULE dummy SELECT <std::int64>{} = 1',
+            'WITH MODULE std SELECT <int64>{} = 1',
+            'WITH MODULE std SELECT <std::int64>{} = 1',
+        ]
+
+        for query in valid_queries:
+            await self.con.execute(query)
+
+    async def test_edgeql_expr_with_module_02(self):
+        await self.con.execute(f"""
+            create module dummy;
+            create type default::int64;
+        """)
+
+        valid_queries = [
+            'SELECT <std::int64>{} = 1',
+            'WITH MODULE dummy SELECT <int64>{} = 1',
+            'WITH MODULE dummy SELECT <std::int64>{} = 1',
+            'WITH MODULE std SELECT <int64>{} = 1',
+            'WITH MODULE std SELECT <std::int64>{} = 1',
+        ]
+        invalid_queries = [
+            'SELECT <int64>{} = 1',
+            'SELECT <default::int64>{} = 1',
+            'WITH MODULE dummy SELECT <default::int64>{} = 1',
+            'WITH MODULE std SELECT <default::int64>{} = 1',
+        ]
+
+        for query in valid_queries:
+            await self.con.execute(query)
+
+        for query in invalid_queries:
+            async with self.assertRaisesRegexTx(
+                edgedb.errors.InvalidTypeError,
+                "operator '=' cannot be applied",
+            ):
+                await self.con.execute(query)
+
+    async def test_edgeql_expr_with_module_03(self):
+        await self.con.execute(f"""
+            create module dummy;
+        """)
+
+        valid_queries = [
+            'select _test::abs(1)',
+            'select std::_test::abs(1)',
+            'with module dummy select _test::abs(1)',
+            'with module dummy select std::_test::abs(1)',
+            'with module _test select abs(1)',
+            'with module _test select _test::abs(1)',
+            'with module _test select std::_test::abs(1)',
+            'with module std select _test::abs(1)',
+            'with module std select std::_test::abs(1)',
+            'with module std::_test select abs(1)',
+            'with module std::_test select _test::abs(1)',
+            'with module std::_test select std::_test::abs(1)',
+        ]
+        invalid_queries = [
+            'select abs(1)',
+            'with module dummy select abs(1)',
+            'with module std select abs(1)',
+        ]
+
+        for query in valid_queries:
+            await self.con.execute(query)
+
+        for query in invalid_queries:
+            async with self.assertRaisesRegexTx(
+                edgedb.errors.InvalidReferenceError,
+                "abs' does not exist",
+            ):
+                await self.con.execute(query)
+
+    async def test_edgeql_expr_with_module_04(self):
+        await self.con.execute(f"""
+            create module dummy;
+            create module _test;
+        """)
+
+        valid_queries = [
+            'select std::_test::abs(1)',
+            'with module dummy select std::_test::abs(1)',
+            'with module _test select std::_test::abs(1)',
+            'with module std select std::_test::abs(1)',
+            'with module std::_test select abs(1)',
+            'with module std::_test select std::_test::abs(1)',
+        ]
+        invalid_queries = [
+            'select abs(1)',
+            'select _test::abs(1)',
+            'with module dummy select abs(1)',
+            'with module dummy select _test::abs(1)',
+            'with module _test select abs(1)',
+            'with module _test select _test::abs(1)',
+            'with module std select abs(1)',
+            'with module std select _test::abs(1)',
+            'with module std::_test select _test::abs(1)',
+        ]
+
+        for query in valid_queries:
+            await self.con.execute(query)
+
+        for query in invalid_queries:
+            async with self.assertRaisesRegexTx(
+                edgedb.errors.InvalidReferenceError,
+                "abs' does not exist",
+            ):
+                await self.con.execute(query)
+
+    async def test_edgeql_expr_with_module_05(self):
+        await self.con.execute(f"""
+            create module dummy;
+            create module std::test;
+            create scalar type std::test::Foo extending int64;
+        """)
+
+        valid_queries = [
+            'select <test::Foo>1',
+            'select <std::test::Foo>1',
+            'with module dummy select <test::Foo>1',
+            'with module dummy select <std::test::Foo>1',
+            'with module test select <Foo>1',
+            'with module test select <test::Foo>1',
+            'with module test select <std::test::Foo>1',
+            'with module std select <test::Foo>1',
+            'with module std select <std::test::Foo>1',
+            'with module std::test select <Foo>1',
+            'with module std::test select <test::Foo>1',
+            'with module std::test select <std::test::Foo>1',
+        ]
+        invalid_queries = [
+            'select <Foo>1',
+            'with module dummy select <Foo>1',
+            'with module std select <Foo>1',
+        ]
+
+        for query in valid_queries:
+            await self.con.execute(query)
+
+        for query in invalid_queries:
+            async with self.assertRaisesRegexTx(
+                edgedb.errors.InvalidReferenceError,
+                "Foo' does not exist",
+            ):
+                await self.con.execute(query)
+
+    async def test_edgeql_expr_with_module_06(self):
+        await self.con.execute(f"""
+            create module dummy;
+            create module std::test;
+            create scalar type std::test::Foo extending int64;
+            create module test;
+        """)
+
+        valid_queries = [
+            'select <std::test::Foo>1',
+            'with module dummy select <std::test::Foo>1',
+            'with module test select <std::test::Foo>1',
+            'with module std select <std::test::Foo>1',
+            'with module std::test select <Foo>1',
+            'with module std::test select <std::test::Foo>1',
+        ]
+        invalid_queries = [
+            'select <Foo>1',
+            'select <test::Foo>1',
+            'with module dummy select <Foo>1',
+            'with module dummy select <test::Foo>1',
+            'with module test select <Foo>1',
+            'with module test select <test::Foo>1',
+            'with module std select <Foo>1',
+            'with module std select <test::Foo>1',
+            'with module std::test select <test::Foo>1',
+        ]
+
+        for query in valid_queries:
+            await self.con.execute(query)
+
+        for query in invalid_queries:
+            async with self.assertRaisesRegexTx(
+                edgedb.errors.InvalidReferenceError,
+                "Foo' does not exist",
+            ):
+                await self.con.execute(query)

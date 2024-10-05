@@ -205,14 +205,14 @@ for production), or rely on ``edgedb project`` (recommended for development).
    such, explicitly provided parameters are given the highest priority.
 
    In the context of the client libraries, this means passing an option
-   explicitly into the ``connect`` call. Here's how this looks using the
+   explicitly into the ``client creation`` call. Here's how this looks using the
    JavaScript library:
 
    .. code-block:: javascript
 
       import * as edgedb from "edgedb";
 
-      const pool = await edgedb.connect({
+      const pool = await edgedb.createClient({
         instance: "my_instance"
       });
 
@@ -343,6 +343,8 @@ instance-level configuration object.
       - ``--password <pass>``
     * - ``EDGEDB_TLS_CA_FILE``
       - ``--tls-ca-file <path>``
+    * - ``EDGEDB_TLS_SERVER_NAME``
+      - ``--tls-server-name``
     * - ``EDGEDB_CLIENT_TLS_SECURITY``
       - ``--tls-security``
     * - ``EDGEDB_CLIENT_SECURITY``
@@ -373,6 +375,10 @@ instance-level configuration object.
   and provide a path to its location on the filesystem. Otherwise TLS will fail
   to connect.
 
+**EDGEDB_TLS_SERVER_NAME (SNI)**
+  If for some reason target instance IP address can't be resolved from the
+  hostname, you can provide SNI.
+
 **EDGEDB_CLIENT_TLS_SECURITY**
   Sets the TLS security mode. Determines whether certificate and hostname
   verification is enabled. Possible values:
@@ -380,7 +386,7 @@ instance-level configuration object.
   - ``"strict"`` (**default**) — certificates and hostnames will be verified
   - ``"no_host_verification"`` — verify certificates but not hostnames
   - ``"insecure"`` — client libraries will trust self-signed TLS certificates.
-    useful for self-signed or custom certificates.
+    Useful for self-signed or custom certificates.
 
   This setting defaults to ``"strict"`` unless a custom certificate is
   supplied, in which case it is set to ``"no_host_verification"``.
@@ -419,7 +425,7 @@ modified DSN: ``edgedb://newuser:newpass@hostname.com:5656``.
 Overriding across priority levels
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This override behavior only happens *same or lower priority level*. For
+Override behavior can only happen at the *same or lower priority level*. For
 instance:
 
 - ``EDGEDB_PASSWORD`` **will** override the password specified in
