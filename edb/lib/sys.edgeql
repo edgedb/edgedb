@@ -28,6 +28,10 @@ CREATE SCALAR TYPE sys::VersionStage
     EXTENDING enum<dev, alpha, beta, rc, final>;
 
 
+CREATE SCALAR TYPE sys::QueryType
+    EXTENDING enum<EdgeQL, SQL>;
+
+
 CREATE ABSTRACT TYPE sys::SystemObject EXTENDING schema::Object;
 
 CREATE ABSTRACT TYPE sys::ExternalObject EXTENDING sys::SystemObject;
@@ -90,6 +94,7 @@ CREATE TYPE sys::QueryStats EXTENDING sys::ExternalObject {
     CREATE LINK branch -> sys::Branch;
     CREATE PROPERTY query -> std::str;
     CREATE PROPERTY query_id -> std::int64;
+    CREATE PROPERTY query_type -> sys::QueryType;
 
     CREATE PROPERTY plans -> std::int64;
     CREATE PROPERTY total_plan_time -> std::duration;

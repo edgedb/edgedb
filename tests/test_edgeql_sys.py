@@ -17,16 +17,76 @@
 #
 
 
+import asyncpg
 import edgedb
+
+from edb.pgsql import common
 
 from edb.testbase import server as tb
 
 
-class TestEdgeQLSys(tb.QueryTestCase):
-    SETUP = '''
-        create type TestEdgeQLSys {
+class TestQueryStatsMixin:
+    stats_magic_word: str = NotImplemented
+    stats_type: str = NotImplemented
+
+    async def _query_for_stats(self):
+        raise NotImplementedError
+
+    async def _bad_query_for_stats(self):
+        raise NotImplementedError
+
+    async def _test_sys_query_stats(self):
+        stats_query = f'''
+            with stats := (
+                select
+                    sys::QueryStats
+                filter
+                    .query like '%{self.stats_magic_word}%'
+                    and .query not like '%sys::%'
+                    and .query_type = <sys::QueryType>$0
+            )
+            select sum(stats.calls)
+        '''
+        calls = await self.con.query_single(stats_query, self.stats_type)
+
+        await self._query_for_stats()
+        self.assertEqual(
+            await self.con.query_single(stats_query, self.stats_type),
+            calls + 1,
+        )
+
+        await self._bad_query_for_stats()
+        self.assertEqual(
+            await self.con.query_single(stats_query, self.stats_type),
+            calls + 1,
+        )
+
+        self.assertIsNone(
+            await self.con.query_single(
+                "select sys::reset_query_stats(branch_name := 'non_exdb')"
+            )
+        )
+        self.assertEqual(
+            await self.con.query_single(stats_query, self.stats_type),
+            calls + 1,
+        )
+
+        self.assertIsNotNone(
+            await self.con.query('select sys::reset_query_stats()')
+        )
+        self.assertEqual(
+            await self.con.query_single(stats_query, self.stats_type),
+            0,
+        )
+
+
+class TestEdgeQLSys(tb.QueryTestCase, TestQueryStatsMixin):
+    stats_magic_word = 'TestEdgeQLSys'
+    stats_type = 'EdgeQL'
+    SETUP = f'''
+        create type {stats_magic_word} {{
             create property bar -> str;
-        };
+        }};
     '''
 
     async def test_edgeql_sys_locks(self):
@@ -65,36 +125,41 @@ class TestEdgeQLSys(tb.QueryTestCase):
                 lock_key),
             [False])
 
-    async def test_edgeql_sys_query_stats(self):
-        stats_query = '''
-            with stats := (
-                select
-                    sys::QueryStats
-                filter
-                    .query like '%TestEdgeQLSys%'
-                    and .query not like '%sys::%'
-            )
-            select sum(stats.calls)
-        '''
-        calls = await self.con.query_single(stats_query)
+    async def _query_for_stats(self):
+        self.assertEqual(
+            await self.con.query(f'select {self.stats_magic_word}'),
+            [],
+        )
 
-        self.assertEqual(await self.con.query('select TestEdgeQLSys'), [])
-        self.assertEqual(await self.con.query_single(stats_query), calls + 1)
-
+    async def _bad_query_for_stats(self):
         async with self.assertRaisesRegexTx(
             edgedb.InvalidReferenceError, 'does not exist'
         ):
-            await self.con.query('select TestEdgeQLSys_NoSuchType')
-        self.assertEqual(await self.con.query_single(stats_query), calls + 1)
+            await self.con.query(f'select {self.stats_magic_word}_NoSuchType')
 
-        self.assertIsNone(
-            await self.con.query_single(
-                "select sys::reset_query_stats(branch_name := 'non_exdb')"
+    async def test_edgeql_sys_query_stats(self):
+        await self._test_sys_query_stats()
+
+
+class TestSQLSys(tb.SQLQueryTestCase, TestQueryStatsMixin):
+    stats_magic_word = 'TestSQLSys'
+    stats_type = 'SQL'
+
+    async def _query_for_stats(self):
+        self.assertEqual(
+            await self.squery_values(
+                f"select {common.quote_literal(self.stats_magic_word)}"
+            ),
+            [[self.stats_magic_word]],
+        )
+
+    async def _bad_query_for_stats(self):
+        with self.assertRaisesRegex(
+            asyncpg.InternalServerError, "cannot find column"
+        ):
+            await self.squery_values(
+                f'select {self.stats_magic_word}_NoSuchType'
             )
-        )
-        self.assertEqual(await self.con.query_single(stats_query), calls + 1)
 
-        self.assertIsNotNone(
-            await self.con.query('select sys::reset_query_stats()')
-        )
-        self.assertEqual(await self.con.query_single(stats_query), 0)
+    async def test_sql_sys_query_stats(self):
+        await self._test_sys_query_stats()

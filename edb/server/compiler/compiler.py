@@ -564,6 +564,7 @@ class Compiler:
             current_user=current_user,
             allow_user_specified_id=allow_user_specified_id,
             apply_access_policies_sql=apply_access_policies_sql,
+            backend_runtime_params=self.state.backend_runtime_params,
         )
 
     def compile_request(
@@ -1585,6 +1586,7 @@ def _compile_ql_query(
     ):
         sql_info.update({
             'query': qlcodegen.generate_source(ql),
+            'type': defines.QueryType.EdgeQL,
         })
         if ctx.cache_key is not None and script_info is None:
             cache_key = ctx.cache_key

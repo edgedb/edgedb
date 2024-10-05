@@ -32,6 +32,7 @@ from typing import (
     cast,
 )
 
+import json
 import re
 
 import edb._edgeql_parser as ql_parser
@@ -57,6 +58,7 @@ from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import properties as s_props
+from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
@@ -5933,6 +5935,14 @@ def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
         'sys::QueryStats',
         type=s_objtypes.ObjectType,
     )
+    QueryType = schema.get(
+        'sys::QueryType',
+        type=s_scalars.ScalarType,
+    )
+    query_type_domain = common.get_backend_name(schema, QueryType)
+    type_mapping = {
+        str(v): k for k, v in defines.QueryType.__members__.items()
+    }
 
     def float64_to_duration_t(val: str) -> str:
         return f"({val} * interval '1ms')::edgedbt.duration_t"
@@ -5948,6 +5958,7 @@ def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
         'branch': "((d.description)->>'id')::uuid",
         'query': "s.query",
         'query_id': "s.queryid",
+        'query_type': f"(t.mapping->>s.stmt_type::text)::{query_type_domain}",
 
         'plans': 's.plans',
         'total_plan_time': float64_to_duration_t('s.total_plan_time'),
@@ -5979,11 +5990,15 @@ def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
                     edgedb_VER.shobj_metadata(dat.oid, 'pg_database')
                         AS description
             ) AS d
+            CROSS JOIN LATERAL (
+                SELECT {ql(json.dumps(type_mapping))}::jsonb AS mapping
+            ) AS t
         WHERE
             s.cache_key IS NOT NULL
             AND (d.description)->>'id' IS NOT NULL
             AND (d.description)->>'tenant_id'
                 = edgedb_VER.get_backend_tenant_id()
+            AND t.mapping ? s.stmt_type::text
     '''
 
     objects = {

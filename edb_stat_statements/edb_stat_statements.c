@@ -125,21 +125,32 @@ typedef enum pgssStoreKind
 
 #define PGSS_NUMKIND (PGSS_EXEC + 1)
 
+typedef enum EdbStmtType {
+	EDB_EDGEQL	= 1,
+	EDB_SQL		= 2,
+} EdbStmtType;
+
 typedef enum EdbStmtInfoParseState {
 	EDB_STMT_INFO_PARSE_NOOP		= 0,
 	EDB_STMT_INFO_PARSE_QUERY		= 1 << 0,
 	EDB_STMT_INFO_PARSE_QUERY_ID	= 1 << 1,
 	EDB_STMT_INFO_PARSE_CACHE_KEY	= 1 << 2,
+	EDB_STMT_INFO_PARSE_TYPE		= 1 << 3,
 } EdbStmtInfoParseState;
 
 #define EDB_STMT_INFO_PARSE_REQUIRED \
-	(EDB_STMT_INFO_PARSE_QUERY & EDB_STMT_INFO_PARSE_QUERY_ID & EDB_STMT_INFO_PARSE_CACHE_KEY)
+	(EDB_STMT_INFO_PARSE_QUERY \
+	 & EDB_STMT_INFO_PARSE_QUERY_ID \
+	 & EDB_STMT_INFO_PARSE_CACHE_KEY \
+	 & EDB_STMT_INFO_PARSE_TYPE \
+	)
 
 typedef struct EdbStmtInfo {
 	const char *query;
 	int query_len;
 	uint64 query_id;
 	pg_uuid_t *cache_key;
+	EdbStmtType stmt_type;
 } EdbStmtInfo;
 
 typedef struct EdbStmtInfoSemState {
@@ -257,6 +268,7 @@ typedef struct pgssEntry
 	slock_t		mutex;			/* protects the counters only */
 
 	pg_uuid_t	cache_key;		/* Query cache key as UUID */
+	EdbStmtType	stmt_type;		/* Type of the EdgeDB query */
 } pgssEntry;
 
 /*
@@ -381,6 +393,7 @@ static void pgss_store(const char *query, uint64 queryId,
 					   JumbleState *jstate,
 					   bool edb_extracted,
 					   pg_uuid_t *cache_key,
+					   EdbStmtType stmt_type,
 					   int parallel_workers_to_launch,
 					   int parallel_workers_launched);
 static void edb_stat_statements_internal(FunctionCallInfo fcinfo,
@@ -388,7 +401,7 @@ static void edb_stat_statements_internal(FunctionCallInfo fcinfo,
 										 bool showtext);
 static Size pgss_memsize(void);
 static pgssEntry *entry_alloc(pgssHashKey *key, Size query_offset, int query_len,
-							  int encoding, bool sticky, pg_uuid_t *cache_key);
+							  int encoding, bool sticky, pg_uuid_t *cache_key, EdbStmtType stmt_type);
 static void entry_dealloc(void);
 static bool qtext_store(const char *query, int query_len,
 						Size *query_offset, int *gc_count);
@@ -606,6 +619,8 @@ edbss_json_ofield_start(void *semstate, char *fname, bool isnull) {
 			state->state = EDB_STMT_INFO_PARSE_QUERY_ID;
 		} else if (strcmp(fname, "cacheKey") == 0) {
 			state->state = EDB_STMT_INFO_PARSE_CACHE_KEY;
+		} else if (strcmp(fname, "type") == 0) {
+			state->state = EDB_STMT_INFO_PARSE_TYPE;
 		}
 	}
 	return JSON_SUCCESS;
@@ -644,6 +659,18 @@ edbss_json_scalar(void *semstate, char *token, JsonTokenType tokenType) {
 			} else {
 				return JSON_SEM_ACTION_FAILED;
 			}
+		case EDB_STMT_INFO_PARSE_TYPE:
+			if (tokenType == JSON_TOKEN_NUMBER) {
+				char *endptr;
+				long type_val = strtol(token, &endptr, 10);
+				if (*endptr == '\0' && type_val != LONG_MAX) {
+					if (type_val == EDB_EDGEQL || type_val == EDB_SQL) {
+						state->info->stmt_type = type_val;
+						break;
+					}
+				}
+			}
+			return JSON_SEM_ACTION_FAILED;
 		case EDB_STMT_INFO_PARSE_NOOP:
 			return JSON_SUCCESS;
 	}
@@ -826,13 +853,14 @@ pgss_shmem_startup(void)
 		/* make the hashtable entry (discards old entries if too many) */
 		entry = entry_alloc(&temp.key, query_offset, temp.query_len,
 							temp.encoding,
-							false, NULL);
+							false, NULL, 0);
 
 		/* copy in the actual stats */
 		entry->counters = temp.counters;
 		entry->stats_since = temp.stats_since;
 		entry->minmax_stats_since = temp.minmax_stats_since;
 		entry->cache_key = temp.cache_key;
+		entry->stmt_type = temp.stmt_type;
 	}
 
 	/* Read global statistics for edb_stat_statements */
@@ -1051,6 +1079,7 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 				   NULL,
 				   true,
 				   info.cache_key,
+				   info.stmt_type,
 				   0,
 				   0);
 	} else if (!edbss_track_unrecognized) {
@@ -1076,6 +1105,7 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 				   jstate,
 				   true,
 				   NULL,
+				   0,
 				   0,
 				   0);
 }
@@ -1158,6 +1188,7 @@ pgss_planner(Query *parse,
 				   NULL,
 				   false,
 				   NULL,
+				   0,
 				   0,
 				   0);
 	}
@@ -1295,6 +1326,7 @@ pgss_ExecutorEnd(QueryDesc *queryDesc)
 				   NULL,
 				   false,
 				   NULL,
+				   0,
 #if PG_VERSION_NUM >= 180000
 				   queryDesc->estate->es_parallel_workers_to_launch,
 				   queryDesc->estate->es_parallel_workers_launched
@@ -1437,6 +1469,7 @@ pgss_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 				   false,
 				   NULL,
 				   0,
+				   0,
 				   0);
 	}
 	else
@@ -1501,6 +1534,7 @@ pgss_store(const char *query, uint64 queryId,
 		   JumbleState *jstate,
 		   bool edb_extracted,
 		   pg_uuid_t *cache_key,
+		   EdbStmtType stmt_type,
 		   int parallel_workers_to_launch,
 		   int parallel_workers_launched)
 {
@@ -1567,6 +1601,7 @@ pgss_store(const char *query, uint64 queryId,
 				query = info.query;
 				query_len = info.query_len;
 				cache_key = info.cache_key;
+				stmt_type = info.stmt_type;
 			} else if (!edbss_track_unrecognized) {
 				/* skip unrecognized statements unless we're told not to */
 				goto done;
@@ -1623,7 +1658,7 @@ pgss_store(const char *query, uint64 queryId,
 
 		/* OK to create a new hashtable entry */
 		entry = entry_alloc(&key, query_offset, query_len, encoding,
-							sticky, cache_key);
+							sticky, cache_key, stmt_type);
 
 		/* If needed, perform garbage collection while exclusive lock held */
 		if (do_gc)
@@ -1775,8 +1810,8 @@ edb_stat_statements_reset(PG_FUNCTION_ARGS)
 }
 
 /* Number of output arguments (columns) for various API versions */
-#define PG_STAT_STATEMENTS_COLS_V1_0	52
-#define PG_STAT_STATEMENTS_COLS			52	/* maximum of above */
+#define PG_STAT_STATEMENTS_COLS_V1_0	53
+#define PG_STAT_STATEMENTS_COLS			53	/* maximum of above */
 
 /*
  * Retrieve statement statistics.
@@ -1978,6 +2013,11 @@ edb_stat_statements_internal(FunctionCallInfo fcinfo,
 		else
 			values[i++] = UUIDPGetDatum(&entry->cache_key);
 
+		if (entry->stmt_type == 0)
+			nulls[i++] = true;
+		else
+			values[i++] = Int16GetDatum(entry->stmt_type);
+
 		/* copy counters to a local variable to keep locking time short */
 		SpinLockAcquire(&entry->mutex);
 		tmp = entry->counters;
@@ -2136,7 +2176,7 @@ pgss_memsize(void)
  */
 static pgssEntry *
 entry_alloc(pgssHashKey *key, Size query_offset, int query_len, int encoding,
-			bool sticky, pg_uuid_t *cache_key)
+			bool sticky, pg_uuid_t *cache_key, EdbStmtType stmt_type)
 {
 	pgssEntry  *entry;
 	bool		found;
@@ -2167,6 +2207,7 @@ entry_alloc(pgssHashKey *key, Size query_offset, int query_len, int encoding,
 		entry->minmax_stats_since = entry->stats_since;
 		if (cache_key != NULL)
 			entry->cache_key = *cache_key;
+		entry->stmt_type = stmt_type;
 	}
 
 	return entry;
