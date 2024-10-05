@@ -18,14 +18,16 @@
 
 
 from __future__ import annotations
-from typing import Tuple, Mapping, Sequence, List, TYPE_CHECKING, Optional
+from typing import Any, Tuple, Mapping, Sequence, List, TYPE_CHECKING, Optional
 
 import dataclasses
 import functools
 import hashlib
 import immutables
+import json
 
 from edb import errors
+from edb.common import uuidgen
 
 from edb.schema import schema as s_schema
 
@@ -71,6 +73,7 @@ def compile_sql(
     for stmt in stmts:
         orig_text = pg_codegen.generate_source(stmt)
         fe_settings = tx_state.current_fe_settings()
+        track_stats = False
 
         unit = dbstate.SQLQueryUnit(
             orig_query=orig_text,
@@ -177,10 +180,10 @@ def compile_sql(
 
             sql_trailer = f"{param_text} AS ({stmt_source.text})"
 
-            mangled_stmt_name = compute_stmt_name(
+            mangled_stmt_name = compute_stmt_name(hash_stmt_name(
                 f"PREPARE {pg_common.quote_ident(stmt.name)}{sql_trailer}",
                 tx_state,
-            )
+            ))
 
             sql_text = (
                 f"PREPARE {pg_common.quote_ident(mangled_stmt_name)}"
@@ -195,6 +198,7 @@ def compile_sql(
                 translation_data=stmt_source.translation_data,
             )
             unit.command_complete_tag = dbstate.TagPlain(tag=b"PREPARE")
+            track_stats = True
 
         elif isinstance(stmt, pgast.ExecuteStmt):
             orig_name = stmt.name
@@ -211,6 +215,8 @@ def compile_sql(
                 stmt_name=orig_name,
                 be_stmt_name=mangled_name.encode("utf-8"),
             )
+            track_stats = True
+
         elif isinstance(stmt, pgast.DeallocateStmt):
             orig_name = stmt.name
             mangled_name = prepared_stmt_map.get(orig_name)
@@ -243,8 +249,31 @@ def compile_sql(
             unit.translation_data = stmt_source.translation_data
             unit.command_complete_tag = stmt_resolved.command_complete_tag
             unit.params = stmt_resolved.params
+            track_stats = True
 
-        unit.stmt_name = compute_stmt_name(unit.query, tx_state).encode("utf-8")
+        stmt_hash = hash_stmt_name(unit.query, tx_state)
+        unit.stmt_name = compute_stmt_name(stmt_hash).encode("utf-8")
+
+        if track_stats:
+            cache_key = uuidgen.from_bytes(stmt_hash.digest()[:16])
+            query_debug_obj = {'type': 'SQL', 'id': str(cache_key)}
+            sql_debug_obj = {
+                'query': ''.join([
+                    '-- ',
+                    json.dumps(query_debug_obj),
+                    '\n',
+                    orig_text,
+                ]),
+                'queryId': cache_key.int >> 64,
+                'cacheKey': str(cache_key),
+            }
+            prefix = ''.join([
+                '-- ',
+                json.dumps(sql_debug_obj),
+                '\n',
+            ])
+            unit.prefix_len = len(prefix)
+            unit.query = prefix + unit.query
 
         tx_state.apply(unit)
         sql_units.append(unit)
@@ -309,7 +338,9 @@ def resolve_query(
     return resolved, source
 
 
-def compute_stmt_name(text: str, tx_state: dbstate.SQLTransactionState) -> str:
+def hash_stmt_name(
+    text: str, tx_state: dbstate.SQLTransactionState
+) -> Any:
     stmt_hash = hashlib.sha1(text.encode("utf-8"))
     for setting_name in sorted(FE_SETTINGS_MUTABLE):
         try:
@@ -318,6 +349,10 @@ def compute_stmt_name(text: str, tx_state: dbstate.SQLTransactionState) -> str:
             pass
         else:
             stmt_hash.update(f"{setting_name}:{setting_value}".encode("utf-8"))
+    return stmt_hash
+
+
+def compute_stmt_name(stmt_hash: Any) -> str:
     return f"edb{stmt_hash.hexdigest()}"
 
 
