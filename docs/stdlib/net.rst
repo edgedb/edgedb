@@ -1,5 +1,7 @@
 .. _ref_std_net:
 
+.. versionadded:: 6.0
+
 ===
 Net
 ===
@@ -53,7 +55,7 @@ The ``net::http`` submodule provides types and functions for making HTTP request
 
 .. eql:type:: net::http::Method
 
-  An enumeration of HTTP methods.
+  An enumeration of supported HTTP methods.
 
   Possible values are:
 
