@@ -862,20 +862,42 @@ def find_item_suggestions(
     from . import modules as s_mod
 
     orig_modname = name.module if isinstance(name, sn.QualName) else None
-    modname = modaliases.get(orig_modname, orig_modname)
 
     suggestions: List[so.Object] = []
 
-    if modname:
-        module = schema.get_global(s_mod.Module, modname, None)
-        if module:
+    if modname := modaliases.get(orig_modname, None):
+        if schema.get_global(s_mod.Module, modname, None):
             suggestions.extend(
                 schema.get_objects(
                     included_modules=[sn.UnqualName(modname)],
                 ),
             )
 
-    if not orig_modname:
+        modname = f'std::{modname}'
+        if schema.get_global(s_mod.Module, modname, None):
+            suggestions.extend(
+                schema.get_objects(
+                    included_modules=[sn.UnqualName(modname)],
+                ),
+            )
+
+    if orig_modname:
+        if schema.get_global(s_mod.Module, orig_modname, None):
+            suggestions.extend(
+                schema.get_objects(
+                    included_modules=[sn.UnqualName(orig_modname)],
+                ),
+            )
+
+        modname = f'std::{orig_modname}'
+        if schema.get_global(s_mod.Module, modname, None):
+            suggestions.extend(
+                schema.get_objects(
+                    included_modules=[sn.UnqualName(modname)],
+                ),
+            )
+
+    else:
         suggestions.extend(
             schema.get_objects(
                 included_modules=[sn.UnqualName("std")],
