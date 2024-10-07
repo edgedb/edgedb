@@ -5935,6 +5935,12 @@ def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
         'sys::QueryStats',
         type=s_objtypes.ObjectType,
     )
+    pvd = common.get_backend_name(
+        schema,
+        QueryStats
+            .getptr(schema, s_name.UnqualName("protocol_version"))
+            .get_target(schema)  # type: ignore
+    )
     QueryType = schema.get(
         'sys::QueryType',
         type=s_scalars.ScalarType,
@@ -5943,6 +5949,9 @@ def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
     type_mapping = {
         str(v): k for k, v in defines.QueryType.__members__.items()
     }
+    output_format_domain = common.get_backend_name(
+        schema, schema.get('sys::OutputFormat', type=s_scalars.ScalarType)
+    )
 
     def float64_to_duration_t(val: str) -> str:
         return f"({val} * interval '1ms')::edgedbt.duration_t"
@@ -5954,6 +5963,18 @@ def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
         'builtin': "false",
         'internal': "false",
         'computed_fields': 'ARRAY[]::text[]',
+
+        'compilation_config': "s.extras->'cc'",
+        'protocol_version': f"ROW(s.extras->'pv'->0, s.extras->'pv'->1)::{pvd}",
+        'default_namespace': "s.extras->>'dn'",
+        'namespace_aliases': "s.extras->'na'",
+        'migration_name': "COALESCE(s.extras->>'mn', 'initial')",
+        'output_format': f"(s.extras->>'of')::{output_format_domain}",
+        'expect_one': "(s.extras->'e1')::boolean",
+        'implicit_limit': "(s.extras->'il')::bigint",
+        'inline_typeids': "(s.extras->'ii')::boolean",
+        'inline_typenames': "(s.extras->'in')::boolean",
+        'inline_objectids': "(s.extras->'io')::boolean",
 
         'branch': "((d.description)->>'id')::uuid",
         'query': "s.query",

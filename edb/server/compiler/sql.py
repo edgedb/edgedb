@@ -264,11 +264,26 @@ def compile_sql(
 
         if track_stats and backend_runtime_params.has_stat_statements:
             cache_key = uuidgen.from_bytes(stmt_hash.digest()[:16])
+            cconfig = dict(fe_settings)
+            cconfig.pop('server_version', None)
+            cconfig.pop('server_version_num', None)
+            extras = {
+                'pv': [3, 0],  # protocol_version, current PG default
+                # default_namespace
+                "dn": ", ".join(
+                    parse_search_path(cconfig.pop("search_path", ""))
+                ),
+                'cc': cconfig,  # compilation_config
+            }
+            if last_mig := schema.get_last_migration():
+                extras['mn'] = last_mig.get_displayname(schema)
+
             sql_debug_obj = {
                 'query': orig_text,
                 'type': defines.QueryType.SQL,
                 'queryId': cache_key.int >> 64,
                 'cacheKey': str(cache_key),
+                'extras': json.dumps(extras),
             }
             prefix = ''.join([
                 '-- ',

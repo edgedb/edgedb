@@ -1584,9 +1584,40 @@ def _compile_ql_query(
         not ctx.bootstrap_mode
         and ctx.backend_runtime_params.has_stat_statements
     ):
+        spec = ctx.compiler_state.config_spec
+        extras: Dict[str, Any] = {
+            'cc': config.to_json_obj(
+                spec,
+                {
+                    **current_tx.get_system_config(),
+                    **current_tx.get_database_config(),
+                    **current_tx.get_session_config(),
+                },
+                setting_filter=lambda v: v.name in spec
+                                         and spec[v.name].affects_compilation,
+                include_source=False,
+            ),
+            'pv': ctx.protocol_version,  # protocol_version
+            'of': ctx.output_format,  # output_format
+            'e1': ctx.expected_cardinality_one,  # expect_one
+            'il': ctx.implicit_limit,  # implicit_limit
+            'ii': ctx.inline_typeids,  # inline_typeids
+            'in': ctx.inline_typenames,  # inline_typenames
+            'io': ctx.inline_objectids,  # inline_objectids
+        }
+        user_schema = current_tx.get_user_schema()
+        if last_mig := user_schema.get_last_migration():
+            extras['mn'] = last_mig.get_displayname(user_schema)
+        modaliases = dict(current_tx.get_modaliases())
+        # default_namespace
+        extras['dn'] = modaliases.pop(None, defines.DEFAULT_MODULE_ALIAS)
+        if modaliases:
+            extras['na'] = modaliases  # namespace_aliases
+
         sql_info.update({
             'query': qlcodegen.generate_source(ql),
             'type': defines.QueryType.EdgeQL,
+            'extras': json.dumps(extras),
         })
         if ctx.cache_key is not None and script_info is None:
             cache_key = ctx.cache_key
