@@ -34,6 +34,7 @@ from edb.schema import schema as s_schema
 from edb.pgsql import ast as pgast
 from edb.pgsql import common as pg_common
 from edb.pgsql import codegen as pg_codegen
+from edb.pgsql import params as pg_params
 from edb.pgsql import parser as pg_parser
 
 from . import dbstate
@@ -61,6 +62,7 @@ def compile_sql(
     prepared_stmt_map: Mapping[str, str],
     current_database: str,
     current_user: str,
+    backend_runtime_params: pg_params.BackendRuntimeParams,
 ) -> List[dbstate.SQLQueryUnit]:
     opts = ResolverOptionsPartial(
         query_str=query_str,
@@ -254,13 +256,27 @@ def compile_sql(
         stmt_hash = hash_stmt_name(unit.query, tx_state)
         unit.stmt_name = compute_stmt_name(stmt_hash).encode("utf-8")
 
-        if track_stats:
+        if track_stats and backend_runtime_params.has_stat_statements:
             cache_key = uuidgen.from_bytes(stmt_hash.digest()[:16])
-            query_debug_obj = {'type': 'SQL', 'id': str(cache_key)}
-            sql_debug_obj = {
+            cconfig = dict(fe_settings)
+            cconfig.pop('server_version', None)
+            cconfig.pop('server_version_num', None)
+            query_info = {
+                'type': 'SQL',
+                'id': str(cache_key),
+                'pv': [3, 0],  # protocol_version, current PG default
+                # default_namespace
+                "dn": ", ".join(
+                    parse_search_path(cconfig.pop("search_path", ""))
+                ),
+                'cc': cconfig,  # compilation_config
+            }
+            if last_mig := schema.get_last_migration():
+                query_info['mn'] = last_mig.get_displayname(schema)
+            sql_info = {
                 'query': ''.join([
                     '-- ',
-                    json.dumps(query_debug_obj),
+                    json.dumps(query_info),
                     '\n',
                     orig_text,
                 ]),
@@ -269,7 +285,7 @@ def compile_sql(
             }
             prefix = ''.join([
                 '-- ',
-                json.dumps(sql_debug_obj),
+                json.dumps(sql_info),
                 '\n',
             ])
             unit.prefix_len = len(prefix)

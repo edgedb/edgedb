@@ -5872,11 +5872,20 @@ def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
         'sys::QueryStats',
         type=s_objtypes.ObjectType,
     )
+    pvd = common.get_backend_name(
+        schema,
+        QueryStats
+            .getptr(schema, s_name.UnqualName("protocol_version"))
+            .get_target(schema)  # type: ignore
+    )
     QueryType = schema.get(
         'sys::QueryType',
         type=s_scalars.ScalarType,
     )
     query_type_domain = common.get_backend_name(schema, QueryType)
+    output_format_domain = common.get_backend_name(
+        schema, schema.get('sys::OutputFormat', type=s_scalars.ScalarType)
+    )
 
     def float64_to_duration_t(val: str) -> str:
         return f"({val} * interval '1ms')::edgedbt.duration_t"
@@ -5888,6 +5897,18 @@ def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
         'builtin': "false",
         'internal': "false",
         'computed_fields': 'ARRAY[]::text[]',
+
+        'compilation_config': "v.meta->'cc'",
+        'protocol_version': f"ROW(v.meta->'pv'->0, v.meta->'pv'->1)::{pvd}",
+        'default_namespace': "v.meta->>'dn'",
+        'namespace_aliases': "v.meta->'na'",
+        'migration_name': "COALESCE(v.meta->>'mn', 'initial')",
+        'output_format': f"(v.meta->>'of')::{output_format_domain}",
+        'expect_one': "(v.meta->'e1')::boolean",
+        'implicit_limit': "(v.meta->'il')::bigint",
+        'inline_typeids': "(v.meta->'ii')::boolean",
+        'inline_typenames': "(v.meta->'in')::boolean",
+        'inline_objectids': "(v.meta->'io')::boolean",
 
         'branch': "((d.description)->>'id')::uuid",
         'query': r"substring(s.query, position(E'\n' IN s.query) + 1)",
