@@ -3306,7 +3306,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             (REF_ERR, with_mod + 'select abs(1)'),
             (NO_ERR, with_mod + 'select _test::abs(1)'),
             (NO_ERR, with_mod + 'select std::_test::abs(1)'),
-            (REF_ERR, with_mod + 'select t::abs(1)'),
+            (NO_ERR, with_mod + 'select t::abs(1)'),
         ]
         with_mod = 'with s as module std '
         queries += [
@@ -11624,6 +11624,7 @@ class TestDescribe(BaseDescribeTest):
         queries += [
             with_mod + 'select _test::abs(1)',
             with_mod + 'select std::_test::abs(1)',
+            with_mod + 'select t::abs(1)',
         ]
         with_mod = 'with s as module std '
         queries += [

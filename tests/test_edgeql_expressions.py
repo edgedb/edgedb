@@ -10094,7 +10094,7 @@ aa \
             (REF_ERR, with_mod + 'select abs(1)'),
             (NO_ERR, with_mod + 'select _test::abs(1)'),
             (NO_ERR, with_mod + 'select std::_test::abs(1)'),
-            (REF_ERR, with_mod + 'select t::abs(1)'),
+            (NO_ERR, with_mod + 'select t::abs(1)'),
         ]
         with_mod = 'with s as module std '
         queries += [
@@ -10243,7 +10243,7 @@ aa \
             (REF_ERR, with_mod + 'select <Foo>1'),
             (NO_ERR, with_mod + 'select <test::Foo>1'),
             (NO_ERR, with_mod + 'select <std::test::Foo>1'),
-            (REF_ERR, with_mod + 'select <t::Foo>1'),
+            (NO_ERR, with_mod + 'select <t::Foo>1'),
         ]
         with_mod = 'with s as module std '
         queries += [

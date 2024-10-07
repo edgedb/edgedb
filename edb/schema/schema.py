@@ -1102,7 +1102,7 @@ class FlatSchema(Schema):
             else:
                 return default
 
-        alias_hit = local = False
+        local = False
         if module and module.startswith('__current__::'):
             local = True
             if not module_aliases or None not in module_aliases:
@@ -1118,7 +1118,6 @@ class FlatSchema(Schema):
 
             fq_module = module_aliases.get(first)
             if fq_module is not None:
-                alias_hit = True
                 module = fq_module + sep + rest
 
         if module is not None:
@@ -1128,12 +1127,7 @@ class FlatSchema(Schema):
                 return result
 
         # Try something in std, but only if there isn't a module clash
-        if not local and (
-            orig_module is None
-            or (
-                not alias_hit and module
-            )
-        ):
+        if not local:
             # If no module was specified, look in std
             if orig_module is None:
                 mod_name = 'std'
@@ -1151,11 +1145,7 @@ class FlatSchema(Schema):
                 self.has_module(fmod := module.split('::')[0])
                 or (disallow_module and disallow_module(fmod))
             ):
-                mod_name = (
-                    f'std::{module}'
-                    if orig_module is None
-                    else f'std::{orig_module}'
-                )
+                mod_name = f'std::{module}'
                 fqname = sn.QualName(mod_name, shortname)
                 result = getter(self, fqname)
                 if result is not None:
