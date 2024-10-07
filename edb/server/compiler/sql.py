@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import Any, Mapping, Sequence, List, TYPE_CHECKING, Optional
+from typing import Mapping, Sequence, List, TYPE_CHECKING, Optional
 
 import dataclasses
 import functools
@@ -71,6 +71,7 @@ def compile_sql(
     allow_prepared_statements: bool = True,
     disambiguate_column_names: bool,
     backend_runtime_params: pg_params.BackendRuntimeParams,
+    protocol_version: defines.ProtocolVersion,
 ) -> List[dbstate.SQLQueryUnit]:
     opts = ResolverOptionsPartial(
         query_str=query_str,
@@ -211,10 +212,10 @@ def compile_sql(
 
             sql_trailer = f"{param_text} AS ({stmt_source.text})"
 
-            mangled_stmt_name = compute_stmt_name(hash_stmt_name(
+            mangled_stmt_name = compute_stmt_name(
                 f"PREPARE {pg_common.quote_ident(stmt.name)}{sql_trailer}",
                 tx_state,
-            ))
+            )
 
             sql_text = (
                 f"PREPARE {pg_common.quote_ident(mangled_stmt_name)}"
@@ -303,23 +304,51 @@ def compile_sql(
                 f"SQL {stmt.__class__.__name__} is not supported"
             )
 
-        stmt_hash = hash_stmt_name(unit.query, tx_state)
-        unit.stmt_name = compute_stmt_name(stmt_hash).encode("utf-8")
+        unit.stmt_name = compute_stmt_name(unit.query, tx_state).encode("utf-8")
 
         if track_stats and backend_runtime_params.has_stat_statements:
-            cache_key = uuidgen.from_bytes(stmt_hash.digest()[:16])
-            sql_debug_obj = {
+            cconfig: dict[str, dbstate.SQLSetting] = {
+                k: v for k, v in fe_settings.items()
+                if k is not None and v is not None and k in FE_SETTINGS_MUTABLE
+            }
+            cconfig.pop('server_version', None)
+            cconfig.pop('server_version_num', None)
+            if allow_user_specified_id is not None:
+                cconfig.setdefault(
+                    'allow_user_specified_id',
+                    ('true' if allow_user_specified_id else 'false',),
+                )
+            if apply_access_policies_sql is not None:
+                cconfig.setdefault(
+                    'apply_access_policies_sql',
+                    ('true' if apply_access_policies_sql else 'false',),
+                )
+            search_path = parse_search_path(cconfig.pop("search_path", ("",)))
+            cconfig = dict(sorted((k, v) for k, v in cconfig.items()))
+            extras = {
+                'cc': cconfig,  # compilation_config
+                'pv': protocol_version,  # protocol_version
+                'dn': ', '.join(search_path),  # default_namespace
+            }
+            sql_info = {
                 'query': orig_text,
                 'type': defines.QueryType.SQL,
-                'id': str(cache_key),
+                'extras': json.dumps(extras),
             }
+            id_hash = hashlib.blake2b(digest_size=16)
+            id_hash.update(
+                json.dumps(sql_info).encode(defines.EDGEDB_ENCODING)
+            )
+            sql_info['id'] = str(uuidgen.from_bytes(id_hash.digest()))
             prefix = ''.join([
                 '-- ',
-                json.dumps(sql_debug_obj),
+                json.dumps(sql_info),
                 '\n',
             ])
             unit.prefix_len = len(prefix)
             unit.query = prefix + unit.query
+            if unit.eql_format_query is not None:
+                unit.eql_format_query = prefix + unit.eql_format_query
 
         if isinstance(stmt, pgast.DMLQuery):
             unit.capabilities |= enums.Capability.MODIFICATIONS
@@ -435,7 +464,7 @@ def is_setting_truthy(val: str | int | float) -> bool:
         return False
 
 
-def hash_stmt_name(text: str, tx_state: dbstate.SQLTransactionState) -> Any:
+def compute_stmt_name(text: str, tx_state: dbstate.SQLTransactionState) -> str:
     stmt_hash = hashlib.sha1(text.encode("utf-8"))
     for setting_name in sorted(FE_SETTINGS_MUTABLE):
         try:
@@ -444,10 +473,6 @@ def hash_stmt_name(text: str, tx_state: dbstate.SQLTransactionState) -> Any:
             pass
         else:
             stmt_hash.update(f"{setting_name}:{setting_value}".encode("utf-8"))
-    return stmt_hash
-
-
-def compute_stmt_name(stmt_hash: Any) -> str:
     return f"edb{stmt_hash.hexdigest()}"
 
 

@@ -37,6 +37,7 @@ SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  toplevel                   | boolean                  |           |          | 
  queryid                    | bigint                   |           |          | 
  query                      | text                     |           |          | 
+ extras                     | jsonb                    |           |          | 
  id                         | uuid                     |           |          | 
  stmt_type                  | smallint                 |           |          | 
  plans                      | bigint                   |           |          | 

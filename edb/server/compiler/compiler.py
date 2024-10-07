@@ -568,6 +568,7 @@ class Compiler:
             apply_access_policies_sql=apply_access_policies_sql,
             disambiguate_column_names=False,
             backend_runtime_params=self.state.backend_runtime_params,
+            protocol_version=(-3, 0),  # emulated PG binary protocol version
         )
 
     def compile_serialized_request(
@@ -1588,22 +1589,45 @@ def _compile_ql_query(
         not ctx.bootstrap_mode
         and ctx.backend_runtime_params.has_stat_statements
     ):
+        spec = ctx.compiler_state.config_spec
+        cconfig = config.to_json_obj(
+            spec,
+            {
+                **current_tx.get_system_config(),
+                **current_tx.get_database_config(),
+                **current_tx.get_session_config(),
+            },
+            setting_filter=lambda v: v.name in spec
+                                     and spec[v.name].affects_compilation,
+            include_source=False,
+        )
+        extras: Dict[str, Any] = {
+            'cc': dict(sorted(cconfig.items())),  # compilation_config
+            'pv': ctx.protocol_version,  # protocol_version
+            'of': ctx.output_format,  # output_format
+            'e1': ctx.expected_cardinality_one,  # expect_one
+            'il': ctx.implicit_limit,  # implicit_limit
+            'ii': ctx.inline_typeids,  # inline_typeids
+            'in': ctx.inline_typenames,  # inline_typenames
+            'io': ctx.inline_objectids,  # inline_objectids
+        }
+        modaliases = dict(current_tx.get_modaliases())
+        # dn: default_namespace
+        extras['dn'] = modaliases.pop(None, defines.DEFAULT_MODULE_ALIAS)
+        if modaliases:
+            # na: namespace_aliases
+            extras['na'] = dict(sorted(modaliases.items()))
+
         sql_info.update({
             'query': qlcodegen.generate_source(ql),
             'type': defines.QueryType.EdgeQL,
+            'extras': json.dumps(extras),
         })
-        if ctx.cache_key is not None and script_info is None:
-            cache_key = ctx.cache_key
-        else:
-            # This is a temporary workaround for commands in a script to get
-            # unique "queryId", so that the stats of scripts show correctly,
-            # before we have separate cache entries for commands in a script.
-            key_hash = hashlib.blake2b(digest_size=16)
-            key_hash.update(
-                json.dumps(sql_info).encode(defines.EDGEDB_ENCODING)
-            )
-            cache_key = uuidgen.from_bytes(key_hash.digest())
-        sql_info['id'] = str(cache_key)
+        id_hash = hashlib.blake2b(digest_size=16)
+        id_hash.update(
+            json.dumps(sql_info).encode(defines.EDGEDB_ENCODING)
+        )
+        sql_info['id'] = str(uuidgen.from_bytes(id_hash.digest()))
 
     base_schema = (
         ctx.compiler_state.std_schema
@@ -2434,6 +2458,7 @@ def compile_sql_as_unit_group(
         allow_prepared_statements=False,
         disambiguate_column_names=True,
         backend_runtime_params=ctx.backend_runtime_params,
+        protocol_version=ctx.protocol_version,
     )
 
     qug = dbstate.QueryUnitGroup(

@@ -32,6 +32,10 @@ CREATE SCALAR TYPE sys::QueryType
     EXTENDING enum<EdgeQL, SQL>;
 
 
+CREATE SCALAR TYPE sys::OutputFormat
+    EXTENDING enum<BINARY, JSON, JSON_ELEMENTS, NONE>;
+
+
 CREATE ABSTRACT TYPE sys::SystemObject EXTENDING schema::Object;
 
 CREATE ABSTRACT TYPE sys::ExternalObject EXTENDING sys::SystemObject;
@@ -103,6 +107,18 @@ CREATE TYPE sys::QueryStats EXTENDING sys::ExternalObject {
         CREATE ANNOTATION std::description :=
             "Type of the query.";
     };
+
+    CREATE PROPERTY compilation_config -> std::json;
+    CREATE PROPERTY protocol_version -> tuple<major: std::int16,
+                                              minor: std::int16>;
+    CREATE PROPERTY default_namespace -> std::str;
+    CREATE OPTIONAL PROPERTY namespace_aliases -> std::json;
+    CREATE OPTIONAL PROPERTY output_format -> sys::OutputFormat;
+    CREATE OPTIONAL PROPERTY expect_one -> std::bool;
+    CREATE OPTIONAL PROPERTY implicit_limit -> std::int64;
+    CREATE OPTIONAL PROPERTY inline_typeids -> std::bool;
+    CREATE OPTIONAL PROPERTY inline_typenames -> std::bool;
+    CREATE OPTIONAL PROPERTY inline_objectids -> std::bool;
 
     CREATE PROPERTY plans -> std::int64 {
         CREATE ANNOTATION std::description :=
