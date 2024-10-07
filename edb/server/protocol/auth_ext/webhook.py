@@ -151,15 +151,16 @@ with
     url := <str>$url,
     payload := <bytes>$payload,
     headers := <array<tuple<str, str>>>$headers,
-insert nh::ScheduledRequest {
-    created_at := datetime_of_statement(),
-    state := net::RequestState.Pending,
-
-    url := url,
-    method := nh::Method.POST,
-    headers := headers,
-    body := payload,
-}""",
+    REQUEST := (
+        nh::schedule_request(
+          url,
+          method := nh::Method.POST,
+          headers := headers,
+          body := payload,
+        )
+    ),
+select REQUEST;
+""",
         variables={
             "url": url,
             "payload": payload,
