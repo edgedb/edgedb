@@ -419,6 +419,30 @@ def normalize_FunctionCall(
             sname = funcs[0].get_shortname(schema)
             node.func = (sname.module, sname.name)
 
+        elif modaliases and isinstance(name, sn.QualName):
+            # Even if no function was found, apply the modaliases.
+            # It is possible that a function without the modalias exists but
+            # we don't want to find that.
+            #
+            # Eg.
+            # module A {
+            #     function foo() -> int64 using (1);
+            # }
+            # module B {}
+            # module default {
+            #     alias query := (with A as module B select A::foo() );
+            # }
+            current_module = (
+                modaliases[None]
+                if modaliases and None in modaliases else
+                None
+            )
+            _, module = s_schema.apply_module_aliases(
+                name.module, modaliases, current_module,
+            )
+            if module is not None:
+                node.func = (module, name.name)
+
         # It's odd we don't find a function, but this will be picked up
         # by the compiler with a more appropriate error message.
 

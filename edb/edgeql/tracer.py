@@ -381,42 +381,63 @@ def resolve_name(
     """Resolve a name into a fully-qualified one.
 
     This takes into account the current module and modaliases.
+
+    This function mostly mirrors schema.FlatSchema._search_with_getter
+    except:
+    - If no module and no default module was set, try the current module
+    - When searching in std, ensure module is not a local module
+    - If no result found, return a name with the best modname available
     """
+
+    def exists(name: sn.QualName) -> bool:
+        return (
+            objects.get(name) is not None
+            or schema.get(name, default=None, type=so.Object) is not None
+        )
+
     module = ref.module
+    orig_module = module
 
-    no_std = declaration
-    if module and module.startswith('__current__::'):
-        no_std = True
-        module = f'{current_module}::{module.removeprefix("__current__::")}'
-    elif not module:
-        module = current_module
-    elif modaliases:
-        if module:
-            first, sep, rest = module.partition('::')
-        else:
-            first, sep, rest = module, '', ''
+    # Apply module aliases
+    is_current, module = s_schema.apply_module_aliases(
+        module, modaliases, current_module,
+    )
+    no_std = declaration or is_current
 
-        fq_module = modaliases.get(first)
-        if fq_module is not None:
-            no_std = True
-            module = fq_module + sep + rest
+    # Check if something matches the name
+    if module is not None:
+        fqname = sn.QualName(module=module, name=ref.name)
+        if exists(fqname):
+            return fqname
 
-    qname = sn.QualName(module=module, name=ref.name)
+    elif orig_module is None:
+        # Look for name in current module
+        fqname = sn.QualName(module=current_module, name=ref.name)
+        if exists(fqname):
+            return fqname
 
-    # check if there's a name in default module
-    # that matches
-    if not no_std and not (
-        ref.module and ref.module in local_modules
-    ) and not (
-        objects.get(qname)
-        or schema.get(
-            qname, default=None, type=so.Object) is not None
-    ):
-        std_name = sn.QualName(
-            f'std::{ref.module}' if ref.module else 'std', ref.name)
-        if schema.get(std_name, default=None) is not None:
-            return std_name
-    return qname
+    # Try something in std if __current__ was not specified
+    if not no_std:
+        # If module == None, look in std
+        if orig_module is None:
+            mod_name = 'std'
+            fqname = sn.QualName(mod_name, ref.name)
+            if exists(fqname):
+                return fqname
+
+        # Ensure module is not a local module.
+        # Then try the module as part of std.
+        if module and module not in local_modules:
+            mod_name = f'std::{module}'
+            fqname = sn.QualName(mod_name, ref.name)
+            if exists(fqname):
+                return fqname
+
+    # Just pick the best module name available
+    return sn.QualName(
+        module=module or orig_module or current_module,
+        name=ref.name,
+    )
 
 
 class TracerContext:

@@ -1088,6 +1088,14 @@ class FlatSchema(Schema):
         module_aliases: Optional[Mapping[Optional[str], str]],
         disallow_module: Optional[Callable[[str], bool]],
     ) -> Any:
+        """
+        Find something in the schema with a given name.
+
+        This function mostly mirrors edgeql.tracer.resolve_name
+        except:
+        - When searching in std, disallow some modules (often the base modules)
+        - If no result found, return default
+        """
         if isinstance(name, str):
             name = sn.name_from_string(name)
         shortname = name.name
@@ -1102,39 +1110,30 @@ class FlatSchema(Schema):
             else:
                 return default
 
-        alias_hit = local = False
-        if module and module.startswith('__current__::'):
-            local = True
-            if not module_aliases or None not in module_aliases:
-                return default
-            cur_module = module_aliases[None]
-            module = f'{cur_module}::{module.removeprefix("__current__::")}'
-        elif module_aliases is not None:
-            first: Optional[str]
-            if module:
-                first, sep, rest = module.partition('::')
-            else:
-                first, sep, rest = module, '', ''
+        # Apply module aliases
+        current_module = (
+            module_aliases[None]
+            if module_aliases and None in module_aliases else
+            None
+        )
+        is_current, module = apply_module_aliases(
+            module, module_aliases, current_module,
+        )
+        if is_current and current_module is None:
+            return default
 
-            fq_module = module_aliases.get(first)
-            if fq_module is not None:
-                alias_hit = True
-                module = fq_module + sep + rest
+        no_std = is_current
 
+        # Check if something matches the name
         if module is not None:
             fqname = sn.QualName(module, shortname)
             result = getter(self, fqname)
             if result is not None:
                 return result
 
-        # Try something in std, but only if there isn't a module clash
-        if not local and (
-            orig_module is None
-            or (
-                not alias_hit and module
-            )
-        ):
-            # If no module was specified, look in std
+        # Try something in std if __current__ was not specified
+        if not no_std:
+            # If module == None, look in std
             if orig_module is None:
                 mod_name = 'std'
                 fqname = sn.QualName(mod_name, shortname)
@@ -1142,20 +1141,13 @@ class FlatSchema(Schema):
                 if result is not None:
                     return result
 
-            # If a module was specified in the name, ensure that no base module
-            # of the same name exists.
-            #
-            # If no module was specified, try the default module name as a part
-            # of std. The same condition applies.
+            # Ensure module is not a base module.
+            # Then try the module as part of std.
             if module and not (
                 self.has_module(fmod := module.split('::')[0])
                 or (disallow_module and disallow_module(fmod))
             ):
-                mod_name = (
-                    f'std::{module}'
-                    if orig_module is None
-                    else f'std::{orig_module}'
-                )
+                mod_name = f'std::{module}'
                 fqname = sn.QualName(mod_name, shortname)
                 result = getter(self, fqname)
                 if result is not None:
@@ -1542,6 +1534,34 @@ class FlatSchema(Schema):
     def __repr__(self) -> str:
         return (
             f'<{type(self).__name__} gen:{self._generation} at {id(self):#x}>')
+
+
+def apply_module_aliases(
+    module: Optional[str],
+    module_aliases: Optional[Mapping[Optional[str], str]],
+    current_module: Optional[str],
+) -> tuple[bool, Optional[str]]:
+    is_current = False
+    if module and module.startswith('__current__::'):
+        # Replace __current__ with default module
+        is_current = True
+        if current_module is not None:
+            module = f'{current_module}::{module.removeprefix("__current__::")}'
+        else:
+            module = None
+    elif module_aliases is not None:
+        # Apply modalias
+        first: Optional[str]
+        if module:
+            first, sep, rest = module.partition('::')
+        else:
+            first, sep, rest = module, '', ''
+
+        fq_module = module_aliases.get(first)
+        if fq_module is not None:
+            module = fq_module + sep + rest
+
+    return is_current, module
 
 
 EMPTY_SCHEMA = FlatSchema()
