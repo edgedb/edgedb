@@ -34,6 +34,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
 import tomllib
 import zipfile
 
@@ -111,10 +112,11 @@ def install_edgedb_extension(
     target = ext_dir / pkg.stem
     print("Installing", target)
 
-    shutil.rmtree(target, ignore_errors=True)
-    os.makedirs(target, exist_ok=True)
+    with tempfile.TemporaryDirectory() as tdir, \
+         zipfile.ZipFile(pkg) as z:
 
-    with zipfile.ZipFile(pkg) as z:
+        ttarget = pathlib.Path(tdir) / pkg.stem
+        os.mkdir(ttarget)
 
         with z.open('MANIFEST.toml') as m:
             manifest = tomllib.load(m)
@@ -123,11 +125,15 @@ def install_edgedb_extension(
 
         for f in files:
             target_file = target / f
+            ttarget_file = ttarget / f
 
             with z.open(f) as src:
-                with open(target_file, "wb") as dst:
+                with open(ttarget_file, "wb") as dst:
                     print("Installing", target_file)
                     shutil.copyfileobj(src, dst)
+
+        os.makedirs(ext_dir, exist_ok=True)
+        shutil.move(ttarget, ext_dir)
 
 
 def load_ext_main(
