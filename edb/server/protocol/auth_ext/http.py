@@ -1140,27 +1140,29 @@ class Router:
             email_factor = await magic_link_client.get_email_factor_by_email(
                 email
             )
-
-            magic_link_token = magic_link_client.make_magic_link_token(
-                identity_id=email_factor.identity.id,
-                callback_url=callback_url,
-                challenge=challenge,
-            )
-            await self._maybe_send_webhook(
-                webhook.MagicLinkRequested(
-                    event_id=str(uuid.uuid4()),
-                    timestamp=datetime.datetime.now(datetime.timezone.utc),
+            if email_factor is None:
+                await auth_emails.send_fake_email(self.tenant)
+            else:
+                magic_link_token = magic_link_client.make_magic_link_token(
                     identity_id=email_factor.identity.id,
-                    email_factor_id=email_factor.id,
-                    magic_link_token=magic_link_token,
+                    callback_url=callback_url,
+                    challenge=challenge,
                 )
-            )
-            await magic_link_client.send_magic_link(
-                email=email,
-                token=magic_link_token,
-                link_url=f"{self.base_path}/magic-link/authenticate",
-                redirect_on_failure=redirect_on_failure,
-            )
+                await self._maybe_send_webhook(
+                    webhook.MagicLinkRequested(
+                        event_id=str(uuid.uuid4()),
+                        timestamp=datetime.datetime.now(datetime.timezone.utc),
+                        identity_id=email_factor.identity.id,
+                        email_factor_id=email_factor.id,
+                        magic_link_token=magic_link_token,
+                    )
+                )
+                await magic_link_client.send_magic_link(
+                    email=email,
+                    token=magic_link_token,
+                    link_url=f"{self.base_path}/magic-link/authenticate",
+                    redirect_on_failure=redirect_on_failure,
+                )
 
             return_data = {
                 "email_sent": email,
