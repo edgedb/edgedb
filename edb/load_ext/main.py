@@ -51,7 +51,9 @@ def install_pg_extension(
     pg_config: dict[str, str],
 ) -> None:
     with zipfile.ZipFile(pkg) as z:
-        with z.open('MANIFEST.toml') as m:
+        base = get_dir(z)
+
+        with z.open(str(base / 'MANIFEST.toml')) as m:
             manifest = tomllib.load(m)
 
         if 'postgres_files' in manifest:
@@ -61,19 +63,20 @@ def install_pg_extension(
             for entry in z.infolist():
                 fpath = pathlib.Path(entry.filename)
 
-                if fpath.parts[0] != dir:
+                if fpath.parts[0] != str(base) and fparts[1] != dir:
                     continue
                 # If the path is too short or isn't one of the
                 # directories we know about, skip it.
                 if (
-                    len(fpath.parts) < 2
-                    or not (config_field := CONFIG_PATHS.get(fpath.parts[1]))
+                    len(fpath.parts) < 3
+                    or not (config_field := CONFIG_PATHS.get(fpath.parts[2]))
                 ):
                     print("Skipping", fpath)
                     continue
 
                 config_dir = pg_config[config_field]
-                fpath = fpath.relative_to(pdir / fpath.parts[1])
+                fpath = fpath.relative_to(
+                    fpath.parts[0] / pdir / fpath.parts[2])
 
                 target_file = config_dir / fpath
 
@@ -105,20 +108,31 @@ def get_pg_config(pg_config_path: pathlib.Path) -> dict[str, str]:
     return config
 
 
+def get_dir(z: zipfile.Zipfile) -> pathlib.Path:
+    files = z.infolist()
+    if not (files and files[0].is_dir()):
+        raise ValueError('Extension package must contain one top-level dir')
+    dirname = pathlib.Path(files[0].filename)
+
+    return dirname
+
+
 def install_edgedb_extension(
     pkg: pathlib.Path,
     ext_dir: pathlib.Path,
 ) -> None:
-    target = ext_dir / pkg.stem
-    print("Installing", target)
-
     with tempfile.TemporaryDirectory() as tdir, \
          zipfile.ZipFile(pkg) as z:
+
+        dirname = get_dir(z)
+
+        target = ext_dir / dirname
+        print("Installing", target)
 
         ttarget = pathlib.Path(tdir) / pkg.stem
         os.mkdir(ttarget)
 
-        with z.open('MANIFEST.toml') as m:
+        with z.open(str(dirname / 'MANIFEST.toml')) as m:
             manifest = tomllib.load(m)
 
         files = ['MANIFEST.toml'] + manifest['files']
@@ -127,7 +141,7 @@ def install_edgedb_extension(
             target_file = target / f
             ttarget_file = ttarget / f
 
-            with z.open(f) as src:
+            with z.open(str(dirname / f)) as src:
                 with open(ttarget_file, "wb") as dst:
                     print("Installing", target_file)
                     shutil.copyfileobj(src, dst)

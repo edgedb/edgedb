@@ -78,7 +78,7 @@ install: build
 
 $(EXT_FNAME).zip: build
 	rm -f $(EXT_FNAME).zip
-	cd build/$(EXT_FNAME)/ && zip -r ../../$(EXT_FNAME).zip *
+	cd build/ && zip -r ../$(EXT_FNAME).zip $(EXT_FNAME)/
 
 zip: $(EXT_FNAME).zip
 
