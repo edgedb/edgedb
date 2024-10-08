@@ -256,6 +256,14 @@ def compile_sql(
         stmt_hash = hash_stmt_name(unit.query, tx_state)
         unit.stmt_name = compute_stmt_name(stmt_hash).encode("utf-8")
 
+        # Embed the frontend SQL query info in the backend SQL as a comment.
+        # It has 2 layers of embedded JSON:
+        #   1. sql_info: the outer comment consumed by the edb_stat_statements
+        #      extension, used to replace the compiled SQL with the frontend
+        #      SQL in this JSON, as well as the `queryId` (unique idx of stats)
+        #   2. query_info: the inner comment stored in pg_stat_statements,
+        #      used as a supplement storage of the additional query
+        #      information, like query_type, compilation config, etc.
         if track_stats and backend_runtime_params.has_stat_statements:
             cache_key = uuidgen.from_bytes(stmt_hash.digest()[:16])
             cconfig = dict(fe_settings)

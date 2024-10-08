@@ -1559,7 +1559,14 @@ def _compile_ql_query(
     is_explain = explain_data is not None
     current_tx = ctx.state.current_tx()
 
-    # Embed the normalized EdgeQL query info in the SQL.
+    # Embed the normalized EdgeQL query info in the SQL as a comment.
+    # It has 2 layers of embedded JSON:
+    #   1. sql_info: the outer comment consumed by the edb_stat_statements
+    #      extension, used to replace the compiled SQL with the frontend query
+    #      in this JSON, as well as the `queryId` (unique index of statistics).
+    #   2. query_info: the inner comment that is stored in pg_stat_statements,
+    #      used as a supplement storage of the additional query information,
+    #      like query_type, output_format, etc.
     sql_info: Dict[str, Any] = {}
     if (
         not ctx.bootstrap_mode
