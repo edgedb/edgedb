@@ -1088,6 +1088,14 @@ class FlatSchema(Schema):
         module_aliases: Optional[Mapping[Optional[str], str]],
         disallow_module: Optional[Callable[[str], bool]],
     ) -> Any:
+        """
+        Find something in the schema with a given name.
+
+        This function mostly mirrors edgeql.tracer.resolve_name
+        except:
+        - When searching in std, disallow some modules (often the base modules)
+        - If no result found, return default
+        """
         if isinstance(name, str):
             name = sn.name_from_string(name)
         shortname = name.name
@@ -1102,14 +1110,16 @@ class FlatSchema(Schema):
             else:
                 return default
 
-        local = False
+        no_std = False
         if module and module.startswith('__current__::'):
-            local = True
+            # Replace __current__ with default module
+            no_std = True
             if not module_aliases or None not in module_aliases:
                 return default
             cur_module = module_aliases[None]
             module = f'{cur_module}::{module.removeprefix("__current__::")}'
         elif module_aliases is not None:
+            # Apply modalias
             first: Optional[str]
             if module:
                 first, sep, rest = module.partition('::')
@@ -1120,15 +1130,16 @@ class FlatSchema(Schema):
             if fq_module is not None:
                 module = fq_module + sep + rest
 
+        # Check if something matches the name
         if module is not None:
             fqname = sn.QualName(module, shortname)
             result = getter(self, fqname)
             if result is not None:
                 return result
 
-        # Try something in std, but only if there isn't a module clash
-        if not local:
-            # If no module was specified, look in std
+        # Try something in std if __current__ was not specified
+        if not no_std:
+            # If module == None, look in std
             if orig_module is None:
                 mod_name = 'std'
                 fqname = sn.QualName(mod_name, shortname)
@@ -1136,11 +1147,8 @@ class FlatSchema(Schema):
                 if result is not None:
                     return result
 
-            # If a module was specified in the name, ensure that no base module
-            # of the same name exists.
-            #
-            # If no module was specified, try the default module name as a part
-            # of std. The same condition applies.
+            # Ensure module is not a base module.
+            # Then try the module as part of std.
             if module and not (
                 self.has_module(fmod := module.split('::')[0])
                 or (disallow_module and disallow_module(fmod))
