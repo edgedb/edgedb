@@ -94,7 +94,10 @@ class StdNetTestCase(server.QueryTestCase):
                         request := assert_exists((
                             select std::net::http::ScheduledRequest
                             filter .url = url
-                            and .state != std::net::RequestState.Pending
+                            and .state in {
+                                std::net::RequestState.Completed,
+                                std::net::RequestState.Failed,
+                            }
                             limit 1
                         ))
                     select request {*};
