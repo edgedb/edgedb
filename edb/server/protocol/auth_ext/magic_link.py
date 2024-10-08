@@ -95,22 +95,6 @@ select email_factor { ** };""",
         factor_dict = result_json[0]
         return data.EmailFactor(**factor_dict)
 
-    async def get_email_factor_by_email(self, email: str) -> data.EmailFactor:
-        result = await execute.parse_execute_json(
-            self.db,
-            """\
-with
-    email := <str>$email,
-select ext::auth::MagicLinkFactor {**}
-filter .email = email;
-""",
-            variables={"email": email},
-        )
-        result_json = json.loads(result.decode())
-        assert len(result_json) == 1
-        factor_dict = result_json[0]
-        return data.EmailFactor(**factor_dict)
-
     def make_magic_link_token(
         self,
         *,
