@@ -3123,6 +3123,186 @@ class TestSchema(tb.BaseSchemaLoadTest):
     def test_schema_with_module_01(self):
         schema_text = f'''
             module dummy {{}}
+            module A {{
+                type Foo;
+            }}
+        '''
+        NO_ERR = 1
+        REF_ERR = 2
+
+        queries = []
+
+        with_mod = ''
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+        ]
+        with_mod = 'WITH MODULE dummy '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+        ]
+        with_mod = 'WITH MODULE std '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+        ]
+        with_mod = 'WITH MODULE A '
+        queries += [
+            (NO_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+        ]
+        with_mod = 'WITH dum as MODULE dummy '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dum::Foo>{}'),
+        ]
+        with_mod = 'WITH AAA as MODULE A '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <AAA::Foo>{}'),
+        ]
+        with_mod = 'WITH s as MODULE std '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <s::Foo>{}'),
+        ]
+        with_mod = 'WITH std as MODULE A '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+        ]
+        with_mod = 'WITH A as MODULE std '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <A::Foo>{}'),
+        ]
+
+        self._check_valid_queries(
+            schema_text,
+            [query for error, query in queries if error == NO_ERR],
+        )
+        self._check_invalid_queries(
+            schema_text,
+            [query for error, query in queries if error == REF_ERR],
+            errors.InvalidReferenceError,
+            "Foo' does not exist",
+        )
+
+    def test_schema_with_module_02(self):
+        schema_text = f'''
+            module dummy {{}}
+            module A {{
+                function abs(x: int64) -> int64 using (x);
+            }}
+        '''
+        NO_ERR = 1
+        REF_ERR = 2
+
+        queries = []
+
+        with_mod = ''
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+        ]
+        with_mod = 'WITH MODULE dummy '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+        ]
+        with_mod = 'WITH MODULE std '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+        ]
+        with_mod = 'WITH MODULE A '
+        queries += [
+            (NO_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+        ]
+        with_mod = 'WITH dum as MODULE dummy '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dum::abs(1)'),
+        ]
+        with_mod = 'WITH AAA as MODULE A '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT AAA::abs(1)'),
+        ]
+        with_mod = 'WITH s as MODULE std '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT s::abs(1)'),
+        ]
+        with_mod = 'WITH std as MODULE A '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (NO_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+        ]
+        with_mod = 'WITH A as MODULE std '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT A::abs(1)'),
+        ]
+
+        self._check_valid_queries(
+            schema_text,
+            [query for error, query in queries if error == NO_ERR],
+        )
+        self._check_invalid_queries(
+            schema_text,
+            [query for error, query in queries if error == REF_ERR],
+            errors.InvalidReferenceError,
+            "abs' does not exist",
+        )
+
+    def test_schema_with_module_03(self):
+        schema_text = f'''
+            module dummy {{}}
         '''
         NO_ERR = 1
         REF_ERR = 2
@@ -3174,6 +3354,13 @@ class TestSchema(tb.BaseSchemaLoadTest):
             (REF_ERR, with_mod + 'SELECT <dummy::int64>{} = 1'),
             (NO_ERR, with_mod + 'SELECT <s::int64>{} = 1'),
         ]
+        with_mod = 'WITH std as MODULE dummy '
+        queries += [
+            (NO_ERR, with_mod + 'SELECT <int64>{} = 1'),
+            (REF_ERR, with_mod + 'SELECT <std::int64>{} = 1'),
+            (REF_ERR, with_mod + 'SELECT <default::int64>{} = 1'),
+            (REF_ERR, with_mod + 'SELECT <dummy::int64>{} = 1'),
+        ]
 
         self._check_valid_queries(
             schema_text,
@@ -3186,7 +3373,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             "int64' does not exist",
         )
 
-    def test_schema_with_module_02(self):
+    def test_schema_with_module_04(self):
         schema_text = f'''
             module dummy {{}}
             module default {{ type int64; }}
@@ -3243,6 +3430,20 @@ class TestSchema(tb.BaseSchemaLoadTest):
             (REF_ERR, with_mod + 'SELECT <dummy::int64>{} = 1'),
             (NO_ERR, with_mod + 'SELECT <s::int64>{} = 1'),
         ]
+        with_mod = 'WITH std as MODULE dummy '
+        queries += [
+            (TYPE_ERR, with_mod + 'SELECT <int64>{} = 1'),
+            (REF_ERR, with_mod + 'SELECT <std::int64>{} = 1'),
+            (TYPE_ERR, with_mod + 'SELECT <default::int64>{} = 1'),
+            (REF_ERR, with_mod + 'SELECT <dummy::int64>{} = 1'),
+        ]
+        with_mod = 'WITH std as MODULE default '
+        queries += [
+            (TYPE_ERR, with_mod + 'SELECT <int64>{} = 1'),
+            (TYPE_ERR, with_mod + 'SELECT <std::int64>{} = 1'),
+            (TYPE_ERR, with_mod + 'SELECT <default::int64>{} = 1'),
+            (REF_ERR, with_mod + 'SELECT <dummy::int64>{} = 1'),
+        ]
 
         self._check_valid_queries(
             schema_text,
@@ -3261,7 +3462,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             "operator '=' cannot be applied",
         )
 
-    def test_schema_with_module_03(self):
+    def test_schema_with_module_05(self):
         schema_text = f'''
             module dummy {{}}
         '''
@@ -3322,6 +3523,13 @@ class TestSchema(tb.BaseSchemaLoadTest):
             (NO_ERR, with_mod + 'select std::_test::abs(1)'),
             (NO_ERR, with_mod + 'select st::abs(1)'),
         ]
+        with_mod = 'with std as module _test '
+        queries += [
+            (REF_ERR, with_mod + 'select abs(1)'),
+            (NO_ERR, with_mod + 'select _test::abs(1)'),
+            (REF_ERR, with_mod + 'select std::_test::abs(1)'),
+            (NO_ERR, with_mod + 'select std::abs(1)'),
+        ]
 
         self._check_valid_queries(
             schema_text,
@@ -3334,7 +3542,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             "abs' does not exist",
         )
 
-    def test_schema_with_module_04(self):
+    def test_schema_with_module_06(self):
         schema_text = f'''
             module dummy {{}}
             module _test {{}}
@@ -3395,6 +3603,20 @@ class TestSchema(tb.BaseSchemaLoadTest):
             (REF_ERR, with_mod + 'select _test::abs(1)'),
             (NO_ERR, with_mod + 'select std::_test::abs(1)'),
             (NO_ERR, with_mod + 'select st::abs(1)'),
+        ]
+        with_mod = 'with std as module _test '
+        queries += [
+            (REF_ERR, with_mod + 'select abs(1)'),
+            (REF_ERR, with_mod + 'select _test::abs(1)'),
+            (REF_ERR, with_mod + 'select std::_test::abs(1)'),
+            (REF_ERR, with_mod + 'select std::abs(1)'),
+        ]
+        with_mod = 'with std as module std::_test '
+        queries += [
+            (REF_ERR, with_mod + 'select abs(1)'),
+            (REF_ERR, with_mod + 'select _test::abs(1)'),
+            (REF_ERR, with_mod + 'select std::_test::abs(1)'),
+            (NO_ERR, with_mod + 'select std::abs(1)'),
         ]
 
         self._check_valid_queries(
@@ -11432,6 +11654,132 @@ class TestDescribe(BaseDescribeTest):
     def test_schema_describe_with_module_01(self):
         schema_text = f'''
             module dummy {{}}
+            module A {{
+                type Foo;
+            }}
+        '''
+
+        queries = []
+
+        with_mod = ''
+        queries += [
+            with_mod + 'SELECT <A::Foo>{}',
+        ]
+        with_mod = 'WITH MODULE dummy '
+        queries += [
+            with_mod + 'SELECT <A::Foo>{}',
+        ]
+        with_mod = 'WITH MODULE std '
+        queries += [
+            with_mod + 'SELECT <A::Foo>{}',
+        ]
+        with_mod = 'WITH MODULE A '
+        queries += [
+            with_mod + 'SELECT <Foo>{}',
+            with_mod + 'SELECT <A::Foo>{}',
+        ]
+        with_mod = 'WITH dum as MODULE dummy '
+        queries += [
+            with_mod + 'SELECT <A::Foo>{}',
+        ]
+        with_mod = 'WITH AAA as MODULE A '
+        queries += [
+            with_mod + 'SELECT <A::Foo>{}',
+            with_mod + 'SELECT <AAA::Foo>{}',
+        ]
+        with_mod = 'WITH s as MODULE std '
+        queries += [
+            with_mod + 'SELECT <A::Foo>{}',
+        ]
+        with_mod = 'WITH std as MODULE A '
+        queries += [
+            with_mod + 'SELECT <std::Foo>{}',
+            with_mod + 'SELECT <A::Foo>{}',
+        ]
+        with_mod = 'WITH A as MODULE std '
+        queries += []
+
+        normalized = 'SELECT <A::Foo>{}'
+        for query in queries:
+            self._assert_describe(
+                schema_text + f'''
+                    module default {{ alias query := ({query}); }}
+                ''',
+
+                'describe module default as sdl',
+
+                f'''
+                    alias default::query := ({normalized});
+                ''',
+                explicit_modules=True,
+            )
+
+    def test_schema_describe_with_module_02(self):
+        schema_text = f'''
+            module dummy {{}}
+            module A {{
+                function abs(x: int64) -> int64 using (x);
+            }}
+        '''
+
+        queries = []
+
+        with_mod = ''
+        queries += [
+            with_mod + 'SELECT A::abs(1)',
+        ]
+        with_mod = 'WITH MODULE dummy '
+        queries += [
+            with_mod + 'SELECT A::abs(1)',
+        ]
+        with_mod = 'WITH MODULE std '
+        queries += [
+            with_mod + 'SELECT A::abs(1)',
+        ]
+        with_mod = 'WITH MODULE A '
+        queries += [
+            with_mod + 'SELECT abs(1)',
+            with_mod + 'SELECT A::abs(1)',
+        ]
+        with_mod = 'WITH dum as MODULE dummy '
+        queries += [
+            with_mod + 'SELECT A::abs(1)',
+        ]
+        with_mod = 'WITH AAA as MODULE A '
+        queries += [
+            with_mod + 'SELECT A::abs(1)',
+            with_mod + 'SELECT AAA::abs(1)',
+        ]
+        with_mod = 'WITH s as MODULE std '
+        queries += [
+            with_mod + 'SELECT A::abs(1)',
+        ]
+        with_mod = 'WITH std as MODULE A '
+        queries += [
+            with_mod + 'SELECT std::abs(1)',
+            with_mod + 'SELECT A::abs(1)',
+        ]
+        with_mod = 'WITH A as MODULE std '
+        queries += []
+
+        normalized = 'SELECT A::abs(1)'
+        for query in queries:
+            self._assert_describe(
+                schema_text + f'''
+                    module default {{ alias query := ({query}); }}
+                ''',
+
+                'describe module default as sdl',
+
+                f'''
+                    alias default::query := ({normalized});
+                ''',
+                explicit_modules=True,
+            )
+
+    def test_schema_describe_with_module_03(self):
+        schema_text = f'''
+            module dummy {{}}
         '''
 
         queries = []
@@ -11467,6 +11815,10 @@ class TestDescribe(BaseDescribeTest):
             with_mod + 'SELECT <std::int64>{} = 1',
             with_mod + 'SELECT <s::int64>{} = 1',
         ]
+        with_mod = 'WITH std as MODULE dummy '
+        queries += [
+            with_mod + 'SELECT <int64>{} = 1',
+        ]
 
         normalized = 'SELECT (<std::int64>{} = 1)'
         for query in queries:
@@ -11483,7 +11835,7 @@ class TestDescribe(BaseDescribeTest):
                 explicit_modules=True,
             )
 
-    def test_schema_describe_with_module_02a(self):
+    def test_schema_describe_with_module_04a(self):
         schema_text = f'''
             module dummy {{}}
             module default {{ type int64; }}
@@ -11518,6 +11870,10 @@ class TestDescribe(BaseDescribeTest):
             with_mod + 'SELECT <std::int64>{} = 1',
             with_mod + 'SELECT <s::int64>{} = 1',
         ]
+        with_mod = 'WITH std as MODULE dummy '
+        queries += []
+        with_mod = 'WITH std as MODULE default '
+        queries += []
 
         normalized = 'SELECT (<std::int64>{} = 1)'
         for query in queries:
@@ -11535,7 +11891,7 @@ class TestDescribe(BaseDescribeTest):
                 explicit_modules=True,
             )
 
-    def test_schema_describe_with_module_02b(self):
+    def test_schema_describe_with_module_04b(self):
         schema_text = f'''
             module dummy {{}}
             module default {{ type int64; }}
@@ -11569,6 +11925,10 @@ class TestDescribe(BaseDescribeTest):
         queries += [
             with_mod + 'SELECT <default::int64>{}',
         ]
+        with_mod = 'WITH std as MODULE dummy '
+        queries += []
+        with_mod = 'WITH std as MODULE default '
+        queries += []
 
         normalized = 'SELECT <default::int64>{}'
         for query in queries:
@@ -11586,7 +11946,7 @@ class TestDescribe(BaseDescribeTest):
                 explicit_modules=True,
             )
 
-    def test_schema_describe_with_module_03(self):
+    def test_schema_describe_with_module_05(self):
         schema_text = f'''
             module dummy {{}}
         '''
@@ -11637,6 +11997,11 @@ class TestDescribe(BaseDescribeTest):
             with_mod + 'select std::_test::abs(1)',
             with_mod + 'select st::abs(1)',
         ]
+        with_mod = 'with std as module _test '
+        queries += [
+            with_mod + 'select _test::abs(1)',
+            with_mod + 'select std::abs(1)',
+        ]
 
         normalized = 'SELECT std::_test::abs(1)'
         for query in queries:
@@ -11653,7 +12018,7 @@ class TestDescribe(BaseDescribeTest):
                 explicit_modules=True,
             )
 
-    def test_schema_describe_with_module_04(self):
+    def test_schema_describe_with_module_06(self):
         schema_text = f'''
             module dummy {{}}
             module _test {{}}
@@ -11694,6 +12059,12 @@ class TestDescribe(BaseDescribeTest):
         queries += [
             with_mod + 'select std::_test::abs(1)',
             with_mod + 'select st::abs(1)',
+        ]
+        with_mod = 'with std as module _test '
+        queries += []
+        with_mod = 'with std as module std::_test '
+        queries += [
+            with_mod + 'select std::abs(1)',
         ]
 
         normalized = 'SELECT std::_test::abs(1)'

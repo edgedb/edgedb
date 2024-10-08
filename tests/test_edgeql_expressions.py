@@ -9909,6 +9909,186 @@ aa \
     async def test_edgeql_expr_with_module_01(self):
         await self.con.execute(f"""
             create module dummy;
+            create module A;
+            create type A::Foo;
+        """)
+
+        NO_ERR = 1
+        REF_ERR = 2
+
+        queries = []
+
+        with_mod = ''
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+        ]
+        with_mod = 'WITH MODULE dummy '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+        ]
+        with_mod = 'WITH MODULE std '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+        ]
+        with_mod = 'WITH MODULE A '
+        queries += [
+            (NO_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+        ]
+        with_mod = 'WITH dum as MODULE dummy '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dum::Foo>{}'),
+        ]
+        with_mod = 'WITH AAA as MODULE A '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <AAA::Foo>{}'),
+        ]
+        with_mod = 'WITH s as MODULE std '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <s::Foo>{}'),
+        ]
+        with_mod = 'WITH std as MODULE A '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (NO_ERR, with_mod + 'SELECT <A::Foo>{}'),
+        ]
+        with_mod = 'WITH A as MODULE std '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT <Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <std::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <dummy::Foo>{}'),
+            (REF_ERR, with_mod + 'SELECT <A::Foo>{}'),
+        ]
+
+        for error, query in queries:
+            if error == NO_ERR:
+                await self.con.execute(query)
+
+            elif error == REF_ERR:
+                async with self.assertRaisesRegexTx(
+                    edgedb.errors.InvalidReferenceError,
+                    "Foo' does not exist",
+                ):
+                    await self.con.execute(query)
+
+    async def test_edgeql_expr_with_module_02(self):
+        await self.con.execute(f"""
+            create module dummy;
+            create module A;
+            create function A::abs(x: int64) -> int64 using (x);
+        """)
+
+        NO_ERR = 1
+        REF_ERR = 2
+
+        queries = []
+
+        with_mod = ''
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+        ]
+        with_mod = 'WITH MODULE dummy '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+        ]
+        with_mod = 'WITH MODULE std '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+        ]
+        with_mod = 'WITH MODULE A '
+        queries += [
+            (NO_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+        ]
+        with_mod = 'WITH dum as MODULE dummy '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dum::abs(1)'),
+        ]
+        with_mod = 'WITH AAA as MODULE A '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT AAA::abs(1)'),
+        ]
+        with_mod = 'WITH s as MODULE std '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT s::abs(1)'),
+        ]
+        with_mod = 'WITH std as MODULE A '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (NO_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (NO_ERR, with_mod + 'SELECT A::abs(1)'),
+        ]
+        with_mod = 'WITH A as MODULE std '
+        queries += [
+            (REF_ERR, with_mod + 'SELECT abs(1)'),
+            (REF_ERR, with_mod + 'SELECT std::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT dummy::abs(1)'),
+            (REF_ERR, with_mod + 'SELECT A::abs(1)'),
+        ]
+
+        for error, query in queries:
+            if error == NO_ERR:
+                await self.con.execute(query)
+
+            elif error == REF_ERR:
+                async with self.assertRaisesRegexTx(
+                    edgedb.errors.InvalidReferenceError,
+                    "abs' does not exist",
+                ):
+                    await self.con.execute(query)
+
+    async def test_edgeql_expr_with_module_03(self):
+        await self.con.execute(f"""
+            create module dummy;
         """)
 
         NO_ERR = 1
@@ -9961,6 +10141,13 @@ aa \
             (REF_ERR, with_mod + 'SELECT <dummy::int64>{} = 1'),
             (NO_ERR, with_mod + 'SELECT <s::int64>{} = 1'),
         ]
+        with_mod = 'WITH std as MODULE dummy '
+        queries += [
+            (NO_ERR, with_mod + 'SELECT <int64>{} = 1'),
+            (REF_ERR, with_mod + 'SELECT <std::int64>{} = 1'),
+            (REF_ERR, with_mod + 'SELECT <default::int64>{} = 1'),
+            (REF_ERR, with_mod + 'SELECT <dummy::int64>{} = 1'),
+        ]
 
         for error, query in queries:
             if error == NO_ERR:
@@ -9973,7 +10160,7 @@ aa \
                 ):
                     await self.con.execute(query)
 
-    async def test_edgeql_expr_with_module_02(self):
+    async def test_edgeql_expr_with_module_04(self):
         await self.con.execute(f"""
             create module dummy;
             create type default::int64;
@@ -10030,6 +10217,20 @@ aa \
             (REF_ERR, with_mod + 'SELECT <dummy::int64>{} = 1'),
             (NO_ERR, with_mod + 'SELECT <s::int64>{} = 1'),
         ]
+        with_mod = 'WITH std as MODULE dummy '
+        queries += [
+            (TYPE_ERR, with_mod + 'SELECT <int64>{} = 1'),
+            (REF_ERR, with_mod + 'SELECT <std::int64>{} = 1'),
+            (TYPE_ERR, with_mod + 'SELECT <default::int64>{} = 1'),
+            (REF_ERR, with_mod + 'SELECT <dummy::int64>{} = 1'),
+        ]
+        with_mod = 'WITH std as MODULE default '
+        queries += [
+            (TYPE_ERR, with_mod + 'SELECT <int64>{} = 1'),
+            (TYPE_ERR, with_mod + 'SELECT <std::int64>{} = 1'),
+            (TYPE_ERR, with_mod + 'SELECT <default::int64>{} = 1'),
+            (REF_ERR, with_mod + 'SELECT <dummy::int64>{} = 1'),
+        ]
 
         for error, query in queries:
             if error == NO_ERR:
@@ -10049,7 +10250,7 @@ aa \
                 ):
                     await self.con.execute(query)
 
-    async def test_edgeql_expr_with_module_03(self):
+    async def test_edgeql_expr_with_module_05(self):
         await self.con.execute(f"""
             create module dummy;
         """)
@@ -10110,6 +10311,13 @@ aa \
             (NO_ERR, with_mod + 'select std::_test::abs(1)'),
             (NO_ERR, with_mod + 'select st::abs(1)'),
         ]
+        with_mod = 'with std as module _test '
+        queries += [
+            (REF_ERR, with_mod + 'select abs(1)'),
+            (NO_ERR, with_mod + 'select _test::abs(1)'),
+            (REF_ERR, with_mod + 'select std::_test::abs(1)'),
+            (NO_ERR, with_mod + 'select std::abs(1)'),
+        ]
 
         for error, query in queries:
             if error == NO_ERR:
@@ -10122,7 +10330,7 @@ aa \
                 ):
                     await self.con.execute(query)
 
-    async def test_edgeql_expr_with_module_04(self):
+    async def test_edgeql_expr_with_module_06(self):
         await self.con.execute(f"""
             create module dummy;
             create module _test;
@@ -10184,6 +10392,20 @@ aa \
             (NO_ERR, with_mod + 'select std::_test::abs(1)'),
             (NO_ERR, with_mod + 'select st::abs(1)'),
         ]
+        with_mod = 'with std as module _test '
+        queries += [
+            (REF_ERR, with_mod + 'select abs(1)'),
+            (REF_ERR, with_mod + 'select _test::abs(1)'),
+            (REF_ERR, with_mod + 'select std::_test::abs(1)'),
+            (REF_ERR, with_mod + 'select std::abs(1)'),
+        ]
+        with_mod = 'with std as module std::_test '
+        queries += [
+            (REF_ERR, with_mod + 'select abs(1)'),
+            (REF_ERR, with_mod + 'select _test::abs(1)'),
+            (REF_ERR, with_mod + 'select std::_test::abs(1)'),
+            (NO_ERR, with_mod + 'select std::abs(1)'),
+        ]
 
         for error, query in queries:
             if error == NO_ERR:
@@ -10196,7 +10418,7 @@ aa \
                 ):
                     await self.con.execute(query)
 
-    async def test_edgeql_expr_with_module_05(self):
+    async def test_edgeql_expr_with_module_07(self):
         await self.con.execute(f"""
             create module dummy;
             create module std::test;
@@ -10259,6 +10481,20 @@ aa \
             (NO_ERR, with_mod + 'select <std::test::Foo>1'),
             (NO_ERR, with_mod + 'select <st::Foo>1'),
         ]
+        with_mod = 'WITH std as MODULE dummy '
+        queries += [
+            (REF_ERR, with_mod + 'select <Foo>1'),
+            (NO_ERR, with_mod + 'select <test::Foo>1'),
+            (REF_ERR, with_mod + 'select <std::test::Foo>1'),
+            (REF_ERR, with_mod + 'select <std::Foo>1'),
+        ]
+        with_mod = 'WITH std as MODULE test '
+        queries += [
+            (REF_ERR, with_mod + 'select <Foo>1'),
+            (NO_ERR, with_mod + 'select <test::Foo>1'),
+            (REF_ERR, with_mod + 'select <std::test::Foo>1'),
+            (NO_ERR, with_mod + 'select <std::Foo>1'),
+        ]
 
         for error, query in queries:
             if error == NO_ERR:
@@ -10271,7 +10507,7 @@ aa \
                 ):
                     await self.con.execute(query)
 
-    async def test_edgeql_expr_with_module_06(self):
+    async def test_edgeql_expr_with_module_08(self):
         await self.con.execute(f"""
             create module dummy;
             create module std::test;
@@ -10334,6 +10570,20 @@ aa \
             (REF_ERR, with_mod + 'select <test::Foo>1'),
             (NO_ERR, with_mod + 'select <std::test::Foo>1'),
             (NO_ERR, with_mod + 'select <st::Foo>1'),
+        ]
+        with_mod = 'WITH std as MODULE dummy '
+        queries += [
+            (REF_ERR, with_mod + 'select <Foo>1'),
+            (REF_ERR, with_mod + 'select <test::Foo>1'),
+            (REF_ERR, with_mod + 'select <std::test::Foo>1'),
+            (REF_ERR, with_mod + 'select <std::Foo>1'),
+        ]
+        with_mod = 'WITH std as MODULE test '
+        queries += [
+            (REF_ERR, with_mod + 'select <Foo>1'),
+            (REF_ERR, with_mod + 'select <test::Foo>1'),
+            (REF_ERR, with_mod + 'select <std::test::Foo>1'),
+            (REF_ERR, with_mod + 'select <std::Foo>1'),
         ]
 
         for error, query in queries:
