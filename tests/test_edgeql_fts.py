@@ -25,7 +25,7 @@ from edb.testbase import server as tb
 
 
 class TestEdgeQLFTSQuery(tb.QueryTestCase):
-    '''Tests for fts::search.
+    '''Tests for std::fts::search.
 
     This is intended to test the FTS query language, result scoring as well as
     various FTS schema features.
@@ -415,7 +415,7 @@ class TestEdgeQLFTSQuery(tb.QueryTestCase):
     async def test_edgeql_fts_inheritance_07(self):
         async with self.assertRaisesRegexTx(
             edgedb.InvalidReferenceError,
-            r'fts::search\(\) requires an fts::index index',
+            r'std::fts::search\(\) requires an std::fts::index index',
         ):
             await self.con.execute(
                 '''

@@ -138,7 +138,7 @@ class Type(
         default=None, inheritable=False)
 
     # True for types that cannot be persistently stored.
-    # See fts::document for an example.
+    # See std::fts::document for an example.
     transient = so.SchemaField(bool, default=False)
 
     def compare(

@@ -696,7 +696,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.InvalidDefinitionError,
-        "index 'fts::index' of object type 'test::Foo' " "was already declared",
+        "index 'fts::index' of object type 'test::Foo' was already declared",
     )
     def test_schema_bad_type_17a(self):
         """
@@ -716,7 +716,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.InvalidDefinitionError,
-        "multiple fts::index indexes defined for test::Foo",
+        "multiple std::fts::index indexes defined for test::Foo",
     )
     def test_schema_bad_type_17b(self):
         """

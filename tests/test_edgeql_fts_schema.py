@@ -257,7 +257,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidReferenceError,
-            r'fts::search\(\) requires an fts::index index',
+            r'std::fts::search\(\) requires an std::fts::index index',
         ):
             await self.con.execute(
                 r'''
@@ -575,7 +575,7 @@ class TestEdgeQLFTSSchema(tb.DDLTestCase):
     async def test_edgeql_fts_schema_fiddly_args_02(self):
         async with self.assertRaisesRegexTx(
             edgedb.InvalidValueError,
-            "fts::search weight_category must be a constant",
+            "std::fts::search weight_category must be a constant",
         ):
             await self.con.execute(
                 r'''

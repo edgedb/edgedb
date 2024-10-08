@@ -179,7 +179,7 @@ class Source(
 
         if not debug.flags.zombodb:
             fts_index, _ = indexes.get_effective_object_index(
-                schema, self, sn.QualName("fts", "index")
+                schema, self, sn.QualName("std::fts", "index")
             )
 
             if fts_index:

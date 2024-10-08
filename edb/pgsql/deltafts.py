@@ -58,7 +58,7 @@ def create_fts_index(
     assert isinstance(subject, s_indexes.IndexableSubject)
 
     effective, has_overridden = s_indexes.get_effective_object_index(
-        schema, subject, sn.QualName("fts", "index")
+        schema, subject, sn.QualName("std::fts", "index")
     )
 
     if index != effective:
@@ -92,7 +92,7 @@ def delete_fts_index(
     assert isinstance(subject, s_indexes.IndexableSubject)
 
     effective, _ = s_indexes.get_effective_object_index(
-        schema, subject, sn.QualName("fts", "index")
+        schema, subject, sn.QualName("std::fts", "index")
     )
 
     if not effective:

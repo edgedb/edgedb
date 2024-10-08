@@ -87,7 +87,7 @@ STD_MODULES = (
     sn.UnqualName('std::net::http'),
     sn.UnqualName('pg'),
     sn.UnqualName('std::_test'),
-    sn.UnqualName('fts'),
+    sn.UnqualName('std::fts'),
     EXT_MODULE,
     sn.UnqualName('std::enc'),
 )

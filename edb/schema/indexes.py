@@ -77,7 +77,7 @@ def is_index_valid_for_type(
         index, scls_type=IndexMatch, field_name='index',
     ):
         valid_type = index_match.get_valid_type(schema)
-        if index_name == 'fts::index':
+        if index_name == 'std::fts::index':
             # FTS index works not only on its valid type (document), but also
             # on tuples comtaining document as an element.
             if is_subclass_or_tuple(expr_type, valid_type, schema):
@@ -1324,10 +1324,10 @@ class CreateIndex(
                 root, expr_type, comp_expr.schema, context,
             ):
                 hint = None
-                if str(name) == 'fts::index':
+                if str(name) == 'std::fts::index':
                     hint = (
-                        'fts::document can be constructed with '
-                        'fts::with_options(str, ...)'
+                        'std::fts::document can be constructed with '
+                        'std::fts::with_options(str, ...)'
                     )
 
                 raise errors.SchemaDefinitionError(
@@ -1928,7 +1928,7 @@ def is_fts_index(
     schema: s_schema.Schema,
     index: Index,
 ) -> bool:
-    fts_index = schema.get(sn.QualName("fts", "index"), type=Index)
+    fts_index = schema.get(sn.QualName("std::fts", "index"), type=Index)
     return index.issubclass(schema, fts_index)
 
 
