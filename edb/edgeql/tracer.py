@@ -398,21 +398,11 @@ def resolve_name(
     module = ref.module
     orig_module = module
 
-    no_std = declaration
-    if module and module.startswith('__current__::'):
-        # Replace __current__ with default module
-        no_std = True
-        module = f'{current_module}::{module.removeprefix("__current__::")}'
-    elif modaliases:
-        # Apply modalias
-        if module:
-            first, sep, rest = module.partition('::')
-        else:
-            first, sep, rest = module, '', ''
-
-        fq_module = modaliases.get(first)
-        if fq_module is not None:
-            module = fq_module + sep + rest
+    # Apply module aliases
+    is_current, module = s_schema.apply_module_aliases(
+        module, modaliases, current_module,
+    )
+    no_std = declaration or is_current
 
     # Check if something matches the name
     if module is not None:

@@ -1110,25 +1110,19 @@ class FlatSchema(Schema):
             else:
                 return default
 
-        no_std = False
-        if module and module.startswith('__current__::'):
-            # Replace __current__ with default module
-            no_std = True
-            if not module_aliases or None not in module_aliases:
-                return default
-            cur_module = module_aliases[None]
-            module = f'{cur_module}::{module.removeprefix("__current__::")}'
-        elif module_aliases is not None:
-            # Apply modalias
-            first: Optional[str]
-            if module:
-                first, sep, rest = module.partition('::')
-            else:
-                first, sep, rest = module, '', ''
+        # Apply module aliases
+        current_module = (
+            module_aliases[None]
+            if module_aliases and None in module_aliases else
+            None
+        )
+        is_current, module = apply_module_aliases(
+            module, module_aliases, current_module,
+        )
+        if is_current and current_module is None:
+            return default
 
-            fq_module = module_aliases.get(first)
-            if fq_module is not None:
-                module = fq_module + sep + rest
+        no_std = is_current
 
         # Check if something matches the name
         if module is not None:
@@ -1540,6 +1534,34 @@ class FlatSchema(Schema):
     def __repr__(self) -> str:
         return (
             f'<{type(self).__name__} gen:{self._generation} at {id(self):#x}>')
+
+
+def apply_module_aliases(
+    module: Optional[str],
+    module_aliases: Optional[Mapping[Optional[str], str]],
+    current_module: Optional[str],
+) -> tuple[bool, Optional[str]]:
+    is_current = False
+    if module and module.startswith('__current__::'):
+        # Replace __current__ with default module
+        is_current = True
+        if current_module is not None:
+            module = f'{current_module}::{module.removeprefix("__current__::")}'
+        else:
+            module = None
+    elif module_aliases is not None:
+        # Apply modalias
+        first: Optional[str]
+        if module:
+            first, sep, rest = module.partition('::')
+        else:
+            first, sep, rest = module, '', ''
+
+        fq_module = module_aliases.get(first)
+        if fq_module is not None:
+            module = fq_module + sep + rest
+
+    return is_current, module
 
 
 EMPTY_SCHEMA = FlatSchema()
