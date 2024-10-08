@@ -7,6 +7,3 @@ EDB := $(PYTHON) -m edb.tools $(EDBFLAGS)
 MKS := $(shell $(EDB) config --make-include)
 include $(MKS)
 ### End Boilerplate
-
-MKS := $(shell edb config --make-include)
-include $(MKS)
