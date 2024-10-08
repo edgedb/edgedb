@@ -2,10 +2,11 @@ use super::{
     connect_raw_ssl,
     raw_conn::RawClient,
     stream::{Stream, StreamWithUpgrade},
-    ConnectionSslRequirement, Credentials,
+    Credentials,
 };
 use crate::{
     connection::ConnectionError,
+    handshake::ConnectionSslRequirement,
     protocol::{
         builder, match_message, meta, CommandComplete, DataRow, ErrorResponse, Message,
         ReadyForQuery, RowDescription, StructBuffer,
@@ -24,7 +25,7 @@ use std::{
     rc::Rc,
 };
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tracing::{error, trace, warn};
+use tracing::{error, trace, warn, Level};
 
 #[derive(Debug, thiserror::Error)]
 pub enum PGError {
@@ -248,8 +249,12 @@ where
         if buf.is_empty() {
             return Ok(());
         }
-        println!("Write:");
-        hexdump::hexdump(buf);
+        if tracing::enabled!(Level::TRACE) {
+            trace!("Write:");
+            for s in hexdump::hexdump_iter(buf) {
+                trace!("{}", s);
+            }
+        }
         loop {
             let n = poll_fn(|cx| {
                 self.with_stream(|stm| {
@@ -274,7 +279,7 @@ where
         match state {
             ConnState::Ready(_, queue) => {
                 let message = message.ok_or(PGError::InvalidState);
-                match_message!(message?, Backend {
+                match_message!(Ok(message?), Backend {
                     (RowDescription as row) => {
                         if let Some(qw) = queue.back() {
                             let qs = qw.f.rows(row);
@@ -357,11 +362,15 @@ where
                 })
                 .await?;
 
-                println!("Read:");
-                hexdump::hexdump(&read_buffer[..n]);
+                if tracing::enabled!(Level::TRACE) {
+                    trace!("Read:");
+                    for s in hexdump::hexdump_iter(&read_buffer[..n]) {
+                        trace!("{}", s);
+                    }
+                }
 
                 buffer.push_fallible(&read_buffer[..n], |message| {
-                    self.process_message(Some(message))
+                    self.process_message(Some(message.map_err(ConnectionError::ParseError)?))
                 })?;
 
                 if n == 0 {

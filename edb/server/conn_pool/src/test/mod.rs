@@ -22,6 +22,7 @@ pub mod spec;
 
 #[derive(derive_more::Debug)]
 pub struct BasicConnector {
+    #[allow(clippy::type_complexity)]
     #[debug(skip)]
     delay: Option<Rc<dyn Fn(bool) -> Result<Duration, ()>>>,
     fail_next_connect: Cell<bool>,

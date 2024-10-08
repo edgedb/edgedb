@@ -4,7 +4,7 @@ use super::{
     arrays::{array_access, Array, ArrayMeta},
     field_access,
     writer::BufWriter,
-    Enliven, FieldAccess, Meta,
+    Enliven, FieldAccess, Meta, ParseError,
 };
 
 pub mod meta {
@@ -73,12 +73,12 @@ impl FieldAccess<RestMeta> {
         &RestMeta {}
     }
     #[inline(always)]
-    pub const fn size_of_field_at(buf: &[u8]) -> usize {
-        buf.len()
+    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
+        Ok(buf.len())
     }
     #[inline(always)]
-    pub const fn extract(buf: &[u8]) -> Rest<'_> {
-        Rest { buf }
+    pub const fn extract(buf: &[u8]) -> Result<Rest<'_>, ParseError> {
+        Ok(Rest { buf })
     }
     #[inline(always)]
     pub const fn measure(buf: &[u8]) -> usize {
@@ -119,8 +119,8 @@ impl std::fmt::Debug for ZTString<'_> {
 }
 
 impl<'a> ZTString<'a> {
-    pub fn to_owned(&self) -> Result<String, std::string::FromUtf8Error> {
-        String::from_utf8(self.buf.to_owned())
+    pub fn to_owned(&self) -> Result<String, std::str::Utf8Error> {
+        std::str::from_utf8(self.buf).map(|s| s.to_owned())
     }
 
     pub fn to_str(&self) -> Result<&str, std::str::Utf8Error> {
@@ -129,6 +129,10 @@ impl<'a> ZTString<'a> {
 
     pub fn to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
         String::from_utf8_lossy(self.buf)
+    }
+
+    pub fn to_bytes(&self) -> &[u8] {
+        self.buf
     }
 }
 
@@ -164,19 +168,22 @@ impl FieldAccess<ZTStringMeta> {
         &ZTStringMeta {}
     }
     #[inline(always)]
-    pub const fn size_of_field_at(buf: &[u8]) -> usize {
+    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
         let mut i = 0;
         loop {
+            if i >= buf.len() {
+                return Err(ParseError::TooShort);
+            }
             if buf[i] == 0 {
-                return i + 1;
+                return Ok(i + 1);
             }
             i += 1;
         }
     }
     #[inline(always)]
-    pub const fn extract(buf: &[u8]) -> ZTString<'_> {
+    pub const fn extract(buf: &[u8]) -> Result<ZTString<'_>, ParseError> {
         let buf = buf.split_at(buf.len() - 1).0;
-        ZTString { buf }
+        Ok(ZTString { buf })
     }
     #[inline(always)]
     pub const fn measure(buf: &str) -> usize {
@@ -256,31 +263,39 @@ impl FieldAccess<EncodedMeta> {
         &EncodedMeta {}
     }
     #[inline(always)]
-    pub const fn size_of_field_at(buf: &[u8]) -> usize {
+    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
         const N: usize = std::mem::size_of::<i32>();
         if let Some(len) = buf.first_chunk::<N>() {
             let len = i32::from_be_bytes(*len);
-            if len == -1 {
-                N
+            if len < 0 {
+                Err(ParseError::InvalidData)
+            } else if len == -1 {
+                Ok(N)
+            } else if buf.len() < len as usize + N {
+                Err(ParseError::TooShort)
             } else {
-                len as usize + N
+                Ok(len as usize + N)
             }
         } else {
-            panic!()
+            Err(ParseError::TooShort)
         }
     }
     #[inline(always)]
-    pub const fn extract(buf: &[u8]) -> Encoded<'_> {
+    pub const fn extract(buf: &[u8]) -> Result<Encoded<'_>, ParseError> {
         const N: usize = std::mem::size_of::<i32>();
         if let Some((len, array)) = buf.split_first_chunk::<N>() {
             let len = i32::from_be_bytes(*len);
-            if len == -1 {
-                Encoded::Null
+            if len < 0 {
+                Err(ParseError::InvalidData)
+            } else if len == -1 {
+                Ok(Encoded::Null)
+            } else if array.len() < len as _ {
+                Err(ParseError::TooShort)
             } else {
-                Encoded::Value(array)
+                Ok(Encoded::Value(array))
             }
         } else {
-            panic!()
+            Err(ParseError::TooShort)
         }
     }
     #[inline(always)]
@@ -301,6 +316,7 @@ impl FieldAccess<EncodedMeta> {
             Encoded::Value(value) => {
                 let len: i32 = value.len() as _;
                 buf.write(&len.to_be_bytes());
+                buf.write(value);
             }
         }
     }
@@ -331,12 +347,20 @@ impl FieldAccess<LengthMeta> {
         LengthMeta(value as i32)
     }
     #[inline(always)]
-    pub const fn size_of_field_at(buf: &[u8]) -> usize {
-        FieldAccess::<i32>::size_of_field_at(buf)
+    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
+        match FieldAccess::<i32>::extract(buf) {
+            Ok(n) if n >= 0 => Ok(std::mem::size_of::<i32>()),
+            Ok(_) => Err(ParseError::InvalidData),
+            Err(e) => Err(e),
+        }
     }
     #[inline(always)]
-    pub const fn extract(buf: &[u8]) -> usize {
-        FieldAccess::<i32>::extract(buf) as _
+    pub const fn extract(buf: &[u8]) -> Result<usize, ParseError> {
+        match FieldAccess::<i32>::extract(buf) {
+            Ok(n) if n >= 0 => Ok(n as _),
+            Ok(_) => Err(ParseError::InvalidData),
+            Err(e) => Err(e),
+        }
     }
     #[inline(always)]
     pub fn copy_to_buf(buf: &mut BufWriter, value: usize) {
@@ -382,15 +406,20 @@ macro_rules! basic_types {
                 value as _
             }
             #[inline(always)]
-            pub const fn size_of_field_at(_: &[u8]) -> usize {
-                std::mem::size_of::<$ty>()
+            pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::protocol::ParseError> {
+                let size = std::mem::size_of::<$ty>();
+                if size > buf.len() {
+                    Err($crate::protocol::ParseError::TooShort)
+                } else {
+                    Ok(size)
+                }
             }
             #[inline(always)]
-            pub const fn extract(buf: &[u8]) -> $ty {
+            pub const fn extract(buf: &[u8]) -> Result<$ty, $crate::protocol::ParseError> {
                 if let Some(bytes) = buf.first_chunk() {
-                    <$ty>::from_be_bytes(*bytes)
+                    Ok(<$ty>::from_be_bytes(*bytes))
                 } else {
-                    panic!()
+                    Err($crate::protocol::ParseError::TooShort)
                 }
             }
             #[inline(always)]
@@ -417,11 +446,57 @@ macro_rules! basic_types {
                 &Meta{}
             }
             #[inline(always)]
-            pub const fn size_of_field_at(_buf: &[u8]) -> usize {
-                std::mem::size_of::<$ty>() * S
+            pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::protocol::ParseError> {
+                let size = std::mem::size_of::<$ty>() * S;
+                if size > buf.len() {
+                    Err($crate::protocol::ParseError::TooShort)
+                } else {
+                    Ok(size)
+                }
             }
             #[inline(always)]
-            pub const fn extract(mut buf: &[u8]) -> [$ty; S] {
+            pub const fn extract(mut buf: &[u8]) -> Result<[$ty; S], $crate::protocol::ParseError> {
+                let mut out: [$ty; S] = [0; S];
+                let mut i = 0;
+                loop {
+                    if i == S {
+                        break;
+                    }
+                    (out[i], buf) = if let Some((bytes, rest)) = buf.split_first_chunk() {
+                        (<$ty>::from_be_bytes(*bytes), rest)
+                    } else {
+                        return Err($crate::protocol::ParseError::TooShort)
+                    };
+                    i += 1;
+                }
+                Ok(out)
+            }
+            #[inline(always)]
+            pub fn copy_to_buf(mut buf: &mut BufWriter, value: [$ty; S]) {
+                if !buf.test(std::mem::size_of::<$ty>() * S) {
+                    return;
+                }
+                for n in value {
+                    buf.write(&<$ty>::to_be_bytes(n));
+                }
+            }
+        }
+
+        impl $crate::protocol::FixedSize for $ty {
+            const SIZE: usize = std::mem::size_of::<$ty>();
+            #[inline(always)]
+            fn extract_infallible(buf: &[u8]) -> $ty {
+                if let Some(buf) = buf.first_chunk() {
+                    <$ty>::from_be_bytes(*buf)
+                } else {
+                    panic!()
+                }
+            }
+        }
+        impl <const S: usize> $crate::protocol::FixedSize for [$ty; S] {
+            const SIZE: usize = std::mem::size_of::<$ty>() * S;
+            #[inline(always)]
+            fn extract_infallible(mut buf: &[u8]) -> [$ty; S] {
                 let mut out: [$ty; S] = [0; S];
                 let mut i = 0;
                 loop {
@@ -437,22 +512,6 @@ macro_rules! basic_types {
                 }
                 out
             }
-            #[inline(always)]
-            pub fn copy_to_buf(mut buf: &mut BufWriter, value: [$ty; S]) {
-                if !buf.test(std::mem::size_of::<$ty>() * S) {
-                    return;
-                }
-                for n in value {
-                    buf.write(&<$ty>::to_be_bytes(n));
-                }
-            }
-        }
-
-        impl $crate::protocol::FixedSize for $ty {
-            const SIZE: usize = std::mem::size_of::<$ty>();
-        }
-        impl <const S: usize> $crate::protocol::FixedSize for [$ty; S] {
-            const SIZE: usize = std::mem::size_of::<$ty>() * S;
         }
 
         basic_types!(: array<$ty> u8 i16 i32);
@@ -467,23 +526,59 @@ macro_rules! basic_types {
                     &ArrayMeta::<$len, $ty> { _phantom: PhantomData }
                 }
                 #[inline(always)]
-                pub const fn size_of_field_at(buf: &[u8]) -> usize {
+                pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::protocol::ParseError> {
                     const N: usize = std::mem::size_of::<$ty>();
                     const L: usize = std::mem::size_of::<$len>();
                     if let Some(len) = buf.first_chunk::<L>() {
-                        (<$len>::from_be_bytes(*len) as usize * N + L)
+                        let len_value = <$len>::from_be_bytes(*len);
+                        #[allow(unused_comparisons)]
+                        if len_value < 0 {
+                            return Err($crate::protocol::ParseError::InvalidData);
+                        }
+                        let mut byte_len = len_value as usize;
+                        byte_len = match byte_len.checked_mul(N) {
+                            Some(l) => l,
+                            None => return Err($crate::protocol::ParseError::TooShort),
+                        };
+                        byte_len = match byte_len.checked_add(L) {
+                            Some(l) => l,
+                            None => return Err($crate::protocol::ParseError::TooShort),
+                        };
+                        if buf.len() < byte_len {
+                            Err($crate::protocol::ParseError::TooShort)
+                        } else {
+                            Ok(byte_len)
+                        }
                     } else {
-                        panic!()
+                        Err($crate::protocol::ParseError::TooShort)
                     }
                 }
                 #[inline(always)]
-                pub const fn extract(mut buf: &[u8]) -> Array<$len, $ty> {
+                pub const fn extract(mut buf: &[u8]) -> Result<Array<$len, $ty>, $crate::protocol::ParseError> {
                     const N: usize = std::mem::size_of::<$ty>();
                     const L: usize = std::mem::size_of::<$len>();
                     if let Some((len, array)) = buf.split_first_chunk::<L>() {
-                        Array::new(array, <$len>::from_be_bytes(*len) as u32)
+                        let len_value = <$len>::from_be_bytes(*len);
+                        #[allow(unused_comparisons)]
+                        if len_value < 0 {
+                            return Err($crate::protocol::ParseError::InvalidData);
+                        }
+                        let mut byte_len = len_value as usize;
+                        byte_len = match byte_len.checked_mul(N) {
+                            Some(l) => l,
+                            None => return Err($crate::protocol::ParseError::TooShort),
+                        };
+                        byte_len = match byte_len.checked_add(L) {
+                            Some(l) => l,
+                            None => return Err($crate::protocol::ParseError::TooShort),
+                        };
+                        if buf.len() < byte_len {
+                            Err($crate::protocol::ParseError::TooShort)
+                        } else {
+                            Ok(Array::new(array, <$len>::from_be_bytes(*len) as u32))
+                        }
                     } else {
-                        panic!()
+                        Err($crate::protocol::ParseError::TooShort)
                     }
                 }
                 #[inline(always)]

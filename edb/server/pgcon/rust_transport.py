@@ -62,6 +62,7 @@ class ConnectionStateType(Enum):
 
 class Authentication(Enum):
     NONE = 0
+    TRUST = auto()
     PASSWORD = auto()
     MD5 = auto()
     SCRAM_SHA256 = auto()

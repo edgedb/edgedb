@@ -1,6 +1,5 @@
+use super::{ParseError, StructLength};
 use std::{collections::VecDeque, marker::PhantomData};
-
-use super::StructLength;
 
 /// A buffer that accumulates bytes of sized structs and feeds them to provided sink function when messages
 /// are complete. This buffer handles partial messages and multiple messages in a single push.
@@ -32,7 +31,7 @@ impl<M: StructLength> StructBuffer<M> {
     pub fn push<'a: 'b, 'b>(
         &'b mut self,
         bytes: &'a [u8],
-        mut f: impl for<'c> FnMut(M::Struct<'c>),
+        mut f: impl for<'c> FnMut(Result<M::Struct<'c>, ParseError>),
     ) {
         if self.accum.is_empty() {
             // Fast path: try to process the input directly
@@ -96,7 +95,7 @@ impl<M: StructLength> StructBuffer<M> {
     pub fn push_fallible<'a: 'b, 'b, E>(
         &'b mut self,
         bytes: &'a [u8],
-        mut f: impl for<'c> FnMut(M::Struct<'c>) -> Result<(), E>,
+        mut f: impl for<'c> FnMut(Result<M::Struct<'c>, ParseError>) -> Result<(), E>,
     ) -> Result<(), E> {
         if self.accum.is_empty() {
             // Fast path: try to process the input directly
@@ -139,12 +138,16 @@ impl<M: StructLength> StructBuffer<M> {
         }
         Ok(())
     }
+
+    pub fn into_inner(self) -> VecDeque<u8> {
+        self.accum
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::StructBuffer;
-    use crate::protocol::{builder, meta, Encoded, Message};
+    use crate::protocol::{builder, meta, Encoded, Message, ParseError};
 
     /// Create a test data buffer containing three messages
     fn test_data() -> (Vec<u8>, Vec<usize>) {
@@ -175,7 +178,8 @@ mod tests {
 
         let mut accumulated_messages: Vec<Vec<u8>> = Vec::new();
         let mut buffer = StructBuffer::<meta::Message>::default();
-        let mut f = |msg: Message| {
+        let mut f = |msg: Result<Message, ParseError>| {
+            let msg = msg.unwrap();
             eprintln!("Message: {msg:?}");
             accumulated_messages.push(msg.to_vec());
         };

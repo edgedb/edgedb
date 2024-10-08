@@ -1,9 +1,9 @@
 // Constants
 use openssl::ssl::{Ssl, SslContext, SslMethod};
 use pgrust::connection::dsn::{Host, HostType};
-use pgrust::connection::{
-    connect_raw_ssl, Authentication, ConnectionSslRequirement, Credentials, ResolvedTarget,
-};
+use pgrust::connection::{connect_raw_ssl, ConnectionError, Credentials, ResolvedTarget};
+use pgrust::errors::PgServerError;
+use pgrust::handshake::{AuthType, ConnectionSslRequirement};
 use rstest::rstest;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener};
@@ -115,7 +115,7 @@ impl StdioReader {
     }
 }
 
-fn init_postgres(initdb: &Path, data_dir: &Path, auth: Authentication) -> std::io::Result<()> {
+fn init_postgres(initdb: &Path, data_dir: &Path, auth: AuthType) -> std::io::Result<()> {
     let mut pwfile = tempfile::NamedTempFile::new()?;
     writeln!(pwfile, "{}", DEFAULT_PASSWORD)?;
     let mut command = Command::new(initdb);
@@ -124,10 +124,11 @@ fn init_postgres(initdb: &Path, data_dir: &Path, auth: Authentication) -> std::i
         .arg(data_dir)
         .arg("-A")
         .arg(match auth {
-            Authentication::None => "trust",
-            Authentication::Password => "password",
-            Authentication::Md5 => "md5",
-            Authentication::ScramSha256 => "scram-sha-256",
+            AuthType::Deny => "reject",
+            AuthType::Trust => "trust",
+            AuthType::Plain => "password",
+            AuthType::Md5 => "md5",
+            AuthType::ScramSha256 => "scram-sha-256",
         })
         .arg("--pwfile")
         .arg(pwfile.path())
@@ -298,21 +299,32 @@ enum Mode {
     Unix,
 }
 
-#[rstest]
-#[tokio::test]
-async fn test_auth_real(
-    #[values(
-        Authentication::None,
-        Authentication::Password,
-        Authentication::Md5,
-        Authentication::ScramSha256
-    )]
-    auth: Authentication,
-    #[values(Mode::Tcp, Mode::TcpSsl, Mode::Unix)] mode: Mode,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn create_ssl_client() -> Result<Ssl, Box<dyn std::error::Error>> {
+    let ssl_context = SslContext::builder(SslMethod::tls_client())?.build();
+    let mut ssl = Ssl::new(&ssl_context)?;
+    ssl.set_connect_state();
+    Ok(ssl)
+}
+struct PostgresProcess {
+    child: std::process::Child,
+    socket_address: ResolvedTarget,
+    #[allow(unused)]
+    temp_dir: TempDir,
+}
+
+impl Drop for PostgresProcess {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+    }
+}
+
+fn setup_postgres(
+    auth: AuthType,
+    mode: Mode,
+) -> Result<Option<PostgresProcess>, Box<dyn std::error::Error>> {
     let Ok(bindir) = postgres_bin_dir() else {
         println!("Skipping test: postgres bin dir not found");
-        return Ok(());
+        return Ok(None);
     };
 
     let initdb = bindir.join("initdb");
@@ -320,11 +332,11 @@ async fn test_auth_real(
 
     if !initdb.exists() || !postgres.exists() {
         println!("Skipping test: initdb or postgres not found");
-        return Ok(());
+        return Ok(None);
     }
 
-    let port = EphemeralPort::allocate()?;
     let temp_dir = TempDir::new()?;
+    let port = EphemeralPort::allocate()?;
     let data_dir = temp_dir.path().join("data");
 
     init_postgres(&initdb, &data_dir, auth)?;
@@ -339,7 +351,36 @@ async fn test_auth_real(
     };
 
     let port = port.take();
-    let mut child = run_postgres(&postgres, &data_dir, &data_dir, ssl_key, port)?;
+    let child = run_postgres(&postgres, &data_dir, &data_dir, ssl_key, port)?;
+
+    let socket_address = match mode {
+        Mode::Unix => ResolvedTarget::to_addrs_sync(&Host(
+            HostType::Path(data_dir.to_string_lossy().to_string()),
+            port,
+        ))?
+        .remove(0),
+        Mode::Tcp | Mode::TcpSsl => {
+            ResolvedTarget::SocketAddr(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port))
+        }
+    };
+
+    Ok(Some(PostgresProcess {
+        child,
+        socket_address,
+        temp_dir,
+    }))
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_auth_real(
+    #[values(AuthType::Trust, AuthType::Plain, AuthType::Md5, AuthType::ScramSha256)]
+    auth: AuthType,
+    #[values(Mode::Tcp, Mode::TcpSsl, Mode::Unix)] mode: Mode,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Some(postgres_process) = setup_postgres(auth, mode)? else {
+        return Ok(());
+    };
 
     let credentials = Credentials {
         username: DEFAULT_USERNAME.to_string(),
@@ -347,28 +388,15 @@ async fn test_auth_real(
         database: DEFAULT_DATABASE.to_string(),
         server_settings: Default::default(),
     };
-    let ssl = SslContext::builder(SslMethod::tls_client())?.build();
-    let mut ssl = Ssl::new(&ssl)?;
-    ssl.set_connect_state();
 
-    let socket_address = match mode {
-        Mode::Unix => ResolvedTarget::to_addrs_sync(&Host(
-            HostType::Path(data_dir.to_string_lossy().to_string()),
-            port,
-        ))?,
-        Mode::Tcp | Mode::TcpSsl => vec![ResolvedTarget::SocketAddr(
-            SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port).into(),
-        )],
-    };
-
-    let client = socket_address.first().unwrap().connect().await?;
+    let client = postgres_process.socket_address.connect().await?;
 
     let ssl_requirement = match mode {
         Mode::TcpSsl => ConnectionSslRequirement::Required,
         _ => ConnectionSslRequirement::Optional,
     };
 
-    let params = connect_raw_ssl(credentials, ssl_requirement, ssl, client)
+    let params = connect_raw_ssl(credentials, ssl_requirement, create_ssl_client()?, client)
         .await?
         .params()
         .clone();
@@ -376,7 +404,101 @@ async fn test_auth_real(
     assert_eq!(matches!(mode, Mode::TcpSsl), params.ssl);
     assert_eq!(auth, params.auth);
 
-    child.kill()?;
+    Ok(())
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_bad_password(
+    #[values(AuthType::Plain, AuthType::Md5, AuthType::ScramSha256)] auth: AuthType,
+    #[values(Mode::Tcp, Mode::TcpSsl, Mode::Unix)] mode: Mode,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Some(postgres_process) = setup_postgres(auth, mode)? else {
+        return Ok(());
+    };
+
+    let credentials = Credentials {
+        username: DEFAULT_USERNAME.to_string(),
+        password: "badpassword".to_string(),
+        database: DEFAULT_DATABASE.to_string(),
+        server_settings: Default::default(),
+    };
+
+    let client = postgres_process.socket_address.connect().await?;
+
+    let ssl_requirement = match mode {
+        Mode::TcpSsl => ConnectionSslRequirement::Required,
+        _ => ConnectionSslRequirement::Optional,
+    };
+
+    let params = connect_raw_ssl(credentials, ssl_requirement, create_ssl_client()?, client).await;
+    assert!(
+        matches!(params, Err(ConnectionError::ServerError(PgServerError { code, .. })) if &code.to_code() == b"28P01")
+    );
+
+    Ok(())
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_bad_username(
+    #[values(AuthType::Plain, AuthType::Md5, AuthType::ScramSha256)] auth: AuthType,
+    #[values(Mode::Tcp, Mode::TcpSsl, Mode::Unix)] mode: Mode,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Some(postgres_process) = setup_postgres(auth, mode)? else {
+        return Ok(());
+    };
+
+    let credentials = Credentials {
+        username: "badusername".to_string(),
+        password: DEFAULT_PASSWORD.to_string(),
+        database: DEFAULT_DATABASE.to_string(),
+        server_settings: Default::default(),
+    };
+
+    let client = postgres_process.socket_address.connect().await?;
+
+    let ssl_requirement = match mode {
+        Mode::TcpSsl => ConnectionSslRequirement::Required,
+        _ => ConnectionSslRequirement::Optional,
+    };
+
+    let params = connect_raw_ssl(credentials, ssl_requirement, create_ssl_client()?, client).await;
+    assert!(
+        matches!(params, Err(ConnectionError::ServerError(PgServerError { code, .. })) if &code.to_code() == b"28P01")
+    );
+
+    Ok(())
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_bad_database(
+    #[values(AuthType::Plain, AuthType::Md5, AuthType::ScramSha256)] auth: AuthType,
+    #[values(Mode::Tcp, Mode::TcpSsl, Mode::Unix)] mode: Mode,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Some(postgres_process) = setup_postgres(auth, mode)? else {
+        return Ok(());
+    };
+
+    let credentials = Credentials {
+        username: DEFAULT_USERNAME.to_string(),
+        password: DEFAULT_PASSWORD.to_string(),
+        database: "baddatabase".to_string(),
+        server_settings: Default::default(),
+    };
+
+    let client = postgres_process.socket_address.connect().await?;
+
+    let ssl_requirement = match mode {
+        Mode::TcpSsl => ConnectionSslRequirement::Required,
+        _ => ConnectionSslRequirement::Optional,
+    };
+
+    let params = connect_raw_ssl(credentials, ssl_requirement, create_ssl_client()?, client).await;
+    assert!(
+        matches!(params, Err(ConnectionError::ServerError(PgServerError { code, .. })) if &code.to_code() == b"3D000")
+    );
 
     Ok(())
 }

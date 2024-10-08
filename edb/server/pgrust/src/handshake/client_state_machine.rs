@@ -1,21 +1,20 @@
-use std::collections::HashMap;
-
-use super::{invalid_state, ConnectionError, Credentials, ServerErrorField};
+use super::{AuthType, ConnectionSslRequirement};
 use crate::{
     auth::{self, generate_salted_password, ClientEnvironment, ClientTransaction, Sha256Out},
-    connection::SslError,
+    connection::{invalid_state, ConnectionError, Credentials, SslError},
+    errors::PgServerError,
     protocol::{
         builder,
         definition::{FrontendBuilder, InitialBuilder},
         match_message, AuthenticationCleartextPassword, AuthenticationMD5Password,
         AuthenticationMessage, AuthenticationOk, AuthenticationSASL, AuthenticationSASLContinue,
         AuthenticationSASLFinal, BackendKeyData, ErrorResponse, Message, ParameterStatus,
-        ReadyForQuery, SSLResponse,
+        ParseError, ReadyForQuery, SSLResponse,
     },
 };
 use base64::Engine;
 use rand::Rng;
-use tracing::{trace, warn};
+use tracing::{error, trace, warn};
 
 #[derive(Debug)]
 struct ClientEnvironmentImpl {
@@ -46,7 +45,7 @@ enum ConnectionStateImpl {
     Initializing(Credentials),
     /// The initial connection string has been sent and we are waiting for an
     /// auth response.
-    Connecting(Credentials),
+    Connecting(Credentials, bool),
     /// The server has requested SCRAM auth. This holds a sub-state-machine that
     /// manages a SCRAM challenge.
     Scram(ClientTransaction, ClientEnvironmentImpl),
@@ -68,32 +67,12 @@ pub enum ConnectionStateType {
     Ready,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub enum Authentication {
-    #[default]
-    None,
-    Password,
-    Md5,
-    ScramSha256,
-}
-
 #[derive(Debug)]
 pub enum ConnectionDrive<'a> {
     Initial,
-    Message(Message<'a>),
+    Message(Result<Message<'a>, ParseError>),
     SslResponse(SSLResponse<'a>),
     SslReady,
-}
-
-impl<'a> ConnectionDrive<'a> {
-    pub fn message(&self) -> Result<&Message<'a>, ConnectionError> {
-        match self {
-            ConnectionDrive::Message(msg) => Ok(msg),
-            _ => Err(invalid_state!(
-                "Expected Message variant, but got a different ConnectionDrive variant"
-            )),
-        }
-    }
 }
 
 pub trait ConnectionStateSend {
@@ -108,16 +87,8 @@ pub trait ConnectionStateUpdate: ConnectionStateSend {
     fn parameter(&mut self, name: &str, value: &str) {}
     fn cancellation_key(&mut self, pid: i32, key: i32) {}
     fn state_changed(&mut self, state: ConnectionStateType) {}
-    fn server_error(&mut self, error: &ErrorResponse) {}
-    fn auth(&mut self, auth: Authentication) {}
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-pub enum ConnectionSslRequirement {
-    #[default]
-    Disable,
-    Optional,
-    Required,
+    fn server_error(&mut self, error: &PgServerError) {}
+    fn auth(&mut self, auth: AuthType) {}
 }
 
 /// ASCII state diagram for the connection state machine
@@ -158,6 +129,14 @@ impl ConnectionState {
         matches!(self.0, ConnectionStateImpl::Ready)
     }
 
+    pub fn is_error(&self) -> bool {
+        matches!(self.0, ConnectionStateImpl::Error)
+    }
+
+    pub fn is_done(&self) -> bool {
+        self.is_ready() || self.is_error()
+    }
+
     pub fn read_ssl_response(&self) -> bool {
         matches!(self.0, ConnectionStateImpl::SslWaiting(..))
     }
@@ -168,26 +147,14 @@ impl ConnectionState {
         update: &mut impl ConnectionStateUpdate,
     ) -> Result<(), ConnectionError> {
         use ConnectionStateImpl::*;
-        let state = &mut self.0;
-        trace!("Received drive {drive:?} in state {state:?}");
-        match state {
-            SslInitializing(credentials, mode) => {
-                if !matches!(drive, ConnectionDrive::Initial) {
-                    return Err(invalid_state!(
-                        "Expected Initial drive for SslInitializing state"
-                    ));
-                }
+        trace!("Received drive {drive:?} in state {:?}", self.0);
+        match (&mut self.0, drive) {
+            (SslInitializing(credentials, mode), ConnectionDrive::Initial) => {
                 update.send_initial(InitialBuilder::SSLRequest(builder::SSLRequest::default()))?;
-                *state = SslWaiting(std::mem::take(credentials), *mode);
+                self.0 = SslWaiting(std::mem::take(credentials), *mode);
                 update.state_changed(ConnectionStateType::Connecting);
             }
-            SslWaiting(credentials, mode) => {
-                let ConnectionDrive::SslResponse(response) = drive else {
-                    return Err(invalid_state!(
-                        "Expected SslResponse drive for SslWaiting state"
-                    ));
-                };
-
+            (SslWaiting(credentials, mode), ConnectionDrive::SslResponse(response)) => {
                 if *mode == ConnectionSslRequirement::Disable {
                     // Should not be possible
                     return Err(invalid_state!("SSL mode is Disable in SslWaiting state"));
@@ -196,7 +163,7 @@ impl ConnectionState {
                 if response.code() == b'S' {
                     // Accepted
                     update.upgrade()?;
-                    *state = SslConnecting(std::mem::take(credentials));
+                    self.0 = SslConnecting(std::mem::take(credentials));
                     update.state_changed(ConnectionStateType::SslConnecting);
                 } else if response.code() == b'N' {
                     // Rejected
@@ -204,41 +171,35 @@ impl ConnectionState {
                         return Err(ConnectionError::SslError(SslError::SslRequiredByClient));
                     }
                     Self::send_startup_message(credentials, update)?;
-                    *state = Connecting(std::mem::take(credentials));
+                    self.0 = Connecting(std::mem::take(credentials), false);
                 } else {
-                    return Err(ConnectionError::UnexpectedServerResponse(format!(
+                    return Err(ConnectionError::UnexpectedResponse(format!(
                         "Unexpected SSL response from server: {:?}",
                         response.code() as char
                     )));
                 }
             }
-            SslConnecting(credentials) => {
-                let ConnectionDrive::SslReady = drive else {
-                    return Err(invalid_state!(
-                        "Expected SslReady drive for SslConnecting state"
-                    ));
-                };
+            (SslConnecting(credentials), ConnectionDrive::SslReady) => {
                 Self::send_startup_message(credentials, update)?;
-                *state = Connecting(std::mem::take(credentials));
+                self.0 = Connecting(std::mem::take(credentials), false);
             }
-            Initializing(credentials) => {
-                if !matches!(drive, ConnectionDrive::Initial) {
-                    return Err(invalid_state!(
-                        "Expected Initial drive for Initializing state"
-                    ));
-                }
+            (Initializing(credentials), ConnectionDrive::Initial) => {
                 Self::send_startup_message(credentials, update)?;
-                *state = Connecting(std::mem::take(credentials));
+                self.0 = Connecting(std::mem::take(credentials), false);
                 update.state_changed(ConnectionStateType::Connecting);
             }
-            Connecting(credentials) => {
-                match_message!(drive.message()?, Backend {
+            (Connecting(credentials, sent_auth), ConnectionDrive::Message(message)) => {
+                match_message!(message, Backend {
                     (AuthenticationOk) => {
+                        if !*sent_auth {
+                            update.auth(AuthType::Trust);
+                        }
                         trace!("auth ok");
-                        *state = Connected;
+                        self.0 = Connected;
                         update.state_changed(ConnectionStateType::Synchronizing);
                     },
                     (AuthenticationSASL as sasl) => {
+                        *sent_auth = true;
                         let mut found_scram_sha256 = false;
                         for mech in sasl.mechanisms() {
                             trace!("auth sasl: {:?}", mech);
@@ -248,7 +209,7 @@ impl ConnectionState {
                             }
                         }
                         if !found_scram_sha256 {
-                            return Err(ConnectionError::UnexpectedServerResponse("Server requested SASL authentication but does not support SCRAM-SHA-256".into()));
+                            return Err(ConnectionError::UnexpectedResponse("Server requested SASL authentication but does not support SCRAM-SHA-256".into()));
                         }
                         let credentials = credentials.clone();
                         let mut tx = ClientTransaction::new("".into());
@@ -256,41 +217,44 @@ impl ConnectionState {
                         let Some(initial_message) = tx.process_message(&[], &env)? else {
                             return Err(auth::SCRAMError::ProtocolError.into());
                         };
-                        update.auth(Authentication::ScramSha256);
+                        update.auth(AuthType::ScramSha256);
                         update.send(builder::SASLInitialResponse {
                             mechanism: "SCRAM-SHA-256",
                             response: &initial_message,
                         }.into())?;
-                        *state = Scram(tx, env);
+                        self.0 = Scram(tx, env);
                         update.state_changed(ConnectionStateType::Authenticating);
                     },
                     (AuthenticationMD5Password as md5) => {
+                        *sent_auth = true;
                         trace!("auth md5");
                         let md5_hash = auth::md5_password(&credentials.password, &credentials.username, &md5.salt());
-                        update.auth(Authentication::Md5);
+                        update.auth(AuthType::Md5);
                         update.send(builder::PasswordMessage {
                             password: &md5_hash,
                         }.into())?;
                     },
                     (AuthenticationCleartextPassword) => {
+                        *sent_auth = true;
                         trace!("auth cleartext");
-                        update.auth(Authentication::Password);
+                        update.auth(AuthType::Plain);
                         update.send(builder::PasswordMessage {
                             password: &credentials.password,
                         }.into())?;
                     },
                     (ErrorResponse as error) => {
-                        *state = Error;
-                        update.server_error(&error);
-                        return Err(error_to_server_error(error));
+                        self.0 = Error;
+                        let err = PgServerError::from(error);
+                        update.server_error(&err);
+                        return Err(err.into());
                     },
                     message => {
-                        log_unknown_message(message, "Connecting")
+                        log_unknown_message(message, "Connecting")?
                     },
                 });
             }
-            Scram(tx, env) => {
-                match_message!(drive.message()?, Backend {
+            (Scram(tx, env), ConnectionDrive::Message(message)) => {
+                match_message!(message, Backend {
                     (AuthenticationSASLContinue as sasl) => {
                         let Some(message) = tx.process_message(&sasl.data(), env)? else {
                             return Err(auth::SCRAMError::ProtocolError.into());
@@ -306,24 +270,25 @@ impl ConnectionState {
                     },
                     (AuthenticationOk) => {
                         trace!("auth ok");
-                        *state = Connected;
+                        self.0 = Connected;
                         update.state_changed(ConnectionStateType::Synchronizing);
                     },
                     (AuthenticationMessage as auth) => {
                         trace!("SCRAM Unknown auth message: {}", auth.status())
                     },
                     (ErrorResponse as error) => {
-                        *state = Error;
-                        update.server_error(&error);
-                        return Err(error_to_server_error(error));
+                        self.0 = Error;
+                        let err = PgServerError::from(error);
+                        update.server_error(&err);
+                        return Err(err.into());
                     },
                     message => {
-                        log_unknown_message(message, "SCRAM")
+                        log_unknown_message(message, "SCRAM")?
                     },
                 });
             }
-            Connected => {
-                match_message!(drive.message()?, Backend {
+            (Connected, ConnectionDrive::Message(message)) => {
+                match_message!(message, Backend {
                     (ParameterStatus as param) => {
                         trace!("param: {:?}={:?}", param.name(), param.value());
                         update.parameter(param.name().try_into()?, param.value().try_into()?);
@@ -335,22 +300,24 @@ impl ConnectionState {
                     (ReadyForQuery as ready) => {
                         trace!("ready: {:?}", ready.status() as char);
                         trace!("-> Ready");
-                        *state = Ready;
+                        self.0 = Ready;
                         update.state_changed(ConnectionStateType::Ready);
                     },
                     (ErrorResponse as error) => {
-                        *state = Error;
-                        update.server_error(&error);
-                        return Err(error_to_server_error(error));
+                        self.0 = Error;
+                        let err = PgServerError::from(error);
+                        update.server_error(&err);
+                        return Err(err.into());
                     },
                     message => {
-                        log_unknown_message(message, "Connected")
+                        log_unknown_message(message, "Connected")?
                     },
                 });
             }
-            Ready | Error => {
+            (Ready, _) | (Error, _) => {
                 return Err(invalid_state!("Unexpected drive for Ready or Error state"))
             }
+            _ => return Err(invalid_state!("Unexpected (state, drive) combination")),
         }
         Ok(())
     }
@@ -379,39 +346,23 @@ impl ConnectionState {
     }
 }
 
-fn log_unknown_message(message: &Message, state: &str) {
-    warn!(
-        "Unexpected message {:?} (length {}) received in {} state",
-        message.mtype(),
-        message.mlen(),
-        state
-    );
-}
-
-fn error_to_server_error(error: ErrorResponse) -> ConnectionError {
-    let mut code = String::new();
-    let mut message = String::new();
-    let mut extra = HashMap::new();
-
-    for field in error.fields() {
-        let value = field.value().to_string_lossy().into_owned();
-        match ServerErrorField::try_from(field.etype()) {
-            Ok(ServerErrorField::Code) => code = value,
-            Ok(ServerErrorField::Message) => message = value,
-            Ok(field_type) => {
-                extra.insert(field_type, value);
-            }
-            Err(_) => warn!(
-                "Unxpected server error field: {:?} ({:?})",
-                field.etype() as char,
-                value
-            ),
+fn log_unknown_message(
+    message: Result<Message, ParseError>,
+    state: &str,
+) -> Result<(), ParseError> {
+    match message {
+        Ok(message) => {
+            warn!(
+                "Unexpected message {:?} (length {}) received in {} state",
+                message.mtype(),
+                message.mlen(),
+                state
+            );
+            Ok(())
         }
-    }
-
-    ConnectionError::ServerError {
-        code,
-        message,
-        extra,
+        Err(e) => {
+            error!("Corrupted message received in {} state", state);
+            Err(e)
+        }
     }
 }

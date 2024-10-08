@@ -1,10 +1,13 @@
-use super::state_machine::{
-    Authentication, ConnectionDrive, ConnectionSslRequirement, ConnectionState,
-    ConnectionStateSend, ConnectionStateType, ConnectionStateUpdate,
-};
 use super::{
     stream::{Stream, StreamWithUpgrade, UpgradableStream},
     ConnectionError, Credentials,
+};
+use crate::handshake::{
+    client::{
+        ConnectionDrive, ConnectionState, ConnectionStateSend, ConnectionStateType,
+        ConnectionStateUpdate,
+    },
+    AuthType, ConnectionSslRequirement,
 };
 use crate::protocol::{meta, SSLResponse, StructBuffer};
 use std::collections::HashMap;
@@ -12,14 +15,14 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::AsyncWriteExt;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tracing::trace;
+use tracing::{trace, Level};
 
 #[derive(Clone, Default, Debug)]
 pub struct ConnectionParams {
     pub ssl: bool,
     pub params: HashMap<String, String>,
     pub cancellation_key: (i32, i32),
-    pub auth: Authentication,
+    pub auth: AuthType,
 }
 
 pub struct ConnectionDriver {
@@ -60,7 +63,7 @@ impl ConnectionStateUpdate for ConnectionDriver {
     fn parameter(&mut self, name: &str, value: &str) {
         self.params.params.insert(name.to_owned(), value.to_owned());
     }
-    fn auth(&mut self, auth: Authentication) {
+    fn auth(&mut self, auth: AuthType) {
         trace!("Auth: {auth:?}");
         self.params.auth = auth;
     }
@@ -90,8 +93,12 @@ impl ConnectionDriver {
         })?;
         loop {
             if !self.send_buffer.is_empty() {
-                println!("Write:");
-                hexdump::hexdump(&self.send_buffer);
+                if tracing::enabled!(Level::TRACE) {
+                    trace!("Write:");
+                    for s in hexdump::hexdump_iter(&self.send_buffer) {
+                        trace!("{}", s);
+                    }
+                }
                 stream.write_all(&self.send_buffer).await?;
                 self.send_buffer.clear();
             }
@@ -118,8 +125,12 @@ impl ConnectionDriver {
         state.drive(drive, self)?;
         loop {
             if !self.send_buffer.is_empty() {
-                println!("Write:");
-                hexdump::hexdump(&self.send_buffer);
+                if tracing::enabled!(Level::TRACE) {
+                    trace!("Write:");
+                    for s in hexdump::hexdump_iter(&self.send_buffer) {
+                        trace!("{}", s);
+                    }
+                }
                 stream.write_all(&self.send_buffer).await?;
                 self.send_buffer.clear();
             }
@@ -215,10 +226,15 @@ where
         if n == 0 {
             Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?;
         }
-        println!("Read:");
-        hexdump::hexdump(&buffer[..n]);
+        if tracing::enabled!(Level::TRACE) {
+            trace!("Read:");
+            let bytes: &[u8] = &buffer[..n];
+            for s in hexdump::hexdump_iter(bytes) {
+                trace!("{}", s);
+            }
+        }
         if state.read_ssl_response() {
-            let ssl_response = SSLResponse::new(&buffer);
+            let ssl_response = SSLResponse::new(&buffer)?;
             update
                 .drive(
                     &mut state,

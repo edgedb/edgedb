@@ -43,6 +43,7 @@ serde_derive = "1"
 serde-pickle = "1"
 percent-encoding = "2"
 roaring = "0.10.6"
+constant_time_eq = "0.3"
 
 [dependencies.derive_more]
 version = "1.0.0-beta.6"

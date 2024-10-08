@@ -156,7 +156,7 @@ fn parse_conninfo_options(options: *mut _PQconninfoOption) -> Vec<PQConnInfoOpti
     let mut result = Vec::new();
     let mut current = options;
 
-    while !current.is_null() && unsafe { (*current).keyword != ptr::null_mut() } {
+    while !current.is_null() && unsafe { !(*current).keyword.is_null() } {
         let option = unsafe { &*current };
         result.push(PQConnInfoOption::from(option));
         current = unsafe { current.add(1) };

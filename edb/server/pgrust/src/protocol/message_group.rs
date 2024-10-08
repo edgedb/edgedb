@@ -11,6 +11,7 @@ macro_rules! message_group {
             ),*
         }
 
+        #[derive(Debug)]
         #[allow(unused)]
         pub enum [<$group Builder>]<'a> {
             $(
@@ -63,24 +64,13 @@ macro_rules! message_group {
                 None
             }
 
-            pub fn match_message(matcher: &mut impl [<$group Match>], buf: &[u8]) {
-                $(
-                    if data::$message::is_buffer(buf) {
-                        if let Some(mut f) = matcher.[<$message:snake>]() {
-                            let message = data::$message::new(buf);
-                            f(message);
-                            return;
-                        }
-                    }
-                )*
-            }
         }
         );
     };
 }
 pub(crate) use message_group;
 
-/// Peform a match on a message.
+/// Perform a match on a message.
 ///
 /// ```rust
 /// use pgrust::protocol::*;
@@ -103,17 +93,32 @@ macro_rules! __match_message {
         $(( $i1:path $(as $i2:ident )?) => $impl:block,)*
         $unknown:ident => $unknown_impl:block $(,)?
     }) => {
-        {
-            let __message = $buf;
-            $(
-                if let Some(__tmp) = <$i1>::try_new(&__message) {
-                    $(let $i2 = __tmp;)?
-                    $impl
-                } else
-            )*
+        'block: {
+            let __message: Result<_, $crate::protocol::ParseError> = $buf;
+            let res = match __message {
+                Ok(__message) => {
+                    $(
+                        if <$i1>::is_buffer(&__message.as_ref()) {
+                            match(<$i1>::new(&__message.as_ref())) {
+                                Ok(__tmp) => {
+                                    $(let $i2 = __tmp;)?
+                                    #[allow(unreachable_code)]
+                                    break 'block ({ $impl })
+                                }
+                                Err(e) => Err(e)
+                            }
+                        } else
+                    )*
+                    {
+                        Ok(__message)
+                    }
+                },
+                Err(e) => Err(e)
+            };
             {
-                let $unknown = __message;
-                $unknown_impl
+                let $unknown = res;
+                #[allow(unreachable_code)]
+                break 'block ({ $unknown_impl })
             }
         }
     };
@@ -121,3 +126,25 @@ macro_rules! __match_message {
 
 #[doc(inline)]
 pub use __match_message as match_message;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::{builder, Message, PasswordMessage};
+
+    #[test]
+    fn test_match() {
+        let message = builder::Sync::default().to_vec();
+        let message = Message::new(&message);
+        match_message!(message, Message {
+            (PasswordMessage as password) => {
+                eprintln!("{password:?}");
+                return;
+            },
+            unknown => {
+                eprintln!("{unknown:?}");
+                return;
+            }
+        });
+    }
+}

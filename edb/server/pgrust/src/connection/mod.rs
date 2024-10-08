@@ -1,18 +1,17 @@
 use std::collections::HashMap;
 
-use crate::auth::{self};
+use crate::{auth, errors::PgServerError, protocol::ParseError};
+
 mod conn;
 pub mod dsn;
 pub mod openssl;
 mod raw_conn;
-pub(crate) mod state_machine;
 mod stream;
 pub mod tokio;
 
 pub use conn::Client;
 use dsn::HostType;
 pub use raw_conn::connect_raw_ssl;
-pub use state_machine::{Authentication, ConnectionSslRequirement};
 
 macro_rules! __invalid_state {
     ($error:literal) => {{
@@ -36,16 +35,12 @@ pub enum ConnectionError {
     __InvalidState,
 
     /// Error returned by the server.
-    #[error("Server error: {code}: {message}")]
-    ServerError {
-        code: String,
-        message: String,
-        extra: HashMap<ServerErrorField, String>,
-    },
+    #[error("Server error: {0}")]
+    ServerError(#[from] PgServerError),
 
     /// The server sent something we didn't expect
     #[error("Unexpected server response: {0}")]
-    UnexpectedServerResponse(String),
+    UnexpectedResponse(String),
 
     /// Error related to SCRAM authentication.
     #[error("SCRAM: {0}")]
@@ -62,6 +57,9 @@ pub enum ConnectionError {
     /// SSL-related error.
     #[error("SSL error: {0}")]
     SslError(#[from] SslError),
+
+    #[error("Protocol error: {0}")]
+    ParseError(#[from] ParseError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -154,49 +152,4 @@ impl ResolvedTarget {
         }
         Ok(resolved_targets)
     }
-}
-
-/// Enum representing the field types in ErrorResponse and NoticeResponse messages.
-///
-/// See <https://www.postgresql.org/docs/current/protocol-error-fields.html>
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, derive_more::TryFrom)]
-#[try_from(repr)]
-pub enum ServerErrorField {
-    /// Severity: ERROR, FATAL, PANIC, WARNING, NOTICE, DEBUG, INFO, or LOG
-    Severity = b'S',
-    /// Severity (non-localized): ERROR, FATAL, PANIC, WARNING, NOTICE, DEBUG, INFO, or LOG
-    SeverityNonLocalized = b'V',
-    /// SQLSTATE code for the error
-    Code = b'C',
-    /// Primary human-readable error message
-    Message = b'M',
-    /// Optional secondary error message with more detail
-    Detail = b'D',
-    /// Optional suggestion on how to resolve the problem
-    Hint = b'H',
-    /// Error cursor position as an index into the original query string
-    Position = b'P',
-    /// Internal position for internally generated commands
-    InternalPosition = b'p',
-    /// Text of a failed internally-generated command
-    InternalQuery = b'q',
-    /// Context in which the error occurred (e.g., call stack traceback)
-    Where = b'W',
-    /// Schema name associated with the error
-    SchemaName = b's',
-    /// Table name associated with the error
-    TableName = b't',
-    /// Column name associated with the error
-    ColumnName = b'c',
-    /// Data type name associated with the error
-    DataTypeName = b'd',
-    /// Constraint name associated with the error
-    ConstraintName = b'n',
-    /// Source-code file name where the error was reported
-    File = b'F',
-    /// Source-code line number where the error was reported
-    Line = b'L',
-    /// Source-code routine name reporting the error
-    Routine = b'R',
 }
