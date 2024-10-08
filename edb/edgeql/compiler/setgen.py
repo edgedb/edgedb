@@ -417,7 +417,47 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if ptr_expr.type == 'property':
                 # Link property reference; the source is the
                 # link immediately preceding this step in the path.
-                if not isinstance(path_tip.expr, irast.Pointer):
+
+                if isinstance(path_tip.expr, irast.Pointer):
+                    ptrref = path_tip.expr.ptrref
+                    fake_tip = path_tip
+                elif (
+                    path_tip.is_binding == irast.BindingKind.For
+                    and (new := irutils.unwrap_set(path_tip))
+                    and isinstance(new.expr, irast.Pointer)
+                ):
+                    # When accessing variables bound with FOR, allow
+                    # looking through to the underlying link.  N.B:
+                    # This relies on the FOR bindings still having an
+                    # expr that lets us look at their
+                    # definition. Eventually I'd like to stop doing
+                    # that, and then we'll need to store it as part of
+                    # the binding/type metadata.
+                    ptrref = new.expr.ptrref
+                    fake_tip = new
+
+                    ind_prefix, _ = typegen.collapse_type_intersection_rptr(
+                        fake_tip,
+                        ctx=ctx,
+                    )
+                    # Don't allow using the iterator to access
+                    # linkprops if the source of the link isn't
+                    # visible, because then there will be a semi-join
+                    # that prevents access to the props.  (This is
+                    # pretty similar to how "changes the
+                    # interpretation" errors).
+                    assert isinstance(ind_prefix.expr, irast.Pointer)
+                    if not ctx.path_scope.is_visible(
+                        ind_prefix.expr.source.path_id
+                    ):
+                        # Better message
+                        raise errors.QueryError(
+                            'improper reference to link property on '
+                            'a non-link object',
+                            span=step.span,
+                        )
+
+                else:
                     raise errors.EdgeQLSyntaxError(
                         f"unexpected reference to link property {ptr_name!r} "
                         "outside of a path expression",
@@ -442,10 +482,10 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         span=step.span)
 
                 if isinstance(
-                    path_tip.expr.ptrref, irast.TypeIntersectionPointerRef
+                    ptrref, irast.TypeIntersectionPointerRef
                 ):
                     ind_prefix, ptrs = typegen.collapse_type_intersection_rptr(
-                        path_tip,
+                        fake_tip,
                         ctx=ctx,
                     )
 
@@ -479,7 +519,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     )
                 else:
                     ptr = typegen.ptrcls_from_ptrref(
-                        path_tip.expr.ptrref, ctx=ctx)
+                        ptrref, ctx=ctx)
 
                 if isinstance(ptr, s_links.Link):
                     source = ptr

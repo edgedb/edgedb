@@ -1055,12 +1055,30 @@ def process_set_as_path_type_intersection(
                 aspect=aspect,
             )
 
-    return new_stmt_set_rvar(
+    rvars = new_stmt_set_rvar(
         ir_set,
         stmt,
         aspects=[pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE],
         ctx=ctx,
     )
+    # If the inner set also exposes a pointer path source, we need to
+    # also expose a pointer path source. See tests like
+    # test_edgeql_for_lprop_02, where it is needed to to make FOR binding
+    # of backlinks work.
+    if pathctx.maybe_get_path_rvar(
+        stmt,
+        ir_source.path_id.ptr_path(),
+        aspect=pgce.PathAspect.SOURCE,
+    ):
+        rvars.new.append(
+            SetRVar(
+                rvars.main.rvar,
+                ir_set.path_id.ptr_path(),
+                aspects=(pgce.PathAspect.SOURCE,),
+            )
+        )
+
+    return rvars
 
 
 def _source_path_needs_semi_join(
