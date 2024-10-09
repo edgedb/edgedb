@@ -34,6 +34,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
 import tomllib
 import zipfile
 
@@ -104,6 +105,37 @@ def get_pg_config(pg_config_path: pathlib.Path) -> dict[str, str]:
     return config
 
 
+def install_edgedb_extension(
+    pkg: pathlib.Path,
+    ext_dir: pathlib.Path,
+) -> None:
+    target = ext_dir / pkg.stem
+    print("Installing", target)
+
+    with tempfile.TemporaryDirectory() as tdir, \
+         zipfile.ZipFile(pkg) as z:
+
+        ttarget = pathlib.Path(tdir) / pkg.stem
+        os.mkdir(ttarget)
+
+        with z.open('MANIFEST.toml') as m:
+            manifest = tomllib.load(m)
+
+        files = ['MANIFEST.toml'] + manifest['files']
+
+        for f in files:
+            target_file = target / f
+            ttarget_file = ttarget / f
+
+            with z.open(f) as src:
+                with open(ttarget_file, "wb") as dst:
+                    print("Installing", target_file)
+                    shutil.copyfileobj(src, dst)
+
+        os.makedirs(ext_dir, exist_ok=True)
+        shutil.move(ttarget, ext_dir)
+
+
 def load_ext_main(
     package: pathlib.Path,
     skip_edgedb: bool,
@@ -114,9 +146,7 @@ def load_ext_main(
         from edb import buildmeta
 
         ext_dir = buildmeta.get_extension_dir_path()
-        os.makedirs(ext_dir, exist_ok=True)
-        print("Installing", ext_dir / package.name)
-        shutil.copyfile(package, ext_dir / package.name)
+        install_edgedb_extension(package, ext_dir)
 
     if not skip_postgres:
         if with_pg_config is None:

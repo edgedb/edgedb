@@ -46,7 +46,6 @@ import time
 import tomllib
 import uuid
 import weakref
-import zipfile
 
 import immutables
 
@@ -440,8 +439,11 @@ class Tenant(ha_base.ClusterProtocol):
         try:
             with os.scandir(path) as it:
                 for entry in it:
-                    if entry.is_file() and entry.name.endswith('.zip'):
-                        exts.append(entry)
+                    if (
+                        entry.is_dir()
+                        and (pathlib.Path(entry) / 'MANIFEST.toml').exists()
+                    ):
+                        exts.append(pathlib.Path(entry))
         except FileNotFoundError:
             pass
 
@@ -471,27 +473,26 @@ class Tenant(ha_base.ClusterProtocol):
 
     async def _load_extension_package(
         self,
-        path: os.PathLike,
+        path: pathlib.Path,
         ext_packages: set[tuple[str, verutils.Version]],
     ) -> None:
-        with zipfile.ZipFile(path) as z:
-            with z.open('MANIFEST.toml') as m:
-                manifest = tomllib.load(m)
+        with open(path / 'MANIFEST.toml', 'rb') as m:
+            manifest = tomllib.load(m)
 
-            name = manifest['name']
-            version = verutils.parse_version(manifest['version'])
-            if (name, version) in ext_packages:
-                logger.info(
-                    f"Extension package '{manifest['name']}' {version} "
-                    f"already installed"
-                )
+        name = manifest['name']
+        version = verutils.parse_version(manifest['version'])
+        if (name, version) in ext_packages:
+            logger.info(
+                f"Extension package '{manifest['name']}' {version} "
+                f"already installed"
+            )
 
-                return
+            return
 
-            scripts = []
-            for file in manifest['files']:
-                with z.open(file) as f:
-                    scripts.append(f.read().decode('utf-8'))
+        scripts = []
+        for file in manifest['files']:
+            with open(path / file, 'rb') as f:
+                scripts.append(f.read().decode('utf-8'))
 
         from edb.schema import schema as s_schema
 
