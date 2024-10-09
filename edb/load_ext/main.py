@@ -56,38 +56,37 @@ def install_pg_extension(
         with z.open(str(base / 'MANIFEST.toml')) as m:
             manifest = tomllib.load(m)
 
-        if 'postgres_files' in manifest:
-            dir = manifest['postgres_files']
-            pdir = pathlib.Path(dir)
+        for entry in z.infolist():
+            fpath = pathlib.Path(entry.filename)
 
-            for entry in z.infolist():
-                fpath = pathlib.Path(entry.filename)
+            if entry.is_dir():
+                continue
+            if fpath.parts[0] != str(base):
+                continue
+            # If the path is too short or isn't one of the
+            # directories we know about, skip it.
+            if (
+                len(fpath.parts) < 3
+                or not (config_field := CONFIG_PATHS.get(fpath.parts[1]))
+                or fpath.parts[2] != 'postgresql'
+            ):
+                # print("Skipping", fpath)
+                continue
 
-                if fpath.parts[0] != str(base) and fparts[1] != dir:
-                    continue
-                # If the path is too short or isn't one of the
-                # directories we know about, skip it.
-                if (
-                    len(fpath.parts) < 3
-                    or not (config_field := CONFIG_PATHS.get(fpath.parts[2]))
-                ):
-                    print("Skipping", fpath)
-                    continue
+            config_dir = pg_config[config_field]
+            fpath = fpath.relative_to(
+                pathlib.Path(fpath.parts[0])
+                / fpath.parts[1]
+                / 'postgresql'
+            )
 
-                config_dir = pg_config[config_field]
-                fpath = fpath.relative_to(
-                    fpath.parts[0] / pdir / fpath.parts[2])
+            target_file = config_dir / fpath
 
-                target_file = config_dir / fpath
-
-                if entry.is_dir():
-                    print("Creating directory", f'{target_file}/')
-                    os.makedirs(target_file, exist_ok=True)
-                else:
-                    with z.open(entry) as src:
-                        with open(target_file, "wb") as dst:
-                            print("Installing", target_file)
-                            shutil.copyfileobj(src, dst)
+            os.makedirs(target_file.parent, exist_ok=True)
+            with z.open(entry) as src:
+                with open(target_file, "wb") as dst:
+                    print("Installing", target_file)
+                    shutil.copyfileobj(src, dst)
 
 
 def get_pg_config(pg_config_path: pathlib.Path) -> dict[str, str]:

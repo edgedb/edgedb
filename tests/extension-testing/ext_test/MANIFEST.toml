@@ -1,4 +1,3 @@
 name = "ext_test"
 version = "0.1"
 files = ["get_sum.edgeql"]
-postgres_files = "install"
