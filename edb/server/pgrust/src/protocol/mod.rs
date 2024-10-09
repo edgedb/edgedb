@@ -25,7 +25,7 @@ pub mod builder {
 
 /// Message types collections.
 pub mod messages {
-    pub use super::definition::{Backend, Frontend};
+    pub use super::definition::{Backend, Frontend, Initial};
 }
 
 #[allow(unused)]
@@ -37,27 +37,35 @@ pub use datatypes::{Encoded, Rest, ZTString};
 pub use definition::data::*;
 pub use message_group::match_message;
 
+#[derive(thiserror::Error, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParseError {
+    #[error("Buffer is too short")]
+    TooShort,
+    #[error("Invalid data")]
+    InvalidData,
+}
+
 /// Implemented for all structs.
-pub trait Struct {
-    type Struct<'a>;
-    fn new(buf: &[u8]) -> Self::Struct<'_>;
+pub trait StructMeta {
+    type Struct<'a>: std::fmt::Debug;
+    fn new(buf: &[u8]) -> Result<Self::Struct<'_>, ParseError>;
+    fn to_vec(s: &Self::Struct<'_>) -> Vec<u8>;
 }
 
 /// Implemented for all generated structs that have a [`meta::Length`] field at a fixed offset.
-pub trait StructLength: Struct {
+pub trait StructLength: StructMeta {
     fn length_field_of(of: &Self::Struct<'_>) -> usize;
     fn length_field_offset() -> usize;
     fn length_of_buf(buf: &[u8]) -> Option<usize> {
         if buf.len() < Self::length_field_offset() + std::mem::size_of::<u32>() {
             None
         } else {
-            Some(
-                Self::length_field_offset()
-                    + FieldAccess::<datatypes::LengthMeta>::extract(
-                        &buf[Self::length_field_offset()
-                            ..Self::length_field_offset() + std::mem::size_of::<u32>()],
-                    ),
+            let len = FieldAccess::<datatypes::LengthMeta>::extract(
+                &buf[Self::length_field_offset()
+                    ..Self::length_field_offset() + std::mem::size_of::<u32>()],
             )
+            .ok()?;
+            Some(Self::length_field_offset() + len)
         }
     }
 }
@@ -70,8 +78,10 @@ pub trait Enliven {
     type ForBuilder<'a>: 'a;
 }
 
-pub trait FixedSize {
+pub trait FixedSize: Enliven {
     const SIZE: usize;
+    /// Extract this type from the given buffer, assuming that enough bytes are available.
+    fn extract_infallible(buf: &[u8]) -> <Self as Enliven>::WithLifetime<'_>;
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -131,8 +141,8 @@ impl std::fmt::Debug for dyn Meta {
 /// used for performing extraction in iterators.
 pub(crate) trait FieldAccessArray: Enliven {
     const META: &'static dyn Meta;
-    fn size_of_field_at(buf: &[u8]) -> usize;
-    fn extract(buf: &[u8]) -> <Self as Enliven>::WithLifetime<'_>;
+    fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError>;
+    fn extract(buf: &[u8]) -> Result<<Self as Enliven>::WithLifetime<'_>, ParseError>;
 }
 
 /// This struct is specialized for each type we want to extract data from. We
@@ -148,11 +158,16 @@ macro_rules! field_access {
             const META: &'static dyn $crate::protocol::Meta =
                 $crate::protocol::FieldAccess::<$ty>::meta();
             #[inline(always)]
-            fn size_of_field_at(buf: &[u8]) -> usize {
+            fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::protocol::ParseError> {
                 $crate::protocol::FieldAccess::<$ty>::size_of_field_at(buf)
             }
             #[inline(always)]
-            fn extract(buf: &[u8]) -> <Self as $crate::protocol::Enliven>::WithLifetime<'_> {
+            fn extract(
+                buf: &[u8],
+            ) -> Result<
+                <Self as $crate::protocol::Enliven>::WithLifetime<'_>,
+                $crate::protocol::ParseError,
+            > {
                 $crate::protocol::FieldAccess::<$ty>::extract(buf)
             }
         }
@@ -165,12 +180,167 @@ mod tests {
     use super::*;
     use buffer::StructBuffer;
     use definition::builder;
+    use rand::Rng;
+    /// We want to ensure that no malformed messages will cause unexpected
+    /// panics, so we try all sorts of combinations of message mutation to
+    /// ensure we don't.
+    ///
+    /// This isn't a 100% foolproof test.
+    fn fuzz_test<S: StructMeta>(s: S::Struct<'_>) {
+        let buf = S::to_vec(&s);
+
+        // Re-create, won't panic
+        fuzz_test_buf::<S>(&buf);
+
+        // Truncating at any given length won't panic
+        for i in 0..buf.len() {
+            let mut buf = S::to_vec(&s);
+            buf.truncate(i);
+            fuzz_test_buf::<S>(&buf);
+        }
+
+        // Removing any particular value won't panic
+        for i in 0..buf.len() {
+            let mut buf = S::to_vec(&s);
+            buf.remove(i);
+            fuzz_test_buf::<S>(&buf);
+        }
+
+        // Zeroing any particular value won't panic
+        for i in 0..buf.len() {
+            let mut buf = S::to_vec(&s);
+            buf[i] = 0;
+            fuzz_test_buf::<S>(&buf);
+        }
+
+        // Corrupt each byte by incrementing (mod 256)
+        for i in 0..buf.len() {
+            let mut buf = S::to_vec(&s);
+            buf[i] = buf[i].wrapping_add(1);
+            fuzz_test_buf::<S>(&buf);
+        }
+
+        // Corrupt each byte by decrementing (mod 256)
+        for i in 0..buf.len() {
+            let mut buf = S::to_vec(&s);
+            buf[i] = buf[i].wrapping_sub(1);
+            fuzz_test_buf::<S>(&buf);
+        }
+
+        // Replace four-byte chunks at 1-byte offsets with "-2" in big-endian, one at a time
+        // This shakes out any negative length issues for i32 lengths
+        let negative_two_i32: i32 = -2;
+        let bytes_i32 = negative_two_i32.to_be_bytes();
+        for start_index in 0..buf.len().saturating_sub(3) {
+            if start_index + 4 <= buf.len() {
+                let mut buf = S::to_vec(&s); // Clean buffer for each iteration
+                buf[start_index..start_index + 4].copy_from_slice(&bytes_i32);
+                eprintln!("Replaced 4-byte chunk at offset {} with -2 (big-endian) in buffer of length {}", start_index, buf.len());
+                fuzz_test_buf::<S>(&buf);
+            }
+        }
+
+        // Replace two-byte chunks at 1-byte offsets with "-2" in big-endian, one at a time
+        // This shakes out any negative length issues for i16 lengths
+        let negative_two_i16: i16 = -2;
+        let bytes_i16 = negative_two_i16.to_be_bytes();
+        for start_index in 0..buf.len().saturating_sub(1) {
+            if start_index + 2 <= buf.len() {
+                let mut buf = S::to_vec(&s); // Clean buffer for each iteration
+                buf[start_index..start_index + 2].copy_from_slice(&bytes_i16);
+                eprintln!("Replaced 2-byte chunk at offset {} with -2 (big-endian) in buffer of length {}", start_index, buf.len());
+                fuzz_test_buf::<S>(&buf);
+            }
+        }
+
+        let run_count = if std::env::var("EXTENSIVE_FUZZ").is_ok() {
+            100000
+        } else {
+            10
+        };
+
+        // Insert a random byte at a random position
+        for i in 0..run_count {
+            let mut buf = S::to_vec(&s);
+            let random_byte: u8 = rand::thread_rng().gen();
+            let random_position = rand::thread_rng().gen_range(0..=buf.len());
+            buf.insert(random_position, random_byte);
+            eprintln!(
+                "Test {}: Inserted byte 0x{:02X} at position {} in buffer of length {}",
+                i + 1,
+                random_byte,
+                random_position,
+                buf.len()
+            );
+            fuzz_test_buf::<S>(&buf);
+        }
+
+        // Corrupt random parts of the buffer. This is non-deterministic.
+        for i in 0..run_count {
+            let mut buf = S::to_vec(&s);
+            let rand: [u8; 4] = rand::thread_rng().gen();
+            let n = rand::thread_rng().gen_range(0..buf.len() - 4);
+            let range = n..n + 4;
+            eprintln!(
+                "Test {}: Corrupting buffer of length {} at range {:?} with bytes {:?}",
+                i + 1,
+                buf.len(),
+                range,
+                rand
+            );
+            buf.get_mut(range).unwrap().copy_from_slice(&rand);
+            fuzz_test_buf::<S>(&buf);
+        }
+
+        // Corrupt 1..4 random bytes at random positions
+        for i in 0..run_count {
+            let mut buf = S::to_vec(&s);
+            let num_bytes_to_corrupt = rand::thread_rng().gen_range(1..=4);
+            let mut positions = Vec::new();
+
+            for _ in 0..num_bytes_to_corrupt {
+                let random_position = rand::thread_rng().gen_range(0..buf.len());
+                if !positions.contains(&random_position) {
+                    positions.push(random_position);
+                    let random_byte: u8 = rand::thread_rng().gen();
+                    buf[random_position] = random_byte;
+                }
+            }
+
+            eprintln!(
+                "Test {}: Corrupted {} byte(s) at position(s) {:?} in buffer of length {}",
+                i + 1,
+                positions.len(),
+                positions,
+                buf.len()
+            );
+            fuzz_test_buf::<S>(&buf);
+        }
+
+        // Attempt to parse randomly generated structs. This is non-deterministic.
+        for i in 0..run_count {
+            let buf: [u8; 16] = rand::thread_rng().gen();
+            eprintln!(
+                "Test {}: Attempting to parse random buffer: {:02X?}",
+                i + 1,
+                buf
+            );
+            fuzz_test_buf::<S>(&buf);
+        }
+    }
+
+    fn fuzz_test_buf<S: StructMeta>(buf: &[u8]) {
+        // Use std::fmt::Debug which will walk each field
+        if let Ok(m) = S::new(buf) {
+            let _ = format!("{:?}", m);
+        }
+    }
 
     #[test]
     fn test_sasl_response() {
         let buf = [b'p', 0, 0, 0, 5, 2];
         assert!(SASLResponse::is_buffer(&buf));
-        let message = SASLResponse::new(&buf);
+        let message = SASLResponse::new(&buf).unwrap();
         assert_eq!(message.mlen(), 5);
         assert_eq!(message.response().len(), 1);
     }
@@ -195,13 +365,15 @@ mod tests {
         ];
 
         assert!(SASLInitialResponse::is_buffer(&buf));
-        let message = SASLInitialResponse::new(&buf);
+        let message = SASLInitialResponse::new(&buf).unwrap();
         assert_eq!(message.mlen(), 0x36);
         assert_eq!(message.mechanism(), "SCRAM-SHA-256");
         assert_eq!(
             message.response().as_ref(),
             b"n,,n=,r=pEkPLQu29GEvwNeVJt72arQI"
         );
+
+        fuzz_test::<meta::SASLInitialResponse>(message);
     }
 
     #[test]
@@ -212,13 +384,15 @@ mod tests {
         }
         .to_vec();
 
-        let message = SASLInitialResponse::new(&buf);
+        let message = SASLInitialResponse::new(&buf).unwrap();
         assert_eq!(message.mlen(), 0x36);
         assert_eq!(message.mechanism(), "SCRAM-SHA-256");
         assert_eq!(
             message.response().as_ref(),
             b"n,,n=,r=pEkPLQu29GEvwNeVJt72arQI"
         );
+
+        fuzz_test::<meta::SASLInitialResponse>(message);
     }
 
     #[test]
@@ -228,7 +402,7 @@ mod tests {
             0x72, 0x65, 0x73, 0, 0x64, 0x61, 0x74, 0x61, 0x62, 0x61, 0x73, 0x65, 0, 0x70, 0x6f,
             0x73, 0x74, 0x67, 0x72, 0x65, 0x73, 0, 0,
         ];
-        let message = StartupMessage::new(&buf);
+        let message = StartupMessage::new(&buf).unwrap();
         assert_eq!(message.mlen(), buf.len());
         assert_eq!(message.protocol(), 196608);
         let arr = message.params();
@@ -238,6 +412,8 @@ mod tests {
             vals.push(entry.value().to_owned().unwrap());
         }
         assert_eq!(vals, vec!["user", "postgres", "database", "postgres"]);
+
+        fuzz_test::<meta::StartupMessage>(message);
     }
 
     #[test]
@@ -249,7 +425,7 @@ mod tests {
             b'f', b'2', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // field 2
         ];
         assert!(RowDescription::is_buffer(&buf));
-        let message = RowDescription::new(&buf);
+        let message = RowDescription::new(&buf).unwrap();
         assert_eq!(message.mlen(), buf.len() - 1);
         assert_eq!(message.fields().len(), 2);
         let mut iter = message.fields().into_iter();
@@ -258,6 +434,7 @@ mod tests {
         let f2 = iter.next().unwrap();
         assert_eq!(f2.name(), "f2");
         assert_eq!(None, iter.next());
+        fuzz_test::<meta::RowDescription>(message);
     }
 
     #[test]
@@ -294,7 +471,7 @@ mod tests {
 
         // Read it back
         assert!(RowDescription::is_buffer(&vec));
-        let message = RowDescription::new(&vec);
+        let message = RowDescription::new(&vec).unwrap();
         assert_eq!(message.fields().len(), 2);
         let mut iter = message.fields().into_iter();
         let f1 = iter.next().unwrap();
@@ -305,6 +482,8 @@ mod tests {
         assert_eq!(f2.data_type_oid(), 1234);
         assert_eq!(f2.format_code(), 1);
         assert_eq!(None, iter.next());
+
+        fuzz_test::<meta::RowDescription>(message);
     }
 
     #[test]
@@ -313,15 +492,17 @@ mod tests {
         let buf = sync.to_vec();
         assert_eq!(buf.len(), 5);
         // Read it as a Message
-        let message = Message::new(&buf);
+        let message = Message::new(&buf).unwrap();
         assert_eq!(message.mlen(), 4);
         assert_eq!(message.mtype(), b'S');
         assert_eq!(message.data(), &[]);
         // And also a Sync
         assert!(Sync::is_buffer(&buf));
-        let message = Sync::new(&buf);
+        let message = Sync::new(&buf).unwrap();
         assert_eq!(message.mlen(), 4);
         assert_eq!(message.mtype(), b'S');
+
+        fuzz_test::<meta::Sync>(message);
     }
 
     #[test]
@@ -333,16 +514,18 @@ mod tests {
         assert_eq!(14, buf.len());
         // Read it as a Message
         assert!(Message::is_buffer(&buf));
-        let message = Message::new(&buf);
+        let message = Message::new(&buf).unwrap();
         assert_eq!(message.mlen(), 13);
         assert_eq!(message.mtype(), b'R');
         assert_eq!(message.data(), &[0, 0, 0, 8, 1, 2, 3, 4, 5]);
         // And also a AuthenticationGSSContinue
         assert!(AuthenticationGSSContinue::is_buffer(&buf));
-        let message = AuthenticationGSSContinue::new(&buf);
+        let message = AuthenticationGSSContinue::new(&buf).unwrap();
         assert_eq!(message.mlen(), 13);
         assert_eq!(message.mtype(), b'R');
         assert_eq!(message.data(), &[1, 2, 3, 4, 5]);
+
+        fuzz_test::<meta::AuthenticationGSSContinue>(message);
     }
 
     #[test]
@@ -364,16 +547,22 @@ mod tests {
                     assert_eq!(field.name(), "?column?");
                     assert_eq!(field.data_type_oid(), 23);
                     assert_eq!(field.format_code(), 0);
+                    eprintln!("{row:?}");
+                    fuzz_test::<meta::RowDescription>(row);
                 },
                 (DataRow as row) => {
                     assert_eq!(row.values().len(), 1);
                     assert_eq!(row.values().into_iter().next().unwrap(), "1");
+                    eprintln!("{row:?}");
+                    fuzz_test::<meta::DataRow>(row);
                 },
                 (CommandComplete as complete) => {
                     assert_eq!(complete.tag(), "SELECT 1");
+                    eprintln!("{complete:?}");
                 },
                 (ReadyForQuery as ready) => {
                     assert_eq!(ready.status(), b'I');
+                    eprintln!("{ready:?}");
                 },
                 unknown => {
                     panic!("Unknown message type: {:?}", unknown);
@@ -388,5 +577,52 @@ mod tests {
             values: &[Encoded::Value(b"1")],
         }
         .to_vec();
+    }
+
+    #[test]
+    fn test_parse() {
+        let buf = [
+            b'P', // message type
+            0, 0, 0, 25, // message length
+            b'S', b't', b'm', b't', 0, // statement name
+            b'S', b'E', b'L', b'E', b'C', b'T', b' ', b'$', b'1', 0, // query string
+            0, 1, // number of parameter data types
+            0, 0, 0, 23, // OID
+        ];
+
+        assert!(Parse::is_buffer(&buf));
+        let message = Parse::new(&buf).unwrap();
+        assert_eq!(message.mlen(), 25);
+        assert_eq!(message.statement(), "Stmt");
+        assert_eq!(message.query(), "SELECT $1");
+        assert_eq!(message.param_types().len(), 1);
+        assert_eq!(message.param_types().get(0).unwrap(), 23); // OID
+
+        fuzz_test::<meta::Parse>(message);
+    }
+
+    #[test]
+    fn test_function_call() {
+        let buf = builder::FunctionCall {
+            function_id: 100,
+            format_codes: &[0],
+            args: &[Encoded::Value(b"123")],
+            result_format_code: 0,
+        }
+        .to_vec();
+
+        assert!(FunctionCall::is_buffer(&buf));
+        let message = FunctionCall::new(&buf).unwrap();
+        assert_eq!(message.function_id(), 100);
+        assert_eq!(message.format_codes().len(), 1);
+        assert_eq!(message.format_codes().get(0).unwrap(), 0);
+        assert_eq!(message.args().len(), 1);
+        assert_eq!(
+            message.args().into_iter().next().unwrap(),
+            b"123".as_slice()
+        );
+        assert_eq!(message.result_format_code(), 0);
+
+        fuzz_test::<meta::FunctionCall>(message);
     }
 }

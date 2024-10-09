@@ -70,11 +70,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.database = conn.database;
         args.username = conn.user;
         args.password = conn.password.password().unwrap_or_default().to_string();
-        'outer: for host in conn.hosts {
-            for target in ResolvedTarget::to_addrs_sync(&host)? {
-                socket_address = Some(target);
-                break 'outer;
-            }
+        if let Some(host) = conn.hosts.first() {
+            socket_address = ResolvedTarget::to_addrs_sync(host)?.into_iter().next();
         }
     }
 

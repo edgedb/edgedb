@@ -291,6 +291,12 @@ macro_rules! protocol_builder {
                 }
             }
 
+            impl AsRef<[u8]> for $name<'_> {
+                fn as_ref(&self) -> &[u8] {
+                    self.__buf
+                }
+            }
+
             #[allow(unused)]
             impl <'a> S<'a> {
                 /// Checks the constant values for this struct to determine whether
@@ -303,7 +309,12 @@ macro_rules! protocol_builder {
                     // that they all exist before variable-sized fields.
 
                     $(
-                        $(if $crate::protocol::FieldAccess::<$type>::extract(buf.split_at(offset).1) != $value as usize as _ { return false;})?
+                        $(
+                            let Ok(val) = $crate::protocol::FieldAccess::<$type>::extract(buf.split_at(offset).1) else {
+                                return false;
+                            };
+                            if val != $value as usize as _ { return false; }
+                        )?
                         offset += std::mem::size_of::<$type>();
                     )*
 
@@ -317,7 +328,11 @@ macro_rules! protocol_builder {
 
                     pub const fn try_new(parent: &<$super as $crate::protocol::Enliven>::WithLifetime<'a>) -> Option<Self> {
                         if Self::can_cast(parent) {
-                            Some(Self::new(parent.__buf))
+                            // TODO
+                            let Ok(value) = Self::new(parent.__buf) else {
+                                panic!();
+                            };
+                            Some(value)
                         } else {
                             None
                         }
@@ -326,21 +341,24 @@ macro_rules! protocol_builder {
 
                 /// Creates a new instance of this struct from a given buffer.
                 #[inline]
-                pub const fn new(mut buf: &'a [u8]) -> Self {
+                pub const fn new(mut buf: &'a [u8]) -> Result<Self, $crate::protocol::ParseError> {
                     let mut __field_offsets = [0; Meta::FIELD_COUNT + 1];
                     let mut offset = 0;
                     let mut index = 0;
                     $(
                         __field_offsets[index] = offset;
-                        offset += $crate::protocol::FieldAccess::<$type>::size_of_field_at(buf.split_at(offset).1);
+                        offset += match $crate::protocol::FieldAccess::<$type>::size_of_field_at(buf.split_at(offset).1) {
+                            Ok(n) => n,
+                            Err(e) => return Err(e),
+                        };
                         index += 1;
                     )*
                     __field_offsets[index] = offset;
 
-                    Self {
+                    Ok(Self {
                         __buf: buf,
                         __field_offsets,
-                    }
+                    })
                 }
 
                 pub fn to_vec(&self) -> Vec<u8> {
@@ -357,7 +375,11 @@ macro_rules! protocol_builder {
                         let offset2 = self.__field_offsets[F::$field as usize + 1];
                         let (_, buf) = self.__buf.split_at(offset1);
                         let (buf, _) = buf.split_at(offset2 - offset1);
-                        $crate::protocol::FieldAccess::<$type>::extract(buf)
+                        // This will not panic: we've confirmed the validity of the buffer when sizing
+                        let Ok(value) = $crate::protocol::FieldAccess::<$type>::extract(buf) else {
+                            panic!();
+                        };
+                        value
                     }
                 )*
             }
@@ -427,10 +449,13 @@ macro_rules! protocol_builder {
                 protocol_builder!(__meta__, $fixed($fixed_expr) $field $type);
             )*
 
-            impl $crate::protocol::Struct for Meta {
+            impl $crate::protocol::StructMeta for Meta {
                 type Struct<'a> = S<'a>;
-                fn new(buf: &[u8]) -> S<'_> {
+                fn new(buf: &[u8]) -> Result<S<'_>, $crate::protocol::ParseError> {
                     S::new(buf)
+                }
+                fn to_vec(s: &Self::Struct<'_>) -> Vec<u8> {
+                    s.to_vec()
                 }
             }
 
@@ -451,15 +476,18 @@ macro_rules! protocol_builder {
                     &Meta {}
                 }
                 #[inline]
-                pub const fn size_of_field_at(buf: &[u8]) -> usize {
+                pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::protocol::ParseError> {
                     let mut offset = 0;
                     $(
-                        offset += $crate::protocol::FieldAccess::<$type>::size_of_field_at(buf.split_at(offset).1);
+                        offset += match $crate::protocol::FieldAccess::<$type>::size_of_field_at(buf.split_at(offset).1) {
+                            Ok(n) => n,
+                            Err(e) => return Err(e),
+                        };
                     )*
-                    offset
+                    Ok(offset)
                 }
                 #[inline(always)]
-                pub const fn extract(buf: &[u8]) -> $name<'_> {
+                pub const fn extract(buf: &[u8]) -> Result<$name<'_>, $crate::protocol::ParseError> {
                     $name::new(buf)
                 }
                 #[inline(always)]
@@ -559,13 +587,14 @@ macro_rules! protocol_builder {
             r#if!(__is_empty__ [$($($no_value)?)*] {
                 $( #[$sdoc] )?
                 // No unfixed-value fields
-                #[derive(Default, Eq, PartialEq)]
+                #[derive(::derive_more::Debug, Default, Eq, PartialEq)]
                 pub struct [<$name Builder>]<'a> {
+                    #[debug(skip)]
                     __no_fields_use_default: std::marker::PhantomData<&'a ()>
                 }
             } else {
                 $( #[$sdoc] )?
-                #[derive(Default, Eq, PartialEq)]
+                #[derive(Debug, Default, Eq, PartialEq)]
                 pub struct [<$name Builder>]<'a> {
                     // Because of how macros may expand in the context of struct
                     // fields, we need to do a * repeat, then a ? repeat and
@@ -617,6 +646,7 @@ macro_rules! protocol_builder {
                             vec.resize(size, 0);
                             let mut buf = $crate::protocol::writer::BufWriter::new(&mut vec);
                             self.copy_to_buf(&mut buf);
+                            // Will not fail this second time
                             let size = buf.finish().unwrap();
                             vec.truncate(size);
                             vec

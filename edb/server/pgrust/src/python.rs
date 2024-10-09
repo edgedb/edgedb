@@ -1,24 +1,24 @@
-use crate::connection::dsn::{ConnectionParameters, RawConnectionParameters, SslMode};
-use crate::connection::state_machine::{
-    ConnectionDrive, ConnectionState, ConnectionStateSend, ConnectionStateUpdate,
-};
-use crate::connection::{ConnectionError, ConnectionSslRequirement, Credentials, ResolvedTarget};
-use crate::protocol::{meta, ErrorResponse, StructBuffer};
 use crate::{
-    connection::{dsn::*, state_machine::ConnectionStateType},
-    protocol::SSLResponse,
+    connection::{
+        dsn::{ConnectionParameters, RawConnectionParameters, SslMode, *},
+        ConnectionError, Credentials, ResolvedTarget,
+    },
+    errors::PgServerError,
+    handshake::{
+        client::{
+            ConnectionDrive, ConnectionState, ConnectionStateSend, ConnectionStateType,
+            ConnectionStateUpdate,
+        },
+        ConnectionSslRequirement,
+    },
+    protocol::{meta, SSLResponse, StructBuffer},
 };
-use pyo3::exceptions::PyRuntimeError;
-use pyo3::types::PyBytes;
 use pyo3::{
     buffer::PyBuffer,
+    exceptions::{PyException, PyRuntimeError},
     prelude::*,
-    types::{PyMemoryView, PyNone},
-};
-use pyo3::{
-    exceptions::PyException,
     pymodule,
-    types::{PyAnyMethods, PyByteArray, PyModule, PyModuleMethods},
+    types::{PyAnyMethods, PyByteArray, PyBytes, PyMemoryView, PyModule, PyModuleMethods, PyNone},
     Bound, PyAny, PyResult, Python,
 };
 use std::collections::HashMap;
@@ -43,6 +43,12 @@ impl From<ConnectionError> for PyErr {
 
 impl From<ParseError> for PyErr {
     fn from(err: ParseError) -> PyErr {
+        PyRuntimeError::new_err(err.to_string())
+    }
+}
+
+impl From<crate::protocol::ParseError> for PyErr {
+    fn from(err: crate::protocol::ParseError) -> PyErr {
         PyRuntimeError::new_err(err.to_string())
     }
 }
@@ -349,7 +355,7 @@ impl PyConnectionState {
         if self.inner.read_ssl_response() {
             // SSL responses are always one character
             let response = [buffer.as_slice(py).unwrap().get(0).unwrap().get()];
-            let response = SSLResponse::new(&response);
+            let response = SSLResponse::new(&response)?;
             self.inner
                 .drive(ConnectionDrive::SslResponse(response), &mut self.update)?;
         } else {
@@ -470,7 +476,7 @@ impl ConnectionStateUpdate for PyConnectionStateUpdate {
         });
     }
 
-    fn auth(&mut self, auth: crate::connection::Authentication) {
+    fn auth(&mut self, auth: crate::handshake::AuthType) {
         Python::with_gil(|py| {
             if let Err(e) = self.py_update.call_method1(py, "auth", (auth as u8,)) {
                 eprintln!("Error in auth: {:?}", e);
@@ -479,12 +485,12 @@ impl ConnectionStateUpdate for PyConnectionStateUpdate {
         });
     }
 
-    fn server_error(&mut self, error: &ErrorResponse) {
+    fn server_error(&mut self, error: &PgServerError) {
         Python::with_gil(|py| {
             let mut fields = vec![];
-            for field in error.fields() {
-                let etype = field.etype() as char;
-                let message = field.value().to_string_lossy().to_string();
+            for (field, value) in error.fields() {
+                let etype = field as u8 as char;
+                let message = value.to_string();
                 fields.push((etype, message));
             }
             if let Err(e) = self.py_update.call_method1(py, "server_error", (fields,)) {

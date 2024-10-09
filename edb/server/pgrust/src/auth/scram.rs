@@ -94,14 +94,19 @@ pub trait ServerEnvironment {
     fn generate_nonce(&self) -> String;
 }
 
-#[derive(Default)]
+#[derive(Default, derive_more::Debug)]
 pub struct ServerTransaction {
+    #[debug(skip)]
     state: ServerState,
 }
 
 impl ServerTransaction {
     pub fn success(&self) -> bool {
         matches!(self.state, ServerState::Success)
+    }
+
+    pub fn initial(&self) -> bool {
+        matches!(self.state, ServerState::Initial)
     }
 
     pub fn process_message(
@@ -133,7 +138,10 @@ impl ServerTransaction {
             }
             ServerState::SentChallenge(first_message, first_response) => {
                 let message = ClientFinalMessage::decode(message)?;
-                if message.combined_nonce != first_response.combined_nonce {
+                if !constant_time_eq::constant_time_eq(
+                    message.combined_nonce.as_bytes(),
+                    first_response.combined_nonce.as_bytes(),
+                ) {
                     return Err(SCRAMError::ProtocolError);
                 }
                 if message.channel_binding != CHANNEL_BINDING_ENCODED {
@@ -157,7 +165,10 @@ impl ServerTransaction {
                     &stored_key,
                 );
 
-                if calculated_stored_key.as_slice() != stored_key {
+                if !constant_time_eq::constant_time_eq(
+                    calculated_stored_key.as_slice(),
+                    &stored_key,
+                ) {
                     return Err(SCRAMError::ProtocolError);
                 }
 
@@ -252,7 +263,10 @@ impl ClientTransaction {
             }
             ClientState::ExpectingVerifier(server_final_response) => {
                 let message = ServerFinalResponse::decode(message)?;
-                if message.verifier != server_final_response.verifier {
+                if !constant_time_eq::constant_time_eq(
+                    message.verifier.as_bytes(),
+                    server_final_response.verifier.as_bytes(),
+                ) {
                     return Err(SCRAMError::ProtocolError);
                 }
                 self.state = ClientState::Success;
@@ -528,13 +542,30 @@ pub fn generate_salted_password(password: &[u8], salt: &[u8], iterations: usize)
     u.as_slice().try_into().unwrap()
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct StoredKey {
     pub iterations: usize,
     pub salt: Vec<u8>,
     pub stored_key: Sha256Out,
     pub server_key: Sha256Out,
 }
+
+impl PartialEq for StoredKey {
+    fn eq(&self, other: &Self) -> bool {
+        // If the salt and stored_key match, the remainder must match.
+        // We only need to compare these two fields for equality because:
+        // 1. The salt is used to derive the stored_key, so if both match,
+        //    it implies the same password and iteration count were used.
+        // 2. The server_key is derived from the same process, so it will
+        //    automatically match if the salt and stored_key match.
+        // 3. The iterations count doesn't need to be compared explicitly
+        //    as it's factored into the stored_key calculation.
+        constant_time_eq::constant_time_eq(&self.salt, &other.salt)
+            && constant_time_eq::constant_time_eq(&self.stored_key, &other.stored_key)
+    }
+}
+
+impl Eq for StoredKey {}
 
 impl FromStr for StoredKey {
     type Err = SCRAMError;

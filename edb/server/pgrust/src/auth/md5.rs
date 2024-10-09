@@ -48,3 +48,47 @@ fn to_hex_string(bytes: &[u8]) -> String {
     }
     hex
 }
+
+/// Postgres stores `MD5(username || password)`.
+#[derive(Clone, Copy, Debug)]
+pub struct StoredHash {
+    pub hash: [u8; 16],
+}
+
+impl StoredHash {
+    pub fn generate(password: &[u8], username: &str) -> Self {
+        // First MD5 hash of password + username
+        let mut hasher = md5::Context::new();
+        hasher.consume(password);
+        hasher.consume(username.as_bytes());
+        let first_hash = hasher.compute();
+        Self { hash: first_hash.0 }
+    }
+
+    pub fn matches(&self, client_exchange: &[u8], salt: [u8; 4]) -> bool {
+        let this = &self;
+        let salt: &[u8; 4] = &salt;
+        // Convert first hash to hex string
+        let first_hash_hex = to_hex_string(&this.hash);
+
+        // Second MD5 hash of first hash + salt
+        let mut hasher = md5::Context::new();
+        hasher.consume(first_hash_hex.as_bytes());
+        hasher.consume(salt);
+        let second_hash = hasher.compute();
+
+        // Convert second hash to hex string
+        let second_hash_hex = to_hex_string(&second_hash.0);
+
+        let server_exchange = format!("md5{}", second_hash_hex);
+        constant_time_eq::constant_time_eq(client_exchange, server_exchange.as_bytes())
+    }
+}
+
+impl PartialEq for StoredHash {
+    fn eq(&self, other: &Self) -> bool {
+        constant_time_eq::constant_time_eq(&self.hash, &other.hash)
+    }
+}
+
+impl Eq for StoredHash {}

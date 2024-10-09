@@ -1,6 +1,5 @@
 #![allow(private_bounds)]
 use super::{Enliven, FieldAccessArray, FixedSize, Meta, MetaRelation};
-use std::fmt::Write;
 pub use std::marker::PhantomData;
 
 pub mod meta {
@@ -18,6 +17,7 @@ pub struct ZTArray<'a, T: FieldAccessArray> {
 pub struct ZTArrayMeta<T> {
     pub(crate) _phantom: PhantomData<T>,
 }
+
 impl<T: FieldAccessArray> Meta for ZTArrayMeta<T> {
     fn name(&self) -> &'static str {
         "ZTArray"
@@ -57,13 +57,7 @@ where
     <T as Enliven>::WithLifetime<'a>: std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_char('[')?;
-        for it in self {
-            it.fmt(f)?;
-            f.write_str(", ")?;
-        }
-        f.write_char(']')?;
-        Ok(())
+        f.debug_list().entries(self).finish()
     }
 }
 
@@ -95,9 +89,9 @@ impl<'a, T: FieldAccessArray> Iterator for ZTArrayIter<'a, T> {
         if self.buf[0] == 0 {
             return None;
         }
-        let (value, buf) = self.buf.split_at(T::size_of_field_at(self.buf));
+        let (value, buf) = self.buf.split_at(T::size_of_field_at(self.buf).ok()?);
         self.buf = buf;
-        Some(T::extract(value))
+        T::extract(value).ok()
     }
 }
 
@@ -160,13 +154,7 @@ where
     <T as Enliven>::WithLifetime<'a>: std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_char('[')?;
-        for it in self {
-            it.fmt(f)?;
-            f.write_str(", ")?;
-        }
-        f.write_char(']')?;
-        Ok(())
+        f.debug_list().entries(self).finish()
     }
 }
 
@@ -208,10 +196,10 @@ impl<'a, T: FieldAccessArray> Iterator for ArrayIter<'a, T> {
             return None;
         }
         self.len -= 1;
-        let len = T::size_of_field_at(self.buf);
+        let len = T::size_of_field_at(self.buf).ok()?;
         let (value, buf) = self.buf.split_at(len);
         self.buf = buf;
-        Some(T::extract(value))
+        T::extract(value).ok()
     }
 }
 
@@ -229,25 +217,37 @@ macro_rules! array_access {
                 &$crate::protocol::meta::Array::<$len, $ty> { _phantom: std::marker::PhantomData }
             }
             #[inline]
-            pub const fn size_of_field_at(mut buf: &[u8]) -> usize {
+            pub const fn size_of_field_at(mut buf: &[u8]) -> Result<usize, $crate::protocol::ParseError> {
                 let mut size = std::mem::size_of::<$len>();
-                let mut len = $crate::protocol::FieldAccess::<$len>::extract(buf);
+                let mut len = match $crate::protocol::FieldAccess::<$len>::extract(buf) {
+                    Ok(n) => n,
+                    Err(e) => return Err(e),
+                };
+                #[allow(unused_comparisons)]
+                if len < 0 {
+                    return Err($crate::protocol::ParseError::InvalidData);
+                }
                 buf = buf.split_at(size).1;
                 loop {
-                    if len == 0 {
+                    if len <= 0 {
                         break;
                     }
                     len -= 1;
-                    let elem_size = $crate::protocol::FieldAccess::<$ty>::size_of_field_at(buf);
+                    let elem_size = match $crate::protocol::FieldAccess::<$ty>::size_of_field_at(buf) {
+                        Ok(n) => n,
+                        Err(e) => return Err(e),
+                    };
                     buf = buf.split_at(elem_size).1;
                     size += elem_size;
                 }
-                size
+                Ok(size)
             }
             #[inline(always)]
-            pub const fn extract(buf: &[u8]) -> $crate::protocol::Array<'_, $len, $ty> {
-                let len = $crate::protocol::FieldAccess::<$len>::extract(buf);
-                $crate::protocol::Array::new(buf.split_at(std::mem::size_of::<$len>()).1, len as u32)
+            pub const fn extract(buf: &[u8]) -> Result<$crate::protocol::Array<'_, $len, $ty>, $crate::protocol::ParseError> {
+                match $crate::protocol::FieldAccess::<$len>::extract(buf) {
+                    Ok(len) => Ok($crate::protocol::Array::new(buf.split_at(std::mem::size_of::<$len>()).1, len as u32)),
+                    Err(e) => Err(e)
+                }
             }
             #[inline]
             pub const fn measure<'a>(buffer: &'a[<$ty as $crate::protocol::Enliven>::ForMeasure<'a>]) -> usize {
@@ -280,20 +280,26 @@ macro_rules! array_access {
                 &$crate::protocol::meta::ZTArray::<$ty> { _phantom: std::marker::PhantomData }
             }
             #[inline]
-            pub const fn size_of_field_at(mut buf: &[u8]) -> usize {
+            pub const fn size_of_field_at(mut buf: &[u8]) -> Result<usize, $crate::protocol::ParseError> {
                 let mut size = 1;
                 loop {
-                    if buf[0] == 0 {
-                        return size;
+                    if buf.is_empty() {
+                        return Err($crate::protocol::ParseError::TooShort);
                     }
-                    let elem_size = $crate::protocol::FieldAccess::<$ty>::size_of_field_at(buf);
+                    if buf[0] == 0 {
+                        return Ok(size);
+                    }
+                    let elem_size = match $crate::protocol::FieldAccess::<$ty>::size_of_field_at(buf) {
+                        Ok(n) => n,
+                        Err(e) => return Err(e),
+                    };
                     buf = buf.split_at(elem_size).1;
                     size += elem_size;
                 }
             }
             #[inline(always)]
-            pub const fn extract(mut buf: &[u8]) -> $crate::protocol::ZTArray<$ty> {
-                $crate::protocol::ZTArray::new(buf)
+            pub const fn extract(mut buf: &[u8]) -> Result<$crate::protocol::ZTArray<$ty>, $crate::protocol::ParseError> {
+                Ok($crate::protocol::ZTArray::new(buf))
             }
             #[inline]
             pub const fn measure<'a>(buffer: &'a[<$ty as $crate::protocol::Enliven>::ForMeasure<'a>]) -> usize {
@@ -330,8 +336,7 @@ impl<T> AsRef<[u8]> for Array<'_, T, u8> {
 
 // Arrays of fixed-size elements can extract elements in O(1).
 impl<'a, L: TryInto<usize>, T: FixedSize + FieldAccessArray> Array<'a, L, T> {
-    #[allow(unused)]
-    fn get(&self, index: L) -> Option<<T as Enliven>::WithLifetime<'a>> {
+    pub fn get(&self, index: L) -> Option<<T as Enliven>::WithLifetime<'a>> {
         let Ok(index) = index.try_into() else {
             return None;
         };
@@ -340,7 +345,8 @@ impl<'a, L: TryInto<usize>, T: FixedSize + FieldAccessArray> Array<'a, L, T> {
             None
         } else {
             let segment = &self.buf[T::SIZE * index..T::SIZE * (index + 1)];
-            Some(T::extract(segment))
+            // As we've normally pre-scanned all items, this will not panic
+            Some(T::extract_infallible(segment))
         }
     }
 }
