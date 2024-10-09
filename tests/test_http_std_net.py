@@ -85,28 +85,13 @@ class StdNetTestCase(server.QueryTestCase):
         )
 
         async for tr in self.try_until_succeeds(
-            delay=2, timeout=120, ignore=(edgedb.CardinalityViolationError,)
+            delay=2, timeout=120, ignore=(KeyError,)
         ):
             async with tr:
-                await self.con.query(
-                    """
-                    with
-                        url := <str>$url,
-                        request := assert_exists((
-                            select std::net::http::ScheduledRequest
-                            filter .url = url
-                            and .state in {
-                                std::net::RequestState.Completed,
-                                std::net::RequestState.Failed,
-                            }
-                            limit 1
-                        ))
-                    select request {*};
-                    """,
-                    url=url,
-                )
+                requests_for_example = self.mock_server.requests[
+                    example_request
+                ]
 
-        requests_for_example = self.mock_server.requests[example_request]
         self.assertEqual(len(requests_for_example), 1)
         headers = list(requests_for_example[0]["headers"].items())
         self.assertIn(("accept", "text/plain"), headers)
@@ -161,25 +146,13 @@ class StdNetTestCase(server.QueryTestCase):
         )
 
         async for tr in self.try_until_succeeds(
-            delay=2, timeout=120, ignore=(edgedb.CardinalityViolationError,)
+            delay=2, timeout=120, ignore=(KeyError,)
         ):
             async with tr:
-                await self.con.query(
-                    """
-                    with
-                        url := <str>$url,
-                        request := assert_exists((
-                            select std::net::http::ScheduledRequest
-                            filter .url = url
-                            and .state != std::net::RequestState.Pending
-                            limit 1
-                        ))
-                    select request {*};
-                    """,
-                    url=url,
-                )
+                requests_for_example = self.mock_server.requests[
+                    example_request
+                ]
 
-        requests_for_example = self.mock_server.requests[example_request]
         self.assertEqual(len(requests_for_example), 1)
         headers = list(requests_for_example[0]["headers"].items())
         self.assertIn(("accept", "text/plain"), headers)
