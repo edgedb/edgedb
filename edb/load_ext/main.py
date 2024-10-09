@@ -111,7 +111,8 @@ def get_pg_config(pg_config_path: pathlib.Path) -> dict[str, str]:
 def get_dir(z: zipfile.Zipfile) -> pathlib.Path:
     files = z.infolist()
     if not (files and files[0].is_dir()):
-        raise ValueError('Extension package must contain one top-level dir')
+        print('ERROR: Extension package must contain one top-level dir')
+        sys.exit(1)
     dirname = pathlib.Path(files[0].filename)
 
     return dirname
@@ -127,6 +128,12 @@ def install_edgedb_extension(
         dirname = get_dir(z)
 
         target = ext_dir / dirname
+        if target.exists():
+            print(
+                f'ERROR: Extension {dirname} is already installed at {target}'
+            )
+            sys.exit(1)
+
         print("Installing", target)
 
         ttarget = pathlib.Path(tdir) / pkg.stem
@@ -147,6 +154,9 @@ def install_edgedb_extension(
                     shutil.copyfileobj(src, dst)
 
         os.makedirs(ext_dir, exist_ok=True)
+        # If there was a race and the file was created between the
+        # earlier check and now, we'll produce a worse error
+        # message. Oh well.
         shutil.move(ttarget, ext_dir)
 
 
