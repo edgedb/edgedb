@@ -131,13 +131,13 @@ async def send(
     secret: typing.Optional[str],
     event: Event,
 ) -> str:
-    payload = json.dumps(
+    body = json.dumps(
         dataclasses.asdict(event), cls=DateTimeEncoder
     ).encode()
     headers = [("Content-Type", "application/json")]
     if secret:
         signature = hmac.new(
-            secret.encode(), payload, hashlib.sha256
+            secret.encode(), body, hashlib.sha256
         ).hexdigest()
         headers.append(("x-ext-auth-signature-sha256", signature))
 
@@ -148,24 +148,27 @@ with
     nh as module std::net::http,
     net as module std::net,
 
-    url := <str>$url,
-    payload := <bytes>$payload,
+    # n.b. workaround for bug in parse_execute_json
+    url := assert_exists(<str>$url),
     headers := <array<tuple<str, str>>>$headers,
+    body := <bytes>$body,
+
     REQUEST := (
         nh::schedule_request(
-          url,
-          method := nh::Method.POST,
-          headers := headers,
-          body := payload,
+            url,
+            method := nh::Method.POST,
+            headers := headers,
+            body := body,
         )
     ),
 select REQUEST;
 """,
         variables={
             "url": url,
-            "payload": payload,
+            "body": body,
             "headers": headers,
         },
+        cached_globally=True,
     )
     result = json.loads(result_json)
 
