@@ -36,7 +36,7 @@ endif
 ifneq ($(strip $(CUSTOM_SQL_BUILD)),1)
 
 $(SQL_BUILD_STAMP): MANIFEST.toml $(SQL_DEPS) $(EXTRA_DEPS) Makefile
-	env PG_CONFIG=$(PG_CONFIG) $(MAKE) -C $(SQL_MODULE) DESTDIR=$(PWD)/build/out install
+	env PG_CONFIG=$(PG_CONFIG) $(MAKE) -C $(SQL_MODULE) DESTDIR=$(PWD)/build/out PG_CONFIG=$(PG_CONFIG) install
 	touch $(SQL_BUILD_STAMP)
 endif
 
@@ -45,7 +45,10 @@ $(SQL_INSTALL_STAMP): $(SQL_BUILD_STAMP)
 	mkdir -p build/$(EXT_FNAME)/lib
 	rm -rf build/$(EXT_FNAME)/share/postgresql
 	mkdir -p build/$(EXT_FNAME)/share/postgresql
+	mkdir -p $(PWD)/build/out/$(shell $(PG_CONFIG) --pkglibdir)
 	cp -r $(PWD)/build/out/$(shell $(PG_CONFIG) --pkglibdir) build/$(EXT_FNAME)/lib/postgresql
+	mkdir -p $(PWD)/build/out/$(shell $(PG_CONFIG) --sharedir)/contrib
+	mkdir -p $(PWD)/build/out/$(shell $(PG_CONFIG) --sharedir)/extension
 	cp -r $(PWD)/build/out/$(shell $(PG_CONFIG) --sharedir)/contrib build/$(EXT_FNAME)/share/postgresql/contrib
 	cp -r $(PWD)/build/out/$(shell $(PG_CONFIG) --sharedir)/extension build/$(EXT_FNAME)/share/postgresql/extension
 	touch $(SQL_INSTALL_STAMP)
