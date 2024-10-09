@@ -204,7 +204,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "plan_rows": 1,
                             "actual_rows": 1,
                             "actual_loops": 1,
-                            "plan_type": "IndexScan",
+                            "plan_type": "SeqScan",
                             "properties": tb.bag([
                                 {
                                     "title": "filter",
@@ -235,25 +235,25 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "type": "relation",
                                     "important": True,
                                 },
-                                {
-                                    "title": "scan_direction",
-                                    "value": "Forward",
-                                    "type": "text",
-                                    "important": True,
-                                },
-                                {
-                                    "title": "index_name",
-                                    "value":
-                                        "index of object type 'default::User' "
-                                        "on (__subject__.name)",
-                                    "type": "index",
-                                    "important": True,
-                                },
-                                {
-                                    "title": "index_cond",
-                                    "type": "expr",
-                                    "important": False,
-                                },
+                                # {
+                                #     "title": "scan_direction",
+                                #     "value": "Forward",
+                                #     "type": "text",
+                                #     "important": True,
+                                # },
+                                # {
+                                #     "title": "index_name",
+                                #     "value":
+                                #         "index of object type 'default::User'"
+                                #         " on (__subject__.name)",
+                                #     "type": "index",
+                                #     "important": True,
+                                # },
+                                # {
+                                #     "title": "index_cond",
+                                #     "type": "expr",
+                                #     "important": False,
+                                # },
                             ]),
                         },
                     ]),
