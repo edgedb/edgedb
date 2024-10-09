@@ -19,7 +19,6 @@
 
 import typing
 import json
-import base64
 
 from edb.testbase import http as tb
 import edb.testbase.server as server
