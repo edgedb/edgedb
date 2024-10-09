@@ -720,6 +720,7 @@ def compile_TypeCast(
                 pt,
                 span=expr.expr.span,
                 ctx=ctx,
+                cardinality_mod=expr.cardinality_mod,
             )
 
         else:

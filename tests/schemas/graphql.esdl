@@ -236,3 +236,8 @@ type NotEditable {
         readonly := true;
     }
 }
+
+function modifying_noop(x: str) -> str {
+    using (x);
+    volatility := 'Modifying';
+}
