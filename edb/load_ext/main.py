@@ -53,9 +53,6 @@ def install_pg_extension(
     with zipfile.ZipFile(pkg) as z:
         base = get_dir(z)
 
-        with z.open(str(base / 'MANIFEST.toml')) as m:
-            manifest = tomllib.load(m)
-
         for entry in z.infolist():
             fpath = pathlib.Path(entry.filename)
 
@@ -107,7 +104,7 @@ def get_pg_config(pg_config_path: pathlib.Path) -> dict[str, str]:
     return config
 
 
-def get_dir(z: zipfile.Zipfile) -> pathlib.Path:
+def get_dir(z: zipfile.ZipFile) -> pathlib.Path:
     files = z.infolist()
     if not (files and files[0].is_dir()):
         print('ERROR: Extension package must contain one top-level dir')
