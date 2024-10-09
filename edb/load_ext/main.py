@@ -51,40 +51,39 @@ def install_pg_extension(
     pg_config: dict[str, str],
 ) -> None:
     with zipfile.ZipFile(pkg) as z:
-        with z.open('MANIFEST.toml') as m:
-            manifest = tomllib.load(m)
+        base = get_dir(z)
 
-        if 'postgres_files' in manifest:
-            dir = manifest['postgres_files']
-            pdir = pathlib.Path(dir)
+        for entry in z.infolist():
+            fpath = pathlib.Path(entry.filename)
 
-            for entry in z.infolist():
-                fpath = pathlib.Path(entry.filename)
+            if entry.is_dir():
+                continue
+            if fpath.parts[0] != str(base):
+                continue
+            # If the path is too short or isn't one of the
+            # directories we know about, skip it.
+            if (
+                len(fpath.parts) < 3
+                or not (config_field := CONFIG_PATHS.get(fpath.parts[1]))
+                or fpath.parts[2] != 'postgresql'
+            ):
+                # print("Skipping", fpath)
+                continue
 
-                if fpath.parts[0] != dir:
-                    continue
-                # If the path is too short or isn't one of the
-                # directories we know about, skip it.
-                if (
-                    len(fpath.parts) < 2
-                    or not (config_field := CONFIG_PATHS.get(fpath.parts[1]))
-                ):
-                    print("Skipping", fpath)
-                    continue
+            config_dir = pg_config[config_field]
+            fpath = fpath.relative_to(
+                pathlib.Path(fpath.parts[0])
+                / fpath.parts[1]
+                / 'postgresql'
+            )
 
-                config_dir = pg_config[config_field]
-                fpath = fpath.relative_to(pdir / fpath.parts[1])
+            target_file = config_dir / fpath
 
-                target_file = config_dir / fpath
-
-                if entry.is_dir():
-                    print("Creating directory", f'{target_file}/')
-                    os.makedirs(target_file, exist_ok=True)
-                else:
-                    with z.open(entry) as src:
-                        with open(target_file, "wb") as dst:
-                            print("Installing", target_file)
-                            shutil.copyfileobj(src, dst)
+            os.makedirs(target_file.parent, exist_ok=True)
+            with z.open(entry) as src:
+                with open(target_file, "wb") as dst:
+                    print("Installing", target_file)
+                    shutil.copyfileobj(src, dst)
 
 
 def get_pg_config(pg_config_path: pathlib.Path) -> dict[str, str]:
@@ -105,20 +104,38 @@ def get_pg_config(pg_config_path: pathlib.Path) -> dict[str, str]:
     return config
 
 
+def get_dir(z: zipfile.ZipFile) -> pathlib.Path:
+    files = z.infolist()
+    if not (files and files[0].is_dir()):
+        print('ERROR: Extension package must contain one top-level dir')
+        sys.exit(1)
+    dirname = pathlib.Path(files[0].filename)
+
+    return dirname
+
+
 def install_edgedb_extension(
     pkg: pathlib.Path,
     ext_dir: pathlib.Path,
 ) -> None:
-    target = ext_dir / pkg.stem
-    print("Installing", target)
-
     with tempfile.TemporaryDirectory() as tdir, \
          zipfile.ZipFile(pkg) as z:
+
+        dirname = get_dir(z)
+
+        target = ext_dir / dirname
+        if target.exists():
+            print(
+                f'ERROR: Extension {dirname} is already installed at {target}'
+            )
+            sys.exit(1)
+
+        print("Installing", target)
 
         ttarget = pathlib.Path(tdir) / pkg.stem
         os.mkdir(ttarget)
 
-        with z.open('MANIFEST.toml') as m:
+        with z.open(str(dirname / 'MANIFEST.toml')) as m:
             manifest = tomllib.load(m)
 
         files = ['MANIFEST.toml'] + manifest['files']
@@ -127,12 +144,15 @@ def install_edgedb_extension(
             target_file = target / f
             ttarget_file = ttarget / f
 
-            with z.open(f) as src:
+            with z.open(str(dirname / f)) as src:
                 with open(ttarget_file, "wb") as dst:
                     print("Installing", target_file)
                     shutil.copyfileobj(src, dst)
 
         os.makedirs(ext_dir, exist_ok=True)
+        # If there was a race and the file was created between the
+        # earlier check and now, we'll produce a worse error
+        # message. Oh well.
         shutil.move(ttarget, ext_dir)
 
 
