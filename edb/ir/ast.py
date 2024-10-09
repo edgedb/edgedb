@@ -1313,6 +1313,8 @@ class UpdateStmt(MutatingStmt, FilteredStmt):
         assert self._material_type
         return self._material_type
 
+    sql_mode_link_only: bool = False
+
 
 class DeleteStmt(MutatingStmt, FilteredStmt):
     _material_type: TypeRef | None = None

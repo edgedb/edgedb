@@ -43,6 +43,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
     SETUP = [
         """
         create type User;
+        create type Asdf { create link user -> User };
 
         create type Document {
           create property title: str {
@@ -337,7 +338,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
     async def test_sql_dml_insert_15(self):
         with self.assertRaisesRegex(
             asyncpg.exceptions.CardinalityViolationError,
-            "'default::User' with id '[0-9a-f-]+' does not exist",
+            "object type default::User with id '[0-9a-f-]+' does not exist",
         ):
             await self.scon.execute(
                 '''
@@ -511,28 +512,6 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, 'INSERT 0 2')
 
-    @test.xerror('bug: DML overlays are not applied correctly')
-    async def test_sql_dml_insert_23(self):
-        res = await self.scon.execute(
-            '''
-            WITH
-            d AS (
-              INSERT INTO "Document" (title) VALUES ('Report') RETURNING id
-            ),
-            u AS (
-              INSERT INTO "User" DEFAULT VALUES RETURNING id
-            )
-            INSERT INTO "Document.shared_with" (source, target, can_edit)
-            SELECT (d.id, u.id, TRUE) FROM d, u
-            '''
-        )
-        self.assertEqual(res, 'INSERT 0 1')
-
-        res = await self.squery_values(
-            'SELECT can_edit FROM "Document.shared_with"'
-        )
-        self.assertEqual(res, [[True]])
-
     async def test_sql_dml_insert_24(self):
         # insert into link table, link properties
 
@@ -697,7 +676,6 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             ],
         )
 
-    @test.xerror('bug: DML overlays are not applied correctly')
     async def test_sql_dml_insert_31(self):
         res = await self.squery_values(
             '''
@@ -797,6 +775,85 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             id,
         )
         self.assertEqual(res, [[id]])
+
+    async def test_sql_dml_insert_36a(self):
+        res = await self.scon.execute(
+            '''
+            WITH d AS (
+              INSERT INTO "User" DEFAULT VALUES RETURNING id
+            )
+            INSERT INTO "Asdf" (user_id)
+            SELECT d.id FROM d
+            ''',
+        )
+        self.assertEqual(res, 'INSERT 0 1')
+
+    async def test_sql_dml_insert_36(self):
+        [user] = await self.squery_values(
+            'INSERT INTO "User" DEFAULT VALUES RETURNING id'
+        )
+
+        res = await self.scon.execute(
+            '''
+            WITH d AS (
+              INSERT INTO "Document" (title) VALUES ('Report') RETURNING id
+            )
+            INSERT INTO "Document.shared_with" (source, target, can_edit)
+            SELECT d.id, $1, TRUE FROM d
+            ''',
+            user[0],
+        )
+        self.assertEqual(res, 'INSERT 0 1')
+
+        res = await self.squery_values(
+            'SELECT can_edit FROM "Document.shared_with"'
+        )
+        self.assertEqual(res, [[True]])
+
+    async def test_sql_dml_insert_37(self):
+        [doc] = await self.squery_values(
+            '''
+            INSERT INTO "Document" (title) VALUES ('Report') RETURNING id
+            '''
+        )
+
+        res = await self.scon.execute(
+            '''
+            WITH u AS (
+              INSERT INTO "User" DEFAULT VALUES RETURNING id
+            )
+            INSERT INTO "Document.shared_with" (source, target, can_edit)
+            SELECT $1, u.id, TRUE FROM u
+            ''',
+            doc[0],
+        )
+        self.assertEqual(res, 'INSERT 0 1')
+
+        res = await self.squery_values(
+            'SELECT can_edit FROM "Document.shared_with"'
+        )
+        self.assertEqual(res, [[True]])
+
+    async def test_sql_dml_insert_38(self):
+        res = await self.scon.execute(
+            '''
+            WITH
+            d AS (
+              INSERT INTO "Document" (title) VALUES ('Report') RETURNING id
+            ),
+            u AS (
+              INSERT INTO "User" DEFAULT VALUES RETURNING id
+            )
+            INSERT INTO "Document.shared_with" (source, target, can_edit)
+            SELECT d.id, u.id, TRUE FROM d, u
+            '''
+        )
+        self.assertEqual(res, 'INSERT 0 1')
+
+        res = await self.squery_values(
+            'SELECT can_edit FROM "Document.shared_with"'
+        )
+        self.assertEqual(res, [[True]])
 
     async def test_sql_dml_delete_01(self):
         # delete, inspect CommandComplete tag
@@ -1128,6 +1185,51 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         )
         self.assertEqual(deleted, [[document[0], 'notes']])
 
+    async def test_sql_dml_delete_12(self):
+        await self.scon.execute(
+            '''INSERT INTO "Document" (title) VALUES ('Report') RETURNING id'''
+        )
+
+        # N.B: The DELETE doesn't work
+        res = await self.scon.execute(
+            '''
+            WITH inserted as (
+                INSERT INTO "Document" (title) VALUES ('Report') RETURNING id
+            )
+            DELETE FROM "Document" d USING inserted WHERE d.id = inserted.id
+            '''
+        )
+        self.assertEqual(res, 'DELETE 0')
+
+        res = await self.squery_values(
+            'SELECT COUNT(*) FROM "Document"',
+        )
+        self.assertEqual(res, [[2]])
+
+    async def test_sql_dml_delete_13(self):
+        [[doc_id]] = await self.squery_values(
+            '''INSERT INTO "Document" DEFAULT VALUES RETURNING id'''
+        )
+        [[user_id]] = await self.squery_values(
+            '''INSERT INTO "User" DEFAULT VALUES RETURNING id'''
+        )
+
+        res = await self.scon.execute(
+            '''
+            WITH inserted as (
+                INSERT INTO "Document.shared_with" (source, target)
+                VALUES ($1, $2) RETURNING source, target
+            )
+            DELETE FROM "Document.shared_with" dsw
+            USING inserted
+            WHERE dsw.source = inserted.source AND dsw.target = inserted.target
+            ''',
+            doc_id,
+            user_id,
+        )
+        # N.B: The DELETE doesn't work
+        self.assertEqual(res, 'DELETE 0')
+
     async def test_sql_dml_update_01(self):
         # update, inspect CommandComplete tag
 
@@ -1197,7 +1299,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         )
 
     async def test_sql_dml_update_04(self):
-        # update with using clause
+        # update with from clause
 
         users = await self.squery_values(
             '''
@@ -1411,6 +1513,72 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 doc[0],
                 id1,
             )
+
+    async def test_sql_dml_update_13(self):
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            'UPDATE of link tables is not supported',
+        ):
+            await self.squery_values(
+                '''
+                UPDATE "Document.shared_with" SET can_edit = FALSE
+                '''
+            )
+
+    async def test_sql_dml_update_14(self):
+        res = await self.scon.execute(
+            '''
+            WITH inserted as (
+                INSERT INTO "Document" (title) VALUES ('Report') RETURNING id
+            )
+            UPDATE "Document" d
+            SET title = 'Briefing'
+            FROM inserted
+            WHERE d.id = inserted.id
+            '''
+        )
+        # N.B: the UPDATE doesn't work
+        self.assertEqual(res, 'UPDATE 0')
+
+        res = await self.squery_values(
+            'SELECT title FROM "Document"',
+        )
+        self.assertEqual(res, [['Report (new)']])
+
+    async def test_sql_dml_update_15(self):
+        [[doc_id]] = await self.squery_values(
+            '''
+            INSERT INTO "Document" (title) VALUES ('Briefing') RETURNING id
+            '''
+        )
+
+        res = await self.scon.execute(
+            '''
+            WITH updated as (
+                UPDATE "Document" d
+                SET title = 'Report'
+                WHERE d.id = $1
+                RETURNING id, title
+            )
+            INSERT INTO "Document" (title)
+            SELECT 'X' || id::uuid || ','  || title FROM updated
+            ''',
+            doc_id,
+        )
+        self.assertEqual(res, 'INSERT 0 1')
+
+        res = await self.squery_values(
+            'SELECT id, title FROM "Document" ORDER BY title',
+        )
+        self.assertEqual(len(res), 2)
+        inserted_id, inserted_title = res[0]
+        top_level = res[1]
+
+        self.assertEqual(inserted_title, 'Report (updated)')
+        self.assertEqual(
+            top_level[1],
+            'X' + str(inserted_id) + ',' + inserted_title + ' (new)',
+        )
 
     async def test_sql_dml_01(self):
         # update/delete only
