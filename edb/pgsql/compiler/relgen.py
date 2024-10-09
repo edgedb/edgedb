@@ -4146,7 +4146,7 @@ _ObjectSearchInnerCallback = Callable[
 ]
 
 
-@_special_case('fts::search')
+@_special_case('std::fts::search')
 def process_set_as_fts_search(
     ir_set: irast.SetE[irast.Call], *, ctx: context.CompilerContextLevel
 ) -> SetRVars:

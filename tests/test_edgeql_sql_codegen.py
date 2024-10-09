@@ -336,7 +336,7 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
         self.assertNotIn(
             "score_serialized",
             sql,
-            "fts::search score should not be serialized when not needed",
+            "std::fts::search score should not be serialized when not needed",
         )
 
     def test_codegen_typeid_no_join(self):

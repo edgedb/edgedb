@@ -16,11 +16,11 @@
 # limitations under the License.
 #
 
-CREATE MODULE math;
+CREATE MODULE std::math;
 
 
 CREATE FUNCTION
-math::abs(x: std::anyreal) -> std::anyreal
+std::math::abs(x: std::anyreal) -> std::anyreal
 {
     CREATE ANNOTATION std::description :=
         'Return the absolute value of the input *x*.';
@@ -30,7 +30,7 @@ math::abs(x: std::anyreal) -> std::anyreal
 
 
 CREATE FUNCTION
-math::ceil(x: std::int64) -> std::int64
+std::math::ceil(x: std::int64) -> std::int64
 {
     CREATE ANNOTATION std::description := 'Round up to the nearest integer.';
     SET volatility := 'Immutable';
@@ -39,7 +39,7 @@ math::ceil(x: std::int64) -> std::int64
 
 
 CREATE FUNCTION
-math::ceil(x: std::float64) -> std::float64
+std::math::ceil(x: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description := 'Round up to the nearest integer.';
     SET volatility := 'Immutable';
@@ -48,7 +48,7 @@ math::ceil(x: std::float64) -> std::float64
 
 
 CREATE FUNCTION
-math::ceil(x: std::bigint) -> std::bigint
+std::math::ceil(x: std::bigint) -> std::bigint
 {
     CREATE ANNOTATION std::description := 'Round up to the nearest integer.';
     SET volatility := 'Immutable';
@@ -57,7 +57,7 @@ math::ceil(x: std::bigint) -> std::bigint
 
 
 CREATE FUNCTION
-math::ceil(x: std::decimal) -> std::decimal
+std::math::ceil(x: std::decimal) -> std::decimal
 {
     CREATE ANNOTATION std::description := 'Round up to the nearest integer.';
     SET volatility := 'Immutable';
@@ -66,7 +66,7 @@ math::ceil(x: std::decimal) -> std::decimal
 
 
 CREATE FUNCTION
-math::floor(x: std::int64) -> std::int64
+std::math::floor(x: std::int64) -> std::int64
 {
     CREATE ANNOTATION std::description := 'Round down to the nearest integer.';
     SET volatility := 'Immutable';
@@ -75,7 +75,7 @@ math::floor(x: std::int64) -> std::int64
 
 
 CREATE FUNCTION
-math::floor(x: std::float64) -> std::float64
+std::math::floor(x: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description := 'Round down to the nearest integer.';
     SET volatility := 'Immutable';
@@ -84,7 +84,7 @@ math::floor(x: std::float64) -> std::float64
 
 
 CREATE FUNCTION
-math::floor(x: std::bigint) -> std::bigint
+std::math::floor(x: std::bigint) -> std::bigint
 {
     CREATE ANNOTATION std::description := 'Round down to the nearest integer.';
     SET volatility := 'Immutable';
@@ -93,7 +93,7 @@ math::floor(x: std::bigint) -> std::bigint
 
 
 CREATE FUNCTION
-math::floor(x: std::decimal) -> std::decimal
+std::math::floor(x: std::decimal) -> std::decimal
 {
     CREATE ANNOTATION std::description := 'Round down to the nearest integer.';
     SET volatility := 'Immutable';
@@ -102,7 +102,7 @@ math::floor(x: std::decimal) -> std::decimal
 
 
 CREATE FUNCTION
-math::ln(x: std::int64) -> std::float64
+std::math::ln(x: std::int64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the natural logarithm of the input value.';
@@ -112,7 +112,7 @@ math::ln(x: std::int64) -> std::float64
 
 
 CREATE FUNCTION
-math::ln(x: std::float64) -> std::float64
+std::math::ln(x: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the natural logarithm of the input value.';
@@ -122,7 +122,7 @@ math::ln(x: std::float64) -> std::float64
 
 
 CREATE FUNCTION
-math::ln(x: std::decimal) -> std::decimal
+std::math::ln(x: std::decimal) -> std::decimal
 {
     CREATE ANNOTATION std::description :=
         'Return the natural logarithm of the input value.';
@@ -132,7 +132,7 @@ math::ln(x: std::decimal) -> std::decimal
 
 
 CREATE FUNCTION
-math::lg(x: std::int64) -> std::float64
+std::math::lg(x: std::int64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the base 10 logarithm of the input value.';
@@ -142,7 +142,7 @@ math::lg(x: std::int64) -> std::float64
 
 
 CREATE FUNCTION
-math::lg(x: std::float64) -> std::float64
+std::math::lg(x: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the base 10 logarithm of the input value.';
@@ -152,7 +152,7 @@ math::lg(x: std::float64) -> std::float64
 
 
 CREATE FUNCTION
-math::lg(x: std::decimal) -> std::decimal
+std::math::lg(x: std::decimal) -> std::decimal
 {
     CREATE ANNOTATION std::description :=
         'Return the base 10 logarithm of the input value.';
@@ -162,7 +162,7 @@ math::lg(x: std::decimal) -> std::decimal
 
 
 CREATE FUNCTION
-math::log(x: std::decimal, NAMED ONLY base: std::decimal) -> std::decimal
+std::math::log(x: std::decimal, NAMED ONLY base: std::decimal) -> std::decimal
 {
     CREATE ANNOTATION std::description :=
         'Return the logarithm of the input value in the specified *base*.';
@@ -174,7 +174,7 @@ math::log(x: std::decimal, NAMED ONLY base: std::decimal) -> std::decimal
 
 
 CREATE FUNCTION
-math::sqrt(x: std::int64) -> std::float64
+std::math::sqrt(x: std::int64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the square root of the input value.';
@@ -184,7 +184,7 @@ math::sqrt(x: std::int64) -> std::float64
 
 
 CREATE FUNCTION
-math::sqrt(x: std::float64) -> std::float64
+std::math::sqrt(x: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the square root of the input value.';
@@ -194,7 +194,7 @@ math::sqrt(x: std::float64) -> std::float64
 
 
 CREATE FUNCTION
-math::sqrt(x: std::decimal) -> std::decimal
+std::math::sqrt(x: std::decimal) -> std::decimal
 {
     CREATE ANNOTATION std::description :=
         'Return the square root of the input value.';
@@ -202,12 +202,12 @@ math::sqrt(x: std::decimal) -> std::decimal
     USING SQL FUNCTION 'sqrt';
 };
 
-# math::mean
+# std::math::mean
 # -----------
 # The mean function returns an empty set if the input is empty set. On
 # all other inputs it returns the mean for that input set.
 CREATE FUNCTION
-math::mean(vals: SET OF std::decimal) -> std::decimal
+std::math::mean(vals: SET OF std::decimal) -> std::decimal
 {
     CREATE ANNOTATION std::description :=
         'Return the arithmetic mean of the input set.';
@@ -219,7 +219,7 @@ math::mean(vals: SET OF std::decimal) -> std::decimal
 
 
 CREATE FUNCTION
-math::mean(vals: SET OF std::int64) -> std::float64
+std::math::mean(vals: SET OF std::int64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the arithmetic mean of the input set.';
@@ -233,7 +233,7 @@ math::mean(vals: SET OF std::int64) -> std::float64
 
 
 CREATE FUNCTION
-math::mean(vals: SET OF std::float64) -> std::float64
+std::math::mean(vals: SET OF std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the arithmetic mean of the input set.';
@@ -244,10 +244,10 @@ math::mean(vals: SET OF std::float64) -> std::float64
 };
 
 
-# math::stddev
+# std::math::stddev
 # ------------
 CREATE FUNCTION
-math::stddev(vals: SET OF std::decimal) -> std::decimal
+std::math::stddev(vals: SET OF std::decimal) -> std::decimal
 {
     CREATE ANNOTATION std::description :=
         'Return the sample standard deviation of the input set.';
@@ -259,7 +259,7 @@ math::stddev(vals: SET OF std::decimal) -> std::decimal
 
 
 CREATE FUNCTION
-math::stddev(vals: SET OF std::int64) -> std::float64
+std::math::stddev(vals: SET OF std::int64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the sample standard deviation of the input set.';
@@ -273,7 +273,7 @@ math::stddev(vals: SET OF std::int64) -> std::float64
 
 
 CREATE FUNCTION
-math::stddev(vals: SET OF std::float64) -> std::float64
+std::math::stddev(vals: SET OF std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the sample standard deviation of the input set.';
@@ -284,10 +284,10 @@ math::stddev(vals: SET OF std::float64) -> std::float64
 };
 
 
-# math::stddev_pop
+# std::math::stddev_pop
 # ----------------
 CREATE FUNCTION
-math::stddev_pop(vals: SET OF std::decimal) -> std::decimal
+std::math::stddev_pop(vals: SET OF std::decimal) -> std::decimal
 {
     CREATE ANNOTATION std::description :=
         'Return the population standard deviation of the input set.';
@@ -299,7 +299,7 @@ math::stddev_pop(vals: SET OF std::decimal) -> std::decimal
 
 
 CREATE FUNCTION
-math::stddev_pop(vals: SET OF std::int64) -> std::float64
+std::math::stddev_pop(vals: SET OF std::int64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the population standard deviation of the input set.';
@@ -313,7 +313,7 @@ math::stddev_pop(vals: SET OF std::int64) -> std::float64
 
 
 CREATE FUNCTION
-math::stddev_pop(vals: SET OF std::float64) -> std::float64
+std::math::stddev_pop(vals: SET OF std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the population standard deviation of the input set.';
@@ -324,10 +324,10 @@ math::stddev_pop(vals: SET OF std::float64) -> std::float64
 };
 
 
-# math::var
+# std::math::var
 # --------------
 CREATE FUNCTION
-math::var(vals: SET OF std::decimal) -> OPTIONAL std::decimal
+std::math::var(vals: SET OF std::decimal) -> OPTIONAL std::decimal
 {
     CREATE ANNOTATION std::description :=
         'Return the sample variance of the input set.';
@@ -339,7 +339,7 @@ math::var(vals: SET OF std::decimal) -> OPTIONAL std::decimal
 
 
 CREATE FUNCTION
-math::var(vals: SET OF std::int64) -> OPTIONAL std::float64
+std::math::var(vals: SET OF std::int64) -> OPTIONAL std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the sample variance of the input set.';
@@ -353,7 +353,7 @@ math::var(vals: SET OF std::int64) -> OPTIONAL std::float64
 
 
 CREATE FUNCTION
-math::var(vals: SET OF std::float64) -> OPTIONAL std::float64
+std::math::var(vals: SET OF std::float64) -> OPTIONAL std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the sample variance of the input set.';
@@ -364,10 +364,10 @@ math::var(vals: SET OF std::float64) -> OPTIONAL std::float64
 };
 
 
-# math::var_pop
+# std::math::var_pop
 # -------------
 CREATE FUNCTION
-math::var_pop(vals: SET OF std::decimal) -> OPTIONAL std::decimal
+std::math::var_pop(vals: SET OF std::decimal) -> OPTIONAL std::decimal
 {
     CREATE ANNOTATION std::description :=
         'Return the population variance of the input set.';
@@ -379,7 +379,7 @@ math::var_pop(vals: SET OF std::decimal) -> OPTIONAL std::decimal
 
 
 CREATE FUNCTION
-math::var_pop(vals: SET OF std::int64) -> OPTIONAL std::float64
+std::math::var_pop(vals: SET OF std::int64) -> OPTIONAL std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the population variance of the input set.';
@@ -393,7 +393,7 @@ math::var_pop(vals: SET OF std::int64) -> OPTIONAL std::float64
 
 
 CREATE FUNCTION
-math::var_pop(vals: SET OF std::float64) -> OPTIONAL std::float64
+std::math::var_pop(vals: SET OF std::float64) -> OPTIONAL std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the population variance of the input set.';

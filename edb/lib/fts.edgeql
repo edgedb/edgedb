@@ -17,9 +17,9 @@
 #
 
 
-CREATE MODULE fts;
+CREATE MODULE std::fts;
 
-CREATE SCALAR TYPE fts::Language
+CREATE SCALAR TYPE std::fts::Language
     EXTENDING enum<
         ara,
         hye,
@@ -51,54 +51,54 @@ CREATE SCALAR TYPE fts::Language
     ';
 };
 
-CREATE SCALAR TYPE fts::Weight EXTENDING enum<A, B, C, D> {
+CREATE SCALAR TYPE std::fts::Weight EXTENDING enum<A, B, C, D> {
     CREATE ANNOTATION std::description := "
         Weight category.
-        Weight values for each category can be provided in fts::search.
+        Weight values for each category can be provided in std::fts::search.
     ";
 };
 
-CREATE ABSTRACT INDEX fts::index {
+CREATE ABSTRACT INDEX std::fts::index {
     CREATE ANNOTATION std::description :=
         "Full-text search index based on the Postgres's GIN index.";
     SET code := ''; # overridden by a special case
 };
 
-CREATE SCALAR TYPE fts::document {
+CREATE SCALAR TYPE std::fts::document {
     SET transient := true;
 };
 
-create index match for fts::document using fts::index;
+create index match for std::fts::document using std::fts::index;
 
-CREATE FUNCTION fts::with_options(
+CREATE FUNCTION std::fts::with_options(
     text: std::str,
     NAMED ONLY language: anyenum,
-    NAMED ONLY weight_category: optional fts::Weight = fts::Weight.A,
-) -> fts::document {
+    NAMED ONLY weight_category: optional std::fts::Weight = std::fts::Weight.A,
+) -> std::fts::document {
     CREATE ANNOTATION std::description := '
         Adds language and weight category information to a string,
-        so it be indexed with fts::index.
+        so it be indexed with std::fts::index.
     ';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
-CREATE FUNCTION fts::search(
+CREATE FUNCTION std::fts::search(
     object: anyobject,
     query: std::str,
-    named only language: std::str = <std::str>fts::Language.eng,
+    named only language: std::str = <std::str>std::fts::Language.eng,
     named only weights: optional array<float64> = {},
 ) -> optional tuple<object: anyobject, score: float32>
 {
     CREATE ANNOTATION std::description := '
-        Search an object using its fts::index index.
+        Search an object using its std::fts::index index.
         Returns objects that match the specified query and the matching score.
     ';
     SET volatility := 'Stable';
     USING SQL EXPRESSION;
 };
 
-CREATE SCALAR TYPE fts::PGLanguage
+CREATE SCALAR TYPE std::fts::PGLanguage
     EXTENDING enum<
         xxx_simple,
         ara,
@@ -137,7 +137,7 @@ CREATE SCALAR TYPE fts::PGLanguage
     ';
 };
 
-CREATE SCALAR TYPE fts::ElasticLanguage
+CREATE SCALAR TYPE std::fts::ElasticLanguage
     EXTENDING enum<
         ara,
         bul,
@@ -179,7 +179,7 @@ CREATE SCALAR TYPE fts::ElasticLanguage
     ';
 };
 
-CREATE SCALAR TYPE fts::LuceneLanguage
+CREATE SCALAR TYPE std::fts::LuceneLanguage
     EXTENDING enum<
         ara,
         ben,

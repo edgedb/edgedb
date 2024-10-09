@@ -535,7 +535,6 @@ def elab_single_type_str(name: str, module_name: Optional[str]) -> Tp:
         return e.AnyTp(name[3:])
     else:
         if module_name:
-            assert "::" not in module_name
             return e.UncheckedTypeName(e.QualifiedName([module_name, name]))
         else:
             return e.UncheckedTypeName(e.UnqualifiedName(name))

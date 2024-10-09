@@ -298,8 +298,8 @@ class TestIndexes(tb.DDLTestCase):
                             'name': 'fts::index',
                             'kwargs': [],
                             'expr': (
-                                'fts::with_options(.name, '
-                                'language := fts::Language.eng)'
+                                'std::fts::with_options(.name, '
+                                'language := std::fts::Language.eng)'
                             ),
                             'abstract': False,
                         }
@@ -343,8 +343,8 @@ class TestIndexes(tb.DDLTestCase):
                             'name': 'default::MyIndex',
                             'kwargs': [],
                             'expr': (
-                                'fts::with_options(.name, '
-                                'language := fts::Language.eng)'
+                                'std::fts::with_options(.name, '
+                                'language := std::fts::Language.eng)'
                             ),
                             'abstract': False,
                         }
@@ -379,7 +379,7 @@ class TestIndexes(tb.DDLTestCase):
                     'abstract': True,
                     'ancestors': [
                         {
-                            'name': 'fts::index',
+                            'name': 'std::fts::index',
                             'params': [],
                             'abstract': True,
                         }

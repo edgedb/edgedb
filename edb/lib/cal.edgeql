@@ -16,30 +16,30 @@
 # limitations under the License.
 #
 
-CREATE MODULE cal;
+CREATE MODULE std::cal;
 
-CREATE SCALAR TYPE cal::local_datetime
+CREATE SCALAR TYPE std::cal::local_datetime
     EXTENDING std::anycontiguous;
 
-CREATE SCALAR TYPE cal::local_date
+CREATE SCALAR TYPE std::cal::local_date
     EXTENDING std::anydiscrete;
 
-CREATE SCALAR TYPE cal::local_time EXTENDING std::anyscalar;
+CREATE SCALAR TYPE std::cal::local_time EXTENDING std::anyscalar;
 
-CREATE SCALAR TYPE cal::relative_duration EXTENDING std::anyscalar;
+CREATE SCALAR TYPE std::cal::relative_duration EXTENDING std::anyscalar;
 
-CREATE SCALAR TYPE cal::date_duration EXTENDING std::anyscalar;
+CREATE SCALAR TYPE std::cal::date_duration EXTENDING std::anyscalar;
 
 
 ## Functions
 ## ---------
 
 CREATE FUNCTION
-cal::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
-    -> cal::local_datetime
+std::cal::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
+    -> std::cal::local_datetime
 {
     CREATE ANNOTATION std::description :=
-        'Create a `cal::local_datetime` value.';
+        'Create a `std::cal::local_datetime` value.';
     # Helper function to_local_datetime is VOLATILE.
     SET volatility := 'Volatile';
     USING SQL $$
@@ -71,12 +71,12 @@ cal::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
 
 
 CREATE FUNCTION
-cal::to_local_datetime(year: std::int64, month: std::int64, day: std::int64,
+std::cal::to_local_datetime(year: std::int64, month: std::int64, day: std::int64,
                        hour: std::int64, min: std::int64, sec: std::float64)
-    -> cal::local_datetime
+    -> std::cal::local_datetime
 {
     CREATE ANNOTATION std::description :=
-        'Create a `cal::local_datetime` value.';
+        'Create a `std::cal::local_datetime` value.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT make_timestamp(
@@ -88,11 +88,11 @@ cal::to_local_datetime(year: std::int64, month: std::int64, day: std::int64,
 
 
 CREATE FUNCTION
-cal::to_local_datetime(dt: std::datetime, zone: std::str)
-    -> cal::local_datetime
+std::cal::to_local_datetime(dt: std::datetime, zone: std::str)
+    -> std::cal::local_datetime
 {
     CREATE ANNOTATION std::description :=
-        'Create a `cal::local_datetime` value.';
+        'Create a `std::cal::local_datetime` value.';
     # The version of timezone with these arguments is IMMUTABLE.
     SET volatility := 'Immutable';
     USING SQL $$
@@ -102,9 +102,9 @@ cal::to_local_datetime(dt: std::datetime, zone: std::str)
 
 
 CREATE FUNCTION
-cal::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> cal::local_date
+std::cal::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> std::cal::local_date
 {
-    CREATE ANNOTATION std::description := 'Create a `cal::local_date` value.';
+    CREATE ANNOTATION std::description := 'Create a `std::cal::local_date` value.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
@@ -134,10 +134,10 @@ cal::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> cal::local_date
 
 
 CREATE FUNCTION
-cal::to_local_date(dt: std::datetime, zone: std::str)
-    -> cal::local_date
+std::cal::to_local_date(dt: std::datetime, zone: std::str)
+    -> std::cal::local_date
 {
-    CREATE ANNOTATION std::description := 'Create a `cal::local_date` value.';
+    CREATE ANNOTATION std::description := 'Create a `std::cal::local_date` value.';
     # The version of timezone with these arguments is IMMUTABLE.
     SET volatility := 'Immutable';
     USING SQL $$
@@ -147,10 +147,10 @@ cal::to_local_date(dt: std::datetime, zone: std::str)
 
 
 CREATE FUNCTION
-cal::to_local_date(year: std::int64, month: std::int64, day: std::int64)
-    -> cal::local_date
+std::cal::to_local_date(year: std::int64, month: std::int64, day: std::int64)
+    -> std::cal::local_date
 {
-    CREATE ANNOTATION std::description := 'Create a `cal::local_date` value.';
+    CREATE ANNOTATION std::description := 'Create a `std::cal::local_date` value.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT make_date("year"::int, "month"::int, "day"::int)::edgedbt.date_t
@@ -159,9 +159,9 @@ cal::to_local_date(year: std::int64, month: std::int64, day: std::int64)
 
 
 CREATE FUNCTION
-cal::to_local_time(s: std::str, fmt: OPTIONAL str={}) -> cal::local_time
+std::cal::to_local_time(s: std::str, fmt: OPTIONAL str={}) -> std::cal::local_time
 {
-    CREATE ANNOTATION std::description := 'Create a `cal::local_time` value.';
+    CREATE ANNOTATION std::description := 'Create a `std::cal::local_time` value.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
@@ -192,10 +192,10 @@ cal::to_local_time(s: std::str, fmt: OPTIONAL str={}) -> cal::local_time
 
 
 CREATE FUNCTION
-cal::to_local_time(dt: std::datetime, zone: std::str)
-    -> cal::local_time
+std::cal::to_local_time(dt: std::datetime, zone: std::str)
+    -> std::cal::local_time
 {
-    CREATE ANNOTATION std::description := 'Create a `cal::local_time` value.';
+    CREATE ANNOTATION std::description := 'Create a `std::cal::local_time` value.';
     # The version of timezone with these arguments is IMMUTABLE and so
     # is the cast.
     SET volatility := 'Immutable';
@@ -206,10 +206,10 @@ cal::to_local_time(dt: std::datetime, zone: std::str)
 
 
 CREATE FUNCTION
-cal::to_local_time(hour: std::int64, min: std::int64, sec: std::float64)
-    -> cal::local_time
+std::cal::to_local_time(hour: std::int64, min: std::int64, sec: std::float64)
+    -> std::cal::local_time
 {
-    CREATE ANNOTATION std::description := 'Create a `cal::local_time` value.';
+    CREATE ANNOTATION std::description := 'Create a `std::cal::local_time` value.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT
@@ -219,7 +219,7 @@ cal::to_local_time(hour: std::int64, min: std::int64, sec: std::float64)
                 NULL::time,
                 'invalid_datetime_format',
                 msg => (
-                    'cal::local_time field value out of range: '
+                    'std::cal::local_time field value out of range: '
                     || quote_literal(x.t::text)
                 )
             )
@@ -234,7 +234,7 @@ cal::to_local_time(hour: std::int64, min: std::int64, sec: std::float64)
 
 
 CREATE FUNCTION
-cal::to_relative_duration(
+std::cal::to_relative_duration(
         NAMED ONLY years: std::int64=0,
         NAMED ONLY months: std::int64=0,
         NAMED ONLY days: std::int64=0,
@@ -242,9 +242,9 @@ cal::to_relative_duration(
         NAMED ONLY minutes: std::int64=0,
         NAMED ONLY seconds: std::float64=0,
         NAMED ONLY microseconds: std::int64=0
-    ) -> cal::relative_duration
+    ) -> std::cal::relative_duration
 {
-    CREATE ANNOTATION std::description := 'Create a `cal::relative_duration` value.';
+    CREATE ANNOTATION std::description := 'Create a `std::cal::relative_duration` value.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
@@ -264,13 +264,13 @@ cal::to_relative_duration(
 
 
 CREATE FUNCTION
-cal::to_date_duration(
+std::cal::to_date_duration(
         NAMED ONLY years: std::int64=0,
         NAMED ONLY months: std::int64=0,
         NAMED ONLY days: std::int64=0
-    ) -> cal::date_duration
+    ) -> std::cal::date_duration
 {
-    CREATE ANNOTATION std::description := 'Create a `cal::date_duration` value.';
+    CREATE ANNOTATION std::description := 'Create a `std::cal::date_duration` value.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT make_interval(
@@ -284,7 +284,7 @@ cal::to_date_duration(
 
 
 CREATE FUNCTION
-cal::time_get(dt: cal::local_time, el: std::str) -> std::float64
+std::cal::time_get(dt: std::cal::local_time, el: std::str) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Extract a specific element of input time by name.';
@@ -313,7 +313,7 @@ cal::time_get(dt: cal::local_time, el: std::str) -> std::float64
 
 
 CREATE FUNCTION
-cal::date_get(dt: cal::local_date, el: std::str) -> std::float64
+std::cal::date_get(dt: std::cal::local_date, el: std::str) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Extract a specific element of input date by name.';
@@ -343,8 +343,8 @@ cal::date_get(dt: cal::local_date, el: std::str) -> std::float64
 
 
 CREATE FUNCTION
-cal::duration_normalize_hours(dur: cal::relative_duration)
-  -> cal::relative_duration
+std::cal::duration_normalize_hours(dur: std::cal::relative_duration)
+  -> std::cal::relative_duration
 {
     CREATE ANNOTATION std::description :=
         'Convert 24-hour chunks into days.';
@@ -355,8 +355,8 @@ cal::duration_normalize_hours(dur: cal::relative_duration)
 
 
 CREATE FUNCTION
-cal::duration_normalize_days(dur: cal::relative_duration)
-  -> cal::relative_duration
+std::cal::duration_normalize_days(dur: std::cal::relative_duration)
+  -> std::cal::relative_duration
 {
     CREATE ANNOTATION std::description :=
         'Convert 30-day chunks into months.';
@@ -367,8 +367,8 @@ cal::duration_normalize_days(dur: cal::relative_duration)
 
 
 CREATE FUNCTION
-cal::duration_normalize_days(dur: cal::date_duration)
-  -> cal::date_duration
+std::cal::duration_normalize_days(dur: std::cal::date_duration)
+  -> std::cal::date_duration
 {
     CREATE ANNOTATION std::description :=
         'Convert 30-day chunks into months.';
@@ -383,7 +383,7 @@ cal::duration_normalize_days(dur: cal::date_duration)
 ## --------------------------
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::datetime, r: cal::relative_duration) -> std::datetime {
+std::`+` (l: std::datetime, r: std::cal::relative_duration) -> std::datetime {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time addition.';
@@ -398,7 +398,7 @@ std::`+` (l: std::datetime, r: cal::relative_duration) -> std::datetime {
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::relative_duration, r: std::datetime) -> std::datetime {
+std::`+` (l: std::cal::relative_duration, r: std::datetime) -> std::datetime {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time addition.';
@@ -413,7 +413,7 @@ std::`+` (l: cal::relative_duration, r: std::datetime) -> std::datetime {
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::datetime, r: cal::relative_duration) -> std::datetime {
+std::`-` (l: std::datetime, r: std::cal::relative_duration) -> std::datetime {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time subtraction.';
@@ -426,11 +426,11 @@ std::`-` (l: std::datetime, r: cal::relative_duration) -> std::datetime {
 };
 
 
-## Operators on cal::local_datetime
+## Operators on std::cal::local_datetime
 ## --------------------------------
 
 CREATE INFIX OPERATOR
-std::`=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
+std::`=` (l: std::cal::local_datetime, r: std::cal::local_datetime) -> std::bool {
     CREATE ANNOTATION std::identifier := 'eq';
     CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
@@ -441,8 +441,8 @@ std::`=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL cal::local_datetime,
-           r: OPTIONAL cal::local_datetime) -> std::bool {
+std::`?=` (l: OPTIONAL std::cal::local_datetime,
+           r: OPTIONAL std::cal::local_datetime) -> std::bool {
     CREATE ANNOTATION std::identifier := 'coal_eq';
     CREATE ANNOTATION std::description :=
         'Compare two (potentially empty) values for equality.';
@@ -452,7 +452,7 @@ std::`?=` (l: OPTIONAL cal::local_datetime,
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
+std::`!=` (l: std::cal::local_datetime, r: std::cal::local_datetime) -> std::bool {
     CREATE ANNOTATION std::identifier := 'neq';
     CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
@@ -463,8 +463,8 @@ std::`!=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL cal::local_datetime,
-            r: OPTIONAL cal::local_datetime) -> std::bool {
+std::`?!=` (l: OPTIONAL std::cal::local_datetime,
+            r: OPTIONAL std::cal::local_datetime) -> std::bool {
     CREATE ANNOTATION std::identifier := 'coal_neq';
     CREATE ANNOTATION std::description :=
         'Compare two (potentially empty) values for inequality.';
@@ -474,7 +474,7 @@ std::`?!=` (l: OPTIONAL cal::local_datetime,
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
+std::`>` (l: std::cal::local_datetime, r: std::cal::local_datetime) -> std::bool {
     CREATE ANNOTATION std::identifier := 'gt';
     CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
@@ -485,7 +485,7 @@ std::`>` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
+std::`>=` (l: std::cal::local_datetime, r: std::cal::local_datetime) -> std::bool {
     CREATE ANNOTATION std::identifier := 'gte';
     CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
@@ -496,7 +496,7 @@ std::`>=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
+std::`<` (l: std::cal::local_datetime, r: std::cal::local_datetime) -> std::bool {
     CREATE ANNOTATION std::identifier := 'lt';
     CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
@@ -507,7 +507,7 @@ std::`<` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
+std::`<=` (l: std::cal::local_datetime, r: std::cal::local_datetime) -> std::bool {
     CREATE ANNOTATION std::identifier := 'lte';
     CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
@@ -518,7 +518,7 @@ std::`<=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
+std::`+` (l: std::cal::local_datetime, r: std::duration) -> std::cal::local_datetime {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time addition.';
@@ -531,7 +531,7 @@ std::`+` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::duration, r: cal::local_datetime) -> cal::local_datetime {
+std::`+` (l: std::duration, r: std::cal::local_datetime) -> std::cal::local_datetime {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time addition.';
@@ -544,7 +544,7 @@ std::`+` (l: std::duration, r: cal::local_datetime) -> cal::local_datetime {
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
+std::`-` (l: std::cal::local_datetime, r: std::duration) -> std::cal::local_datetime {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time subtraction.';
@@ -556,7 +556,7 @@ std::`-` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::local_datetime, r: cal::relative_duration) -> cal::local_datetime {
+std::`+` (l: std::cal::local_datetime, r: std::cal::relative_duration) -> std::cal::local_datetime {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time addition.';
@@ -569,7 +569,7 @@ std::`+` (l: cal::local_datetime, r: cal::relative_duration) -> cal::local_datet
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::relative_duration, r: cal::local_datetime) -> cal::local_datetime {
+std::`+` (l: std::cal::relative_duration, r: std::cal::local_datetime) -> std::cal::local_datetime {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time addition.';
@@ -582,7 +582,7 @@ std::`+` (l: cal::relative_duration, r: cal::local_datetime) -> cal::local_datet
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: cal::local_datetime, r: cal::relative_duration) -> cal::local_datetime {
+std::`-` (l: std::cal::local_datetime, r: std::cal::relative_duration) -> std::cal::local_datetime {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time subtraction.';
@@ -594,7 +594,7 @@ std::`-` (l: cal::local_datetime, r: cal::relative_duration) -> cal::local_datet
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: cal::local_datetime, r: cal::local_datetime) -> cal::relative_duration {
+std::`-` (l: std::cal::local_datetime, r: std::cal::local_datetime) -> std::cal::relative_duration {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description := 'Date/time subtraction.';
     SET volatility := 'Immutable';
@@ -603,11 +603,11 @@ std::`-` (l: cal::local_datetime, r: cal::local_datetime) -> cal::relative_durat
 };
 
 
-## Operators on cal::local_date
+## Operators on std::cal::local_date
 ## ----------------------------
 
 CREATE INFIX OPERATOR
-std::`=` (l: cal::local_date, r: cal::local_date) -> std::bool {
+std::`=` (l: std::cal::local_date, r: std::cal::local_date) -> std::bool {
     CREATE ANNOTATION std::identifier := 'eq';
     CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
@@ -618,8 +618,8 @@ std::`=` (l: cal::local_date, r: cal::local_date) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL cal::local_date,
-           r: OPTIONAL cal::local_date) -> std::bool {
+std::`?=` (l: OPTIONAL std::cal::local_date,
+           r: OPTIONAL std::cal::local_date) -> std::bool {
     CREATE ANNOTATION std::identifier := 'coal_eq';
     CREATE ANNOTATION std::description :=
         'Compare two (potentially empty) values for equality.';
@@ -629,7 +629,7 @@ std::`?=` (l: OPTIONAL cal::local_date,
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: cal::local_date, r: cal::local_date) -> std::bool {
+std::`!=` (l: std::cal::local_date, r: std::cal::local_date) -> std::bool {
     CREATE ANNOTATION std::identifier := 'neq';
     CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
@@ -640,8 +640,8 @@ std::`!=` (l: cal::local_date, r: cal::local_date) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL cal::local_date,
-            r: OPTIONAL cal::local_date) -> std::bool {
+std::`?!=` (l: OPTIONAL std::cal::local_date,
+            r: OPTIONAL std::cal::local_date) -> std::bool {
     CREATE ANNOTATION std::identifier := 'coal_neq';
     CREATE ANNOTATION std::description :=
         'Compare two (potentially empty) values for inequality.';
@@ -651,7 +651,7 @@ std::`?!=` (l: OPTIONAL cal::local_date,
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: cal::local_date, r: cal::local_date) -> std::bool {
+std::`>` (l: std::cal::local_date, r: std::cal::local_date) -> std::bool {
     CREATE ANNOTATION std::identifier := 'gt';
     CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
@@ -662,7 +662,7 @@ std::`>` (l: cal::local_date, r: cal::local_date) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: cal::local_date, r: cal::local_date) -> std::bool {
+std::`>=` (l: std::cal::local_date, r: std::cal::local_date) -> std::bool {
     CREATE ANNOTATION std::identifier := 'gte';
     CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
@@ -673,7 +673,7 @@ std::`>=` (l: cal::local_date, r: cal::local_date) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: cal::local_date, r: cal::local_date) -> std::bool {
+std::`<` (l: std::cal::local_date, r: std::cal::local_date) -> std::bool {
     CREATE ANNOTATION std::identifier := 'lt';
     CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
@@ -684,7 +684,7 @@ std::`<` (l: cal::local_date, r: cal::local_date) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: cal::local_date, r: cal::local_date) -> std::bool {
+std::`<=` (l: std::cal::local_date, r: std::cal::local_date) -> std::bool {
     CREATE ANNOTATION std::identifier := 'lte';
     CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
@@ -695,7 +695,7 @@ std::`<=` (l: cal::local_date, r: cal::local_date) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::local_date, r: std::duration) -> cal::local_datetime
+std::`+` (l: std::cal::local_date, r: std::duration) -> std::cal::local_datetime
 {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
@@ -710,7 +710,7 @@ std::`+` (l: cal::local_date, r: std::duration) -> cal::local_datetime
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::duration, r: cal::local_date) -> cal::local_datetime
+std::`+` (l: std::duration, r: std::cal::local_date) -> std::cal::local_datetime
 {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
@@ -725,7 +725,7 @@ std::`+` (l: std::duration, r: cal::local_date) -> cal::local_datetime
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: cal::local_date, r: std::duration) -> cal::local_datetime
+std::`-` (l: std::cal::local_date, r: std::duration) -> std::cal::local_datetime
 {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
@@ -739,7 +739,7 @@ std::`-` (l: cal::local_date, r: std::duration) -> cal::local_datetime
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::local_date, r: cal::relative_duration) -> cal::local_datetime
+std::`+` (l: std::cal::local_date, r: std::cal::relative_duration) -> std::cal::local_datetime
 {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
@@ -754,7 +754,7 @@ std::`+` (l: cal::local_date, r: cal::relative_duration) -> cal::local_datetime
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::relative_duration, r: cal::local_date) -> cal::local_datetime
+std::`+` (l: std::cal::relative_duration, r: std::cal::local_date) -> std::cal::local_datetime
 {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
@@ -769,7 +769,7 @@ std::`+` (l: cal::relative_duration, r: cal::local_date) -> cal::local_datetime
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: cal::local_date, r: cal::relative_duration) -> cal::local_datetime
+std::`-` (l: std::cal::local_date, r: std::cal::relative_duration) -> std::cal::local_datetime
 {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
@@ -783,7 +783,7 @@ std::`-` (l: cal::local_date, r: cal::relative_duration) -> cal::local_datetime
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::local_date, r: cal::date_duration) -> cal::local_date
+std::`+` (l: std::cal::local_date, r: std::cal::date_duration) -> std::cal::local_date
 {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
@@ -798,7 +798,7 @@ std::`+` (l: cal::local_date, r: cal::date_duration) -> cal::local_date
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::date_duration, r: cal::local_date) -> cal::local_date
+std::`+` (l: std::cal::date_duration, r: std::cal::local_date) -> std::cal::local_date
 {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
@@ -813,7 +813,7 @@ std::`+` (l: cal::date_duration, r: cal::local_date) -> cal::local_date
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: cal::local_date, r: cal::date_duration) -> cal::local_date
+std::`-` (l: std::cal::local_date, r: std::cal::date_duration) -> std::cal::local_date
 {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
@@ -827,7 +827,7 @@ std::`-` (l: cal::local_date, r: cal::date_duration) -> cal::local_date
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: cal::local_date, r: cal::local_date) -> cal::date_duration
+std::`-` (l: std::cal::local_date, r: std::cal::local_date) -> std::cal::date_duration
 {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description := 'Date subtraction.';
@@ -839,11 +839,11 @@ std::`-` (l: cal::local_date, r: cal::local_date) -> cal::date_duration
 };
 
 
-## Operators on cal::local_time
+## Operators on std::cal::local_time
 ## ----------------------------
 
 CREATE INFIX OPERATOR
-std::`=` (l: cal::local_time, r: cal::local_time) -> std::bool {
+std::`=` (l: std::cal::local_time, r: std::cal::local_time) -> std::bool {
     CREATE ANNOTATION std::identifier := 'eq';
     CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
@@ -854,8 +854,8 @@ std::`=` (l: cal::local_time, r: cal::local_time) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL cal::local_time,
-           r: OPTIONAL cal::local_time) -> std::bool {
+std::`?=` (l: OPTIONAL std::cal::local_time,
+           r: OPTIONAL std::cal::local_time) -> std::bool {
     CREATE ANNOTATION std::identifier := 'coal_eq';
     CREATE ANNOTATION std::description :=
         'Compare two (potentially empty) values for equality.';
@@ -865,7 +865,7 @@ std::`?=` (l: OPTIONAL cal::local_time,
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: cal::local_time, r: cal::local_time) -> std::bool {
+std::`!=` (l: std::cal::local_time, r: std::cal::local_time) -> std::bool {
     CREATE ANNOTATION std::identifier := 'neq';
     CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
@@ -876,8 +876,8 @@ std::`!=` (l: cal::local_time, r: cal::local_time) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL cal::local_time,
-            r: OPTIONAL cal::local_time) -> std::bool {
+std::`?!=` (l: OPTIONAL std::cal::local_time,
+            r: OPTIONAL std::cal::local_time) -> std::bool {
     CREATE ANNOTATION std::identifier := 'coal_neq';
     CREATE ANNOTATION std::description :=
         'Compare two (potentially empty) values for inequality.';
@@ -887,7 +887,7 @@ std::`?!=` (l: OPTIONAL cal::local_time,
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: cal::local_time, r: cal::local_time) -> std::bool {
+std::`>` (l: std::cal::local_time, r: std::cal::local_time) -> std::bool {
     CREATE ANNOTATION std::identifier := 'gt';
     CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
@@ -898,7 +898,7 @@ std::`>` (l: cal::local_time, r: cal::local_time) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: cal::local_time, r: cal::local_time) -> std::bool {
+std::`>=` (l: std::cal::local_time, r: std::cal::local_time) -> std::bool {
     CREATE ANNOTATION std::identifier := 'gte';
     CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
@@ -909,7 +909,7 @@ std::`>=` (l: cal::local_time, r: cal::local_time) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: cal::local_time, r: cal::local_time) -> std::bool {
+std::`<` (l: std::cal::local_time, r: std::cal::local_time) -> std::bool {
     CREATE ANNOTATION std::identifier := 'lt';
     CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
@@ -920,7 +920,7 @@ std::`<` (l: cal::local_time, r: cal::local_time) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: cal::local_time, r: cal::local_time) -> std::bool {
+std::`<=` (l: std::cal::local_time, r: std::cal::local_time) -> std::bool {
     CREATE ANNOTATION std::identifier := 'lte';
     CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
@@ -931,7 +931,7 @@ std::`<=` (l: cal::local_time, r: cal::local_time) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::local_time, r: std::duration) -> cal::local_time {
+std::`+` (l: std::cal::local_time, r: std::duration) -> std::cal::local_time {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time addition.';
@@ -942,7 +942,7 @@ std::`+` (l: cal::local_time, r: std::duration) -> cal::local_time {
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::duration, r: cal::local_time) -> cal::local_time {
+std::`+` (l: std::duration, r: std::cal::local_time) -> std::cal::local_time {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time addition.';
@@ -953,7 +953,7 @@ std::`+` (l: std::duration, r: cal::local_time) -> cal::local_time {
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: cal::local_time, r: std::duration) -> cal::local_time {
+std::`-` (l: std::cal::local_time, r: std::duration) -> std::cal::local_time {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time subtraction.';
@@ -963,7 +963,7 @@ std::`-` (l: cal::local_time, r: std::duration) -> cal::local_time {
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::local_time, r: cal::relative_duration) -> cal::local_time {
+std::`+` (l: std::cal::local_time, r: std::cal::relative_duration) -> std::cal::local_time {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time addition.';
@@ -974,7 +974,7 @@ std::`+` (l: cal::local_time, r: cal::relative_duration) -> cal::local_time {
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::relative_duration, r: cal::local_time) -> cal::local_time {
+std::`+` (l: std::cal::relative_duration, r: std::cal::local_time) -> std::cal::local_time {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time addition.';
@@ -985,7 +985,7 @@ std::`+` (l: cal::relative_duration, r: cal::local_time) -> cal::local_time {
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: cal::local_time, r: cal::relative_duration) -> cal::local_time {
+std::`-` (l: std::cal::local_time, r: std::cal::relative_duration) -> std::cal::local_time {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time subtraction.';
@@ -995,7 +995,7 @@ std::`-` (l: cal::local_time, r: cal::relative_duration) -> cal::local_time {
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: cal::local_time, r: cal::local_time) -> cal::relative_duration {
+std::`-` (l: std::cal::local_time, r: std::cal::local_time) -> std::cal::relative_duration {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description := 'Time subtraction.';
     SET volatility := 'Immutable';
@@ -1004,11 +1004,11 @@ std::`-` (l: cal::local_time, r: cal::local_time) -> cal::relative_duration {
 };
 
 
-## Operators on cal::relative_duration
+## Operators on std::cal::relative_duration
 ## ----------------------------
 
 CREATE INFIX OPERATOR
-std::`=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
+std::`=` (l: std::cal::relative_duration, r: std::cal::relative_duration) -> std::bool {
     CREATE ANNOTATION std::identifier := 'eq';
     CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
@@ -1019,8 +1019,8 @@ std::`=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL cal::relative_duration,
-           r: OPTIONAL cal::relative_duration) -> std::bool {
+std::`?=` (l: OPTIONAL std::cal::relative_duration,
+           r: OPTIONAL std::cal::relative_duration) -> std::bool {
     CREATE ANNOTATION std::identifier := 'coal_eq';
     CREATE ANNOTATION std::description :=
         'Compare two (potentially empty) values for equality.';
@@ -1030,7 +1030,7 @@ std::`?=` (l: OPTIONAL cal::relative_duration,
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
+std::`!=` (l: std::cal::relative_duration, r: std::cal::relative_duration) -> std::bool {
     CREATE ANNOTATION std::identifier := 'neq';
     CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
@@ -1042,8 +1042,8 @@ std::`!=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (
-        l: OPTIONAL cal::relative_duration,
-        r: OPTIONAL cal::relative_duration
+        l: OPTIONAL std::cal::relative_duration,
+        r: OPTIONAL std::cal::relative_duration
 ) -> std::bool {
     CREATE ANNOTATION std::identifier := 'coal_neq';
     CREATE ANNOTATION std::description :=
@@ -1054,7 +1054,7 @@ std::`?!=` (
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
+std::`>` (l: std::cal::relative_duration, r: std::cal::relative_duration) -> std::bool {
     CREATE ANNOTATION std::identifier := 'gt';
     CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
@@ -1065,7 +1065,7 @@ std::`>` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
+std::`>=` (l: std::cal::relative_duration, r: std::cal::relative_duration) -> std::bool {
     CREATE ANNOTATION std::identifier := 'gte';
     CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
@@ -1076,7 +1076,7 @@ std::`>=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
+std::`<` (l: std::cal::relative_duration, r: std::cal::relative_duration) -> std::bool {
     CREATE ANNOTATION std::identifier := 'lt';
     CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
@@ -1087,7 +1087,7 @@ std::`<` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
+std::`<=` (l: std::cal::relative_duration, r: std::cal::relative_duration) -> std::bool {
     CREATE ANNOTATION std::identifier := 'lte';
     CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
@@ -1098,7 +1098,7 @@ std::`<=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::relative_duration, r: cal::relative_duration) -> cal::relative_duration {
+std::`+` (l: std::cal::relative_duration, r: std::cal::relative_duration) -> std::cal::relative_duration {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval addition.';
@@ -1111,7 +1111,7 @@ std::`+` (l: cal::relative_duration, r: cal::relative_duration) -> cal::relative
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: cal::relative_duration, r: cal::relative_duration) -> cal::relative_duration {
+std::`-` (l: std::cal::relative_duration, r: std::cal::relative_duration) -> std::cal::relative_duration {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
         'Time interval subtraction.';
@@ -1123,7 +1123,7 @@ std::`-` (l: cal::relative_duration, r: cal::relative_duration) -> cal::relative
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::date_duration, r: cal::date_duration) -> cal::date_duration {
+std::`+` (l: std::cal::date_duration, r: std::cal::date_duration) -> std::cal::date_duration {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval addition.';
@@ -1136,7 +1136,7 @@ std::`+` (l: cal::date_duration, r: cal::date_duration) -> cal::date_duration {
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: cal::date_duration, r: cal::date_duration) -> cal::date_duration {
+std::`-` (l: std::cal::date_duration, r: std::cal::date_duration) -> std::cal::date_duration {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
         'Time interval subtraction.';
@@ -1148,7 +1148,7 @@ std::`-` (l: cal::date_duration, r: cal::date_duration) -> cal::date_duration {
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::duration, r: cal::relative_duration) -> cal::relative_duration {
+std::`+` (l: std::duration, r: std::cal::relative_duration) -> std::cal::relative_duration {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval addition.';
@@ -1161,7 +1161,7 @@ std::`+` (l: std::duration, r: cal::relative_duration) -> cal::relative_duration
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: cal::relative_duration, r: std::duration) -> cal::relative_duration {
+std::`+` (l: std::cal::relative_duration, r: std::duration) -> std::cal::relative_duration {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval addition.';
@@ -1174,7 +1174,7 @@ std::`+` (l: cal::relative_duration, r: std::duration) -> cal::relative_duration
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::duration, r: cal::relative_duration) -> cal::relative_duration {
+std::`-` (l: std::duration, r: std::cal::relative_duration) -> std::cal::relative_duration {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
         'Time interval subtraction.';
@@ -1186,7 +1186,7 @@ std::`-` (l: std::duration, r: cal::relative_duration) -> cal::relative_duration
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: cal::relative_duration, r: std::duration) -> cal::relative_duration {
+std::`-` (l: std::cal::relative_duration, r: std::duration) -> std::cal::relative_duration {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
         'Time interval subtraction.';
@@ -1198,7 +1198,7 @@ std::`-` (l: cal::relative_duration, r: std::duration) -> cal::relative_duration
 
 
 CREATE PREFIX OPERATOR
-std::`-` (v: cal::relative_duration) -> cal::relative_duration {
+std::`-` (v: std::cal::relative_duration) -> std::cal::relative_duration {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
         'Time interval negation.';
@@ -1212,19 +1212,19 @@ std::`-` (v: cal::relative_duration) -> cal::relative_duration {
 ## Date/time casts
 ## ---------------
 
-CREATE CAST FROM cal::local_datetime TO cal::local_date {
+CREATE CAST FROM std::cal::local_datetime TO std::cal::local_date {
     SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
 
-CREATE CAST FROM cal::local_datetime TO cal::local_time {
+CREATE CAST FROM std::cal::local_datetime TO std::cal::local_time {
     SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
 
-CREATE CAST FROM cal::local_date TO cal::local_datetime {
+CREATE CAST FROM std::cal::local_date TO std::cal::local_datetime {
     SET volatility := 'Immutable';
     USING SQL CAST;
     # Analogous to implicit cast from int64 to float64.
@@ -1232,25 +1232,25 @@ CREATE CAST FROM cal::local_date TO cal::local_datetime {
 };
 
 
-CREATE CAST FROM std::str TO cal::local_datetime {
+CREATE CAST FROM std::str TO std::cal::local_datetime {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.local_datetime_in';
 };
 
 
-CREATE CAST FROM std::str TO cal::local_date {
+CREATE CAST FROM std::str TO std::cal::local_date {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.local_date_in';
 };
 
 
-CREATE CAST FROM std::str TO cal::local_time {
+CREATE CAST FROM std::str TO std::cal::local_time {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.local_time_in';
 };
 
 
-CREATE CAST FROM std::str TO cal::relative_duration {
+CREATE CAST FROM std::str TO std::cal::relative_duration {
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT val::edgedbt.relative_duration_t;
@@ -1258,38 +1258,38 @@ CREATE CAST FROM std::str TO cal::relative_duration {
 };
 
 
-CREATE CAST FROM std::str TO cal::date_duration {
+CREATE CAST FROM std::str TO std::cal::date_duration {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.date_duration_in';
 };
 
 
-CREATE CAST FROM cal::local_datetime TO std::str {
+CREATE CAST FROM std::cal::local_datetime TO std::str {
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT trim(to_json(val)::text, '"');
     $$;
 };
 
-CREATE CAST FROM cal::local_date TO std::str {
+CREATE CAST FROM std::cal::local_date TO std::str {
     SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
 
-CREATE CAST FROM cal::local_time TO std::str {
+CREATE CAST FROM std::cal::local_time TO std::str {
     SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
 
-CREATE CAST FROM cal::relative_duration TO std::str {
+CREATE CAST FROM std::cal::relative_duration TO std::str {
     SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
 
-CREATE CAST FROM cal::date_duration TO std::str {
+CREATE CAST FROM std::cal::date_duration TO std::str {
     SET volatility := 'Immutable';
     # We want the 0 date_duration canonically represented be in lowest
     # date_duration units, i.e. in days.
@@ -1302,31 +1302,31 @@ CREATE CAST FROM cal::date_duration TO std::str {
 };
 
 
-CREATE CAST FROM cal::local_datetime TO std::json {
+CREATE CAST FROM std::cal::local_datetime TO std::json {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
-CREATE CAST FROM cal::local_date TO std::json {
+CREATE CAST FROM std::cal::local_date TO std::json {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
-CREATE CAST FROM cal::local_time TO std::json {
+CREATE CAST FROM std::cal::local_time TO std::json {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
-CREATE CAST FROM cal::relative_duration TO std::json {
+CREATE CAST FROM std::cal::relative_duration TO std::json {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
-CREATE CAST FROM cal::date_duration TO std::json {
+CREATE CAST FROM std::cal::date_duration TO std::json {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
     # We want the 0 date_duration canonically represented be in lowest
@@ -1340,7 +1340,7 @@ CREATE CAST FROM cal::date_duration TO std::json {
 };
 
 
-CREATE CAST FROM std::json TO cal::local_datetime {
+CREATE CAST FROM std::json TO std::cal::local_datetime {
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb_VER.local_datetime_in(
@@ -1350,7 +1350,7 @@ CREATE CAST FROM std::json TO cal::local_datetime {
 };
 
 
-CREATE CAST FROM std::json TO cal::local_date {
+CREATE CAST FROM std::json TO std::cal::local_date {
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb_VER.local_date_in(
@@ -1360,7 +1360,7 @@ CREATE CAST FROM std::json TO cal::local_date {
 };
 
 
-CREATE CAST FROM std::json TO cal::local_time {
+CREATE CAST FROM std::json TO std::cal::local_time {
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb_VER.local_time_in(
@@ -1370,7 +1370,7 @@ CREATE CAST FROM std::json TO cal::local_time {
 };
 
 
-CREATE CAST FROM std::json TO cal::relative_duration {
+CREATE CAST FROM std::json TO std::cal::relative_duration {
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb_VER.jsonb_extract_scalar(
@@ -1380,7 +1380,7 @@ CREATE CAST FROM std::json TO cal::relative_duration {
 };
 
 
-CREATE CAST FROM std::json TO cal::date_duration {
+CREATE CAST FROM std::json TO std::cal::date_duration {
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb_VER.date_duration_in(
@@ -1390,19 +1390,19 @@ CREATE CAST FROM std::json TO cal::date_duration {
 };
 
 
-CREATE CAST FROM std::duration TO cal::relative_duration {
+CREATE CAST FROM std::duration TO std::cal::relative_duration {
     SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
 
-CREATE CAST FROM cal::relative_duration TO std::duration {
+CREATE CAST FROM std::cal::relative_duration TO std::duration {
     SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
 
-CREATE CAST FROM cal::date_duration TO cal::relative_duration {
+CREATE CAST FROM std::cal::date_duration TO std::cal::relative_duration {
     # Same underlying types that don't require any DST calculations to convert
     # into eachother.
     SET volatility := 'Immutable';
@@ -1412,7 +1412,7 @@ CREATE CAST FROM cal::date_duration TO cal::relative_duration {
 };
 
 
-CREATE CAST FROM cal::relative_duration TO cal::date_duration {
+CREATE CAST FROM std::cal::relative_duration TO std::cal::date_duration {
     # Same underlying types that don't require any DST calculations to convert
     # into eachother.
     SET volatility := 'Immutable';
@@ -1424,7 +1424,7 @@ CREATE CAST FROM cal::relative_duration TO cal::date_duration {
 ## ------------------
 
 CREATE FUNCTION
-std::datetime_get(dt: cal::local_datetime, el: std::str) -> std::float64
+std::datetime_get(dt: std::cal::local_datetime, el: std::str) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Extract a specific element of input datetime by name.';
@@ -1459,7 +1459,7 @@ std::datetime_get(dt: cal::local_datetime, el: std::str) -> std::float64
 
 
 CREATE FUNCTION
-std::duration_get(dt: cal::date_duration, el: std::str) -> std::float64
+std::duration_get(dt: std::cal::date_duration, el: std::str) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Extract a specific element of input duration by name.';
@@ -1491,7 +1491,7 @@ std::duration_get(dt: cal::date_duration, el: std::str) -> std::float64
 
 
 CREATE FUNCTION
-std::duration_get(dt: cal::relative_duration, el: std::str) -> std::float64
+std::duration_get(dt: std::cal::relative_duration, el: std::str) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Extract a specific element of input duration by name.';
@@ -1526,9 +1526,9 @@ std::duration_get(dt: cal::relative_duration, el: std::str) -> std::float64
 
 CREATE FUNCTION
 std::duration_truncate(
-    dt: cal::date_duration,
+    dt: std::cal::date_duration,
     unit: std::str
-) -> cal::date_duration
+) -> std::cal::date_duration
 {
     CREATE ANNOTATION std::description :=
         'Truncate the input duration to a particular precision.';
@@ -1559,9 +1559,9 @@ std::duration_truncate(
 
 CREATE FUNCTION
 std::duration_truncate(
-    dt: cal::relative_duration,
+    dt: std::cal::relative_duration,
     unit: std::str
-) -> cal::relative_duration
+) -> std::cal::relative_duration
 {
     CREATE ANNOTATION std::description :=
         'Truncate the input duration to a particular precision.';
@@ -1594,7 +1594,7 @@ std::duration_truncate(
 
 
 CREATE FUNCTION
-std::to_str(dt: cal::local_datetime, fmt: OPTIONAL str={}) -> std::str
+std::to_str(dt: std::cal::local_datetime, fmt: OPTIONAL str={}) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
@@ -1622,7 +1622,7 @@ std::to_str(dt: cal::local_datetime, fmt: OPTIONAL str={}) -> std::str
 
 
 CREATE FUNCTION
-std::to_str(d: cal::local_date, fmt: OPTIONAL str={}) -> std::str
+std::to_str(d: std::cal::local_date, fmt: OPTIONAL str={}) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
@@ -1656,7 +1656,7 @@ std::to_str(d: cal::local_date, fmt: OPTIONAL str={}) -> std::str
 # the format.
 # FIXME: date formatting should not have any special effect.
 CREATE FUNCTION
-std::to_str(nt: cal::local_time, fmt: OPTIONAL str={}) -> std::str
+std::to_str(nt: std::cal::local_time, fmt: OPTIONAL str={}) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
@@ -1684,7 +1684,7 @@ std::to_str(nt: cal::local_time, fmt: OPTIONAL str={}) -> std::str
 
 
 CREATE FUNCTION
-std::to_str(rd: cal::relative_duration, fmt: OPTIONAL str={}) -> std::str
+std::to_str(rd: std::cal::relative_duration, fmt: OPTIONAL str={}) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
@@ -1712,7 +1712,7 @@ std::to_str(rd: cal::relative_duration, fmt: OPTIONAL str={}) -> std::str
 
 
 CREATE FUNCTION
-std::to_datetime(local: cal::local_datetime, zone: std::str)
+std::to_datetime(local: std::cal::local_datetime, zone: std::str)
     -> std::datetime
 {
     CREATE ANNOTATION std::description := 'Create a `datetime` value.';
@@ -1725,7 +1725,7 @@ std::to_datetime(local: cal::local_datetime, zone: std::str)
 
 
 CREATE FUNCTION
-std::min(vals: SET OF cal::local_datetime) -> OPTIONAL cal::local_datetime
+std::min(vals: SET OF std::cal::local_datetime) -> OPTIONAL std::cal::local_datetime
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1737,7 +1737,7 @@ std::min(vals: SET OF cal::local_datetime) -> OPTIONAL cal::local_datetime
 
 
 CREATE FUNCTION
-std::min(vals: SET OF cal::local_date) -> OPTIONAL cal::local_date
+std::min(vals: SET OF std::cal::local_date) -> OPTIONAL std::cal::local_date
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1749,7 +1749,7 @@ std::min(vals: SET OF cal::local_date) -> OPTIONAL cal::local_date
 
 
 CREATE FUNCTION
-std::min(vals: SET OF cal::local_time) -> OPTIONAL cal::local_time
+std::min(vals: SET OF std::cal::local_time) -> OPTIONAL std::cal::local_time
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1761,7 +1761,7 @@ std::min(vals: SET OF cal::local_time) -> OPTIONAL cal::local_time
 
 
 CREATE FUNCTION
-std::min(vals: SET OF cal::relative_duration) -> OPTIONAL cal::relative_duration
+std::min(vals: SET OF std::cal::relative_duration) -> OPTIONAL std::cal::relative_duration
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1773,7 +1773,7 @@ std::min(vals: SET OF cal::relative_duration) -> OPTIONAL cal::relative_duration
 
 
 CREATE FUNCTION
-std::min(vals: SET OF cal::date_duration) -> OPTIONAL cal::date_duration
+std::min(vals: SET OF std::cal::date_duration) -> OPTIONAL std::cal::date_duration
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1785,7 +1785,7 @@ std::min(vals: SET OF cal::date_duration) -> OPTIONAL cal::date_duration
 
 
 CREATE FUNCTION
-std::min(vals: SET OF array<cal::local_datetime>) -> OPTIONAL array<cal::local_datetime>
+std::min(vals: SET OF array<std::cal::local_datetime>) -> OPTIONAL array<std::cal::local_datetime>
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1797,7 +1797,7 @@ std::min(vals: SET OF array<cal::local_datetime>) -> OPTIONAL array<cal::local_d
 
 
 CREATE FUNCTION
-std::min(vals: SET OF array<cal::local_date>) -> OPTIONAL array<cal::local_date>
+std::min(vals: SET OF array<std::cal::local_date>) -> OPTIONAL array<std::cal::local_date>
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1809,7 +1809,7 @@ std::min(vals: SET OF array<cal::local_date>) -> OPTIONAL array<cal::local_date>
 
 
 CREATE FUNCTION
-std::min(vals: SET OF array<cal::local_time>) -> OPTIONAL array<cal::local_time>
+std::min(vals: SET OF array<std::cal::local_time>) -> OPTIONAL array<std::cal::local_time>
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1821,7 +1821,7 @@ std::min(vals: SET OF array<cal::local_time>) -> OPTIONAL array<cal::local_time>
 
 
 CREATE FUNCTION
-std::min(vals: SET OF array<cal::relative_duration>) -> OPTIONAL array<cal::relative_duration>
+std::min(vals: SET OF array<std::cal::relative_duration>) -> OPTIONAL array<std::cal::relative_duration>
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1833,7 +1833,7 @@ std::min(vals: SET OF array<cal::relative_duration>) -> OPTIONAL array<cal::rela
 
 
 CREATE FUNCTION
-std::min(vals: SET OF array<cal::date_duration>) -> OPTIONAL array<cal::date_duration>
+std::min(vals: SET OF array<std::cal::date_duration>) -> OPTIONAL array<std::cal::date_duration>
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1845,7 +1845,7 @@ std::min(vals: SET OF array<cal::date_duration>) -> OPTIONAL array<cal::date_dur
 
 
 CREATE FUNCTION
-std::max(vals: SET OF cal::local_datetime) -> OPTIONAL cal::local_datetime
+std::max(vals: SET OF std::cal::local_datetime) -> OPTIONAL std::cal::local_datetime
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1857,7 +1857,7 @@ std::max(vals: SET OF cal::local_datetime) -> OPTIONAL cal::local_datetime
 
 
 CREATE FUNCTION
-std::max(vals: SET OF cal::local_date) -> OPTIONAL cal::local_date
+std::max(vals: SET OF std::cal::local_date) -> OPTIONAL std::cal::local_date
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1869,7 +1869,7 @@ std::max(vals: SET OF cal::local_date) -> OPTIONAL cal::local_date
 
 
 CREATE FUNCTION
-std::max(vals: SET OF cal::local_time) -> OPTIONAL cal::local_time
+std::max(vals: SET OF std::cal::local_time) -> OPTIONAL std::cal::local_time
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1881,7 +1881,7 @@ std::max(vals: SET OF cal::local_time) -> OPTIONAL cal::local_time
 
 
 CREATE FUNCTION
-std::max(vals: SET OF cal::relative_duration) -> OPTIONAL cal::relative_duration
+std::max(vals: SET OF std::cal::relative_duration) -> OPTIONAL std::cal::relative_duration
 {
     CREATE ANNOTATION std::description :=
         'Return the greatest value of the input set.';
@@ -1893,7 +1893,7 @@ std::max(vals: SET OF cal::relative_duration) -> OPTIONAL cal::relative_duration
 
 
 CREATE FUNCTION
-std::max(vals: SET OF cal::date_duration) -> OPTIONAL cal::date_duration
+std::max(vals: SET OF std::cal::date_duration) -> OPTIONAL std::cal::date_duration
 {
     CREATE ANNOTATION std::description :=
         'Return the greatest value of the input set.';
@@ -1905,7 +1905,7 @@ std::max(vals: SET OF cal::date_duration) -> OPTIONAL cal::date_duration
 
 
 CREATE FUNCTION
-std::max(vals: SET OF array<cal::local_datetime>) -> OPTIONAL array<cal::local_datetime>
+std::max(vals: SET OF array<std::cal::local_datetime>) -> OPTIONAL array<std::cal::local_datetime>
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1917,7 +1917,7 @@ std::max(vals: SET OF array<cal::local_datetime>) -> OPTIONAL array<cal::local_d
 
 
 CREATE FUNCTION
-std::max(vals: SET OF array<cal::local_date>) -> OPTIONAL array<cal::local_date>
+std::max(vals: SET OF array<std::cal::local_date>) -> OPTIONAL array<std::cal::local_date>
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1929,7 +1929,7 @@ std::max(vals: SET OF array<cal::local_date>) -> OPTIONAL array<cal::local_date>
 
 
 CREATE FUNCTION
-std::max(vals: SET OF array<cal::local_time>) -> OPTIONAL array<cal::local_time>
+std::max(vals: SET OF array<std::cal::local_time>) -> OPTIONAL array<std::cal::local_time>
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1941,7 +1941,7 @@ std::max(vals: SET OF array<cal::local_time>) -> OPTIONAL array<cal::local_time>
 
 
 CREATE FUNCTION
-std::max(vals: SET OF array<cal::relative_duration>) -> OPTIONAL array<cal::relative_duration>
+std::max(vals: SET OF array<std::cal::relative_duration>) -> OPTIONAL array<std::cal::relative_duration>
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1953,7 +1953,7 @@ std::max(vals: SET OF array<cal::relative_duration>) -> OPTIONAL array<cal::rela
 
 
 CREATE FUNCTION
-std::max(vals: SET OF array<cal::date_duration>) -> OPTIONAL array<cal::date_duration>
+std::max(vals: SET OF array<std::cal::date_duration>) -> OPTIONAL array<std::cal::date_duration>
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
@@ -1971,8 +1971,8 @@ std::max(vals: SET OF array<cal::date_duration>) -> OPTIONAL array<cal::date_dur
 # schema. That's why they exist for each concrete type explicitly and aren't
 # defined generically for anytype.
 CREATE FUNCTION std::multirange_unpack(
-    val: multirange<cal::local_datetime>,
-) -> set of range<cal::local_datetime>
+    val: multirange<std::cal::local_datetime>,
+) -> set of range<std::cal::local_datetime>
 {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'unnest';
@@ -1980,8 +1980,8 @@ CREATE FUNCTION std::multirange_unpack(
 
 
 CREATE FUNCTION std::multirange_unpack(
-    val: multirange<cal::local_date>,
-) -> set of range<cal::local_date>
+    val: multirange<std::cal::local_date>,
+) -> set of range<std::cal::local_date>
 {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'unnest';
@@ -1990,9 +1990,9 @@ CREATE FUNCTION std::multirange_unpack(
 
 CREATE FUNCTION
 std::range_unpack(
-    val: range<cal::local_datetime>,
-    step: cal::relative_duration
-) -> set of cal::local_datetime
+    val: range<std::cal::local_datetime>,
+    step: std::cal::relative_duration
+) -> set of std::cal::local_datetime
 {
     SET volatility := 'Immutable';
     USING SQL $$
@@ -2020,8 +2020,8 @@ std::range_unpack(
 
 CREATE FUNCTION
 std::range_unpack(
-    val: range<cal::local_date>
-) -> set of cal::local_date
+    val: range<std::cal::local_date>
+) -> set of std::cal::local_date
 {
     SET volatility := 'Immutable';
     USING SQL $$
@@ -2051,9 +2051,9 @@ std::range_unpack(
 
 CREATE FUNCTION
 std::range_unpack(
-    val: range<cal::local_date>,
-    step: cal::date_duration
-) -> set of cal::local_date
+    val: range<std::cal::local_date>,
+    step: std::cal::date_duration
+) -> set of std::cal::local_date
 {
     SET volatility := 'Immutable';
     USING SQL $$
@@ -2082,8 +2082,8 @@ std::range_unpack(
 
 # Need to cast edgedbt.date_t to date in order for the @> operator to work.
 CREATE FUNCTION std::contains(
-    haystack: range<cal::local_date>,
-    needle: cal::local_date
+    haystack: range<std::cal::local_date>,
+    needle: std::cal::local_date
 ) -> std::bool
 {
     SET volatility := 'Immutable';
@@ -2097,8 +2097,8 @@ CREATE FUNCTION std::contains(
 
 
 CREATE FUNCTION std::contains(
-    haystack: multirange<cal::local_date>,
-    needle: cal::local_date
+    haystack: multirange<std::cal::local_date>,
+    needle: std::cal::local_date
 ) -> std::bool
 {
     SET volatility := 'Immutable';

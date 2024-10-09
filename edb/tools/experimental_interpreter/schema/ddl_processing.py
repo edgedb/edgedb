@@ -22,7 +22,6 @@ def process_ddl(schema: e.DBSchema, ddl: qlast.DDLOperation) -> None:
         case qlast.CreateModule(
             name=qlast.ObjectRef(name=module_name), commands=[]
         ):
-            assert "::" not in module_name, "TODO"
             schema.modules[(module_name,)] = e.DBModule({})
         case (
             qlast.CreatePseudoType()
@@ -39,7 +38,6 @@ def process_ddl(schema: e.DBSchema, ddl: qlast.DDLOperation) -> None:
             assert (
                 module_name is not None
             ), "Scalar types cannot be created in top level"
-            assert "::" not in module_name, "TODO"
             schema.modules[(module_name,)].defs[type_name] = (
                 e.ModuleEntityTypeDef(
                     e.ScalarTp(e.QualifiedName([module_name, type_name])),
@@ -161,7 +159,6 @@ def process_ddl(schema: e.DBSchema, ddl: qlast.DDLOperation) -> None:
             assert (
                 module_name is not None
             ), "Object types cannot be created in top level"
-            assert "::" not in module_name, "TODO"
             obj_tp, constraints, indexes = elab_schema.elab_create_object_tp(
                 commands
             )

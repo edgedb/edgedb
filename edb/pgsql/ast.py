@@ -1316,7 +1316,7 @@ class FTSDocument(BaseExpr):
     """
     Text and information on how to search through it.
 
-    Constructed with `fts::with_options`.
+    Constructed with `std::fts::with_options`.
     """
 
     text: BaseExpr

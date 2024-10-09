@@ -2443,12 +2443,13 @@ class DateDurationInFunction(trampoline.VersionedFunction):
                     NULL::edgedbt.date_duration_t,
                     'invalid_datetime_format',
                     msg => (
-                        'invalid input syntax for type cal::date_duration: '
+                        'invalid input syntax for type '
+                        || 'std::cal::date_duration: '
                         || quote_literal(val)
                     ),
                     detail => (
                         '{"hint":"Units smaller than days cannot be used '
-                        || 'for cal::date_duration."}'
+                        || 'for std::cal::date_duration."}'
                     )
                 )
             ELSE v.column1::edgedbt.date_duration_t
@@ -2559,7 +2560,7 @@ class LocalTimeInFunction(trampoline.VersionedFunction):
                     NULL::time,
                     'invalid_datetime_format',
                     msg => (
-                        'cal::local_time field value out of range: '
+                        'std::cal::local_time field value out of range: '
                         || quote_literal(val)
                     )
                 )

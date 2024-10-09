@@ -562,7 +562,7 @@ std::contains(haystack: array<anytype>, needle: anytype) -> std::bool
         'A polymorphic function to test if a sequence contains a certain element.';
     SET volatility := 'Immutable';
     # Postgres only manages to inline this function if it isn't marked strict,
-    # and we want it to be inlined so that pg::gin indexes work with it.
+    # and we want it to be inlined so that std::pg::gin indexes work with it.
     SET impl_is_strict := false;
     USING SQL $$
     SELECT "haystack" @> ARRAY["needle"]
@@ -577,7 +577,7 @@ std::contains(haystack: json, needle: json) -> std::bool
         'A polymorphic function to test if one JSON value contains another JSON value.';
     SET volatility := 'Immutable';
     # Postgres only manages to inline this function if it isn't marked strict,
-    # and we want it to be inlined so that pg::gin indexes work with it.
+    # and we want it to be inlined so that std::pg::gin indexes work with it.
     SET impl_is_strict := false;
     USING SQL $$
     SELECT "haystack" @> "needle"

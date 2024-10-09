@@ -76,17 +76,17 @@ VALUES = {
               datetime=True, signed=False, anynumeric=False),
 
     '<cal::local_datetime>"2018-05-07T00:00:00"':
-        value(typename='cal::local_datetime',
+        value(typename='std::cal::local_datetime',
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=False, anynumeric=False),
 
     '<cal::local_date>"2018-05-07"':
-        value(typename='cal::local_date',
+        value(typename='std::cal::local_date',
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=False, anynumeric=False),
 
     '<cal::local_time>"20:01:22.306916"':
-        value(typename='cal::local_time',
+        value(typename='std::cal::local_time',
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=False, anynumeric=False),
 
@@ -151,14 +151,14 @@ VALUES = {
               datetime=False, signed=True, anynumeric=True),
 
     '<cal::relative_duration>"P1Y2M3D"':
-        value(typename='cal::relative_duration',
+        value(typename='std::cal::relative_duration',
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=True, anynumeric=False),
 
     # Much like integer and float values are all setup to be 1 and equal to
     # each other, so are relative_duration and date_duration equal.
     '<cal::date_duration>"P1Y2M3D"':
-        value(typename='cal::date_duration',
+        value(typename='std::cal::date_duration',
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=True, anynumeric=False),
 }
@@ -1227,8 +1227,8 @@ class TestExpressions(tb.QueryTestCase):
                                     ldesc.typename,
                                     rdesc.typename
                                 } == {
-                                    'cal::relative_duration',
-                                    'cal::date_duration'
+                                    'std::cal::relative_duration',
+                                    'std::cal::date_duration'
                                 }
                             )
                             or
@@ -1240,8 +1240,8 @@ class TestExpressions(tb.QueryTestCase):
                                     ldesc.typename,
                                     rdesc.typename
                                 } == {
-                                    'cal::local_date',
-                                    'cal::local_datetime'
+                                    'std::cal::local_date',
+                                    'std::cal::local_datetime'
                                 }
                             )
                         ) else expected_error_msg
@@ -1267,8 +1267,8 @@ class TestExpressions(tb.QueryTestCase):
                                     ldesc.typename,
                                     rdesc.typename
                                 } == {
-                                    'cal::relative_duration',
-                                    'cal::date_duration'
+                                    'std::cal::relative_duration',
+                                    'std::cal::date_duration'
                                 }
                             )
                             or
@@ -1280,8 +1280,8 @@ class TestExpressions(tb.QueryTestCase):
                                     ldesc.typename,
                                     rdesc.typename
                                 } == {
-                                    'cal::local_date',
-                                    'cal::local_datetime'
+                                    'std::cal::local_date',
+                                    'std::cal::local_datetime'
                                 }
                             )
                         ) else expected_error_msg
@@ -1678,39 +1678,41 @@ class TestExpressions(tb.QueryTestCase):
                 argtypes = {ldesc.typename, rdesc.typename}
 
                 if argtypes == {
-                    'cal::local_date',
-                    'cal::date_duration'
+                    'std::cal::local_date',
+                    'std::cal::date_duration'
                 }:
                     # whole day arithmetic
-                    restype = 'cal::local_date'
-                elif ldesc.typename == rdesc.typename == 'cal::date_duration':
+                    restype = 'std::cal::local_date'
+                elif {ldesc.typename, rdesc.typename} == {
+                    'std::cal::date_duration',
+                }:
                     # whole day arithmetic
-                    restype = 'cal::date_duration'
+                    restype = 'std::cal::date_duration'
                 elif argtypes.intersection({
                     'duration',
-                    'cal::relative_duration',
-                    'cal::date_duration'
+                    'std::cal::relative_duration',
+                    'std::cal::date_duration'
                 }):
                     # Whole day arithemtic is accounted for, so what's left is
                     # fractional date arithemtic. The result is always some
                     # kind of fractional datetime scalar.
                     otherarg = argtypes - {
                         'duration',
-                        'cal::relative_duration',
-                        'cal::date_duration'
+                        'std::cal::relative_duration',
+                        'std::cal::date_duration'
                     }
                     if ldesc.typename == rdesc.typename:
                         # duration flavour is preserved
                         restype = ldesc.typename
                     elif len(otherarg) == 0:
                         # Some combo of durations make relative_duration.
-                        restype = 'cal::relative_duration'
+                        restype = 'std::cal::relative_duration'
                     else:
                         othertype = otherarg.pop()
-                        if othertype == 'cal::local_date':
+                        if othertype == 'std::cal::local_date':
                             # local_date + fractional durarion makes
                             # local_datetime
-                            restype = 'cal::local_datetime'
+                            restype = 'std::cal::local_datetime'
                         else:
                             # Everything else is laready fractional, so just
                             # use the type of the other argument.
@@ -1745,33 +1747,37 @@ class TestExpressions(tb.QueryTestCase):
                         restype = rdesc.typename
                     else:
                         # mixing duration types makes relative_duration
-                        restype = 'cal::relative_duration'
-                elif (ldesc.typename == 'cal::local_date' and
-                        rdesc.typename == 'cal::local_date'):
-                    restype = 'cal::date_duration'
-                elif (ldesc.typename == 'cal::local_date' and
-                        rdesc.typename == 'cal::date_duration'):
-                    restype = 'cal::local_date'
+                        restype = 'std::cal::relative_duration'
+                elif (ldesc.typename == 'std::cal::local_date' and
+                        rdesc.typename == 'std::cal::local_date'):
+                    restype = 'std::cal::date_duration'
+                elif (ldesc.typename == 'std::cal::local_date' and
+                        rdesc.typename == 'std::cal::date_duration'):
+                    restype = 'std::cal::local_date'
                 elif rdesc.signed:
                     # Subtracting some flavour of duration.
-                    if ldesc.typename == 'cal::local_date':
-                        restype = 'cal::local_datetime'
+                    if ldesc.typename == 'std::cal::local_date':
+                        restype = 'std::cal::local_datetime'
                     else:
                         # Preserve the [fractional] date/time type of the left
                         # argument.
                         restype = ldesc.typename
                 elif rdesc.typename == ldesc.typename == 'datetime':
                     restype = 'duration'
-                elif rdesc.typename == ldesc.typename == 'cal::local_datetime':
-                    restype = 'cal::relative_duration'
-                elif rdesc.typename == ldesc.typename == 'cal::local_time':
-                    restype = 'cal::relative_duration'
                 elif {rdesc.typename, ldesc.typename} == {
-                    'cal::local_datetime',
-                    'cal::local_date',
+                    'std::cal::local_datetime'
+                }:
+                    restype = 'std::cal::relative_duration'
+                elif {rdesc.typename, ldesc.typename} == {
+                    'std::cal::local_time'
+                }:
+                    restype = 'std::cal::relative_duration'
+                elif {rdesc.typename, ldesc.typename} == {
+                    'std::cal::local_datetime',
+                    'std::cal::local_date',
                 }:
                     # mix of local_date and local_datetime
-                    restype = 'cal::relative_duration'
+                    restype = 'std::cal::relative_duration'
 
                 if restype:
                     await self.assert_query_result(query, [1])
@@ -2025,8 +2031,8 @@ class TestExpressions(tb.QueryTestCase):
                     # casting
                     (
                         argtypes == {
-                            'cal::relative_duration',
-                            'cal::date_duration'
+                            'std::cal::relative_duration',
+                            'std::cal::date_duration'
                         }
                     )
                     or
@@ -2035,8 +2041,8 @@ class TestExpressions(tb.QueryTestCase):
                     # casting
                     (
                         argtypes == {
-                            'cal::local_date',
-                            'cal::local_datetime'
+                            'std::cal::local_date',
+                            'std::cal::local_datetime'
                         }
                     )
                 ):
@@ -2048,17 +2054,17 @@ class TestExpressions(tb.QueryTestCase):
                         SELECT (INTROSPECT TYPEOF ({left} UNION {right})).name
                     """
                     # this operation should always be valid
-                    if 'cal::relative_duration' in argtypes:
+                    if 'std::cal::relative_duration' in argtypes:
                         # This is possible when relative_duration and
                         # date_duration mix and the result is implicitly cast
                         # to relative_duration.
-                        desc_typename = 'cal::relative_duration'
-                    elif 'cal::local_datetime' in argtypes:
+                        desc_typename = 'std::cal::relative_duration'
+                    elif 'std::cal::local_datetime' in argtypes:
                         # This is possible when local_datetime and
                         # local_date mix and the result is implicitly cast
                         # to local_datetime.
-                        desc_typename = 'cal::local_datetime'
-                    elif rdesc.typename.startswith('cal::'):
+                        desc_typename = 'std::cal::local_datetime'
+                    elif rdesc.typename.startswith('std::cal::'):
                         desc_typename = rdesc.typename
                     else:
                         desc_typename = 'std::' + rdesc.typename
@@ -2204,8 +2210,8 @@ class TestExpressions(tb.QueryTestCase):
                         # casting
                         (
                             argtypes == {
-                                'cal::relative_duration',
-                                'cal::date_duration'
+                                'std::cal::relative_duration',
+                                'std::cal::date_duration'
                             }
                         )
                         or
@@ -2214,8 +2220,8 @@ class TestExpressions(tb.QueryTestCase):
                         # casting
                         (
                             argtypes == {
-                                'cal::local_date',
-                                'cal::local_datetime'
+                                'std::cal::local_date',
+                                'std::cal::local_datetime'
                             }
                         )
                     ):
@@ -2224,17 +2230,17 @@ class TestExpressions(tb.QueryTestCase):
                         await self.assert_query_result(query, [1])
 
                         # this operation should always be valid
-                        if 'cal::relative_duration' in argtypes:
+                        if 'std::cal::relative_duration' in argtypes:
                             # This is possible when relative_duration and
                             # date_duration mix and the result is implicitly
                             # cast to relative_duration.
-                            desc_typename = 'cal::relative_duration'
-                        elif 'cal::local_datetime' in argtypes:
+                            desc_typename = 'std::cal::relative_duration'
+                        elif 'std::cal::local_datetime' in argtypes:
                             # This is possible when local_datetime and
                             # local_date mix and the result is implicitly cast
                             # to local_datetime.
-                            desc_typename = 'cal::local_datetime'
-                        elif rdesc.typename.startswith('cal::'):
+                            desc_typename = 'std::cal::local_datetime'
+                        elif rdesc.typename.startswith('std::cal::'):
                             desc_typename = rdesc.typename
                         else:
                             desc_typename = 'std::' + rdesc.typename
@@ -6864,7 +6870,7 @@ aa \
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidValueError,
-            r"invalid input syntax for type cal::local_date: "
+            r"invalid input syntax for type std::cal::local_date: "
             r"'2022.06.10'"
         ):
             await self.con.execute(r"""
@@ -6878,7 +6884,7 @@ aa \
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidValueError,
-            r"invalid input syntax for type cal::local_date: "
+            r"invalid input syntax for type std::cal::local_date: "
             r"'12022-06-17'"
         ):
             await self.con.execute(r"""
@@ -7025,7 +7031,7 @@ aa \
             ranges = [edgedb.Range(empty=True)]
             if desc.datetime:
                 val = val.strip('"')
-                if desc.typename == 'cal::local_date':
+                if desc.typename == 'std::cal::local_date':
                     ranges.append(edgedb.Range(
                         datetime.date.fromisoformat(val)))
                 else:
@@ -7072,7 +7078,7 @@ aa \
             query = f'select <array<multirange<{desc.typename}>>>$0'
             if desc.datetime:
                 val = val.strip('"')
-                if desc.typename == 'cal::local_date':
+                if desc.typename == 'std::cal::local_date':
                     ranges = [
                         edgedb.Range(datetime.date.fromisoformat(val))
                     ]
@@ -9900,7 +9906,7 @@ aa \
         async with self.assertRaisesRegexTx(
             edgedb.errors.InvalidReferenceError,
             "does not exist",
-            _hint="did you mean to call 'cal::to_local_date'?"
+            _hint="did you mean to call 'std::cal::to_local_date'?"
         ):
             await self.con.execute(f"""
                 select <cal::to_local_date>1;

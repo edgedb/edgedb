@@ -3334,7 +3334,7 @@ def get_reindex_sql(
     """
 
     (fts_index, _) = s_indexes.get_effective_object_index(
-        schema, obj, sn.QualName("fts", "index")
+        schema, obj, sn.QualName("std::fts", "index")
     )
     if fts_index and '__fts_document__' not in restore_desc.fields:
         options = get_index_compile_options(fts_index, schema, {}, None)
@@ -3411,7 +3411,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
                 sql_kwarg_exprs[name] = sql
 
         # FTS
-        if root_name == sn.QualName('fts', 'index'):
+        if root_name == sn.QualName('std::fts', 'index'):
             return deltafts.create_fts_index(
                 index,
                 ir.expr,

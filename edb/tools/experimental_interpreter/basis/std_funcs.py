@@ -238,7 +238,10 @@ def cal_to_local_datetime_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
             )
             return [
                 e.ScalarVal(
-                    e.ScalarTp(e.QualifiedName(["cal", "local_datetime"])), s
+                    e.ScalarTp(e.QualifiedName(
+                        ["std::cal", "local_datetime"]
+                    )),
+                    s
                 )
             ]
     raise FunCallErr()

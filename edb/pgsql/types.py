@@ -58,12 +58,13 @@ base_type_name_map = {
     s_obj.get_known_type_id('std::bytes'): ('bytea',),
     s_obj.get_known_type_id('std::json'): ('jsonb',),
 
-    s_obj.get_known_type_id('cal::local_datetime'): ('edgedbt', 'timestamp_t'),
-    s_obj.get_known_type_id('cal::local_date'): ('edgedbt', 'date_t'),
-    s_obj.get_known_type_id('cal::local_time'): ('time',),
-    s_obj.get_known_type_id('cal::relative_duration'):
+    s_obj.get_known_type_id('std::cal::local_datetime'):
+        ('edgedbt', 'timestamp_t'),
+    s_obj.get_known_type_id('std::cal::local_date'): ('edgedbt', 'date_t'),
+    s_obj.get_known_type_id('std::cal::local_time'): ('time',),
+    s_obj.get_known_type_id('std::cal::relative_duration'):
         ('edgedbt', 'relative_duration_t'),
-    s_obj.get_known_type_id('cal::date_duration'):
+    s_obj.get_known_type_id('std::cal::date_duration'):
         ('edgedbt', 'date_duration_t'),
 
     s_obj.get_known_type_id('cfg::memory'): ('edgedbt', 'memory_t'),
@@ -128,17 +129,17 @@ base_type_name_map_r = {
     'bytea': sn.QualName('std', 'bytes'),
     'jsonb': sn.QualName('std', 'json'),
 
-    'timestamp': sn.QualName('cal', 'local_datetime'),
-    'timestamp_t': sn.QualName('cal', 'local_datetime'),
-    'edgedbt.timestamp_t': sn.QualName('cal', 'local_datetime'),
-    'date': sn.QualName('cal', 'local_date'),
-    'date_t': sn.QualName('cal', 'local_date'),
-    'edgedbt.date_t': sn.QualName('cal', 'local_date'),
-    'time': sn.QualName('cal', 'local_time'),
-    'relative_duration_t': sn.QualName('cal', 'relative_duration'),
-    'edgedbt.relative_duration_t': sn.QualName('cal', 'relative_duration'),
-    'date_duration_t': sn.QualName('cal', 'date_duration'),
-    'edgedbt.date_duration_t': sn.QualName('cal', 'date_duration'),
+    'timestamp': sn.QualName('std::cal', 'local_datetime'),
+    'timestamp_t': sn.QualName('std::cal', 'local_datetime'),
+    'edgedbt.timestamp_t': sn.QualName('std::cal', 'local_datetime'),
+    'date': sn.QualName('std::cal', 'local_date'),
+    'date_t': sn.QualName('std::cal', 'local_date'),
+    'edgedbt.date_t': sn.QualName('std::cal', 'local_date'),
+    'time': sn.QualName('std::cal', 'local_time'),
+    'relative_duration_t': sn.QualName('std::cal', 'relative_duration'),
+    'edgedbt.relative_duration_t': sn.QualName('std::cal', 'relative_duration'),
+    'date_duration_t': sn.QualName('std::cal', 'date_duration'),
+    'edgedbt.date_duration_t': sn.QualName('std::cal', 'date_duration'),
 
     'edgedbt.memory_t': sn.QualName('cfg', 'memory'),
     'memory_t': sn.QualName('cfg', 'memory'),

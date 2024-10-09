@@ -93,12 +93,12 @@ def get_default_func_impl_for_function(
                     return all_server_std_funcs[name.names[1]]
                 else:
                     return default_impl
-            case "cal":
+            case "std::cal":
                 if name.names[1] in all_server_cal_funcs:
                     return all_server_cal_funcs[name.names[1]]
                 else:
                     return default_impl
-            case "math":
+            case "std::math":
                 if name.names[1] in all_server_math_funcs:
                     return all_server_math_funcs[name.names[1]]
                 else:

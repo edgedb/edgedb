@@ -88,7 +88,6 @@ def process_builtin_fun_def(
             assert (
                 module_name is not None
             ), "Functions cannot be created in top level"
-            assert "::" not in module_name, "TODO"
             func_type = elaborate_fun_def_arg_type(params, ret_tp, ret_typemod)
             func_type = name_res.fun_arg_ret_type_name_resolve(
                 eops.emtpy_tcctx_from_dbschema(schema), func_type

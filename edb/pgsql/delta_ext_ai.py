@@ -537,7 +537,8 @@ def _pg_create_trigger(
 
     # Create a trigger that resets the __ext_ai_{idx_id}_embedding__ to
     # NULL whenever data referenced in the ext::ai::index expression gets
-    # modified (TODO: the selective approach could also be used on fts::index)
+    # modified (TODO: the selective approach could also be used on
+    # std::fts::index)
     ops = dbops.CommandGroup()
     idx_id = _get_index_root_id(schema, index)
 

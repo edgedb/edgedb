@@ -341,7 +341,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                "invalid input syntax for type cal::date_duration: '1s'"):
+                "invalid input syntax for type std::cal::date_duration: '1s'"):
             async with self.con.transaction():
                 await self.con.query(r"""
                     SELECT <str><cal::date_duration>'1s'
@@ -349,7 +349,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                "invalid input syntax for type cal::date_duration: '1s'"):
+                "invalid input syntax for type std::cal::date_duration: '1s'"):
             async with self.con.transaction():
                 await self.con.query(r"""
                     SELECT <str><cal::date_duration><json>'1s'

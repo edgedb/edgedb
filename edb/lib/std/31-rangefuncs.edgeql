@@ -341,7 +341,7 @@ CREATE FUNCTION std::contains(
     # Needed to pick up the indexes when used in FILTER.
     set prefer_subquery_args := true;
     # Postgres only manages to inline this function if it isn't marked strict,
-    # and we want it to be inlined so that pg::gin indexes work with it.
+    # and we want it to be inlined so that std::pg::gin indexes work with it.
     set impl_is_strict := false;
 };
 

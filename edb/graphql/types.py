@@ -261,11 +261,11 @@ EDB_TO_GQL_SCALARS_MAP = {
     'std::duration': GraphQLString,
     'std::bytes': None,
 
-    'cal::local_datetime': GraphQLString,
-    'cal::local_date': GraphQLString,
-    'cal::local_time': GraphQLString,
-    'cal::relative_duration': GraphQLString,
-    'cal::date_duration': GraphQLString,
+    'std::cal::local_datetime': GraphQLString,
+    'std::cal::local_date': GraphQLString,
+    'std::cal::local_time': GraphQLString,
+    'std::cal::relative_duration': GraphQLString,
+    'std::cal::date_duration': GraphQLString,
 }
 
 

@@ -1244,15 +1244,15 @@ def compile_ext_ai_to_str(
     return call
 
 
-@_special_case('fts::search')
+@_special_case('std::fts::search')
 def compile_fts_search(
     call: irast.FunctionCall, *, ctx: context.ContextLevel
 ) -> irast.Expr:
     _validate_object_search_call(
         call,
-        context="fts::search()",
+        context="std::fts::search()",
         object_arg=call.args[0],
-        index_name=sn.QualName("fts", "index"),
+        index_name=sn.QualName("std::fts", "index"),
         ctx=ctx,
     )
 
@@ -1267,7 +1267,7 @@ def _validate_object_search_call(
     index_name: sn.QualName,
     ctx: context.ContextLevel,
 ) -> dict[irast.TypeRef, s_indexes.Index]:
-    # validate that object has fts::index index
+    # validate that object has std::fts::index index
     object_typeref = object_arg.expr.typeref
     object_typeref = object_typeref.material_type or object_typeref
     stype_id = object_typeref.id
@@ -1316,7 +1316,7 @@ def _validate_has_object_index(
     return obj_index
 
 
-@_special_case('fts::with_options')
+@_special_case('std::fts::with_options')
 def compile_fts_with_options(
     call: irast.FunctionCall, *, ctx: context.ContextLevel
 ) -> irast.Expr:
@@ -1352,7 +1352,7 @@ def compile_fts_with_options(
             weight_expr, ctx.env.schema)
     except staeval.UnsupportedExpressionError:
         raise errors.InvalidValueError(
-            f"fts::search weight_category must be a constant",
+            f"std::fts::search weight_category must be a constant",
             span=weight_expr.span,
         ) from None
 
@@ -1362,7 +1362,7 @@ def compile_fts_with_options(
         language_domain=lang_domain,
         weight=weight,
         typeref=typegen.type_to_typeref(
-            ctx.env.schema.get('fts::document', type=s_scalars.ScalarType),
+            ctx.env.schema.get('std::fts::document', type=s_scalars.ScalarType),
             env=ctx.env,
         )
     )
