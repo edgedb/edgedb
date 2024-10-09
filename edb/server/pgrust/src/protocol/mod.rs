@@ -2,6 +2,7 @@ mod arrays;
 mod buffer;
 mod datatypes;
 pub(crate) mod definition;
+pub(crate) mod edgedb;
 mod gen;
 mod message_group;
 mod writer;
@@ -32,7 +33,7 @@ pub mod messages {
 pub use arrays::{Array, ArrayIter, ZTArray, ZTArrayIter};
 pub use buffer::StructBuffer;
 #[allow(unused)]
-pub use datatypes::{Encoded, Rest, ZTString};
+pub use datatypes::{Encoded, Rest, ZTString, LString};
 #[allow(unused)]
 pub use definition::data::*;
 pub use message_group::match_message;
