@@ -168,34 +168,36 @@ def get_unique_random_name() -> str:
 VERSIONED_SCHEMAS = ('edgedb', 'edgedbstd', 'edgedbsql', 'edgedbinstdata')
 
 
-def versioned_schema(s: str, version: Optional[int]=None) -> str:
-    if version is None:
-        # ... get_version_dict() is cached, so we use it instead of
-        # get_version(). We might change this to use catalog version at
-        # some point?
+SCHEMA_SUFFIX: str | None = None
+
+
+def versioned_schema(s: str) -> str:
+    global SCHEMA_SUFFIX
+    if SCHEMA_SUFFIX is None:
         version = buildmeta.get_version_dict()['major']
+        SCHEMA_SUFFIX = f'_v{version}_{buildmeta.EDGEDB_CATALOG_VERSION:x}'
+
     # N.B: We don't bother quoting the schema name, so make sure it is
     # lower case and doesn't have weird characters.
-    return f'{s}_v{version}'
+    return f'{s}{SCHEMA_SUFFIX}'
 
 
 def maybe_versioned_schema(
     s: str,
-    version: Optional[int]=None,
     versioned: bool=True,
 ) -> str:
     return (
-        versioned_schema(s, version=version)
+        versioned_schema(s)
         if versioned and s in VERSIONED_SCHEMAS
         else s
     )
 
 
 def versioned_name(
-    s: tuple[str, ...], version: Optional[int]=None
+    s: tuple[str, ...],
 ) -> tuple[str, ...]:
     if len(s) > 1:
-        return (maybe_versioned_schema(s[0], version), *s[1:])
+        return (maybe_versioned_schema(s[0]), *s[1:])
     else:
         return s
 
