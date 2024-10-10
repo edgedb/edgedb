@@ -56,9 +56,9 @@ class EDBCollapsed(d_rst.Directive):
         return [node]
 
 
-class EdgeDBDomain(s_domains.Domain):
+class GelDomain(s_domains.Domain):
     name = "edb"
-    label = "EdgeDB"
+    label = "Gel"
 
     directives = {
         'collapsed': EDBCollapsed,
@@ -67,7 +67,7 @@ class EdgeDBDomain(s_domains.Domain):
 
 
 def setup_domain(app):
-    app.add_domain(EdgeDBDomain)
+    app.add_domain(GelDomain)
 
 
 def setup(app):

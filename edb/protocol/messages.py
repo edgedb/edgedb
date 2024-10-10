@@ -641,8 +641,8 @@ class DumpHeader(ServerMessage):
     mtype = MessageType('@')
     message_length = MessageLength
     attributes = KeyValues
-    major_ver = UInt16('Major version of EdgeDB.')
-    minor_ver = UInt16('Minor version of EdgeDB.')
+    major_ver = UInt16('Major version of Gel.')
+    minor_ver = UInt16('Minor version of Gel.')
     schema_ddl = String('Schema.')
     types = ArrayOf(UInt32, DumpTypeInfo, 'Type identifiers.')
     descriptors = ArrayOf(UInt32, DumpObjectDesc, 'Object descriptors.')

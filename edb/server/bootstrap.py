@@ -420,7 +420,7 @@ async def _get_cluster_mode(ctx: BootstrapContext) -> ClusterMode:
         return ClusterMode.single_database
 
     # At last, check for single-role-bootstrapped instance by trying to find
-    # the EdgeDB System DB with the assumption that we are not running in
+    # the Gel System DB with the assumption that we are not running in
     # single-db mode. If not found, this is a pristine backend cluster.
     if is_default_tenant:
         result = await ctx.conn.sql_fetch_col(
@@ -2023,7 +2023,7 @@ def compile_sys_queries(
     # `schema::Object.backend_id` property and are injected into
     # array query arguments.
     #
-    # The code below re-syncs backend_id properties of EdgeDB builtin
+    # The code below re-syncs backend_id properties of Gel builtin
     # types with the actual OIDs in the DB.
     backend_id_fixup_edgeql = '''
         WITH
@@ -2339,10 +2339,10 @@ async def _check_catalog_compatibility(
             for status_sink in ctx.args.status_sinks:
                 status_sink(f'INCOMPATIBLE={json.dumps(status)}')
             raise errors.ConfigurationError(
-                'database instance incompatible with this version of EdgeDB',
+                'database instance incompatible with this version of Gel',
                 details=(
                     f'The database instance was initialized with '
-                    f'EdgeDB version {datadir_major}, '
+                    f'Gel version {datadir_major}, '
                     f'which is incompatible with this version '
                     f'{expected_ver.major}'
                 ),
@@ -2356,10 +2356,10 @@ async def _check_catalog_compatibility(
             for status_sink in ctx.args.status_sinks:
                 status_sink(f'INCOMPATIBLE={json.dumps(status)}')
             raise errors.ConfigurationError(
-                'database instance incompatible with this version of EdgeDB',
+                'database instance incompatible with this version of Gel',
                 details=(
                     f'The database instance was initialized with '
-                    f'EdgeDB format version {datadir_catver}, '
+                    f'Gel format version {datadir_catver}, '
                     f'but this version of the server expects '
                     f'format version {expected_catver}'
                 ),
@@ -2459,7 +2459,7 @@ async def _bootstrap(
         raise errors.ConfigurationError(
             'unsupported backend',
             details=(
-                f'EdgeDB requires PostgreSQL version {min_ver} or later, '
+                f'Gel requires PostgreSQL version {min_ver} or later, '
                 f'while the specified backend reports itself as '
                 f'{backend_params.instance_params.version.string}.'
             )
@@ -2493,7 +2493,7 @@ async def _bootstrap(
         tpl_ctx = ctx
 
     in_dev_mode = devmode.is_in_dev_mode()
-    # Protect against multiple EdgeDB tenants from trying to bootstrap
+    # Protect against multiple Gel tenants from trying to bootstrap
     # on the same cluster in devmode, as that is both a waste of resources
     # and might result in broken stdlib cache.
     if in_dev_mode:
@@ -2673,7 +2673,7 @@ async def ensure_bootstrapped(
     cluster: pgcluster.BaseCluster,
     args: edbargs.ServerConfig,
 ) -> tuple[bool, edbcompiler.CompilerState]:
-    """Bootstraps EdgeDB instance if it hasn't been bootstrapped already.
+    """Bootstraps Gel instance if it hasn't been bootstrapped already.
 
     Returns True if bootstrap happened and False if the instance was already
     bootstrapped, along with the bootstrap compiler state.

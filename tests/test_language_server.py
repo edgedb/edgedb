@@ -70,7 +70,7 @@ class TestLanguageServer(unittest.TestCase):
             'Content-Type: application/vscode-jsonrpc; charset=utf-8\r\n'
             '\r\n'
             '{"params": {"type": 4, "message": "Started"}, "method": '
-            '"window/logMessage", "jsonrpc": "2.0"}Content-Length: 428\r\n'
+            '"window/logMessage", "jsonrpc": "2.0"}Content-Length: 425\r\n'
             'Content-Type: application/vscode-jsonrpc; charset=utf-8\r\n'
             '\r\n'
             '{"id": 1, "jsonrpc": "2.0", "result": {"capabilities": '
@@ -79,7 +79,7 @@ class TestLanguageServer(unittest.TestCase):
             '{"triggerCharacters": [","]}, "executeCommandProvider": '
             '{"commands": []}, "workspace": {"workspaceFolders": {"supported":'
             ' true, "changeNotifications": true}, "fileOperations": {}}}, '
-            '"serverInfo": {"name": "EdgeDB Language Server", "version": "v0.1"'
+            '"serverInfo": {"name": "Gel Language Server", "version": "v0.1"'
             '}}}'
         )
 

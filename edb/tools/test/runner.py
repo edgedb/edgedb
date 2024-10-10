@@ -919,7 +919,7 @@ class ParallelTextTestRunner:
 
                 if self.verbosity > 1:
                     self._echo(
-                        '\n -> Bootstrapping EdgeDB instance...',
+                        '\n -> Bootstrapping Gel instance...',
                         fg='white',
                         nl=False,
                     )

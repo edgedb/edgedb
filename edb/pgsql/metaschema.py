@@ -17,7 +17,7 @@
 #
 
 
-"""Database structure and objects supporting EdgeDB metadata."""
+"""Database structure and objects supporting Gel metadata."""
 
 from __future__ import annotations
 from typing import (
@@ -1356,7 +1356,7 @@ class GetStdModulesFunction(trampoline.VersionedFunction):
 
 
 class GetObjectMetadata(trampoline.VersionedFunction):
-    """Return EdgeDB metadata associated with a backend object."""
+    """Return Gel metadata associated with a backend object."""
     text = '''
         SELECT
             CASE WHEN substr(d, 1, char_length({prefix})) = {prefix}
@@ -1379,7 +1379,7 @@ class GetObjectMetadata(trampoline.VersionedFunction):
 
 
 class GetColumnMetadata(trampoline.VersionedFunction):
-    """Return EdgeDB metadata associated with a backend object."""
+    """Return Gel metadata associated with a backend object."""
     text = '''
         SELECT
             CASE WHEN substr(d, 1, char_length({prefix})) = {prefix}
@@ -1402,7 +1402,7 @@ class GetColumnMetadata(trampoline.VersionedFunction):
 
 
 class GetSharedObjectMetadata(trampoline.VersionedFunction):
-    """Return EdgeDB metadata associated with a backend object."""
+    """Return Gel metadata associated with a backend object."""
     text = '''
         SELECT
             CASE WHEN substr(d, 1, char_length({prefix})) = {prefix}
@@ -1425,7 +1425,7 @@ class GetSharedObjectMetadata(trampoline.VersionedFunction):
 
 
 class GetDatabaseMetadataFunction(trampoline.VersionedFunction):
-    """Return EdgeDB metadata associated with a given database."""
+    """Return Gel metadata associated with a given database."""
     text = f'''
         SELECT
             CASE
@@ -3992,9 +3992,9 @@ class ResetSessionConfigFunction(trampoline.VersionedFunction):
 
 
 class ApplySessionConfigFunction(trampoline.VersionedFunction):
-    """Apply an EdgeDB config setting to the backend, if possible.
+    """Apply an Gel config setting to the backend, if possible.
 
-    The function accepts any EdgeDB config name/value pair. If this
+    The function accepts any Gel config name/value pair. If this
     specific config setting happens to be implemented via a backend
     setting, it would be applied to the current PostgreSQL session.
     If the config setting doesn't reflect into a backend setting the
@@ -4093,7 +4093,7 @@ class ApplySessionConfigFunction(trampoline.VersionedFunction):
 
 
 class SysGetTransactionIsolation(trampoline.VersionedFunction):
-    "Get transaction isolation value as text compatible with EdgeDB's enum."
+    "Get transaction isolation value as text compatible with Gel's enum."
     text = r'''
         SELECT
             CASE setting
@@ -4150,7 +4150,7 @@ class GetCachedReflection(trampoline.VersionedFunction):
 
 
 class GetBaseScalarTypeMap(trampoline.VersionedFunction):
-    """Return a map of base EdgeDB scalar type ids to Postgres type names."""
+    """Return a map of base Gel scalar type ids to Postgres type names."""
 
     text = "VALUES" + ", ".join(
         f"({ql(str(k))}::uuid, {qtl(v)})"
@@ -4207,7 +4207,7 @@ class GetTypeToMultiRangeNameMap(trampoline.VersionedFunction):
 
 
 class GetPgTypeForEdgeDBTypeFunction(trampoline.VersionedFunction):
-    """Return Postgres OID representing a given EdgeDB type."""
+    """Return Postgres OID representing a given Gel type."""
 
     text = f'''
         SELECT
@@ -4307,7 +4307,7 @@ class GetPgTypeForEdgeDBTypeFunction(trampoline.VersionedFunction):
                     'invalid_parameter_value',
                     msg => (
                         format(
-                            'cannot determine OID of EdgeDB type %L',
+                            'cannot determine OID of Gel type %L',
                             "typeid"::text
                         )
                     )
@@ -4331,7 +4331,7 @@ class GetPgTypeForEdgeDBTypeFunction(trampoline.VersionedFunction):
 
 
 class GetPgTypeForEdgeDBTypeFunction2(trampoline.VersionedFunction):
-    """Return Postgres OID representing a given EdgeDB type.
+    """Return Postgres OID representing a given Gel type.
 
     This is an updated version that should replace the original. It takes
     advantage of the schema views to correctly identify non-trivial array
@@ -4456,7 +4456,7 @@ class GetPgTypeForEdgeDBTypeFunction2(trampoline.VersionedFunction):
                     'invalid_parameter_value',
                     msg => (
                         format(
-                            'cannot determine OID of EdgeDB type %L',
+                            'cannot determine OID of Gel type %L',
                             "typeid"::text
                         )
                     )

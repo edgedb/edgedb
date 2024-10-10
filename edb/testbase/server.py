@@ -790,7 +790,7 @@ class ClusterTestCase(BaseHTTPTestCase):
     # to *all other* suites with 'system' granularity.
     PARALLELISM_GRANULARITY = 'default'
 
-    # Turns on "EdgeDB developer" mode which allows using restricted
+    # Turns on "Gel developer" mode which allows using restricted
     # syntax like USING SQL and similar. It allows modifying standard
     # library (e.g. declaring casts).
     INTERNAL_TESTMODE = True
@@ -1291,7 +1291,7 @@ class DatabaseTestCase(ConnectedTestCase):
                     f'CREATE EMPTY BRANCH {qlquote.quote_ident(dbname)}')
 
             # The retry here allows the test to survive a concurrent testing
-            # EdgeDB server (e.g. async with tb.start_edgedb_server()) whose
+            # Gel server (e.g. async with tb.start_edgedb_server()) whose
             # introspection holds a lock on the base_db here
             async for tr in cls.try_until_succeeds(
                 ignore=edgedb.ExecutionError,
@@ -1860,7 +1860,7 @@ class StablePGDumpTestCase(BaseQueryTestCase):
         cls.backend = cls.loop.run_until_complete(
             cls.get_backend_sql_connection())
 
-        # Run pg_dump to create the dump data for an existing EdgeDB database.
+        # Run pg_dump to create the dump data for an existing Gel database.
         with tempfile.NamedTemporaryFile() as f:
             cls.run_pg_dump_on_connection(conargs, '-f', f.name)
             # Create a new Postgres database to be used for dump tests.
@@ -2284,7 +2284,7 @@ class _EdgeDBServer:
             if self.debug:
                 print(line.decode())
             if not line:
-                raise RuntimeError("EdgeDB server terminated")
+                raise RuntimeError("Gel server terminated")
             if line.startswith(b'READY='):
                 break
 
@@ -2450,7 +2450,7 @@ class _EdgeDBServer:
 
         if self.debug:
             print(
-                f'Starting EdgeDB cluster with the following params:\n'
+                f'Starting Gel cluster with the following params:\n'
                 f'{" ".join(shlex.quote(c) for c in cmd)}'
             )
 
@@ -2609,7 +2609,7 @@ def start_edgedb_server(
         if backend_dsn or adjacent_to:
             import traceback
             # We don't want to implicitly "fix the issue" for the test author
-            print('WARNING: starting an EdgeDB server with the default '
+            print('WARNING: starting an Gel server with the default '
                   'runstate_dir; the test is likely to fail or hang. '
                   'Consider specifying the runstate_dir parameter.')
             print('\n'.join(traceback.format_stack(limit=5)))

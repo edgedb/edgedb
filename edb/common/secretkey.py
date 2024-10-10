@@ -113,7 +113,7 @@ def generate_tls_cert(
         public_exponent=65537, key_size=2048, backend=backend
     )
     subject = x509.Name(
-        [x509.NameAttribute(oid.NameOID.COMMON_NAME, "EdgeDB Server")]
+        [x509.NameAttribute(oid.NameOID.COMMON_NAME, "Gel Server")]
     )
     certificate = (
         x509.CertificateBuilder()

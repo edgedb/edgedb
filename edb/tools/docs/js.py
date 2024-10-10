@@ -19,7 +19,7 @@
 
 r"""
 ===========================================
-:js: domain for EdgeDB driver documentation
+:js: domain for Gel driver documentation
 ===========================================
 
 This module extends the default js domain by overriding class, method
