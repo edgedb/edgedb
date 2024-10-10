@@ -1797,6 +1797,12 @@ class Tenant(ha_base.ClusterProtocol):
         self.create_task(task(), interruptable=True)
 
     def get_debug_info(self) -> dict[str, Any]:
+        pgaddr = self.get_pgaddr()
+        pgaddr.clear_server_settings()
+        pgdict = pgaddr.__dict__
+        del pgdict['database']
+        pgaddr.__dict__ = pgdict
+
         obj = dict(
             params=dict(
                 max_backend_connections=self._max_backend_connections,
@@ -1806,7 +1812,10 @@ class Tenant(ha_base.ClusterProtocol):
             instance_config=config.debug_serialize_config(
                 self.get_sys_config()),
             user_roles=self._roles,
-            pg_addr=vars(self._cluster.get_connection_params()),
+            pg_addr=dict(
+                server_settings=vars(self._cluster.get_connection_params()),
+                dsn=pgaddr.to_dsn(),
+            ),
             pg_pool=self._pg_pool._build_snapshot(now=time.monotonic()),
         )
 
