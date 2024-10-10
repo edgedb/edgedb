@@ -34,6 +34,7 @@ from . import ast as qlast
 FREE_SHAPE_EXPR = qlast.DetachedExpr(
     expr=qlast.Path(
         steps=[qlast.ObjectRef(module='std', name='FreeObject')],
+        allow_factoring=True,
     ),
 )
 

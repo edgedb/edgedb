@@ -152,7 +152,7 @@ def process_view(
     hackscope = ctx.path_scope.attach_branch()
     pathctx.register_set_in_scope(ir_set, path_scope=hackscope, ctx=ctx)
     hackscope.remove()
-    ctx.path_scope.attach_subtree(hackscope)
+    ctx.path_scope.attach_subtree(hackscope, ctx=ctx)
 
     # Make a snapshot of aliased_views that can't be mutated
     # in any parent scopes.
@@ -872,6 +872,8 @@ def _gen_pointers_from_defaults(
         )
 
         with ctx.new() as scopectx:
+            scopectx.schema_factoring()
+
             scopectx.active_defaults |= {stype}
 
             # add __source__ to anchors
@@ -879,6 +881,7 @@ def _gen_pointers_from_defaults(
             scopectx.path_scope.attach_path(
                 source_set.path_id, span=None,
                 optional=False,
+                ctx=ctx,
             )
             scopectx.iterator_path_ids |= {source_set.path_id}
             scopectx.anchors['__source__'] = source_set
@@ -1195,6 +1198,7 @@ def _compile_rewrites_for_stype(
         assert rewrite_expr
 
         with ctx.newscope(fenced=True) as scopectx:
+            scopectx.schema_factoring()
             scopectx.active_rewrites |= {stype}
 
             # prepare context
@@ -1210,6 +1214,7 @@ def _compile_rewrites_for_stype(
                     anchor.path_id,
                     optional=(anchor is anchors.subject_set),
                     span=None,
+                    ctx=ctx,
                 )
                 scopectx.iterator_path_ids |= {anchor.path_id}
                 scopectx.anchors[key] = anchor

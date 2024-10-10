@@ -39,6 +39,7 @@ __all__ = base.__all__ + (  # type: ignore
     'UnknownUserError',
     'UnknownDatabaseError',
     'UnknownParameterError',
+    'DeprecatedScopingError',
     'SchemaError',
     'SchemaDefinitionError',
     'InvalidDefinitionError',
@@ -217,6 +218,10 @@ class UnknownDatabaseError(InvalidReferenceError):
 
 class UnknownParameterError(InvalidReferenceError):
     _code = 0x_04_03_00_06
+
+
+class DeprecatedScopingError(InvalidReferenceError):
+    _code = 0x_04_03_00_07
 
 
 class SchemaError(QueryError):

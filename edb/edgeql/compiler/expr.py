@@ -75,6 +75,22 @@ def compile__Optional(
 
 @dispatch.compile.register(qlast.Path)
 def compile_Path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
+    if ctx.no_factoring and not expr.allow_factoring:
+        return dispatch.compile(
+            qlast.SelectQuery(
+                result=expr.replace(allow_factoring=True),
+                implicit=True,
+            ),
+            ctx=ctx,
+        )
+
+    if ctx.warn_factoring and not expr.allow_factoring:
+        with ctx.newscope(fenced=False) as subctx:
+            subctx.path_scope.warn = True
+            return dispatch.compile(
+                expr.replace(allow_factoring=True), ctx=subctx
+            )
+
     return stmt.maybe_add_view(setgen.compile_path(expr, ctx=ctx), ctx=ctx)
 
 
@@ -490,6 +506,10 @@ def _compile_dml_ifelse(
             )
             els.append(else_b)
 
+        # If we are warning on factoring, double wrap it.
+        if ctx.warn_factoring:
+            cond_ir = setgen.ensure_set(
+                setgen.ensure_stmt(cond_ir, ctx=ctx), ctx=ctx)
         full = qlast.ForQuery(
             iterator_alias=alias,
             iterator=subctx.create_anchor(cond_ir, 'b'),
@@ -1063,7 +1083,6 @@ def compile_type_check_op(
             left, expr=None, source=ltype, ptr_name='__type__',
             span=expr.span, ctx=ctx
         )
-        pathctx.register_set_in_scope(left, ctx=ctx)
         result = None
     else:
         if (ltype.is_collection()

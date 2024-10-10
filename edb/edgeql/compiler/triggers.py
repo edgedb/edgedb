@@ -65,7 +65,8 @@ def compile_trigger(
     kinds = set(trigger.get_kinds(schema))
     source = trigger.get_subject(schema)
 
-    with ctx.detached() as _, _.newscope(fenced=True) as sctx:
+    with ctx.detached() as tc, tc.newscope(fenced=True) as sctx:
+        sctx.schema_factoring()
         sctx.anchors = sctx.anchors.copy()
 
         anchors = {}
@@ -96,7 +97,7 @@ def compile_trigger(
 
         for name, ir in anchors.items():
             if scope == qltypes.TriggerScope.Each:
-                sctx.path_scope.attach_path(ir.path_id, span=None)
+                sctx.path_scope.attach_path(ir.path_id, span=None, ctx=sctx)
                 sctx.iterator_path_ids |= {ir.path_id}
             sctx.anchors[name] = ir
 

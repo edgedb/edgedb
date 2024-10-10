@@ -192,6 +192,19 @@ ALTER TYPE cfg::AbstractConfig {
             'Whether inserts are allowed to set the \'id\' property.';
     };
 
+    CREATE PROPERTY simple_scoping -> std::bool {
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
+        CREATE ANNOTATION std::description :=
+            'Whether to use the new simple scoping behavior \
+            (disable path factoring)';
+    };
+
+    CREATE PROPERTY warn_old_scoping -> std::bool {
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
+        CREATE ANNOTATION std::description :=
+            'Whether to warn when depending on old scoping behavior.';
+    };
+
     CREATE MULTI PROPERTY cors_allow_origins -> std::str {
         CREATE ANNOTATION std::description :=
             'List of origins that can be returned in the \

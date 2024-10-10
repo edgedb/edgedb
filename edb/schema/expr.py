@@ -582,6 +582,11 @@ class ExpressionDict(checked.CheckedDict[str, Expression]):
         return basecoef + (1 - basecoef) * compcoef
 
 
+EXPRESSION_TYPES = (
+    Expression, ExpressionList, ExpressionDict
+)
+
+
 def imprint_expr_context(
     qltree: qlast_.Base,
     modaliases: Mapping[Optional[str], str],

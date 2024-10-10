@@ -7319,6 +7319,11 @@ class DeleteFutureBehavior(
     pass
 
 
+class AlterFutureBehavior(
+        FutureBehaviorCommand, adapts=s_futures.AlterFutureBehavior):
+    pass
+
+
 class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

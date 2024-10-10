@@ -61,6 +61,7 @@ from edb.ir import utils as irutils
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import expraliases as s_aliases
+from edb.schema import futures as s_futures
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import pointers as s_pointers
@@ -579,6 +580,9 @@ class ContextLevel(compiler.ContextLevel):
     type casts. These will also share the outermost cast info.
     """
 
+    no_factoring: bool
+    warn_factoring: bool
+
     def __init__(
         self,
         prevlevel: Optional[ContextLevel],
@@ -637,6 +641,8 @@ class ContextLevel(compiler.ContextLevel):
 
             self.allow_endpoint_linkprops = False
             self.disallow_dml = None
+            self.no_factoring = False
+            self.warn_factoring = False
 
             self.collection_cast_info = None
 
@@ -682,6 +688,8 @@ class ContextLevel(compiler.ContextLevel):
 
             self.allow_endpoint_linkprops = prevlevel.allow_endpoint_linkprops
             self.disallow_dml = prevlevel.disallow_dml
+            self.no_factoring = prevlevel.no_factoring
+            self.warn_factoring = prevlevel.warn_factoring
 
             self.collection_cast_info = prevlevel.collection_cast_info
 
@@ -801,6 +809,17 @@ class ContextLevel(compiler.ContextLevel):
 
     def log_warning(self, warning: errors.EdgeDBError) -> None:
         self.env.warnings.append(warning)
+
+    def allow_factoring(self) -> None:
+        self.no_factoring = self.warn_factoring = False
+
+    def schema_factoring(self) -> None:
+        self.no_factoring = s_futures.future_enabled(
+            self.env.schema, 'simple_scoping'
+        )
+        self.warn_factoring = s_futures.future_enabled(
+            self.env.schema, 'warn_old_scoping'
+        )
 
 
 class CompilerContext(compiler.CompilerContext[ContextLevel]):
