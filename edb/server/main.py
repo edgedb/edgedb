@@ -411,7 +411,7 @@ async def run_server(
 
     logsetup.setup_logging(args.log_level, args.log_to)
 
-    logger.info(f"starting EdgeDB server {buildmeta.get_version_line()}")
+    logger.info(f"starting Gel server {buildmeta.get_version_line()}")
     if args.multitenant_config_file:
         logger.info("configured as a multitenant instance")
     else:
@@ -424,6 +424,13 @@ async def run_server(
             fd = int(fd_str)
         except ValueError:
             logger.info("Invalid EDGEDB_SERVER_EXTERNAL_LOCK_FD")
+        else:
+            os.set_inheritable(fd, False)
+    if fd_str := os.environ.get("GEL_SERVER_EXTERNAL_LOCK_FD"):
+        try:
+            fd = int(fd_str)
+        except ValueError:
+            logger.info("Invalid GEL_SERVER_EXTERNAL_LOCK_FD")
         else:
             os.set_inheritable(fd, False)
 
@@ -755,19 +762,23 @@ def server_main(**kwargs: Any) -> None:
 
 
 @click.group(
-    'EdgeDB Server',
+    'Gel Server',
     invoke_without_command=True,
     context_settings=dict(help_option_names=['-h', '--help'])
 )
 @srvargs.server_options
 @click.pass_context
 def main(ctx, version=False, **kwargs):
-    if kwargs.get('testmode') and 'EDGEDB_TEST_CATALOG_VERSION' in os.environ:
+    if kwargs.get('testmode') and 'GEL_TEST_CATALOG_VERSION' in os.environ:
+        buildmeta.EDGEDB_CATALOG_VERSION = int(
+            os.environ['GEL_TEST_CATALOG_VERSION']
+        )
+    elif kwargs.get('testmode') and 'EDGEDB_TEST_CATALOG_VERSION' in os.environ:
         buildmeta.EDGEDB_CATALOG_VERSION = int(
             os.environ['EDGEDB_TEST_CATALOG_VERSION']
         )
     if version:
-        print(f"edgedb-server, version {buildmeta.get_version()}")
+        print(f"gel-server, version {buildmeta.get_version()}")
         sys.exit(0)
     if ctx.invoked_subcommand is None:
         server_main(**kwargs)
@@ -842,7 +853,9 @@ def initialize_static_cfg(
     def iter_environ():
         translate_env = {
             "EDGEDB_SERVER_BIND_ADDRESS": "listen_addresses",
-            "EDGEDB_SERVER_PORT": "listen_port"
+            "EDGEDB_SERVER_PORT": "listen_port",
+            "GEL_SERVER_BIND_ADDRESS": "listen_addresses",
+            "GEL_SERVER_PORT": "listen_port",
         }
         for name, value in os.environ.items():
             if cfg := translate_env.get(name):
@@ -851,6 +864,10 @@ def initialize_static_cfg(
                 cfg = name.removeprefix("EDGEDB_SERVER_CONFIG_cfg::")
                 if cfg != name:
                     yield name, value, cfg
+                else:
+                    cfg = name.removeprefix("GEL_SERVER_CONFIG_cfg::")
+                    if cfg != name:
+                        yield name, value, cfg
 
     env_value: Any
     setting: config.Setting
