@@ -3,3 +3,6 @@
 
 # Grammar spec file encoded as BitCode
 *.bc
+
+# Grammar spec file encoded as EBNF
+*.ebnf
