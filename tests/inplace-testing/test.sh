@@ -78,7 +78,7 @@ patch -f -p1 < tests/inplace-testing/upgrade.patch
 make parsers
 
 # Get the DSN from the debug endpoint
-DSN=$(curl -s http://localhost:$PORT/server-info | jq -r '.pg_addr | "postgres:///?user=\(.user)&port=\(.port)&host=\(.host)"')
+DSN=$(curl -s http://localhost:$PORT/server-info | jq -r '.pg_addr.dsn')
 
 # Prepare the upgrade, operating against the postgres that the old
 # version server is managing
