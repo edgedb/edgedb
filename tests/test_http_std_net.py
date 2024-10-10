@@ -19,7 +19,7 @@
 
 import typing
 import json
-import edgedb
+import base64
 
 from edb.testbase import http as tb
 import edb.testbase.server as server
@@ -39,14 +39,15 @@ class StdNetTestCase(server.QueryTestCase):
             self.mock_server.stop()
         self.mock_server = None
 
-    async def test_http_std_net_con_send_request(self):
+    async def test_http_std_net_con_schedule_request_get_01(self):
         assert self.mock_server is not None
 
         example_request = (
             'GET',
             self.base_url,
-            '/test',
+            '/test-get-01',
         )
+        url = f"{example_request[1]}{example_request[2]}"
         self.mock_server.register_route_handler(*example_request)(
             (
                 json.dumps(
@@ -80,33 +81,80 @@ class StdNetTestCase(server.QueryTestCase):
                 )
             select request {*};
             """,
-            url=f"{self.base_url}/test",
+            url=url,
         )
 
         async for tr in self.try_until_succeeds(
-            delay=2, timeout=120, ignore=(edgedb.CardinalityViolationError,)
+            delay=2, timeout=120, ignore=(KeyError,)
         ):
             async with tr:
-                await self.con.query(
-                    """
-                    with
-                        url := <str>$url,
-                        request := assert_exists((
-                            select std::net::http::ScheduledRequest
-                            filter .url = url
-                            and .state in {
-                                std::net::RequestState.Completed,
-                                std::net::RequestState.Failed,
-                            }
-                            limit 1
-                        ))
-                    select request {*};
-                    """,
-                    url=f"{self.base_url}/test",
-                )
+                requests_for_example = self.mock_server.requests[
+                    example_request
+                ]
 
-        requests_for_example = self.mock_server.requests[example_request]
         self.assertEqual(len(requests_for_example), 1)
         headers = list(requests_for_example[0]["headers"].items())
         self.assertIn(("accept", "text/plain"), headers)
         self.assertIn(("x-test-header", "test-value"), headers)
+
+    async def test_http_std_net_con_schedule_request_post_01(self):
+        assert self.mock_server is not None
+
+        example_request = (
+            'POST',
+            self.base_url,
+            '/test-post-01',
+        )
+        url = f"{example_request[1]}{example_request[2]}"
+        self.mock_server.register_route_handler(*example_request)(
+            (
+                json.dumps(
+                    {
+                        "message": "Hello, world!",
+                    }
+                ),
+                200,
+                {"Content-Type": "application/json"},
+            )
+        )
+
+        await self.con.query(
+            """
+            with
+                nh as module std::net::http,
+                net as module std::net,
+                url := <str>$url,
+                body := <bytes>$body,
+                request := (
+                    nh::schedule_request(
+                        url,
+                        method := nh::Method.POST,
+                        headers := [
+                            ("Accept", "text/plain"),
+                            ("x-test-header", "test-value"),
+                        ],
+                        body := body,
+                    )
+                )
+            select request {*};
+            """,
+            url=url,
+            body=b"Hello, world!",
+        )
+
+        async for tr in self.try_until_succeeds(
+            delay=2, timeout=120, ignore=(KeyError,)
+        ):
+            async with tr:
+                requests_for_example = self.mock_server.requests[
+                    example_request
+                ]
+
+        self.assertEqual(len(requests_for_example), 1)
+        headers = list(requests_for_example[0]["headers"].items())
+        self.assertIn(("accept", "text/plain"), headers)
+        self.assertIn(("x-test-header", "test-value"), headers)
+        self.assertEqual(
+            requests_for_example[0]["body"],
+            base64.b64encode(b"Hello, world!").decode(),
+        )
