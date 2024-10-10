@@ -872,7 +872,10 @@ class BaseServer:
         def _tls_private_key_password():
             nonlocal tls_password_needed
             tls_password_needed = True
-            return os.environ.get('EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD', '')
+            return (
+                os.environ.get('GEL_SERVER_TLS_PRIVATE_KEY_PASSWORD', '')
+                or os.environ.get('EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD', '')
+            )
 
         sslctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         sslctx_pgext = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -900,7 +903,7 @@ class BaseServer:
                             "Cannot load TLS certificates - the private key "
                             "file is likely protected by a password. Specify "
                             "the password using environment variable: "
-                            "EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD"
+                            "GEL_SERVER_TLS_PRIVATE_KEY_PASSWORD"
                         ) from e
                 elif tls_key_file is None:
                     raise StartupError(

@@ -862,7 +862,7 @@ cdef _check_for_ise(exc):
         nexc = errors.InternalServerError(
             f'{type(exc).__name__}: {exc}',
             hint=(
-                f'This is most likely a bug in EdgeDB. '
+                f'This is most likely a bug in Gel. '
                 f'Please consider opening an issue ticket '
                 f'at https://github.com/edgedb/edgedb/issues/new'
                 f'?template=bug_report.md'
