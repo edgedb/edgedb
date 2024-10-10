@@ -393,10 +393,8 @@ class Router:
             ),
             {"code": pkce_code, "provider": provider_name},
         )
-        session_token = self._make_session_token(identity.id)
         response.status = http.HTTPStatus.FOUND
         response.custom_headers["Location"] = new_url
-        _set_cookie(response, "edgedb-session", session_token)
 
     async def handle_token(
         self,
@@ -577,8 +575,6 @@ class Router:
             pkce_code = await pkce.link_identity_challenge(
                 self.db, local_identity.id, maybe_challenge
             )
-            session_token = self._make_session_token(local_identity.id)
-            _set_cookie(response, "edgedb-session", session_token)
             if maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
                 redirect_params = {
