@@ -45,7 +45,7 @@ def config(make_include: bool, pg_config: bool) -> None:
         base = share.parent.parent.parent
         # XXX: It should not be here.
         if not devmode.is_in_dev_mode():
-            base = base / 'data'
+            base = base / 'share'
         mk = (
             base / 'tests' / 'extension-testing' / 'exts.mk'
         )
