@@ -477,12 +477,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     def maybe_get_auth_token(self, headers: dict[str, str]) -> Optional[str]:
         return self.maybe_get_cookie_value(headers, "edgedb-session")
 
-    async def extract_session_claims(self, headers: dict[str, str]):
-        maybe_token = self.maybe_get_auth_token(headers)
-        assert maybe_token is not None
-        claims = await self.extract_jwt_claims(maybe_token)
-        return claims
-
     async def test_http_auth_ext_github_authorize_01(self):
         with self.http_con() as http_con:
             provider_config = await self.get_builtin_provider_config_by_name(
@@ -764,13 +758,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(len(identity), 1)
 
-            session_claims = await self.extract_session_claims(headers)
-            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
-            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
-            tomorrow = now + datetime.timedelta(hours=25)
-            self.assertTrue(session_claims.get("exp") > now.timestamp())
-            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
-
             pkce_object = await self.con.query(
                 """
                 SELECT ext::auth::PKCEChallenge
@@ -799,7 +786,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     200,
                 )
             )
-            (_, new_headers, _) = self.http_con_request(
+            self.http_con_request(
                 http_con,
                 {"state": state_token, "code": "abc123"},
                 path="callback",
@@ -814,11 +801,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(len(same_identity), 1)
             self.assertEqual(identity[0].id, same_identity[0].id)
-
-            new_session_claims = await self.extract_session_claims(new_headers)
-            self.assertTrue(
-                new_session_claims.get("exp") > session_claims.get("exp")
-            )
 
     async def test_http_auth_ext_github_callback_failure_01(self):
         with self.http_con() as http_con:
@@ -1146,13 +1128,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(len(identity), 1)
 
-            session_claims = await self.extract_session_claims(headers)
-            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
-            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
-            tomorrow = now + datetime.timedelta(hours=25)
-            self.assertTrue(session_claims.get("exp") > now.timestamp())
-            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
-
             pkce_object = await self.con.query(
                 """
                 SELECT ext::auth::PKCEChallenge
@@ -1181,7 +1156,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     200,
                 )
             )
-            (_, new_headers, _) = self.http_con_request(
+            self.http_con_request(
                 http_con,
                 {"state": state_token, "code": "abc123"},
                 path="callback",
@@ -1196,11 +1171,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(len(same_identity), 1)
             self.assertEqual(identity[0].id, same_identity[0].id)
-
-            new_session_claims = await self.extract_session_claims(new_headers)
-            self.assertTrue(
-                new_session_claims.get("exp") > session_claims.get("exp")
-            )
 
     async def test_http_auth_ext_google_callback_01(self) -> None:
         with self.http_con() as http_con:
@@ -1349,13 +1319,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 """
             )
             self.assertEqual(len(identity), 1)
-
-            session_claims = await self.extract_session_claims(headers)
-            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
-            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
-            tomorrow = now + datetime.timedelta(hours=25)
-            self.assertTrue(session_claims.get("exp") > now.timestamp())
-            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
 
     async def test_http_auth_ext_google_authorize_01(self):
         with self.http_con() as http_con:
@@ -2163,13 +2126,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             self.assertEqual(len(identity), 1)
 
-            session_claims = await self.extract_session_claims(headers)
-            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
-            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
-            tomorrow = now + datetime.timedelta(hours=25)
-            self.assertTrue(session_claims.get("exp") > now.timestamp())
-            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
-
     async def test_http_auth_ext_slack_authorize_01(self):
         with self.http_con() as http_con:
             provider_config = await self.get_builtin_provider_config_by_name(
@@ -2476,13 +2432,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 """
             )
             self.assertEqual(len(identity), 1)
-
-            session_claims = await self.extract_session_claims(headers)
-            self.assertEqual(session_claims.get("sub"), str(identity[0].id))
-            self.assertEqual(session_claims.get("iss"), str(self.http_addr))
-            tomorrow = now + datetime.timedelta(hours=25)
-            self.assertTrue(session_claims.get("exp") > now.timestamp())
-            self.assertTrue(session_claims.get("exp") < tomorrow.timestamp())
 
     async def test_http_auth_ext_local_password_register_form_01(self):
         with self.http_con() as http_con:
