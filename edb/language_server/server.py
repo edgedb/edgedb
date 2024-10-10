@@ -49,7 +49,7 @@ class EdgeDBLanguageServer(LanguageServer):
     state: State
 
     def __init__(self):
-        super().__init__('EdgeDB Language Server', 'v0.1')
+        super().__init__('Gel Language Server', 'v0.1')
         self.state = State()
 
 

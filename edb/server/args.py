@@ -27,6 +27,7 @@ from typing import (
     List,
     NamedTuple,
     NoReturn,
+    Sequence,
 )
 
 import logging
@@ -1049,11 +1050,11 @@ server_options = typeutils.chain_decorators([
         cls=EnvvarResolver,
         type=BackendCapabilitySet(),
         help="A space-separated set of backend capabilities, which are "
-             "required to be present, or absent if prefixed with ~. EdgeDB "
+             "required to be present, or absent if prefixed with ~. Gel "
              "will only start if the actual backend capabilities match the "
              "specified set. However if the backend was never bootstrapped, "
              "the capabilities prefixed with ~ will be *disabled permanently* "
-             "in EdgeDB as if the backend never had them."
+             "in Gel as if the backend never had them."
     ),
     click.option(
         '--version', is_flag=True,

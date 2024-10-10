@@ -235,7 +235,7 @@ def compile_ast_to_ir(
     script_info: Optional[irast.ScriptInfo] = None,
     options: Optional[CompilerOptions] = None,
 ) -> irast.Statement | irast.ConfigCommand:
-    """Compile given EdgeQL AST into EdgeDB IR.
+    """Compile given EdgeQL AST into Gel IR.
 
     This is the normal compiler entry point.  It assumes that *tree*
     represents a complete statement.
@@ -305,7 +305,7 @@ def compile_ast_to_ir(
         debug.dump(scopes)
 
     if debug.flags.edgeql_compile or debug.flags.edgeql_compile_ir:
-        debug.header('EdgeDB IR')
+        debug.header('Gel IR')
         debug.dump(ir_expr, schema=getattr(ir_expr, 'schema', None))
 
     return ir_expr
@@ -318,7 +318,7 @@ def compile_ast_fragment_to_ir(
     *,
     options: Optional[CompilerOptions] = None,
 ) -> irast.Statement:
-    """Compile given EdgeQL AST fragment into EdgeDB IR.
+    """Compile given EdgeQL AST fragment into Gel IR.
 
     Unlike :func:`~compile_ast_to_ir` above, this does not assume
     that the AST *tree* is a complete statement.  The expression

@@ -46,7 +46,7 @@ class SDLSynopsisDirective(shared.CodeBlock):
 class SDLDomain(s_domains.Domain):
 
     name = "sdl"
-    label = "EdgeDB Schema Definition Language"
+    label = "Gel Schema Definition Language"
 
     directives = {
         'synopsis': SDLSynopsisDirective,

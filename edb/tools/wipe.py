@@ -54,7 +54,7 @@ class AbsPath(click.Path):
 @click.option(
     '--backend-dsn',
     type=str,
-    help='DSN of the remote Postgres instance to wipe EdgeDB from')
+    help='DSN of the remote Postgres instance to wipe Gel from')
 @click.option(
     '-D',
     '--data-dir',
@@ -64,7 +64,7 @@ class AbsPath(click.Path):
     '--tenant-id',
     type=str,
     multiple=True,
-    help='The tenant ID of an EdgeDB server to wipe.  May be specified'
+    help='The tenant ID of an Gel server to wipe.  May be specified'
          ' multiple times.  If not specified, all tenants are wiped.')
 @click.option(
     '-y',
@@ -127,7 +127,7 @@ async def do_wipe(
         )
 
     if not yes and not dry_run and not list_tenants and not click.confirm(
-            'This will DELETE all EdgeDB data from the target '
+            'This will DELETE all Gel data from the target '
             'PostgreSQL instance.  ARE YOU SURE?'):
         click.echo('OK. Not proceeding.')
         return

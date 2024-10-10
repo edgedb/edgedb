@@ -117,7 +117,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     def get_code(cls):
         if cls._code is None:
             raise RuntimeError(
-                f'EdgeDB message code is not set (type: {cls.__name__})')
+                f'Gel message code is not set (type: {cls.__name__})')
         return cls._code
 
     def to_json(self):

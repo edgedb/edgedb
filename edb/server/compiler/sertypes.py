@@ -1102,7 +1102,7 @@ def _parse(desc: binwrapper.BinWrapper, ctx: ParseContext) -> None:
             return
         else:
             raise NotImplementedError(
-                f'no codec implementation for EdgeDB data kind {hex(t[0])}')
+                f'no codec implementation for Gel data kind {hex(t[0])}')
     else:
         ctx.codecs_list.append(_parse_descriptor(tag, desc, ctx=ctx))
 
@@ -1168,7 +1168,7 @@ def _parse_descriptor(
     ctx: ParseContext,
 ) -> TypeDesc:
     raise AssertionError(
-        f'no codec implementation for EdgeDB data kind {tag._name_}')
+        f'no codec implementation for Gel data kind {tag._name_}')
 
 
 @_parse_descriptor.register(DescriptorTag.SET)

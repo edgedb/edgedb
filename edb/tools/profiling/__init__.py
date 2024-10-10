@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-"""Profiling tools for EdgeDB and beyond.
+"""Profiling tools for Gel and beyond.
 
 See README.md in this package for more details.
 """

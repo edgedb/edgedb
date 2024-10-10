@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 
 """
-This is a micro-implementation of a subset of `typing-inspect` API that EdgeDB
+This is a micro-implementation of a subset of `typing-inspect` API that Gel
 relies on that only works on Python 3.9+.
 """
 

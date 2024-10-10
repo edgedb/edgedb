@@ -195,7 +195,7 @@ def gen_cast_table():
         ], capture_output=True)
 
         if res.returncode != 0:
-            die('Could not connect to the dev EdgeDB instance')
+            die('Could not connect to the dev Gel instance')
 
         main(json.loads(res.stdout))
     except Exception as ex:

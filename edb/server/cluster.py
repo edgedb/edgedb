@@ -287,7 +287,7 @@ class BaseCluster:
             while True:
                 line = await stream.readline()
                 if not line:
-                    raise ClusterError("EdgeDB server terminated")
+                    raise ClusterError("Gel server terminated")
                 if line.startswith(b'READY='):
                     break
 
@@ -296,7 +296,7 @@ class BaseCluster:
                 return json.loads(dataline)  # type: ignore
             except Exception as e:
                 raise ClusterError(
-                    f"EdgeDB server returned invalid status line: "
+                    f"Gel server returned invalid status line: "
                     f"{dataline!r} ({e})"
                 )
 
@@ -311,7 +311,7 @@ class BaseCluster:
                 )
             except asyncio.TimeoutError:
                 raise ClusterError(
-                    f'EdgeDB server did not initialize '
+                    f'Gel server did not initialize '
                     f'within {timeout} seconds'
                 ) from None
 
