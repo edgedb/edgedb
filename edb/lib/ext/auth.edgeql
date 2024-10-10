@@ -369,6 +369,7 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         IdentityAuthenticated,
         EmailFactorCreated,
         EmailVerified,
+        EmailVerificationRequested,
         PasswordResetRequested,
         MagicLinkRequested,
     >;

@@ -25,6 +25,7 @@ import typing
 import asyncio
 import logging
 import httpx
+import base64
 
 from edb.ir import statypes
 from edb.server import defines
@@ -133,6 +134,10 @@ class ScheduledRequest:
     url: str
     body: typing.Optional[bytes]
     headers: typing.Optional[list[dict]]
+
+    def __post_init__(self):
+        if self.body is not None:
+            self.body = base64.b64decode(self.body).decode('utf-8').encode()
 
 
 async def handle_request(

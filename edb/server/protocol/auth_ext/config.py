@@ -86,3 +86,10 @@ class WebAuthnProvider:
 class MagicLinkProviderConfig(ProviderConfig):
     name: Literal["builtin::local_magic_link"]
     token_time_to_live: statypes.Duration
+
+
+@dataclass
+class WebhookConfig:
+    events: list[str]
+    url: str
+    signing_secret_key: Optional[str]

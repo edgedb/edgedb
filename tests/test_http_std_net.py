@@ -19,7 +19,6 @@
 
 import typing
 import json
-import base64
 
 from edb.testbase import http as tb
 import edb.testbase.server as server
@@ -154,7 +153,4 @@ class StdNetTestCase(server.QueryTestCase):
         headers = list(requests_for_example[0]["headers"].items())
         self.assertIn(("accept", "text/plain"), headers)
         self.assertIn(("x-test-header", "test-value"), headers)
-        self.assertEqual(
-            requests_for_example[0]["body"],
-            base64.b64encode(b"Hello, world!").decode(),
-        )
+        self.assertEqual(requests_for_example[0]["body"], "Hello, world!")
