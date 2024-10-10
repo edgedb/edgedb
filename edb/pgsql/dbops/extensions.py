@@ -46,18 +46,23 @@ class CreateExtension(ddl.DDLOperation):
         conditions=None,
         neg_conditions=None,
         conditional=False,
+        cascade=False,
     ):
         super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.extension = extension
         self.opid = extension.name
         self.conditional = conditional
+        self.cascade = cascade
 
     def code(self) -> str:
         ext = self.extension
         name = qi(ext.get_extension_name())
         schema = qi(ext.schema)
         condition = "IF NOT EXISTS " if self.conditional else ''
-        return f'CREATE EXTENSION {condition}{name} WITH SCHEMA {schema}'
+        cascade = ' CASCADE' if self.cascade else ''
+        return (
+            f'CREATE EXTENSION {condition}{name} WITH SCHEMA {schema}{cascade}'
+        )
 
 
 class DropExtension(ddl.DDLOperation):

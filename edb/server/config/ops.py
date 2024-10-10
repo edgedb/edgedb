@@ -24,6 +24,7 @@ import json
 from typing import (
     Any,
     Callable,
+    Dict,
     Optional,
     TypeVar,
     Union,
@@ -429,17 +430,17 @@ def value_to_edgeql_const(
     return qlcodegen.generate_source(ql)
 
 
-def to_json(
+def to_json_obj(
     spec: spec.Spec,
     storage: Mapping[str, SettingValue],
     *,
     setting_filter: Optional[Callable[[SettingValue], bool]] = None,
     include_source: bool = True,
-) -> str:
+) -> Dict[str, Any]:
     dct = {}
     for name, value in storage.items():
-        setting = spec[name]
         if setting_filter is None or setting_filter(value):
+            setting = spec[name]
             val = value_to_json_value(setting, value.value)
             if include_source:
                 dct[name] = {
@@ -450,6 +451,22 @@ def to_json(
                 }
             else:
                 dct[name] = val
+    return dct
+
+
+def to_json(
+    spec: spec.Spec,
+    storage: Mapping[str, SettingValue],
+    *,
+    setting_filter: Optional[Callable[[SettingValue], bool]] = None,
+    include_source: bool = True,
+) -> str:
+    dct = to_json_obj(
+        spec,
+        storage,
+        setting_filter=setting_filter,
+        include_source=include_source,
+    )
     return json.dumps(dct)
 
 

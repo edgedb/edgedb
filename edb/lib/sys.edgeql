@@ -28,6 +28,14 @@ CREATE SCALAR TYPE sys::VersionStage
     EXTENDING enum<dev, alpha, beta, rc, final>;
 
 
+CREATE SCALAR TYPE sys::QueryType
+    EXTENDING enum<EdgeQL, SQL>;
+
+
+CREATE SCALAR TYPE sys::OutputFormat
+    EXTENDING enum<BINARY, JSON, JSON_ELEMENTS, NONE>;
+
+
 CREATE ABSTRACT TYPE sys::SystemObject EXTENDING schema::Object;
 
 CREATE ABSTRACT TYPE sys::ExternalObject EXTENDING sys::SystemObject;
@@ -83,6 +91,53 @@ CREATE TYPE sys::Role EXTENDING
 
 ALTER TYPE sys::Role {
     CREATE MULTI LINK member_of -> sys::Role;
+};
+
+
+CREATE TYPE sys::QueryStats EXTENDING sys::ExternalObject {
+    CREATE LINK branch -> sys::Branch;
+    CREATE PROPERTY query -> std::str;
+    CREATE PROPERTY query_id -> std::int64;
+    CREATE PROPERTY query_type -> sys::QueryType;
+
+    CREATE PROPERTY compilation_config -> std::json;
+    CREATE PROPERTY protocol_version -> tuple<major: std::int16,
+                                              minor: std::int16>;
+    CREATE PROPERTY default_namespace -> std::str;
+    CREATE OPTIONAL PROPERTY namespace_aliases -> std::json;
+    CREATE OPTIONAL PROPERTY migration_name -> std::str;
+    CREATE OPTIONAL PROPERTY output_format -> sys::OutputFormat;
+    CREATE OPTIONAL PROPERTY expect_one -> std::bool;
+    CREATE OPTIONAL PROPERTY implicit_limit -> std::int64;
+    CREATE OPTIONAL PROPERTY inline_typeids -> std::bool;
+    CREATE OPTIONAL PROPERTY inline_typenames -> std::bool;
+    CREATE OPTIONAL PROPERTY inline_objectids -> std::bool;
+
+    CREATE PROPERTY plans -> std::int64;
+    CREATE PROPERTY total_plan_time -> std::duration;
+    CREATE PROPERTY min_plan_time -> std::duration;
+    CREATE PROPERTY max_plan_time -> std::duration;
+    CREATE PROPERTY mean_plan_time -> std::duration;
+    CREATE PROPERTY stddev_plan_time -> std::duration;
+
+    CREATE PROPERTY calls -> std::int64;
+    CREATE PROPERTY total_exec_time -> std::duration;
+    CREATE PROPERTY min_exec_time -> std::duration;
+    CREATE PROPERTY max_exec_time -> std::duration;
+    CREATE PROPERTY mean_exec_time -> std::duration;
+    CREATE PROPERTY stddev_exec_time -> std::duration;
+
+    CREATE PROPERTY rows -> std::int64;
+};
+
+
+CREATE FUNCTION
+sys::reset_query_stats(
+    named only branch_name: OPTIONAL std::str = {},
+    named only query_id: OPTIONAL std::int64 = {},
+) -> std::bool {
+    SET volatility := 'Volatile';
+    USING SQL FUNCTION 'edgedb.reset_query_stats';
 };
 
 
