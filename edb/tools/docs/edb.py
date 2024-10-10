@@ -56,13 +56,26 @@ class EDBCollapsed(d_rst.Directive):
         return [node]
 
 
+class EDBTag(d_rst.Directive):
+
+    has_content = False
+    required_arguments = 1
+    optional_arguments = 0
+
+    def run(self):
+        node = d_nodes.container()
+        node['tag'] = self.arguments[0]
+        return [node]
+
+
 class EdgeDBDomain(s_domains.Domain):
     name = "edb"
     label = "EdgeDB"
 
     directives = {
         'collapsed': EDBCollapsed,
-        'youtube-embed': EDBYoutubeEmbed
+        'youtube-embed': EDBYoutubeEmbed,
+        'tag': EDBTag,
     }
 
 

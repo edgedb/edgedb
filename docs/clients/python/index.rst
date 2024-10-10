@@ -1,3 +1,5 @@
+.. edb:tag:: python
+
 .. _edgedb-python-intro:
 
 ======

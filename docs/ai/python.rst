@@ -1,3 +1,5 @@
+.. edb:tag:: python
+
 .. _ref_ai_python:
 
 ======
@@ -59,7 +61,7 @@ Call your AI client's ``query_rag`` method, passing in a text query.
 
     print(
         astronomy_ai.query_rag("What color is the sky on Mars?")
-    );
+    )
 
 or stream back the results by using ``stream_rag`` instead:
 

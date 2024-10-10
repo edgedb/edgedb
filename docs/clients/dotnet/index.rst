@@ -1,3 +1,5 @@
+.. edb:tag:: dotnet
+
 .. _edgedb-dotnet-intro:
 
 ====
