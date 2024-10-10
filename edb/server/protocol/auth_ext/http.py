@@ -396,13 +396,6 @@ class Router:
             ),
             {"code": pkce_code, "provider": provider_name},
         )
-        await self._maybe_send_webhook(
-            webhook.IdentityAuthenticated(
-                event_id=str(uuid.uuid4()),
-                timestamp=datetime.datetime.now(datetime.timezone.utc),
-                identity_id=identity.id,
-            )
-        )
         response.status = http.HTTPStatus.FOUND
         response.custom_headers["Location"] = new_url
 
@@ -460,7 +453,7 @@ class Router:
                     "auth_token": session_token,
                     "identity_id": pkce_object.identity_id,
                     "provider_token": pkce_object.auth_token,
-                    "provider_refresh_token": (pkce_object.refresh_token),
+                    "provider_refresh_token": pkce_object.refresh_token,
                 }
             ).encode()
         else:
@@ -623,13 +616,6 @@ class Router:
 
             pkce_code = await pkce.link_identity_challenge(
                 self.db, local_identity.id, maybe_challenge
-            )
-            await self._maybe_send_webhook(
-                webhook.IdentityAuthenticated(
-                    event_id=str(uuid.uuid4()),
-                    timestamp=datetime.datetime.now(datetime.timezone.utc),
-                    identity_id=local_identity.id,
-                )
             )
             if maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
