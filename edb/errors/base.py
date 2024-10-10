@@ -128,7 +128,10 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         }
         for name, field in _JSON_FIELDS.items():
             if field in self._attrs:
-                err_dct[name] = self._attrs[field]
+                val = self._attrs[field]
+                if field in _INT_FIELDS:
+                    val = int(val)
+                err_dct[name] = val
 
         return err_dct
 
@@ -244,6 +247,19 @@ FIELD_UTF16_COLUMN_END = 0x_FF_F8
 FIELD_CHARACTER_START = 0x_FF_F9
 FIELD_CHARACTER_END = 0x_FF_FA
 FIELD_FILENAME = 0x_FF_FB
+
+_INT_FIELDS = {
+    FIELD_POSITION_START,
+    FIELD_POSITION_END,
+    FIELD_LINE_START,
+    FIELD_COLUMN_START,
+    FIELD_UTF16_COLUMN_START,
+    FIELD_LINE_END,
+    FIELD_COLUMN_END,
+    FIELD_UTF16_COLUMN_END,
+    FIELD_CHARACTER_START,
+    FIELD_CHARACTER_END,
+}
 
 # Fields to include in the json dump of the type
 _JSON_FIELDS = {
