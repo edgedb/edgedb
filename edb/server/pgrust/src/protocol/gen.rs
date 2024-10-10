@@ -85,17 +85,26 @@ macro_rules! struct_elaborate {
         struct_elaborate!(__builder_docs__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+4)) fields([type($crate::protocol::meta::Length), size(fixed=fixed), value(value=($($value)*)), $($rest)*] $($frest)*) $($srest)*);
     };
     // Pattern match on known fixed-sized types and mark them as `size(fixed=fixed)`
-    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type([u8; 4])($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+4)) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type([u8; $len:literal])($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
+        struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
     };
     (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type(u8)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+1)) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+        struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
     };
     (__builder_type__ fixed($fixed:ident $fixed_expr:expr)fields([type(i16)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+2)) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+        struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
     };
     (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type(i32)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+4)) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+        struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+    };
+    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type(u32)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
+        struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+    };
+    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type(u64)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
+        struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+    };
+    (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type(Uuid)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
+        struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
     };
 
     // Fallback for other types - variable sized
@@ -164,7 +173,7 @@ macro_rules! protocol {
     ($( $( #[ $sdoc:meta ] )* struct $name:ident $(: $super:ident)? { $($struct:tt)+ } )+) => {
         $(
             paste::paste!(
-                pub(crate) mod [<$name:lower>] {
+                pub(crate) mod [<__ $name:lower>] {
                     #[allow(unused_imports)]
                     use super::*;
                     use $crate::protocol::gen::*;
@@ -180,7 +189,7 @@ macro_rules! protocol {
             #![allow(unused_imports)]
             $(
                 paste::paste!(
-                    pub use super::[<$name:lower>]::$name;
+                    pub use super::[<__ $name:lower>]::$name;
                 );
             )+
         }
@@ -188,7 +197,7 @@ macro_rules! protocol {
             #![allow(unused_imports)]
             $(
                 paste::paste!(
-                    pub use super::[<$name:lower>]::[<$name Meta>] as $name;
+                    pub use super::[<__ $name:lower>]::[<$name Meta>] as $name;
                 );
             )+
 
@@ -205,7 +214,7 @@ macro_rules! protocol {
             #![allow(unused_imports)]
             $(
                 paste::paste!(
-                    pub use super::[<$name:lower>]::[<$name Builder>] as $name;
+                    pub use super::[<__ $name:lower>]::[<$name Builder>] as $name;
                 );
             )+
         }
@@ -213,7 +222,7 @@ macro_rules! protocol {
             #![allow(unused_imports)]
             $(
                 paste::paste!(
-                    pub use super::[<$name:lower>]::[<$name Measure>] as $name;
+                    pub use super::[<__ $name:lower>]::[<$name Measure>] as $name;
                 );
             )+
         }
@@ -718,12 +727,24 @@ mod tests {
         );
     }
 
+    mod string {
+        use crate::protocol::meta::LString;
+        protocol!(
+            struct HasLString {
+                s: LString,
+            }  
+        );
+    }
+
     macro_rules! assert_stringify {
         (($($struct:tt)*), ($($expected:tt)*)) => {
             struct_elaborate!(assert_stringify(__internal__ ($($expected)*)) => $($struct)*);
         };
         (__internal__ ($($expected:tt)*), $($struct:tt)*) => {
-            assert_eq!(stringify!($($struct)*), stringify!($($expected)*));
+            // We don't want whitespace to impact this comparison
+            if stringify!($($struct)*).replace(char::is_whitespace, "") != stringify!($($expected)*).replace(char::is_whitespace, "") {
+                assert_eq!(stringify!($($struct)*), stringify!($($expected)*));
+            }
         };
     }
 
@@ -749,7 +770,7 @@ mod tests {
             {
                 name(b), type (u8), size(fixed = fixed), value(no_value = no_value),
                 docs(concat!("`", stringify! (b), "` field.")),
-                fixed(fixed_offset = fixed_offset, ((0) + 1)),
+                fixed(fixed_offset = fixed_offset, ((0) + std::mem::size_of::<u8>())),
             },),
         }));
     }
@@ -775,13 +796,13 @@ mod tests {
             {
                 name(l), type (crate::protocol::meta::Length), size(fixed = fixed),
                 value(auto = auto), docs(concat!("`", stringify! (l), "` field.")),
-                fixed(fixed_offset = fixed_offset, ((0) + 1)),
+                fixed(fixed_offset = fixed_offset, ((0) + std::mem::size_of::<u8>())),
             },
             {
                 name(s), type (ZTString), size(variable = variable),
                 value(no_value = no_value),
                 docs(concat!("`", stringify! (s), "` field.")),
-                fixed(fixed_offset = fixed_offset, (((0) + 1) + 4)),
+                fixed(fixed_offset = fixed_offset, (((0) + std::mem::size_of::<u8>()) + 4)),
             },
             {
                 name(c), type (i16), size(fixed = fixed), value(no_value = no_value),
@@ -792,13 +813,14 @@ mod tests {
                 name(d), type ([u8; 4]), size(fixed = fixed),
                 value(no_value = no_value),
                 docs(concat!("`", stringify! (d), "` field.")),
-                fixed(no_fixed_offset = no_fixed_offset, ((0) + 2)),
+                fixed(no_fixed_offset = no_fixed_offset, ((0) + std::mem::size_of::<i16>())),
             },
             {
                 name(e), type (ZTArray<ZTString>), size(variable = variable),
                 value(no_value = no_value),
                 docs(concat!("`", stringify! (e), "` field.")),
-                fixed(no_fixed_offset = no_fixed_offset, (((0) + 2) + 4)),
+                fixed(no_fixed_offset = no_fixed_offset,
+                    (((0) + std::mem::size_of::<i16>()) + std::mem::size_of::<[u8; 4]>())),
             },
         ),
         }));
