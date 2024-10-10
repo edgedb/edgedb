@@ -77,8 +77,22 @@ EDGEDB_PORT=$PORT EDGEDB_CLIENT_TLS_SECURITY=insecure python3 tests/inplace-test
 patch -f -p1 < tests/inplace-testing/upgrade.patch
 make parsers
 
-# Get the DSN from the debug endpoint
-DSN=$(curl -s http://localhost:$PORT/server-info | jq -r '.pg_addr | "postgres:///?user=\(.user)&port=\(.port)&host=\(.host)"')
+# Get the DSN from the debug settings fields sent to the client on connection.
+DSN=$(python3 <<EOF
+import asyncio
+
+import edb.testbase.connection as edgedb
+
+async def run():
+    db = await edgedb.async_connect_test_client(
+        host='localhost', port=$PORT, tls_security='insecure'
+    )
+    print(db.get_settings()['pgdsn'].decode('utf-8'))
+    await db.aclose()
+
+asyncio.run(run())
+EOF
+)
 
 # Prepare the upgrade, operating against the postgres that the old
 # version server is managing
