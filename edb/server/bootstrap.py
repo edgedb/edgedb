@@ -241,7 +241,7 @@ async def _execute_block(conn, block: dbops.SQLBlock) -> None:
         await _execute(conn, stmt)
 
 
-async def _execute_edgeql_ddl(
+def _execute_edgeql_ddl(
     schema: s_schema.Schema_T,
     ddltext: str,
     stdmode: bool = True,
@@ -1221,7 +1221,7 @@ class StdlibBits(NamedTuple):
     # (Oh, maybe testmode screws this idea up?)
 
 
-async def _make_stdlib(
+def _make_stdlib(
     ctx: BootstrapContext,
     testmode: bool,
     global_ids: Mapping[str, uuid.UUID],
@@ -1281,7 +1281,7 @@ async def _make_stdlib(
         }};''',
     ])
 
-    schema = await _execute_edgeql_ddl(schema, stdglobals)
+    schema = _execute_edgeql_ddl(schema, stdglobals)
 
     _, global_schema_version = s_std.make_global_schema_version(schema)
     schema, plan, tplan = _process_delta(ctx, global_schema_version, schema)
@@ -1571,7 +1571,7 @@ async def _init_stdlib(
     stdlib_was_none = stdlib is None
     if stdlib is None:
         logger.info('Compiling the standard library...')
-        stdlib = await _make_stdlib(
+        stdlib = _make_stdlib(
             ctx, in_dev_mode or testmode, global_ids)
 
     config_spec = config.load_spec_from_schema(stdlib.stdschema)
@@ -1589,12 +1589,21 @@ async def _init_stdlib(
                 trampolines=bootstrap_trampolines + stdlib.trampolines
             )
 
+    trampolines = []
+
+    # We need to set this up early, since later code depends on the
+    # backend_instance_params of the instdata table. But it also
+    # obviously can't go into the tpldbdump, since it is dynamic.
+    trampolines.extend(await metaschema.generate_instdata_table(
+        conn,
+    ))
+    await _populate_misc_instance_data(ctx)
+
     backend_params = cluster.get_runtime_params()
     if not args.inplace_upgrade_prepare:
         logger.info('Creating the necessary PostgreSQL extensions...')
         await metaschema.create_pg_extensions(conn, backend_params)
 
-    trampolines = []
     trampolines.extend(stdlib.trampolines)
 
     eff_tpldbdump = (
@@ -1619,6 +1628,7 @@ async def _init_stdlib(
             tpldbdump = await cluster.dump_database(
                 tpl_pg_db_name,
                 exclude_schemas=[
+                    pg_common.versioned_schema('edgedbinstdata'),
                     'edgedbext',
                     backend_params.instance_params.ext_schema,
                 ],
@@ -1670,7 +1680,6 @@ async def _init_stdlib(
                     pg_common.versioned_schema('edgedb'),
                     pg_common.versioned_schema('edgedbstd'),
                     pg_common.versioned_schema('edgedbsql'),
-                    pg_common.versioned_schema('edgedbinstdata'),
                 ],
                 dump_object_owners=False,
             )
@@ -2128,6 +2137,7 @@ async def _populate_misc_instance_data(
             json.dumps(json_single_role_metadata),
         )
 
+    assert backend_params.has_create_database
     if not backend_params.has_create_database:
         await _store_static_json_cache(
             ctx,
@@ -2494,8 +2504,6 @@ async def _bootstrap(
             compiler,
             config_spec,
         )
-
-        await _populate_misc_instance_data(tpl_ctx)
 
         # Update schema backend_ids to match the reality after
         await tpl_ctx.conn.sql_execute(

@@ -4962,6 +4962,30 @@ def get_fixed_bootstrap_commands() -> dbops.CommandGroup:
     return commands
 
 
+def get_instdata_commands(
+) -> tuple[dbops.CommandGroup, list[trampoline.Trampoline]]:
+    cmds = [
+        dbops.CreateSchema(name=V('edgedbinstdata')),
+        dbops.CreateTable(InstDataTable()),
+    ]
+
+    commands = dbops.CommandGroup()
+    commands.add_commands(cmds)
+
+    return commands, trampoline_functions(cmds)
+
+
+async def generate_instdata_table(
+    conn: PGConnection,
+) -> list[trampoline.Trampoline]:
+    commands, trampolines = get_instdata_commands()
+    block = dbops.PLTopBlock()
+    commands.generate(block)
+    await _execute_block(conn, block)
+    return trampolines
+
+
+
 def get_bootstrap_commands(
     config_spec: edbconfig.Spec,
 ) -> tuple[dbops.CommandGroup, list[trampoline.Trampoline]]:
@@ -4970,9 +4994,7 @@ def get_bootstrap_commands(
         dbops.CreateSchema(name=V('edgedbpub')),
         dbops.CreateSchema(name=V('edgedbstd')),
         dbops.CreateSchema(name=V('edgedbsql')),
-        dbops.CreateSchema(name=V('edgedbinstdata')),
 
-        dbops.CreateTable(InstDataTable()),
         dbops.CreateView(NormalizedPgSettingsView()),
         dbops.CreateFunction(EvictQueryCacheFunction()),
         dbops.CreateFunction(ClearQueryCacheFunction()),
