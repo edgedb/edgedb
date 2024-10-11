@@ -111,7 +111,7 @@ class FutureBehaviorCommand(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = super().apply(schema, context)
-        if not context.canonical:
+        if not context.canonical and not isinstance(self, sd.AlterObject):
             key = str(self.classname)
             if key not in FUTURE_HANDLERS:
                 raise errors.QueryError(
@@ -138,5 +138,85 @@ class DeleteFutureBehavior(
     FutureBehaviorCommand,
     sd.DeleteObject[FutureBehavior],
 ):
-
     astnode = qlast.DropFuture
+
+
+class AlterFutureBehavior(
+    FutureBehaviorCommand,
+    sd.AlterObject[FutureBehavior],
+):
+    pass
+
+
+# These are registered here because they aren't directly related to
+# any schema elements.
+@register_handler('simple_scoping')
+@register_handler('warn_old_scoping')
+def toggle_scoping_future(
+    cmd: FutureBehaviorCommand,
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    on: bool,
+) -> tuple[s_schema.Schema, sd.Command]:
+    from . import types as s_types
+    from . import pointers as s_pointers
+    from . import constraints as s_constraints
+    from . import indexes as s_indexes
+
+    # We need a subcommand to apply the _propagate_if_expr_refs on, so
+    # make an alter.
+    dummy_object = cmd.scls
+    alter_cmd = dummy_object.init_delta_command(
+        schema, cmdtype=sd.AlterObject)
+
+    all_expr_fields = _get_all_expr_fields()
+
+    # Indexes and constraints use simple expressions that cannot
+    # depend on path factoring!
+    del all_expr_fields[s_constraints.Constraint]
+    del all_expr_fields[s_indexes.Index]
+
+    types = tuple(all_expr_fields)
+
+    all_expr_objects: list[so.Object] = list(schema.get_objects(
+        exclude_stdlib=True,
+        extra_filters=[lambda _, x: isinstance(x, types)],
+    ))
+    extra_refs = {
+        obj: fields
+        for obj in all_expr_objects
+        if (fields := all_expr_fields[type(obj)])
+        and any(obj.get_field_value(schema, name) for name in fields)
+        and not (
+            isinstance(obj, (s_types.Type, s_pointers.Pointer))
+            and obj.get_from_alias(schema)
+        )
+    }
+
+    schema = alter_cmd._propagate_if_expr_refs(
+        schema,
+        context,
+        action=f'toggle value of scoping future behavior',
+        extra_refs=extra_refs,
+        metadata_only=False,
+    )
+
+    return schema, alter_cmd
+
+
+def _get_all_expr_fields() -> dict[type[so.Object], list[str]]:
+    r = {}
+    from . import expr as s_expr
+
+    for schemacls in so.ObjectMeta.get_schema_metaclasses():
+        if schemacls.is_abstract():
+            continue
+        fields = [
+            name
+            for name, field in schemacls.get_schema_fields().items()
+            if issubclass(field.type, s_expr.EXPRESSION_TYPES)
+        ]
+        if fields:
+            r[schemacls] = fields
+
+    return r

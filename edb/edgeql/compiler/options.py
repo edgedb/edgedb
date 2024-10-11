@@ -153,3 +153,9 @@ class CompilerOptions(GlobalCompilerOptions):
     #: schema_object_context is set to Trigger.
     trigger_type: Optional[s_types.Type] = None
     trigger_kinds: Optional[Collection[qltypes.TriggerKind]] = None
+
+    #: These represent the *configured* values of
+    #: simple_scoping/warn_old_scoping. If they are None, we check the
+    #: presence of the futures in the schema.
+    simple_scoping: Optional[bool] = None
+    warn_old_scoping: Optional[bool] = None

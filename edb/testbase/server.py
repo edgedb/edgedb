@@ -949,6 +949,8 @@ class ClusterTestCase(BaseHTTPTestCase):
 class ConnectedTestCase(ClusterTestCase):
 
     BASE_TEST_CLASS = True
+    NO_FACTOR = False
+    WARN_FACTOR = False
 
     con: Any  # XXX: the real type?
 
@@ -988,6 +990,16 @@ class ConnectedTestCase(ClusterTestCase):
                     'CONFIGURE SESSION SET auto_rebuild_query_cache := false;'
                 )
             )
+
+        if self.NO_FACTOR:
+            self.loop.run_until_complete(
+                self.con.execute(
+                    'CONFIGURE SESSION SET simple_scoping := true;'))
+
+        if self.WARN_FACTOR:
+            self.loop.run_until_complete(
+                self.con.execute(
+                    'CONFIGURE SESSION SET warn_old_scoping := true;'))
 
         if self.TRANSACTION_ISOLATION:
             self.xact = self.con.transaction()
@@ -2829,3 +2841,26 @@ def find_available_port(max_value=None) -> int:
         raise RuntimeError("cannot find an available port")
     else:
         raise ValueError("max_value must be greater than 1024")
+
+
+def _needs_factoring(weakly):
+    def decorator(f):
+        async def g(self, *args, **kwargs):
+            if self.NO_FACTOR and not weakly:
+                with self.assertRaisesRegex(Exception, ''):
+                    await f(self, *args, **kwargs)
+            elif self.WARN_FACTOR:
+                with self.assertRaisesRegex(
+                    edgedb.InvalidReferenceError, 'attempting to factor out'
+                ):
+                    await f(self, *args, **kwargs)
+
+            else:
+                await f(self, *args, **kwargs)
+
+        return g
+    return decorator
+
+
+needs_factoring = _needs_factoring(weakly=False)
+needs_factoring_weakly = _needs_factoring(weakly=True)

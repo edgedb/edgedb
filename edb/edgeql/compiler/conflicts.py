@@ -26,6 +26,7 @@ from typing import Optional, Tuple, Iterable, Sequence, Dict, List, Set
 from edb import errors
 
 from edb.ir import ast as irast
+from edb.ir import utils as irutils
 from edb.ir import typeutils
 
 from edb.schema import constraints as s_constr
@@ -431,6 +432,8 @@ def _compile_conflict_select(
     # Union them all together
     select_ast = qlast.Set(elements=frags)
     with ctx.new() as ectx:
+        ectx.allow_factoring()
+
         ectx.implicit_limit = 0
         ectx.allow_endpoint_linkprops = True
         select_ir = dispatch.compile(select_ast, ctx=ectx)
@@ -513,6 +516,8 @@ def compile_insert_unless_conflict_on(
         cspec_args = [elem.val for elem in cspec_res.expr.elements]
     else:
         cspec_args = [cspec_res]
+
+    cspec_args = [irutils.unwrap_set(arg) for arg in cspec_args]
 
     for cspec_arg in cspec_args:
         if not isinstance(cspec_arg.expr, irast.Pointer):

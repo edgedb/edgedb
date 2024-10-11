@@ -17,6 +17,7 @@
 #
 
 
+import contextlib
 import os.path
 import uuid
 
@@ -28,10 +29,20 @@ from edb.tools import test
 
 class TestInsert(tb.QueryTestCase):
     '''The scope of the tests is testing various modes of Object creation.'''
+    # NO_FACTOR = True
+    WARN_FACTOR = True
     INTERNAL_TESTMODE = False
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'insert.esdl')
+
+    def assertRaisesRegex(self, exc, r, **kwargs):
+        if (
+            (self.NO_FACTOR or self.WARN_FACTOR)
+            and "cannot reference correlated set" in r
+        ):
+            r = ""
+        return super().assertRaisesRegex(exc, r, **kwargs)
 
     async def test_edgeql_insert_fail_01(self):
         with self.assertRaisesRegex(
@@ -2074,6 +2085,7 @@ class TestInsert(tb.QueryTestCase):
             """
             )
 
+    @tb.needs_factoring_weakly  # XXX(factor): maybe it shouldn't?
     async def test_edgeql_insert_dunder_default_01(self):
         await self.con.execute(r'''
             INSERT DunderDefaultTest01 { a := 1, c := __default__ };
@@ -5808,6 +5820,7 @@ class TestInsert(tb.QueryTestCase):
                 }
             ''')
 
+    @tb.needs_factoring_weakly
     async def test_edgeql_insert_volatile_01(self):
         # Ideally we'll support these versions eventually
         async with self.assertRaisesRegexTx(
@@ -5851,6 +5864,7 @@ class TestInsert(tb.QueryTestCase):
             INSERT Person { name := "asdf", multi_prop := "a" };
         ''')
 
+    @tb.needs_factoring_weakly
     async def test_edgeql_insert_enumerate_01(self):
         await self.assert_query_result(
             r"""
@@ -6498,10 +6512,14 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_conditional_02(self):
-        async with self.assertRaisesRegexTx(
-            edgedb.errors.QueryError,
-            "cannot reference correlated set",
-        ):
+        ctxmgr = (
+            contextlib.nullcontext() if self.NO_FACTOR
+            else self.assertRaisesRegexTx(
+                edgedb.errors.QueryError,
+                "cannot reference correlated set",
+            )
+        )
+        async with ctxmgr:
             await self.con.execute('''
                 select ((if ExceptTest.deleted then (
                     insert InsertTest { l2 := 2 }

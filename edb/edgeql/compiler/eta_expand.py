@@ -228,6 +228,8 @@ def eta_expand_ir(
         return ir
 
     with ctx.new() as subctx:
+        subctx.allow_factoring()
+
         subctx.anchors = subctx.anchors.copy()
         source_ref = subctx.create_anchor(ir)
 

@@ -102,6 +102,7 @@ def register_set_in_scope(
         ir_set.path_id,
         optional=optional,
         span=ir_set.span,
+        ctx=ctx,
     )
 
 

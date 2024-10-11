@@ -15998,6 +15998,72 @@ DDLStatement);
             WITH W := (Bar UNION Baz), SELECT (W, W.foo.id);
         """)
 
+    async def test_edgeql_ddl_scoping_future_01(self):
+        await self.con.execute("""
+            create type T;
+            insert T;
+            insert T;
+            create function get_whatever() -> bool using (
+                all(T = T)
+            );
+            create alias X := all(T = T)
+        """)
+        Q = """
+            select { func := get_whatever(), alias := X, query := all(T = T) }
+        """
+
+        await self.assert_query_result(
+            Q,
+            [dict(func=True, alias=True, query=True)],
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            "attempting to factor",
+        ):
+            await self.con.execute("""
+                create future warn_old_scoping
+            """)
+
+        # Config flag is set but future is not: main query does not factor
+        # but schema things do
+        await self.con.execute("""
+            configure session set simple_scoping := true
+        """)
+        await self.assert_query_result(
+            Q,
+            [dict(func=True, alias=True, query=False)],
+        )
+
+        # Future and config flag: nothing factors
+        await self.con.execute("""
+            create future simple_scoping
+        """)
+
+        await self.assert_query_result(
+            Q,
+            [dict(func=False, alias=False, query=False)],
+        )
+
+        # Config explicitly set to false: query factors
+        await self.con.execute("""
+            configure session set simple_scoping := false
+        """)
+        await self.assert_query_result(
+            Q,
+            [dict(func=False, alias=False, query=True)],
+        )
+
+        # Config not set: falls back to future, nothing factors
+        await self.con.execute("""
+            configure session reset simple_scoping
+        """)
+
+        await self.assert_query_result(
+            Q,
+            [dict(func=False, alias=False, query=False)],
+        )
+
     async def test_edgeql_ddl_no_volatile_computable_01(self):
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
