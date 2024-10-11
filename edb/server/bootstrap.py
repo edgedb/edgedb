@@ -56,7 +56,6 @@ from edb.edgeql import ast as qlast
 
 from edb.common import debug
 from edb.common import devmode
-from edb.common import ordered
 from edb.common import retryloop
 from edb.common import uuidgen
 
@@ -1620,7 +1619,6 @@ async def _init_stdlib(
             tpldbdump = await cluster.dump_database(
                 tpl_pg_db_name,
                 exclude_schemas=[
-                    pg_common.versioned_schema('edgedbinstdata'),
                     'edgedbext',
                     backend_params.instance_params.ext_schema,
                 ],
@@ -1672,6 +1670,7 @@ async def _init_stdlib(
                     pg_common.versioned_schema('edgedb'),
                     pg_common.versioned_schema('edgedbstd'),
                     pg_common.versioned_schema('edgedbsql'),
+                    pg_common.versioned_schema('edgedbinstdata'),
                 ],
                 dump_object_owners=False,
             )
@@ -2095,43 +2094,6 @@ async def _populate_misc_instance_data(
     ctx: BootstrapContext,
 ) -> Dict[str, Any]:
 
-    sname = pg_common.versioned_schema('edgedbinstdata')
-    commands = dbops.CommandGroup()
-    commands.add_commands([
-        dbops.CreateSchema(name=sname),
-        dbops.CreateTable(dbops.Table(
-            name=(sname, 'instdata'),
-            columns=[
-                dbops.Column(
-                    name='key',
-                    type='text',
-                ),
-                dbops.Column(
-                    name='bin',
-                    type='bytea',
-                ),
-                dbops.Column(
-                    name='text',
-                    type='text',
-                ),
-                dbops.Column(
-                    name='json',
-                    type='jsonb',
-                ),
-            ],
-            constraints=ordered.OrderedSet([
-                dbops.PrimaryKey(
-                    table_name=(sname, 'instdata'),
-                    columns=['key'],
-                ),
-            ]),
-        ))
-    ])
-
-    block = dbops.PLTopBlock()
-    commands.generate(block)
-    await _execute_block(ctx.conn, block)
-
     mock_auth_nonce = scram.generate_nonce()
     json_instance_data = {
         'version': dict(buildmeta.get_version_dict()),
@@ -2251,11 +2213,16 @@ def _pg_log_listener(severity, message):
     logger.log(level, message)
 
 
-async def _get_instance_data(conn: metaschema.PGConnection) -> Dict[str, Any]:
+async def _get_instance_data(
+    conn: metaschema.PGConnection,
+    *,
+    versioned: bool=True,
+) -> Dict[str, Any]:
+    schema = 'edgedbinstdata_VER' if versioned else 'edgedbinstdata'
     data = await conn.sql_fetch_val(
-        trampoline.fixup_query("""
+        trampoline.fixup_query(f"""
         SELECT json::json
-        FROM edgedbinstdata_VER.instdata
+        FROM {schema}.instdata
         WHERE key = 'instancedata'
         """).encode('utf-8'),
     )
@@ -2325,7 +2292,8 @@ async def _check_catalog_compatibility(
     )
 
     try:
-        instancedata = await _get_instance_data(conn)
+        # versioned=False so we can properly fail on version/catalog mismatches.
+        instancedata = await _get_instance_data(conn, versioned=False)
         datadir_version = instancedata.get('version')
         if datadir_version:
             datadir_major = datadir_version.get('major')
@@ -2351,8 +2319,8 @@ async def _check_catalog_compatibility(
                     f'{expected_ver.major}'
                 ),
                 hint=(
-                    f'You need to recreate the instance and upgrade '
-                    f'using dump/restore.'
+                    f'You need to either recreate the instance and upgrade '
+                    f'using dump/restore, or do an inplace upgrade.'
                 )
             )
 
@@ -2368,8 +2336,8 @@ async def _check_catalog_compatibility(
                     f'format version {expected_catver}'
                 ),
                 hint=(
-                    f'You need to recreate the instance and upgrade '
-                    f'using dump/restore.'
+                    f'You need to either recreate the instance and upgrade '
+                    f'using dump/restore, or do an inplace upgrade.'
                 )
             )
     except Exception:
@@ -2509,8 +2477,6 @@ async def _bootstrap(
         tmp_table_query = pgcon.SETUP_TEMP_TABLE_SCRIPT
         await _execute(tpl_ctx.conn, tmp_table_query)
 
-        await _populate_misc_instance_data(tpl_ctx)
-
         stdlib, config_spec, compiler = await _init_stdlib(
             tpl_ctx,
             testmode=args.testmode,
@@ -2528,6 +2494,8 @@ async def _bootstrap(
             compiler,
             config_spec,
         )
+
+        await _populate_misc_instance_data(tpl_ctx)
 
         # Update schema backend_ids to match the reality after
         await tpl_ctx.conn.sql_execute(
