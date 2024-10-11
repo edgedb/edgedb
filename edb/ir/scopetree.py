@@ -626,8 +626,6 @@ class ScopeTreeNode:
                                 span=span,
                             )
                             ctx.log_warning(ex)
-                    # XXX: HMMMMMM??? including current_warn causes bad problems
-                    # if current_warn or existing_warn:
                     if existing_warn:
                         existing.warn = True
 

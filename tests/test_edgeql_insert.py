@@ -2085,7 +2085,7 @@ class TestInsert(tb.QueryTestCase):
             """
             )
 
-    @tb.needs_factoring_weakly  # XXX: maybe it shouldn't?
+    @tb.needs_factoring_weakly  # XXX(factor): maybe it shouldn't?
     async def test_edgeql_insert_dunder_default_01(self):
         await self.con.execute(r'''
             INSERT DunderDefaultTest01 { a := 1, c := __default__ };
@@ -6487,7 +6487,6 @@ class TestInsert(tb.QueryTestCase):
             variables=([True, False],)
         )
 
-        # XXX: THIS IS FAILING BUT THAT IS BULLSHIT
         await self.assert_query_result(
             '''
             with go := <bool>$0

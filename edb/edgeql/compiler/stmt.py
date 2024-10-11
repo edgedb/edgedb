@@ -1211,7 +1211,6 @@ def init_stmt(
         parent_ctx.toplevel_stmt = ctx.toplevel_stmt = irstmt
 
     ctx.path_scope = parent_ctx.path_scope.attach_fence()
-    # XXX???
     ctx.path_scope.warn = ctx.warn_factoring
 
     pending_own_ns = parent_ctx.pending_stmt_own_path_id_namespace

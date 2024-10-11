@@ -2527,9 +2527,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
-    @tb.needs_factoring_weakly  # XXX: WE WOULD PREFER NOT
+    @tb.needs_factoring_weakly  # XXX(factor): WE WOULD PREFER NOT
     async def test_edgeql_select_setops_04(self):
-        # XXX: need to follow multiple steps in warn analysis
+        # XXX(factor): need to follow multiple steps in warn analysis
         await self.assert_query_result(
             r"""
             # equivalent to ?=
@@ -4054,7 +4054,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }],
         )
 
-    @tb.needs_factoring_weakly  # XXX: WE WOULD PREFER NOT
+    @tb.needs_factoring_weakly  # XXX(factor): WE WOULD PREFER NOT
     async def test_edgeql_select_or_01(self):
         issues_h = await self.con.query(r'''
             SELECT Issue{number}
@@ -4070,7 +4070,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ORDER BY Issue.number;
         ''')
 
-        # XXX: need to follow multiple steps in warn analysis
+        # XXX(factor): need to follow multiple steps in warn analysis
         await self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -4083,9 +4083,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': o.number} for o in [*issues_h, *issues_l]]
         )
 
-    @tb.needs_factoring_weakly  # XXX: WE WOULD PREFER NOT
+    @tb.needs_factoring_weakly  # XXX(factor): WE WOULD PREFER NOT
     async def test_edgeql_select_or_04(self):
-        # XXX: need to follow multiple steps in warn analysis
+        # XXX(factor): need to follow multiple steps in warn analysis
         await self.assert_query_result(
             r'''
             SELECT Issue{number}
@@ -4957,7 +4957,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         )
 
-    # XXX: THIS KIND OF THING IS THE BIGGEST PROBLEM
     @tb.needs_factoring
     async def test_edgeql_select_subqueries_06(self):
         await self.assert_query_result(
@@ -6452,8 +6451,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         )
 
-    # XXX
-    @tb.needs_factoring_weakly  # XXX: WE WOULD PREFER NOT
+    @tb.needs_factoring_weakly  # XXX(factor): WE WOULD PREFER NOT
     async def test_edgeql_select_if_else_07_b(self):
         await self.assert_query_result(
             r'''

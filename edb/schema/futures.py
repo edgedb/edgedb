@@ -214,7 +214,6 @@ def _get_all_expr_fields() -> dict[type[so.Object], list[str]]:
         fields = [
             name
             for name, field in schemacls.get_schema_fields().items()
-            # XXX ExpressionList and ExpressionDict!!?
             if issubclass(field.type, s_expr.EXPRESSION_TYPES)
         ]
         if fields:

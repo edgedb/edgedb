@@ -432,7 +432,6 @@ def _compile_conflict_select(
     # Union them all together
     select_ast = qlast.Set(elements=frags)
     with ctx.new() as ectx:
-        # XXX: Should we need this, and do we need it for other things?
         ectx.allow_factoring()
 
         ectx.implicit_limit = 0
