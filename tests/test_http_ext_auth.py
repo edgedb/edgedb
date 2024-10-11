@@ -32,7 +32,7 @@ import hashlib
 from typing import Any, Optional
 from jwcrypto import jwt, jwk
 
-from edgedb import QueryAssertionError, CardinalityViolationError
+from edgedb import QueryAssertionError
 from edb.testbase import http as tb
 from edb.common import assert_data_shape
 from edb.server.protocol.auth_ext import util as auth_util
@@ -2549,32 +2549,12 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
                 # Test Webhook side effect
                 async for tr in self.try_until_succeeds(
-                    delay=2, timeout=120, ignore=(QueryAssertionError,)
+                    delay=2, timeout=120, ignore=(KeyError,)
                 ):
                     async with tr:
-                        result = await self.con.query(
-                            """
-                            with
-                                net as module std::net,
-                                nh as module std::net::http,
-                                url := <str>$url,
-                                request := (
-                                    select nh::ScheduledRequest
-                                    filter .url = url
-                                    and .state != net::RequestState.Pending
-                                )
-                            select request {*};
-                            """,
-                            url=url,
-                        )
-                        if len(result) != 2:
-                            raise QueryAssertionError(
-                                f"Expected 2 results, got {len(result)}"
-                            )
-
-                requests_for_webhook = self.mock_net_server.requests[
-                    webhook_request
-                ]
+                        requests_for_webhook = self.mock_net_server.requests[
+                            webhook_request
+                        ]
                 self.assertEqual(len(requests_for_webhook), 2)
                 event_types = {
                     "IdentityCreated": False,
@@ -2922,299 +2902,216 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 400)
 
     async def test_http_auth_ext_local_password_authenticate_01(self):
-        base_url = self.mock_net_server.get_base_url().rstrip("/")
-        url = f"{base_url}/webhook-02"
-        await self.con.query(
-            f"""
-            CONFIGURE CURRENT DATABASE
-            INSERT ext::auth::WebhookConfig {{
-                url := <str>$url,
-                events := {{
-                    ext::auth::WebhookEvent.IdentityAuthenticated,
-                }},
-            }};
-            """,
-            url=url,
-        )
-        webhook_request = (
-            "POST",
-            base_url,
-            "/webhook-02",
-        )
-        await self._wait_for_db_config("ext::auth::AuthConfig::webhooks")
+        with self.http_con() as http_con:
+            provider_config = await self.get_builtin_provider_config_by_name(
+                "local_emailpassword"
+            )
+            provider_name = provider_config.name
+            email = f"{uuid.uuid4()}@example.com"
 
-        try:
-            with self.http_con() as http_con:
-                self.mock_net_server.register_route_handler(*webhook_request)(
-                    (
-                        "",
-                        204,
-                    )
-                )
-                provider_config = (
-                    await self.get_builtin_provider_config_by_name(
-                        "local_emailpassword"
-                    )
-                )
-                provider_name = provider_config.name
-                email = f"{uuid.uuid4()}@example.com"
+            # Register a new user
+            form_data = {
+                "provider": provider_name,
+                "email": email,
+                "password": "test_auth_password",
+                "challenge": str(uuid.uuid4()),
+            }
+            form_data_encoded = urllib.parse.urlencode(form_data).encode()
 
-                # Register a new user
-                form_data = {
-                    "provider": provider_name,
-                    "email": email,
-                    "password": "test_auth_password",
-                    "challenge": str(uuid.uuid4()),
-                }
-                form_data_encoded = urllib.parse.urlencode(form_data).encode()
+            self.http_con_request(
+                http_con,
+                None,
+                path="register",
+                method="POST",
+                body=form_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
 
-                self.http_con_request(
-                    http_con,
-                    None,
-                    path="register",
-                    method="POST",
-                    body=form_data_encoded,
-                    headers={
-                        "Content-Type": "application/x-www-form-urlencoded"
-                    },
-                )
+            auth_data = {
+                "provider": form_data["provider"],
+                "email": form_data["email"],
+                "password": form_data["password"],
+                "challenge": str(uuid.uuid4()),
+            }
+            auth_data_encoded = urllib.parse.urlencode(auth_data).encode()
 
-                auth_data = {
-                    "provider": form_data["provider"],
-                    "email": form_data["email"],
-                    "password": form_data["password"],
-                    "challenge": str(uuid.uuid4()),
-                }
-                auth_data_encoded = urllib.parse.urlencode(auth_data).encode()
+            body, _headers, status = self.http_con_request(
+                http_con,
+                None,
+                path="authenticate",
+                method="POST",
+                body=auth_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
 
-                body, _headers, status = self.http_con_request(
-                    http_con,
-                    None,
-                    path="authenticate",
-                    method="POST",
-                    body=auth_data_encoded,
-                    headers={
-                        "Content-Type": "application/x-www-form-urlencoded"
-                    },
-                )
+            self.assertEqual(status, 200)
 
-                self.assertEqual(status, 200)
-
-                identity = await self.con.query(
-                    """
-                    SELECT ext::auth::LocalIdentity
-                    FILTER .<identity[is ext::auth::EmailPasswordFactor]
-                            .email = <str>$email;
-                    """,
-                    email=email,
-                )
-
-                self.assertEqual(len(identity), 1)
-
-                pkce_challenge = await self.con.query_single(
-                    """
-                    SELECT ext::auth::PKCEChallenge { * }
-                    FILTER .challenge = <str>$challenge
-                    AND .identity.id = <uuid>$identity_id
-                    """,
-                    challenge=auth_data["challenge"],
-                    identity_id=identity[0].id,
-                )
-
-                self.assertEqual(
-                    json.loads(body),
-                    {
-                        "code": str(pkce_challenge.id),
-                    },
-                )
-
-                # Test Webhook side effect
-                async for tr in self.try_until_succeeds(
-                    delay=2, timeout=120, ignore=(CardinalityViolationError,)
-                ):
-                    async with tr:
-                        await self.con.query(
-                            """
-                            with
-                                url := <str>$url,
-                                request := assert_exists((
-                                    select std::net::http::ScheduledRequest
-                                    filter .url = url
-                                    and .state != std::net::RequestState.Pending
-                                    limit 1
-                                ))
-                            select request {*};
-                            """,
-                            url=url,
-                        )
-
-                requests_for_webhook = self.mock_net_server.requests[
-                    webhook_request
-                ]
-                self.assertEqual(len(requests_for_webhook), 1)
-                event_data = json.loads(requests_for_webhook[0]["body"])
-                self.assertEqual(
-                    event_data["event_type"],
-                    "IdentityAuthenticated",
-                )
-                self.assertEqual(event_data["identity_id"], str(identity[0].id))
-
-                # Attempt to authenticate with wrong password
-                auth_data_wrong_password = {
-                    "provider": form_data["provider"],
-                    "email": form_data["email"],
-                    "password": "wrong_password",
-                    "challenge": str(uuid.uuid4()),
-                }
-                auth_data_encoded_wrong_password = urllib.parse.urlencode(
-                    auth_data_wrong_password
-                ).encode()
-
-                _, _, wrong_password_status = self.http_con_request(
-                    http_con,
-                    None,
-                    path="authenticate",
-                    method="POST",
-                    body=auth_data_encoded_wrong_password,
-                    headers={
-                        "Content-Type": "application/x-www-form-urlencoded"
-                    },
-                )
-
-                self.assertEqual(wrong_password_status, 403)
-
-                # Attempt to authenticate with a random email
-                random_email = f"{uuid.uuid4()}@example.com"
-                auth_data_random_handle = {
-                    "provider": form_data["provider"],
-                    "email": random_email,
-                    "password": form_data["password"],
-                    "challenge": str(uuid.uuid4()),
-                }
-                auth_data_encoded_random_handle = urllib.parse.urlencode(
-                    auth_data_random_handle
-                ).encode()
-
-                _, _, wrong_handle_status = self.http_con_request(
-                    http_con,
-                    None,
-                    path="authenticate",
-                    method="POST",
-                    body=auth_data_encoded_random_handle,
-                    headers={
-                        "Content-Type": "application/x-www-form-urlencoded"
-                    },
-                )
-
-                self.assertEqual(wrong_handle_status, 403)
-
-                # Attempt to authenticate with a random email (redirect flow)
-                auth_data_redirect_to = {
-                    "provider": form_data["provider"],
-                    "email": random_email,
-                    "password": form_data["password"],
-                    "redirect_to": "https://example.com/app/some/path",
-                    "challenge": str(uuid.uuid4()),
-                }
-                auth_data_encoded_redirect_to = urllib.parse.urlencode(
-                    auth_data_redirect_to
-                ).encode()
-
-                _, redirect_to_headers, redirect_to_status = (
-                    self.http_con_request(
-                        http_con,
-                        None,
-                        path="authenticate",
-                        method="POST",
-                        body=auth_data_encoded_redirect_to,
-                        headers={
-                            "Content-Type": "application/x-www-form-urlencoded"
-                        },
-                    )
-                )
-
-                self.assertEqual(redirect_to_status, 302)
-                location = redirect_to_headers.get("location")
-                assert location is not None
-                parsed_location = urllib.parse.urlparse(location)
-                parsed_query = urllib.parse.parse_qs(parsed_location.query)
-                self.assertEqual(
-                    urllib.parse.urlunparse(
-                        (
-                            parsed_location.scheme,
-                            parsed_location.netloc,
-                            parsed_location.path,
-                            '',
-                            '',
-                            '',
-                        )
-                    ),
-                    auth_data_redirect_to["redirect_to"],
-                )
-
-                self.assertEqual(
-                    parsed_query.get("error"),
-                    [
-                        (
-                            "Could not find an Identity matching the provided "
-                            "credentials"
-                        )
-                    ],
-                )
-
-                # Attempt to authenticate with a random email
-                # (redirect flow with redirect_on_failure)
-                auth_data_redirect_on_failure = {
-                    "provider": form_data["provider"],
-                    "email": random_email,
-                    "password": form_data["password"],
-                    "redirect_to": "https://example.com/app/some/path",
-                    "redirect_on_failure": "https://example.com/app/failure/path",
-                    "challenge": str(uuid.uuid4()),
-                }
-                auth_data_encoded_redirect_on_failure = urllib.parse.urlencode(
-                    auth_data_redirect_on_failure
-                ).encode()
-
-                (
-                    _,
-                    redirect_on_failure_headers,
-                    redirect_on_failure_status,
-                ) = self.http_con_request(
-                    http_con,
-                    None,
-                    path="authenticate",
-                    method="POST",
-                    body=auth_data_encoded_redirect_on_failure,
-                    headers={
-                        "Content-Type": "application/x-www-form-urlencoded"
-                    },
-                )
-
-                self.assertEqual(redirect_on_failure_status, 302)
-                location = redirect_on_failure_headers.get("location")
-                assert location is not None
-                parsed_location = urllib.parse.urlparse(location)
-                self.assertEqual(
-                    urllib.parse.urlunparse(
-                        (
-                            parsed_location.scheme,
-                            parsed_location.netloc,
-                            parsed_location.path,
-                            '',
-                            '',
-                            '',
-                        )
-                    ),
-                    auth_data_redirect_on_failure["redirect_on_failure"],
-                )
-        finally:
-            await self.con.query(
-                f"""
-                CONFIGURE CURRENT DATABASE
-                RESET ext::auth::WebhookConfig filter .url = <str>$url;
+            identity = await self.con.query(
+                """
+                SELECT ext::auth::LocalIdentity
+                FILTER .<identity[is ext::auth::EmailPasswordFactor]
+                        .email = <str>$email;
                 """,
-                url=url,
+                email=email,
+            )
+
+            self.assertEqual(len(identity), 1)
+
+            pkce_challenge = await self.con.query_single(
+                """
+                SELECT ext::auth::PKCEChallenge { * }
+                FILTER .challenge = <str>$challenge
+                AND .identity.id = <uuid>$identity_id
+                """,
+                challenge=auth_data["challenge"],
+                identity_id=identity[0].id,
+            )
+
+            self.assertEqual(
+                json.loads(body),
+                {
+                    "code": str(pkce_challenge.id),
+                },
+            )
+
+            # Attempt to authenticate with wrong password
+            auth_data_wrong_password = {
+                "provider": form_data["provider"],
+                "email": form_data["email"],
+                "password": "wrong_password",
+                "challenge": str(uuid.uuid4()),
+            }
+            auth_data_encoded_wrong_password = urllib.parse.urlencode(
+                auth_data_wrong_password
+            ).encode()
+
+            _, _, wrong_password_status = self.http_con_request(
+                http_con,
+                None,
+                path="authenticate",
+                method="POST",
+                body=auth_data_encoded_wrong_password,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(wrong_password_status, 403)
+
+            # Attempt to authenticate with a random email
+            random_email = f"{uuid.uuid4()}@example.com"
+            auth_data_random_handle = {
+                "provider": form_data["provider"],
+                "email": random_email,
+                "password": form_data["password"],
+                "challenge": str(uuid.uuid4()),
+            }
+            auth_data_encoded_random_handle = urllib.parse.urlencode(
+                auth_data_random_handle
+            ).encode()
+
+            _, _, wrong_handle_status = self.http_con_request(
+                http_con,
+                None,
+                path="authenticate",
+                method="POST",
+                body=auth_data_encoded_random_handle,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(wrong_handle_status, 403)
+
+            # Attempt to authenticate with a random email (redirect flow)
+            auth_data_redirect_to = {
+                "provider": form_data["provider"],
+                "email": random_email,
+                "password": form_data["password"],
+                "redirect_to": "https://example.com/app/some/path",
+                "challenge": str(uuid.uuid4()),
+            }
+            auth_data_encoded_redirect_to = urllib.parse.urlencode(
+                auth_data_redirect_to
+            ).encode()
+
+            _, redirect_to_headers, redirect_to_status = self.http_con_request(
+                http_con,
+                None,
+                path="authenticate",
+                method="POST",
+                body=auth_data_encoded_redirect_to,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(redirect_to_status, 302)
+            location = redirect_to_headers.get("location")
+            assert location is not None
+            parsed_location = urllib.parse.urlparse(location)
+            parsed_query = urllib.parse.parse_qs(parsed_location.query)
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        parsed_location.scheme,
+                        parsed_location.netloc,
+                        parsed_location.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                auth_data_redirect_to["redirect_to"],
+            )
+
+            self.assertEqual(
+                parsed_query.get("error"),
+                [
+                    (
+                        "Could not find an Identity matching the provided "
+                        "credentials"
+                    )
+                ],
+            )
+
+            # Attempt to authenticate with a random email
+            # (redirect flow with redirect_on_failure)
+            auth_data_redirect_on_failure = {
+                "provider": form_data["provider"],
+                "email": random_email,
+                "password": form_data["password"],
+                "redirect_to": "https://example.com/app/some/path",
+                "redirect_on_failure": "https://example.com/app/failure/path",
+                "challenge": str(uuid.uuid4()),
+            }
+            auth_data_encoded_redirect_on_failure = urllib.parse.urlencode(
+                auth_data_redirect_on_failure
+            ).encode()
+
+            (
+                _,
+                redirect_on_failure_headers,
+                redirect_on_failure_status,
+            ) = self.http_con_request(
+                http_con,
+                None,
+                path="authenticate",
+                method="POST",
+                body=auth_data_encoded_redirect_on_failure,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(redirect_on_failure_status, 302)
+            location = redirect_on_failure_headers.get("location")
+            assert location is not None
+            parsed_location = urllib.parse.urlparse(location)
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        parsed_location.scheme,
+                        parsed_location.netloc,
+                        parsed_location.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                auth_data_redirect_on_failure["redirect_on_failure"],
             )
 
     async def test_http_auth_ext_resend_verification_email(self):
@@ -3355,84 +3252,140 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(status, 400)
 
     async def test_http_auth_ext_token_01(self):
-        with self.http_con() as http_con:
-            # Create a PKCE challenge and verifier
-            verifier = base64.urlsafe_b64encode(os.urandom(43)).rstrip(b'=')
-            challenge = base64.urlsafe_b64encode(
-                hashlib.sha256(verifier).digest()
-            ).rstrip(b'=')
-            pkce = await self.con.query_single(
-                """
-                select (
-                    insert ext::auth::PKCEChallenge {
-                        challenge := <str>$challenge,
-                        auth_token := <str>$auth_token,
-                        refresh_token := <str>$refresh_token,
-                        identity := (
-                            insert ext::auth::Identity {
-                                issuer := "https://example.com",
-                                subject := "abcdefg",
-                            }
-                        ),
+        base_url = self.mock_net_server.get_base_url().rstrip("/")
+        webhook_request = (
+            "POST",
+            base_url,
+            "/webhook-02",
+        )
+        url = f"{webhook_request[1]}/{webhook_request[2]}"
+        await self.con.query(
+            f"""
+            CONFIGURE CURRENT DATABASE
+            INSERT ext::auth::WebhookConfig {{
+                url := <str>$url,
+                events := {{
+                    ext::auth::WebhookEvent.IdentityAuthenticated,
+                }},
+            }};
+            """,
+            url=url,
+        )
+        await self._wait_for_db_config("ext::auth::AuthConfig::webhooks")
+
+        try:
+            with self.http_con() as http_con:
+                self.mock_net_server.register_route_handler(*webhook_request)(
+                    (
+                        "",
+                        204,
+                    )
+                )
+
+                # Create a PKCE challenge and verifier
+                verifier = base64.urlsafe_b64encode(os.urandom(43)).rstrip(b'=')
+                challenge = base64.urlsafe_b64encode(
+                    hashlib.sha256(verifier).digest()
+                ).rstrip(b'=')
+                pkce = await self.con.query_single(
+                    """
+                    select (
+                        insert ext::auth::PKCEChallenge {
+                            challenge := <str>$challenge,
+                            auth_token := <str>$auth_token,
+                            refresh_token := <str>$refresh_token,
+                            identity := (
+                                insert ext::auth::Identity {
+                                    issuer := "https://example.com",
+                                    subject := "abcdefg",
+                                }
+                            ),
+                        }
+                    ) {
+                        id,
+                        challenge,
+                        auth_token,
+                        refresh_token,
+                        identity_id := .identity.id
                     }
-                ) {
-                    id,
-                    challenge,
-                    auth_token,
-                    refresh_token,
-                    identity_id := .identity.id
-                }
+                    """,
+                    challenge=challenge.decode(),
+                    auth_token="a_provider_token",
+                    refresh_token="a_refresh_token",
+                )
+
+                # Correct code, random verifier
+                (_, _, wrong_verifier_status) = self.http_con_request(
+                    http_con,
+                    {
+                        "code": pkce.id,
+                        "code_verifier": base64.urlsafe_b64encode(
+                            os.urandom(43)
+                        )
+                        .rstrip(b"=")
+                        .decode(),
+                    },
+                    path="token",
+                )
+
+                self.assertEqual(wrong_verifier_status, 403)
+
+                # Correct code, correct verifier
+                (
+                    body,
+                    _,
+                    status,
+                ) = self.http_con_request(
+                    http_con,
+                    {"code": pkce.id, "verifier": verifier.decode()},
+                    path="token",
+                )
+
+                self.assertEqual(status, 200)
+                body_json = json.loads(body)
+                self.assertEqual(
+                    body_json,
+                    {
+                        "auth_token": body_json["auth_token"],
+                        "identity_id": str(pkce.identity_id),
+                        "provider_token": "a_provider_token",
+                        "provider_refresh_token": "a_refresh_token",
+                    },
+                )
+                async for tr in self.try_until_succeeds(
+                    delay=2, timeout=120, ignore=(KeyError,)
+                ):
+                    async with tr:
+                        requests_for_webhook = self.mock_net_server.requests[
+                            webhook_request
+                        ]
+
+                self.assertEqual(len(requests_for_webhook), 1)
+                event_data = json.loads(requests_for_webhook[0]["body"])
+                self.assertEqual(
+                    event_data["event_type"],
+                    "IdentityAuthenticated",
+                )
+                self.assertEqual(
+                    event_data["identity_id"], str(pkce.identity_id)
+                )
+
+                # Correct code, correct verifier, already used PKCE
+                (_, _, replay_attack_status) = self.http_con_request(
+                    http_con,
+                    {"code": pkce.id, "verifier": verifier.decode()},
+                    path="token",
+                )
+
+                self.assertEqual(replay_attack_status, 403)
+        finally:
+            await self.con.query(
+                f"""
+                CONFIGURE CURRENT DATABASE
+                RESET ext::auth::WebhookConfig filter .url = <str>$url;
                 """,
-                challenge=challenge.decode(),
-                auth_token="a_provider_token",
-                refresh_token="a_refresh_token",
+                url=url,
             )
-
-            # Correct code, random verifier
-            (_, _, wrong_verifier_status) = self.http_con_request(
-                http_con,
-                {
-                    "code": pkce.id,
-                    "code_verifier": base64.urlsafe_b64encode(os.urandom(43))
-                    .rstrip(b"=")
-                    .decode(),
-                },
-                path="token",
-            )
-
-            self.assertEqual(wrong_verifier_status, 403)
-
-            # Correct code, correct verifier
-            (
-                body,
-                _,
-                status,
-            ) = self.http_con_request(
-                http_con,
-                {"code": pkce.id, "verifier": verifier.decode()},
-                path="token",
-            )
-
-            self.assertEqual(status, 200)
-            body_json = json.loads(body)
-            self.assertEqual(
-                body_json,
-                {
-                    "auth_token": body_json["auth_token"],
-                    "identity_id": str(pkce.identity_id),
-                    "provider_token": "a_provider_token",
-                    "provider_refresh_token": "a_refresh_token",
-                },
-            )
-
-            # Correct code, correct verifier, already used PKCE
-            (_, _, replay_attack_status) = self.http_con_request(
-                http_con,
-                {"code": pkce.id, "verifier": verifier.decode()},
-                path="token",
-            )
-
-            self.assertEqual(replay_attack_status, 403)
 
     async def test_http_auth_ext_token_02(self):
         with self.http_con() as http_con:
