@@ -11877,8 +11877,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ],
         )
 
-    @unittest.skip('TODO: Inlining parameters with link properties')
-    async def test_edgeql_functions_inline_insert_link_04(self):
+    async def test_edgeql_functions_inline_insert_linkprop_01(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -11899,7 +11898,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             'select foo('
-            '    (select Bar filter .a = 1 limit 1)'
+            '    assert_exists((select Bar filter .a = 1 limit 1))'
             '){a := .bar.a, b := .bar@b}',
             [{'a': 1, 'b': 10}],
         )
@@ -11908,8 +11907,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [{'a': 1, 'b': 10}],
         )
 
-    @unittest.skip('TODO: Inlining parameters with link properties')
-    async def test_edgeql_functions_inline_insert_link_05(self):
+    async def test_edgeql_functions_inline_insert_linkprop_02(self):
         await self.con.execute('''
             create type Bar {
                 create required property a -> int64;
@@ -11931,7 +11929,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             'select foo('
             '    4,'
-            '    (select Bar filter .a = 1 limit 1)'
+            '    assert_exists((select Bar filter .a = 1 limit 1))'
             '){a := .bar.a, b := .bar@b}',
             [{'a': 1, 'b': 4}],
         )
