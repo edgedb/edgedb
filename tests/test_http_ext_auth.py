@@ -2442,29 +2442,55 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
     async def test_http_auth_ext_local_password_register_form_01(self):
         base_url = self.mock_net_server.get_base_url().rstrip("/")
         url = f"{base_url}/webhook-01"
+        alt_url = f"{base_url}/webhook-03"
         await self.con.query(
-            f"""
+            """
             CONFIGURE CURRENT DATABASE
-            INSERT ext::auth::WebhookConfig {{
+            INSERT ext::auth::WebhookConfig {
                 url := <str>$url,
-                events := {{
+                events := {
                     ext::auth::WebhookEvent.IdentityCreated,
                     ext::auth::WebhookEvent.EmailFactorCreated,
                     ext::auth::WebhookEvent.EmailVerificationRequested,
-                }},
-            }};
+                },
+            };
             """,
             url=url,
+        )
+        await self.con.query(
+            """
+            CONFIGURE CURRENT DATABASE
+            INSERT ext::auth::WebhookConfig {
+                url := <str>$alt_url,
+                events := {
+                    ext::auth::WebhookEvent.IdentityCreated,
+                },
+            };
+            """,
+            alt_url=alt_url,
         )
         webhook_request = (
             "POST",
             base_url,
             "/webhook-01",
         )
+        alt_webhook_request = (
+            "POST",
+            base_url,
+            "/webhook-03",
+        )
         await self._wait_for_db_config("ext::auth::AuthConfig::webhooks")
         try:
             with self.http_con() as http_con:
                 self.mock_net_server.register_route_handler(*webhook_request)(
+                    (
+                        "",
+                        204,
+                    )
+                )
+                self.mock_net_server.register_route_handler(
+                    *alt_webhook_request
+                )(
                     (
                         "",
                         204,
@@ -2578,6 +2604,17 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     "verification_token",
                     cast(dict, event_types["EmailVerificationRequested"]),
                 )
+
+                # Test for alt_url webhook
+                async for tr in self.try_until_succeeds(
+                    delay=2, timeout=120, ignore=(KeyError,)
+                ):
+                    async with tr:
+                        requests_for_alt_webhook = (
+                            self.mock_net_server.requests[alt_webhook_request]
+                        )
+
+                self.assertEqual(len(requests_for_alt_webhook), 1)
 
                 # Try to register the same user again (no redirect_to)
                 _, _, conflict_status = self.http_con_request(
@@ -2694,11 +2731,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
         finally:
             await self.con.query(
-                f"""
+                """
                 CONFIGURE CURRENT DATABASE
-                RESET ext::auth::WebhookConfig filter .url = <str>$url;
+                RESET ext::auth::WebhookConfig
+                filter .url in {<str>$url, <str>$alt_url};
                 """,
                 url=url,
+                alt_url=alt_url,
             )
 
     async def test_http_auth_ext_local_password_register_form_02(self):
