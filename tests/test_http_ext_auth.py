@@ -29,7 +29,7 @@ import pickle
 import re
 import hashlib
 
-from typing import Any, Optional
+from typing import Any, Optional, cast
 from jwcrypto import jwt, jwk
 
 from edgedb import QueryAssertionError
@@ -2450,6 +2450,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 events := {{
                     ext::auth::WebhookEvent.IdentityCreated,
                     ext::auth::WebhookEvent.EmailFactorCreated,
+                    ext::auth::WebhookEvent.EmailVerificationRequested,
                 }},
             }};
             """,
@@ -2555,10 +2556,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         requests_for_webhook = self.mock_net_server.requests[
                             webhook_request
                         ]
-                self.assertEqual(len(requests_for_webhook), 2)
-                event_types = {
-                    "IdentityCreated": False,
-                    "EmailFactorCreated": False,
+                self.assertEqual(len(requests_for_webhook), 3)
+                event_types: dict[str, dict | None] = {
+                    "IdentityCreated": None,
+                    "EmailFactorCreated": None,
+                    "EmailVerificationRequested": None,
                 }
                 for request in requests_for_webhook:
                     event_data = json.loads(request["body"])
@@ -2567,9 +2569,15 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     self.assertEqual(
                         event_data["identity_id"], str(identity[0].id)
                     )
-                    event_types[event_type] = True
+                    event_types[event_type] = event_data
 
-                self.assertTrue(all(event_types.values()))
+                self.assertTrue(
+                    all(value is not None for value in event_types.values())
+                )
+                self.assertIn(
+                    "verification_token",
+                    cast(dict, event_types["EmailVerificationRequested"]),
+                )
 
                 # Try to register the same user again (no redirect_to)
                 _, _, conflict_status = self.http_con_request(
