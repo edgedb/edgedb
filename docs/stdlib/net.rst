@@ -120,30 +120,21 @@ The ``net::http`` submodule provides types and functions for making HTTP request
 .. eql:function:: net::http::schedule_request( \
                     url: str, \
                     body: optional bytes = {}, \
-                    method: optional net::http::Method = net::http::Method.GET, \
+                    method: optional net::http::Method = net::http::Method.`GET`, \
                     headers: optional array<tuple<name: str, value: str>> = {} \
                   ) -> net::http::ScheduledRequest
 
   Schedules an HTTP request.
 
-  :param url:
-      The URL to send the request to.
-  :paramtype url: str
+  Parameters:
 
-  :param body:
-      The body of the request (optional).
-  :paramtype body: bytes
+  * ``url``: The URL to send the request to.
+  * ``body``: The body of the request (optional).
+  * ``method``: The HTTP method to use (optional, defaults to GET).
+  * ``headers``: The headers to include in the request (optional).
 
-  :param method:
-      The HTTP method to use (optional, defaults to GET).
-  :paramtype method: net::http::Method
-
-  :param headers:
-      The headers to include in the request (optional).
-  :paramtype headers: array<tuple<name: str, value: str>>
-
-  :return: A object representing the scheduled request.
-  :returntype: net::http::ScheduledRequest
+  Returns ``net::http::ScheduledRequest`` object representing
+  the scheduled request.
 
   Example:
 
