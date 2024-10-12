@@ -38,6 +38,7 @@ import edb._edgeql_parser as ql_parser
 
 from edb.common import debug
 from edb.common import exceptions
+from edb.common import ordered
 from edb.common import uuidgen
 from edb.common import xdedent
 from edb.common.typeutils import not_none
@@ -147,6 +148,38 @@ class DBConfigTable(dbops.Table):
                 table_name=('edgedb', '_db_config'),
                 columns=['name'],
             ),
+        )
+
+
+class InstDataTable(dbops.Table):
+    def __init__(self) -> None:
+        sname = V('edgedbinstdata')
+        super().__init__(
+            name=(sname, 'instdata'),
+            columns=[
+                dbops.Column(
+                    name='key',
+                    type='text',
+                ),
+                dbops.Column(
+                    name='bin',
+                    type='bytea',
+                ),
+                dbops.Column(
+                    name='text',
+                    type='text',
+                ),
+                dbops.Column(
+                    name='json',
+                    type='jsonb',
+                ),
+            ],
+            constraints=ordered.OrderedSet([
+                dbops.PrimaryKey(
+                    table_name=(sname, 'instdata'),
+                    columns=['key'],
+                ),
+            ]),
         )
 
 
@@ -4852,6 +4885,12 @@ def _maybe_trampoline(
         and cmd.view.name[0].endswith(namespace)
     ):
         out.append(trampoline.make_view_trampoline(cmd.view))
+    elif (
+        isinstance(cmd, dbops.CreateTable)
+        and cmd.table.name[0].endswith(namespace)
+    ):
+        f, n = cmd.table.name
+        out.append(trampoline.make_table_trampoline((f, n)))
 
 
 def trampoline_functions(
@@ -4886,6 +4925,7 @@ def get_fixed_bootstrap_commands() -> dbops.CommandGroup:
         dbops.CreateSchema(name='edgedbt'),
         dbops.CreateSchema(name='edgedbpub'),
         dbops.CreateSchema(name='edgedbstd'),
+        dbops.CreateSchema(name='edgedbinstdata'),
 
         dbops.CreateTable(
             DBConfigTable(),
@@ -4920,6 +4960,29 @@ def get_fixed_bootstrap_commands() -> dbops.CommandGroup:
     commands = dbops.CommandGroup()
     commands.add_commands(cmds)
     return commands
+
+
+def get_instdata_commands(
+) -> tuple[dbops.CommandGroup, list[trampoline.Trampoline]]:
+    cmds = [
+        dbops.CreateSchema(name=V('edgedbinstdata')),
+        dbops.CreateTable(InstDataTable()),
+    ]
+
+    commands = dbops.CommandGroup()
+    commands.add_commands(cmds)
+
+    return commands, trampoline_functions(cmds)
+
+
+async def generate_instdata_table(
+    conn: PGConnection,
+) -> list[trampoline.Trampoline]:
+    commands, trampolines = get_instdata_commands()
+    block = dbops.PLTopBlock()
+    commands.generate(block)
+    await _execute_block(conn, block)
+    return trampolines
 
 
 def get_bootstrap_commands(

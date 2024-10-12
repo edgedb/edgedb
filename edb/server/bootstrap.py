@@ -56,7 +56,6 @@ from edb.edgeql import ast as qlast
 
 from edb.common import debug
 from edb.common import devmode
-from edb.common import ordered
 from edb.common import retryloop
 from edb.common import uuidgen
 
@@ -242,7 +241,7 @@ async def _execute_block(conn, block: dbops.SQLBlock) -> None:
         await _execute(conn, stmt)
 
 
-async def _execute_edgeql_ddl(
+def _execute_edgeql_ddl(
     schema: s_schema.Schema_T,
     ddltext: str,
     stdmode: bool = True,
@@ -1222,7 +1221,7 @@ class StdlibBits(NamedTuple):
     # (Oh, maybe testmode screws this idea up?)
 
 
-async def _make_stdlib(
+def _make_stdlib(
     ctx: BootstrapContext,
     testmode: bool,
     global_ids: Mapping[str, uuid.UUID],
@@ -1282,7 +1281,7 @@ async def _make_stdlib(
         }};''',
     ])
 
-    schema = await _execute_edgeql_ddl(schema, stdglobals)
+    schema = _execute_edgeql_ddl(schema, stdglobals)
 
     _, global_schema_version = s_std.make_global_schema_version(schema)
     schema, plan, tplan = _process_delta(ctx, global_schema_version, schema)
@@ -1572,7 +1571,7 @@ async def _init_stdlib(
     stdlib_was_none = stdlib is None
     if stdlib is None:
         logger.info('Compiling the standard library...')
-        stdlib = await _make_stdlib(
+        stdlib = _make_stdlib(
             ctx, in_dev_mode or testmode, global_ids)
 
     config_spec = config.load_spec_from_schema(stdlib.stdschema)
@@ -1590,12 +1589,21 @@ async def _init_stdlib(
                 trampolines=bootstrap_trampolines + stdlib.trampolines
             )
 
+    trampolines = []
+
+    # We need to set this up early, since later code depends on the
+    # backend_instance_params of the instdata table. But it also
+    # obviously can't go into the tpldbdump, since it is dynamic.
+    trampolines.extend(await metaschema.generate_instdata_table(
+        conn,
+    ))
+    await _populate_misc_instance_data(ctx)
+
     backend_params = cluster.get_runtime_params()
     if not args.inplace_upgrade_prepare:
         logger.info('Creating the necessary PostgreSQL extensions...')
         await metaschema.create_pg_extensions(conn, backend_params)
 
-    trampolines = []
     trampolines.extend(stdlib.trampolines)
 
     eff_tpldbdump = (
@@ -2095,43 +2103,6 @@ async def _populate_misc_instance_data(
     ctx: BootstrapContext,
 ) -> Dict[str, Any]:
 
-    sname = pg_common.versioned_schema('edgedbinstdata')
-    commands = dbops.CommandGroup()
-    commands.add_commands([
-        dbops.CreateSchema(name=sname),
-        dbops.CreateTable(dbops.Table(
-            name=(sname, 'instdata'),
-            columns=[
-                dbops.Column(
-                    name='key',
-                    type='text',
-                ),
-                dbops.Column(
-                    name='bin',
-                    type='bytea',
-                ),
-                dbops.Column(
-                    name='text',
-                    type='text',
-                ),
-                dbops.Column(
-                    name='json',
-                    type='jsonb',
-                ),
-            ],
-            constraints=ordered.OrderedSet([
-                dbops.PrimaryKey(
-                    table_name=(sname, 'instdata'),
-                    columns=['key'],
-                ),
-            ]),
-        ))
-    ])
-
-    block = dbops.PLTopBlock()
-    commands.generate(block)
-    await _execute_block(ctx.conn, block)
-
     mock_auth_nonce = scram.generate_nonce()
     json_instance_data = {
         'version': dict(buildmeta.get_version_dict()),
@@ -2166,6 +2137,7 @@ async def _populate_misc_instance_data(
             json.dumps(json_single_role_metadata),
         )
 
+    assert backend_params.has_create_database
     if not backend_params.has_create_database:
         await _store_static_json_cache(
             ctx,
@@ -2251,11 +2223,16 @@ def _pg_log_listener(severity, message):
     logger.log(level, message)
 
 
-async def _get_instance_data(conn: metaschema.PGConnection) -> Dict[str, Any]:
+async def _get_instance_data(
+    conn: metaschema.PGConnection,
+    *,
+    versioned: bool=True,
+) -> Dict[str, Any]:
+    schema = 'edgedbinstdata_VER' if versioned else 'edgedbinstdata'
     data = await conn.sql_fetch_val(
-        trampoline.fixup_query("""
+        trampoline.fixup_query(f"""
         SELECT json::json
-        FROM edgedbinstdata_VER.instdata
+        FROM {schema}.instdata
         WHERE key = 'instancedata'
         """).encode('utf-8'),
     )
@@ -2325,7 +2302,8 @@ async def _check_catalog_compatibility(
     )
 
     try:
-        instancedata = await _get_instance_data(conn)
+        # versioned=False so we can properly fail on version/catalog mismatches.
+        instancedata = await _get_instance_data(conn, versioned=False)
         datadir_version = instancedata.get('version')
         if datadir_version:
             datadir_major = datadir_version.get('major')
@@ -2351,8 +2329,8 @@ async def _check_catalog_compatibility(
                     f'{expected_ver.major}'
                 ),
                 hint=(
-                    f'You need to recreate the instance and upgrade '
-                    f'using dump/restore.'
+                    f'You need to either recreate the instance and upgrade '
+                    f'using dump/restore, or do an inplace upgrade.'
                 )
             )
 
@@ -2368,8 +2346,8 @@ async def _check_catalog_compatibility(
                     f'format version {expected_catver}'
                 ),
                 hint=(
-                    f'You need to recreate the instance and upgrade '
-                    f'using dump/restore.'
+                    f'You need to either recreate the instance and upgrade '
+                    f'using dump/restore, or do an inplace upgrade.'
                 )
             )
     except Exception:
@@ -2508,8 +2486,6 @@ async def _bootstrap(
         # so set it up.
         tmp_table_query = pgcon.SETUP_TEMP_TABLE_SCRIPT
         await _execute(tpl_ctx.conn, tmp_table_query)
-
-        await _populate_misc_instance_data(tpl_ctx)
 
         stdlib, config_spec, compiler = await _init_stdlib(
             tpl_ctx,
