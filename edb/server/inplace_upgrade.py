@@ -452,9 +452,12 @@ async def _get_databases(
 
     # DEBUG VELOCITY HACK: You can add a failing database to EARLY
     # when trying to upgrade the whole suite.
+    #
+    # Note: We put template last, since when deleting, we need it to
+    # stay around so we can query all branches.
     EARLY: tuple[str, ...] = ()
     databases.sort(
-        key=lambda k: (k != edbdef.EDGEDB_TEMPLATE_DB, k not in EARLY, k)
+        key=lambda k: (k == edbdef.EDGEDB_TEMPLATE_DB, k not in EARLY, k)
     )
 
     return databases
@@ -464,14 +467,18 @@ async def _rollback_one(
     ctx: bootstrap.BootstrapContext,
 ) -> None:
     conn = ctx.conn
+
+    namespaces = await _get_namespaces(conn)
+    if pg_common.versioned_schema("edgedb") not in namespaces:
+        logger.info(f"Database already rolled back or not prepared; skipping")
+        return
+
     if (await instdata.get_instdata(conn, 'upgrade_finalized', 'text')) == b'1':
         logger.info(f"Database upgrade already finalized")
         raise errors.ConfigurationError(
             f"attempting to rollback database that has already begun "
             f"finalization: retry finalize instead"
         )
-
-    namespaces = await _get_namespaces(conn)
 
     cur_suffix = pg_common.versioned_schema("")
     to_delete = [x for x in namespaces if x.endswith(cur_suffix)]
@@ -486,6 +493,11 @@ async def _rollback_all(
     databases = await _get_databases(ctx)
 
     for database in databases:
+        if database == os.environ.get(
+            'EDGEDB_UPGRADE_ROLLBACK_ERROR_INJECTION'
+        ):
+            raise AssertionError(f'failure injected on {database}')
+
         conn = bootstrap.PGConnectionProxy(
             cluster,
             source_description='inplace upgrade: rollback all',
