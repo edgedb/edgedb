@@ -117,6 +117,7 @@ class PGConnectionProxy:
     def __init__(
         self,
         cluster: pgcluster.BaseCluster,
+        *,
         source_description: str,
         dbname: Optional[str] = None,
         log_listener: Optional[Callable[[str, str], None]] = None,

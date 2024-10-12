@@ -487,7 +487,10 @@ async def _rollback_all(
 
     for database in databases:
         conn = bootstrap.PGConnectionProxy(
-            cluster, cluster.get_db_name(database))
+            cluster,
+            source_description='inplace upgrade: rollback all',
+            dbname=cluster.get_db_name(database),
+        )
         try:
             subctx = dataclasses.replace(ctx, conn=conn)
 
