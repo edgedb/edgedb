@@ -4985,7 +4985,6 @@ async def generate_instdata_table(
     return trampolines
 
 
-
 def get_bootstrap_commands(
     config_spec: edbconfig.Spec,
 ) -> tuple[dbops.CommandGroup, list[trampoline.Trampoline]]:
