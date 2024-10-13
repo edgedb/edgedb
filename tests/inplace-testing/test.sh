@@ -88,6 +88,13 @@ edb server --inplace-upgrade-prepare "$DIR"/upgrade.json --backend-dsn="$DSN"
 $EDGEDB -b select query 'select count(User)' | grep 2
 
 if [ "$ROLLBACK" = 1 ]; then
+    # Inject a failure into our first attempt to rollback
+    if EDGEDB_UPGRADE_FINALIZE_ERROR_INJECTION=main edb server --inplace-upgrade-rollback --backend-dsn="$DSN"; then
+        echo Unexpected rollback success despite failure injection
+        exit 4
+    fi
+
+    # Second try should work
     edb server --inplace-upgrade-rollback --backend-dsn="$DSN"
     $EDGEDB query 'configure instance reset force_database_error'
 
@@ -136,7 +143,6 @@ if [ "$SAVE_TARBALLS" = 1 ]; then
 fi
 
 # Start the server again so we can reenable DDL
-# XXX??
 edb server -D "$DIR" -P $PORT &
 SPID=$!
 if $EDGEDB query 'create empty branch asdf'; then
