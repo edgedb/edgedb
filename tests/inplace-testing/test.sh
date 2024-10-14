@@ -89,7 +89,7 @@ $EDGEDB -b select query 'select count(User)' | grep 2
 
 if [ "$ROLLBACK" = 1 ]; then
     # Inject a failure into our first attempt to rollback
-    if EDGEDB_UPGRADE_FINALIZE_ERROR_INJECTION=main edb server --inplace-upgrade-rollback --backend-dsn="$DSN"; then
+    if EDGEDB_UPGRADE_ROLLBACK_ERROR_INJECTION=main edb server --inplace-upgrade-rollback --backend-dsn="$DSN"; then
         echo Unexpected rollback success despite failure injection
         exit 4
     fi
@@ -147,7 +147,7 @@ edb server -D "$DIR" -P $PORT &
 SPID=$!
 if $EDGEDB query 'create empty branch asdf'; then
     echo Unexpected DDL success despite blocking it
-    exit 4
+    exit 6
 fi
 $EDGEDB query 'configure instance reset force_database_error'
 stop_server
