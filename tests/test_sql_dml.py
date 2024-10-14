@@ -882,6 +882,63 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [['Raven']])
 
+    async def test_sql_dml_insert_41(self):
+        res = await self.squery_values(
+            f'''
+            WITH
+            u1 as (
+                INSERT INTO "User" DEFAULT VALUES RETURNING id
+            )
+            INSERT INTO "Document" (owner_id, title)
+            VALUES ((SELECT id FROM u1), 'hello')
+            RETURNING title
+            '''
+        )
+        self.assertEqual(res, [['hello (new)']])
+
+    async def test_sql_dml_insert_42(self):
+        await self.scon.execute("SET LOCAL allow_user_specified_id TO TRUE")
+
+        uuid1 = uuid.uuid4()
+        uuid2 = uuid.uuid4()
+        res = await self.scon.execute(
+            f'''
+            WITH
+            u1 as (
+                INSERT INTO "User" DEFAULT VALUES RETURNING id, 'hello' as x
+            ),
+            u2 as (
+                INSERT INTO "User" (id) VALUES ($1), ($2)
+                RETURNING id, 'world' as y
+            )
+            INSERT INTO "Document" (owner_id, title)
+            VALUES
+                ((SELECT id FROM u1), (SELECT x FROM u1)),
+                ((SELECT id FROM u2 LIMIT 1), (SELECT y FROM u2 LIMIT 1)),
+                (
+                    (SELECT id FROM u2 OFFSET 1 LIMIT 1),
+                    (SELECT y FROM u2 OFFSET 1 LIMIT 1)
+                )
+            ''',
+            uuid1,
+            uuid2,
+        )
+        self.assertEqual(res, 'INSERT 0 3')
+        res = await self.squery_values(
+            '''
+            SELECT title, owner_id FROM "Document"
+            '''
+        )
+        res[0][1] = None  # first uuid is generated and unknown at this stage
+        self.assertEqual(
+            res,
+            [
+                ['hello (new)', None],
+                ['world (new)', uuid1],
+                ['world (new)', uuid2],
+            ],
+        )
+
     async def test_sql_dml_delete_01(self):
         # delete, inspect CommandComplete tag
 
@@ -1606,6 +1663,32 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             top_level[1],
             'X' + str(inserted_id) + ',' + inserted_title + ' (new)',
         )
+
+    async def test_sql_dml_update_16(self):
+        [[doc_id]] = await self.squery_values(
+            'INSERT INTO "Document" DEFAULT VALUES RETURNING id'
+        )
+        
+        res = await self.squery_values(
+            '''
+            WITH
+            u1 as (
+                INSERT INTO "User" DEFAULT VALUES RETURNING id
+            )
+            UPDATE "Document" SET owner_id = u1.id
+            FROM u1
+            RETURNING id, owner_id
+            '''
+        )
+        user_id = res[0][1]
+        self.assertEqual(res, [[doc_id, user_id], ])
+
+        res = await self.squery_values(
+            '''
+            SELECT id, owner_id FROM "Document"
+            '''
+        )
+        self.assertEqual(res, [[doc_id, user_id], ])
 
     async def test_sql_dml_01(self):
         # update/delete only

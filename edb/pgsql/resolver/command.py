@@ -474,11 +474,7 @@ def _construct_assign_element_for_ptr(
         target = ptr.get_target(ctx.schema)
         assert isinstance(target, s_objtypes.ObjectType)
 
-        # FIXME: We should change this to use the non-old variant, and
-        # then eliminate old. There's not enough test coverage of
-        # single links for me to want to make the change yet,
-        # though. -sully
-        ptr_ql = _construct_cast_from_uuid_to_obj_type_old(
+        ptr_ql = _construct_cast_from_uuid_to_obj_type(
             ptr_ql, target, stype_refs, optional=True, ctx=ctx
         )
 
@@ -489,14 +485,13 @@ def _construct_assign_element_for_ptr(
     )
 
 
-def _construct_cast_from_uuid_to_obj_type_old(
+def _construct_cast_from_uuid_to_obj_type(
     ptr_ql: qlast.Path,
     object: s_objtypes.ObjectType,
     stype_refs: Dict[uuid.UUID, List[qlast.Set]],
     *,
     optional: bool,
     ctx: Context,
-    no_id: bool = False,
 ) -> qlast.Expr:
     # Constructs AST that converts a UUID provided by ptr_ql to an object type.
 
@@ -508,20 +503,22 @@ def _construct_cast_from_uuid_to_obj_type_old(
     # invalid UUIDs.
 
     # Constructs qlast equivalent to:
-    #   if exists ptr_ql then
+    #   for i in ptr_ql union
     #     assert_exists((
     #       select {type_name, #all preceding DML clauses#}
-    #       filter .id = ptr_ql.id
+    #       filter .id = i.id
     #       limit 1
     #     ))
     #   else {}
 
     object_name: sn.Name = object.get_name(ctx.schema)
 
-    if no_id:
-        ptr_id_ql = ptr_ql
+    ptr_id_ql = qlast.Path(steps=ptr_ql.steps + [qlast.Ptr(name='id')])
+    if optional:
+        ptr_iter = ctx.alias_generator.get('i')
+        id_ql = qlast.Path(steps=[qlast.ObjectRef(name=ptr_iter)])
     else:
-        ptr_id_ql = qlast.Path(steps=ptr_ql.steps + [qlast.Ptr(name='id')])
+        id_ql = ptr_id_ql
 
     stype_ref = qlast.Set(
         elements=[
@@ -541,7 +538,7 @@ def _construct_cast_from_uuid_to_obj_type_old(
                 where=qlast.BinOp(
                     left=qlast.Path(partial=True, steps=[qlast.Ptr(name='id')]),
                     op='=',
-                    right=ptr_id_ql,
+                    right=id_ql,
                 ),
                 # this is needed for cardinality check only: there will
                 # always be at most one object with matching id. It will be
@@ -557,7 +554,7 @@ def _construct_cast_from_uuid_to_obj_type_old(
                 op='++',
                 right=qlast.BinOp(
                     left=qlast.TypeCast(
-                        expr=ptr_id_ql,
+                        expr=id_ql,
                         type=qlast.TypeName(
                             maintype=qlast.ObjectRef(module='std', name='str'),
                         ),
@@ -570,42 +567,6 @@ def _construct_cast_from_uuid_to_obj_type_old(
     )
 
     if optional:
-        res = qlast.IfElse(
-            condition=qlast.UnaryOp(
-                op='EXISTS',
-                operand=ptr_ql,
-            ),
-            if_expr=res,
-            else_expr=qlast.Set(elements=[]),
-        )
-    return res
-
-
-def _construct_cast_from_uuid_to_obj_type(
-    ptr_ql: qlast.Path,
-    object: s_objtypes.ObjectType,
-    stype_refs: Dict[uuid.UUID, List[qlast.Set]],
-    *,
-    optional: bool,
-    ctx: Context,
-) -> qlast.Expr:
-    # uuid to obj type cast, but one using FOR to avoid assertion
-    # failure on NULL instead of IF EXISTS, which should produce
-    # better code?
-
-    if optional:
-        ptr_iter = ctx.alias_generator.get('i')
-        ptr_ql_2 = qlast.Path(steps=[qlast.ObjectRef(name=ptr_iter)])
-    else:
-        ptr_ql_2 = ptr_ql
-
-    res = _construct_cast_from_uuid_to_obj_type_old(
-        ptr_ql_2, object, stype_refs, optional=False, ctx=ctx, no_id=optional,
-    )
-
-    if optional:
-        ptr_id_ql = qlast.Path(steps=ptr_ql.steps + [qlast.Ptr(name='id')])
-
         res = qlast.ForQuery(
             iterator=ptr_id_ql,
             iterator_alias=ptr_iter,
