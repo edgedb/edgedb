@@ -334,7 +334,7 @@ class CreateTrampolineViewFunction(trampoline.VersionedFunction):
                   ) a2
                   on a1.attname = a2.attname
                   order by a2.attnum, a1.attnum
-                )
+                ) t
                 INTO cols;
 
             END IF;
