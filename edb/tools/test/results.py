@@ -48,7 +48,7 @@ class TestCase:
 
     py_HashSecret: typing.Optional[str]
     py_random_seed: typing.Optional[str]
-    pid: typing.Optional[int]
+    worker_num: typing.Optional[int]
 
     error_message: typing.Optional[str]
     server_traceback: typing.Optional[str]
@@ -64,13 +64,13 @@ def _collect_case_data(
 
     py_HashSecret = None
     py_random_seed = None
-    pid = None
+    worker_num = None
     if annos := result.get_test_annotations(test):
         if phs := annos.get('py-hash-secret'):
             py_HashSecret = binascii.hexlify(phs).decode()
         if prs := annos.get('py-random-seed'):
             py_random_seed = binascii.hexlify(prs).decode()
-        pid = annos.get('pid')
+        worker_num = annos.get('worker-num')
 
     error_message = None
     server_traceback = None
@@ -88,7 +88,7 @@ def _collect_case_data(
         description=result.getDescription(test),
         py_HashSecret=py_HashSecret,
         py_random_seed=py_random_seed,
-        pid=pid,
+        worker_num=worker_num,
         error_message=error_message,
         server_traceback=server_traceback,
     )
@@ -225,13 +225,13 @@ def _print_case_result(file: typing.IO, case: TestCase, kind: str, fg: str):
     _echo(file, f'{kind}: {case.description}', fg=fg, bold=True)
     _fill(file, '-', fg=fg)
 
-    if case.py_HashSecret or case.py_random_seed or case.pid:
+    if case.py_HashSecret or case.py_random_seed or case.worker_num:
         if case.py_HashSecret:
             _echo(file, f'Py_HashSecret: {case.py_HashSecret}')
         if case.py_random_seed:
             _echo(file, f'random.seed(): {case.py_random_seed}')
-        if case.pid:
-            _echo(file, f'runner pid: {case.pid}')
+        if case.worker_num:
+            _echo(file, f'worker num: {case.worker_num}')
         _fill(file, '-', fg=fg)
 
     if case.server_traceback:

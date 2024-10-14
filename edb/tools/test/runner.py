@@ -68,6 +68,7 @@ result: Optional[unittest.result.TestResult] = None
 coverage_run: Optional[Any] = None
 py_hash_secret: bytes = cpython_state.get_py_hash_secret()
 py_random_seed: bytes = random.SystemRandom().randbytes(8)
+worker_num = -1
 
 
 def teardown_suite() -> None:
@@ -91,6 +92,7 @@ def init_worker(
     global coverage_run
     global py_hash_secret
     global py_random_seed
+    global worker_num
 
     if additional_init:
         additional_init()
@@ -102,12 +104,14 @@ def init_worker(
 
     result = ChannelingTestResult(result_queue)
     if not param_queue.empty():
-        server_addr, backend_dsn = param_queue.get()
+        server_addr, backend_dsn, i = param_queue.get()
 
         if server_addr is not None:
             os.environ['EDGEDB_TEST_CLUSTER_ADDR'] = json.dumps(server_addr)
         if backend_dsn:
             os.environ['EDGEDB_TEST_BACKEND_DSN'] = backend_dsn
+
+        worker_num = i
 
     os.environ['EDGEDB_TEST_PARALLEL'] = '1'
     coverage_run = devmode.CoverageConfig.start_coverage_if_requested()
@@ -159,16 +163,16 @@ class StreamingTestSuite(unittest.TestSuite):
                 getattr(result, '_moduleSetUpFailed', False)):
             return
 
+        result.annotate_test(test, {
+            'py-hash-secret': py_hash_secret,
+            'py-random-seed': py_random_seed,
+            'worker-num': worker_num,
+        })
         start = time.monotonic()
         test.run(result)
         elapsed = time.monotonic() - start
 
         result.record_test_stats(test, {'running-time': elapsed})
-        result.annotate_test(test, {
-            'py-hash-secret': py_hash_secret,
-            'py-random-seed': py_random_seed,
-            'pid': os.getpid(),
-        })
 
         result._testRunEntered = False
         return result
@@ -307,8 +311,8 @@ class ParallelTestSuite(unittest.TestSuite):
 
         # Prepopulate the worker param queue with server connection
         # information.
-        for _ in range(self.num_workers):
-            worker_param_queue.put((self.server_conn, self.backend_dsn))
+        for i in range(self.num_workers):
+            worker_param_queue.put((self.server_conn, self.backend_dsn, i))
 
         result_thread = threading.Thread(
             name='test-monitor', target=monitor_thread,
@@ -445,7 +449,9 @@ class BaseRenderer:
             else:
                 return str(test)
 
-    def report(self, test, marker, description=None, *, currently_running):
+    def report(
+        self, test, marker, description=None, *, currently_running, annos=None
+    ):
         raise NotImplementedError
 
     def report_start(self, test, *, currently_running):
@@ -469,17 +475,24 @@ class VerboseRenderer(BaseRenderer):
         Markers.upassed: 'unexpected success',
     }
 
-    def _render_test(self, test, marker, description):
+    def _render_test(self, test, marker, description, annos):
         test_title = self.format_test(test)
+        num = (
+            f" ({annos['worker-num']})"
+            if annos and "worker-num" in annos else ''
+        )
         if description:
-            return f'{test_title}: {self.fullnames[marker]}: {description}'
+            return f'{test_title}{num}: {self.fullnames[marker]}: {description}'
         else:
-            return f'{test_title}: {self.fullnames[marker]}'
+            return f'{test_title}{num}: {self.fullnames[marker]}'
 
-    def report(self, test, marker, description=None, *, currently_running):
+    def report(
+        self, test, marker, description=None, *, currently_running, annos=None
+    ):
         style = self.styles_map[marker.value]
-        click.echo(style(self._render_test(test, marker, description)),
-                   file=self.stream)
+        click.echo(
+            style(self._render_test(test, marker, description, annos=annos)),
+            file=self.stream)
 
 
 class MultiLineRenderer(BaseRenderer):
@@ -508,7 +521,9 @@ class MultiLineRenderer(BaseRenderer):
         self.max_lines = 0
         self.max_label_lines_rendered = collections.defaultdict(int)
 
-    def report(self, test, marker, description=None, *, currently_running):
+    def report(
+        self, test, marker, description=None, *, currently_running, annos=None
+    ):
         if marker in {Markers.failed, Markers.errored}:
             test_name = test.id().rpartition('.')[2]
             if ' ' in test_name:
@@ -723,6 +738,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
             marker,
             description,
             currently_running=list(self.currently_running),
+            annos=self.get_test_annotations(test),
         )
 
     def record_test_stats(self, test, stats):
