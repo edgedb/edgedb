@@ -1100,6 +1100,11 @@ class ConnectedTestCase(ClusterTestCase):
                     raise RollbackException
             except RollbackException:
                 pass
+            except StopAsyncIteration:
+                import traceback
+                print("THIS IS FUCKED UP")
+                traceback.print_exception(*sys.exc_info())
+                raise
 
         async for tx in self.con.retrying_transaction():
             yield cm(tx)
