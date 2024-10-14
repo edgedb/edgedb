@@ -831,7 +831,8 @@ cdef class DatabaseConnectionView:
         if type_id != serializer.type_id.bytes:
             self._command_state_serializer = None
             raise errors.StateMismatchError(
-                "Cannot decode state: type mismatch"
+                f"Cannot decode state: type mismatch "
+                f"({uuid.UUID(type_id)} != {serializer.type_id})"
             )
 
         if self._session_state_cache is not None:
