@@ -939,6 +939,34 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             ],
         )
 
+    async def test_sql_dml_insert_43(self):
+        await self.scon.execute("SET LOCAL allow_user_specified_id TO TRUE")
+
+        doc_id = uuid.uuid4()
+        user_id = uuid.uuid4()
+        res = await self.scon.execute(
+            '''
+            WITH
+                d AS (INSERT INTO "Document" (id) VALUES ($1)),
+                u AS (INSERT INTO "User" (id) VALUES ($2)),
+                dsw AS (
+                    INSERT INTO "Document.shared_with" (source, target)
+                    VALUES ($1, $2)
+                )
+                INSERT INTO "Document.keywords" VALUES ($1, 'top-priority')
+            ''',
+            doc_id,
+            user_id,
+        )
+        self.assertEqual(res, 'INSERT 0 1')
+
+        res = await self.squery_values(
+            '''
+            SELECT source, target FROM "Document.shared_with"
+            '''
+        )
+        self.assertEqual(res, [[doc_id, user_id]])
+
     async def test_sql_dml_delete_01(self):
         # delete, inspect CommandComplete tag
 
