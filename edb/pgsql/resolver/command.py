@@ -173,6 +173,9 @@ def _collect_dml_stmts(stmt: pgast.Base) -> List[pgast.DMLQuery]:
     return res
 
 
+ExternalRel = Tuple[pgast.BaseRelation, Tuple[pgce.PathAspect, ...]]
+
+
 @dataclasses.dataclass(kw_only=True, eq=False, repr=False)
 class UncompiledDML:
     # the input DML node
@@ -188,9 +191,7 @@ class UncompiledDML:
     ql_returning_shape: List[qlast.ShapeElement]
     ql_singletons: Set[irast.PathId]
     ql_anchors: Mapping[str, irast.PathId]
-    external_rels: Mapping[
-        irast.PathId, Tuple[pgast.BaseRelation, Tuple[str, ...]]
-    ]
+    external_rels: Mapping[irast.PathId, ExternalRel]
 
     # list of column names of the subject type, along with pointer name
     # these columns will be available within RETURNING clause
@@ -419,7 +420,12 @@ def _uncompile_insert_object_stmt(
         ql_returning_shape=ql_returning_shape,
         ql_singletons={value_id},
         ql_anchors={value_name: value_id},
-        external_rels={value_id: (value_rel, ('source', 'identity'))},
+        external_rels={
+            value_id: (
+                value_rel,
+                (pgce.PathAspect.SOURCE,),
+            )
+        },
         early_result=context.CompiledDML(
             value_cte_name=value_cte_name,
             value_relation_input=value_relation,
@@ -683,7 +689,12 @@ def _uncompile_insert_pointer_stmt(
         ql_returning_shape=ql_returning_shape,
         ql_singletons={source_id},
         ql_anchors={value_name: source_id},
-        external_rels={source_id: (value_rel, ('source', 'identity'))},
+        external_rels={
+            source_id: (
+                value_rel,
+                (pgce.PathAspect.SOURCE,),
+            )
+        },
         early_result=context.CompiledDML(
             value_cte_name=value_cte_name,
             value_relation_input=value_relation,
@@ -908,7 +919,12 @@ def _uncompile_delete_object_stmt(
         ql_returning_shape=ql_returning_shape,
         ql_singletons={value_id},
         ql_anchors={value_name: value_id},
-        external_rels={value_id: (value_rel, ('source', 'identity'))},
+        external_rels={
+            value_id: (
+                value_rel,
+                (pgce.PathAspect.SOURCE,),
+            )
+        },
         early_result=context.CompiledDML(
             value_cte_name=value_cte_name,
             value_relation_input=value_relation,
@@ -1095,7 +1111,12 @@ def _uncompile_delete_pointer_stmt(
         ql_returning_shape=ql_returning_shape,
         ql_singletons={source_id},
         ql_anchors={value_name: source_id},
-        external_rels={source_id: (value_rel, ('source', 'identity'))},
+        external_rels={
+            source_id: (
+                value_rel,
+                (pgce.PathAspect.SOURCE,),
+            )
+        },
         early_result=context.CompiledDML(
             value_cte_name=value_cte_name,
             value_relation_input=value_relation,
@@ -1345,7 +1366,12 @@ def _uncompile_update_object_stmt(
         ql_returning_shape=ql_returning_shape,
         ql_singletons={value_id},
         ql_anchors={value_name: value_id},
-        external_rels={value_id: (value_rel, ('source', 'identity'))},
+        external_rels={
+            value_id: (
+                value_rel,
+                (pgce.PathAspect.SOURCE,),
+            )
+        },
         early_result=context.CompiledDML(
             value_cte_name=value_cte_name,
             value_relation_input=value_relation,
@@ -1397,7 +1423,7 @@ def _compile_uncompiled_dml(
         ql_aliases.append(
             qlast.AliasedExpr(
                 alias=name,
-                expr=qlast.DetachedExpr(expr=stmt.ql_stmt),
+                expr=stmt.ql_stmt,
             )
         )
         ql_stmt_shape.append(
@@ -1524,7 +1550,7 @@ def _merge_and_prepare_external_rels(
     stmts: List[UncompiledDML],
     stmt_names: List[str],
 ) -> Tuple[
-    Dict[irast.PathId, Tuple[pgast.BaseRelation, Tuple[str, ...]]],
+    Mapping[irast.PathId, ExternalRel],
     List[irast.MutatingStmt],
 ]:
     """Construct external rels used for compiling all DML statements at once."""
@@ -1548,9 +1574,7 @@ def _merge_and_prepare_external_rels(
             continue
         shape_elements_by_name[rptr_name.name] = b.expr.expr
 
-    external_rels: Dict[
-        irast.PathId, Tuple[pgast.BaseRelation, Tuple[str, ...]]
-    ] = {}
+    external_rels: Dict[irast.PathId, ExternalRel] = {}
     ir_stmts = []
     for stmt, name in zip(stmts, stmt_names):
         # find the associated binding (this is real funky)
