@@ -1270,11 +1270,10 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         self.assertEqual(deleted, [[document[0], 'notes']])
 
     async def test_sql_dml_delete_12(self):
-        await self.scon.execute(
-            '''INSERT INTO "Document" (title) VALUES ('Report') RETURNING id'''
-        )
+        # Create a new document and try to delete it immediately.
 
-        # N.B: The DELETE doesn't work
+        # This will not delete the document, since DELETE statement cannot "see"
+        # the document that has just been inserted (this is Postgres behavior).
         res = await self.scon.execute(
             '''
             WITH inserted as (
@@ -1288,31 +1287,32 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         res = await self.squery_values(
             'SELECT COUNT(*) FROM "Document"',
         )
-        self.assertEqual(res, [[2]])
+        self.assertEqual(res, [[1]])
 
     async def test_sql_dml_delete_13(self):
-        [[doc_id]] = await self.squery_values(
-            '''INSERT INTO "Document" DEFAULT VALUES RETURNING id'''
-        )
-        [[user_id]] = await self.squery_values(
-            '''INSERT INTO "User" DEFAULT VALUES RETURNING id'''
+        [[doc_id, user_id]] = await self.squery_values(
+            '''
+            WITH
+                d AS (INSERT INTO "Document" DEFAULT VALUES RETURNING id),
+                u AS (INSERT INTO "User" DEFAULT VALUES RETURNING id)
+            INSERT INTO "Document.shared_with" (source, target)
+            VALUES ((SELECT id FROM d), (SELECT id FROM u))
+            RETURNING source, target
+            '''
         )
 
         res = await self.scon.execute(
             '''
-            WITH inserted as (
-                INSERT INTO "Document.shared_with" (source, target)
-                VALUES ($1, $2) RETURNING source, target
-            )
+            WITH
+                inserted(s, t) AS (VALUES ($1::uuid, $2::uuid))
             DELETE FROM "Document.shared_with" dsw
             USING inserted
-            WHERE dsw.source = inserted.source AND dsw.target = inserted.target
+            WHERE dsw.source = inserted.s AND dsw.target = inserted.t
             ''',
             doc_id,
             user_id,
         )
-        # N.B: The DELETE doesn't work
-        self.assertEqual(res, 'DELETE 0')
+        self.assertEqual(res, 'DELETE 1')
 
     async def test_sql_dml_update_01(self):
         # update, inspect CommandComplete tag
@@ -1610,6 +1610,8 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             )
 
     async def test_sql_dml_update_14(self):
+        # UPDATE will not match anything, because the inserted document is not
+        # yet "visible" during the UPDATE statement (this is Postgres behavior).
         res = await self.scon.execute(
             '''
             WITH inserted as (
@@ -1621,13 +1623,49 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             WHERE d.id = inserted.id
             '''
         )
-        # N.B: the UPDATE doesn't work
         self.assertEqual(res, 'UPDATE 0')
 
         res = await self.squery_values(
-            'SELECT title FROM "Document"',
+            'SELECT title FROM "Document" ORDER BY title',
         )
         self.assertEqual(res, [['Report (new)']])
+
+        # Now we remove UPDATE condition and expect all documents that existed
+        # *before* this statement to be updated.
+        res = await self.scon.execute(
+            '''
+            WITH inserted as (
+                INSERT INTO "Document" (title) VALUES ('Receipt') RETURNING id
+            )
+            UPDATE "Document" d
+            SET title = 'Briefing'
+            '''
+        )
+        self.assertEqual(res, 'UPDATE 1')
+
+        res = await self.squery_values(
+            'SELECT title FROM "Document" ORDER BY title',
+        )
+        self.assertEqual(res, [['Briefing (updated)'], ['Receipt (new)']])
+
+    async def test_sql_dml_update_14a(self):
+        await self.squery_values(
+            'INSERT INTO "Document" DEFAULT VALUES',
+        )
+        
+        res = await self.scon.execute(
+            '''
+            WITH
+                u AS (INSERT INTO "User" DEFAULT VALUES RETURNING id)
+            UPDATE "Document" SET owner_id = (SELECT id FROM u)
+            '''
+        )
+        self.assertEqual(res, 'UPDATE 1')
+
+        res = await self.squery_values(
+            'SELECT owner_id IS NULL FROM "Document"',
+        )
+        self.assertEqual(res, [[False]])
 
     async def test_sql_dml_update_15(self):
         [[doc_id]] = await self.squery_values(
