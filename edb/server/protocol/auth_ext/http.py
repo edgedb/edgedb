@@ -729,11 +729,20 @@ class Router:
         request_data = self._get_data_from_request(request)
 
         _check_keyset(request_data, {"provider"})
-        local_client = local.Client(db=self.db)
+        provider_name = request_data["provider"]
+        match provider_name:
+            case "builtin::local_emailpassword":
+                local_client = email_password.Client(db=self.db)
+            case "builtin::local_webauthn":
+                local_client = webauthn.Client(db=self.db)
+            case _:
+                raise errors.InvalidData(
+                    f"Unsupported provider: {request_data['provider']}"
+                )
+
         verify_url = request_data.get(
             "verify_url", f"{self.base_path}/ui/verify"
         )
-        identity_id: Optional[str] = None
         email_factor: Optional[EmailFactor] = None
         if "verification_token" in request_data:
             (
@@ -759,21 +768,32 @@ class Router:
                 raise errors.InvalidData(
                     "Redirect URL does not match any allowed URLs.",
                 )
-
-            email_factor = await local_client.get_email_factor_by_email(
-                request_data["email"]
-            )
-            identity_id = (
-                email_factor.identity.id if email_factor is not None else None
-            )
+            match local_client:
+                case webauthn.Client():
+                    maybe_credential_id = request_data.get("credential_id")
+                    if maybe_credential_id is None:
+                        raise errors.InvalidData(
+                            "Missing 'credential_id' in request to resend"
+                            " verification email for WebAuthn authentication"
+                            " factor."
+                        )
+                    email_factor = (
+                        await local_client.get_email_factor_by_credential_id(
+                            base64.b64decode(maybe_credential_id)
+                        )
+                    )
+                case email_password.Client():
+                    email_factor = await local_client.get_email_factor_by_email(
+                        request_data["email"]
+                    )
         else:
             raise errors.InvalidData("Missing 'verification_token' or 'email'")
 
-        if identity_id is None or email_factor is None:
+        if email_factor is None:
             await auth_emails.send_fake_email(self.tenant)
         else:
             verification_token = self._make_verification_token(
-                identity_id=identity_id,
+                identity_id=email_factor.identity.id,
                 verify_url=verify_url,
                 maybe_challenge=maybe_challenge,
                 maybe_redirect_to=maybe_redirect_to,
@@ -782,7 +802,7 @@ class Router:
                 webhook.EmailVerificationRequested(
                     event_id=str(uuid.uuid4()),
                     timestamp=datetime.datetime.now(datetime.timezone.utc),
-                    identity_id=identity_id,
+                    identity_id=email_factor.identity.id,
                     email_factor_id=email_factor.id,
                     verification_token=verification_token,
                 )

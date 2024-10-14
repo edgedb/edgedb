@@ -3161,7 +3161,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 auth_data_redirect_on_failure["redirect_on_failure"],
             )
 
-    async def test_http_auth_ext_resend_verification_email(self):
+    async def test_http_auth_ext_local_emailpassword_resend_verification(self):
         with self.http_con() as http_con:
             # Register a new user
             provider_config = await self.get_builtin_provider_config_by_name(
@@ -3284,6 +3284,135 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             # Resend verification email with no email or token
             resend_data = {
                 "provider": form_data["provider"],
+            }
+            resend_data_encoded = urllib.parse.urlencode(resend_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="resend-verification-email",
+                method="POST",
+                body=resend_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 400)
+
+    async def test_http_auth_ext_local_webauthn_resend_verification(self):
+        with self.http_con() as http_con:
+            # Register a new user
+            provider_config = await self.get_builtin_provider_config_by_name(
+                "local_webauthn"
+            )
+            provider_name = provider_config.name
+            email = f"{uuid.uuid4()}@example.com"
+            credential_one = uuid.uuid4().bytes
+            credential_two = uuid.uuid4().bytes
+
+            await self.con.query_single(
+                """
+                with
+                    email := <str>$email,
+                    user_handle := <bytes>$user_handle,
+                    credential_one := <bytes>$credential_one,
+                    public_key_one := <bytes>$public_key_one,
+                    credential_two := <bytes>$credential_two,
+                    public_key_two := <bytes>$public_key_two,
+                    factor_one := (insert ext::auth::WebAuthnFactor {
+                        email := email,
+                        user_handle := user_handle,
+                        credential_id := credential_one,
+                        public_key := public_key_one,
+                        identity := (insert ext::auth::LocalIdentity {
+                            issuer := "local",
+                            subject := "",
+                        }),
+                    }),
+                    factor_two := (insert ext::auth::WebAuthnFactor {
+                        email := email,
+                        user_handle := user_handle,
+                        credential_id := credential_two,
+                        public_key := public_key_two,
+                        identity := (insert ext::auth::LocalIdentity {
+                            issuer := "local",
+                            subject := "",
+                        }),
+                    }),
+                select true;
+                """,
+                email=email,
+                user_handle=uuid.uuid4().bytes,
+                credential_one=credential_one,
+                public_key_one=uuid.uuid4().bytes,
+                credential_two=credential_two,
+                public_key_two=uuid.uuid4().bytes,
+            )
+
+            # Resend verification email with just the email
+            resend_data = {
+                "provider": provider_name,
+                "email": email,
+                "credential_id": base64.b64encode(credential_one).decode(),
+            }
+            resend_data_encoded = urllib.parse.urlencode(resend_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="resend-verification-email",
+                method="POST",
+                body=resend_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 200)
+
+            file_name_hash = hashlib.sha256(
+                f"{SENDER}{email}".encode()
+            ).hexdigest()
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE",
+                f"/tmp/edb-test-email-{file_name_hash}.pickle",
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], SENDER)
+            self.assertEqual(email_args["recipients"], email)
+            html_msg = email_args["message"].get_payload(0).get_payload(1)
+            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(
+                r'<p style="word-break: break-all">([^<]+)', html_email
+            )
+            assert match is not None
+            verify_url = urllib.parse.urlparse(match.group(1))
+            search_params = urllib.parse.parse_qs(verify_url.query)
+            verification_token = search_params.get(
+                "verification_token", [None]
+            )[0]
+            assert verification_token is not None
+
+            # Resend verification email with the verification token
+            resend_data = {
+                "provider": provider_name,
+                "verification_token": verification_token,
+            }
+            resend_data_encoded = urllib.parse.urlencode(resend_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="resend-verification-email",
+                method="POST",
+                body=resend_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 200)
+
+            # Resend verification email but no credential_id
+            resend_data = {
+                "provider": provider_name,
+                "email": email,
             }
             resend_data_encoded = urllib.parse.urlencode(resend_data).encode()
 
