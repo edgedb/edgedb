@@ -616,8 +616,8 @@ def _construct_cast_from_uuid_to_obj_type(
 
 
 def _add_pointer(
-    name: str,
     source: s_objtypes.ObjectType,
+    name: str,
     target_scls: s_types.Type,
     *,
     ctx: Context,
@@ -690,8 +690,8 @@ def _uncompile_insert_pointer_stmt(
         transient=True,
     )
 
-    src_ptr = _add_pointer('__source__', dummy_ty, sub_source, ctx=ctx)
-    tgt_ptr = _add_pointer('__target__', dummy_ty, sub_target, ctx=ctx)
+    src_ptr = _add_pointer(dummy_ty, '__source__', sub_source, ctx=ctx)
+    tgt_ptr = _add_pointer(dummy_ty, '__target__', sub_target, ctx=ctx)
 
     # prepare anchors for inserted value columns
     value_name = ctx.alias_generator.get('ins_val')
@@ -736,7 +736,7 @@ def _uncompile_insert_pointer_stmt(
             ptr = sub.maybe_get_ptr(ctx.schema, sn.UnqualName(ptr_name))
             assert ptr
             lprop_tgt = not_none(ptr.get_target(ctx.schema))
-            lprop_ptr = _add_pointer(ptr_name, dummy_ty, lprop_tgt, ctx=ctx)
+            lprop_ptr = _add_pointer(dummy_ty, ptr_name, lprop_tgt, ctx=ctx)
             ptr_id = _get_ptr_id(base_id, lprop_ptr, ctx=ctx)
 
             is_link = False
