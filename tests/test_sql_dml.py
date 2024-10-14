@@ -1652,7 +1652,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         await self.squery_values(
             'INSERT INTO "Document" DEFAULT VALUES',
         )
-        
+
         res = await self.scon.execute(
             '''
             WITH
@@ -1693,20 +1693,20 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             'SELECT id, title FROM "Document" ORDER BY title',
         )
         self.assertEqual(len(res), 2)
-        inserted_id, inserted_title = res[0]
-        top_level = res[1]
+        existing_id, existing_title = res[0]
+        _inserted_id, inserted_title = res[1]
 
-        self.assertEqual(inserted_title, 'Report (updated)')
+        self.assertEqual(existing_title, 'Report (updated)')
         self.assertEqual(
-            top_level[1],
-            'X' + str(inserted_id) + ',' + inserted_title + ' (new)',
+            inserted_title,
+            'X' + str(existing_id) + ',' + existing_title + ' (new)',
         )
 
     async def test_sql_dml_update_16(self):
         [[doc_id]] = await self.squery_values(
             'INSERT INTO "Document" DEFAULT VALUES RETURNING id'
         )
-        
+
         res = await self.squery_values(
             '''
             WITH
@@ -1719,14 +1719,24 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             '''
         )
         user_id = res[0][1]
-        self.assertEqual(res, [[doc_id, user_id], ])
+        self.assertEqual(
+            res,
+            [
+                [doc_id, user_id],
+            ],
+        )
 
         res = await self.squery_values(
             '''
             SELECT id, owner_id FROM "Document"
             '''
         )
-        self.assertEqual(res, [[doc_id, user_id], ])
+        self.assertEqual(
+            res,
+            [
+                [doc_id, user_id],
+            ],
+        )
 
     async def test_sql_dml_01(self):
         # update/delete only
