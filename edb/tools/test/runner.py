@@ -167,6 +167,7 @@ class StreamingTestSuite(unittest.TestSuite):
         result.annotate_test(test, {
             'py-hash-secret': py_hash_secret,
             'py-random-seed': py_random_seed,
+            'pid': os.getpid(),
         })
 
         result._testRunEntered = False
