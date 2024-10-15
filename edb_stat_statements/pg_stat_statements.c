@@ -106,14 +106,6 @@ static const uint32 PGSS_PG_MAJOR_VERSION = PG_VERSION_NUM / 100;
 typedef enum pgssVersion
 {
 	PGSS_V1_0 = 0,
-	PGSS_V1_1,
-	PGSS_V1_2,
-	PGSS_V1_3,
-	PGSS_V1_8,
-	PGSS_V1_9,
-	PGSS_V1_10,
-	PGSS_V1_11,
-	PGSS_V1_12,
 } pgssVersion;
 
 typedef enum pgssStoreKind
@@ -314,15 +306,6 @@ static bool pgss_save = true;	/* whether to save stats across shutdown */
 /*---- Function declarations ----*/
 
 PG_FUNCTION_INFO_V1(pg_stat_statements_reset);
-PG_FUNCTION_INFO_V1(pg_stat_statements_reset_1_7);
-PG_FUNCTION_INFO_V1(pg_stat_statements_reset_1_11);
-PG_FUNCTION_INFO_V1(pg_stat_statements_1_2);
-PG_FUNCTION_INFO_V1(pg_stat_statements_1_3);
-PG_FUNCTION_INFO_V1(pg_stat_statements_1_8);
-PG_FUNCTION_INFO_V1(pg_stat_statements_1_9);
-PG_FUNCTION_INFO_V1(pg_stat_statements_1_10);
-PG_FUNCTION_INFO_V1(pg_stat_statements_1_11);
-PG_FUNCTION_INFO_V1(pg_stat_statements_1_12);
 PG_FUNCTION_INFO_V1(pg_stat_statements);
 PG_FUNCTION_INFO_V1(pg_stat_statements_info);
 
@@ -1509,24 +1492,9 @@ done:
 /*
  * Reset statement statistics corresponding to userid, dbid, and queryid.
  */
-Datum
-pg_stat_statements_reset_1_7(PG_FUNCTION_ARGS)
-{
-	Oid			userid;
-	Oid			dbid;
-	uint64		queryid;
-
-	userid = PG_GETARG_OID(0);
-	dbid = PG_GETARG_OID(1);
-	queryid = (uint64) PG_GETARG_INT64(2);
-
-	entry_reset(userid, dbid, queryid, false);
-
-	PG_RETURN_VOID();
-}
 
 Datum
-pg_stat_statements_reset_1_11(PG_FUNCTION_ARGS)
+pg_stat_statements_reset(PG_FUNCTION_ARGS)
 {
 	Oid			userid;
 	Oid			dbid;
@@ -1541,27 +1509,8 @@ pg_stat_statements_reset_1_11(PG_FUNCTION_ARGS)
 	PG_RETURN_TIMESTAMPTZ(entry_reset(userid, dbid, queryid, minmax_only));
 }
 
-/*
- * Reset statement statistics.
- */
-Datum
-pg_stat_statements_reset(PG_FUNCTION_ARGS)
-{
-	entry_reset(0, 0, 0, false);
-
-	PG_RETURN_VOID();
-}
-
 /* Number of output arguments (columns) for various API versions */
-#define PG_STAT_STATEMENTS_COLS_V1_0	14
-#define PG_STAT_STATEMENTS_COLS_V1_1	18
-#define PG_STAT_STATEMENTS_COLS_V1_2	19
-#define PG_STAT_STATEMENTS_COLS_V1_3	23
-#define PG_STAT_STATEMENTS_COLS_V1_8	32
-#define PG_STAT_STATEMENTS_COLS_V1_9	33
-#define PG_STAT_STATEMENTS_COLS_V1_10	43
-#define PG_STAT_STATEMENTS_COLS_V1_11	49
-#define PG_STAT_STATEMENTS_COLS_V1_12	51
+#define PG_STAT_STATEMENTS_COLS_V1_0	51
 #define PG_STAT_STATEMENTS_COLS			51	/* maximum of above */
 
 /*
@@ -1575,84 +1524,11 @@ pg_stat_statements_reset(PG_FUNCTION_ARGS)
  * function.  Unfortunately we weren't bright enough to do that for 1.1.
  */
 Datum
-pg_stat_statements_1_12(PG_FUNCTION_ARGS)
-{
-	bool		showtext = PG_GETARG_BOOL(0);
-
-	pg_stat_statements_internal(fcinfo, PGSS_V1_12, showtext);
-
-	return (Datum) 0;
-}
-
-Datum
-pg_stat_statements_1_11(PG_FUNCTION_ARGS)
-{
-	bool		showtext = PG_GETARG_BOOL(0);
-
-	pg_stat_statements_internal(fcinfo, PGSS_V1_11, showtext);
-
-	return (Datum) 0;
-}
-
-Datum
-pg_stat_statements_1_10(PG_FUNCTION_ARGS)
-{
-	bool		showtext = PG_GETARG_BOOL(0);
-
-	pg_stat_statements_internal(fcinfo, PGSS_V1_10, showtext);
-
-	return (Datum) 0;
-}
-
-Datum
-pg_stat_statements_1_9(PG_FUNCTION_ARGS)
-{
-	bool		showtext = PG_GETARG_BOOL(0);
-
-	pg_stat_statements_internal(fcinfo, PGSS_V1_9, showtext);
-
-	return (Datum) 0;
-}
-
-Datum
-pg_stat_statements_1_8(PG_FUNCTION_ARGS)
-{
-	bool		showtext = PG_GETARG_BOOL(0);
-
-	pg_stat_statements_internal(fcinfo, PGSS_V1_8, showtext);
-
-	return (Datum) 0;
-}
-
-Datum
-pg_stat_statements_1_3(PG_FUNCTION_ARGS)
-{
-	bool		showtext = PG_GETARG_BOOL(0);
-
-	pg_stat_statements_internal(fcinfo, PGSS_V1_3, showtext);
-
-	return (Datum) 0;
-}
-
-Datum
-pg_stat_statements_1_2(PG_FUNCTION_ARGS)
-{
-	bool		showtext = PG_GETARG_BOOL(0);
-
-	pg_stat_statements_internal(fcinfo, PGSS_V1_2, showtext);
-
-	return (Datum) 0;
-}
-
-/*
- * Legacy entry point for pg_stat_statements() API versions 1.0 and 1.1.
- * This can be removed someday, perhaps.
- */
-Datum
 pg_stat_statements(PG_FUNCTION_ARGS)
 {
-	/* If it's really API 1.1, we'll figure that out below */
-	pg_stat_statements_internal(fcinfo, PGSS_V1_0, true);
+	bool		showtext = PG_GETARG_BOOL(0);
+
+	pg_stat_statements_internal(fcinfo, PGSS_V1_0, showtext);
 
 	return (Datum) 0;
 }
@@ -1696,40 +1572,6 @@ pg_stat_statements_internal(FunctionCallInfo fcinfo,
 	{
 		case PG_STAT_STATEMENTS_COLS_V1_0:
 			if (api_version != PGSS_V1_0)
-				elog(ERROR, "incorrect number of output arguments");
-			break;
-		case PG_STAT_STATEMENTS_COLS_V1_1:
-			/* pg_stat_statements() should have told us 1.0 */
-			if (api_version != PGSS_V1_0)
-				elog(ERROR, "incorrect number of output arguments");
-			api_version = PGSS_V1_1;
-			break;
-		case PG_STAT_STATEMENTS_COLS_V1_2:
-			if (api_version != PGSS_V1_2)
-				elog(ERROR, "incorrect number of output arguments");
-			break;
-		case PG_STAT_STATEMENTS_COLS_V1_3:
-			if (api_version != PGSS_V1_3)
-				elog(ERROR, "incorrect number of output arguments");
-			break;
-		case PG_STAT_STATEMENTS_COLS_V1_8:
-			if (api_version != PGSS_V1_8)
-				elog(ERROR, "incorrect number of output arguments");
-			break;
-		case PG_STAT_STATEMENTS_COLS_V1_9:
-			if (api_version != PGSS_V1_9)
-				elog(ERROR, "incorrect number of output arguments");
-			break;
-		case PG_STAT_STATEMENTS_COLS_V1_10:
-			if (api_version != PGSS_V1_10)
-				elog(ERROR, "incorrect number of output arguments");
-			break;
-		case PG_STAT_STATEMENTS_COLS_V1_11:
-			if (api_version != PGSS_V1_11)
-				elog(ERROR, "incorrect number of output arguments");
-			break;
-		case PG_STAT_STATEMENTS_COLS_V1_12:
-			if (api_version != PGSS_V1_12)
 				elog(ERROR, "incorrect number of output arguments");
 			break;
 		default:
@@ -1813,13 +1655,11 @@ pg_stat_statements_internal(FunctionCallInfo fcinfo,
 
 		values[i++] = ObjectIdGetDatum(entry->key.userid);
 		values[i++] = ObjectIdGetDatum(entry->key.dbid);
-		if (api_version >= PGSS_V1_9)
-			values[i++] = BoolGetDatum(entry->key.toplevel);
+		values[i++] = BoolGetDatum(entry->key.toplevel);
 
 		if (is_allowed_role || entry->key.userid == userid)
 		{
-			if (api_version >= PGSS_V1_2)
-				values[i++] = Int64GetDatumFast(queryid);
+			values[i++] = Int64GetDatumFast(queryid);
 
 			if (showtext)
 			{
@@ -1856,8 +1696,7 @@ pg_stat_statements_internal(FunctionCallInfo fcinfo,
 		else
 		{
 			/* Don't show queryid */
-			if (api_version >= PGSS_V1_2)
-				nulls[i++] = true;
+			nulls[i++] = true;
 
 			/*
 			 * Don't show query text, but hint as to the reason for not doing
@@ -1883,61 +1722,41 @@ pg_stat_statements_internal(FunctionCallInfo fcinfo,
 		/* Note that we rely on PGSS_PLAN being 0 and PGSS_EXEC being 1. */
 		for (int kind = 0; kind < PGSS_NUMKIND; kind++)
 		{
-			if (kind == PGSS_EXEC || api_version >= PGSS_V1_8)
-			{
-				values[i++] = Int64GetDatumFast(tmp.calls[kind]);
-				values[i++] = Float8GetDatumFast(tmp.total_time[kind]);
-			}
+			values[i++] = Int64GetDatumFast(tmp.calls[kind]);
+			values[i++] = Float8GetDatumFast(tmp.total_time[kind]);
+			values[i++] = Float8GetDatumFast(tmp.min_time[kind]);
+			values[i++] = Float8GetDatumFast(tmp.max_time[kind]);
+			values[i++] = Float8GetDatumFast(tmp.mean_time[kind]);
 
-			if ((kind == PGSS_EXEC && api_version >= PGSS_V1_3) ||
-				api_version >= PGSS_V1_8)
-			{
-				values[i++] = Float8GetDatumFast(tmp.min_time[kind]);
-				values[i++] = Float8GetDatumFast(tmp.max_time[kind]);
-				values[i++] = Float8GetDatumFast(tmp.mean_time[kind]);
-
-				/*
-				 * Note we are calculating the population variance here, not
-				 * the sample variance, as we have data for the whole
-				 * population, so Bessel's correction is not used, and we
-				 * don't divide by tmp.calls - 1.
-				 */
-				if (tmp.calls[kind] > 1)
-					stddev = sqrt(tmp.sum_var_time[kind] / tmp.calls[kind]);
-				else
-					stddev = 0.0;
-				values[i++] = Float8GetDatumFast(stddev);
-			}
+			/*
+			 * Note we are calculating the population variance here, not
+			 * the sample variance, as we have data for the whole
+			 * population, so Bessel's correction is not used, and we
+			 * don't divide by tmp.calls - 1.
+			 */
+			if (tmp.calls[kind] > 1)
+				stddev = sqrt(tmp.sum_var_time[kind] / tmp.calls[kind]);
+			else
+				stddev = 0.0;
+			values[i++] = Float8GetDatumFast(stddev);
 		}
 		values[i++] = Int64GetDatumFast(tmp.rows);
 		values[i++] = Int64GetDatumFast(tmp.shared_blks_hit);
 		values[i++] = Int64GetDatumFast(tmp.shared_blks_read);
-		if (api_version >= PGSS_V1_1)
-			values[i++] = Int64GetDatumFast(tmp.shared_blks_dirtied);
+		values[i++] = Int64GetDatumFast(tmp.shared_blks_dirtied);
 		values[i++] = Int64GetDatumFast(tmp.shared_blks_written);
 		values[i++] = Int64GetDatumFast(tmp.local_blks_hit);
 		values[i++] = Int64GetDatumFast(tmp.local_blks_read);
-		if (api_version >= PGSS_V1_1)
-			values[i++] = Int64GetDatumFast(tmp.local_blks_dirtied);
+		values[i++] = Int64GetDatumFast(tmp.local_blks_dirtied);
 		values[i++] = Int64GetDatumFast(tmp.local_blks_written);
 		values[i++] = Int64GetDatumFast(tmp.temp_blks_read);
 		values[i++] = Int64GetDatumFast(tmp.temp_blks_written);
-		if (api_version >= PGSS_V1_1)
-		{
-			values[i++] = Float8GetDatumFast(tmp.shared_blk_read_time);
-			values[i++] = Float8GetDatumFast(tmp.shared_blk_write_time);
-		}
-		if (api_version >= PGSS_V1_11)
-		{
-			values[i++] = Float8GetDatumFast(tmp.local_blk_read_time);
-			values[i++] = Float8GetDatumFast(tmp.local_blk_write_time);
-		}
-		if (api_version >= PGSS_V1_10)
-		{
-			values[i++] = Float8GetDatumFast(tmp.temp_blk_read_time);
-			values[i++] = Float8GetDatumFast(tmp.temp_blk_write_time);
-		}
-		if (api_version >= PGSS_V1_8)
+		values[i++] = Float8GetDatumFast(tmp.shared_blk_read_time);
+		values[i++] = Float8GetDatumFast(tmp.shared_blk_write_time);
+		values[i++] = Float8GetDatumFast(tmp.local_blk_read_time);
+		values[i++] = Float8GetDatumFast(tmp.local_blk_write_time);
+		values[i++] = Float8GetDatumFast(tmp.temp_blk_read_time);
+		values[i++] = Float8GetDatumFast(tmp.temp_blk_write_time);
 		{
 			char		buf[256];
 			Datum		wal_bytes;
@@ -1954,42 +1773,22 @@ pg_stat_statements_internal(FunctionCallInfo fcinfo,
 											Int32GetDatum(-1));
 			values[i++] = wal_bytes;
 		}
-		if (api_version >= PGSS_V1_10)
-		{
-			values[i++] = Int64GetDatumFast(tmp.jit_functions);
-			values[i++] = Float8GetDatumFast(tmp.jit_generation_time);
-			values[i++] = Int64GetDatumFast(tmp.jit_inlining_count);
-			values[i++] = Float8GetDatumFast(tmp.jit_inlining_time);
-			values[i++] = Int64GetDatumFast(tmp.jit_optimization_count);
-			values[i++] = Float8GetDatumFast(tmp.jit_optimization_time);
-			values[i++] = Int64GetDatumFast(tmp.jit_emission_count);
-			values[i++] = Float8GetDatumFast(tmp.jit_emission_time);
-		}
-		if (api_version >= PGSS_V1_11)
-		{
-			values[i++] = Int64GetDatumFast(tmp.jit_deform_count);
-			values[i++] = Float8GetDatumFast(tmp.jit_deform_time);
-		}
-		if (api_version >= PGSS_V1_12)
-		{
-			values[i++] = Int64GetDatumFast(tmp.parallel_workers_to_launch);
-			values[i++] = Int64GetDatumFast(tmp.parallel_workers_launched);
-		}
-		if (api_version >= PGSS_V1_11)
-		{
-			values[i++] = TimestampTzGetDatum(stats_since);
-			values[i++] = TimestampTzGetDatum(minmax_stats_since);
-		}
+		values[i++] = Int64GetDatumFast(tmp.jit_functions);
+		values[i++] = Float8GetDatumFast(tmp.jit_generation_time);
+		values[i++] = Int64GetDatumFast(tmp.jit_inlining_count);
+		values[i++] = Float8GetDatumFast(tmp.jit_inlining_time);
+		values[i++] = Int64GetDatumFast(tmp.jit_optimization_count);
+		values[i++] = Float8GetDatumFast(tmp.jit_optimization_time);
+		values[i++] = Int64GetDatumFast(tmp.jit_emission_count);
+		values[i++] = Float8GetDatumFast(tmp.jit_emission_time);
+		values[i++] = Int64GetDatumFast(tmp.jit_deform_count);
+		values[i++] = Float8GetDatumFast(tmp.jit_deform_time);
+		values[i++] = Int64GetDatumFast(tmp.parallel_workers_to_launch);
+		values[i++] = Int64GetDatumFast(tmp.parallel_workers_launched);
+		values[i++] = TimestampTzGetDatum(stats_since);
+		values[i++] = TimestampTzGetDatum(minmax_stats_since);
 
 		Assert(i == (api_version == PGSS_V1_0 ? PG_STAT_STATEMENTS_COLS_V1_0 :
-					 api_version == PGSS_V1_1 ? PG_STAT_STATEMENTS_COLS_V1_1 :
-					 api_version == PGSS_V1_2 ? PG_STAT_STATEMENTS_COLS_V1_2 :
-					 api_version == PGSS_V1_3 ? PG_STAT_STATEMENTS_COLS_V1_3 :
-					 api_version == PGSS_V1_8 ? PG_STAT_STATEMENTS_COLS_V1_8 :
-					 api_version == PGSS_V1_9 ? PG_STAT_STATEMENTS_COLS_V1_9 :
-					 api_version == PGSS_V1_10 ? PG_STAT_STATEMENTS_COLS_V1_10 :
-					 api_version == PGSS_V1_11 ? PG_STAT_STATEMENTS_COLS_V1_11 :
-					 api_version == PGSS_V1_12 ? PG_STAT_STATEMENTS_COLS_V1_12 :
 					 -1 /* fail if you forget to update this assert */ ));
 
 		tuplestore_putvalues(rsinfo->setResult, rsinfo->setDesc, values, nulls);
