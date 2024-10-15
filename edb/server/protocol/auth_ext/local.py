@@ -25,7 +25,7 @@ from jwcrypto import jwk
 from typing import Any, cast
 from edb.server.protocol import execute
 
-from . import util
+from . import util, data
 
 
 class Client:
@@ -42,33 +42,41 @@ class Client:
 
     async def verify_email(
         self, identity_id: str, verified_at: datetime.datetime
-    ) -> bytes:
-        r = await execute.parse_execute_json(
+    ) -> data.EmailFactor | None:
+        result_bytes = await execute.parse_execute_json(
             db=self.db,
             query="""\
 with
-    identity_id := <uuid><str>$identity_id,
+    LOCAL_IDENTITY := <ext::auth::LocalIdentity><uuid>$identity_id,
     verified_at := <datetime>$verified_at,
-update ext::auth::EmailFactor
-filter .identity.id = identity_id
-    and not exists .verified_at ?? false
-set { verified_at := verified_at };""",
+    UPDATED := (
+        update ext::auth::EmailFactor
+        filter .identity = LOCAL_IDENTITY
+            and not exists .verified_at ?? false
+        set { verified_at := verified_at }
+    ),
+select UPDATED {**};
+""",
             variables={
                 "identity_id": identity_id,
                 "verified_at": verified_at.isoformat(),
             },
             cached_globally=True,
         )
+        result_json = json.loads(result_bytes.decode())
+        if len(result_json) == 0:
+            return None
 
-        return r
+        factor = result_json[0]
+        return data.EmailFactor(**factor)
 
-    async def get_email_by_identity_id(self, identity_id: str) -> str | None:
+    async def get_email_factor_by_identity_id(
+        self, identity_id: str
+    ) -> data.EmailFactor | None:
         r = await execute.parse_execute_json(
             self.db,
             """
-select ext::auth::EmailFactor {
-    email,
-} filter .identity.id = <uuid>$identity_id;
+select ext::auth::EmailFactor { ** } filter .identity.id = <uuid>$identity_id;
             """,
             variables={"identity_id": identity_id},
             cached_globally=True,
@@ -80,7 +88,9 @@ select ext::auth::EmailFactor {
 
         assert len(result_json) == 1
 
-        return cast(str, result_json[0]["email"])
+        factor = result_json[0]
+
+        return data.EmailFactor(**factor)
 
     async def get_verified_by_identity_id(self, identity_id: str) -> str | None:
         r = await execute.parse_execute_json(
@@ -126,3 +136,24 @@ select identity.id;""",
         assert len(result_json) == 1
 
         return cast(str, result_json[0])
+
+    async def get_email_factor_by_email(
+        self, email: str
+    ) -> data.EmailFactor | None:
+        r = await execute.parse_execute_json(
+            self.db,
+            """
+select ext::auth::EmailFactor { ** } filter .email = <str>$email;
+            """,
+            variables={"email": email},
+            cached_globally=True,
+        )
+
+        result_json = json.loads(r.decode())
+        if len(result_json) == 0:
+            return None
+
+        assert len(result_json) == 1
+
+        factor = result_json[0]
+        return data.EmailFactor(**factor)

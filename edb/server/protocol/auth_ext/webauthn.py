@@ -158,7 +158,7 @@ insert ext::auth::WebAuthnRegistrationChallenge {
         credentials: str,
         email: str,
         user_handle: bytes,
-    ) -> data.LocalIdentity:
+    ) -> data.EmailFactor:
         registration_challenge = await self._get_registration_challenge(
             email=email,
             user_handle=user_handle,
@@ -195,7 +195,7 @@ with
         public_key := public_key,
         identity := identity,
     }),
-select identity { * };""",
+select factor { ** };""",
                 variables={
                     "email": email,
                     "user_handle": user_handle,
@@ -216,7 +216,9 @@ select identity { * };""",
         result_json = json.loads(result.decode())
         assert len(result_json) == 1
 
-        return data.LocalIdentity(**result_json[0])
+        factor_dict = result_json[0]
+        local_identity = data.LocalIdentity(**factor_dict["identity"])
+        return data.WebAuthnFactor(**factor_dict, identity=local_identity)
 
     async def _get_registration_challenge(
         self,
