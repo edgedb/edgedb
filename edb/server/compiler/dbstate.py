@@ -629,8 +629,6 @@ SQLSettings = immutables.Map[Optional[str], Optional[SQLSetting]]
 DEFAULT_SQL_SETTINGS: SQLSettings = immutables.Map()
 DEFAULT_SQL_FE_SETTINGS: SQLSettings = immutables.Map({
     "search_path": ("public",),
-    "allow_user_specified_id": ("false",),
-    "apply_access_policies_sql": ("false",),
     "server_version": cast(SQLSetting, (defines.PGEXT_POSTGRES_VERSION,)),
     "server_version_num": cast(
         SQLSetting, (defines.PGEXT_POSTGRES_VERSION_NUM,)
