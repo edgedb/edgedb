@@ -32,6 +32,7 @@ import time
 import typing
 import uuid
 import weakref
+import sys
 
 import immutables
 
@@ -830,10 +831,12 @@ cdef class DatabaseConnectionView:
 
         if type_id != serializer.type_id.bytes:
             self._command_state_serializer = None
-            raise errors.StateMismatchError(
+            ex = errors.StateMismatchError(
                 f"Cannot decode state: type mismatch "
-                f"({uuid.UUID(type_id)} != {serializer.type_id})"
+                f"({uuid.UUID(bytes=type_id)} != {serializer.type_id})"
             )
+            print('=================', ex, file=sys.stderr)
+            raise ex
 
         if self._session_state_cache is not None:
             if type_id == self._session_state_cache[3]:
