@@ -610,6 +610,9 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         tran = self.scon.transaction()
         await tran.start()
         await self.scon.execute('SET LOCAL apply_access_policies_sql TO true')
+        await self.scon.execute(
+            """SET LOCAL "global default::filter_title" TO 'Halo 3'"""
+        )
 
         res = await self.squery_values(
             '''
@@ -781,6 +784,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ['public', 'Book'],
                 ['public', 'Book.chapters'],
                 ['public', 'Content'],
+                ['public', 'ContentSummary'],
                 ['public', 'Genre'],
                 ['public', 'Movie'],
                 ['public', 'Movie.actors'],
@@ -817,6 +821,9 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ['Content', '__type__', 'NO', 2],
                 ['Content', 'genre_id', 'YES', 3],
                 ['Content', 'title', 'NO', 4],
+                ['ContentSummary', 'id', 'NO', 1],
+                ['ContentSummary', '__type__', 'NO', 2],
+                ['ContentSummary', 'x', 'NO', 3],
                 ['Genre', 'id', 'NO', 1],
                 ['Genre', '__type__', 'NO', 2],
                 ['Genre', 'name', 'NO', 3],
@@ -1136,6 +1143,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ["Book", 8192],
                 ["Book.chapters", 8192],
                 ["Content", 8192],
+                ["ContentSummary", 8192],
                 ["Genre", 8192],
                 ["Movie", 8192],
                 ["Movie.actors", 8192],
