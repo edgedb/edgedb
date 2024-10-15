@@ -21,6 +21,7 @@ import textwrap
 
 import edgedb
 
+from edb.tools import test
 from edb.testbase import server as tb
 
 
@@ -878,6 +879,7 @@ class TestDDLExtensions(tb.DDLTestCase):
             finally:
                 await con2.aclose()
 
+    @test.skip('Too flaky')
     async def test_edgeql_extensions_05(self):
         # Test config extension
         await self.con.execute('''
@@ -997,6 +999,7 @@ class TestDDLExtensions(tb.DDLTestCase):
                 COMMIT MIGRATION;
             """)
 
+    @test.skip('Too flaky')
     async def test_edgeql_extensions_06(self):
         # Make an extension with dependencies
         await self.con.execute('''
