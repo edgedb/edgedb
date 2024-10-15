@@ -6,7 +6,7 @@
 Net
 ===
 
-The ``net`` module contains types and functions for network-related operations in EdgeDB.
+The ``net`` module provides an interface for performing network-related operations directly from EdgeDB. It is useful for integrating with external services, fetching data from APIs, or triggering webhooks as part of your database logic.
 
 .. list-table::
   :class: funcoptable
@@ -52,6 +52,55 @@ HTTP Submodule
 ==============
 
 The ``net::http`` submodule provides types and functions for making HTTP requests.
+
+Overview
+--------
+
+The primary function for scheduling HTTP requests is :eql:func:`net::http::schedule_request`. This function lets you specify the URL, HTTP method, headers, and body of the request. Once scheduled, you can monitor the request's status and process its response when available.
+
+Example Usage
+-------------
+
+Here's a simple example of how to use the ``net::http`` module to make a GET request:
+
+.. code-block:: edgeql
+
+  with request := (
+      net::http::schedule_request(
+          'https://example.com',
+          method := net::http::Method.POST,
+          headers := [('Content-Type', 'application/json')],
+          body := <bytes>$${"key": "value"}$$
+      )
+  )
+  select request.id;
+
+This ID will be helpful if you need to observe a request's response. You can poll the ``ScheduledRequest`` object in order to get any response data or failure information:
+
+1. **Check the State**: Use the ``state`` field to determine the current status of the request.
+
+2. **Handle Failures**: If the request has failed, inspect the ``failure`` field to understand the kind of failure (e.g., ``NetworkError`` or ``Timeout``) and any associated message.
+
+3. **Process the Response**: If the request is completed successfully, access the ``response.body`` to retrieve the data returned by the request. The body is in ``bytes`` format and may need conversion or parsing.
+
+In the following example, we'll query the ``ScheduledRequest`` object we created above using the ID we selected. Once the request is completed or it has failed, this query will return the response data or the failure information:
+
+.. code-block:: edgeql
+
+  with
+      request := <std::net::http::ScheduledRequest><uuid>$request_id,
+  select request {
+      state,
+      failure,
+      response: {
+          status,
+          headers,
+          body,
+      },
+  } filter .state in {net::RequestState.Failed, net::RequestState.Completed};
+
+Reference
+---------
 
 .. eql:type:: net::http::Method
 
