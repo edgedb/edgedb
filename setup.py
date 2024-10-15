@@ -1140,5 +1140,11 @@ setuptools.setup(
             features=["python_extension"],
             binding=setuptools_rust.Binding.PyO3,
         ),
+        setuptools_rust.RustExtension(
+            "edb.server._http",
+            path="edb/server/http/Cargo.toml",
+            features=["python_extension"],
+            binding=setuptools_rust.Binding.PyO3,
+        ),
     ],
 )

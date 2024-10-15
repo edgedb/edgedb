@@ -17,52 +17,37 @@
 #
 
 from __future__ import annotations
-from http.cookiejar import CookieJar
 
 import dataclasses
 import json
 import typing
 import asyncio
 import logging
-import httpx
 import base64
+import os
 
 from edb.ir import statypes
 from edb.server import defines
 from edb.server.protocol import execute
+from edb.server import _http
 from . import dbview
 
 if typing.TYPE_CHECKING:
     from edb.server import server as edbserver
     from edb.server import tenant as edbtenant
 
-
 logger = logging.getLogger("edb.server")
 
 POLLING_INTERVAL = statypes.Duration(microseconds=10 * 1_000_000)  # 10 seconds
 
 
-class NullCookieJar(CookieJar):
-    """A CookieJar that rejects all cookies."""
-
-    def extract_cookies(self, *_):
-        pass
-
-    def set_cookie(self, _):
-        pass
-
-
-async def _http(tenant: edbtenant.Tenant) -> None:
+async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
     net_http_max_connections = tenant._server.config_lookup(
         'net_http_max_connections', tenant.get_sys_config()
     )
-    limits = httpx.Limits(max_connections=net_http_max_connections)
+    http_client._update_limit(net_http_max_connections)
     try:
         async with (
-            httpx.AsyncClient(
-                limits=limits,
-                cookies=NullCookieJar(),
-            ) as client,
             asyncio.TaskGroup() as g,
         ):
             for db in tenant.iter_dbs():
@@ -100,7 +85,7 @@ async def _http(tenant: edbtenant.Tenant) -> None:
                 pending_requests: list[dict] = json.loads(json_bytes)
                 for pending_request in pending_requests:
                     request = ScheduledRequest(**pending_request)
-                    g.create_task(handle_request(client, db, request))
+                    g.create_task(handle_request(http_client, db, request))
     except Exception as ex:
         logger.debug(
             "HTTP send failed (instance: %s)",
@@ -108,15 +93,90 @@ async def _http(tenant: edbtenant.Tenant) -> None:
             exc_info=ex,
         )
 
+class HttpClient:
+    def __init__(self, limit: int):
+        self._client = _http.Http(limit)
+        self._fd = self._client._fd
+        self._task = None
+        self._skip_reads = 0
+        self._loop = asyncio.get_running_loop()
+        self._task = self._loop.create_task(self._boot(self._loop))
+        self._next_id = 0
+        self._requests: dict[int, asyncio.Future] = {}
+
+    def __del__(self) -> None:
+        if self._task:
+            self._task.cancel()
+            self._task = None
+
+    def _update_limit(self, limit: int):
+        self._client._update_limit(limit)
+
+    async def request(self, *, method: str, url: str, content: bytes | None, headers: list[tuple[str, str]]):
+        if content is None:
+            content = bytes()
+        id = self._next_id
+        self._next_id += 1
+        self._requests[id] = asyncio.Future()
+        try:
+            self._client._request(id, url, method, content, headers)
+            resp = await self._requests[id]
+            return resp
+        finally:
+            del self._requests[id]
+
+    async def _boot(self, loop: asyncio.AbstractEventLoop) -> None:
+        logger.info("Python-side HTTP client booted")
+        reader = asyncio.StreamReader(loop=loop)
+        reader_protocol = asyncio.StreamReaderProtocol(reader)
+        fd = os.fdopen(self._client._fd, 'rb')
+        transport, _ = await loop.connect_read_pipe(lambda: reader_protocol, fd)
+        try:
+            while len(await reader.read(1)) == 1:
+                if not self._client or not self._task:
+                    break
+                if self._skip_reads > 0:
+                    self._skip_reads -= 1
+                    continue
+                msg = self._client._read()
+                if not msg:
+                    break
+                self._process_message(msg)
+        finally:
+            transport.close()
+
+    def _process_message(self, msg):
+        msg_type, id, data = msg
+
+        if id in self._requests:
+            if msg_type == 1:
+                self._requests[id].set_result(data)
+            elif msg_type == 0:
+                self._requests[id].set_exception(data)
+
+def create_http(tenant: edbtenant.Tenant):
+    net_http_max_connections = tenant._server.config_lookup(
+        'net_http_max_connections', tenant.get_sys_config()
+    )
+    return HttpClient(net_http_max_connections)
 
 async def http(server: edbserver.BaseServer) -> None:
+    tenant_http = dict()
+
     while True:
+        tenant_set = set()
         try:
-            tasks = [
-                tenant.create_task(_http(tenant), interruptable=False)
-                for tenant in server.iter_tenants()
-                if tenant.accept_new_tasks
-            ]
+            tasks = []
+            for tenant in server.iter_tenants():
+                if tenant.accept_new_tasks:
+                    tenant_set.add(tenant)
+                    if tenant not in tenant_http:
+                        tenant_http[tenant] = create_http(tenant)
+                    tasks.append(tenant.create_task(_http_task(tenant, tenant_http[tenant]), interruptable=False))
+            # Remove unused tenant_http entries
+            for tenant in tenant_http.keys():
+                if tenant not in tenant_set:
+                    del tenant_http[tenant]
             if tasks:
                 await asyncio.wait(tasks)
         except Exception as ex:
@@ -141,8 +201,9 @@ class ScheduledRequest:
 
 
 async def handle_request(
-    client: httpx.AsyncClient, db: dbview.Database, request: ScheduledRequest
+    client: HttpClient, db: dbview.Database, request: ScheduledRequest
 ) -> None:
+    print(request)
     try:
         headers = (
             [(header["name"], header["value"]) for header in request.headers]
@@ -150,8 +211,8 @@ async def handle_request(
             else None
         )
         response = await client.request(
-            request.method,
-            request.url,
+            method=request.method,
+            url=request.url,
             content=request.body,
             headers=headers,
         )

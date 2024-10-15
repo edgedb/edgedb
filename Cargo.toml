@@ -6,6 +6,7 @@ members = [
     "edb/graphql-rewrite",
     "edb/server/conn_pool",
     "edb/server/pgrust",
+    "edb/server/http",
 ]
 resolver = "2"
 
