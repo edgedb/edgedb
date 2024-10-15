@@ -40,7 +40,7 @@ if typing.TYPE_CHECKING:
 
 logger = logging.getLogger("edb.server")
 
-POLLING_INTERVAL = statypes.Duration(microseconds=1 * 1_000_000)  # 10 seconds
+POLLING_INTERVAL = statypes.Duration(microseconds=10 * 1_000_000)  # 10 seconds
 
 
 async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
