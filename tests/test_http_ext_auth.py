@@ -3348,10 +3348,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 public_key_two=uuid.uuid4().bytes,
             )
 
-            # Resend verification email with just the email
+            # Resend verification email with credential_id
             resend_data = {
                 "provider": provider_name,
-                "email": email,
                 "credential_id": base64.b64encode(credential_one).decode(),
             }
             resend_data_encoded = urllib.parse.urlencode(resend_data).encode()
@@ -3409,7 +3408,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(status, 200)
 
-            # Resend verification email but no credential_id
+            # Resend verification email with email
             resend_data = {
                 "provider": provider_name,
                 "email": email,

@@ -757,7 +757,7 @@ class Router:
             email_factor = await local_client.get_email_factor_by_identity_id(
                 identity_id
             )
-        elif "email" in request_data:
+        else:
             maybe_challenge = request_data.get(
                 "challenge", request_data.get("code_challenge")
             )
@@ -770,24 +770,20 @@ class Router:
                 )
             match local_client:
                 case webauthn.Client():
-                    maybe_credential_id = request_data.get("credential_id")
-                    if maybe_credential_id is None:
-                        raise errors.InvalidData(
-                            "Missing 'credential_id' in request to resend"
-                            " verification email for WebAuthn authentication"
-                            " factor."
-                        )
+                    _check_keyset(request_data, {"credential_id"})
+                    credential_id = base64.b64decode(
+                        request_data["credential_id"]
+                    )
                     email_factor = (
                         await local_client.get_email_factor_by_credential_id(
-                            base64.b64decode(maybe_credential_id)
+                            credential_id
                         )
                     )
                 case email_password.Client():
+                    _check_keyset(request_data, {"email"})
                     email_factor = await local_client.get_email_factor_by_email(
                         request_data["email"]
                     )
-        else:
-            raise errors.InvalidData("Missing 'verification_token' or 'email'")
 
         if email_factor is None:
             await auth_emails.send_fake_email(self.tenant)
