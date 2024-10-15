@@ -25,6 +25,7 @@ import asyncio
 import logging
 import base64
 import os
+import pickle
 
 from edb.ir import statypes
 from edb.server import defines
@@ -38,7 +39,7 @@ if typing.TYPE_CHECKING:
 
 logger = logging.getLogger("edb.server")
 
-POLLING_INTERVAL = statypes.Duration(microseconds=10 * 1_000_000)  # 10 seconds
+POLLING_INTERVAL = statypes.Duration(microseconds=1 * 1_000_000)  # 10 seconds
 
 
 async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
@@ -112,9 +113,16 @@ class HttpClient:
     def _update_limit(self, limit: int):
         self._client._update_limit(limit)
 
-    async def request(self, *, method: str, url: str, content: bytes | None, headers: list[tuple[str, str]]):
+    async def request(self,
+                      *,
+                      method: str,
+                      url: str,
+                      content: bytes | None,
+                      headers: list[tuple[str, str]] | None):
         if content is None:
             content = bytes()
+        if headers is None:
+            headers = []
         id = self._next_id
         self._next_id += 1
         self._requests[id] = asyncio.Future()
@@ -152,7 +160,7 @@ class HttpClient:
             if msg_type == 1:
                 self._requests[id].set_result(data)
             elif msg_type == 0:
-                self._requests[id].set_exception(data)
+                self._requests[id].set_exception(Exception(data))
 
 def create_http(tenant: edbtenant.Tenant):
     net_http_max_connections = tenant._server.config_lookup(
@@ -172,7 +180,9 @@ async def http(server: edbserver.BaseServer) -> None:
                     tenant_set.add(tenant)
                     if tenant not in tenant_http:
                         tenant_http[tenant] = create_http(tenant)
-                    tasks.append(tenant.create_task(_http_task(tenant, tenant_http[tenant]), interruptable=False))
+                    tasks.append(tenant.create_task(_http_task(tenant,
+                                                               tenant_http[tenant]),
+                                                               interruptable=False))
             # Remove unused tenant_http entries
             for tenant in tenant_http.keys():
                 if tenant not in tenant_set:
@@ -203,88 +213,82 @@ class ScheduledRequest:
 async def handle_request(
     client: HttpClient, db: dbview.Database, request: ScheduledRequest
 ) -> None:
-    print(request)
+    response_status = None
+    response_body = None
+    response_headers = None
+    failure = None
+
     try:
         headers = (
             [(header["name"], header["value"]) for header in request.headers]
             if request.headers
             else None
         )
-        response = await client.request(
+        response_encoded = await client.request(
             method=request.method,
             url=request.url,
             content=request.body,
             headers=headers,
         )
+        response = pickle.loads(response_encoded)
+        response_status, response_bytes, response_hdict = response
+        response_body = bytes(response_bytes)
+        response_headers = list(response_hdict.items())
         request_state = 'Completed'
-        failure = None
-        response_status = response.status_code
-        response_headers = list(response.headers.items())
     except Exception as ex:
-        response = None
         request_state = 'Failed'
         failure = {
             'kind': 'NetworkError',
             'message': str(ex),
         }
-        response_status = None
-        response_status = None
-        response_body = None
-        response_headers = None
-
-    if response is not None:
-        try:
-            response_body = await response.aread()
-        except Exception as ex:
-            logger.debug("Failed to read response body", exc_info=ex)
-            response_body = None
-    else:
-        response_body = None
-
-    await execute.parse_execute_json(
-        db,
-        """
-        with
-            nh as module std::net::http,
-            net as module std::net,
-            state := <net::RequestState>$state,
-            failure := <
-                optional tuple<
-                    kind: net::RequestFailureKind,
-                    message: str
-                >
-            >to_json(<str>$failure),
-            response_status := <optional int16>$response_status,
-            response_body := <optional bytes>$response_body,
-            response_headers :=
-                <optional array<tuple<str, str>>>$response_headers,
-            response := (
-                if state = net::RequestState.Completed
-                then (
-                    insert nh::Response {
-                        created_at := datetime_of_statement(),
-                        status := assert_exists(response_status),
-                        body := response_body,
-                        headers := response_headers,
-                    }
-                )
-                else (<nh::Response>{})
-            ),
-            FOUND := <nh::ScheduledRequest><uuid>$id,
-        update FOUND
-        set {
-            state := state,
-            response := response,
-            failure := failure,
-        };
-        """,
-        variables={
-            'id': request.id,
-            'state': request_state,
-            'response_status': response_status,
-            'response_body': response_body,
-            'response_headers': response_headers,
-            'failure': json.dumps(failure),
-        },
-        cached_globally=True,
-    )
+    try:
+        await execute.parse_execute_json(
+            db,
+            """
+            with
+                nh as module std::net::http,
+                net as module std::net,
+                state := <net::RequestState>$state,
+                failure := <
+                    optional tuple<
+                        kind: net::RequestFailureKind,
+                        message: str
+                    >
+                >to_json(<str>$failure),
+                response_status := <optional int16>$response_status,
+                response_body := <optional bytes>$response_body,
+                response_headers :=
+                    <optional array<tuple<str, str>>>$response_headers,
+                response := (
+                    if state = net::RequestState.Completed
+                    then (
+                        insert nh::Response {
+                            created_at := datetime_of_statement(),
+                            status := assert_exists(response_status),
+                            body := response_body,
+                            headers := response_headers,
+                        }
+                    )
+                    else (<nh::Response>{})
+                ),
+                FOUND := <nh::ScheduledRequest><uuid>$id,
+            update FOUND
+            set {
+                state := state,
+                response := response,
+                failure := failure,
+            };
+            """,
+            variables={
+                'id': request.id,
+                'state': request_state,
+                'response_status': response_status,
+                'response_body': response_body,
+                'response_headers': response_headers,
+                'failure': json.dumps(failure),
+            },
+            cached_globally=True,
+        )
+    except Exception as ex:
+        print(type(ex))
+        logger.error("Failed to update std::net::http record", ex)

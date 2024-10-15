@@ -28,8 +28,8 @@ impl ToPyObject for RustToPythonMessage {
         use RustToPythonMessage::*;
         match self {
             Error(conn, error) => (0, *conn, error).to_object(py),
-            Response(conn, metrics) => {
-                (1, conn, PyByteArray::new_bound(py, &metrics)).to_object(py)
+            Response(conn, response) => {
+                (1, conn, PyByteArray::new_bound(py, &response)).to_object(py)
             }
         }
     }
@@ -224,11 +224,9 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
                     permit_manager.update_limit(limit);
                 }
                 Request(id, url, method, body, headers) => {
-                    eprintln!("Getting permit");
                     let Ok(permit) = permit_manager.acquire().await else {
                         return;
                     };
-                    eprintln!("Got permit");
                     defer!(permit_manager.release(permit));
                     match request(client, url, method, body, headers).await {
                         Ok((status, body, headers)) => {
@@ -344,7 +342,7 @@ fn _http(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use std::sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     };
 
@@ -396,5 +394,40 @@ mod tests {
 
         assert_eq!(manager.active(), 0);
         assert_eq!(manager.capacity(), 10);
+    }
+
+    #[tokio::test]
+    async fn test_permit_manager_zero_to_five() {
+        let manager = Arc::new(PermitManager::new(0));
+        let permit_count = Arc::new(AtomicUsize::new(0));
+
+        // Create 5 tasks that try to acquire permits
+        let tasks: Vec<_> = (0..5)
+            .map(|_| {
+                let manager = manager.clone();
+                let permit_count = permit_count.clone();
+                tokio::spawn(async move {
+                    let _ = manager.acquire().await.unwrap();
+                    permit_count.fetch_add(1, Ordering::SeqCst);
+                })
+            })
+            .collect();
+
+        // Wait a bit to ensure no permits are issued
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        assert_eq!(permit_count.load(Ordering::SeqCst), 0);
+
+        // Update the permit count to 5
+        manager.update_limit(5);
+
+        // Wait for all tasks to complete
+        for task in tasks {
+            task.await.unwrap();
+        }
+
+        // Check that all 5 permits were issued
+        assert_eq!(permit_count.load(Ordering::SeqCst), 5);
+        assert_eq!(manager.active(), 5);
+        assert_eq!(manager.capacity(), 5);
     }
 }
