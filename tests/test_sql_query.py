@@ -1274,6 +1274,37 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             ),
         )
 
+    async def test_sql_query_copy_05(self):
+        # copy of table with columns specified
+
+        tran = self.scon.transaction()
+        await tran.start()
+
+        await self.scon.execute(
+            'SET LOCAL "global default::username_prefix" TO user_;'
+        )
+
+        out = io.BytesIO()
+        await self.scon.copy_from_table(
+            "Person",
+            columns=['first_name', 'username'],
+            output=out,
+            format="csv",
+            delimiter="\t",
+        )
+        out = io.StringIO(out.getvalue().decode("utf-8"))
+        res = list(csv.reader(out, delimiter="\t"))
+        self.assert_data_shape(
+            res,
+            tb.bag(
+                [
+                    ["Robin", "user_robin"],
+                    ["Steven", "user_steven"],
+                    ["Tom", "user_tom"],
+                ]
+            ),
+        )
+
     async def test_sql_query_error_01(self):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
