@@ -149,7 +149,7 @@ with
     net as module std::net,
 
     # n.b. workaround for bug in parse_execute_json
-    url := assert_exists(<str>$url),
+    url := <required str>$url,
     headers := <array<tuple<str, str>>>$headers,
     body := <bytes>$body,
 
