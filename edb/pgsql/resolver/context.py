@@ -49,6 +49,9 @@ class Options:
     # allow setting id in inserts
     allow_user_specified_id: bool
 
+    # apply access policies to select & dml statements
+    apply_access_policies: bool
+
 
 @dataclass(kw_only=True)
 class Scope:

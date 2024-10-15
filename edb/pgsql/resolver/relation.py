@@ -347,29 +347,32 @@ def resolve_relation(
 
     table.columns.extend(_construct_system_columns())
 
-    if include_inherited:
+    if ctx.options.apply_access_policies:
         if isinstance(obj, s_objtypes.ObjectType):
-            relation = _compile_read_of_obj_table(obj, ctx)
+            relation = _compile_read_of_obj_table(obj, include_inherited, ctx)
         else:
             # link and multi-property tables cannot have access policies,
             # so we allow access to base table directly
-            schemaname, dbname = pgcommon.get_backend_name(
-                ctx.schema, obj, aspect='table', catenate=False
-            )
-            relation = pgast.Relation(name=dbname, schemaname=schemaname)    
-
-        # relation = _select_from_inheritance_cte(obj, ctx)
+            relation = _relation_of_table(obj, ctx)
     else:
-        # use base table directly
-        schemaname, dbname = pgcommon.get_backend_name(
-            ctx.schema, obj, aspect='table', catenate=False
-        )
-        relation = pgast.Relation(name=dbname, schemaname=schemaname)
+        if include_inherited:
+            relation = _relation_of_inheritance_cte(obj, ctx)
+        else:
+            relation = _relation_of_table(obj, ctx)
 
     return relation, table
 
 
-def _select_from_inheritance_cte(
+def _relation_of_table(
+    obj: s_sources.Source | s_properties.Property, ctx: Context
+) -> pgast.Relation:
+    schemaname, dbname = pgcommon.get_backend_name(
+        ctx.schema, obj, aspect='table', catenate=False
+    )
+    return pgast.Relation(name=dbname, schemaname=schemaname)
+
+
+def _relation_of_inheritance_cte(
     obj: s_sources.Source | s_properties.Property, ctx: Context
 ) -> pgast.Relation:
     if obj not in ctx.inheritance_ctes:
@@ -492,7 +495,9 @@ def _construct_system_columns() -> List[context.Column]:
     ]
 
 
-def _compile_read_of_obj_table(obj: s_objtypes.ObjectType, ctx: Context):
+def _compile_read_of_obj_table(
+    obj: s_objtypes.ObjectType, include_inherited: bool, ctx: Context
+) -> pgast.Relation:
     from edb.edgeql import ast as qlast
     from edb.edgeql import compiler as qlcompiler
     from edb.pgsql import compiler as pgcompiler
@@ -520,6 +525,19 @@ def _compile_read_of_obj_table(obj: s_objtypes.ObjectType, ctx: Context):
             elements=ql_shape,
         )
     )
+
+    if not include_inherited:
+        ql_stmt.where = qlast.BinOp(
+            left=qlast.Path(
+                partial=True,
+                steps=[qlast.Ptr(name='__type__'), qlast.Ptr(name='id')],
+            ),
+            op='=',
+            right=qlast.TypeCast(
+                expr=qlast.Constant.string(str(obj.id)),
+                type=qlast.TypeName(maintype=qlast.ObjectRef(name='uuid')),
+            ),
+        )
 
     ir_stmt = qlcompiler.compile_ast_to_ir(
         ql_stmt,
