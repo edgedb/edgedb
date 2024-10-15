@@ -185,6 +185,14 @@ ALTER TYPE cfg::AbstractConfig {
             'Whether access policies will be applied when running queries.';
     };
 
+    CREATE PROPERTY apply_access_policies_sql -> std::bool {
+        SET default := false;
+        CREATE ANNOTATION cfg::affects_compilation := 'false';
+        CREATE ANNOTATION std::description :=
+            'Whether access policies will be applied when running queries over \
+            SQL adapter.';
+    };
+
     CREATE PROPERTY allow_user_specified_id -> std::bool {
         SET default := false;
         CREATE ANNOTATION cfg::affects_compilation := 'true';
