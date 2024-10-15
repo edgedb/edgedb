@@ -172,6 +172,7 @@ def resolve_column_kind(
                     ),
                 },
                 output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
+                alias_generator=ctx.alias_generator,
             )
             command.merge_params(sql_tree, compiled.irast, ctx)
 

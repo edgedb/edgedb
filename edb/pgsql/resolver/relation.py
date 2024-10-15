@@ -19,7 +19,7 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import Optional, Tuple, List, cast, Set
+from typing import Dict, Optional, Tuple, List, cast, Set
 
 from edb import errors
 from edb.server.pgcon import errors as pgerror
@@ -41,6 +41,7 @@ from . import context
 from . import range_var
 from . import expr
 from . import sql_introspection
+from . import command
 
 Context = context.ResolverContextLevel
 
@@ -347,7 +348,17 @@ def resolve_relation(
     table.columns.extend(_construct_system_columns())
 
     if include_inherited:
-        relation = _select_from_inheritance_cte(obj, ctx)
+        if isinstance(obj, s_objtypes.ObjectType):
+            relation = _compile_read_of_obj_table(obj, ctx)
+        else:
+            # link and multi-property tables cannot have access policies,
+            # so we allow access to base table directly
+            schemaname, dbname = pgcommon.get_backend_name(
+                ctx.schema, obj, aspect='table', catenate=False
+            )
+            relation = pgast.Relation(name=dbname, schemaname=schemaname)    
+
+        # relation = _select_from_inheritance_cte(obj, ctx)
     else:
         # use base table directly
         schemaname, dbname = pgcommon.get_backend_name(
@@ -479,3 +490,97 @@ def _construct_system_columns() -> List[context.Column]:
         )
         for c in ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
     ]
+
+
+def _compile_read_of_obj_table(obj: s_objtypes.ObjectType, ctx: Context):
+    from edb.edgeql import ast as qlast
+    from edb.edgeql import compiler as qlcompiler
+    from edb.pgsql import compiler as pgcompiler
+
+    obj_name: sn.QualName = obj.get_name(ctx.schema)
+    assert obj_name
+    ql_shape = []
+    for ptr in obj.get_pointers(ctx.schema).objects(ctx.schema):
+        assert isinstance(ptr, s_pointers.Pointer)
+        if ptr.get_cardinality(ctx.schema).is_multi():
+            continue
+        ptr_name = ptr.get_shortname(ctx.schema).name
+        ql_shape.append(
+            qlast.ShapeElement(
+                expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
+            )
+        )
+    ql_stmt = qlast.SelectQuery(
+        result=qlast.Shape(
+            expr=qlast.Path(
+                steps=[
+                    qlast.ObjectRef(module=obj_name.module, name=obj_name.name)
+                ]
+            ),
+            elements=ql_shape,
+        )
+    )
+
+    ir_stmt = qlcompiler.compile_ast_to_ir(
+        ql_stmt,
+        ctx.schema,
+        options=qlcompiler.CompilerOptions(apply_user_access_policies=True),
+    )
+
+    sql_tree = pgcompiler.compile_ir_to_sql_tree(
+        ir_stmt,
+        output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
+        alias_generator=ctx.alias_generator,
+    )
+    command.merge_params(sql_tree, ir_stmt, ctx)
+
+    # add CTEs to resolver's CTE buffer
+    assert isinstance(sql_tree.ast, pgast.Query)
+    if sql_tree.ast.ctes:
+        ctx.ctes_buffer.extend(sql_tree.ast.ctes)
+        sql_tree.ast.ctes.clear()
+
+    # prepare a map from pointer name into pgast
+    ptr_map: Dict[Tuple[str, str], pgast.BaseExpr] = {}
+    for (ptr_id, aspect), pg_expr in sql_tree.ast.path_namespace.items():
+        qual_name = ptr_id.rptr_name()
+        if not qual_name:
+            continue
+        ptr_map[qual_name.name, aspect] = pg_expr
+
+    # collect results and construct the resulting relation with the same
+    # columns as the actual base table
+    sql_tree.ast.target_list.clear()
+    for ptr in obj.get_pointers(ctx.schema).objects(ctx.schema):
+        assert isinstance(ptr, s_pointers.Pointer)
+        ptr_name = ptr.get_shortname(ctx.schema).name
+        if ptr.get_cardinality(ctx.schema).is_multi():
+            continue
+
+        val = ptr_map.get((ptr_name, 'value'), None)
+        if not val:
+            val = ptr_map.get((ptr_name, 'serialized'), None)
+        if not val:
+            val = ptr_map.get((ptr_name, 'identity'), None)
+        assert val, f'{ptr_name} was in shape, but not in path_namespace'
+
+        if ptr.is_special_pointer(ctx.schema) or ptr_name == '__type__':
+            alias = ptr_name
+        else:
+            alias = str(ptr.id)
+        sql_tree.ast.target_list.append(pgast.ResTarget(name=alias, val=val))
+
+    # inject system columns
+    system_cols = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
+    for col in system_cols:
+        val = pgast.NullConstant()
+        sql_tree.ast.target_list.append(pgast.ResTarget(name=col, val=val))
+
+    cte_name = ctx.alias_generator.get('tbl')
+    ctx.ctes_buffer.append(
+        pgast.CommonTableExpr(
+            name=cte_name,
+            query=sql_tree.ast,
+        )
+    )
+    return pgast.Relation(name=cte_name)

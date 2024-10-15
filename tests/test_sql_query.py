@@ -836,13 +836,13 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             GROUP BY tbl_name
             '''
         )
-        for [table_name, columns_from_information_schema] in tables:
-            if table_name.split('.')[0] in ('cfg', 'schema', 'sys'):
+        for [tbl_name, columns_from_information_schema] in tables:
+            if tbl_name.split('.')[0] in ('cfg', 'schema', 'sys', '"ext::ai"'):
                 continue
 
             try:
                 prepared = await self.scon.prepare(
-                    f'SELECT * FROM {table_name}'
+                    f'SELECT * FROM {tbl_name}'
                 )
 
                 attributes = prepared.get_attributes()
@@ -853,7 +853,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                     columns_from_information_schema,
                 )
             except Exception:
-                raise Exception(f'introspecting {table_name}')
+                raise Exception(f'introspecting {tbl_name}')
 
     async def test_sql_query_introspection_03(self):
         res = await self.squery_values(

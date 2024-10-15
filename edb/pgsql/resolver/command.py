@@ -2058,7 +2058,7 @@ def merge_params(
                 i
                 for i, p in enumerate(ctx.query_params)
                 if isinstance(p, dbstate.SQLParamGlobal)
-                and p.global_name == glob.name
+                and p.global_name == glob.global_name
             ),
             None,
         )
