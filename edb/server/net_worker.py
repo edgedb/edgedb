@@ -30,7 +30,7 @@ import pickle
 from edb.ir import statypes
 from edb.server import defines
 from edb.server.protocol import execute
-from edb.server import _http
+from edb.server._http import Http
 from edb.common import retryloop
 from . import dbview
 
@@ -96,7 +96,7 @@ async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
 
 class HttpClient:
     def __init__(self, limit: int):
-        self._client = _http.Http(limit)
+        self._client = Http(limit)
         self._fd = self._client._fd
         self._task = None
         self._skip_reads = 0
@@ -292,8 +292,7 @@ async def handle_request(
                             )
                             else (<nh::Response>{})
                         ),
-                        FOUND := <nh::ScheduledRequest><uuid>$id,
-                    update FOUND
+                    update nh::ScheduledRequest filter .id = <uuid>$id
                     set {
                         state := state,
                         response := response,
