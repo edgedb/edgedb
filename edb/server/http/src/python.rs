@@ -37,9 +37,10 @@ impl ToPyObject for RustToPythonMessage {
 
 #[derive(Debug)]
 enum PythonToRustMessage {
+    /// Update the inflight limit
     UpdateLimit(usize),
-    /// Acquire a connection.
-    Request(u64, String, String, Vec<u8>, Vec<(String, String)>),
+    /// Perform a request
+    Request(PythonConnId, String, String, Vec<u8>, Vec<(String, String)>),
 }
 
 type PipeSender = tokio::net::unix::pipe::Sender;
@@ -253,7 +254,7 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
 
 #[pymethods]
 impl Http {
-    /// Create the connection pool and automatically boot a tokio runtime on a
+    /// Create the HTTP pool and automatically boot a tokio runtime on a
     /// new thread. When this class is GC'd, the thread will be torn down.
     #[new]
     fn new(max_capacity: usize) -> Self {
@@ -299,7 +300,7 @@ impl Http {
 
     fn _request(
         &self,
-        id: u64,
+        id: PythonConnId,
         url: String,
         method: String,
         body: Vec<u8>,
