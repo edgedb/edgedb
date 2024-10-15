@@ -497,3 +497,34 @@ filter .factors.email = email and .factors.credential_id = credential_id;""",
             )
 
         return factor.identity
+
+    async def get_email_factor_by_credential_id(
+        self,
+        credential_id: bytes,
+    ) -> Optional[data.EmailFactor]:
+        result = await execute.parse_execute_json(
+            self.db,
+            """
+with
+    credential_id := <bytes>$credential_id,
+select ext::auth::WebAuthnFactor {
+    id,
+    created_at,
+    modified_at,
+    email,
+    verified_at,
+    identity: {*},
+} filter .credential_id = credential_id;""",
+            variables={
+                "credential_id": credential_id,
+            },
+        )
+        result_json = json.loads(result.decode())
+        if len(result_json) == 0:
+            return None
+        elif len(result_json) > 1:
+            # This should never happen given the exclusive constraint
+            raise errors.WebAuthnAuthenticationFailed(
+                "Multiple WebAuthn factors found for the same credential ID."
+            )
+        return data.EmailFactor(**result_json[0])
