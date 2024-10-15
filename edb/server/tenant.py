@@ -1074,6 +1074,7 @@ class Tenant(ha_base.ClusterProtocol):
     async def _introspect_db(self, dbname: str) -> bool:
         from edb.pgsql import trampoline
         logger.info("introspecting database '%s'", dbname)
+        print('STARTING INTROSPECTION', dbname, file=sys.stderr)
 
         assert self._dbindex is not None
         if db := self._dbindex.maybe_get_db(dbname):
@@ -1156,6 +1157,7 @@ class Tenant(ha_base.ClusterProtocol):
         )
         if query_cache and cache_mode is not config.QueryCacheMode.InMemory:
             db.hydrate_cache(query_cache)
+        print('FINISHING INTROSPECTION', dbname, file=sys.stderr)
         return old_cache_mode is not cache_mode
 
     async def _early_introspect_db(self, dbname: str) -> None:
@@ -1678,6 +1680,7 @@ class Tenant(ha_base.ClusterProtocol):
                 )
                 raise
 
+        print('SCHEDULING INTROSPECTION', dbname, file=sys.stderr)
         self.create_task(task(), interruptable=True)
 
     def on_remote_system_config_change(self) -> None:
