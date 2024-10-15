@@ -3420,15 +3420,17 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 self.assertEqual(
                     event_data["identity_id"], str(pkce.identity_id)
                 )
-                signature = requests_for_webhook[0]["headers"]["x-ext-auth-signature-sha256"]
+                signature = requests_for_webhook[0]["headers"][
+                    "x-ext-auth-signature-sha256"
+                ]
 
                 self.assertEqual(
                     signature,
                     hmac.new(
                         signing_secret_key.encode(),
                         requests_for_webhook[0]["body"].encode(),
-                        hashlib.sha256
-                    ).hexdigest()
+                        hashlib.sha256,
+                    ).hexdigest(),
                 )
 
                 # Correct code, correct verifier, already used PKCE
