@@ -11766,6 +11766,21 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [{'a': 1, 'b': 4}],
         )
 
+        await self.assert_query_result(
+            'select foo('
+            '    5,'
+            '    assert_exists((select Bar filter .a = 2 limit 1))'
+            '){a := .bar.a, b}',
+            [{'a': 2, 'b': 5}],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a',
+            [
+                {'a': 1, 'b': 4},
+                {'a': 2, 'b': 5},
+            ],
+        )
+
     async def test_edgeql_functions_inline_insert_link_02(self):
         await self.con.execute('''
             create type Bar {
@@ -11810,7 +11825,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             '    a := (select .bar order by .a).a,'
             '    b,'
             '} order by .b',
-            [{'a': [1], 'b': 4}, {'a': [1, 2], 'b': 5}],
+            [
+                {'a': [1], 'b': 4},
+                {'a': [1, 2], 'b': 5},
+            ],
         )
 
     async def test_edgeql_functions_inline_insert_link_03(self):
@@ -11834,46 +11852,793 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         ''')
 
         await self.assert_query_result(
-            'select foo(1, 11).b',
-            [11],
+            'select foo(1, 4).b',
+            [4],
         )
         await self.assert_query_result(
             'select Bar.a',
             [1],
         )
         await self.assert_query_result(
-            'select Baz {'
-            '    a := .bar.a,'
-            '    b,'
-            '} order by .b',
-            [{'a': 1, 'b': 11}],
+            'select Baz {a := .bar.a, b} order by .b',
+            [{'a': 1, 'b': 4}],
         )
 
         await self.assert_query_result(
-            'for x in {2, 3} union ('
-            '    for y in {21, 31} union ('
+            'select foo(2, 5).b',
+            [5],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2],
+        )
+        await self.assert_query_result(
+            'select Baz {a := .bar.a, b} order by .b',
+            [
+                {'a': 1, 'b': 4},
+                {'a': 2, 'b': 5},
+            ],
+        )
+
+    async def test_edgeql_functions_inline_insert_link_04(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property b -> int64;
+                create required link bar -> Bar;
+            };
+            create function foo(x: int64) -> Bar {
+                set is_inlined := true;
+                using ((insert Bar {a := x}))
+            };
+        ''')
+
+        await self.assert_query_result(
+            'select (insert Baz{b := 4, bar := foo(1)})'
+            '{a := .bar.a, b} order by .b',
+            [{'a': 1, 'b': 4}],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Baz {a := .bar.a, b} order by .b',
+            [{'a': 1, 'b': 4}],
+        )
+
+        await self.assert_query_result(
+            'select (insert Baz{b := 5, bar := foo(2)})'
+            '{a := .bar.a, b} order by .b',
+            [{'a': 2, 'b': 5}],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2],
+        )
+        await self.assert_query_result(
+            'select Baz {a := .bar.a, b} order by .b',
+            [
+                {'a': 1, 'b': 4},
+                {'a': 2, 'b': 5},
+            ],
+        )
+
+    async def test_edgeql_functions_inline_insert_link_iterator_01(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property b -> int64;
+                create required link bar -> Bar;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            insert Bar{a := 4};
+            create function foo(n: int64, x: Bar) -> Baz {
+                set is_inlined := true;
+                using ((insert Baz{ b := n, bar := x }))
+            };
+        ''')
+
+        await self.assert_query_result(
+            'select foo('
+            '    1, assert_exists((select Bar filter .a = 1 limit 1))'
+            '){a := .bar.a, b} order by .a then .b',
+            [{'a': 1, 'b': 1}],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [{'a': 1, 'b': 1}],
+        )
+
+        await self.assert_query_result(
+            'for x in {2, 3, 4} union ('
+            '    select foo('
+            '        x, assert_exists((select Bar filter .a = 2 limit 1))'
+            '    ).b'
+            ')',
+            [2, 3, 4],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+            ],
+        )
+
+        await self.assert_query_result(
+            'select ('
+            '    if true'
+            '    then foo('
+            '        5, assert_exists((select Bar filter .a = 3 limit 1))'
+            '    ).b'
+            '    else 99'
+            ')',
+            [5],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 5},
+            ],
+        )
+        await self.assert_query_result(
+            'select ('
+            '    if false'
+            '    then foo('
+            '        6, assert_exists((select Bar filter .a = 3 limit 1))'
+            '    ).b'
+            '    else 99'
+            ')',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 5},
+            ],
+        )
+        await self.assert_query_result(
+            'select ('
+            '    if true'
+            '    then 99'
+            '    else foo('
+            '        7, assert_exists((select Bar filter .a = 3 limit 1))'
+            '    ).b'
+            ')',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 5},
+            ],
+        )
+        await self.assert_query_result(
+            'select ('
+            '    if false'
+            '    then 99'
+            '    else foo('
+            '        8, assert_exists((select Bar filter .a = 3 limit 1))'
+            '    ).b'
+            ')',
+            [8],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 5},
+                {'a': 3, 'b': 8},
+            ],
+        )
+
+        await self.assert_query_result(
+            'select foo('
+            '    9, assert_exists((select Bar filter .a = 4 limit 1))'
+            ').b ?? 99',
+            [9],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 5},
+                {'a': 3, 'b': 8},
+                {'a': 4, 'b': 9},
+            ],
+        )
+        await self.assert_query_result(
+            'select 99 ?? foo('
+            '    9, assert_exists((select Bar filter .a = 4 limit 1))'
+            ').b',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 5},
+                {'a': 3, 'b': 8},
+                {'a': 4, 'b': 9},
+            ],
+        )
+
+    async def test_edgeql_functions_inline_insert_link_iterator_02(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property b -> int64;
+                create multi link bar -> Bar;
+            };
+            create function foo(x: int64, y: int64) -> Baz {
+                set is_inlined := true;
+                using (
+                    (insert Baz {
+                        b := y,
+                        bar := (for z in {x, x + 1, x + 2} union(
+                            (insert Bar{ a := z })
+                        ))
+                    })
+                );
+            };
+        ''')
+
+        await self.assert_query_result(
+            'select foo(10, 1).b',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [10, 11, 12],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz {a := .bar.a, b} order by .b then sum(.a)',
+            [{'a': [10, 11, 12], 'b': 1}],
+        )
+
+        await self.assert_query_result(
+            'for x in {20, 30} union ('
+            '    for y in {2, 3} union ('
             '        select foo(x, y).b'
             '    )'
             ')',
-            [21, 21, 31, 31],
+            [2, 2, 3, 3],
             sort=True,
         )
         await self.assert_query_result(
             'select Bar.a',
-            [1, 2, 2, 3, 3],
+            [
+                10, 11, 12,
+                20, 20, 21, 21, 22, 22,
+                30, 30, 31, 31, 32, 32,
+            ],
             sort=True,
         )
         await self.assert_query_result(
-            'select Baz {'
-            '    a := .bar.a,'
-            '    b,'
-            '} order by .a then .b',
+            'select Baz {a := .bar.a, b} order by .b then sum(.a)',
             [
-                {'a': 1, 'b': 11},
-                {'a': 2, 'b': 21},
-                {'a': 2, 'b': 31},
-                {'a': 3, 'b': 21},
-                {'a': 3, 'b': 31},
+                {'a': [10, 11, 12], 'b': 1},
+                {'a': [20, 21, 22], 'b': 2},
+                {'a': [30, 31, 32], 'b': 2},
+                {'a': [20, 21, 22], 'b': 3},
+                {'a': [30, 31, 32], 'b': 3},
+            ],
+        )
+
+        await self.assert_query_result(
+            'select if true then foo(40, 4).b else 999',
+            [4],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [
+                10, 11, 12,
+                20, 20, 21, 21, 22, 22,
+                30, 30, 31, 31, 32, 32,
+                40, 41, 42,
+            ],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz {a := .bar.a, b} order by .b then sum(.a)',
+            [
+                {'a': [10, 11, 12], 'b': 1},
+                {'a': [20, 21, 22], 'b': 2},
+                {'a': [30, 31, 32], 'b': 2},
+                {'a': [20, 21, 22], 'b': 3},
+                {'a': [30, 31, 32], 'b': 3},
+                {'a': [40, 41, 42], 'b': 4},
+            ],
+        )
+        await self.assert_query_result(
+            'select if false then foo(50, 5).b else 999',
+            [999],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [
+                10, 11, 12,
+                20, 20, 21, 21, 22, 22,
+                30, 30, 31, 31, 32, 32,
+                40, 41, 42,
+            ],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz {a := .bar.a, b} order by .b then sum(.a)',
+            [
+                {'a': [10, 11, 12], 'b': 1},
+                {'a': [20, 21, 22], 'b': 2},
+                {'a': [30, 31, 32], 'b': 2},
+                {'a': [20, 21, 22], 'b': 3},
+                {'a': [30, 31, 32], 'b': 3},
+                {'a': [40, 41, 42], 'b': 4},
+            ],
+        )
+        await self.assert_query_result(
+            'select if true then 999 else foo(60, 6).b',
+            [999],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [
+                10, 11, 12,
+                20, 20, 21, 21, 22, 22,
+                30, 30, 31, 31, 32, 32,
+                40, 41, 42,
+            ],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz {a := .bar.a, b} order by .b then sum(.a)',
+            [
+                {'a': [10, 11, 12], 'b': 1},
+                {'a': [20, 21, 22], 'b': 2},
+                {'a': [30, 31, 32], 'b': 2},
+                {'a': [20, 21, 22], 'b': 3},
+                {'a': [30, 31, 32], 'b': 3},
+                {'a': [40, 41, 42], 'b': 4},
+            ],
+        )
+        await self.assert_query_result(
+            'select if false then 999 else foo(70, 7).b',
+            [7],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [
+                10, 11, 12,
+                20, 20, 21, 21, 22, 22,
+                30, 30, 31, 31, 32, 32,
+                40, 41, 42,
+                70, 71, 72,
+            ],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz {a := .bar.a, b} order by .b then sum(.a)',
+            [
+                {'a': [10, 11, 12], 'b': 1},
+                {'a': [20, 21, 22], 'b': 2},
+                {'a': [30, 31, 32], 'b': 2},
+                {'a': [20, 21, 22], 'b': 3},
+                {'a': [30, 31, 32], 'b': 3},
+                {'a': [40, 41, 42], 'b': 4},
+                {'a': [70, 71, 72], 'b': 7},
+            ],
+        )
+
+        await self.assert_query_result(
+            'select foo(80, 8).b ?? 999',
+            [8],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [
+                10, 11, 12,
+                20, 20, 21, 21, 22, 22,
+                30, 30, 31, 31, 32, 32,
+                40, 41, 42,
+                70, 71, 72,
+                80, 81, 82,
+            ],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz {a := .bar.a, b} order by .b then sum(.a)',
+            [
+                {'a': [10, 11, 12], 'b': 1},
+                {'a': [20, 21, 22], 'b': 2},
+                {'a': [30, 31, 32], 'b': 2},
+                {'a': [20, 21, 22], 'b': 3},
+                {'a': [30, 31, 32], 'b': 3},
+                {'a': [40, 41, 42], 'b': 4},
+                {'a': [70, 71, 72], 'b': 7},
+                {'a': [80, 81, 82], 'b': 8},
+            ],
+        )
+        await self.assert_query_result(
+            'select 999 ?? foo(90, 9).b',
+            [999],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [
+                10, 11, 12,
+                20, 20, 21, 21, 22, 22,
+                30, 30, 31, 31, 32, 32,
+                40, 41, 42,
+                70, 71, 72,
+                80, 81, 82,
+            ],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz {a := .bar.a, b} order by .b then sum(.a)',
+            [
+                {'a': [10, 11, 12], 'b': 1},
+                {'a': [20, 21, 22], 'b': 2},
+                {'a': [30, 31, 32], 'b': 2},
+                {'a': [20, 21, 22], 'b': 3},
+                {'a': [30, 31, 32], 'b': 3},
+                {'a': [40, 41, 42], 'b': 4},
+                {'a': [70, 71, 72], 'b': 7},
+                {'a': [80, 81, 82], 'b': 8},
+            ],
+        )
+
+    async def test_edgeql_functions_inline_insert_link_iterator_03(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property b -> int64;
+                create required link bar -> Bar;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            insert Bar{a := 4};
+            create function foo(n: int64, x: Bar, flag: bool) -> optional Baz {
+                set is_inlined := true;
+                using (
+                    if flag then (insert Baz{ b := n, bar := x }) else <Baz>{}
+                )
+            };
+        ''')
+
+        await self.assert_query_result(
+            'select foo('
+            '    0, assert_exists((select Bar filter .a = 1 limit 1)), false'
+            '){a := .bar.a, b} order by .a then .b',
+            [],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo('
+            '    1, assert_exists((select Bar filter .a = 1 limit 1)), true'
+            '){a := .bar.a, b} order by .a then .b',
+            [{'a': 1, 'b': 1}],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [{'a': 1, 'b': 1}],
+        )
+
+        await self.assert_query_result(
+            'for x in {2, 3, 4} union ('
+            '    select foo('
+            '        x,'
+            '        assert_exists((select Bar filter .a = 3 limit 1)),'
+            '        false,'
+            '    ).b'
+            ')',
+            [],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [{'a': 1, 'b': 1}],
+        )
+        await self.assert_query_result(
+            'for x in {2, 3, 4} union ('
+            '    select foo('
+            '        x,'
+            '        assert_exists((select Bar filter .a = 2 limit 1)),'
+            '        true,'
+            '    ).b'
+            ')',
+            [2, 3, 4],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+            ],
+        )
+
+        await self.assert_query_result(
+            'select ('
+            '    if true'
+            '    then foo('
+            '        5,'
+            '        assert_exists((select Bar filter .a = 3 limit 1)),'
+            '        false,'
+            '    ).b'
+            '    else 99'
+            ')',
+            [],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+            ],
+        )
+        await self.assert_query_result(
+            'select ('
+            '    if false'
+            '    then foo('
+            '        6,'
+            '        assert_exists((select Bar filter .a = 3 limit 1)),'
+            '        false,'
+            '    ).b'
+            '    else 99'
+            ')',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+            ],
+        )
+        await self.assert_query_result(
+            'select ('
+            '    if true'
+            '    then 99'
+            '    else foo('
+            '        7,'
+            '        assert_exists((select Bar filter .a = 3 limit 1)),'
+            '        false,'
+            '    ).b'
+            ')',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+            ],
+        )
+        await self.assert_query_result(
+            'select ('
+            '    if false'
+            '    then 99'
+            '    else foo('
+            '        8,'
+            '        assert_exists((select Bar filter .a = 3 limit 1)),'
+            '        false,'
+            '    ).b'
+            ')',
+            [],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+            ],
+        )
+        await self.assert_query_result(
+            'select ('
+            '    if true'
+            '    then foo('
+            '        9,'
+            '        assert_exists((select Bar filter .a = 3 limit 1)),'
+            '        true,'
+            '    ).b'
+            '    else 99'
+            ')',
+            [9],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 9},
+            ],
+        )
+        await self.assert_query_result(
+            'select ('
+            '    if false'
+            '    then foo('
+            '        10,'
+            '        assert_exists((select Bar filter .a = 3 limit 1)),'
+            '        true,'
+            '    ).b'
+            '    else 99'
+            ')',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 9},
+            ],
+        )
+        await self.assert_query_result(
+            'select ('
+            '    if true'
+            '    then 99'
+            '    else foo('
+            '        11,'
+            '        assert_exists((select Bar filter .a = 3 limit 1)),'
+            '        true,'
+            '    ).b'
+            ')',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 9},
+            ],
+        )
+        await self.assert_query_result(
+            'select ('
+            '    if false'
+            '    then 99'
+            '    else foo('
+            '        12,'
+            '        assert_exists((select Bar filter .a = 3 limit 1)),'
+            '        true,'
+            '    ).b'
+            ')',
+            [12],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 9},
+                {'a': 3, 'b': 12},
+            ],
+        )
+
+        await self.assert_query_result(
+            'select foo('
+            '    13, assert_exists((select Bar filter .a = 4 limit 1)), false'
+            ').b ?? 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 9},
+                {'a': 3, 'b': 12},
+            ],
+        )
+        await self.assert_query_result(
+            'select 99 ?? foo('
+            '    14, assert_exists((select Bar filter .a = 4 limit 1)), false'
+            ').b',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 9},
+                {'a': 3, 'b': 12},
+            ],
+        )
+        await self.assert_query_result(
+            'select foo('
+            '    15, assert_exists((select Bar filter .a = 4 limit 1)), true'
+            ').b ?? 99',
+            [15],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 9},
+                {'a': 3, 'b': 12},
+                {'a': 4, 'b': 15},
+            ],
+        )
+        await self.assert_query_result(
+            'select 99 ?? foo('
+            '    16, assert_exists((select Bar filter .a = 4 limit 1)), true'
+            ').b',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 9},
+                {'a': 3, 'b': 12},
+                {'a': 4, 'b': 15},
             ],
         )
 
@@ -11936,6 +12701,176 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             'select Baz{a := .bar.a, b := .bar@b} order by .a',
             [{'a': 1, 'b': 4}],
+        )
+
+    async def test_edgeql_functions_inline_insert_linkprop_iterator_01(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required link bar -> Bar {
+                    create property b -> int64;
+                }
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            insert Bar{a := 4};
+            create function foo(n: int64, x: Bar) -> Baz {
+                set is_inlined := true;
+                using ((insert Baz{ bar := x { @b := n } }))
+            };
+        ''')
+
+        await self.assert_query_result(
+            'select foo('
+            '    1,'
+            '    assert_exists((select Bar filter .a = 1 limit 1))'
+            '){a := .bar.a, b := .bar@b}',
+            [{'a': 1, 'b': 1}],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b := .bar@b} order by .a',
+            [{'a': 1, 'b': 1}],
+        )
+
+        await self.assert_query_result(
+            'for x in {2, 3, 4} union ('
+            '    select foo('
+            '        x, assert_exists((select Bar filter .a = 2 limit 1))'
+            '    ).bar@b'
+            ')',
+            [2, 3, 4],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b := .bar@b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+            ],
+        )
+
+        await self.assert_query_result(
+            'select ('
+            '    if true'
+            '    then foo('
+            '        5, assert_exists((select Bar filter .a = 3 limit 1))'
+            '    ).bar@b'
+            '    else 99'
+            ')',
+            [5],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b := .bar@b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 5},
+            ],
+        )
+        await self.assert_query_result(
+            'select ('
+            '    if false'
+            '    then foo('
+            '        6, assert_exists((select Bar filter .a = 3 limit 1))'
+            '    ).bar@b'
+            '    else 99'
+            ')',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b := .bar@b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 5},
+            ],
+        )
+        await self.assert_query_result(
+            'select ('
+            '    if true'
+            '    then 99'
+            '    else foo('
+            '        7, assert_exists((select Bar filter .a = 3 limit 1))'
+            '    ).bar@b'
+            ')',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b := .bar@b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 5},
+            ],
+        )
+        await self.assert_query_result(
+            'select ('
+            '    if false'
+            '    then 99'
+            '    else foo('
+            '        8, assert_exists((select Bar filter .a = 3 limit 1))'
+            '    ).bar@b'
+            ')',
+            [8],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b := .bar@b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 5},
+                {'a': 3, 'b': 8},
+            ],
+        )
+
+        await self.assert_query_result(
+            'select foo('
+            '    9, assert_exists((select Bar filter .a = 4 limit 1))'
+            ').bar@b ?? 99',
+            [9],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b := .bar@b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 5},
+                {'a': 3, 'b': 8},
+                {'a': 4, 'b': 9},
+            ],
+        )
+        await self.assert_query_result(
+            'select 99 ?? foo('
+            '    9, assert_exists((select Bar filter .a = 4 limit 1))'
+            ').bar@b',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b := .bar@b} order by .a then .b',
+            [
+                {'a': 1, 'b': 1},
+                {'a': 2, 'b': 2},
+                {'a': 2, 'b': 3},
+                {'a': 2, 'b': 4},
+                {'a': 3, 'b': 5},
+                {'a': 3, 'b': 8},
+                {'a': 4, 'b': 9},
+            ],
         )
 
     async def test_edgeql_functions_inline_update_basic_01(self):
