@@ -523,7 +523,8 @@ select ext::auth::WebAuthnFactor {
         if len(result_json) == 0:
             return None
         elif len(result_json) > 1:
+            # This should never happen given the exclusive constraint
             raise errors.WebAuthnAuthenticationFailed(
-                "Multiple challenges found. Please retry authentication."
+                "Multiple WebAuthn factors found for the same credential ID."
             )
         return data.EmailFactor(**result_json[0])
