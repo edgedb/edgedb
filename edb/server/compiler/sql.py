@@ -332,12 +332,14 @@ def lookup_bool_setting(
     return None
 
 
-def is_setting_truthy(val: str | int) -> bool:
+def is_setting_truthy(val: str | int | float) -> bool:
     if isinstance(val, str):
         truthy = {'on', 'true', 'yes', '1'}
         return val.lower() in truthy
     elif isinstance(val, int):
         return bool(val)
+    else:
+        return False
 
 
 def compute_stmt_name(text: str, tx_state: dbstate.SQLTransactionState) -> str:
