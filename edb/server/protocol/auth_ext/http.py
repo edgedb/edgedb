@@ -55,7 +55,6 @@ from . import (
     webauthn,
     magic_link,
     webhook,
-    local,
 )
 from .data import EmailFactor
 
@@ -730,6 +729,7 @@ class Router:
 
         _check_keyset(request_data, {"provider"})
         provider_name = request_data["provider"]
+        local_client: email_password.Client | webauthn.Client
         match provider_name:
             case "builtin::local_emailpassword":
                 local_client = email_password.Client(db=self.db)
