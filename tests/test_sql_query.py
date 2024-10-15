@@ -1774,7 +1774,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         # no access policies
         res = await self.squery_values('SELECT x FROM "ContentSummary"')
         self.assertEqual(res, [[5]])
-        
+
         await self.scon.execute('SET LOCAL apply_access_policies_sql TO true')
 
         # access policies applied
@@ -1832,9 +1832,9 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             'SELECT * FROM ONLY "Content"'
         )
         self.assertEqual(len(res), 1)
-        
+
         await self.scon.execute('SET LOCAL apply_access_policies_sql TO true')
-        
+
         await self.scon.execute(
             """SET LOCAL "global default::filter_title" TO 'Halo 3'"""
         )
@@ -1842,7 +1842,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             'SELECT * FROM ONLY "Content"'
         )
         self.assertEqual(len(res), 1)
-        
+
         await self.scon.execute(
             """SET LOCAL "global default::filter_title" TO 'Forrest Gump'"""
         )

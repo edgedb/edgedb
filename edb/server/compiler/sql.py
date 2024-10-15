@@ -322,7 +322,7 @@ def lookup_bool_setting(
             truthy = {'on', 'true', 'yes', '1'}
             return setting[0].lower() in truthy
         elif isinstance(setting[0], int):
-            return bool(setting[0])    
+            return bool(setting[0])
     return None
 
 
