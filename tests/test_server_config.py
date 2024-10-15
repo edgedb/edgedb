@@ -1357,16 +1357,6 @@ class TestServerConfig(tb.QueryTestCase):
                 'context': {'start': 42},
             }
 
-            # N.B: When CONFIGURE CURRENT DATABASE is run, the new
-            # setting becomes live immediately on the current
-            # connection, but does not become live on other
-            # connections until after a scheduled background
-            # reintrospection is done.
-            #
-            # There is a bug related to this (#7330) in which an
-            # *older* scheduled reintrospection can temporarily
-            # overwrite a later setting. We need to work around this a
-            # bit.
             await con1.execute(f'''
                 configure current database set force_database_error :=
                   {qlquote.quote_literal(json.dumps(err))};
@@ -1377,17 +1367,11 @@ class TestServerConfig(tb.QueryTestCase):
                     async with tx:
                         await tx.query('select schema::Object')
 
-            # It might take a bit before con2 sees the error config
-            async for tr in self.try_until_succeeds(ignore=AssertionError):
-                async with tr:
-                    with self.assertRaisesRegex(edgedb.SchemaError, 'danger',
-                                                _position=42):
-                        async for tx in con2.retrying_transaction():
-                            async with tx:
-                                await tx.query('select schema::Object')
-
-            # N.B: Since it's visible on con2, we know there aren't
-            # any pending reintrospections for it.
+            with self.assertRaisesRegex(edgedb.SchemaError, 'danger 1',
+                                        _position=42):
+                async for tx in con2.retrying_transaction():
+                    async with tx:
+                        await tx.query('select schema::Object')
 
             # If we change the '_version' to something else we
             # should be good
@@ -1427,14 +1411,10 @@ class TestServerConfig(tb.QueryTestCase):
                 configure current database set force_database_error :=
                   {qlquote.quote_literal(json.dumps(err))};
             ''')
-            # Wait for the error to propagate to other connections.
-            # This, again, ensures that the queue of reintrospections is empty.
-            async for tr in self.try_until_succeeds(ignore=AssertionError):
-                async with tr:
-                    with self.assertRaisesRegex(edgedb.SchemaError, 'danger 4'):
-                        async for tx in con2.retrying_transaction():
-                            async with tx:
-                                await tx.query('select schema::Object')
+            with self.assertRaisesRegex(edgedb.SchemaError, 'danger 4'):
+                async for tx in con2.retrying_transaction():
+                    async with tx:
+                        await tx.query('select schema::Object')
 
             with self.assertRaisesRegex(edgedb.SchemaError, 'danger 4'):
                 async for tx in con1.retrying_transaction():
@@ -1455,15 +1435,9 @@ class TestServerConfig(tb.QueryTestCase):
                     configure session reset force_database_error;
                 ''')
 
-                # Wait for the config change to be visible to other
-                # connections.  (Not doing this might cause later tests
-                # that use other connections to flake)
-                async for tr in self.try_until_succeeds(
-                    ignore=edgedb.SchemaError
-                ):
-                    async with tr:
-                        await con2.execute('select 1')
-                        await con1.execute('select 1')
+                # Make sure both connections are working.
+                await con2.execute('select 1')
+                await con1.execute('select 1')
             finally:
                 await con2.aclose()
 

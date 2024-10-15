@@ -1154,6 +1154,7 @@ class Tenant(ha_base.ClusterProtocol):
         cache_mode = config.QueryCacheMode.effective(
             db.lookup_config('query_cache_mode')
         )
+        # TODO: don't always hydrate on reintrospection
         if query_cache and cache_mode is not config.QueryCacheMode.InMemory:
             db.hydrate_cache(query_cache)
         return old_cache_mode is not cache_mode
@@ -1656,29 +1657,18 @@ class Tenant(ha_base.ClusterProtocol):
 
         self.create_task(task(), interruptable=True)
 
-    def on_local_database_config_change(self, dbname: str) -> None:
-        if not self._accept_new_tasks:
-            return
-
-        # Triggered by DB Index.
-        # It's easier and safer to just schedule full re-introspection
+    async def process_local_database_config_change(self, dbname: str) -> None:
+        # It's easier and safer to just do full re-introspection
         # of the DB and update all components of it.
-        async def task():
-            try:
-                if await self.introspect_db(dbname):
-                    logger.info(
-                        "clearing query cache for database '%s'", dbname)
-                    async with self.with_pgcon(dbname) as conn:
-                        await conn.sql_execute(
-                            b'SELECT edgedb._clear_query_cache()')
-                        self._dbindex.get_db(dbname).clear_query_cache()
-            except Exception:
-                metrics.background_errors.inc(
-                    1.0, self._instance_name, "on_local_database_config_change"
-                )
-                raise
-
-        self.create_task(task(), interruptable=True)
+        # TODO: Can we just do config?
+        if await self.introspect_db(dbname):
+            logger.info(
+                "clearing query cache for database '%s'", dbname)
+            async with self.with_pgcon(dbname) as conn:
+                await conn.sql_execute(
+                    b'SELECT edgedb._clear_query_cache()')
+                assert self._dbindex
+                self._dbindex.get_db(dbname).clear_query_cache()
 
     def on_remote_system_config_change(self) -> None:
         if not self._accept_new_tasks:
