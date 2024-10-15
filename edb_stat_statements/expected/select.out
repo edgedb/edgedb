@@ -1,7 +1,7 @@
 --
 -- SELECT statements
 --
-CREATE EXTENSION pg_stat_statements;
+CREATE EXTENSION edb_stat_statements;
 SET pg_stat_statements.track_utility = FALSE;
 SET pg_stat_statements.track_planning = TRUE;
 SELECT pg_stat_statements_reset() IS NOT NULL AS t;

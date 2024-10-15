@@ -1,5 +1,5 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
-\echo Use "CREATE EXTENSION pg_stat_statements" to load this file. \quit
+\echo Use "CREATE EXTENSION edb_stat_statements" to load this file. \quit
 
 -- Register functions.
 CREATE FUNCTION pg_stat_statements_reset(IN userid Oid DEFAULT 0,
