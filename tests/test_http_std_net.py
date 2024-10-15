@@ -133,6 +133,7 @@ class StdNetTestCase(server.QueryTestCase):
             url=url,
         )
 
+        requests_for_example = None
         async for tr in self.try_until_succeeds(
             delay=2, timeout=120, ignore=(KeyError,)
         ):
@@ -141,6 +142,7 @@ class StdNetTestCase(server.QueryTestCase):
                     example_request
                 ]
 
+        assert requests_for_example is not None
         self.assertEqual(len(requests_for_example), 1)
         headers = list(requests_for_example[0]["headers"].items())
         self.assertIn(("accept", "application/json"), headers)
@@ -154,8 +156,12 @@ class StdNetTestCase(server.QueryTestCase):
         self.assertEqual(str(table_result.state), 'Completed')
         self.assertIsNone(table_result.failure)
         self.assertEqual(table_result.response.status, 200)
-        self.assertEqual(json.loads(table_result.response.body), {"message": "Hello, world!"})
-        self.assertIn(("content-type", "application/json"), table_result.response.headers)
+        self.assertEqual(
+            json.loads(table_result.response.body), {"message": "Hello, world!"}
+        )
+        self.assertIn(
+            ("content-type", "application/json"), table_result.response.headers
+        )
 
     async def test_http_std_net_con_schedule_request_post_01(self):
         assert self.mock_server is not None
@@ -202,6 +208,7 @@ class StdNetTestCase(server.QueryTestCase):
             body=b"Hello, world!",
         )
 
+        requests_for_example = None
         async for tr in self.try_until_succeeds(
             delay=2, timeout=120, ignore=(KeyError,)
         ):
@@ -210,6 +217,7 @@ class StdNetTestCase(server.QueryTestCase):
                     example_request
                 ]
 
+        assert requests_for_example is not None
         self.assertEqual(len(requests_for_example), 1)
         headers = list(requests_for_example[0]["headers"].items())
         self.assertIn(("accept", "application/json"), headers)
@@ -224,8 +232,12 @@ class StdNetTestCase(server.QueryTestCase):
         self.assertEqual(str(table_result.state), 'Completed')
         self.assertIsNone(table_result.failure)
         self.assertEqual(table_result.response.status, 200)
-        self.assertEqual(json.loads(table_result.response.body), {"message": "Hello, world!"})
-        self.assertIn(("content-type", "application/json"), table_result.response.headers)
+        self.assertEqual(
+            json.loads(table_result.response.body), {"message": "Hello, world!"}
+        )
+        self.assertIn(
+            ("content-type", "application/json"), table_result.response.headers
+        )
 
     async def test_http_std_net_con_schedule_request_bad_address(self):
         # Test a request to a known-bad address

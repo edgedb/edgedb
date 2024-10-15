@@ -49,9 +49,7 @@ async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
     )
     http_client._update_limit(net_http_max_connections)
     try:
-        async with (
-            asyncio.TaskGroup() as g,
-        ):
+        async with (asyncio.TaskGroup() as g,):
             for db in tenant.iter_dbs():
                 if db.name == defines.EDGEDB_SYSTEM_DB:
                     # Don't run the net_worker for system database
@@ -95,6 +93,7 @@ async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
             exc_info=ex,
         )
 
+
 class HttpClient:
     def __init__(self, limit: int):
         self._client = _http.Http(limit)
@@ -114,12 +113,14 @@ class HttpClient:
     def _update_limit(self, limit: int):
         self._client._update_limit(limit)
 
-    async def request(self,
-                      *,
-                      method: str,
-                      url: str,
-                      content: bytes | None,
-                      headers: list[tuple[str, str]] | None):
+    async def request(
+        self,
+        *,
+        method: str,
+        url: str,
+        content: bytes | None,
+        headers: list[tuple[str, str]] | None,
+    ):
         if content is None:
             content = bytes()
         if headers is None:
@@ -163,11 +164,13 @@ class HttpClient:
             elif msg_type == 0:
                 self._requests[id].set_exception(Exception(data))
 
+
 def create_http(tenant: edbtenant.Tenant):
     net_http_max_connections = tenant._server.config_lookup(
         'net_http_max_connections', tenant.get_sys_config()
     )
     return HttpClient(net_http_max_connections)
+
 
 async def http(server: edbserver.BaseServer) -> None:
     tenant_http = dict()
@@ -181,9 +184,12 @@ async def http(server: edbserver.BaseServer) -> None:
                     tenant_set.add(tenant)
                     if tenant not in tenant_http:
                         tenant_http[tenant] = create_http(tenant)
-                    tasks.append(tenant.create_task(_http_task(tenant,
-                                                               tenant_http[tenant]),
-                                                               interruptable=False))
+                    tasks.append(
+                        tenant.create_task(
+                            _http_task(tenant, tenant_http[tenant]),
+                            interruptable=False,
+                        )
+                    )
             # Remove unused tenant_http entries
             for tenant in tenant_http.keys():
                 if tenant not in tenant_set:
