@@ -31,6 +31,7 @@ from edb.ir import statypes
 from edb.server import defines
 from edb.server.protocol import execute
 from edb.server import _http
+from edb.common import retryloop
 from . import dbview
 
 if typing.TYPE_CHECKING:
@@ -241,54 +242,67 @@ async def handle_request(
             'kind': 'NetworkError',
             'message': str(ex),
         }
-    try:
-        await execute.parse_execute_json(
-            db,
-            """
-            with
-                nh as module std::net::http,
-                net as module std::net,
-                state := <net::RequestState>$state,
-                failure := <
-                    optional tuple<
-                        kind: net::RequestFailureKind,
-                        message: str
-                    >
-                >to_json(<str>$failure),
-                response_status := <optional int16>$response_status,
-                response_body := <optional bytes>$response_body,
-                response_headers :=
-                    <optional array<tuple<str, str>>>$response_headers,
-                response := (
-                    if state = net::RequestState.Completed
-                    then (
-                        insert nh::Response {
-                            created_at := datetime_of_statement(),
-                            status := assert_exists(response_status),
-                            body := response_body,
-                            headers := response_headers,
-                        }
-                    )
-                    else (<nh::Response>{})
-                ),
-                FOUND := <nh::ScheduledRequest><uuid>$id,
-            update FOUND
-            set {
-                state := state,
-                response := response,
-                failure := failure,
-            };
-            """,
-            variables={
-                'id': request.id,
-                'state': request_state,
-                'response_status': response_status,
-                'response_body': response_body,
-                'response_headers': response_headers,
-                'failure': json.dumps(failure),
-            },
-            cached_globally=True,
+
+    def _warn(e):
+        logger.warning(
+            "Failed to update std::net::http record, retrying. Reason: %s", e
         )
-    except Exception as ex:
-        print(type(ex))
-        logger.error("Failed to update std::net::http record", ex)
+
+    async def _update_request():
+        rloop = retryloop.RetryLoop(
+            backoff=retryloop.exp_backoff(),
+            timeout=300,
+            ignore=(Exception,),
+            retry_cb=_warn,
+        )
+        async for iteration in rloop:
+            async with iteration:
+                await execute.parse_execute_json(
+                    db,
+                    """
+                    with
+                        nh as module std::net::http,
+                        net as module std::net,
+                        state := <net::RequestState>$state,
+                        failure := <
+                            optional tuple<
+                                kind: net::RequestFailureKind,
+                                message: str
+                            >
+                        >to_json(<str>$failure),
+                        response_status := <optional int16>$response_status,
+                        response_body := <optional bytes>$response_body,
+                        response_headers :=
+                            <optional array<tuple<str, str>>>$response_headers,
+                        response := (
+                            if state = net::RequestState.Completed
+                            then (
+                                insert nh::Response {
+                                    created_at := datetime_of_statement(),
+                                    status := assert_exists(response_status),
+                                    body := response_body,
+                                    headers := response_headers,
+                                }
+                            )
+                            else (<nh::Response>{})
+                        ),
+                        FOUND := <nh::ScheduledRequest><uuid>$id,
+                    update FOUND
+                    set {
+                        state := state,
+                        response := response,
+                        failure := failure,
+                    };
+                    """,
+                    variables={
+                        'id': request.id,
+                        'state': request_state,
+                        'response_status': response_status,
+                        'response_body': response_body,
+                        'response_headers': response_headers,
+                        'failure': json.dumps(failure),
+                    },
+                    cached_globally=True,
+                )
+
+    await _update_request()
