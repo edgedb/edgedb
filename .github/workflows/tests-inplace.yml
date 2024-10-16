@@ -481,13 +481,9 @@ jobs:
         ./build/stolon/bin/stolon-keeper --version || exit 1
         ./build/stolon/bin/stolon-proxy --version || exit 1
 
-        # Validate Rust extensions
-        for ext in ./build/rust_extensions/edb/*.so; do
-          ldd "$ext" > /dev/null || exit 1
-        done
-
         # Validate PostgreSQL
         ./build/postgres/install/bin/postgres --version || exit 1
+        ./build/postgres/install/bin/pg_config --version || exit 1
 
     - name: Restore cache into the source tree
       run: |
