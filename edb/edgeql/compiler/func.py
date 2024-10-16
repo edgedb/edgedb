@@ -202,7 +202,10 @@ def compile_FunctionCall(
     inline_func = None
     if (
         func.get_language(ctx.env.schema) == qlast.Language.EdgeQL
-        and func.get_is_inlined(ctx.env.schema)
+        and (
+            func.get_volatility(ctx.env.schema) == ft.Volatility.Modifying
+            or func.get_is_inlined(ctx.env.schema)
+        )
     ):
         inline_func = s_func.compile_function_inline(
             schema=ctx.env.schema,
