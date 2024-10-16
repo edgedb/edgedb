@@ -1,7 +1,7 @@
 use futures::future::poll_fn;
 use pyo3::{exceptions::PyException, prelude::*, types::PyByteArray};
 use reqwest::Method;
-use scopeguard::defer;
+use scopeguard::{defer, ScopeGuard};
 use serde_pickle::SerOptions;
 use std::{
     cell::RefCell, collections::HashMap, os::fd::IntoRawFd, pin::Pin, rc::Rc, sync::Mutex, thread,
@@ -156,11 +156,14 @@ impl PermitManager {
         }
     }
 
-    async fn acquire(&self) -> Result<SemaphorePermit<'_>, AcquireError> {
+    async fn acquire<'a>(
+        &'a self,
+    ) -> Result<ScopeGuard<SemaphorePermit<'a>, impl FnOnce(SemaphorePermit<'a>) + 'a>, AcquireError>
+    {
         let permit = self.semaphore.acquire().await?;
         let mut counts = self.counts.lock().unwrap();
         counts.active += 1;
-        Ok(permit)
+        Ok(scopeguard::guard(permit, |permit| self.release(permit)))
     }
 
     fn release(&self, permit: SemaphorePermit<'_>) {
@@ -181,9 +184,11 @@ impl PermitManager {
         counts.capacity = new_limit;
 
         if new_limit > old_capacity {
-            let added = new_limit - old_capacity;
+            let added = new_limit.saturating_sub(counts.active.max(old_capacity));
             self.semaphore.add_permits(added);
         } else if new_limit < old_capacity {
+            // This may not be able to forget all of the permits, as some may be
+            // active. That's OK, because we'll fix it in `release`.
             let removed = old_capacity - new_limit;
             self.semaphore.forget_permits(removed);
         }
@@ -228,7 +233,6 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
                     let Ok(permit) = permit_manager.acquire().await else {
                         return;
                     };
-                    defer!(permit_manager.release(permit));
                     match request(client, url, method, body, headers).await {
                         Ok((status, body, headers)) => {
                             _ = rpc_pipe
@@ -246,6 +250,7 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
                             _ = rpc_pipe.write(RustToPythonMessage::Error(id, err)).await;
                         }
                     }
+                    drop(permit);
                 }
             }
         });
@@ -342,12 +347,12 @@ fn _http(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use rstest::rstest;
     use std::sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     };
-
-    use super::*;
 
     #[tokio::test]
     async fn test_permit_manager() {
@@ -368,7 +373,7 @@ mod tests {
                         }
                         let permit = manager.acquire().await.unwrap();
                         tokio::time::sleep(std::time::Duration::from_millis(2)).await;
-                        manager.release(permit);
+                        drop(permit);
                     }
                 })
             })
@@ -430,5 +435,78 @@ mod tests {
         assert_eq!(permit_count.load(Ordering::SeqCst), 5);
         assert_eq!(manager.active(), 5);
         assert_eq!(manager.capacity(), 5);
+    }
+
+    #[rstest]
+    // Up-down-up
+    #[case(20, 5, 20, 8)]
+    #[case(10, 3, 15, 5)]
+    #[case(5, 2, 4, 3)]
+    #[case(8, 3, 6, 4)]
+    #[case(12, 4, 9, 6)]
+    #[case(7, 2, 5, 3)]
+    #[case(9, 4, 7, 5)]
+    // Down-up-down
+    #[case(5, 10, 5, 4)]
+    #[case(8, 15, 6, 4)]
+    // Down-up-up
+    #[case(10, 15, 20, 4)]
+    #[case(10, 15, 20, 10)]
+    #[tokio::test]
+    async fn test_overrelease(
+        #[case] initial_capacity: usize,
+        #[case] new_capacity: usize,
+        #[case] final_capacity: usize,
+        #[case] acquire_count: usize,
+    ) {
+        let manager = Arc::new(PermitManager::new(initial_capacity));
+        let mut permits = vec![];
+
+        for _ in 0..acquire_count {
+            permits.push(manager.acquire().await.unwrap());
+        }
+
+        assert_eq!(manager.active(), acquire_count);
+        assert_eq!(manager.capacity(), initial_capacity);
+        assert_eq!(
+            manager.semaphore.available_permits(),
+            initial_capacity - acquire_count
+        );
+
+        manager.update_limit(new_capacity);
+
+        assert_eq!(manager.active(), acquire_count);
+        assert_eq!(manager.capacity(), new_capacity);
+        assert_eq!(
+            manager.semaphore.available_permits(),
+            new_capacity.saturating_sub(acquire_count)
+        );
+
+        manager.update_limit(final_capacity);
+
+        assert_eq!(manager.active(), acquire_count);
+        assert_eq!(manager.capacity(), final_capacity);
+        assert_eq!(
+            manager.semaphore.available_permits(),
+            final_capacity.saturating_sub(acquire_count)
+        );
+
+        for permit in permits {
+            drop(permit);
+            assert_eq!(
+                manager.semaphore.available_permits(),
+                final_capacity.saturating_sub(manager.active())
+            );
+            eprintln!(
+                "{} {} {}",
+                manager.active(),
+                manager.capacity(),
+                manager.semaphore.available_permits()
+            );
+        }
+
+        assert_eq!(manager.active(), 0);
+        assert_eq!(manager.capacity(), final_capacity);
+        assert_eq!(manager.semaphore.available_permits(), final_capacity);
     }
 }
