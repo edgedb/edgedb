@@ -19,15 +19,19 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import Dict, Optional, Tuple, List, cast, Set
+from typing import Optional, Tuple, List, cast, Set
+import uuid
 
 from edb import errors
 from edb.server.pgcon import errors as pgerror
+
+from edb.edgeql import qltypes
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common as pgcommon
 from edb.pgsql import codegen as pgcodegen
 from edb.pgsql import inheritance as pginheritance
+from edb.pgsql import types as pgtypes
 
 from edb.schema import objtypes as s_objtypes
 from edb.schema import links as s_links
@@ -349,7 +353,9 @@ def resolve_relation(
 
     if ctx.options.apply_access_policies:
         if isinstance(obj, s_objtypes.ObjectType):
-            relation = _compile_read_of_obj_table(obj, include_inherited, ctx)
+            relation = _compile_read_of_obj_table(
+                obj, include_inherited, table, ctx
+            )
         else:
             # link and multi-property tables cannot have access policies,
             # so we allow access to base table directly
@@ -496,33 +502,22 @@ def _construct_system_columns() -> List[context.Column]:
 
 
 def _compile_read_of_obj_table(
-    obj: s_objtypes.ObjectType, include_inherited: bool, ctx: Context
+    obj: s_objtypes.ObjectType,
+    include_inherited: bool,
+    table: context.Table,
+    ctx: Context,
 ) -> pgast.Relation:
     from edb.edgeql import ast as qlast
     from edb.edgeql import compiler as qlcompiler
+    from edb.ir import ast as irast
     from edb.pgsql import compiler as pgcompiler
+    from edb.pgsql.compiler import enums as pgce
 
     obj_name: sn.QualName = obj.get_name(ctx.schema)
     assert obj_name
-    ql_shape = []
-    for ptr in obj.get_pointers(ctx.schema).objects(ctx.schema):
-        assert isinstance(ptr, s_pointers.Pointer)
-        if ptr.get_cardinality(ctx.schema).is_multi():
-            continue
-        ptr_name = ptr.get_shortname(ctx.schema).name
-        ql_shape.append(
-            qlast.ShapeElement(
-                expr=qlast.Path(steps=[qlast.Ptr(name=ptr_name)]),
-            )
-        )
     ql_stmt = qlast.SelectQuery(
-        result=qlast.Shape(
-            expr=qlast.Path(
-                steps=[
-                    qlast.ObjectRef(module=obj_name.module, name=obj_name.name)
-                ]
-            ),
-            elements=ql_shape,
+        result=qlast.Path(
+            steps=[qlast.ObjectRef(module=obj_name.module, name=obj_name.name)]
         )
     )
 
@@ -558,41 +553,46 @@ def _compile_read_of_obj_table(
         ctx.ctes_buffer.extend(sql_tree.ast.ctes)
         sql_tree.ast.ctes.clear()
 
-    # prepare a map from pointer name into pgast
-    ptr_map: Dict[Tuple[str, str], pgast.BaseExpr] = {}
-    for (ptr_id, aspect), pg_expr in sql_tree.ast.path_namespace.items():
-        qual_name = ptr_id.rptr_name()
-        if not qual_name:
-            continue
-        ptr_map[qual_name.name, aspect] = pg_expr
+    SYSTEM_COLS = {'tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid'}
 
-    # collect results and construct the resulting relation with the same
-    # columns as the actual base table
-    sql_tree.ast.target_list.clear()
-    for ptr in obj.get_pointers(ctx.schema).objects(ctx.schema):
-        assert isinstance(ptr, s_pointers.Pointer)
-        ptr_name = ptr.get_shortname(ctx.schema).name
-        if ptr.get_cardinality(ctx.schema).is_multi():
+    # pull all expected columns out of the result rvar
+    obj_id = irast.PathId.from_type(ctx.schema, obj, env=None)
+    for column in table.columns:
+        if not isinstance(column.kind, context.ColumnByName):
             continue
 
-        val = ptr_map.get((ptr_name, 'value'), None)
-        if not val:
-            val = ptr_map.get((ptr_name, 'serialized'), None)
-        if not val:
-            val = ptr_map.get((ptr_name, 'identity'), None)
-        assert val, f'{ptr_name} was in shape, but not in path_namespace'
-
-        if ptr.is_special_pointer(ctx.schema) or ptr_name == '__type__':
-            alias = ptr_name
+        if column.kind.reference_as in {'id', 'source', 'target', '__type__'}:
+            ptr = obj.getptr(
+                ctx.schema, sn.UnqualName.from_string(column.kind.reference_as)
+            )
+            ptr_id = irast.PathId.from_pointer(ctx.schema, ptr, env=None)
+        elif column.kind.reference_as in SYSTEM_COLS:
+            el_name = sn.QualName('__object__', column.kind.reference_as)
+            ptr_ref = irast.SpecialPointerRef(
+                name=el_name,
+                shortname=el_name,
+                out_source=obj_id.target,
+                out_target=pgtypes.pg_oid_typeref,
+                out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+            )
+            ptr_id = obj_id.extend(ptrref=ptr_ref)
         else:
-            alias = str(ptr.id)
-        sql_tree.ast.target_list.append(pgast.ResTarget(name=alias, val=val))
+            ptr = ctx.schema.get_by_id(
+                uuid.UUID(column.kind.reference_as), type=s_pointers.Pointer
+            )
+            ptr_id = irast.PathId.from_pointer(ctx.schema, ptr, env=None)
 
-    # inject system columns
-    system_cols = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
-    for col in system_cols:
-        val = pgast.NullConstant()
-        sql_tree.ast.target_list.append(pgast.ResTarget(name=col, val=val))
+        output = pgcompiler.pathctx.get_path_output(
+            sql_tree.ast,
+            ptr_id,
+            aspect=pgce.PathAspect.VALUE,
+            env=sql_tree.env,
+        )
+        assert isinstance(output, pgast.ColumnRef)
+        assert isinstance(output.name[-1], str)
+
+        # override how this column will be referenced as
+        column.kind.reference_as = output.name[-1]
 
     cte_name = ctx.alias_generator.get('tbl')
     ctx.ctes_buffer.append(
