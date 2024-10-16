@@ -113,7 +113,7 @@ impl ServerTransaction {
         &mut self,
         message: &[u8],
         env: &impl ServerEnvironment,
-    ) -> Result<Option<Vec<u8>>, SCRAMError> {
+    ) -> Result<Vec<u8>, SCRAMError> {
         match &self.state {
             ServerState::Success => Err(SCRAMError::ProtocolError),
             ServerState::Initial => {
@@ -134,7 +134,7 @@ impl ServerTransaction {
                 };
                 self.state =
                     ServerState::SentChallenge(message.to_owned_bare(), response.to_owned());
-                Ok(Some(response.encode().into_bytes()))
+                Ok(response.encode().into_bytes())
             }
             ServerState::SentChallenge(first_message, first_response) => {
                 let message = ClientFinalMessage::decode(message)?;
@@ -174,7 +174,7 @@ impl ServerTransaction {
 
                 self.state = ServerState::Success;
                 let verifier = BASE64_STANDARD.encode(server_signature).into();
-                Ok(Some(ServerFinalResponse { verifier }.encode().into_bytes()))
+                Ok(ServerFinalResponse { verifier }.encode().into_bytes())
             }
         }
     }
@@ -1015,14 +1015,14 @@ mod tests {
             String::from_utf8(message.clone()).unwrap(),
             "n,,n=username,r=<<<client nonce>>>"
         );
-        let message = server.process_message(&message, &env).unwrap().unwrap();
+        let message = server.process_message(&message, &env).unwrap();
         assert_eq!(
             String::from_utf8(message.clone()).unwrap(),
             "r=<<<client nonce>>><<<server nonce>>>,s=aGVsbG8=,i=4096"
         );
         let message = client.process_message(&message, &env).unwrap().unwrap();
         assert_eq!(String::from_utf8(message.clone()).unwrap(), "c=biws,r=<<<client nonce>>><<<server nonce>>>,p=621h6u6V3axb7mNYHNgTspTZ3SqILcxuJOsFu5wMjV8=");
-        let message = server.process_message(&message, &env).unwrap().unwrap();
+        let message = server.process_message(&message, &env).unwrap();
         assert_eq!(
             String::from_utf8(message.clone()).unwrap(),
             "v=moj4kNnZKB3wjXZeQsKYI9luTTakwgH8r0NdGOjugRY="

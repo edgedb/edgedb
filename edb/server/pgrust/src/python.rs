@@ -11,7 +11,7 @@ use crate::{
         },
         ConnectionSslRequirement,
     },
-    protocol::{meta, SSLResponse, StructBuffer},
+    protocol::{postgres::{data::SSLResponse, meta, FrontendBuilder, InitialBuilder}, StructBuffer},
 };
 use pyo3::{
     buffer::PyBuffer,
@@ -405,7 +405,7 @@ struct PyConnectionStateUpdate {
 impl ConnectionStateSend for PyConnectionStateUpdate {
     fn send_initial(
         &mut self,
-        message: crate::protocol::definition::InitialBuilder,
+        message: InitialBuilder,
     ) -> Result<(), std::io::Error> {
         Python::with_gil(|py| {
             let bytes = PyByteArray::new_bound(py, &message.to_vec());
@@ -419,7 +419,7 @@ impl ConnectionStateSend for PyConnectionStateUpdate {
 
     fn send(
         &mut self,
-        message: crate::protocol::definition::FrontendBuilder,
+        message: FrontendBuilder,
     ) -> Result<(), std::io::Error> {
         Python::with_gil(|py| {
             let bytes = PyBytes::new_bound(py, &message.to_vec());
@@ -476,7 +476,7 @@ impl ConnectionStateUpdate for PyConnectionStateUpdate {
         });
     }
 
-    fn auth(&mut self, auth: crate::handshake::AuthType) {
+    fn auth(&mut self, auth: crate::auth::AuthType) {
         Python::with_gil(|py| {
             if let Err(e) = self.py_update.call_method1(py, "auth", (auth as u8,)) {
                 eprintln!("Error in auth: {:?}", e);

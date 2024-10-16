@@ -3,7 +3,7 @@ use clap_derive::Parser;
 use openssl::ssl::{Ssl, SslContext, SslMethod};
 use pgrust::{
     connection::{dsn::parse_postgres_dsn_env, Client, Credentials, ResolvedTarget},
-    protocol::{DataRow, ErrorResponse, RowDescription},
+    protocol::postgres::data::{DataRow, ErrorResponse, RowDescription},
 };
 use std::net::SocketAddr;
 use tokio::task::LocalSet;

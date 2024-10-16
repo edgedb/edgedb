@@ -2,7 +2,9 @@ use core::str;
 use paste::paste;
 use std::{collections::HashMap, str::FromStr};
 
-use crate::protocol::ErrorResponse;
+pub mod edgedb;
+
+use crate::protocol::postgres::data::ErrorResponse;
 
 #[macro_export]
 macro_rules! pg_error_class {
