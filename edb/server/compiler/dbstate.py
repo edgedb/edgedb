@@ -600,8 +600,8 @@ class SQLParamExternal(SQLParam):
     # An internal query param whose value is provided by an external param.
     # So a user-visible param.
 
-    # External index
-    index: int
+    # External params share the index with internal params
+    pass
 
 
 @dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)

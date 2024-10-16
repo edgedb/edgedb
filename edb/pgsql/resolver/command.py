@@ -727,7 +727,8 @@ def _uncompile_insert_pointer_stmt(
     sub_name = sub.get_shortname(ctx.schema)
 
     target_ql: qlast.Expr = qlast.Path(
-        steps=[value_ql, qlast.Ptr(name='__target__')])
+        steps=[value_ql, qlast.Ptr(name='__target__')]
+    )
 
     if isinstance(sub_target, s_objtypes.ObjectType):
         assert isinstance(target_ql, qlast.Path)
@@ -2093,3 +2094,20 @@ class ParamMapper(ast.NodeVisitor):
 
     def visit_Param(self, p: pgast.Param) -> None:
         p.index = self.mapping[p.index]
+
+
+def init_external_params(query: pgast.Base, ctx: Context):
+    counter = ParamCounter()
+    counter.node_visit(query)
+    for _ in range(counter.param_count):
+        ctx.query_params.append(dbstate.SQLParamExternal())
+
+
+class ParamCounter(ast.NodeVisitor):
+    def __init__(self) -> None:
+        super().__init__()
+        self.param_count = 0
+
+    def visit_ParamRef(self, p: pgast.ParamRef) -> None:
+        if self.param_count < p.number:
+            self.param_count = p.number

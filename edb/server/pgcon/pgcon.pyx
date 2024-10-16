@@ -1782,23 +1782,19 @@ cdef class PGConnection:
                     # include the internal params for globals.
                     # This chunk of code remaps the descriptions of internal
                     # params into external ones.
-                    count_internal = self.buffer.read_int16()
+                    self.buffer.read_int16()  # count_internal
                     data_internal = self.buffer.consume_message()
 
                     msg_buf = WriteBuffer.new_message(b't')
-                    external_params = []
+                    external_params: int64_t = 0
                     if action.query_unit.params:
-                        for i_int, param in enumerate(action.query_unit.params):
-                            if isinstance(param, dbstate.SQLParamExternal):
-                                i_ext = param.index - 1
-                                external_params.append((i_ext, i_int))
+                        for index, param in enumerate(action.query_unit.params):
+                            external_params = index + 1
+                            if not isinstance(param, dbstate.SQLParamExternal):
+                                break
 
-                    msg_buf.write_int16(len(external_params))
-
-                    external_params.sort()
-                    for _, i_int in external_params:
-                        oid = data_internal[i_int * 4:(i_int + 1) * 4]
-                        msg_buf.write_bytes(oid)
+                    msg_buf.write_int16(external_params)
+                    msg_buf.write_bytes(data_internal[0:external_params * 4])
 
                     buf.write_buffer(msg_buf.end_message())
 
