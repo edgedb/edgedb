@@ -30,6 +30,7 @@ import json
 import threading
 import urllib.parse
 import urllib.request
+import dataclasses
 
 import edgedb
 
@@ -332,6 +333,13 @@ class MultiHostMockHttpServerHandler(MockHttpServerHandler):
 ResponseType = tuple[str, int] | tuple[str, int, dict[str, str]]
 
 
+@dataclasses.dataclass
+class RequestDetails:
+    headers: dict[str, str | Any]
+    query_params: dict[str, list[str]]
+    body: Optional[str]
+
+
 class MockHttpServer:
     def __init__(
         self,
@@ -343,11 +351,11 @@ class MockHttpServer:
             (
                 ResponseType
                 | Callable[
-                    [MockHttpServerHandler, dict[str, Any]], ResponseType
+                    [MockHttpServerHandler, RequestDetails], ResponseType
                 ]
             ),
         ] = {}
-        self.requests: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+        self.requests: dict[tuple[str, str, str], list[RequestDetails]] = {}
         self.url: Optional[str] = None
         self.handler_type = handler_type
 
@@ -366,7 +374,7 @@ class MockHttpServer:
             handler: (
                 ResponseType
                 | Callable[
-                    [MockHttpServerHandler, dict[str, Any]], ResponseType
+                    [MockHttpServerHandler, RequestDetails], ResponseType
                 ]
             )
         ):
@@ -397,11 +405,11 @@ class MockHttpServer:
         else:
             body = None
 
-        request_details = {
-            'headers': headers,
-            'query_params': query_params,
-            'body': body,
-        }
+        request_details = RequestDetails(
+            headers=headers,
+            query_params=query_params,
+            body=body,
+        )
         self.requests[key].append(request_details)
 
         if key not in self.routes:
@@ -428,14 +436,9 @@ class MockHttpServer:
             elif len(registered_handler) == 3:
                 response, status, additional_headers = registered_handler
 
-        if "headers" in request_details and isinstance(
-            request_details["headers"], dict
-        ):
-            accept_header = request_details["headers"].get(
-                "accept", "application/json"
-            )
-        else:
-            accept_header = "application/json"
+        accept_header = request_details.headers.get(
+            "accept", "application/json"
+        )
 
         if (
             accept_header.startswith("application/json")
