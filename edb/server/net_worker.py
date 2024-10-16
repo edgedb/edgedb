@@ -25,7 +25,6 @@ import asyncio
 import logging
 import base64
 import os
-import pickle
 
 from edb.ir import statypes
 from edb.server import defines
@@ -231,13 +230,12 @@ async def handle_request(
             if request.headers
             else None
         )
-        response_encoded = await client.request(
+        response = await client.request(
             method=request.method,
             url=request.url,
             content=request.body,
             headers=headers,
         )
-        response = pickle.loads(response_encoded)
         response_status, response_bytes, response_hdict = response
         response_body = bytes(response_bytes)
         response_headers = list(response_hdict.items())

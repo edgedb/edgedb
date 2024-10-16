@@ -968,8 +968,6 @@ dependencies = [
  "reqwest",
  "rstest 0.23.0",
  "scopeguard",
- "serde",
- "serde-pickle",
  "tokio",
  "tracing",
  "tracing-subscriber",

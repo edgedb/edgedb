@@ -2,7 +2,6 @@ use futures::future::poll_fn;
 use pyo3::{exceptions::PyException, prelude::*, types::PyByteArray};
 use reqwest::Method;
 use scopeguard::ScopeGuard;
-use serde_pickle::SerOptions;
 use std::{
     cell::RefCell, collections::HashMap, os::fd::IntoRawFd, pin::Pin, rc::Rc, sync::Mutex, thread,
 };
@@ -19,7 +18,7 @@ type PythonConnId = u64;
 
 #[derive(Debug)]
 enum RustToPythonMessage {
-    Response(PythonConnId, Vec<u8>),
+    Response(PythonConnId, (u16, Vec<u8>, HashMap<String, String>)),
     Error(PythonConnId, String),
 }
 
@@ -28,9 +27,12 @@ impl ToPyObject for RustToPythonMessage {
         use RustToPythonMessage::*;
         match self {
             Error(conn, error) => (0, *conn, error).to_object(py),
-            Response(conn, response) => {
-                (1, conn, PyByteArray::new_bound(py, &response)).to_object(py)
-            }
+            Response(conn, (status, body, headers)) => (
+                1,
+                conn,
+                (*status, PyByteArray::new_bound(py, &body), headers),
+            )
+                .to_object(py),
         }
     }
 }
@@ -244,7 +246,14 @@ impl PermitManager {
             } else {
                 // Not oversubscribed, but we can only validate these if nothing is waiting
                 if counts.waiting == 0 {
-                    assert!(available + counts.waiting == counts.capacity - counts.active, "{} + {} == {} - {}", available, counts.waiting, counts.capacity, counts.active);
+                    assert!(
+                        available + counts.waiting == counts.capacity - counts.active,
+                        "{} + {} == {} - {}",
+                        available,
+                        counts.waiting,
+                        counts.capacity,
+                        counts.active
+                    );
                     assert!(counts.active <= counts.capacity);
                 }
             }
@@ -283,11 +292,7 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
                             _ = rpc_pipe
                                 .write(RustToPythonMessage::Response(
                                     id,
-                                    serde_pickle::to_vec(
-                                        &(status.as_u16(), body, headers),
-                                        SerOptions::default(),
-                                    )
-                                    .unwrap(),
+                                    (status.as_u16(), body, headers),
                                 ))
                                 .await;
                         }

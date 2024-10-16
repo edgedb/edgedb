@@ -20,8 +20,6 @@ reqwest = { version = "0.12", features = ["gzip", "deflate"] }
 scopeguard = "1"
 
 futures = "0"
-serde = { version = "1", features = ["derive"] }
-serde-pickle = "1"
 
 [dependencies.derive_more]
 version = "1.0.0"
