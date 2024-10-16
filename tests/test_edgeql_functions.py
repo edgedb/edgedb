@@ -15613,3 +15613,491 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [1, 2, 3],
             sort=True,
         )
+
+    async def test_edgeql_functions_inline_delete_policy_target_01(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property b -> int64;
+                create link bar -> Bar {
+                    on target delete allow;
+                };
+            };
+            create function foo(x: int64) -> set of int64 {
+                set is_inlined := true;
+                using (
+                    (delete Bar filter .a <= x).a
+                );
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Baz;
+                delete Bar;
+                insert Baz{b := 4, bar := (insert Bar{a := 1})};
+                insert Baz{b := 5, bar := (insert Bar{a := 2})};
+                insert Baz{b := 6, bar := (insert Bar{a := 3})};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0)',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [
+                {'a': 1, 'b': 4},
+                {'a': 2, 'b': 5},
+                {'a': 3, 'b': 6},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [
+                {'a': None, 'b': 4},
+                {'a': 2, 'b': 5},
+                {'a': 3, 'b': 6},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(2)',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [
+                {'a': None, 'b': 4},
+                {'a': None, 'b': 5},
+                {'a': 3, 'b': 6},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(3)',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [
+                {'a': None, 'b': 4},
+                {'a': None, 'b': 5},
+                {'a': None, 'b': 6},
+            ],
+        )
+
+    async def test_edgeql_functions_inline_delete_policy_target_02(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property b -> int64;
+                create link bar -> Bar {
+                    on target delete delete source;
+                };
+            };
+            create function foo(x: int64) -> set of int64 {
+                set is_inlined := true;
+                using (
+                    (delete Bar filter .a <= x).a
+                );
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Baz;
+                delete Bar;
+                insert Baz{b := 4, bar := (insert Bar{a := 1})};
+                insert Baz{b := 5, bar := (insert Bar{a := 2})};
+                insert Baz{b := 6, bar := (insert Bar{a := 3})};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0)',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b}',
+            [
+                {'a': 1, 'b': 4},
+                {'a': 2, 'b': 5},
+                {'a': 3, 'b': 6},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b}',
+            [
+                {'a': 2, 'b': 5},
+                {'a': 3, 'b': 6},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(2)',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b}',
+            [
+                {'a': 3, 'b': 6},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(3)',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b}',
+            [],
+        )
+
+    async def test_edgeql_functions_inline_delete_policy_source_01(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property b -> int64;
+                create link bar -> Bar {
+                    on source delete allow;
+                };
+            };
+            create function foo(x: int64) -> set of int64 {
+                set is_inlined := true;
+                using (
+                    (delete Baz filter .b <= x).b
+                );
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Baz;
+                delete Bar;
+                insert Baz{b := 4, bar := (insert Bar{a := 1})};
+                insert Baz{b := 5, bar := (insert Bar{a := 2})};
+                insert Baz{b := 6, bar := (insert Bar{a := 3})};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0)',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [
+                {'a': 1, 'b': 4},
+                {'a': 2, 'b': 5},
+                {'a': 3, 'b': 6},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(4)',
+            [4],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [
+                {'a': 2, 'b': 5},
+                {'a': 3, 'b': 6},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(5)',
+            [4, 5],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [
+                {'a': 3, 'b': 6},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(6)',
+            [4, 5, 6],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [],
+        )
+
+    async def test_edgeql_functions_inline_delete_policy_source_02(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property b -> int64;
+                create link bar -> Bar {
+                    on source delete delete target;
+                };
+            };
+            create function foo(x: int64) -> set of int64 {
+                set is_inlined := true;
+                using (
+                    (delete Baz filter .b <= x).b
+                );
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Baz;
+                delete Bar;
+                insert Baz{b := 4, bar := (insert Bar{a := 1})};
+                insert Baz{b := 5, bar := (insert Bar{a := 2})};
+                insert Baz{b := 6, bar := (insert Bar{a := 3})};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0)',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [
+                {'a': 1, 'b': 4},
+                {'a': 2, 'b': 5},
+                {'a': 3, 'b': 6},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(4)',
+            [4],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [
+                {'a': 2, 'b': 5},
+                {'a': 3, 'b': 6},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(5)',
+            [4, 5],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [
+                {'a': 3, 'b': 6},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(6)',
+            [4, 5, 6],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [],
+        )
+
+    async def test_edgeql_functions_inline_delete_policy_source_03(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property b -> int64;
+                create link bar -> Bar {
+                    on source delete delete target if orphan;
+                };
+            };
+            create function foo(x: int64) -> set of int64 {
+                set is_inlined := true;
+                using (
+                    (delete Baz filter .b <= x).b
+                );
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Baz;
+                delete Bar;
+                insert Baz{b := 4, bar := (insert Bar{a := 1})};
+                insert Baz{b := 5, bar := (insert Bar{a := 2})};
+                insert Baz{b := 6, bar := (insert Bar{a := 3})};
+                insert Baz{
+                    b := 7,
+                    bar := assert_exists((select Bar filter .a = 1 limit 1)),
+                };
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(0)',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [
+                {'a': 1, 'b': 4},
+                {'a': 2, 'b': 5},
+                {'a': 3, 'b': 6},
+                {'a': 1, 'b': 7},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(4)',
+            [4],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [
+                {'a': 2, 'b': 5},
+                {'a': 3, 'b': 6},
+                {'a': 1, 'b': 7},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(5)',
+            [4, 5],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 3],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [
+                {'a': 3, 'b': 6},
+                {'a': 1, 'b': 7},
+            ],
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(6)',
+            [4, 5, 6],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b} order by .b',
+            [
+                {'a': 1, 'b': 7},
+            ],
+        )
