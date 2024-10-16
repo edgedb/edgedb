@@ -11736,6 +11736,98 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=True,
         )
 
+    async def test_edgeql_functions_inline_insert_conflict_01(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+                create constraint exclusive on (.a)
+            };
+            create function foo(x: int64) -> Bar {
+                set is_inlined := true;
+                using ((
+                    insert Bar{a := x}
+                    unless conflict on .a
+                    else ((update Bar set {a := x + 10}))
+                ))
+            };
+        ''')
+
+        await self.assert_query_result(
+            'select foo(1).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1],
+        )
+
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(x).a)',
+            [2, 3, 11],
+            sort=True
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3, 11],
+        )
+
+    async def test_edgeql_functions_inline_insert_conflict_02(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create type Baz {
+                create link bar -> Bar;
+                create constraint exclusive on (.bar)
+            };
+            create function foo(x: Bar) -> Baz {
+                set is_inlined := true;
+                using ((
+                    insert Baz{bar := x}
+                    unless conflict on .bar
+                    else ((
+                        update Baz set {bar := (insert Bar{a := x.a + 10})}
+                    ))
+                ))
+            };
+        ''')
+
+        await self.assert_query_result(
+            'select foo('
+            '    assert_exists((select Bar filter .a = 1 limit 1))'
+            ').bar.a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3],
+        )
+        await self.assert_query_result(
+            'select Baz.bar.a',
+            [1],
+        )
+
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union ('
+            '    select foo('
+            '        assert_exists((select Bar filter .a = x limit 1))'
+            '    ).bar.a'
+            ')',
+            [2, 3, 11],
+            sort=True
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 11],
+        )
+        await self.assert_query_result(
+            'select Baz.bar.a',
+            [2, 3, 11],
+        )
+
     async def test_edgeql_functions_inline_insert_link_01(self):
         await self.con.execute('''
             create type Bar {
