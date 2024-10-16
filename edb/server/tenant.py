@@ -1048,7 +1048,11 @@ class Tenant(ha_base.ClusterProtocol):
 
         return extensions
 
-    async def introspect_db(self, dbname: str) -> bool:
+    async def introspect_db(
+        self,
+        dbname: str,
+        reintrospection: bool=False,
+    ) -> None:
         """Use this method to (re-)introspect a DB.
 
         If the DB is already registered in self._dbindex, its
@@ -1069,9 +1073,13 @@ class Tenant(ha_base.ClusterProtocol):
         # race conditions where an older introspection might overwrite
         # a newer one.
         async with self.get_introspection_lock(dbname):
-            return await self._introspect_db(dbname)
+            await self._introspect_db(dbname, reintrospection=reintrospection)
 
-    async def _introspect_db(self, dbname: str) -> bool:
+    async def _introspect_db(
+        self,
+        dbname: str,
+        reintrospection: bool,
+    ) -> None:
         from edb.pgsql import trampoline
         logger.info("introspecting database '%s'", dbname)
 
@@ -1084,7 +1092,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         async with self._with_intro_pgcon(dbname) as conn:
             if not conn:
-                return False
+                return
             user_schema_json = (
                 await self._server.introspect_user_schema_json(conn)
             )
@@ -1130,7 +1138,10 @@ class Tenant(ha_base.ClusterProtocol):
             extensions = await self._introspect_extensions(conn)
 
             query_cache: list[tuple[bytes, ...]] | None = None
-            if old_cache_mode is not config.QueryCacheMode.InMemory:
+            if (
+                not reintrospection
+                and old_cache_mode is not config.QueryCacheMode.InMemory
+            ):
                 query_cache = await self._load_query_cache(conn)
 
         compiler_pool = self._server.get_compiler_pool()
@@ -1154,10 +1165,17 @@ class Tenant(ha_base.ClusterProtocol):
         cache_mode = config.QueryCacheMode.effective(
             db.lookup_config('query_cache_mode')
         )
-        # TODO: don't always hydrate on reintrospection
+
         if query_cache and cache_mode is not config.QueryCacheMode.InMemory:
             db.hydrate_cache(query_cache)
-        return old_cache_mode is not cache_mode
+        elif old_cache_mode is not cache_mode:
+            logger.info(
+                "clearing query cache for database '%s'", dbname)
+            async with self.with_pgcon(dbname) as conn:
+                await conn.sql_execute(
+                    b'SELECT edgedb._clear_query_cache()')
+                assert self._dbindex
+                self._dbindex.get_db(dbname).clear_query_cache()
 
     async def _early_introspect_db(self, dbname: str) -> None:
         """We need to always introspect the extensions for each database.
@@ -1646,7 +1664,7 @@ class Tenant(ha_base.ClusterProtocol):
         # on the __edgedb_sysevent__ channel
         async def task():
             try:
-                await self.introspect_db(dbname)
+                await self.introspect_db(dbname, reintrospection=True)
             except Exception:
                 metrics.background_errors.inc(
                     1.0,
@@ -1661,14 +1679,7 @@ class Tenant(ha_base.ClusterProtocol):
         # It's easier and safer to just do full re-introspection
         # of the DB and update all components of it.
         # TODO: Can we just do config?
-        if await self.introspect_db(dbname):
-            logger.info(
-                "clearing query cache for database '%s'", dbname)
-            async with self.with_pgcon(dbname) as conn:
-                await conn.sql_execute(
-                    b'SELECT edgedb._clear_query_cache()')
-                assert self._dbindex
-                self._dbindex.get_db(dbname).clear_query_cache()
+        await self.introspect_db(dbname, reintrospection=True)
 
     def on_remote_system_config_change(self) -> None:
         if not self._accept_new_tasks:
