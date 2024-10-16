@@ -23,6 +23,11 @@ from edb.testbase import server as tb
 
 
 class TestEdgeQLSys(tb.QueryTestCase):
+    SETUP = '''
+        create type TestEdgeQLSys {
+            create property bar -> str;
+        };
+    '''
 
     async def test_edgeql_sys_locks(self):
         lock_key = tb.gen_lock_key()
@@ -59,3 +64,23 @@ class TestEdgeQLSys(tb.QueryTestCase):
                 'select sys::_advisory_unlock(<int64>$0)',
                 lock_key),
             [False])
+
+    async def test_edgeql_sys_query_stats(self):
+        stats_query = '''
+            with stats := (
+                select
+                    sys::QueryStats
+                filter
+                    .query like '%TestEdgeQLSys%'
+                    and .query not like '%sys::%'
+            )
+            select sum(stats.calls)
+        '''
+        calls = await self.con.query_single(stats_query)
+        self.assertEqual(await self.con.query('select TestEdgeQLSys'), [])
+        self.assertEqual(await self.con.query_single(stats_query), calls + 1)
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError, 'does not exist'
+        ):
+            await self.con.query('select TestEdgeQLSys_NoSuchType')
+        self.assertEqual(await self.con.query_single(stats_query), calls + 1)

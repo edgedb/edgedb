@@ -49,6 +49,7 @@
 #include "catalog/pg_authid.h"
 #include "common/hashfn.h"
 #include "common/int.h"
+#include "common/jsonapi.h"
 #include "executor/instrument.h"
 #include "funcapi.h"
 #include "jit/jit.h"
@@ -71,8 +72,11 @@
 #include "utils/builtins.h"
 #include "utils/memutils.h"
 #include "utils/timestamp.h"
+#include "utils/uuid.h"
 
 PG_MODULE_MAGIC;
+
+#define EDB_STMT_MAGIC_PREFIX "-- {\"query\""
 
 /* Location of permanent stats file (valid when database is shut down) */
 #define PGSS_DUMP_FILE	PGSTAT_STAT_PERMANENT_DIRECTORY "/edb_stat_statements.stat"
@@ -83,7 +87,7 @@ PG_MODULE_MAGIC;
 #define PGSS_TEXT_FILE	PG_STAT_TMP_DIR "/edbss_query_texts.stat"
 
 /* Magic number identifying the stats file format */
-static const uint32 PGSS_FILE_HEADER = 0x20220408;
+static const uint32 PGSS_FILE_HEADER = 0x20241017;
 
 /* PostgreSQL major version number, changes in which invalidate all entries */
 static const uint32 PGSS_PG_MAJOR_VERSION = PG_VERSION_NUM / 100;
@@ -120,6 +124,30 @@ typedef enum pgssStoreKind
 } pgssStoreKind;
 
 #define PGSS_NUMKIND (PGSS_EXEC + 1)
+
+typedef enum EdbStmtInfoParseState {
+	EDB_STMT_INFO_PARSE_NOOP		= 0,
+	EDB_STMT_INFO_PARSE_QUERY		= 1 << 0,
+	EDB_STMT_INFO_PARSE_QUERY_ID	= 1 << 1,
+	EDB_STMT_INFO_PARSE_CACHE_KEY	= 1 << 2,
+} EdbStmtInfoParseState;
+
+#define EDB_STMT_INFO_PARSE_REQUIRED \
+	(EDB_STMT_INFO_PARSE_QUERY & EDB_STMT_INFO_PARSE_QUERY_ID & EDB_STMT_INFO_PARSE_CACHE_KEY)
+
+typedef struct EdbStmtInfo {
+	const char *query;
+	int query_len;
+	uint64 query_id;
+	pg_uuid_t *cache_key;
+} EdbStmtInfo;
+
+typedef struct EdbStmtInfoSemState {
+	int nested_level;
+	uint found;
+	EdbStmtInfoParseState state;
+	EdbStmtInfo *info;
+} EdbStmtInfoSemState;
 
 /*
  * Hashtable key that defines the identity of a hashtable entry.  We separate
@@ -227,6 +255,8 @@ typedef struct pgssEntry
 	TimestampTz stats_since;	/* timestamp of entry allocation */
 	TimestampTz minmax_stats_since; /* timestamp of last min/max values reset */
 	slock_t		mutex;			/* protects the counters only */
+
+	pg_uuid_t	cache_key;		/* Query cache key as UUID */
 } pgssEntry;
 
 /*
@@ -245,6 +275,8 @@ typedef struct pgssSharedState
 } pgssSharedState;
 
 /*---- Local variables ----*/
+
+static pg_uuid_t zero_uuid = { 0 };
 
 /* Current nesting depth of planner/ExecutorRun/ProcessUtility calls */
 static int	nesting_level = 0;
@@ -287,6 +319,7 @@ static bool pgss_track_utility = true;	/* whether to track utility commands */
 static bool pgss_track_planning = false;	/* whether to track planning
 											 * duration */
 static bool pgss_save = true;	/* whether to save stats across shutdown */
+static bool edbss_track_unrecognized = false;	/* whether to track unrecognized statements as-is */
 
 
 #define pgss_enabled(level) \
@@ -306,6 +339,17 @@ static bool pgss_save = true;	/* whether to save stats across shutdown */
 PG_FUNCTION_INFO_V1(edb_stat_statements_reset);
 PG_FUNCTION_INFO_V1(edb_stat_statements);
 PG_FUNCTION_INFO_V1(edb_stat_statements_info);
+
+bool
+edbss_extract_stmt_info(const char* query_str, int query_len, EdbStmtInfo *info);
+static JsonParseErrorType
+edbss_json_struct_start(void *semstate);
+static JsonParseErrorType
+edbss_json_struct_end(void *semstate);
+static JsonParseErrorType
+edbss_json_ofield_start(void *semstate, char *fname, bool isnull);
+static JsonParseErrorType
+edbss_json_scalar(void *semstate, char *token, JsonTokenType tokenType);
 
 static void pgss_shmem_request(void);
 static void pgss_shmem_startup(void);
@@ -335,6 +379,8 @@ static void pgss_store(const char *query, uint64 queryId,
 					   const WalUsage *walusage,
 					   const struct JitInstrumentation *jitusage,
 					   JumbleState *jstate,
+					   bool edb_extracted,
+					   pg_uuid_t *cache_key,
 					   int parallel_workers_to_launch,
 					   int parallel_workers_launched);
 static void edb_stat_statements_internal(FunctionCallInfo fcinfo,
@@ -342,7 +388,7 @@ static void edb_stat_statements_internal(FunctionCallInfo fcinfo,
 										 bool showtext);
 static Size pgss_memsize(void);
 static pgssEntry *entry_alloc(pgssHashKey *key, Size query_offset, int query_len,
-							  int encoding, bool sticky);
+							  int encoding, bool sticky, pg_uuid_t *cache_key);
 static void entry_dealloc(void);
 static bool qtext_store(const char *query, int query_len,
 						Size *query_offset, int *gc_count);
@@ -443,6 +489,17 @@ _PG_init(void)
 							 NULL,
 							 NULL);
 
+	DefineCustomBoolVariable("edb_stat_statements.track_unrecognized",
+							 "Selects whether unrecognized SQL statements are tracked as-is.",
+							 NULL,
+							 &edbss_track_unrecognized,
+							 false,
+							 PGC_SIGHUP,
+							 0,
+							 NULL,
+							 NULL,
+							 NULL);
+
 	MarkGUCPrefixReserved("edb_stat_statements");
 
 	/*
@@ -466,6 +523,133 @@ _PG_init(void)
 	ExecutorEnd_hook = pgss_ExecutorEnd;
 	prev_ProcessUtility = ProcessUtility_hook;
 	ProcessUtility_hook = pgss_ProcessUtility;
+}
+
+/*
+ * Extract EdgeDB query info from the JSON in the leading comment.
+ */
+bool
+edbss_extract_stmt_info(const char* query_str, int query_len, EdbStmtInfo *info) {
+	int prefix_len = strlen(EDB_STMT_MAGIC_PREFIX);
+	const char *info_str = query_str;
+	int info_len = 0;
+
+	if (query_len <= prefix_len)
+		return UINT64CONST(0);
+
+	if (strncmp(info_str, EDB_STMT_MAGIC_PREFIX, prefix_len) == 0) {
+		const char *c;
+		info_str += 3;  // skip "-- "
+		c = info_str;
+		while (*c != '\n' && info_len + 3 < query_len) {
+			c++;
+			info_len++;
+		}
+	}
+
+	if (info_len > 0) {
+		EdbStmtInfoSemState state = {
+				.info = info,
+				.state = EDB_STMT_INFO_PARSE_NOOP,
+		};
+		JsonLexContext *lex = makeJsonLexContextCstringLen(
+#if PG_VERSION_NUM >= 170000
+				NULL,
+				info_str,
+#else
+				(char *) info_str,  // not actually mutating
+#endif
+				info_len,
+				PG_UTF8,
+				true);
+		JsonSemAction sem = {
+				.semstate = (void *) &state,
+				.object_start = edbss_json_struct_start,
+				.object_end = edbss_json_struct_end,
+				.array_start = edbss_json_struct_start,
+				.array_end = edbss_json_struct_end,
+				.object_field_start = edbss_json_ofield_start,
+				.scalar = edbss_json_scalar,
+		};
+
+		if (pg_parse_json(lex, &sem) == JSON_SUCCESS)
+			if ((state.found & EDB_STMT_INFO_PARSE_REQUIRED) == EDB_STMT_INFO_PARSE_REQUIRED)
+				if (info->query_id != UINT64CONST(0))
+					return true;
+	}
+
+	return false;
+}
+
+static JsonParseErrorType
+edbss_json_struct_start(void *semstate) {
+	EdbStmtInfoSemState *state = (EdbStmtInfoSemState *) semstate;
+	state->nested_level += 1;
+	return JSON_SUCCESS;
+}
+
+static JsonParseErrorType
+edbss_json_struct_end(void *semstate) {
+	EdbStmtInfoSemState *state = (EdbStmtInfoSemState *) semstate;
+	state->nested_level -= 1;
+	return JSON_SUCCESS;
+}
+
+static JsonParseErrorType
+edbss_json_ofield_start(void *semstate, char *fname, bool isnull) {
+	EdbStmtInfoSemState *state = (EdbStmtInfoSemState *) semstate;
+	Assert(fname != NULL);
+	if (state->nested_level == 1) {
+		if (strcmp(fname, "query") == 0) {
+			state->state = EDB_STMT_INFO_PARSE_QUERY;
+		} else if (strcmp(fname, "queryId") == 0) {
+			state->state = EDB_STMT_INFO_PARSE_QUERY_ID;
+		} else if (strcmp(fname, "cacheKey") == 0) {
+			state->state = EDB_STMT_INFO_PARSE_CACHE_KEY;
+		}
+	}
+	return JSON_SUCCESS;
+}
+
+static JsonParseErrorType
+edbss_json_scalar(void *semstate, char *token, JsonTokenType tokenType) {
+	EdbStmtInfoSemState *state = (EdbStmtInfoSemState *) semstate;
+	switch (state->state) {
+		case EDB_STMT_INFO_PARSE_QUERY:
+			if (tokenType == JSON_TOKEN_STRING) {
+				state->info->query = token;
+				state->info->query_len = (int) strlen(token);
+				break;
+			} else {
+				return JSON_SEM_ACTION_FAILED;
+			}
+		case EDB_STMT_INFO_PARSE_QUERY_ID:
+			if (tokenType == JSON_TOKEN_NUMBER) {
+				char *endptr;
+				uint64 query_id = strtoull(token, &endptr, 10);
+				if (*endptr == '\0' && query_id != UINT64_MAX) {
+					state->info->query_id = query_id;
+					break;
+				} else {
+					return JSON_SEM_ACTION_FAILED;
+				}
+			} else {
+				return JSON_SEM_ACTION_FAILED;
+			}
+		case EDB_STMT_INFO_PARSE_CACHE_KEY:
+			if (tokenType == JSON_TOKEN_STRING) {
+				Datum cache_key = DirectFunctionCall1(uuid_in, CStringGetDatum(token));
+				state->info->cache_key = DatumGetUUIDP(cache_key);
+				break;
+			} else {
+				return JSON_SEM_ACTION_FAILED;
+			}
+		case EDB_STMT_INFO_PARSE_NOOP:
+			return JSON_SUCCESS;
+	}
+	state->found |= state->state;
+	state->state = EDB_STMT_INFO_PARSE_NOOP;
+	return JSON_SUCCESS;
 }
 
 /*
@@ -642,12 +826,13 @@ pgss_shmem_startup(void)
 		/* make the hashtable entry (discards old entries if too many) */
 		entry = entry_alloc(&temp.key, query_offset, temp.query_len,
 							temp.encoding,
-							false);
+							false, NULL);
 
 		/* copy in the actual stats */
 		entry->counters = temp.counters;
 		entry->stats_since = temp.stats_since;
 		entry->minmax_stats_since = temp.minmax_stats_since;
+		entry->cache_key = temp.cache_key;
 	}
 
 	/* Read global statistics for edb_stat_statements */
@@ -816,6 +1001,10 @@ error:
 static void
 pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 {
+	EdbStmtInfo info = { 0 };
+	const char *query_str;
+	int query_location, query_len;
+
 	if (prev_post_parse_analyze_hook)
 		prev_post_parse_analyze_hook(pstate, query, jstate);
 
@@ -838,14 +1027,42 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 		}
 	}
 
-	/*
-	 * If query jumbling were able to identify any ignorable constants, we
-	 * immediately create a hash table entry for the query, so that we can
-	 * record the normalized form of the query string.  If there were no such
-	 * constants, the normalized string would be the same as the query text
-	 * anyway, so there's no need for an early entry.
-	 */
-	if (jstate && jstate->clocations_count > 0)
+	/* Parse EdgeDB query info JSON and overwrite query->queryId */
+	query_location = query->stmt_location;
+	query_len = query->stmt_len;
+	query_str = CleanQuerytext(pstate->p_sourcetext, &query_location, &query_len);
+	if (edbss_extract_stmt_info(query_str, query_len, &info)) {
+		query->queryId = info.query_id;
+
+		/* We immediately create a hash table entry for the query,
+		 * so that we don't need to parse the query info JSON later
+		 * again for the query with the same queryId.
+		 */
+		pgss_store(info.query,
+				   info.query_id,
+				   0,
+				   info.query_len,
+				   PGSS_INVALID,
+				   0,
+				   0,
+				   NULL,
+				   NULL,
+				   NULL,
+				   NULL,
+				   true,
+				   info.cache_key,
+				   0,
+				   0);
+	} else if (!edbss_track_unrecognized) {
+		query->queryId = UINT64CONST(0);
+	} else if (jstate && jstate->clocations_count > 0)
+		/*
+		 * If query jumbling were able to identify any ignorable constants, we
+		 * immediately create a hash table entry for the query, so that we can
+		 * record the normalized form of the query string.  If there were no such
+		 * constants, the normalized string would be the same as the query text
+		 * anyway, so there's no need for an early entry.
+		 */
 		pgss_store(pstate->p_sourcetext,
 				   query->queryId,
 				   query->stmt_location,
@@ -857,6 +1074,8 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 				   NULL,
 				   NULL,
 				   jstate,
+				   true,
+				   NULL,
 				   0,
 				   0);
 }
@@ -936,6 +1155,8 @@ pgss_planner(Query *parse,
 				   &bufusage,
 				   &walusage,
 				   NULL,
+				   NULL,
+				   false,
 				   NULL,
 				   0,
 				   0);
@@ -1071,6 +1292,8 @@ pgss_ExecutorEnd(QueryDesc *queryDesc)
 				   &queryDesc->totaltime->bufusage,
 				   &queryDesc->totaltime->walusage,
 				   queryDesc->estate->es_jit ? &queryDesc->estate->es_jit->instr : NULL,
+				   NULL,
+				   false,
 				   NULL,
 #if PG_VERSION_NUM >= 180000
 				   queryDesc->estate->es_parallel_workers_to_launch,
@@ -1211,6 +1434,8 @@ pgss_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 				   &walusage,
 				   NULL,
 				   NULL,
+				   false,
+				   NULL,
 				   0,
 				   0);
 	}
@@ -1274,6 +1499,8 @@ pgss_store(const char *query, uint64 queryId,
 		   const WalUsage *walusage,
 		   const struct JitInstrumentation *jitusage,
 		   JumbleState *jstate,
+		   bool edb_extracted,
+		   pg_uuid_t *cache_key,
 		   int parallel_workers_to_launch,
 		   int parallel_workers_launched)
 {
@@ -1324,6 +1551,29 @@ pgss_store(const char *query, uint64 queryId,
 		int			gc_count;
 		bool		stored;
 		bool		do_gc;
+		bool		sticky = true;
+
+		if (!edb_extracted) {
+			/* Try extract from the context of plan/execute.
+			 * This is usually happening after a stats reset.
+			 */
+			EdbStmtInfo info;
+			if (edbss_extract_stmt_info(query, query_len, &info)) {
+				/* We should just get the same queryId again
+				 * as we extracted before the reset in post_parse.
+				 */
+				if (info.query_id != queryId)
+					goto done;
+				query = info.query;
+				query_len = info.query_len;
+				cache_key = info.cache_key;
+			} else if (!edbss_track_unrecognized) {
+				/* skip unrecognized statements unless we're told not to */
+				goto done;
+			} else {
+				sticky = jstate != NULL;
+			}
+		}
 
 		/*
 		 * Create a new, normalized query string if caller asked.  We don't
@@ -1373,7 +1623,7 @@ pgss_store(const char *query, uint64 queryId,
 
 		/* OK to create a new hashtable entry */
 		entry = entry_alloc(&key, query_offset, query_len, encoding,
-							jstate != NULL);
+							sticky, cache_key);
 
 		/* If needed, perform garbage collection while exclusive lock held */
 		if (do_gc)
@@ -1381,7 +1631,7 @@ pgss_store(const char *query, uint64 queryId,
 	}
 
 	/* Increment the counts, except when jstate is not NULL */
-	if (!jstate)
+	if (!edb_extracted)
 	{
 		Assert(kind == PGSS_PLAN || kind == PGSS_EXEC);
 
@@ -1521,8 +1771,8 @@ edb_stat_statements_reset(PG_FUNCTION_ARGS)
 }
 
 /* Number of output arguments (columns) for various API versions */
-#define PG_STAT_STATEMENTS_COLS_V1_0	51
-#define PG_STAT_STATEMENTS_COLS			51	/* maximum of above */
+#define PG_STAT_STATEMENTS_COLS_V1_0	52
+#define PG_STAT_STATEMENTS_COLS			52	/* maximum of above */
 
 /*
  * Retrieve statement statistics.
@@ -1719,6 +1969,11 @@ edb_stat_statements_internal(FunctionCallInfo fcinfo,
 				nulls[i++] = true;
 		}
 
+		if (memcmp(&entry->cache_key, &zero_uuid, sizeof(zero_uuid)) == 0)
+			nulls[i++] = true;
+		else
+			values[i++] = UUIDPGetDatum(&entry->cache_key);
+
 		/* copy counters to a local variable to keep locking time short */
 		SpinLockAcquire(&entry->mutex);
 		tmp = entry->counters;
@@ -1877,7 +2132,7 @@ pgss_memsize(void)
  */
 static pgssEntry *
 entry_alloc(pgssHashKey *key, Size query_offset, int query_len, int encoding,
-			bool sticky)
+			bool sticky, pg_uuid_t *cache_key)
 {
 	pgssEntry  *entry;
 	bool		found;
@@ -1906,6 +2161,8 @@ entry_alloc(pgssHashKey *key, Size query_offset, int query_len, int encoding,
 		entry->encoding = encoding;
 		entry->stats_since = GetCurrentTimestamp();
 		entry->minmax_stats_since = entry->stats_since;
+		if (cache_key != NULL)
+			entry->cache_key = *cache_key;
 	}
 
 	return entry;

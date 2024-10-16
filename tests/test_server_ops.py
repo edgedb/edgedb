@@ -1526,6 +1526,7 @@ class TestPGExtensions(tb.TestCase):
             self.assertTrue(await cluster.ensure_initialized())
             await cluster.start(server_settings={
                 'edb_stat_statements.track_planning': 'false',
+                'edb_stat_statements.track_unrecognized': 'true',
                 'max_prepared_transactions': '5',
             })
             try:

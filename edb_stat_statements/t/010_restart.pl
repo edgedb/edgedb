@@ -13,6 +13,8 @@ my $node = PostgreSQL::Test::Cluster->new('main');
 $node->init;
 $node->append_conf('postgresql.conf',
 	"shared_preload_libraries = 'edb_stat_statements'");
+$node->append_conf('postgresql.conf',
+	"edb_stat_statements.track_unrecognized = true");
 $node->start;
 
 $node->safe_psql('postgres', 'CREATE EXTENSION edb_stat_statements');

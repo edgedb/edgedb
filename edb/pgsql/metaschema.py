@@ -5824,6 +5824,74 @@ def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
     return views
 
 
+def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
+    QueryStats = schema.get(
+        'sys::QueryStats',
+        type=s_objtypes.ObjectType,
+    )
+
+    def float64_to_duration_t(val: str) -> str:
+        return f"({val} * interval '1ms')::edgedbt.duration_t"
+
+    query_stats_fields = {
+        'id': "s.cache_key",
+        'name': "s.cache_key::text",
+        'name__internal': "s.queryid::text",
+        'builtin': "false",
+        'internal': "false",
+        'computed_fields': 'ARRAY[]::text[]',
+
+        'branch': "((d.description)->>'id')::uuid",
+        'query': "s.query",
+        'query_id': "s.queryid",
+
+        'plans': 's.plans',
+        'total_plan_time': float64_to_duration_t('s.total_plan_time'),
+        'min_plan_time': float64_to_duration_t('s.min_plan_time'),
+        'max_plan_time': float64_to_duration_t('s.max_plan_time'),
+        'mean_plan_time': float64_to_duration_t('s.mean_plan_time'),
+        'stddev_plan_time': float64_to_duration_t('s.stddev_plan_time'),
+
+        'calls': 's.calls',
+        'total_exec_time': float64_to_duration_t('s.total_exec_time'),
+        'min_exec_time': float64_to_duration_t('s.min_exec_time'),
+        'max_exec_time': float64_to_duration_t('s.max_exec_time'),
+        'mean_exec_time': float64_to_duration_t('s.mean_exec_time'),
+        'stddev_exec_time': float64_to_duration_t('s.stddev_exec_time'),
+
+        'rows': 's.rows',
+        'stats_since': 's.stats_since::edgedbt.timestamptz_t',
+        'minmax_stats_since': 's.minmax_stats_since::edgedbt.timestamptz_t',
+    }
+
+    query_stats_query = fr'''
+        SELECT
+            {format_fields(schema, QueryStats, query_stats_fields)}
+        FROM
+            edgedbext.edb_stat_statements AS s
+            INNER JOIN pg_database dat ON s.dbid = dat.oid
+            CROSS JOIN LATERAL (
+                SELECT
+                    edgedb_VER.shobj_metadata(dat.oid, 'pg_database')
+                        AS description
+            ) AS d
+        WHERE
+            s.cache_key IS NOT NULL
+    '''
+
+    objects = {
+        QueryStats: query_stats_query,
+    }
+
+    views: list[dbops.View] = []
+    for obj, query in objects.items():
+        tabview = trampoline.VersionedView(
+            name=tabname(schema, obj), query=query)
+        views.append(tabview)
+
+    return views
+
+
 def _make_json_caster(
     schema: s_schema.Schema,
     stype: s_types.Type,
@@ -7293,6 +7361,10 @@ def get_synthetic_type_views(
 
     for verview in _generate_schema_ver_views(schema):
         commands.add_command(dbops.CreateView(verview, or_replace=True))
+
+    if backend_params.has_stat_statements:
+        for stats_view in _generate_stats_views(schema):
+            commands.add_command(dbops.CreateView(stats_view, or_replace=True))
 
     return commands
 

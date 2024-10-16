@@ -37,6 +37,7 @@ SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  toplevel                   | boolean                  |           |          | 
  queryid                    | bigint                   |           |          | 
  query                      | text                     |           |          | 
+ cache_key                  | uuid                     |           |          | 
  plans                      | bigint                   |           |          | 
  total_plan_time            | double precision         |           |          | 
  min_plan_time              | double precision         |           |          | 
