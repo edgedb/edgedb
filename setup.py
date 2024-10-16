@@ -247,12 +247,21 @@ def _compile_postgres(build_base, build_temp, *,
 
         if run_configure or fresh_build or is_outdated:
             env = _get_env_with_openssl_flags()
-            subprocess.run([
+            cmd = [
                 str(postgres_src / 'configure'),
                 '--prefix=' + str(postgres_build / 'install'),
                 '--with-openssl',
                 '--with-uuid=' + uuidlib,
-            ], check=True, cwd=str(build_dir), env=env)
+            ]
+            if os.environ.get('EDGEDB_DEBUG'):
+                cmd += [
+                    '--enable-tap-tests',
+                    '--enable-debug',
+                ]
+                cflags = os.environ.get("CFLAGS", "")
+                cflags = f"{cflags} -O0"
+                env['CFLAGS'] = cflags
+            subprocess.run(cmd, check=True, cwd=str(build_dir), env=env)
 
         if produce_compile_commands_json:
             make = ['bear', '--', 'make']
@@ -428,7 +437,10 @@ def _get_pg_source_stamp():
         ],
     )
     edbss = binascii.hexlify(edbss_hash).decode()
-    source_stamp = '+'.join([revision, PGVECTOR_COMMIT, edbss])
+    stamp_list = [revision, PGVECTOR_COMMIT, edbss]
+    if os.environ.get('EDGEDB_DEBUG'):
+        stamp_list += ['debug']
+    source_stamp = '+'.join(stamp_list)
     return source_stamp.strip()
 
 
