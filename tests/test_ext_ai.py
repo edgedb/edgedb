@@ -16,8 +16,6 @@
 # limitations under the License.
 #
 
-from typing import Any
-
 import json
 import pathlib
 import unittest
@@ -100,9 +98,10 @@ class TestExtAI(tb.BaseHttpExtensionTest):
     def mock_api_embeddings(
         cls,
         handler: tb.MockHttpServerHandler,
-        request_details: dict[str, Any],
+        request_details: tb.RequestDetails,
     ) -> tb.ResponseType:
-        inputs: list[str] = json.loads(request_details['body'])['input']
+        assert request_details.body is not None
+        inputs: list[str] = json.loads(request_details.body)['input']
         # Produce a dummy embedding as the number of occurences of the first ten
         # letters of the alphabet.
         response_data = [

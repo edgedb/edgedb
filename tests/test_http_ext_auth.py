@@ -737,8 +737,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
+            body = requests_for_token[0].body
+            assert body is not None
             self.assertEqual(
-                json.loads(requests_for_token[0]["body"]),
+                json.loads(body),
                 {
                     "grant_type": "authorization_code",
                     "code": "abc123",
@@ -751,7 +753,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_user = self.mock_oauth_server.requests[user_request]
             self.assertEqual(len(requests_for_user), 1)
             self.assertEqual(
-                requests_for_user[0]["headers"]["authorization"],
+                requests_for_user[0].headers["authorization"],
                 "Bearer github_access_token",
             )
 
@@ -1108,7 +1110,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(len(requests_for_token), 1)
 
             self.assertEqual(
-                urllib.parse.parse_qs(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0].body),
                 {
                     "grant_type": ["authorization_code"],
                     "code": ["abc123"],
@@ -1121,7 +1123,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_user = self.mock_oauth_server.requests[user_request]
             self.assertEqual(len(requests_for_user), 1)
             self.assertEqual(
-                requests_for_user[0]["headers"]["authorization"],
+                requests_for_user[0].headers["authorization"],
                 "Bearer discord_access_token",
             )
 
@@ -1307,7 +1309,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                urllib.parse.parse_qs(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0].body),
                 {
                     "grant_type": ["authorization_code"],
                     "code": ["abc123"],
@@ -1604,7 +1606,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                urllib.parse.parse_qs(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0].body),
                 {
                     "grant_type": ["authorization_code"],
                     "code": ["abc123"],
@@ -1825,7 +1827,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                urllib.parse.parse_qs(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0].body),
                 {
                     "grant_type": ["authorization_code"],
                     "code": ["abc123"],
@@ -2113,7 +2115,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                urllib.parse.parse_qs(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0].body),
                 {
                     "grant_type": ["authorization_code"],
                     "code": ["abc123"],
@@ -2420,7 +2422,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                urllib.parse.parse_qs(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0].body),
                 {
                     "grant_type": ["authorization_code"],
                     "code": ["abc123"],
@@ -2589,7 +2591,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     "EmailVerificationRequested": None,
                 }
                 for request in requests_for_webhook:
-                    event_data = json.loads(request["body"])
+                    assert request.body is not None
+                    event_data = json.loads(request.body)
                     event_type = event_data["event_type"]
                     self.assertIn(event_type, event_types)
                     self.assertEqual(
@@ -3536,7 +3539,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         ]
 
                 self.assertEqual(len(requests_for_webhook), 1)
-                event_data = json.loads(requests_for_webhook[0]["body"])
+                webhook_request = requests_for_webhook[0]
+                maybe_json_body = webhook_request.body
+                self.assertIsNotNone(maybe_json_body)
+                assert maybe_json_body is not None
+                event_data = json.loads(maybe_json_body)
                 self.assertEqual(
                     event_data["event_type"],
                     "IdentityAuthenticated",
