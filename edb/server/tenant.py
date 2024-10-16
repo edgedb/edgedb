@@ -1051,6 +1051,8 @@ class Tenant(ha_base.ClusterProtocol):
     async def introspect_db(
         self,
         dbname: str,
+        *,
+        conn: Optional[pgcon.PGConnection]=None,
         reintrospection: bool=False,
     ) -> None:
         """Use this method to (re-)introspect a DB.
@@ -1067,17 +1069,33 @@ class Tenant(ha_base.ClusterProtocol):
         than refreshing individual components of it. Besides, DDL and
         database-level config modifications are supposed to be rare events.
 
+        This supports passing in a connection to use as well, so that
+        we can synchronously introspect on config changes without
+        risking deadlock by acquiring two connections at once.
+
         Returns True if the query cache mode changed.
+
         """
-        # Acquire a per-db lock for doing the introspection, to avoid
-        # race conditions where an older introspection might overwrite
-        # a newer one.
-        async with self.get_introspection_lock(dbname):
-            await self._introspect_db(dbname, reintrospection=reintrospection)
+        cm = (
+            contextlib.nullcontext(conn) if conn
+            else self._with_intro_pgcon(dbname)
+        )
+
+        async with cm as conn:
+            if not conn:
+                return
+            # Acquire a per-db lock for doing the introspection, to avoid
+            # race conditions where an older introspection might overwrite
+            # a newer one.
+            async with self.get_introspection_lock(dbname):
+                await self._introspect_db(
+                    dbname, conn=conn, reintrospection=reintrospection
+                )
 
     async def _introspect_db(
         self,
         dbname: str,
+        conn: pgcon.PGConnection,
         reintrospection: bool,
     ) -> None:
         from edb.pgsql import trampoline
@@ -1090,60 +1108,59 @@ class Tenant(ha_base.ClusterProtocol):
             cache_mode_val = self._dbindex.lookup_config('query_cache_mode')
         old_cache_mode = config.QueryCacheMode.effective(cache_mode_val)
 
-        async with self._with_intro_pgcon(dbname) as conn:
-            if not conn:
-                return
-            user_schema_json = (
-                await self._server.introspect_user_schema_json(conn)
-            )
+        # Introspection
+        user_schema_json = (
+            await self._server.introspect_user_schema_json(conn)
+        )
 
-            reflection_cache_json = await conn.sql_fetch_val(
-                trampoline.fixup_query("""
-                    SELECT json_agg(o.c)
-                    FROM (
-                        SELECT
-                            json_build_object(
-                                'eql_hash', t.eql_hash,
-                                'argnames', array_to_json(t.argnames)
-                            ) AS c
-                        FROM
-                            ROWS FROM(edgedb_VER._get_cached_reflection())
-                                AS t(eql_hash text, argnames text[])
-                    ) AS o;
-                """).encode('utf-8'),
-            )
+        reflection_cache_json = await conn.sql_fetch_val(
+            trampoline.fixup_query("""
+                SELECT json_agg(o.c)
+                FROM (
+                    SELECT
+                        json_build_object(
+                            'eql_hash', t.eql_hash,
+                            'argnames', array_to_json(t.argnames)
+                        ) AS c
+                    FROM
+                        ROWS FROM(edgedb_VER._get_cached_reflection())
+                            AS t(eql_hash text, argnames text[])
+                ) AS o;
+            """).encode('utf-8'),
+        )
 
-            reflection_cache = immutables.Map(
-                {
-                    r["eql_hash"]: tuple(r["argnames"])
-                    for r in json.loads(reflection_cache_json)
-                }
-            )
+        reflection_cache = immutables.Map(
+            {
+                r["eql_hash"]: tuple(r["argnames"])
+                for r in json.loads(reflection_cache_json)
+            }
+        )
 
-            backend_ids_json = await conn.sql_fetch_val(
-                trampoline.fixup_query("""
-                SELECT
-                    json_object_agg(
-                        "id"::text,
-                        "backend_id"
-                    )::text
-                FROM
-                    edgedb_VER."_SchemaType"
-                """).encode('utf-8'),
-            )
-            backend_ids = json.loads(backend_ids_json)
+        backend_ids_json = await conn.sql_fetch_val(
+            trampoline.fixup_query("""
+            SELECT
+                json_object_agg(
+                    "id"::text,
+                    "backend_id"
+                )::text
+            FROM
+                edgedb_VER."_SchemaType"
+            """).encode('utf-8'),
+        )
+        backend_ids = json.loads(backend_ids_json)
 
-            db_config_json = await self._server.introspect_db_config(conn)
+        db_config_json = await self._server.introspect_db_config(conn)
 
-            extensions = await self._introspect_extensions(conn)
+        extensions = await self._introspect_extensions(conn)
 
-            query_cache: list[tuple[bytes, ...]] | None = None
-            if (
-                not reintrospection
-                and old_cache_mode is not config.QueryCacheMode.InMemory
-            ):
-                query_cache = await self._load_query_cache(conn)
+        query_cache: list[tuple[bytes, ...]] | None = None
+        if (
+            not reintrospection
+            and old_cache_mode is not config.QueryCacheMode.InMemory
+        ):
+            query_cache = await self._load_query_cache(conn)
 
+        # Analysis
         compiler_pool = self._server.get_compiler_pool()
         parsed_db = await compiler_pool.parse_user_schema_db_config(
             user_schema_json, db_config_json, self.get_global_schema_pickle()
@@ -1171,11 +1188,10 @@ class Tenant(ha_base.ClusterProtocol):
         elif old_cache_mode is not cache_mode:
             logger.info(
                 "clearing query cache for database '%s'", dbname)
-            async with self.with_pgcon(dbname) as conn:
-                await conn.sql_execute(
-                    b'SELECT edgedb._clear_query_cache()')
-                assert self._dbindex
-                self._dbindex.get_db(dbname).clear_query_cache()
+            await conn.sql_execute(
+                b'SELECT edgedb._clear_query_cache()')
+            assert self._dbindex
+            self._dbindex.get_db(dbname).clear_query_cache()
 
     async def _early_introspect_db(self, dbname: str) -> None:
         """We need to always introspect the extensions for each database.
@@ -1675,11 +1691,15 @@ class Tenant(ha_base.ClusterProtocol):
 
         self.create_task(task(), interruptable=True)
 
-    async def process_local_database_config_change(self, dbname: str) -> None:
+    async def process_local_database_config_change(
+        self,
+        conn: pgcon.PGConnection,
+        dbname: str,
+    ) -> None:
         # It's easier and safer to just do full re-introspection
         # of the DB and update all components of it.
         # TODO: Can we just do config?
-        await self.introspect_db(dbname, reintrospection=True)
+        await self.introspect_db(dbname, conn=conn, reintrospection=True)
 
     def on_remote_system_config_change(self) -> None:
         if not self._accept_new_tasks:

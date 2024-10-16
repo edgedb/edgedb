@@ -377,7 +377,7 @@ async def execute(
         if state_serializer is not None:
             dbv.set_state_serializer(state_serializer)
         if side_effects:
-            await process_side_effects(dbv, side_effects)
+            await process_side_effects(dbv, side_effects, be_conn)
         if not dbv.in_tx() and not query_unit.tx_rollback and query_unit.sql:
             state = dbv.serialize_state()
             if state is not orig_state:
@@ -577,7 +577,7 @@ async def execute_script(
                 cached_reflection,
             )
             if side_effects:
-                await process_side_effects(dbv, side_effects)
+                await process_side_effects(dbv, side_effects, conn)
             state = dbv.serialize_state()
             if state is not orig_state:
                 conn.last_state = state
@@ -634,12 +634,12 @@ async def execute_system_config(
         await conn.sql_execute(b'SELECT pg_reload_conf()')
 
 
-async def process_side_effects(dbv, side_effects):
+async def process_side_effects(dbv, side_effects, conn):
     signal_side_effects(dbv, side_effects)
 
     if side_effects & dbview.SideEffects.DatabaseConfigChanges:
         tenant = dbv.tenant
-        await tenant.process_local_database_config_change(dbv.dbname)
+        await tenant.process_local_database_config_change(conn, dbv.dbname)
 
 
 def signal_side_effects(dbv, side_effects):
