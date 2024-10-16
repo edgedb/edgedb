@@ -317,7 +317,10 @@ def try_bind_call_args(
         func.has_inlined_defaults(schema)
         and not (
             isinstance(func, s_func.Function)
-            and func.get_is_inlined(schema)
+            and (
+                func.get_volatility(schema) == ft.Volatility.Modifying
+                or func.get_is_inlined(schema)
+            )
         )
     )
 
