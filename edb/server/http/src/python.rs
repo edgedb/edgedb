@@ -4,6 +4,7 @@ use reqwest::Method;
 use scopeguard::ScopeGuard;
 use std::{
     cell::RefCell, collections::HashMap, os::fd::IntoRawFd, pin::Pin, rc::Rc, sync::Mutex, thread,
+    time::Duration,
 };
 use tokio::{
     io::AsyncWrite,
@@ -264,7 +265,14 @@ impl PermitManager {
 async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
     let rpc_pipe = Rc::new(rpc_pipe);
 
-    let client = reqwest::Client::new();
+    // Set some reasonable defaults for timeouts
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(120))
+        .read_timeout(Duration::from_secs(10))
+        .pool_idle_timeout(Duration::from_secs(30));
+    let client = client.build().unwrap();
+
     let permit_manager = Rc::new(PermitManager::new(capacity));
 
     loop {
