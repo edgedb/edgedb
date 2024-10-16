@@ -125,6 +125,18 @@ class OAuthAccessTokenResponse:
         self._extra_fields = kwargs
 
 
+@dataclasses.dataclass
+class OAuthError:
+    error: str
+    error_description: str | None
+
+    def __str__(self) -> str:
+        if self.error_description is None:
+            return self.error
+
+        return f"{self.error}: {self.error_description}"
+
+
 @dataclasses.dataclass(repr=False)
 class OpenIDConnectAccessTokenResponse(OAuthAccessTokenResponse):
     """
