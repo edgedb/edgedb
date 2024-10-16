@@ -1,35 +1,35 @@
 -- test old extension version entry points
 CREATE EXTENSION edb_stat_statements WITH VERSION '1.0';
-SELECT pg_get_functiondef('pg_stat_statements_info'::regproc);
-                                                   pg_get_functiondef                                                    
--------------------------------------------------------------------------------------------------------------------------
- CREATE OR REPLACE FUNCTION public.pg_stat_statements_info(OUT dealloc bigint, OUT stats_reset timestamp with time zone)+
-  RETURNS record                                                                                                        +
-  LANGUAGE c                                                                                                            +
-  PARALLEL SAFE STRICT                                                                                                  +
- AS '$libdir/edb_stat_statements', $function$pg_stat_statements_info$function$                                          +
+SELECT pg_get_functiondef('edb_stat_statements_info'::regproc);
+                                                    pg_get_functiondef                                                    
+--------------------------------------------------------------------------------------------------------------------------
+ CREATE OR REPLACE FUNCTION public.edb_stat_statements_info(OUT dealloc bigint, OUT stats_reset timestamp with time zone)+
+  RETURNS record                                                                                                         +
+  LANGUAGE c                                                                                                             +
+  PARALLEL SAFE STRICT                                                                                                   +
+ AS '$libdir/edb_stat_statements', $function$edb_stat_statements_info$function$                                          +
  
 (1 row)
 
-SELECT pg_get_functiondef('pg_stat_statements_reset'::regproc);
-                                                                        pg_get_functiondef                                                                         
--------------------------------------------------------------------------------------------------------------------------------------------------------------------
- CREATE OR REPLACE FUNCTION public.pg_stat_statements_reset(userid oid DEFAULT 0, dbid oid DEFAULT 0, queryid bigint DEFAULT 0, minmax_only boolean DEFAULT false)+
-  RETURNS timestamp with time zone                                                                                                                                +
-  LANGUAGE c                                                                                                                                                      +
-  PARALLEL SAFE STRICT                                                                                                                                            +
- AS '$libdir/edb_stat_statements', $function$pg_stat_statements_reset$function$                                                                                   +
+SELECT pg_get_functiondef('edb_stat_statements_reset'::regproc);
+                                                                         pg_get_functiondef                                                                         
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ CREATE OR REPLACE FUNCTION public.edb_stat_statements_reset(userid oid DEFAULT 0, dbid oid DEFAULT 0, queryid bigint DEFAULT 0, minmax_only boolean DEFAULT false)+
+  RETURNS timestamp with time zone                                                                                                                                 +
+  LANGUAGE c                                                                                                                                                       +
+  PARALLEL SAFE STRICT                                                                                                                                             +
+ AS '$libdir/edb_stat_statements', $function$edb_stat_statements_reset$function$                                                                                   +
  
 (1 row)
 
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
 (1 row)
 
-\d pg_stat_statements
-                            View "public.pg_stat_statements"
+\d edb_stat_statements
+                           View "public.edb_stat_statements"
            Column           |           Type           | Collation | Nullable | Default 
 ----------------------------+--------------------------+-----------+----------+---------
  userid                     | oid                      |           |          | 
@@ -84,7 +84,7 @@ SELECT pg_stat_statements_reset() IS NOT NULL AS t;
  stats_since                | timestamp with time zone |           |          | 
  minmax_stats_since         | timestamp with time zone |           |          | 
 
-SELECT count(*) > 0 AS has_data FROM pg_stat_statements;
+SELECT count(*) > 0 AS has_data FROM edb_stat_statements;
  has_data 
 ----------
  t

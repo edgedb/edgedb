@@ -2,9 +2,9 @@
 -- SELECT statements
 --
 CREATE EXTENSION edb_stat_statements;
-SET pg_stat_statements.track_utility = FALSE;
-SET pg_stat_statements.track_planning = TRUE;
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SET edb_stat_statements.track_utility = FALSE;
+SET edb_stat_statements.track_planning = TRUE;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
@@ -124,12 +124,12 @@ EXECUTE pgss_test(1);
 (1 row)
 
 DEALLOCATE pgss_test;
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
- calls | rows |                                    query                                     
--------+------+------------------------------------------------------------------------------
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+ calls | rows |                                     query                                     
+-------+------+-------------------------------------------------------------------------------
      1 |    1 | PREPARE pgss_test (int) AS SELECT $1, $2 LIMIT $3
-     4 |    4 | SELECT $1                                                                   +
-       |      |   -- multiline                                                              +
+     4 |    4 | SELECT $1                                                                    +
+       |      |   -- multiline                                                               +
        |      |   AS "text"
      2 |    2 | SELECT $1 + $2
      3 |    3 | SELECT $1 + $2 + $3 AS "add"
@@ -137,16 +137,16 @@ SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
      2 |    2 | SELECT $1 AS "int"
      1 |    2 | SELECT $1 AS i UNION SELECT $2 ORDER BY i
      1 |    1 | SELECT $1 || $2
-     0 |    0 | SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C"
-     1 |    1 | SELECT pg_stat_statements_reset() IS NOT NULL AS t
-     1 |    2 | WITH t(f) AS (                                                              +
-       |      |   VALUES ($1), ($2)                                                         +
-       |      | )                                                                           +
+     0 |    0 | SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C"
+     1 |    1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
+     1 |    2 | WITH t(f) AS (                                                               +
+       |      |   VALUES ($1), ($2)                                                          +
+       |      | )                                                                            +
        |      |   SELECT f FROM t ORDER BY f
      1 |    1 | select $1::jsonb ? $2
 (12 rows)
 
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
@@ -157,7 +157,7 @@ SELECT pg_stat_statements_reset() IS NOT NULL AS t;
 --
 CREATE TABLE pgss_a (id integer PRIMARY KEY);
 CREATE TABLE pgss_b (id integer PRIMARY KEY, a_id integer REFERENCES pgss_a);
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
@@ -222,7 +222,7 @@ SELECT * FROM pgss_a JOIN pgss_b ON pgss_b.a_id = pgss_a.id FOR UPDATE SKIP LOCK
 ----+----+------
 (0 rows)
 
-SELECT calls, query FROM pg_stat_statements ORDER BY query COLLATE "C";
+SELECT calls, query FROM edb_stat_statements ORDER BY query COLLATE "C";
  calls |                                          query                                           
 -------+------------------------------------------------------------------------------------------
      1 | SELECT * FROM pgss_a JOIN pgss_b ON pgss_b.a_id = pgss_a.id
@@ -235,21 +235,21 @@ SELECT calls, query FROM pg_stat_statements ORDER BY query COLLATE "C";
      1 | SELECT * FROM pgss_a JOIN pgss_b ON pgss_b.a_id = pgss_a.id FOR UPDATE OF pgss_b
      1 | SELECT * FROM pgss_a JOIN pgss_b ON pgss_b.a_id = pgss_a.id FOR UPDATE OF pgss_b, pgss_a
      1 | SELECT * FROM pgss_a JOIN pgss_b ON pgss_b.a_id = pgss_a.id FOR UPDATE SKIP LOCKED
-     0 | SELECT calls, query FROM pg_stat_statements ORDER BY query COLLATE "C"
-     1 | SELECT pg_stat_statements_reset() IS NOT NULL AS t
+     0 | SELECT calls, query FROM edb_stat_statements ORDER BY query COLLATE "C"
+     1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
 (12 rows)
 
 DROP TABLE pgss_a, pgss_b CASCADE;
 --
--- access to pg_stat_statements_info view
+-- access to edb_stat_statements_info view
 --
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
 (1 row)
 
-SELECT dealloc FROM pg_stat_statements_info;
+SELECT dealloc FROM edb_stat_statements_info;
  dealloc 
 ---------
        0
@@ -270,7 +270,7 @@ SELECT * FROM ONLY tbl_inh;
 ----
 (0 rows)
 
-SELECT COUNT(*) FROM pg_stat_statements WHERE query LIKE '%FROM%tbl_inh%';
+SELECT COUNT(*) FROM edb_stat_statements WHERE query LIKE '%FROM%tbl_inh%';
  count 
 -------
      2
@@ -308,7 +308,7 @@ FETCH FIRST 2 ROW ONLY;
    0
 (2 rows)
 
-SELECT COUNT(*) FROM pg_stat_statements WHERE query LIKE '%FETCH FIRST%';
+SELECT COUNT(*) FROM edb_stat_statements WHERE query LIKE '%FETCH FIRST%';
  count 
 -------
      2
@@ -369,7 +369,7 @@ ORDER BY a, b, c;
    |   |  
 (13 rows)
 
-SELECT COUNT(*) FROM pg_stat_statements WHERE query LIKE '%GROUP BY%ROLLUP%';
+SELECT COUNT(*) FROM edb_stat_statements WHERE query LIKE '%GROUP BY%ROLLUP%';
  count 
 -------
      2
@@ -400,13 +400,13 @@ SELECT (
         1
 (3 rows)
 
-SELECT COUNT(*) FROM pg_stat_statements WHERE query LIKE '%SELECT GROUPING%';
+SELECT COUNT(*) FROM edb_stat_statements WHERE query LIKE '%SELECT GROUPING%';
  count 
 -------
      2
 (1 row)
 
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t

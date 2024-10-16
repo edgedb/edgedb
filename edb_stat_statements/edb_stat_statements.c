@@ -75,12 +75,12 @@
 PG_MODULE_MAGIC;
 
 /* Location of permanent stats file (valid when database is shut down) */
-#define PGSS_DUMP_FILE	PGSTAT_STAT_PERMANENT_DIRECTORY "/pg_stat_statements.stat"
+#define PGSS_DUMP_FILE	PGSTAT_STAT_PERMANENT_DIRECTORY "/edb_stat_statements.stat"
 
 /*
  * Location of external query text file.
  */
-#define PGSS_TEXT_FILE	PG_STAT_TMP_DIR "/pgss_query_texts.stat"
+#define PGSS_TEXT_FILE	PG_STAT_TMP_DIR "/edbss_query_texts.stat"
 
 /* Magic number identifying the stats file format */
 static const uint32 PGSS_FILE_HEADER = 0x20220408;
@@ -113,7 +113,7 @@ typedef enum pgssStoreKind
 	/*
 	 * PGSS_PLAN and PGSS_EXEC must be respectively 0 and 1 as they're used to
 	 * reference the underlying values in the arrays in the Counters struct,
-	 * and this order is required in pg_stat_statements_internal().
+	 * and this order is required in edb_stat_statements_internal().
 	 */
 	PGSS_PLAN = 0,
 	PGSS_EXEC,
@@ -202,7 +202,7 @@ typedef struct Counters
 } Counters;
 
 /*
- * Global statistics for pg_stat_statements
+ * Global statistics for edb_stat_statements
  */
 typedef struct pgssGlobalStats
 {
@@ -303,9 +303,9 @@ static bool pgss_save = true;	/* whether to save stats across shutdown */
 
 /*---- Function declarations ----*/
 
-PG_FUNCTION_INFO_V1(pg_stat_statements_reset);
-PG_FUNCTION_INFO_V1(pg_stat_statements);
-PG_FUNCTION_INFO_V1(pg_stat_statements_info);
+PG_FUNCTION_INFO_V1(edb_stat_statements_reset);
+PG_FUNCTION_INFO_V1(edb_stat_statements);
+PG_FUNCTION_INFO_V1(edb_stat_statements_info);
 
 static void pgss_shmem_request(void);
 static void pgss_shmem_startup(void);
@@ -337,9 +337,9 @@ static void pgss_store(const char *query, uint64 queryId,
 					   JumbleState *jstate,
 					   int parallel_workers_to_launch,
 					   int parallel_workers_launched);
-static void pg_stat_statements_internal(FunctionCallInfo fcinfo,
-										pgssVersion api_version,
-										bool showtext);
+static void edb_stat_statements_internal(FunctionCallInfo fcinfo,
+										 pgssVersion api_version,
+										 bool showtext);
 static Size pgss_memsize(void);
 static pgssEntry *entry_alloc(pgssHashKey *key, Size query_offset, int query_len,
 							  int encoding, bool sticky);
@@ -369,7 +369,7 @@ _PG_init(void)
 	 * In order to create our shared memory area, we have to be loaded via
 	 * shared_preload_libraries.  If not, fall out without hooking into any of
 	 * the main system.  (We don't throw error here because it seems useful to
-	 * allow the pg_stat_statements functions to be created even when the
+	 * allow the edb_stat_statements functions to be created even when the
 	 * module isn't active.  The functions must protect themselves against
 	 * being called then, however.)
 	 */
@@ -385,8 +385,8 @@ _PG_init(void)
 	/*
 	 * Define (or redefine) custom GUC variables.
 	 */
-	DefineCustomIntVariable("pg_stat_statements.max",
-							"Sets the maximum number of statements tracked by pg_stat_statements.",
+	DefineCustomIntVariable("edb_stat_statements.max",
+							"Sets the maximum number of statements tracked by edb_stat_statements.",
 							NULL,
 							&pgss_max,
 							5000,
@@ -398,8 +398,8 @@ _PG_init(void)
 							NULL,
 							NULL);
 
-	DefineCustomEnumVariable("pg_stat_statements.track",
-							 "Selects which statements are tracked by pg_stat_statements.",
+	DefineCustomEnumVariable("edb_stat_statements.track",
+							 "Selects which statements are tracked by edb_stat_statements.",
 							 NULL,
 							 &pgss_track,
 							 PGSS_TRACK_TOP,
@@ -410,8 +410,8 @@ _PG_init(void)
 							 NULL,
 							 NULL);
 
-	DefineCustomBoolVariable("pg_stat_statements.track_utility",
-							 "Selects whether utility commands are tracked by pg_stat_statements.",
+	DefineCustomBoolVariable("edb_stat_statements.track_utility",
+							 "Selects whether utility commands are tracked by edb_stat_statements.",
 							 NULL,
 							 &pgss_track_utility,
 							 true,
@@ -421,8 +421,8 @@ _PG_init(void)
 							 NULL,
 							 NULL);
 
-	DefineCustomBoolVariable("pg_stat_statements.track_planning",
-							 "Selects whether planning duration is tracked by pg_stat_statements.",
+	DefineCustomBoolVariable("edb_stat_statements.track_planning",
+							 "Selects whether planning duration is tracked by edb_stat_statements.",
 							 NULL,
 							 &pgss_track_planning,
 							 false,
@@ -432,8 +432,8 @@ _PG_init(void)
 							 NULL,
 							 NULL);
 
-	DefineCustomBoolVariable("pg_stat_statements.save",
-							 "Save pg_stat_statements statistics across server shutdowns.",
+	DefineCustomBoolVariable("edb_stat_statements.save",
+							 "Save edb_stat_statements statistics across server shutdowns.",
 							 NULL,
 							 &pgss_save,
 							 true,
@@ -443,7 +443,7 @@ _PG_init(void)
 							 NULL,
 							 NULL);
 
-	MarkGUCPrefixReserved("pg_stat_statements");
+	MarkGUCPrefixReserved("edb_stat_statements");
 
 	/*
 	 * Install hooks.
@@ -479,7 +479,7 @@ pgss_shmem_request(void)
 		prev_shmem_request_hook();
 
 	RequestAddinShmemSpace(pgss_memsize());
-	RequestNamedLWLockTranche("pg_stat_statements", 1);
+	RequestNamedLWLockTranche("edb_stat_statements", 1);
 }
 
 /*
@@ -514,14 +514,14 @@ pgss_shmem_startup(void)
 	 */
 	LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
 
-	pgss = ShmemInitStruct("pg_stat_statements",
+	pgss = ShmemInitStruct("edb_stat_statements",
 						   sizeof(pgssSharedState),
 						   &found);
 
 	if (!found)
 	{
 		/* First time through ... */
-		pgss->lock = &(GetNamedLWLockTranche("pg_stat_statements"))->lock;
+		pgss->lock = &(GetNamedLWLockTranche("edb_stat_statements"))->lock;
 		pgss->cur_median_usage = ASSUMED_MEDIAN_INIT;
 		pgss->mean_query_len = ASSUMED_LENGTH_INIT;
 		SpinLockInit(&pgss->mutex);
@@ -534,7 +534,7 @@ pgss_shmem_startup(void)
 
 	info.keysize = sizeof(pgssHashKey);
 	info.entrysize = sizeof(pgssEntry);
-	pgss_hash = ShmemInitHash("pg_stat_statements hash",
+	pgss_hash = ShmemInitHash("edb_stat_statements hash",
 							  pgss_max, pgss_max,
 							  &info,
 							  HASH_ELEM | HASH_BLOBS);
@@ -650,7 +650,7 @@ pgss_shmem_startup(void)
 		entry->minmax_stats_since = temp.minmax_stats_since;
 	}
 
-	/* Read global statistics for pg_stat_statements */
+	/* Read global statistics for edb_stat_statements */
 	if (fread(&pgss->stats, sizeof(pgssGlobalStats), 1, file) != 1)
 		goto read_error;
 
@@ -704,7 +704,7 @@ fail:
 
 	/*
 	 * Don't unlink PGSS_TEXT_FILE here; it should always be around while the
-	 * server is running with pg_stat_statements enabled
+	 * server is running with edb_stat_statements enabled
 	 */
 }
 
@@ -775,7 +775,7 @@ pgss_shmem_shutdown(int code, Datum arg)
 		}
 	}
 
-	/* Dump global statistics for pg_stat_statements */
+	/* Dump global statistics for edb_stat_statements */
 	if (fwrite(&pgss->stats, sizeof(pgssGlobalStats), 1, file) != 1)
 		goto error;
 
@@ -1107,7 +1107,7 @@ pgss_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 	 * since we are already measuring the statement's costs at the utility
 	 * level.
 	 *
-	 * Note that this is only done if pg_stat_statements is enabled and
+	 * Note that this is only done if edb_stat_statements is enabled and
 	 * configured to track utility statements, in the unlikely possibility
 	 * that user configured another extension to handle utility statements
 	 * only.
@@ -1492,7 +1492,7 @@ done:
  */
 
 Datum
-pg_stat_statements_reset(PG_FUNCTION_ARGS)
+edb_stat_statements_reset(PG_FUNCTION_ARGS)
 {
 	Oid			userid;
 	Oid			dbid;
@@ -1522,20 +1522,20 @@ pg_stat_statements_reset(PG_FUNCTION_ARGS)
  * function.  Unfortunately we weren't bright enough to do that for 1.1.
  */
 Datum
-pg_stat_statements(PG_FUNCTION_ARGS)
+edb_stat_statements(PG_FUNCTION_ARGS)
 {
 	bool		showtext = PG_GETARG_BOOL(0);
 
-	pg_stat_statements_internal(fcinfo, PGSS_V1_0, showtext);
+	edb_stat_statements_internal(fcinfo, PGSS_V1_0, showtext);
 
 	return (Datum) 0;
 }
 
-/* Common code for all versions of pg_stat_statements() */
+/* Common code for all versions of edb_stat_statements() */
 static void
-pg_stat_statements_internal(FunctionCallInfo fcinfo,
-							pgssVersion api_version,
-							bool showtext)
+edb_stat_statements_internal(FunctionCallInfo fcinfo,
+							 pgssVersion api_version,
+							 bool showtext)
 {
 	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
 	Oid			userid = GetUserId();
@@ -1797,14 +1797,14 @@ pg_stat_statements_internal(FunctionCallInfo fcinfo,
 	free(qbuffer);
 }
 
-/* Number of output arguments (columns) for pg_stat_statements_info */
+/* Number of output arguments (columns) for edb_stat_statements_info */
 #define PG_STAT_STATEMENTS_INFO_COLS	2
 
 /*
- * Return statistics of pg_stat_statements.
+ * Return statistics of edb_stat_statements.
  */
 Datum
-pg_stat_statements_info(PG_FUNCTION_ARGS)
+edb_stat_statements_info(PG_FUNCTION_ARGS)
 {
 	pgssGlobalStats stats;
 	TupleDesc	tupdesc;
@@ -1820,7 +1820,7 @@ pg_stat_statements_info(PG_FUNCTION_ARGS)
 	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
 		elog(ERROR, "return type must be a row type");
 
-	/* Read global statistics for pg_stat_statements */
+	/* Read global statistics for edb_stat_statements */
 	SpinLockAcquire(&pgss->mutex);
 	stats = pgss->stats;
 	SpinLockRelease(&pgss->mutex);
@@ -2531,7 +2531,7 @@ entry_reset(Oid userid, Oid dbid, uint64 queryid, bool minmax_only)
 		goto release_lock;
 
 	/*
-	 * Reset global statistics for pg_stat_statements since all entries are
+	 * Reset global statistics for edb_stat_statements since all entries are
 	 * removed.
 	 */
 	SpinLockAcquire(&pgss->mutex);

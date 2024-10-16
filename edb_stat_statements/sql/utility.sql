@@ -3,8 +3,8 @@
 --
 
 -- These tests require track_utility to be enabled.
-SET pg_stat_statements.track_utility = TRUE;
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SET edb_stat_statements.track_utility = TRUE;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- Tables, indexes, triggers
 CREATE TEMP TABLE tab_stats (a int, b char(20));
@@ -17,8 +17,8 @@ DROP TABLE IF EXISTS tab_stats \;
 -- This DROP query uses two different strings, still they count as one entry.
 DROP TABLE IF EXISTS tab_stats \;
 Drop Table If Exists tab_stats \;
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- Partitions
 CREATE TABLE pt_stats (a int, b int) PARTITION BY range (a);
@@ -83,8 +83,8 @@ CREATE TABLE tab_expr_stats (a int, b int);
 CREATE STATISTICS tab_expr_stats_1 (mcv) ON a, (2*a), (3*b) FROM tab_expr_stats;
 DROP TABLE tab_expr_stats;
 
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- Transaction statements
 BEGIN;
@@ -113,8 +113,8 @@ BEGIN TRANSACTION READ ONLY, READ WRITE, DEFERRABLE, NOT DEFERRABLE;
 COMMIT;
 BEGIN TRANSACTION NOT DEFERRABLE, READ ONLY, READ WRITE, DEFERRABLE;
 COMMIT;
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- Two-phase transactions
 BEGIN;
@@ -123,8 +123,8 @@ COMMIT PREPARED 'stat_trans1';
 BEGIN;
 PREPARE TRANSACTION 'stat_trans2';
 ROLLBACK PREPARED 'stat_trans2';
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- Savepoints
 BEGIN;
@@ -140,8 +140,8 @@ RELEASE SAVEPOINT sp2;
 ROLLBACK TO sp1;
 RELEASE SAVEPOINT sp1;
 COMMIT;
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- EXPLAIN statements
 -- A Query is used, normalized by the query jumbling.
@@ -150,7 +150,7 @@ EXPLAIN (costs off) SELECT 2;
 EXPLAIN (costs off) SELECT a FROM generate_series(1,10) AS tab(a) WHERE a = 3;
 EXPLAIN (costs off) SELECT a FROM generate_series(1,10) AS tab(a) WHERE a = 7;
 
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
 
 -- CALL
 CREATE OR REPLACE PROCEDURE sum_one(i int) AS $$
@@ -186,7 +186,7 @@ BEGIN
   i2 := i;
   i3 := i3 + i;
 END; $$ LANGUAGE plpgsql;
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 CALL sum_one(3);
 CALL sum_one(199);
 CALL sum_two(1,1);
@@ -195,11 +195,11 @@ CALL overload(1);
 CALL overload('A');
 CALL in_out(1, NULL, 1);
 CALL in_out(2, 1, 2);
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
 
 -- COPY
 CREATE TABLE copy_stats (a int, b int);
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 -- Some queries with A_Const nodes.
 COPY (SELECT 1) TO STDOUT;
 COPY (SELECT 2) TO STDOUT;
@@ -209,9 +209,9 @@ COPY (UPDATE copy_stats SET b = b + 1 RETURNING *) TO STDOUT;
 COPY (UPDATE copy_stats SET b = b + 2 RETURNING *) TO STDOUT;
 COPY (DELETE FROM copy_stats WHERE a = 1 RETURNING *) TO STDOUT;
 
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
 DROP TABLE copy_stats;
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- CREATE TABLE AS
 -- SELECT queries are normalized, creating matching query IDs.
@@ -227,8 +227,8 @@ CREATE TABLE ctas_stats_2 AS
   SELECT a AS col1, 4::int AS col2
     FROM generate_series(1, 5) AS tab(a) WHERE a < 4 AND a > 1;
 DROP TABLE ctas_stats_2;
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- CREATE MATERIALIZED VIEW
 -- SELECT queries are normalized, creating matching query IDs.
@@ -240,8 +240,8 @@ CREATE MATERIALIZED VIEW matview_stats_1 AS
   SELECT a AS col1, 4::int AS col2
     FROM generate_series(1, 5) AS tab(a) WHERE a < 4 AND a > 3;
 DROP MATERIALIZED VIEW matview_stats_1;
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- CREATE VIEW
 CREATE VIEW view_stats_1 AS
@@ -252,16 +252,16 @@ CREATE VIEW view_stats_1 AS
   SELECT a AS col1, 4::int AS col2
     FROM generate_series(1, 5) AS tab(a) WHERE a < 4 AND a > 3;
 DROP VIEW view_stats_1;
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- Domains
 CREATE DOMAIN domain_stats AS int CHECK (VALUE > 0);
 ALTER DOMAIN domain_stats SET DEFAULT '3';
 ALTER DOMAIN domain_stats ADD CONSTRAINT higher_than_one CHECK (VALUE > 1);
 DROP DOMAIN domain_stats;
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- Execution statements
 SELECT 1 as a;
@@ -273,8 +273,8 @@ EXECUTE stat_select (2);
 DEALLOCATE PREPARE stat_select;
 DEALLOCATE ALL;
 DEALLOCATE PREPARE ALL;
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- SET statements.
 -- These use two different strings, still they count as one entry.
@@ -331,10 +331,10 @@ SET TIME ZONE LOCAL;
 SET TIME ZONE 'CST7CDT,M4.1.0,M10.5.0';
 RESET TIME ZONE;
 
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
 DROP ROLE regress_stat_set_1;
 DROP ROLE regress_stat_set_2;
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 --
 -- Track the total number of rows retrieved or affected by the utility
@@ -357,18 +357,18 @@ FETCH FORWARD 5 pgss_cursor;
 FETCH FORWARD ALL pgss_cursor;
 COMMIT;
 
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
 
 DROP MATERIALIZED VIEW pgss_matv;
 DROP TABLE pgss_ctas;
 DROP TABLE pgss_select_into;
 
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- Special cases.  Keep these ones at the end to avoid conflicts.
 SET SCHEMA 'foo';
 SET SCHEMA 'public';
 RESET ALL;
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
 
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;

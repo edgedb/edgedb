@@ -2,8 +2,8 @@
 -- Cursors
 --
 -- These tests require track_utility to be enabled.
-SET pg_stat_statements.track_utility = TRUE;
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SET edb_stat_statements.track_utility = TRUE;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
@@ -15,15 +15,15 @@ DECLARE cursor_stats_1 CURSOR WITH HOLD FOR SELECT 1;
 CLOSE cursor_stats_1;
 DECLARE cursor_stats_1 CURSOR WITH HOLD FOR SELECT 2;
 CLOSE cursor_stats_1;
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
  calls | rows |                         query                         
 -------+------+-------------------------------------------------------
      2 |    0 | CLOSE cursor_stats_1
      2 |    0 | DECLARE cursor_stats_1 CURSOR WITH HOLD FOR SELECT $1
-     1 |    1 | SELECT pg_stat_statements_reset() IS NOT NULL AS t
+     1 |    1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
 (3 rows)
 
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
@@ -48,7 +48,7 @@ FETCH 1 IN cursor_stats_2;
 CLOSE cursor_stats_1;
 CLOSE cursor_stats_2;
 COMMIT;
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
  calls | rows |                         query                         
 -------+------+-------------------------------------------------------
      1 |    0 | BEGIN
@@ -59,10 +59,10 @@ SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
      1 |    0 | DECLARE cursor_stats_2 CURSOR WITH HOLD FOR SELECT $1
      1 |    1 | FETCH 1 IN cursor_stats_1
      1 |    1 | FETCH 1 IN cursor_stats_2
-     1 |    1 | SELECT pg_stat_statements_reset() IS NOT NULL AS t
+     1 |    1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
 (9 rows)
 
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t

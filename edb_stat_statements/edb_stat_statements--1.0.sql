@@ -2,7 +2,7 @@
 \echo Use "CREATE EXTENSION edb_stat_statements" to load this file. \quit
 
 -- Register functions.
-CREATE FUNCTION pg_stat_statements_reset(IN userid Oid DEFAULT 0,
+CREATE FUNCTION edb_stat_statements_reset(IN userid Oid DEFAULT 0,
     IN dbid Oid DEFAULT 0,
     IN queryid bigint DEFAULT 0,
     IN minmax_only boolean DEFAULT false
@@ -11,7 +11,7 @@ RETURNS timestamp with time zone
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT PARALLEL SAFE;
 
-CREATE FUNCTION pg_stat_statements(IN showtext boolean,
+CREATE FUNCTION edb_stat_statements(IN showtext boolean,
     OUT userid oid,
     OUT dbid oid,
     OUT toplevel bool,
@@ -68,7 +68,7 @@ RETURNS SETOF record
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT VOLATILE PARALLEL SAFE;
 
-CREATE FUNCTION pg_stat_statements_info(
+CREATE FUNCTION edb_stat_statements_info(
     OUT dealloc bigint,
     OUT stats_reset timestamp with time zone
 )
@@ -77,15 +77,15 @@ AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT VOLATILE PARALLEL SAFE;
 
 -- Register views on the functions for ease of use.
-CREATE VIEW pg_stat_statements AS
-  SELECT * FROM pg_stat_statements(true);
+CREATE VIEW edb_stat_statements AS
+  SELECT * FROM edb_stat_statements(true);
 
-GRANT SELECT ON pg_stat_statements TO PUBLIC;
+GRANT SELECT ON edb_stat_statements TO PUBLIC;
 
-CREATE VIEW pg_stat_statements_info AS
-  SELECT * FROM pg_stat_statements_info();
+CREATE VIEW edb_stat_statements_info AS
+  SELECT * FROM edb_stat_statements_info();
 
-GRANT SELECT ON pg_stat_statements_info TO PUBLIC;
+GRANT SELECT ON edb_stat_statements_info TO PUBLIC;
 
 -- Don't want this to be available to non-superusers.
-REVOKE ALL ON FUNCTION pg_stat_statements_reset(Oid, Oid, bigint, boolean) FROM PUBLIC;
+REVOKE ALL ON FUNCTION edb_stat_statements_reset(Oid, Oid, bigint, boolean) FROM PUBLIC;

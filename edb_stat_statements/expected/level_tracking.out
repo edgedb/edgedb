@@ -1,8 +1,8 @@
 --
 -- Statement level tracking
 --
-SET pg_stat_statements.track_utility = TRUE;
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SET edb_stat_statements.track_utility = TRUE;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
@@ -10,14 +10,14 @@ SELECT pg_stat_statements_reset() IS NOT NULL AS t;
 
 -- DO block - top-level tracking.
 CREATE TABLE stats_track_tab (x int);
-SET pg_stat_statements.track = 'top';
+SET edb_stat_statements.track = 'top';
 DELETE FROM stats_track_tab;
 DO $$
 BEGIN
   DELETE FROM stats_track_tab;
 END;
 $$ LANGUAGE plpgsql;
-SELECT toplevel, calls, query FROM pg_stat_statements
+SELECT toplevel, calls, query FROM edb_stat_statements
   WHERE query LIKE '%DELETE%' ORDER BY query COLLATE "C", toplevel;
  toplevel | calls |             query              
 ----------+-------+--------------------------------
@@ -29,14 +29,14 @@ SELECT toplevel, calls, query FROM pg_stat_statements
           |       | $$ LANGUAGE plpgsql
 (2 rows)
 
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
 (1 row)
 
 -- DO block - all-level tracking.
-SET pg_stat_statements.track = 'all';
+SET edb_stat_statements.track = 'all';
 DELETE FROM stats_track_tab;
 DO $$
 BEGIN
@@ -47,75 +47,75 @@ BEGIN
   -- this is a SELECT
   PERFORM 'hello world'::TEXT;
 END; $$;
-SELECT toplevel, calls, query FROM pg_stat_statements
+SELECT toplevel, calls, query FROM edb_stat_statements
   ORDER BY query COLLATE "C", toplevel;
- toplevel | calls |                       query                        
-----------+-------+----------------------------------------------------
+ toplevel | calls |                        query                        
+----------+-------+-----------------------------------------------------
  f        |     1 | DELETE FROM stats_track_tab
  t        |     1 | DELETE FROM stats_track_tab
- t        |     1 | DO $$                                             +
-          |       | BEGIN                                             +
-          |       |   DELETE FROM stats_track_tab;                    +
+ t        |     1 | DO $$                                              +
+          |       | BEGIN                                              +
+          |       |   DELETE FROM stats_track_tab;                     +
           |       | END; $$
- t        |     1 | DO LANGUAGE plpgsql $$                            +
-          |       | BEGIN                                             +
-          |       |   -- this is a SELECT                             +
-          |       |   PERFORM 'hello world'::TEXT;                    +
+ t        |     1 | DO LANGUAGE plpgsql $$                             +
+          |       | BEGIN                                              +
+          |       |   -- this is a SELECT                              +
+          |       |   PERFORM 'hello world'::TEXT;                     +
           |       | END; $$
  f        |     1 | SELECT $1::TEXT
- t        |     1 | SELECT pg_stat_statements_reset() IS NOT NULL AS t
- t        |     1 | SET pg_stat_statements.track = $1
+ t        |     1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
+ t        |     1 | SET edb_stat_statements.track = $1
 (7 rows)
 
 -- Procedure with multiple utility statements.
 CREATE OR REPLACE PROCEDURE proc_with_utility_stmt()
 LANGUAGE SQL
 AS $$
-  SHOW pg_stat_statements.track;
-  show pg_stat_statements.track;
-  SHOW pg_stat_statements.track_utility;
+  SHOW edb_stat_statements.track;
+  show edb_stat_statements.track;
+  SHOW edb_stat_statements.track_utility;
 $$;
-SET pg_stat_statements.track_utility = TRUE;
+SET edb_stat_statements.track_utility = TRUE;
 -- all-level tracking.
-SET pg_stat_statements.track = 'all';
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SET edb_stat_statements.track = 'all';
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
 (1 row)
 
 CALL proc_with_utility_stmt();
-SELECT toplevel, calls, query FROM pg_stat_statements
+SELECT toplevel, calls, query FROM edb_stat_statements
   ORDER BY query COLLATE "C", toplevel;
- toplevel | calls |                       query                        
-----------+-------+----------------------------------------------------
+ toplevel | calls |                        query                        
+----------+-------+-----------------------------------------------------
  t        |     1 | CALL proc_with_utility_stmt()
- t        |     1 | SELECT pg_stat_statements_reset() IS NOT NULL AS t
- f        |     2 | SHOW pg_stat_statements.track
- f        |     1 | SHOW pg_stat_statements.track_utility
+ t        |     1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
+ f        |     2 | SHOW edb_stat_statements.track
+ f        |     1 | SHOW edb_stat_statements.track_utility
 (4 rows)
 
 -- top-level tracking.
-SET pg_stat_statements.track = 'top';
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SET edb_stat_statements.track = 'top';
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
 (1 row)
 
 CALL proc_with_utility_stmt();
-SELECT toplevel, calls, query FROM pg_stat_statements
+SELECT toplevel, calls, query FROM edb_stat_statements
   ORDER BY query COLLATE "C", toplevel;
- toplevel | calls |                       query                        
-----------+-------+----------------------------------------------------
+ toplevel | calls |                        query                        
+----------+-------+-----------------------------------------------------
  t        |     1 | CALL proc_with_utility_stmt()
- t        |     1 | SELECT pg_stat_statements_reset() IS NOT NULL AS t
+ t        |     1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
 (2 rows)
 
 -- DO block - top-level tracking without utility.
-SET pg_stat_statements.track = 'top';
-SET pg_stat_statements.track_utility = FALSE;
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SET edb_stat_statements.track = 'top';
+SET edb_stat_statements.track_utility = FALSE;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
@@ -131,17 +131,17 @@ BEGIN
   -- this is a SELECT
   PERFORM 'hello world'::TEXT;
 END; $$;
-SELECT toplevel, calls, query FROM pg_stat_statements
+SELECT toplevel, calls, query FROM edb_stat_statements
   ORDER BY query COLLATE "C", toplevel;
- toplevel | calls |                       query                        
-----------+-------+----------------------------------------------------
+ toplevel | calls |                        query                        
+----------+-------+-----------------------------------------------------
  t        |     1 | DELETE FROM stats_track_tab
- t        |     1 | SELECT pg_stat_statements_reset() IS NOT NULL AS t
+ t        |     1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
 (2 rows)
 
 -- DO block - all-level tracking without utility.
-SET pg_stat_statements.track = 'all';
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SET edb_stat_statements.track = 'all';
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
@@ -157,20 +157,20 @@ BEGIN
   -- this is a SELECT
   PERFORM 'hello world'::TEXT;
 END; $$;
-SELECT toplevel, calls, query FROM pg_stat_statements
+SELECT toplevel, calls, query FROM edb_stat_statements
   ORDER BY query COLLATE "C", toplevel;
- toplevel | calls |                       query                        
-----------+-------+----------------------------------------------------
+ toplevel | calls |                        query                        
+----------+-------+-----------------------------------------------------
  f        |     1 | DELETE FROM stats_track_tab
  t        |     1 | DELETE FROM stats_track_tab
  f        |     1 | SELECT $1::TEXT
- t        |     1 | SELECT pg_stat_statements_reset() IS NOT NULL AS t
+ t        |     1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
 (4 rows)
 
 -- PL/pgSQL function - top-level tracking.
-SET pg_stat_statements.track = 'top';
-SET pg_stat_statements.track_utility = FALSE;
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SET edb_stat_statements.track = 'top';
+SET edb_stat_statements.track_utility = FALSE;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
@@ -210,12 +210,12 @@ SELECT PLUS_ONE(10);
        11
 (1 row)
 
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
- calls | rows |                       query                        
--------+------+----------------------------------------------------
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+ calls | rows |                        query                        
+-------+------+-----------------------------------------------------
      2 |    2 | SELECT PLUS_ONE($1)
      2 |    2 | SELECT PLUS_TWO($1)
-     1 |    1 | SELECT pg_stat_statements_reset() IS NOT NULL AS t
+     1 |    1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
 (3 rows)
 
 -- immutable SQL function --- can be executed at plan time
@@ -233,19 +233,19 @@ SELECT PLUS_THREE(10);
          13
 (1 row)
 
-SELECT toplevel, calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
- toplevel | calls | rows |                                    query                                     
-----------+-------+------+------------------------------------------------------------------------------
+SELECT toplevel, calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+ toplevel | calls | rows |                                     query                                     
+----------+-------+------+-------------------------------------------------------------------------------
  t        |     2 |    2 | SELECT PLUS_ONE($1)
  t        |     2 |    2 | SELECT PLUS_THREE($1)
  t        |     2 |    2 | SELECT PLUS_TWO($1)
- t        |     1 |    3 | SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C"
- t        |     1 |    1 | SELECT pg_stat_statements_reset() IS NOT NULL AS t
+ t        |     1 |    3 | SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C"
+ t        |     1 |    1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
 (5 rows)
 
 -- PL/pgSQL function - all-level tracking.
-SET pg_stat_statements.track = 'all';
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SET edb_stat_statements.track = 'all';
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
@@ -290,14 +290,14 @@ SELECT PLUS_ONE(1);
         2
 (1 row)
 
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
- calls | rows |                       query                        
--------+------+----------------------------------------------------
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+ calls | rows |                        query                        
+-------+------+-----------------------------------------------------
      2 |    2 | SELECT (i + $2 + $3)::INTEGER
      2 |    2 | SELECT (i + $2)::INTEGER LIMIT $3
      2 |    2 | SELECT PLUS_ONE($1)
      2 |    2 | SELECT PLUS_TWO($1)
-     1 |    1 | SELECT pg_stat_statements_reset() IS NOT NULL AS t
+     1 |    1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
 (5 rows)
 
 -- immutable SQL function --- can be executed at plan time
@@ -315,24 +315,24 @@ SELECT PLUS_THREE(10);
          13
 (1 row)
 
-SELECT toplevel, calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
- toplevel | calls | rows |                                    query                                     
-----------+-------+------+------------------------------------------------------------------------------
+SELECT toplevel, calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+ toplevel | calls | rows |                                     query                                     
+----------+-------+------+-------------------------------------------------------------------------------
  f        |     2 |    2 | SELECT (i + $2 + $3)::INTEGER
  f        |     2 |    2 | SELECT (i + $2)::INTEGER LIMIT $3
  t        |     2 |    2 | SELECT PLUS_ONE($1)
  t        |     2 |    2 | SELECT PLUS_THREE($1)
  t        |     2 |    2 | SELECT PLUS_TWO($1)
- t        |     1 |    5 | SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C"
+ t        |     1 |    5 | SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C"
+ t        |     1 |    1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
  f        |     2 |    2 | SELECT i + $2 LIMIT $3
- t        |     1 |    1 | SELECT pg_stat_statements_reset() IS NOT NULL AS t
 (8 rows)
 
 --
--- pg_stat_statements.track = none
+-- edb_stat_statements.track = none
 --
-SET pg_stat_statements.track = 'none';
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SET edb_stat_statements.track = 'none';
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t
@@ -350,12 +350,12 @@ SELECT 1 + 1 AS "two";
    2
 (1 row)
 
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
  calls | rows | query 
 -------+------+-------
 (0 rows)
 
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t

@@ -3,9 +3,9 @@
 --
 
 CREATE EXTENSION edb_stat_statements;
-SET pg_stat_statements.track_utility = FALSE;
-SET pg_stat_statements.track_planning = TRUE;
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SET edb_stat_statements.track_utility = FALSE;
+SET edb_stat_statements.track_planning = TRUE;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 --
 -- simple and compound statements
@@ -55,8 +55,8 @@ PREPARE pgss_test (int) AS SELECT $1, 'test' LIMIT 1;
 EXECUTE pgss_test(1);
 DEALLOCATE pgss_test;
 
-SELECT calls, rows, query FROM pg_stat_statements ORDER BY query COLLATE "C";
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 --
 -- queries with locking clauses
@@ -64,7 +64,7 @@ SELECT pg_stat_statements_reset() IS NOT NULL AS t;
 CREATE TABLE pgss_a (id integer PRIMARY KEY);
 CREATE TABLE pgss_b (id integer PRIMARY KEY, a_id integer REFERENCES pgss_a);
 
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- control query
 SELECT * FROM pgss_a JOIN pgss_b ON pgss_b.a_id = pgss_a.id;
@@ -85,15 +85,15 @@ SELECT * FROM pgss_a JOIN pgss_b ON pgss_b.a_id = pgss_a.id FOR KEY SHARE;
 SELECT * FROM pgss_a JOIN pgss_b ON pgss_b.a_id = pgss_a.id FOR UPDATE NOWAIT;
 SELECT * FROM pgss_a JOIN pgss_b ON pgss_b.a_id = pgss_a.id FOR UPDATE SKIP LOCKED;
 
-SELECT calls, query FROM pg_stat_statements ORDER BY query COLLATE "C";
+SELECT calls, query FROM edb_stat_statements ORDER BY query COLLATE "C";
 
 DROP TABLE pgss_a, pgss_b CASCADE;
 
 --
--- access to pg_stat_statements_info view
+-- access to edb_stat_statements_info view
 --
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
-SELECT dealloc FROM pg_stat_statements_info;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
+SELECT dealloc FROM edb_stat_statements_info;
 
 -- FROM [ONLY]
 CREATE TABLE tbl_inh(id integer);
@@ -103,7 +103,7 @@ INSERT INTO tbl_inh_1 SELECT 1;
 SELECT * FROM tbl_inh;
 SELECT * FROM ONLY tbl_inh;
 
-SELECT COUNT(*) FROM pg_stat_statements WHERE query LIKE '%FROM%tbl_inh%';
+SELECT COUNT(*) FROM edb_stat_statements WHERE query LIKE '%FROM%tbl_inh%';
 
 -- WITH TIES
 CREATE TABLE limitoption AS SELECT 0 AS val FROM generate_series(1, 10);
@@ -119,7 +119,7 @@ WHERE val < 2
 ORDER BY val
 FETCH FIRST 2 ROW ONLY;
 
-SELECT COUNT(*) FROM pg_stat_statements WHERE query LIKE '%FETCH FIRST%';
+SELECT COUNT(*) FROM edb_stat_statements WHERE query LIKE '%FETCH FIRST%';
 
 -- GROUP BY [DISTINCT]
 SELECT a, b, c
@@ -131,7 +131,7 @@ FROM (VALUES (1, 2, 3), (4, NULL, 6), (7, 8, 9)) AS t (a, b, c)
 GROUP BY DISTINCT ROLLUP(a, b), rollup(a, c)
 ORDER BY a, b, c;
 
-SELECT COUNT(*) FROM pg_stat_statements WHERE query LIKE '%GROUP BY%ROLLUP%';
+SELECT COUNT(*) FROM edb_stat_statements WHERE query LIKE '%GROUP BY%ROLLUP%';
 
 -- GROUPING SET agglevelsup
 SELECT (
@@ -145,5 +145,5 @@ SELECT (
   ) FROM (VALUES (1,2)) v1(a,b) GROUP BY (a,b)
 ) FROM (VALUES(6,7)) v3(e,f) GROUP BY ROLLUP(e,f);
 
-SELECT COUNT(*) FROM pg_stat_statements WHERE query LIKE '%SELECT GROUPING%';
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT COUNT(*) FROM edb_stat_statements WHERE query LIKE '%SELECT GROUPING%';
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;

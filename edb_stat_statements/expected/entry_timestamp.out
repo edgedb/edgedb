@@ -2,7 +2,7 @@
 -- statement timestamps
 --
 -- planning time is needed during tests
-SET pg_stat_statements.track_planning = TRUE;
+SET edb_stat_statements.track_planning = TRUE;
 SELECT 1 AS "STMTTS1";
  STMTTS1 
 ---------
@@ -16,7 +16,7 @@ SELECT 1,2 AS "STMTTS2";
         1 |       2
 (1 row)
 
-SELECT stats_since >= :'ref_ts', count(*) FROM pg_stat_statements
+SELECT stats_since >= :'ref_ts', count(*) FROM edb_stat_statements
 WHERE query LIKE '%STMTTS%'
 GROUP BY stats_since >= :'ref_ts'
 ORDER BY stats_since >= :'ref_ts';
@@ -41,7 +41,7 @@ SELECT
   count(*) FILTER (
     WHERE stats_since >= :'ref_ts'
   ) as stats_since_after_ref
-FROM pg_stat_statements
+FROM edb_stat_statements
 WHERE query LIKE '%STMTTS%';
  total | minmax_plan_zero | minmax_exec_zero | minmax_stats_since_after_ref | stats_since_after_ref 
 -------+------------------+------------------+------------------------------+-----------------------
@@ -49,8 +49,8 @@ WHERE query LIKE '%STMTTS%';
 (1 row)
 
 -- Perform single min/max reset
-SELECT pg_stat_statements_reset(0, 0, queryid, true) AS minmax_reset_ts
-FROM pg_stat_statements
+SELECT edb_stat_statements_reset(0, 0, queryid, true) AS minmax_reset_ts
+FROM edb_stat_statements
 WHERE query LIKE '%STMTTS1%' \gset
 -- check
 SELECT
@@ -67,7 +67,7 @@ SELECT
   count(*) FILTER (
     WHERE stats_since >= :'ref_ts'
   ) as stats_since_after_ref
-FROM pg_stat_statements
+FROM edb_stat_statements
 WHERE query LIKE '%STMTTS%';
  total | minmax_plan_zero | minmax_exec_zero | minmax_stats_since_after_ref | stats_since_after_ref 
 -------+------------------+------------------+------------------------------+-----------------------
@@ -77,7 +77,7 @@ WHERE query LIKE '%STMTTS%';
 -- check minmax reset timestamps
 SELECT
 query, minmax_stats_since = :'minmax_reset_ts' AS reset_ts_match
-FROM pg_stat_statements
+FROM edb_stat_statements
 WHERE query LIKE '%STMTTS%'
 ORDER BY query COLLATE "C";
            query           | reset_ts_match 
@@ -89,14 +89,14 @@ ORDER BY query COLLATE "C";
 -- check that minmax reset does not set stats_reset
 SELECT
 stats_reset = :'minmax_reset_ts' AS stats_reset_ts_match
-FROM pg_stat_statements_info;
+FROM edb_stat_statements_info;
  stats_reset_ts_match 
 ----------------------
  f
 (1 row)
 
 -- Perform common min/max reset
-SELECT pg_stat_statements_reset(0, 0, 0, true) AS minmax_reset_ts \gset
+SELECT edb_stat_statements_reset(0, 0, 0, true) AS minmax_reset_ts \gset
 -- check again
 SELECT
   count(*) as total,
@@ -115,7 +115,7 @@ SELECT
   count(*) FILTER (
     WHERE stats_since >= :'ref_ts'
   ) as stats_since_after_ref
-FROM pg_stat_statements
+FROM edb_stat_statements
 WHERE query LIKE '%STMTTS%';
  total | minmax_plan_zero | minmax_exec_zero | minmax_ts_after_ref | minmax_ts_match | stats_since_after_ref 
 -------+------------------+------------------+---------------------+-----------------+-----------------------
@@ -143,7 +143,7 @@ SELECT
   count(*) FILTER (
     WHERE stats_since >= :'ref_ts'
   ) as stats_since_after_ref
-FROM pg_stat_statements
+FROM edb_stat_statements
 WHERE query LIKE '%STMTTS%';
  total | minmax_exec_zero | minmax_ts_after_ref | stats_since_after_ref 
 -------+------------------+---------------------+-----------------------
@@ -151,7 +151,7 @@ WHERE query LIKE '%STMTTS%';
 (1 row)
 
 -- Cleanup
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
  t

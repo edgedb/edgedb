@@ -3,12 +3,12 @@
 --
 
 -- planning time is needed during tests
-SET pg_stat_statements.track_planning = TRUE;
+SET edb_stat_statements.track_planning = TRUE;
 
 SELECT 1 AS "STMTTS1";
 SELECT now() AS ref_ts \gset
 SELECT 1,2 AS "STMTTS2";
-SELECT stats_since >= :'ref_ts', count(*) FROM pg_stat_statements
+SELECT stats_since >= :'ref_ts', count(*) FROM edb_stat_statements
 WHERE query LIKE '%STMTTS%'
 GROUP BY stats_since >= :'ref_ts'
 ORDER BY stats_since >= :'ref_ts';
@@ -28,12 +28,12 @@ SELECT
   count(*) FILTER (
     WHERE stats_since >= :'ref_ts'
   ) as stats_since_after_ref
-FROM pg_stat_statements
+FROM edb_stat_statements
 WHERE query LIKE '%STMTTS%';
 
 -- Perform single min/max reset
-SELECT pg_stat_statements_reset(0, 0, queryid, true) AS minmax_reset_ts
-FROM pg_stat_statements
+SELECT edb_stat_statements_reset(0, 0, queryid, true) AS minmax_reset_ts
+FROM edb_stat_statements
 WHERE query LIKE '%STMTTS1%' \gset
 
 -- check
@@ -51,23 +51,23 @@ SELECT
   count(*) FILTER (
     WHERE stats_since >= :'ref_ts'
   ) as stats_since_after_ref
-FROM pg_stat_statements
+FROM edb_stat_statements
 WHERE query LIKE '%STMTTS%';
 
 -- check minmax reset timestamps
 SELECT
 query, minmax_stats_since = :'minmax_reset_ts' AS reset_ts_match
-FROM pg_stat_statements
+FROM edb_stat_statements
 WHERE query LIKE '%STMTTS%'
 ORDER BY query COLLATE "C";
 
 -- check that minmax reset does not set stats_reset
 SELECT
 stats_reset = :'minmax_reset_ts' AS stats_reset_ts_match
-FROM pg_stat_statements_info;
+FROM edb_stat_statements_info;
 
 -- Perform common min/max reset
-SELECT pg_stat_statements_reset(0, 0, 0, true) AS minmax_reset_ts \gset
+SELECT edb_stat_statements_reset(0, 0, 0, true) AS minmax_reset_ts \gset
 
 -- check again
 SELECT
@@ -87,7 +87,7 @@ SELECT
   count(*) FILTER (
     WHERE stats_since >= :'ref_ts'
   ) as stats_since_after_ref
-FROM pg_stat_statements
+FROM edb_stat_statements
 WHERE query LIKE '%STMTTS%';
 
 -- Execute first query once more to check stats update
@@ -107,8 +107,8 @@ SELECT
   count(*) FILTER (
     WHERE stats_since >= :'ref_ts'
   ) as stats_since_after_ref
-FROM pg_stat_statements
+FROM edb_stat_statements
 WHERE query LIKE '%STMTTS%';
 
 -- Cleanup
-SELECT pg_stat_statements_reset() IS NOT NULL AS t;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
