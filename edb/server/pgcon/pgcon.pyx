@@ -1789,9 +1789,9 @@ cdef class PGConnection:
                     external_params: int64_t = 0
                     if action.query_unit.params:
                         for index, param in enumerate(action.query_unit.params):
-                            external_params = index + 1
                             if not isinstance(param, dbstate.SQLParamExternal):
                                 break
+                            external_params = index + 1
 
                     msg_buf.write_int16(external_params)
                     msg_buf.write_bytes(data_internal[0:external_params * 4])

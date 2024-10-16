@@ -1638,9 +1638,9 @@ cdef WriteBuffer remap_arguments(
 
         param_count_external = 0
         for i, param in enumerate(params):
-            param_count_external = i + 1
             if not isinstance(param, dbstate.SQLParamExternal):
                 break
+            param_count_external = i + 1
         if param_count_external != arg_count_external:
             raise pgerror.new(
                 pgerror.ERROR_PROTOCOL_VIOLATION,
