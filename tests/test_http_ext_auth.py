@@ -3539,7 +3539,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         ]
 
                 self.assertEqual(len(requests_for_webhook), 1)
-                event_data = json.loads(requests_for_webhook[0]["body"])
+                webhook_request = requests_for_webhook[0]
+                maybe_json_body = webhook_request.body
+                self.assertIsNotNone(maybe_json_body)
+                assert maybe_json_body is not None
+                event_data = json.loads(maybe_json_body)
                 self.assertEqual(
                     event_data["event_type"],
                     "IdentityAuthenticated",
