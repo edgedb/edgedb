@@ -1,7 +1,7 @@
 use futures::future::poll_fn;
 use pyo3::{exceptions::PyException, prelude::*, types::PyByteArray};
 use reqwest::Method;
-use scopeguard::{defer, ScopeGuard};
+use scopeguard::ScopeGuard;
 use serde_pickle::SerOptions;
 use std::{
     cell::RefCell, collections::HashMap, os::fd::IntoRawFd, pin::Pin, rc::Rc, sync::Mutex, thread,
@@ -132,9 +132,12 @@ async fn request(
     Ok((status, body, headers))
 }
 
+#[derive(Debug, Clone, Copy)]
 struct PermitCount {
     active: usize,
     capacity: usize,
+    #[cfg(debug_assertions)]
+    waiting: usize,
 }
 
 /// By default, the [`Semaphore`] does not allow for releasing permits that are currently
@@ -151,6 +154,8 @@ impl PermitManager {
             counts: Mutex::new(PermitCount {
                 active: 0,
                 capacity,
+                #[cfg(debug_assertions)]
+                waiting: 0,
             }),
             semaphore: Semaphore::new(capacity),
         }
@@ -160,9 +165,21 @@ impl PermitManager {
         &'a self,
     ) -> Result<ScopeGuard<SemaphorePermit<'a>, impl FnOnce(SemaphorePermit<'a>) + 'a>, AcquireError>
     {
+        #[cfg(debug_assertions)]
+        {
+            let mut counts = self.counts.lock().unwrap();
+            counts.waiting += 1;
+            drop(counts);
+        }
         let permit = self.semaphore.acquire().await?;
         let mut counts = self.counts.lock().unwrap();
         counts.active += 1;
+        #[cfg(debug_assertions)]
+        {
+            counts.waiting -= 1;
+        }
+        drop(counts);
+        self.assert_valid();
         Ok(scopeguard::guard(permit, |permit| self.release(permit)))
     }
 
@@ -176,6 +193,8 @@ impl PermitManager {
             drop(permit);
         }
         counts.active -= 1;
+        drop(counts);
+        self.assert_valid();
     }
 
     fn update_limit(&self, new_limit: usize) {
@@ -184,6 +203,8 @@ impl PermitManager {
         counts.capacity = new_limit;
 
         if new_limit > old_capacity {
+            // We may be oversubscribed on permits right now. If so, we want to add
+            // enough permits to cover the current deficit only.
             let added = new_limit.saturating_sub(counts.active.max(old_capacity));
             self.semaphore.add_permits(added);
         } else if new_limit < old_capacity {
@@ -192,6 +213,9 @@ impl PermitManager {
             let removed = old_capacity - new_limit;
             self.semaphore.forget_permits(removed);
         }
+
+        drop(counts);
+        self.assert_valid();
     }
 
     #[cfg(test)]
@@ -204,6 +228,27 @@ impl PermitManager {
     fn capacity(&self) -> usize {
         let counts = self.counts.lock().unwrap();
         counts.capacity
+    }
+
+    fn assert_valid(&self) {
+        #[cfg(debug_assertions)]
+        {
+            let count_lock = self.counts.lock().unwrap();
+            let available = self.semaphore.available_permits();
+            let counts = *count_lock;
+            drop(count_lock);
+
+            if counts.active > counts.capacity {
+                // Oversubscribed
+                assert!(available == 0);
+            } else {
+                // Not oversubscribed, but we can only validate these if nothing is waiting
+                if counts.waiting == 0 {
+                    assert!(available + counts.waiting == counts.capacity - counts.active, "{} + {} == {} - {}", available, counts.waiting, counts.capacity, counts.active);
+                    assert!(counts.active <= counts.capacity);
+                }
+            }
+        }
     }
 }
 
@@ -433,7 +478,7 @@ mod tests {
 
         // Check that all 5 permits were issued
         assert_eq!(permit_count.load(Ordering::SeqCst), 5);
-        assert_eq!(manager.active(), 5);
+        assert_eq!(manager.active(), 0);
         assert_eq!(manager.capacity(), 5);
     }
 
