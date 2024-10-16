@@ -517,12 +517,7 @@ jobs:
 
         # Validate Rust extensions
         for ext in ./build/rust_extensions/edb/*.so; do
-          ldd "$ext" || exit 1
-        done
-
-        # Validate Cython extensions
-        for ext in ./build/extensions/edb/*.so; do
-          ldd "$ext" || exit 1
+          ldd "$ext" > /dev/null || exit 1
         done
 
         # Validate PostgreSQL
@@ -768,12 +763,7 @@ jobs:
 
         # Validate Rust extensions
         for ext in ./build/rust_extensions/edb/*.so; do
-          ldd "$ext" || exit 1
-        done
-
-        # Validate Cython extensions
-        for ext in ./build/extensions/edb/*.so; do
-          ldd "$ext" || exit 1
+          ldd "$ext" > /dev/null || exit 1
         done
 
         # Validate PostgreSQL
@@ -1067,12 +1057,7 @@ jobs:
 
         # Validate Rust extensions
         for ext in ./build/rust_extensions/edb/*.so; do
-          ldd "$ext" || exit 1
-        done
-
-        # Validate Cython extensions
-        for ext in ./build/extensions/edb/*.so; do
-          ldd "$ext" || exit 1
+          ldd "$ext" > /dev/null || exit 1
         done
 
         # Validate PostgreSQL
@@ -1332,12 +1317,7 @@ jobs:
 
         # Validate Rust extensions
         for ext in ./build/rust_extensions/edb/*.so; do
-          ldd "$ext" || exit 1
-        done
-
-        # Validate Cython extensions
-        for ext in ./build/extensions/edb/*.so; do
-          ldd "$ext" || exit 1
+          ldd "$ext" > /dev/null || exit 1
         done
 
         # Validate PostgreSQL
@@ -1585,12 +1565,7 @@ jobs:
 
         # Validate Rust extensions
         for ext in ./build/rust_extensions/edb/*.so; do
-          ldd "$ext" || exit 1
-        done
-
-        # Validate Cython extensions
-        for ext in ./build/extensions/edb/*.so; do
-          ldd "$ext" || exit 1
+          ldd "$ext" > /dev/null || exit 1
         done
 
         # Validate PostgreSQL
