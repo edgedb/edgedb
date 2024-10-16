@@ -128,6 +128,10 @@ class Router:
             else None
         )
 
+        logger.info(
+            f"Handling incoming HTTP request: /ext/auth/{'/'.join(args)}"
+        )
+
         try:
             match args:
                 # API routes
@@ -365,8 +369,12 @@ class Router:
             params = {
                 "error": error,
             }
+            error_str = error
             if error_description is not None:
                 params["error_description"] = error_description
+                error_str += f": {error_description}"
+
+            logger.debug(f"OAuth provider returned an error: {error_str}")
             response.custom_headers["Location"] = util.join_url_params(
                 redirect_to, params
             )
@@ -428,6 +436,9 @@ class Router:
             ),
             {"code": pkce_code, "provider": provider_name},
         )
+        logger.info(
+            f"OAuth callback successful: identity_id={identity.id}, new_identity={new_identity}"
+        )
         response.status = http.HTTPStatus.FOUND
         response.custom_headers["Location"] = new_url
 
@@ -478,6 +489,9 @@ class Router:
                 )
             )
             session_token = self._make_session_token(pkce_object.identity_id)
+            logger.info(
+                f"Token exchange successful: identity_id={pkce_object.identity_id}"
+            )
             response.status = http.HTTPStatus.OK
             response.content_type = b"application/json"
             response.body = json.dumps(
@@ -566,44 +580,49 @@ class Router:
                 verify_url=verify_url,
             )
 
-            now_iso8601 = datetime.datetime.now(
-                datetime.timezone.utc
-            ).isoformat()
+            if require_verification:
+                response_dict = {
+                    "verification_email_sent_at": datetime.datetime.now(
+                        datetime.timezone.utc
+                    ).isoformat()
+                }
+            else:
+                if pkce_code is None:
+                    raise errors.PKCECreationFailed
+                response_dict = {
+                    "code": pkce_code,
+                    "provider": register_provider_name,
+                }
+
+            logger.info(
+                f"Identity created: identity_id={identity.id}, "
+                f"pkce_id={pkce_code!r}"
+            )
+
             if maybe_redirect_to is not None:
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = (
-                    {"verification_email_sent_at": now_iso8601}
-                    if require_verification
-                    else {
-                        "code": cast(str, pkce_code),
-                        "provider": register_provider_name,
-                    }
-                )
                 response.custom_headers["Location"] = util.join_url_params(
-                    maybe_redirect_to, redirect_params
+                    maybe_redirect_to, response_dict
                 )
             else:
                 response.status = http.HTTPStatus.CREATED
                 response.content_type = b"application/json"
-                if require_verification:
-                    response.body = json.dumps(
-                        {"verification_email_sent_at": (now_iso8601)}
-                    ).encode()
-                else:
-                    if pkce_code is None:
-                        raise errors.PKCECreationFailed
-                    response.body = json.dumps(
-                        {"code": pkce_code, "provider": register_provider_name}
-                    ).encode()
+                response.body = json.dumps(response_dict).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
                 "redirect_on_failure", maybe_redirect_to
             )
             if redirect_on_failure is not None:
                 response.status = http.HTTPStatus.FOUND
+                error_message = str(ex)
+                email = data.get("email", "")
+                logger.error(
+                    f"Error creating identity: error={error_message}, "
+                    f"email={email}"
+                )
                 redirect_params = {
-                    "error": str(ex),
-                    "email": data.get('email', ''),
+                    "error": error_message,
+                    "email": email,
                 }
                 response.custom_headers["Location"] = util.join_url_params(
                     redirect_on_failure, redirect_params
@@ -618,13 +637,12 @@ class Router:
     ) -> None:
         data = self._get_data_from_request(request)
 
-        authenticate_provider_name = data.get("provider")
-        if authenticate_provider_name is None:
-            raise errors.InvalidData('Missing "provider" in register request')
-        maybe_challenge = data.get("challenge")
-        if maybe_challenge is None:
-            raise errors.InvalidData('Missing "challenge" in register request')
-        await pkce.create(self.db, maybe_challenge)
+        _check_keyset(data, {"provider", "challenge", "email", "password"})
+        challenge = data["challenge"]
+        email = data["email"]
+        password = data["password"]
+
+        await pkce.create(self.db, challenge)
 
         maybe_redirect_to = data.get("redirect_to")
         if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
@@ -634,7 +652,9 @@ class Router:
 
         email_password_client = email_password.Client(db=self.db)
         try:
-            local_identity = await email_password_client.authenticate(data)
+            local_identity = await email_password_client.authenticate(
+                email, password
+            )
             verified_at = (
                 await email_password_client.get_verified_by_identity_id(
                     identity_id=local_identity.id
@@ -647,24 +667,22 @@ class Router:
                 raise errors.VerificationRequired()
 
             pkce_code = await pkce.link_identity_challenge(
-                self.db, local_identity.id, maybe_challenge
+                self.db, local_identity.id, challenge
+            )
+            response_dict = {"code": pkce_code}
+            logger.info(
+                f"Authentication successful: identity_id={local_identity.id}, "
+                f"pkce_id={pkce_code}"
             )
             if maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = {
-                    "code": pkce_code,
-                }
                 response.custom_headers["Location"] = util.join_url_params(
-                    maybe_redirect_to, redirect_params
+                    maybe_redirect_to, response_dict
                 )
             else:
                 response.status = http.HTTPStatus.OK
                 response.content_type = b"application/json"
-                response.body = json.dumps(
-                    {
-                        "code": pkce_code,
-                    }
-                ).encode()
+                response.body = json.dumps(response_dict).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
                 "redirect_on_failure", maybe_redirect_to
@@ -674,10 +692,16 @@ class Router:
                     raise errors.InvalidData(
                         "Redirect URL does not match any allowed URLs.",
                     )
+                error_message = str(ex)
+                email = data.get("email", "")
+                logger.error(
+                    f"Error authenticating: error={error_message}, "
+                    f"email={email}"
+                )
                 response.status = http.HTTPStatus.FOUND
                 redirect_params = {
-                    "error": str(ex),
-                    "email": data.get('email', ''),
+                    "error": error_message,
+                    "email": email,
                 }
                 response.custom_headers["Location"] = util.join_url_params(
                     redirect_on_failure, redirect_params
@@ -719,16 +743,18 @@ class Router:
         except errors.VerificationTokenExpired:
             response.status = http.HTTPStatus.FORBIDDEN
             response.content_type = b"application/json"
-            response.body = json.dumps(
-                {
-                    "message": (
-                        "The 'iat' claim in verification token is older"
-                        " than 24 hours"
-                    )
-                }
-            ).encode()
+            error_message = (
+                "The 'iat' claim in verification token is older than 24 hours"
+            )
+            logger.error(f"Verification token expired: {error_message}")
+            response.body = json.dumps({"message": error_message}).encode()
             return
 
+        logger.info(
+            f"Email verified: identity_id={identity_id}, "
+            f"email_factor_id={email_factor.id}, "
+            f"email={email_factor.email}"
+        )
         match (maybe_challenge, maybe_redirect_to):
             case (str(challenge), str(redirect_to)):
                 await pkce.create(self.db, challenge)
@@ -819,8 +845,27 @@ class Router:
                     )
 
         if email_factor is None:
+            match local_client:
+                case webauthn.Client():
+                    logger.debug(
+                        f"Failed to find email factor for resend verification "
+                        f"email: provider={provider_name}, "
+                        f"webauthn_credential_id={request_data.get('credential_id')}"
+                    )
+                case email_password.Client():
+                    logger.debug(
+                        f"Failed to find email factor for resend verification "
+                        f"email: provider={provider_name}, "
+                        f"email={request_data.get('email')}"
+                    )
             await auth_emails.send_fake_email(self.tenant)
         else:
+            logger.info(
+                f"Resending verification email: provider={provider_name}, "
+                f"identity_id={email_factor.identity.id}, "
+                f"email_factor_id={email_factor.id}, "
+                f"email={email_factor.email}"
+            )
             verification_token = self._make_verification_token(
                 identity_id=email_factor.identity.id,
                 verify_url=verify_url,
@@ -853,6 +898,7 @@ class Router:
         data = self._get_data_from_request(request)
 
         _check_keyset(data, {"provider", "email", "reset_url", "challenge"})
+        email = data["email"]
         email_password_client = email_password.Client(db=self.db)
         if not self._is_url_allowed(data["reset_url"]):
             raise errors.InvalidData(
@@ -870,7 +916,7 @@ class Router:
                     email_factor,
                     secret,
                 ) = await email_password_client.get_email_factor_and_secret(
-                    data
+                    email
                 )
                 identity_id = email_factor.identity.id
 
@@ -898,15 +944,19 @@ class Router:
                 await auth_emails.send_password_reset_email(
                     db=self.db,
                     tenant=self.tenant,
-                    to_addr=data["email"],
+                    to_addr=email,
                     reset_url=reset_url,
                     test_mode=self.test_mode,
                 )
             except errors.NoIdentityFound:
+                logger.debug(
+                    f"Failed to find identity for send reset email: "
+                    f"email={email}"
+                )
                 await auth_emails.send_fake_email(self.tenant)
 
             return_data = {
-                "email_sent": data['email'],
+                "email_sent": email,
             }
 
             if maybe_redirect_to:
@@ -934,10 +984,15 @@ class Router:
                     raise errors.InvalidData(
                         "Redirect URL does not match any allowed URLs.",
                     )
+                error_message = str(ex)
+                logger.error(
+                    f"Error sending reset email: error={error_message}, "
+                    f"email={email}"
+                )
                 response.status = http.HTTPStatus.FOUND
                 redirect_params = {
-                    "error": str(ex),
-                    "email": data.get('email', ''),
+                    "error": error_message,
+                    "email": email,
                 }
                 response.custom_headers["Location"] = util.join_url_params(
                     redirect_on_failure, redirect_params
@@ -952,7 +1007,9 @@ class Router:
     ) -> None:
         data = self._get_data_from_request(request)
 
-        _check_keyset(data, {"provider", "reset_token"})
+        _check_keyset(data, {"provider", "reset_token", "password"})
+        reset_token = data['reset_token']
+        password = data['password']
         email_password_client = email_password.Client(db=self.db)
 
         maybe_redirect_to = data.get("redirect_to")
@@ -962,29 +1019,32 @@ class Router:
             )
 
         try:
-            reset_token = data['reset_token']
 
             identity_id, secret, challenge = self._get_data_from_reset_token(
                 reset_token
             )
 
             await email_password_client.update_password(
-                identity_id, secret, data
+                identity_id, secret, password
             )
             await pkce.create(self.db, challenge)
             code = await pkce.link_identity_challenge(
                 self.db, identity_id, challenge
             )
+            response_dict = {"code": code}
+            logger.info(
+                f"Reset password: identity_id={identity_id}, pkce_id={code}"
+            )
 
             if maybe_redirect_to:
                 response.status = http.HTTPStatus.FOUND
                 response.custom_headers["Location"] = util.join_url_params(
-                    maybe_redirect_to, {"code": code}
+                    maybe_redirect_to, response_dict
                 )
             else:
                 response.status = http.HTTPStatus.OK
                 response.content_type = b"application/json"
-                response.body = json.dumps({"code": code}).encode()
+                response.body = json.dumps(response_dict).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
                 "redirect_on_failure", maybe_redirect_to
@@ -994,10 +1054,15 @@ class Router:
                     raise errors.InvalidData(
                         "Redirect URL does not match any allowed URLs.",
                     )
+                error_message = str(ex)
+                logger.error(
+                    f"Error resetting password: error={error_message}, "
+                    f"reset_token={reset_token}"
+                )
                 response.status = http.HTTPStatus.FOUND
                 redirect_params = {
-                    "error": str(ex),
-                    "reset_token": data.get('reset_token', ''),
+                    "error": error_message,
+                    "reset_token": reset_token,
                 }
                 response.custom_headers["Location"] = util.join_url_params(
                     redirect_on_failure, redirect_params
@@ -1087,6 +1152,10 @@ class Router:
                     magic_link_token=magic_link_token,
                 )
             )
+            logger.info(
+                f"Sending magic link: identity_id={email_factor.identity.id}, "
+                f"email={email}"
+            )
             await magic_link_client.send_magic_link(
                 email=email,
                 link_url=f"{self.base_path}/magic-link/authenticate",
@@ -1118,9 +1187,15 @@ class Router:
                 raise ex
 
             response.status = http.HTTPStatus.FOUND
+
+            error_message = str(ex)
+            logger.error(
+                f"Error sending magic link: error={error_message}, "
+                f"email={email}"
+            )
             redirect_params = {
-                "error": str(ex),
-                "email": data.get('email', ''),
+                "error": error_message,
+                "email": email,
             }
             response.custom_headers["Location"] = util.join_url_params(
                 redirect_on_failure, redirect_params
@@ -1132,8 +1207,6 @@ class Router:
         response: protocol.HttpResponse,
     ) -> None:
         data = self._get_data_from_request(request)
-
-        maybe_redirect_to = data.get("redirect_to")
 
         try:
             _check_keyset(
@@ -1160,6 +1233,7 @@ class Router:
                     "Error redirect URL does not match any allowed URLs.",
                 )
 
+            maybe_redirect_to = data.get("redirect_to")
             if maybe_redirect_to and not self._is_url_allowed(
                 maybe_redirect_to
             ):
@@ -1176,6 +1250,10 @@ class Router:
                 email
             )
             if email_factor is None:
+                logger.error(
+                    f"Cannot send magic link email: no email factor found for "
+                    f"email={email}"
+                )
                 await auth_emails.send_fake_email(self.tenant)
             else:
                 magic_link_token = magic_link_client.make_magic_link_token(
@@ -1198,6 +1276,10 @@ class Router:
                     link_url=f"{self.base_path}/magic-link/authenticate",
                     redirect_on_failure=redirect_on_failure,
                 )
+                logger.info(
+                    f"Sent magic link email: identity_id={email_factor.identity.id}, "
+                    f"email={email}"
+                )
 
             return_data = {
                 "email_sent": email,
@@ -1219,14 +1301,15 @@ class Router:
             if redirect_on_failure is None:
                 raise ex
             else:
-                if not self._is_url_allowed(redirect_on_failure):
-                    raise errors.InvalidData(
-                        "Redirect URL does not match any allowed URLs.",
-                    )
+                error_message = str(ex)
+                logger.error(
+                    f"Error sending magic link email: error={error_message}, "
+                    f"email={email}"
+                )
                 response.status = http.HTTPStatus.FOUND
                 redirect_params = {
-                    "error": str(ex),
-                    "email": data.get('email', ''),
+                    "error": error_message,
+                    "email": email,
                 }
                 response.custom_headers["Location"] = util.join_url_params(
                     redirect_on_failure, redirect_params
@@ -1276,8 +1359,13 @@ class Router:
                         "Redirect URL does not match any allowed URLs.",
                     )
                 response.status = http.HTTPStatus.FOUND
+                error_message = str(ex)
+                logger.error(
+                    f"Error authenticating magic link: error={error_message}, "
+                    f"token={token}"
+                )
                 redirect_params = {
-                    "error": str(ex),
+                    "error": error_message,
                 }
                 response.custom_headers["Location"] = util.join_url_params(
                     redirect_on_failure, redirect_params
@@ -1418,12 +1506,21 @@ class Router:
             response.body = json.dumps(
                 {"verification_email_sent_at": (now_iso8601)}
             ).encode()
+            logger.info(
+                f"Sent verification email: identity_id={identity_id}, "
+                f"email={email}"
+            )
         else:
             if pkce_code is None:
                 raise errors.PKCECreationFailed
             response.body = json.dumps(
                 {"code": pkce_code, "provider": provider_name}
             ).encode()
+            logger.info(
+                f"WebAuthn registration successful: identity_id={identity_id}, "
+                f"email={email}, "
+                f"pkce_id={pkce_code}"
+            )
 
     async def handle_webauthn_authenticate_options(
         self,
@@ -1485,6 +1582,12 @@ class Router:
         await pkce.create(self.db, pkce_challenge)
         code = await pkce.link_identity_challenge(
             self.db, identity.id, pkce_challenge
+        )
+
+        logger.info(
+            f"WebAuthn authentication successful: identity_id={identity.id}, "
+            f"email={email}, "
+            f"pkce_id={code}"
         )
 
         response.status = http.HTTPStatus.OK
@@ -2350,6 +2453,7 @@ def _fail_with_error(
         "type": str(ex.__class__.__name__),
     }
 
+    logger.error(f"Failed to handle HTTP request: {err_dct!r}")
     response.body = json.dumps({"error": err_dct}).encode()
     response.status = status
 
