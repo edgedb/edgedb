@@ -685,6 +685,7 @@ def _uncompile_insert_pointer_stmt(
         elif expected_col.name == 'target':
             ptr_name = 'target'
             is_link = isinstance(sub, s_links.Link)
+            ptr = sub
             ptr_id = target_id
         else:
             # link pointer
@@ -703,7 +704,12 @@ def _uncompile_insert_pointer_stmt(
         value_rel.path_outputs[(ptr_id, pgce.PathAspect.VALUE)] = var
 
         # inject type annotation into value relation
-        _try_inject_ptr_type_cast(value_relation, index, ptr, ctx)
+        if is_link:
+            _try_inject_type_cast(
+                value_relation, index, pgast.TypeName(name=('uuid',))
+            )
+        else:
+            _try_inject_ptr_type_cast(value_relation, index, ptr, ctx)
 
         value_columns.append((ptr_name, is_link))
 
@@ -721,7 +727,8 @@ def _uncompile_insert_pointer_stmt(
     sub_name = sub.get_shortname(ctx.schema)
 
     target_ql: qlast.Expr = qlast.Path(
-        steps=[value_ql, qlast.Ptr(name='__target__')])
+        steps=[value_ql, qlast.Ptr(name='__target__')]
+    )
 
     if isinstance(sub_target, s_objtypes.ObjectType):
         assert isinstance(target_ql, qlast.Path)
