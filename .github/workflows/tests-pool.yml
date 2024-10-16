@@ -80,6 +80,11 @@ jobs:
     - name: Compute cache keys
       run: |
         mkdir -p shared-artifacts
+        if [ "$(uname)" = "Darwin" ]; then
+          find /usr/lib -type f -name 'lib*' -exec stat -f '%N %z' {} + | sort | shasum -a 256 | cut -d ' ' -f1 > shared-artifacts/lib_cache_key.txt
+        else
+          find /usr/lib -type f -name 'lib*' -printf '%P %s\n' | sort | sha256sum | cut -d ' ' -f1 > shared-artifacts/lib_cache_key.txt
+        fi
         python setup.py -q ci_helper --type cli > shared-artifacts/edgedbcli_git_rev.txt
         python setup.py -q ci_helper --type rust >shared-artifacts/rust_cache_key.txt
         python setup.py -q ci_helper --type ext >shared-artifacts/ext_cache_key.txt
@@ -132,7 +137,7 @@ jobs:
       id: postgres-cache
       with:
         path: build/postgres/install
-        key: edb-postgres-v3-${{ env.POSTGRES_GIT_REV }}
+        key: edb-postgres-v3-${{ env.POSTGRES_GIT_REV }}-${{ hashFiles('shared-artifacts/lib_cache_key.txt') }}
 
     - name: Handle cached Stolon build
       uses: actions/cache@v4

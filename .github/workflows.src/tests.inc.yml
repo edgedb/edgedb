@@ -96,7 +96,7 @@
       id: postgres-cache
       with:
         path: build/postgres/install
-        key: edb-postgres-v3-${{ env.POSTGRES_GIT_REV }}
+        key: edb-postgres-v3-${{ env.POSTGRES_GIT_REV }}-${{ hashFiles('shared-artifacts/lib_cache_key.txt') }}
 
     - name: Handle cached Stolon build
       uses: actions/cache@v4
@@ -304,6 +304,11 @@
 
 <% macro calc_cache_key() -%>
     mkdir -p shared-artifacts
+    if [ "$(uname)" = "Darwin" ]; then
+      find /usr/lib -type f -name 'lib*' -exec stat -f '%N %z' {} + | sort | shasum -a 256 | cut -d ' ' -f1 > shared-artifacts/lib_cache_key.txt
+    else
+      find /usr/lib -type f -name 'lib*' -printf '%P %s\n' | sort | sha256sum | cut -d ' ' -f1 > shared-artifacts/lib_cache_key.txt
+    fi
     python setup.py -q ci_helper --type cli > shared-artifacts/edgedbcli_git_rev.txt
     python setup.py -q ci_helper --type rust >shared-artifacts/rust_cache_key.txt
     python setup.py -q ci_helper --type ext >shared-artifacts/ext_cache_key.txt
@@ -386,7 +391,7 @@
       id: postgres-cache
       with:
         path: build/postgres/install
-        key: edb-postgres-v3-${{ env.POSTGRES_GIT_REV }}
+        key: edb-postgres-v3-${{ env.POSTGRES_GIT_REV }}-${{ hashFiles('shared-artifacts/lib_cache_key.txt') }}
 
     - name: Restore cached Stolon build
       uses: actions/cache@v4
@@ -414,6 +419,20 @@
       run: |
         echo ::error::Cannot retrieve build cache.
         exit 1
+
+    - name: Validate cached binaries
+      run: |
+        # Validate EdgeDB CLI
+        ./build/cli/bin/edgedb --version || exit 1
+
+        # Validate Stolon
+        ./build/stolon/bin/stolon-sentinel --version || exit 1
+        ./build/stolon/bin/stolon-keeper --version || exit 1
+        ./build/stolon/bin/stolon-proxy --version || exit 1
+
+        # Validate PostgreSQL
+        ./build/postgres/install/bin/postgres --version || exit 1
+        ./build/postgres/install/bin/pg_config --version || exit 1
 
     - name: Restore cache into the source tree
       run: |
