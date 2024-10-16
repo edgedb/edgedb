@@ -474,9 +474,6 @@ jobs:
         # Validate EdgeDB CLI
         ./build/cli/bin/edgedb --version || exit 1
 
-        # Validate PostgreSQL
-        ./build/postgres/install/bin/postgres --version || exit 1
-
         # Validate Stolon
         ./build/stolon/bin/stolon-sentinel --version || exit 1
         ./build/stolon/bin/stolon-keeper --version || exit 1
@@ -491,6 +488,9 @@ jobs:
         for ext in ./build/extensions/edb/*.so; do
           ldd "$ext" || exit 1
         done
+
+        # Validate PostgreSQL
+        ./build/postgres/install/bin/postgres --version || exit 1
 
     - name: Restore cache into the source tree
       run: |
