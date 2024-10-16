@@ -1339,16 +1339,24 @@ class FunctionCommand(MetaCommand):
                     {matching_impl}
             """
 
-    def compile_edgeql_function(self, func: s_funcs.Function, schema, context):
-        nativecode = not_none(func.get_nativecode(schema))
-        nativecode = self._compile_edgeql_function(
-            schema,
-            context,
-            func,
-            nativecode,
-        )
+    def compile_edgeql_function(
+        self,
+        func: s_funcs.Function,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> tuple[Optional[dbops.Function], bool]:
+        if func.get_volatility(schema) == ql_ft.Volatility.Modifying:
+            # Modifying functions cannot be compiled correctly and should be
+            # inlined at the call point.
+            return None, False
 
-        nativecode = self.fix_return_type(func, nativecode, schema, context)
+        nativecode: s_expr.Expression = not_none(func.get_nativecode(schema))
+        compiled_expr = self._compile_edgeql_function(
+            schema, context, func, nativecode
+        )
+        compiled_expr = self.fix_return_type(
+            func, compiled_expr, schema, context
+        )
 
         replace = False
 
@@ -1360,7 +1368,7 @@ class FunctionCommand(MetaCommand):
             replace = True
         else:
             sql_res = compiler.compile_ir_to_sql_tree(
-                nativecode.irast,
+                compiled_expr.irast,
                 ignore_shapes=True,
                 explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
                     schema, func.get_return_type(schema), cache=None),
@@ -1533,11 +1541,13 @@ class FunctionCommand(MetaCommand):
         else:
             func_language = func.get_language(schema)
 
+            dbf: Optional[dbops.Function]
             if func_language is ql_ast.Language.SQL:
                 dbf = self.compile_sql_function(func, schema)
             elif func_language is ql_ast.Language.EdgeQL:
                 dbf, overload_replace = self.compile_edgeql_function(
-                    func, schema, context)
+                    func, schema, context
+                )
                 if overload_replace:
                     or_replace = True
             else:
@@ -1548,8 +1558,9 @@ class FunctionCommand(MetaCommand):
 
             ops: list[dbops.Command] = []
 
-            ops.append(dbops.CreateFunction(dbf, or_replace=or_replace))
-            self.maybe_trampoline(dbf, context)
+            if dbf is not None:
+                ops.append(dbops.CreateFunction(dbf, or_replace=or_replace))
+                self.maybe_trampoline(dbf, context)
             return ops
 
 
@@ -1610,8 +1621,9 @@ class DeleteFunction(FunctionCommand, adapts=s_funcs.DeleteFunction):
             overload = False
             if nativecode and func.find_object_param_overloads(schema):
                 dbf, overload_replace = self.compile_edgeql_function(
-                    func, schema, context)
-                if overload_replace:
+                    func, schema, context
+                )
+                if dbf is not None and overload_replace:
                     self.pgops.add(dbops.CreateFunction(dbf, or_replace=True))
                     overload = True
 
