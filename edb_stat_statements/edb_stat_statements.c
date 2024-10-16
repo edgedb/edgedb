@@ -1072,8 +1072,14 @@ pgss_ExecutorEnd(QueryDesc *queryDesc)
 				   &queryDesc->totaltime->walusage,
 				   queryDesc->estate->es_jit ? &queryDesc->estate->es_jit->instr : NULL,
 				   NULL,
+#if PG_VERSION_NUM >= 180000
 				   queryDesc->estate->es_parallel_workers_to_launch,
-				   queryDesc->estate->es_parallel_workers_launched);
+				   queryDesc->estate->es_parallel_workers_launched
+#else
+				   0,
+				   0
+#endif
+		);
 	}
 
 	if (prev_ExecutorEnd)
@@ -1440,10 +1446,15 @@ pgss_store(const char *query, uint64 queryId,
 		entry->counters.local_blks_written += bufusage->local_blks_written;
 		entry->counters.temp_blks_read += bufusage->temp_blks_read;
 		entry->counters.temp_blks_written += bufusage->temp_blks_written;
+#if PG_VERSION_NUM >= 170000
 		entry->counters.shared_blk_read_time += INSTR_TIME_GET_MILLISEC(bufusage->shared_blk_read_time);
 		entry->counters.shared_blk_write_time += INSTR_TIME_GET_MILLISEC(bufusage->shared_blk_write_time);
 		entry->counters.local_blk_read_time += INSTR_TIME_GET_MILLISEC(bufusage->local_blk_read_time);
 		entry->counters.local_blk_write_time += INSTR_TIME_GET_MILLISEC(bufusage->local_blk_write_time);
+#else
+		entry->counters.shared_blk_read_time += INSTR_TIME_GET_MILLISEC(bufusage->blk_read_time);
+		entry->counters.shared_blk_write_time += INSTR_TIME_GET_MILLISEC(bufusage->blk_write_time);
+#endif
 		entry->counters.temp_blk_read_time += INSTR_TIME_GET_MILLISEC(bufusage->temp_blk_read_time);
 		entry->counters.temp_blk_write_time += INSTR_TIME_GET_MILLISEC(bufusage->temp_blk_write_time);
 		entry->counters.usage += USAGE_EXEC(total_time);
@@ -1455,9 +1466,11 @@ pgss_store(const char *query, uint64 queryId,
 			entry->counters.jit_functions += jitusage->created_functions;
 			entry->counters.jit_generation_time += INSTR_TIME_GET_MILLISEC(jitusage->generation_counter);
 
+#if PG_VERSION_NUM >= 170000
 			if (INSTR_TIME_GET_MILLISEC(jitusage->deform_counter))
 				entry->counters.jit_deform_count++;
 			entry->counters.jit_deform_time += INSTR_TIME_GET_MILLISEC(jitusage->deform_counter);
+#endif
 
 			if (INSTR_TIME_GET_MILLISEC(jitusage->inlining_counter))
 				entry->counters.jit_inlining_count++;
@@ -2805,5 +2818,14 @@ comp_location(const void *a, const void *b)
 	int			l = ((const LocationLen *) a)->location;
 	int			r = ((const LocationLen *) b)->location;
 
+#if PG_VERSION_NUM >= 170000
 	return pg_cmp_s32(l, r);
+#else
+	if (l < r)
+		return -1;
+	else if (l > r)
+		return +1;
+	else
+		return 0;
+#endif
 }
