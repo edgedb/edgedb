@@ -30,6 +30,7 @@ Standard Library
     objects
     abstract
     constraints
+    net
     fts
     sys
     cfg
