@@ -746,7 +746,12 @@ class BaseServer:
         port: int,
     ) -> asyncio.base_events.Server:
         admin_unix_sock_path = os.path.join(
+            self._runstate_dir, f'.s.GEL.admin.{port}')
+        symlink = os.path.join(
             self._runstate_dir, f'.s.EDGEDB.admin.{port}')
+        if not os.path.exists(symlink):
+            os.symlink(admin_unix_sock_path, symlink)
+
         assert len(admin_unix_sock_path) <= (
             defines.MAX_RUNSTATE_DIR_PATH
             + defines.MAX_UNIX_SOCKET_PATH_LENGTH
