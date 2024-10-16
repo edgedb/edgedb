@@ -144,7 +144,7 @@ class StdNetTestCase(server.QueryTestCase):
 
         assert requests_for_example is not None
         self.assertEqual(len(requests_for_example), 1)
-        headers = list(requests_for_example[0]["headers"].items())
+        headers = list(requests_for_example[0].headers.items())
         self.assertIn(("accept", "application/json"), headers)
         self.assertIn(("x-test-header", "test-value"), headers)
 
@@ -219,10 +219,10 @@ class StdNetTestCase(server.QueryTestCase):
 
         assert requests_for_example is not None
         self.assertEqual(len(requests_for_example), 1)
-        headers = list(requests_for_example[0]["headers"].items())
+        headers = list(requests_for_example[0].headers.items())
         self.assertIn(("accept", "application/json"), headers)
         self.assertIn(("x-test-header", "test-value"), headers)
-        self.assertEqual(requests_for_example[0]["body"], "Hello, world!")
+        self.assertEqual(requests_for_example[0].body, "Hello, world!")
 
         # Wait for the request to complete
         await self._wait_for_request_completion(result.id)
