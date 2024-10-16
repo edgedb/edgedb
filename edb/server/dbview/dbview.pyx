@@ -301,9 +301,6 @@ cdef class Database:
             max_batch_size=100,
         )
 
-    cdef schedule_config_update(self):
-        self._index._tenant.on_local_database_config_change(self.name)
-
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema_pickle,
@@ -491,9 +488,6 @@ cdef class DatabaseConnectionView:
         else:
             self._capability_mask = <uint64_t>compiler.Capability.ALL
 
-        self._db_config_temp = None
-        self._db_config_dbver = None
-
         self._last_comp_state = None
         self._last_comp_state_id = 0
 
@@ -636,41 +630,19 @@ cdef class DatabaseConnectionView:
         if self._in_tx:
             return self._in_tx_db_config
         else:
-            if self._db_config_temp is not None:
-                # See `set_database_config()` for an explanation on
-                # *why* we do this.
-                if self._db_config_dbver is self._db.dbver:
-                    assert self._db_config_dbver is not None
-                    return self._db_config_temp
-                else:
-                    self._db_config_temp = None
-                    self._db_config_dbver = None
-
             return self._db.db_config
-
-    cdef update_database_config(self):
-        # Unfortunately it's unsafe to just synchronously
-        # update `self._db.db_config` to a new config. What if two
-        # connections are updating different DB config settings
-        # concurrently?
-        # The only way to avoid a race here is to always schedule
-        # a full DB state sync every time there's a DB config change.
-        self._db.schedule_config_update()
 
     cdef set_database_config(self, new_conf):
         if self._in_tx:
             self._in_tx_db_config = new_conf
         else:
-            # The idea here is to save the new DB conf in a temporary
-            # storage until the DB state is refreshed by a call to
-            # `update_database_config()` from `on_success()`. This is to
-            # make it possible to immediately use the updated DB config in
-            # this session. This is still racy, but the probability of
-            # a race is very low so we go for it (and races like this aren't
-            # critical and resolve in time.)
-            # Check out `get_database_config()` to see how this is used.
-            self._db_config_temp = new_conf
-            self._db_config_dbver = self._db.dbver
+            # N.B: If we *aren't* in a transaction, we rely on calling
+            # process_side_effects() promptly to introspect the new
+            # state.
+            # (We do it this way to avoid potential races between
+            # multiple connections do db configs.)
+            pass
+
 
     cdef get_system_config(self):
         return self._db._index.get_sys_config()
@@ -1003,7 +975,6 @@ cdef class DatabaseConnectionView:
             if query_unit.system_config:
                 side_effects |= SideEffects.InstanceConfigChanges
             if query_unit.database_config:
-                self.update_database_config()
                 side_effects |= SideEffects.DatabaseConfigChanges
             if query_unit.create_db:
                 side_effects |= SideEffects.DatabaseChanges
@@ -1046,10 +1017,6 @@ cdef class DatabaseConnectionView:
             if self._in_tx_with_sysconfig:
                 side_effects |= SideEffects.InstanceConfigChanges
             if self._in_tx_with_dbconfig:
-                self._db_config_temp = self._in_tx_db_config
-                self._db_config_dbver = self._db.dbver
-
-                self.update_database_config()
                 side_effects |= SideEffects.DatabaseConfigChanges
             if query_unit.global_schema is not None:
                 side_effects |= SideEffects.GlobalSchemaChanges
@@ -1099,10 +1066,6 @@ cdef class DatabaseConnectionView:
         if self._in_tx_with_sysconfig:
             side_effects |= SideEffects.InstanceConfigChanges
         if self._in_tx_with_dbconfig:
-            self._db_config_temp = self._in_tx_db_config
-            self._db_config_dbver = self._db.dbver
-
-            self.update_database_config()
             side_effects |= SideEffects.DatabaseConfigChanges
         if global_schema is not None:
             side_effects |= SideEffects.GlobalSchemaChanges

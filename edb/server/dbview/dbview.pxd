@@ -92,8 +92,6 @@ cdef class Database:
         readonly object backend_ids
         readonly object extensions
 
-    cdef schedule_config_update(self)
-
     cdef _invalidate_caches(self)
     cdef _cache_compiled_query(self, key, compiled)
     cdef _new_view(self, query_cache, protocol_version)
@@ -131,9 +129,6 @@ cdef class DatabaseConnectionView:
         # Although, transient dbviews users should guarantee the transient use
         # of pgcons, because _pg_ensure_database_not_connected() may still time
         # out `DROP BRANCH` if the transient pgcon is not released soon enough.
-
-        object _db_config_temp
-        object _db_config_dbver
 
         # State properties
         object _config
@@ -223,7 +218,6 @@ cdef class DatabaseConnectionView:
     cdef get_state_serializer(self)
     cdef set_state_serializer(self, new_serializer)
 
-    cdef update_database_config(self)
     cpdef get_database_config(self)
     cdef set_database_config(self, new_conf)
 

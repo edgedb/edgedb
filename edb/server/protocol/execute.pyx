@@ -377,7 +377,7 @@ async def execute(
         if state_serializer is not None:
             dbv.set_state_serializer(state_serializer)
         if side_effects:
-            signal_side_effects(dbv, side_effects)
+            await process_side_effects(dbv, side_effects, be_conn)
         if not dbv.in_tx() and not query_unit.tx_rollback and query_unit.sql:
             state = dbv.serialize_state()
             if state is not orig_state:
@@ -540,6 +540,13 @@ async def execute_script(
                         "Side-effects in implicit transaction!"
                     )
 
+        # Need to sync before calling process_side_effects, which will
+        # look at the database. Also, want to sync before we record success,
+        # since sync could fail.
+        if sent and not sync:
+            sync = True
+            await conn.sync()
+
     except Exception as e:
         dbv.on_error()
 
@@ -570,7 +577,7 @@ async def execute_script(
                 cached_reflection,
             )
             if side_effects:
-                signal_side_effects(dbv, side_effects)
+                await process_side_effects(dbv, side_effects, conn)
             state = dbv.serialize_state()
             if state is not orig_state:
                 conn.last_state = state
@@ -625,6 +632,14 @@ async def execute_system_config(
     # need to make sure it has been loaded.
     if query_unit.backend_config:
         await conn.sql_execute(b'SELECT pg_reload_conf()')
+
+
+async def process_side_effects(dbv, side_effects, conn):
+    signal_side_effects(dbv, side_effects)
+
+    if side_effects & dbview.SideEffects.DatabaseConfigChanges:
+        tenant = dbv.tenant
+        await tenant.process_local_database_config_change(conn, dbv.dbname)
 
 
 def signal_side_effects(dbv, side_effects):
