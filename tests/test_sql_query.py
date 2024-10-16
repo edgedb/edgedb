@@ -1072,10 +1072,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                     '''
                 )
 
-            # I don't know why this is needed
-            import asyncio
-            await asyncio.sleep(0.5)
-
         async def set_sql(val: Optional[bool]):
             if val is None:
                 await self.scon.execute(
