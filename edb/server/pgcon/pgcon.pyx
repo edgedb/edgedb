@@ -2834,6 +2834,8 @@ cdef set NON_QUOTABLE_STRINGS = {
     'on',
     'yes',
     'no',
+    'true',
+    'false',
 }
 
 
