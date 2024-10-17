@@ -69,6 +69,7 @@ async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
                             update PENDING_REQUESTS
                             set {
                                 state := std::net::RequestState.InProgress,
+                                updated_at := datetime_of_statement(),
                             }
                         ),
                     select UPDATED {
@@ -296,6 +297,7 @@ async def handle_request(
                         state := state,
                         response := response,
                         failure := failure,
+                        updated_at := datetime_of_statement(),
                     };
                     """,
                     variables={
@@ -311,3 +313,70 @@ async def handle_request(
                 )
 
     await _update_request()
+
+
+async def _gc(tenant: edbtenant.Tenant, expires_in: statypes.Duration) -> None:
+    try:
+        async with asyncio.TaskGroup() as g:
+            for db in tenant.iter_dbs():
+                if "auth" in db.extensions:
+                    g.create_task(
+                        execute.parse_execute_json(
+                            db,
+                            """
+                            delete std::net::http::ScheduledRequest filter
+                                .state != std::net::RequestState.Pending
+                                and (datetime_of_statement() - .updated_at) >
+                                <duration>$expires_in
+                            """,
+                            variables={
+                                "expires_in": expires_in.to_backend_str()
+                            },
+                            cached_globally=True,
+                        ),
+                    )
+    except Exception as ex:
+        logger.debug(
+            "GC of std::net::http::ScheduledRequest failed (instance: %s)",
+            tenant.get_instance_name(),
+            exc_info=ex,
+        )
+
+
+async def gc(server: edbserver.BaseServer) -> None:
+    tasks = [
+        asyncio.create_task(_tenant_gc_loop(tenant))
+        for tenant in server.iter_tenants()
+        if tenant.accept_new_tasks
+    ]
+    try:
+        await asyncio.wait(tasks)
+    except Exception as ex:
+        logger.debug(
+            "GC of std::net::http::ScheduledRequest failed", exc_info=ex
+        )
+
+
+async def _tenant_gc_loop(tenant: edbtenant.Tenant) -> None:
+    while True:
+        try:
+            net_http_request_ttl = tenant._server.config_lookup(
+                'net_http_request_ttl', tenant.get_sys_config()
+            )
+            tasks = [
+                tenant.create_task(
+                    _gc(tenant, net_http_request_ttl), interruptable=False
+                )
+            ]
+            if tasks:
+                await asyncio.wait(tasks)
+        except Exception as ex:
+            logger.debug(
+                "GC of std::net::http::ScheduledRequest failed (instance: %s)",
+                tenant.get_instance_name(),
+                exc_info=ex,
+            )
+        finally:
+            await asyncio.sleep(
+                net_http_request_ttl.to_microseconds() / 1_000_000.0
+            )
