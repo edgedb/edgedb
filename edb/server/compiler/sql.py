@@ -60,11 +60,15 @@ def compile_sql(
     prepared_stmt_map: Mapping[str, str],
     current_database: str,
     current_user: str,
+    allow_user_specified_id: Optional[bool],
+    apply_access_policies_sql: Optional[bool],
 ) -> List[dbstate.SQLQueryUnit]:
     opts = ResolverOptionsPartial(
         query_str=query_str,
         current_database=current_database,
         current_user=current_user,
+        allow_user_specified_id=allow_user_specified_id,
+        apply_access_policies_sql=apply_access_policies_sql,
     )
 
     stmts = pg_parser.parse(query_str, propagate_spans=True)
@@ -268,6 +272,8 @@ class ResolverOptionsPartial:
     current_user: str
     current_database: str
     query_str: str
+    allow_user_specified_id: Optional[bool]
+    apply_access_policies_sql: Optional[bool]
 
 
 def resolve_query(
@@ -289,11 +295,15 @@ def resolve_query(
         tx_state, 'allow_user_specified_id'
     )
     if allow_user_specified_id is None:
+        allow_user_specified_id = opts.allow_user_specified_id
+    if allow_user_specified_id is None:
         allow_user_specified_id = False
 
     apply_access_policies = lookup_bool_setting(
         tx_state, 'apply_access_policies_sql'
     )
+    if apply_access_policies is None:
+        apply_access_policies = opts.apply_access_policies_sql
     if apply_access_policies is None:
         apply_access_policies = False
 
@@ -317,13 +327,19 @@ def lookup_bool_setting(
         setting = tx_state.get(name)
     except KeyError:
         setting = None
-    if setting:
-        if isinstance(setting[0], str):
-            truthy = {'on', 'true', 'yes', '1'}
-            return setting[0].lower() in truthy
-        elif isinstance(setting[0], int):
-            return bool(setting[0])
+    if setting and setting[0]:
+        return is_setting_truthy(setting[0])
     return None
+
+
+def is_setting_truthy(val: str | int | float) -> bool:
+    if isinstance(val, str):
+        truthy = {'on', 'true', 'yes', '1'}
+        return val.lower() in truthy
+    elif isinstance(val, int):
+        return bool(val)
+    else:
+        return False
 
 
 def compute_stmt_name(text: str, tx_state: dbstate.SQLTransactionState) -> str:

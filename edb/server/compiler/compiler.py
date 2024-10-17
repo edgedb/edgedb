@@ -544,6 +544,16 @@ class Compiler:
         )
         schema = state.current_tx().get_schema(self.state.std_schema)
 
+        setting = database_config.get('allow_user_specified_id', None)
+        allow_user_specified_id = None
+        if setting and setting.value:
+            allow_user_specified_id = sql.is_setting_truthy(setting.value)
+
+        setting = database_config.get('apply_access_policies_sql', None)
+        apply_access_policies_sql = None
+        if setting and setting.value:
+            apply_access_policies_sql = sql.is_setting_truthy(setting.value)
+
         return sql.compile_sql(
             query_str,
             schema=schema,
@@ -551,6 +561,8 @@ class Compiler:
             prepared_stmt_map=prepared_stmt_map,
             current_database=current_database,
             current_user=current_user,
+            allow_user_specified_id=allow_user_specified_id,
+            apply_access_policies_sql=apply_access_policies_sql,
         )
 
     def compile_request(
