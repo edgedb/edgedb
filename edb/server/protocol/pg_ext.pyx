@@ -1585,7 +1585,8 @@ cdef WriteBuffer remap_arguments(
     cdef:
         int16_t param_format_count
         int32_t offset
-        int16_t max_external_used
+        int32_t arg_offset_external
+        int16_t param_count_external
         int32_t size
 
     # The "external" parameters (that are visible to the user)
@@ -1621,30 +1622,40 @@ cdef WriteBuffer remap_arguments(
     offset += param_format_count * 2
 
     # find positions of external args
-    param_count_external = read_int16(data[offset:offset+2])
+    arg_count_external = read_int16(data[offset:offset+2])
     offset += 2
-    param_pos_external = []
-    for p in range(param_count_external):
+    arg_offset_external = offset
+    for p in range(arg_count_external):
         size = read_int32(data[offset:offset+4])
         if size == -1:  # special case: NULL
             size = 0
         size += 4 # for size which is int32
-        param_pos_external.append((offset, size))
         offset += size
 
     # write remapped args
-    max_external_used = 0
     if params:
         buf.write_int16(len(params))
-        for param in params:
-            if isinstance(param, dbstate.SQLParamExternal):
-                # map external arg to internal
-                o, s = param_pos_external[param.index - 1]
-                buf.write_bytes(data[o:o+s])
 
-                if max_external_used < param.index:
-                    max_external_used = param.index
-            elif isinstance(param, dbstate.SQLParamGlobal):
+        param_count_external = 0
+        for i, param in enumerate(params):
+            if not isinstance(param, dbstate.SQLParamExternal):
+                break
+            param_count_external = i + 1
+        if param_count_external != arg_count_external:
+            raise pgerror.new(
+                pgerror.ERROR_PROTOCOL_VIOLATION,
+                f'bind message supplies {arg_count_external} '
+                f'parameters, but prepared statement "" requires '
+                f'{param_count_external}',
+            )
+
+        # write external args
+        if arg_offset_external < offset:
+            buf.write_bytes(data[arg_offset_external:offset])
+
+        # write global's args
+        for param in params[param_count_external:]:
+            if isinstance(param, dbstate.SQLParamGlobal):
                 name = param.global_name
                 setting_name = f'global {name.module}::{name.name}'
                 values = fe_settings.get(setting_name, None)
@@ -1656,14 +1667,7 @@ cdef WriteBuffer remap_arguments(
     else:
         buf.write_int16(0)
 
-    if max_external_used != param_count_external:
-        raise pgerror.new(
-            pgerror.ERROR_PROTOCOL_VIOLATION,
-            f'bind message supplies {param_count_external} '
-            f'parameters, but prepared statement "" requires '
-            f'{max_external_used}',
-        )
-
+    # result format codes
     buf.write_bytes(data[offset:])
     return buf
 

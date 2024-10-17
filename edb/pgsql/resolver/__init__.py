@@ -67,6 +67,7 @@ def resolve(
 
     _ = context.ResolverContext(initial=ctx)
 
+    command.init_external_params(query, ctx)
     top_level_ctes = command.compile_dml(query, ctx=ctx)
 
     resolved = dispatch.resolve(query, ctx=ctx)
