@@ -148,6 +148,8 @@ up your first EdgeDB instance. You should see something like this:
   Checking EdgeDB versions...
   Specify the version of EdgeDB to use with this project [default: 5.x]:
   > 5.x
+  Specify branch name: [default: main]:
+  > main
   ┌─────────────────────┬───────────────────────────────────────────────┐
   │ Project directory   │ ~/path/to/quickstart                          │
   │ Project config      │ ~/path/to/quickstart/edgedb.toml              │
@@ -189,11 +191,12 @@ This did a couple things.
 
 Let's connect to our new instance! Run ``edgedb`` in your terminal to open an
 interactive REPL to your instance. You're now connected to a live EdgeDB
-instance running on your computer! Try executing a simple query:
+instance running on your computer! Try executing a simple query (``select 1 + 1;``) after the 
+REPL prompt (``quickstart:main>``):
 
 .. code-block:: edgeql-repl
 
-  db> select 1 + 1;
+  quickstart:main> select 1 + 1;
   {2}
 
 Run ``\q`` to exit the REPL. More interesting queries are coming soon,
