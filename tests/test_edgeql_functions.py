@@ -32,6 +32,8 @@ from edb.tools import test
 
 
 class TestEdgeQLFunctions(tb.QueryTestCase):
+    NO_FACTOR = True
+
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'issues.esdl')
 
@@ -260,6 +262,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                     ORDER BY Issue.number);
             """)
 
+    @tb.needs_factoring
     async def test_edgeql_functions_array_agg_11(self):
         await self.assert_query_result(
             r"""
@@ -316,6 +319,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 SELECT array_agg(array_agg(User.name));
             ''')
 
+    @tb.needs_factoring
     async def test_edgeql_functions_array_agg_15(self):
         await self.assert_query_result(
             r'''
@@ -761,6 +765,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [2],
         )
 
+    @tb.needs_factoring
     async def test_edgeql_functions_enumerate_03(self):
         await self.assert_query_result(
             r'''SELECT enumerate((SELECT User.name ORDER BY User.name));''',
@@ -811,6 +816,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [],
         )
 
+    @tb.needs_factoring
     async def test_edgeql_functions_enumerate_07(self):
         # Check that enumerate of a function works when the tuple type
         # appears in the schema (like tuple<int64, int64> does)
@@ -5054,7 +5060,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_str_pad_03(self):
         await self.assert_query_result(
             r'''
-                WITH l := {0, 2, 10, 20}
+                FOR l IN {0, 2, 10, 20}
                 SELECT len(str_pad_start('Hello', l)) = l;
             ''',
             [True, True, True, True],
@@ -5062,7 +5068,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH l := {0, 2, 10, 20}
+                FOR l IN {0, 2, 10, 20}
                 SELECT len(str_pad_end('Hello', l)) = l;
             ''',
             [True, True, True, True],
@@ -6254,7 +6260,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
             with
                 val := <int16>1234,
-                X := {(2, 2), (10, 10), (20, 20), (40, 40)}
+            for X in {(2, 2), (10, 10), (20, 20), (40, 40)}
             select bit_lshift(bit_lshift(val, X.0), X.1) =
                    bit_lshift(val, X.0 + X.1);
             ''',
@@ -6285,7 +6291,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
             with
                 val := <int32>1234,
-                X := {(2, 2), (10, 10), (20, 20), (40, 40)}
+            for X in {(2, 2), (10, 10), (20, 20), (40, 40)}
             select bit_lshift(bit_lshift(val, X.0), X.1) =
                    bit_lshift(val, X.0 + X.1);
             ''',
@@ -6320,7 +6326,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
             with
                 val := <int64>1234,
-                X := {(2, 2), (10, 10), (20, 20), (40, 40)}
+            for X in {(2, 2), (10, 10), (20, 20), (40, 40)}
             select bit_lshift(bit_lshift(val, X.0), X.1) =
                    bit_lshift(val, X.0 + X.1);
             ''',
@@ -6364,7 +6370,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
             with
                 val := <int16>1234,
-                X := {(2, 2), (10, 10), (20, 20), (40, 40)}
+            for X in {(2, 2), (10, 10), (20, 20), (40, 40)}
             select bit_rshift(bit_rshift(val, X.0), X.1) =
                    bit_rshift(val, X.0 + X.1);
             ''',
@@ -6404,7 +6410,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
             with
                 val := <int32>1234,
-                X := {(2, 2), (10, 10), (20, 20), (40, 40)}
+            for X in {(2, 2), (10, 10), (20, 20), (40, 40)}
             select bit_rshift(bit_rshift(val, X.0), X.1) =
                    bit_rshift(val, X.0 + X.1);
             ''',
@@ -6444,7 +6450,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
             with
                 val := <int64>1234,
-                X := {(2, 2), (10, 10), (20, 20), (40, 40)}
+            for X in {(2, 2), (10, 10), (20, 20), (40, 40)}
             select bit_rshift(bit_rshift(val, X.0), X.1) =
                    bit_rshift(val, X.0 + X.1);
             ''',
@@ -6488,7 +6494,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
             with
                 val := <int16>-1234,
-                X := {(2, 2), (10, 10), (20, 20), (40, 40)}
+            for X in {(2, 2), (10, 10), (20, 20), (40, 40)}
             select bit_rshift(bit_rshift(val, X.0), X.1) =
                    bit_rshift(val, X.0 + X.1);
             ''',
@@ -6528,7 +6534,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
             with
                 val := <int32>-1234,
-                X := {(2, 2), (10, 10), (20, 20), (40, 40)}
+            for X in {(2, 2), (10, 10), (20, 20), (40, 40)}
             select bit_rshift(bit_rshift(val, X.0), X.1) =
                    bit_rshift(val, X.0 + X.1);
             ''',
@@ -6568,7 +6574,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
             with
                 val := <int64>-1234,
-                X := {(2, 2), (10, 10), (20, 20), (40, 40)}
+            for X in {(2, 2), (10, 10), (20, 20), (40, 40)}
             select bit_rshift(bit_rshift(val, X.0), X.1) =
                    bit_rshift(val, X.0 + X.1);
             ''',
@@ -9647,6 +9653,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=True,
         )
 
+    @tb.needs_factoring
     async def test_edgeql_functions_inline_object_07(self):
         await self.con.execute('''
             create type Bar {
@@ -9730,6 +9737,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=True,
         )
 
+    @tb.needs_factoring
     async def test_edgeql_functions_inline_object_09(self):
         await self.con.execute('''
             create type Bar {

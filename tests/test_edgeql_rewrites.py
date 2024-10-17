@@ -26,6 +26,8 @@ from edb.testbase import server as tb
 
 class TestRewrites(tb.QueryTestCase):
 
+    NO_FACTOR = True
+
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'movies.esdl')
     # Setting up some rewrites makes the tests run a bit faster
     # because we don't need to recompile the delta scripts for it.
