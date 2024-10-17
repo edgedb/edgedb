@@ -185,6 +185,8 @@ def get_test_items(**flags):
 
 
 class TestExpressions(tb.QueryTestCase):
+    NO_FACTOR = True
+
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'issues.esdl')
 
@@ -731,8 +733,10 @@ class TestExpressions(tb.QueryTestCase):
                 FILTER _ IN (
                     # Lengths of names for schema::Map, Type, and Array are
                     # 11, 12, and 13, respectively.
-                    SELECT len(ObjectType.name)
-                    FILTER ObjectType.name LIKE 'schema::%'
+                    len((
+                      SELECT ObjectType
+                      FILTER ObjectType.name LIKE 'schema::%'
+                    ).name)
                 );
             """,
             {13},
@@ -755,8 +759,10 @@ class TestExpressions(tb.QueryTestCase):
                 FILTER _ NOT IN (
                     # Lengths of names for schema::Map, Type, and Array are
                     # 11, 12, and 13, respectively.
-                    SELECT len(ObjectType.name)
-                    FILTER ObjectType.name LIKE 'schema::%'
+                    len((
+                      SELECT ObjectType
+                      FILTER ObjectType.name LIKE 'schema::%'
+                    ).name)
                 );
             """,
             {9, 1},
@@ -962,7 +968,7 @@ class TestExpressions(tb.QueryTestCase):
                         N := <array<int64>>$nums,
                         A1 := <array<{tname}>>$arr1,
                         A2 := <array<{tname}>>$arr2,
-                        X := array_unpack(N)
+                    for X in array_unpack(N)
                     select _ := [X, A1[X], A2[X], A1[X] // A2[X]]
                     order by _[0];
                 ''',
@@ -1003,7 +1009,7 @@ class TestExpressions(tb.QueryTestCase):
                         N := <array<int64>>$nums,
                         A1 := <array<{tname}>>$arr1,
                         A2 := <array<{tname}>>$arr2,
-                        X := array_unpack(N)
+                    for X in array_unpack(N)
                     select _ := [X, A1[X], A2[X], A1[X] % A2[X]]
                     order by _[0];
                 ''',
@@ -8145,6 +8151,7 @@ aa \
             sort=True
         )
 
+    @tb.needs_factoring
     async def test_edgeql_expr_if_else_04(self):
         await self.assert_query_result(
             r'''
@@ -8287,6 +8294,7 @@ aa \
             sort=True
         )
 
+    @tb.needs_factoring
     async def test_edgeql_expr_if_else_06(self):
         await self.assert_query_result(
             r"""
