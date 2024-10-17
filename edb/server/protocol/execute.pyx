@@ -233,6 +233,7 @@ async def execute(
     *,
     fe_conn: frontend.AbstractFrontendConnection = None,
     use_prep_stmt: bint = False,
+    tx_isolation: edbdef.TxIsolationLevel | None = None,
 ):
     cdef:
         bytes state = None, orig_state = None
@@ -297,6 +298,7 @@ async def execute(
                         state=state,
                         dbver=dbv.dbver,
                         use_pending_func_cache=compiled.use_pending_func_cache,
+                        tx_isolation=tx_isolation,
                     )
 
                     if query_unit.needs_readback and data:
@@ -700,6 +702,7 @@ async def parse_execute_json(
     query_cache_enabled: Optional[bool] = None,
     cached_globally: bool = False,
     use_metrics: bool = True,
+    tx_isolation: edbdef.TxIsolationLevel | None = None,
 ) -> bytes:
     # WARNING: only set cached_globally to True when the query is
     # strictly referring to only shared stable objects in user schema
@@ -726,6 +729,7 @@ async def parse_execute_json(
                 compiled,
                 variables=variables,
                 globals_=globals_,
+                tx_isolation=tx_isolation,
             )
         finally:
             tenant.remove_dbview(dbv)
@@ -740,6 +744,7 @@ async def execute_json(
     *,
     fe_conn: Optional[frontend.AbstractFrontendConnection] = None,
     use_prep_stmt: bint = False,
+    tx_isolation: edbdef.TxIsolationLevel | None = None,
 ) -> bytes:
     dbv.set_globals(immutables.Map({
         "__::__edb_json_globals__": config.SettingValue(
@@ -762,6 +767,11 @@ async def execute_json(
 
     force_script = any(x.needs_readback for x in qug)
     if len(qug) > 1 or force_script:
+        if tx_isolation is not None:
+            raise errors.InternalServerError(
+                "execute_script does not support "
+                "modified transaction isolation"
+            )
         data = await execute_script(
             be_conn,
             dbv,
@@ -770,12 +780,27 @@ async def execute_json(
             fe_conn=fe_conn,
         )
     else:
+        if tx_isolation is not None:
+            if dbv.in_tx():
+                raise errors.InternalServerError(
+                    "cannot run statement with alternate transaction "
+                    "isolation: already in a transaction"
+                )
+
+            query_unit = compiled.query_unit_group[0]
+            if not query_unit.is_transactional:
+                raise errors.InternalServerError(
+                    "cannot run statement with alternate transaction "
+                    "isolation: statement is not transactional"
+                )
+
         data = await execute(
             be_conn,
             dbv,
             compiled,
             bind_args,
             fe_conn=fe_conn,
+            tx_isolation=tx_isolation,
         )
 
     if fe_conn is None:
