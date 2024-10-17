@@ -768,6 +768,26 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         res = await self.squery_values("SELECT x'00abcdef00';")
         self.assertEqual(res, [[b'\x00\xab\xcd\xef\x00']])
 
+    async def test_sql_query_42(self):
+        # params out of order
+
+        res = await self.squery_values(
+            'SELECT $2::int, $3::bool, $1::text', 'hello', 42, True,
+        )
+        self.assertEqual(res, [[42, True, 'hello']])
+
+        tran = self.scon.transaction()
+        await tran.start()
+        res = await self.scon.execute(
+            '''
+            UPDATE "Book" SET pages = $1 WHERE (title = $2)
+            ''',
+            207,
+            'Chronicles of Narnia',
+        )
+        self.assertEqual(res, 'UPDATE 1')
+        await tran.rollback()
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
