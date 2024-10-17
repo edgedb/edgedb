@@ -20,14 +20,18 @@
 in our internal Postgres instance."""
 
 from typing import Optional, Tuple, List, cast, Set
+import uuid
 
 from edb import errors
 from edb.server.pgcon import errors as pgerror
+
+from edb.edgeql import qltypes
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common as pgcommon
 from edb.pgsql import codegen as pgcodegen
 from edb.pgsql import inheritance as pginheritance
+from edb.pgsql import types as pgtypes
 
 from edb.schema import objtypes as s_objtypes
 from edb.schema import links as s_links
@@ -41,6 +45,7 @@ from . import context
 from . import range_var
 from . import expr
 from . import sql_introspection
+from . import command
 
 Context = context.ResolverContextLevel
 
@@ -346,19 +351,34 @@ def resolve_relation(
 
     table.columns.extend(_construct_system_columns())
 
-    if include_inherited:
-        relation = _select_from_inheritance_cte(obj, ctx)
+    if ctx.options.apply_access_policies:
+        if isinstance(obj, s_objtypes.ObjectType):
+            relation = _compile_read_of_obj_table(
+                obj, include_inherited, table, ctx
+            )
+        else:
+            # link and multi-property tables cannot have access policies,
+            # so we allow access to base table directly
+            relation = _relation_of_table(obj, ctx)
     else:
-        # use base table directly
-        schemaname, dbname = pgcommon.get_backend_name(
-            ctx.schema, obj, aspect='table', catenate=False
-        )
-        relation = pgast.Relation(name=dbname, schemaname=schemaname)
+        if include_inherited:
+            relation = _relation_of_inheritance_cte(obj, ctx)
+        else:
+            relation = _relation_of_table(obj, ctx)
 
     return relation, table
 
 
-def _select_from_inheritance_cte(
+def _relation_of_table(
+    obj: s_sources.Source | s_properties.Property, ctx: Context
+) -> pgast.Relation:
+    schemaname, dbname = pgcommon.get_backend_name(
+        ctx.schema, obj, aspect='table', catenate=False
+    )
+    return pgast.Relation(name=dbname, schemaname=schemaname)
+
+
+def _relation_of_inheritance_cte(
     obj: s_sources.Source | s_properties.Property, ctx: Context
 ) -> pgast.Relation:
     if obj not in ctx.inheritance_ctes:
@@ -479,3 +499,106 @@ def _construct_system_columns() -> List[context.Column]:
         )
         for c in ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
     ]
+
+
+def _compile_read_of_obj_table(
+    obj: s_objtypes.ObjectType,
+    include_inherited: bool,
+    table: context.Table,
+    ctx: Context,
+) -> pgast.Relation:
+    from edb.edgeql import ast as qlast
+    from edb.edgeql import compiler as qlcompiler
+    from edb.ir import ast as irast
+    from edb.pgsql import compiler as pgcompiler
+    from edb.pgsql.compiler import enums as pgce
+
+    obj_name: sn.QualName = obj.get_name(ctx.schema)
+    assert obj_name
+    ql_stmt = qlast.SelectQuery(
+        result=qlast.Path(
+            steps=[qlast.ObjectRef(module=obj_name.module, name=obj_name.name)]
+        )
+    )
+
+    if not include_inherited:
+        ql_stmt.where = qlast.BinOp(
+            left=qlast.Path(
+                partial=True,
+                steps=[qlast.Ptr(name='__type__'), qlast.Ptr(name='id')],
+            ),
+            op='=',
+            right=qlast.TypeCast(
+                expr=qlast.Constant.string(str(obj.id)),
+                type=qlast.TypeName(maintype=qlast.ObjectRef(name='uuid')),
+            ),
+        )
+
+    ir_stmt = qlcompiler.compile_ast_to_ir(
+        ql_stmt,
+        ctx.schema,
+        options=qlcompiler.CompilerOptions(apply_user_access_policies=True),
+    )
+
+    sql_tree = pgcompiler.compile_ir_to_sql_tree(
+        ir_stmt,
+        output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
+        alias_generator=ctx.alias_generator,
+    )
+    command.merge_params(sql_tree, ir_stmt, ctx)
+
+    # add CTEs to resolver's CTE buffer
+    assert isinstance(sql_tree.ast, pgast.Query)
+    if sql_tree.ast.ctes:
+        ctx.ctes_buffer.extend(sql_tree.ast.ctes)
+        sql_tree.ast.ctes.clear()
+
+    SYSTEM_COLS = {'tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid'}
+
+    # pull all expected columns out of the result rvar
+    obj_id = irast.PathId.from_type(ctx.schema, obj, env=None)
+    for column in table.columns:
+        if not isinstance(column.kind, context.ColumnByName):
+            continue
+
+        if column.kind.reference_as in {'id', 'source', 'target', '__type__'}:
+            ptr = obj.getptr(
+                ctx.schema, sn.UnqualName.from_string(column.kind.reference_as)
+            )
+            ptr_id = irast.PathId.from_pointer(ctx.schema, ptr, env=None)
+        elif column.kind.reference_as in SYSTEM_COLS:
+            el_name = sn.QualName('__object__', column.kind.reference_as)
+            ptr_ref = irast.SpecialPointerRef(
+                name=el_name,
+                shortname=el_name,
+                out_source=obj_id.target,
+                out_target=pgtypes.pg_oid_typeref,
+                out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+            )
+            ptr_id = obj_id.extend(ptrref=ptr_ref)
+        else:
+            ptr = ctx.schema.get_by_id(
+                uuid.UUID(column.kind.reference_as), type=s_pointers.Pointer
+            )
+            ptr_id = irast.PathId.from_pointer(ctx.schema, ptr, env=None)
+
+        output = pgcompiler.pathctx.get_path_output(
+            sql_tree.ast,
+            ptr_id,
+            aspect=pgce.PathAspect.VALUE,
+            env=sql_tree.env,
+        )
+        assert isinstance(output, pgast.ColumnRef)
+        assert isinstance(output.name[-1], str)
+
+        # override how this column will be referenced as
+        column.kind.reference_as = output.name[-1]
+
+    cte_name = ctx.alias_generator.get('tbl')
+    ctx.ctes_buffer.append(
+        pgast.CommonTableExpr(
+            name=cte_name,
+            query=sql_tree.ast,
+        )
+    )
+    return pgast.Relation(name=cte_name)

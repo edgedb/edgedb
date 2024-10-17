@@ -45,6 +45,7 @@ FE_SETTINGS_MUTABLE: immutables.Map[str, bool] = immutables.Map(
     {
         'search_path': True,
         'allow_user_specified_id': True,
+        'apply_access_policies_sql': True,
         'server_version': False,
         'server_version_num': False,
     }
@@ -278,24 +279,23 @@ def resolve_query(
     from edb.pgsql import resolver as pg_resolver
 
     search_path: Sequence[str] = ("public",)
-    allow_user_specified_id: bool = False
-
     try:
         setting = tx_state.get("search_path")
     except KeyError:
         setting = None
     search_path = parse_search_path(setting)
 
-    try:
-        setting = tx_state.get("allow_user_specified_id")
-    except KeyError:
-        setting = None
-    if setting:
-        if isinstance(setting[0], str):
-            truthy = {'on', 'true', 'yes', '1'}
-            allow_user_specified_id = setting[0].lower() in truthy
-        elif isinstance(setting[0], int):
-            allow_user_specified_id = bool(setting[0])
+    allow_user_specified_id = lookup_bool_setting(
+        tx_state, 'allow_user_specified_id'
+    )
+    if allow_user_specified_id is None:
+        allow_user_specified_id = False
+
+    apply_access_policies = lookup_bool_setting(
+        tx_state, 'apply_access_policies_sql'
+    )
+    if apply_access_policies is None:
+        apply_access_policies = False
 
     options = pg_resolver.Options(
         current_user=opts.current_user,
@@ -303,10 +303,27 @@ def resolve_query(
         current_query=opts.query_str,
         search_path=search_path,
         allow_user_specified_id=allow_user_specified_id,
+        apply_access_policies=apply_access_policies,
     )
     resolved = pg_resolver.resolve(stmt, schema, options)
     source = pg_codegen.generate(resolved.ast, with_translation_data=True)
     return resolved, source
+
+
+def lookup_bool_setting(
+    tx_state: dbstate.SQLTransactionState, name: str
+) -> Optional[bool]:
+    try:
+        setting = tx_state.get(name)
+    except KeyError:
+        setting = None
+    if setting:
+        if isinstance(setting[0], str):
+            truthy = {'on', 'true', 'yes', '1'}
+            return setting[0].lower() in truthy
+        elif isinstance(setting[0], int):
+            return bool(setting[0])
+    return None
 
 
 def compute_stmt_name(text: str, tx_state: dbstate.SQLTransactionState) -> str:

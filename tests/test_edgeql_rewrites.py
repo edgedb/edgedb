@@ -61,6 +61,11 @@ class TestRewrites(tb.QueryTestCase):
             ));
           };
         };
+
+        alter type Content {
+          drop access policy filter_title;
+          drop access policy dml;
+        };
     """
     ]
 

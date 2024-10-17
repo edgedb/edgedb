@@ -1619,6 +1619,7 @@ def _compile_uncompiled_dml(
             singletons=singletons,
             anchors=anchors,
             allow_user_specified_id=ctx.options.allow_user_specified_id,
+            apply_user_access_policies=ctx.options.apply_access_policies
         )
         ir_stmt = qlcompiler.compile_ast_to_ir(
             ql_stmt,
@@ -2058,7 +2059,7 @@ def merge_params(
                 i
                 for i, p in enumerate(ctx.query_params)
                 if isinstance(p, dbstate.SQLParamGlobal)
-                and p.global_name == glob.name
+                and p.global_name == glob.global_name
             ),
             None,
         )

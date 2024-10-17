@@ -158,6 +158,7 @@ def resolve_column_kind(
                 path_prefix_anchor='__source__',
                 singletons=singletons,
                 make_globals_empty=False,
+                apply_user_access_policies=ctx.options.apply_access_policies,
             )
             compiled = expr.compiled(ctx.schema, options=options, context=None)
 
@@ -172,6 +173,7 @@ def resolve_column_kind(
                     ),
                 },
                 output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
+                alias_generator=ctx.alias_generator,
             )
             command.merge_params(sql_tree, compiled.irast, ctx)
 
