@@ -65,7 +65,7 @@ CREATE TYPE std::net::http::ScheduledRequest extending std::BaseObject {
         ON SOURCE DELETE DELETE TARGET;
     };
 
-    CREATE INDEX idx_state_updated_at ON ((.state, .updated_at));
+    CREATE INDEX ON ((.state, .updated_at));
 };
 
 ALTER TYPE std::net::http::Response {

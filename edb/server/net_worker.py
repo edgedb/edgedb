@@ -315,26 +315,34 @@ async def handle_request(
     await _update_request()
 
 
+async def _delete_requests(db: dbview.Database, expires_in: statypes.Duration) -> None:
+    logger.info(f"Deleting requests with expires_in: {expires_in!r}")
+    result = await execute.parse_execute_json(
+        db,
+        """
+        with requests := (
+            select std::net::http::ScheduledRequest filter
+            .state != std::net::RequestState.Pending
+            and (datetime_of_statement() - .updated_at) >
+            <duration>$expires_in
+        )
+        delete requests;
+        """,
+        variables={
+            "expires_in": expires_in.to_backend_str()
+        },
+        cached_globally=True,
+    )
+    logger.info(f"Deleted requests: {result!r}")
+
+
 async def _gc(tenant: edbtenant.Tenant, expires_in: statypes.Duration) -> None:
     try:
         async with asyncio.TaskGroup() as g:
             for db in tenant.iter_dbs():
-                if "auth" in db.extensions:
-                    g.create_task(
-                        execute.parse_execute_json(
-                            db,
-                            """
-                            delete std::net::http::ScheduledRequest filter
-                                .state != std::net::RequestState.Pending
-                                and (datetime_of_statement() - .updated_at) >
-                                <duration>$expires_in
-                            """,
-                            variables={
-                                "expires_in": expires_in.to_backend_str()
-                            },
-                            cached_globally=True,
-                        ),
-                    )
+                g.create_task(
+                    _delete_requests(db, expires_in)
+                )
     except Exception as ex:
         logger.debug(
             "GC of std::net::http::ScheduledRequest failed (instance: %s)",
