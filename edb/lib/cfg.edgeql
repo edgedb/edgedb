@@ -246,6 +246,15 @@ ALTER TYPE cfg::AbstractConfig {
         CREATE ANNOTATION cfg::system := 'true';
     };
 
+    CREATE PROPERTY net_http_request_ttl -> std::duration {
+        SET default := <std::duration>'1 hour';
+        CREATE ANNOTATION std::description :=
+            'The time-to-live for HTTP requests. All non-pending requests\
+            that have not been updated for longer than this threshold are\
+            eligible for garbage collection.';
+        CREATE ANNOTATION cfg::system := 'true';
+    };
+
     # Exposed backend settings follow.
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value
