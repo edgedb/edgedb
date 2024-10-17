@@ -767,7 +767,7 @@ async def execute_json(
 
     force_script = any(x.needs_readback for x in qug)
     if len(qug) > 1 or force_script:
-        if tx_isolation is None:
+        if tx_isolation is not None:
             raise errors.InternalServerError(
                 "execute_script does not support "
                 "modified transaction isolation"
