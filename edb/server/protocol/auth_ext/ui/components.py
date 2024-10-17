@@ -131,7 +131,7 @@ def oauth_buttons(
     buttons = '\n'.join(
         [
             _oauth_button(p, oauth_params, label_prefix=label_prefix)
-            for p in oauth_providers
+            for p in sorted(oauth_providers, key=lambda p: p.name)
         ]
     )
 
