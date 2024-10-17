@@ -134,6 +134,7 @@ class BaseServer:
     _http_request_logger: asyncio.Task | None
     _auth_gc: asyncio.Task | None
     _net_worker_http: asyncio.Task | None
+    _net_worker_http_gc: asyncio.Task | None
 
     def __init__(
         self,
@@ -229,6 +230,7 @@ class BaseServer:
         self._http_request_logger = None
         self._auth_gc = None
         self._net_worker_http = None
+        self._net_worker_http_gc = None
         self._net_worker_mode = net_worker_mode
 
         self._stop_evt = asyncio.Event()
@@ -1050,6 +1052,9 @@ class BaseServer:
             self._net_worker_http = self.__loop.create_task(
                 net_worker.http(self)
             )
+            self._net_worker_http_gc = self.__loop.create_task(
+                net_worker.gc(self)
+            )
 
         if self._echo_runtime_info:
             ri = {
@@ -1103,6 +1108,8 @@ class BaseServer:
             self._auth_gc.cancel()
         if self._net_worker_http is not None:
             self._net_worker_http.cancel()
+        if self._net_worker_http_gc is not None:
+            self._net_worker_http_gc.cancel()
 
         for handle in self._file_watch_handles:
             handle.cancel()
