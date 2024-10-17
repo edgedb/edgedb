@@ -80,6 +80,7 @@ async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
                     }
                     """,
                     cached_globally=True,
+                    tx_isolation=defines.TxIsolationLevel.RepeatableRead,
                 )
                 pending_requests: list[dict] = json.loads(json_bytes)
                 for pending_request in pending_requests:
@@ -306,6 +307,7 @@ async def handle_request(
                         'failure': json.dumps(failure),
                     },
                     cached_globally=True,
+                    tx_isolation=defines.TxIsolationLevel.RepeatableRead,
                 )
 
     await _update_request()

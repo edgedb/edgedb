@@ -21,6 +21,8 @@ from __future__ import annotations
 from typing import TypeAlias
 
 from edb import buildmeta
+
+from edb.common import enum as s_enum
 from edb.schema import defines as s_def
 
 
@@ -93,3 +95,8 @@ PGEXT_POSTGRES_VERSION_NUM = 130009
 # The time in seconds the EdgeDB server will wait for a tenant to be gracefully
 # shutdown when removed from a multi-tenant host.
 MULTITENANT_TENANT_DESTROY_TIMEOUT = 30
+
+
+class TxIsolationLevel(s_enum.StrEnum):
+    RepeatableRead = 'REPEATABLE READ'
+    Serializable = 'SERIALIZABLE'
