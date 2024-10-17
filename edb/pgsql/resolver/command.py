@@ -678,6 +678,7 @@ def _uncompile_insert_pointer_stmt(
     )
     value_columns: List[Tuple[str, bool]] = []
     for index, expected_col in enumerate(expected_columns):
+        ptr: Optional[s_pointers.Pointer] = None
         if expected_col.name == 'source':
             ptr_name = 'source'
             is_link = True
@@ -709,6 +710,7 @@ def _uncompile_insert_pointer_stmt(
                 value_relation, index, pgast.TypeName(name=('uuid',))
             )
         else:
+            assert ptr
             _try_inject_ptr_type_cast(value_relation, index, ptr, ctx)
 
         value_columns.append((ptr_name, is_link))
