@@ -8,17 +8,9 @@ jobs:
   prep:
     runs-on: ubuntu-latest
     outputs:
-      branch: ${{ steps.whichver.outputs.branch }}
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Determine package version
-      shell: bash
-      run: |
-        branch=${GITHUB_REF#refs/heads/}
-        echo branch="${branch}" >> $GITHUB_OUTPUT
-      id: whichver
 
 
 
@@ -31,7 +23,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
@@ -53,7 +45,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
@@ -75,7 +67,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
@@ -97,7 +89,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
@@ -119,7 +111,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
@@ -141,7 +133,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
@@ -163,7 +155,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
@@ -185,7 +177,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
@@ -207,7 +199,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
@@ -229,7 +221,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
@@ -251,7 +243,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
@@ -273,7 +265,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
@@ -295,7 +287,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-noble@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "noble"
@@ -317,7 +309,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-noble@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "noble"
@@ -339,7 +331,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
@@ -361,7 +353,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
@@ -383,7 +375,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
@@ -405,7 +397,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
@@ -427,7 +419,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
@@ -450,7 +442,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linux-aarch64@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
@@ -473,7 +465,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-x86_64@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
@@ -497,7 +489,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-aarch64@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
@@ -564,7 +556,7 @@ jobs:
 
     - name: Build
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         BUILD_IS_RELEASE: "true"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "macos"
@@ -633,7 +625,7 @@ jobs:
 
     - name: Build
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         BUILD_IS_RELEASE: "true"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "macos"
