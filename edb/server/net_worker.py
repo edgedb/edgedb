@@ -37,7 +37,7 @@ if typing.TYPE_CHECKING:
     from edb.server import server as edbserver
     from edb.server import tenant as edbtenant
 
-logger = logging.getLogger("edb.server")
+logger = logging.getLogger("edb.server.net_worker")
 
 POLLING_INTERVAL = statypes.Duration(microseconds=10 * 1_000_000)  # 10 seconds
 
@@ -315,34 +315,50 @@ async def handle_request(
     await _update_request()
 
 
-async def _delete_requests(db: dbview.Database, expires_in: statypes.Duration) -> None:
-    logger.info(f"Deleting requests with expires_in: {expires_in!r}")
-    result = await execute.parse_execute_json(
-        db,
-        """
-        with requests := (
-            select std::net::http::ScheduledRequest filter
-            .state != std::net::RequestState.Pending
-            and (datetime_of_statement() - .updated_at) >
-            <duration>$expires_in
+async def _delete_requests(
+    db: dbview.Database, expires_in: statypes.Duration
+) -> None:
+    def _warn(e):
+        logger.warning(
+            "Failed to delete std::net::http::ScheduledRequest, retrying. Reason: %s",
+            e,
         )
-        delete requests;
-        """,
-        variables={
-            "expires_in": expires_in.to_backend_str()
-        },
-        cached_globally=True,
+
+    rloop = retryloop.RetryLoop(
+        backoff=retryloop.exp_backoff(),
+        timeout=300,
+        ignore=(Exception,),
+        retry_cb=_warn,
     )
-    logger.info(f"Deleted requests: {result!r}")
+    async for iteration in rloop:
+        async with iteration:
+            result = await execute.parse_execute_json(
+                db,
+                """
+                with requests := (
+                    select std::net::http::ScheduledRequest filter
+                    .state != std::net::RequestState.Pending
+                    and (datetime_of_statement() - .updated_at) >
+                    <duration>$expires_in
+                )
+                delete requests;
+                """,
+                variables={"expires_in": expires_in.to_backend_str()},
+                cached_globally=True,
+            )
+            if len(result) > 0:
+                logger.info(f"Deleted requests: {result!r}")
+            else:
+                logger.info(f"No requests to delete")
 
 
 async def _gc(tenant: edbtenant.Tenant, expires_in: statypes.Duration) -> None:
     try:
         async with asyncio.TaskGroup() as g:
             for db in tenant.iter_dbs():
-                g.create_task(
-                    _delete_requests(db, expires_in)
-                )
+                if db.name == defines.EDGEDB_SYSTEM_DB:
+                    continue
+                g.create_task(_delete_requests(db, expires_in))
     except Exception as ex:
         logger.debug(
             "GC of std::net::http::ScheduledRequest failed (instance: %s)",
@@ -367,17 +383,15 @@ async def gc(server: edbserver.BaseServer) -> None:
 
 async def _tenant_gc_loop(tenant: edbtenant.Tenant) -> None:
     while True:
+        net_http_request_ttl = tenant._server.config_lookup(
+            'net_http_request_ttl', tenant.get_sys_config()
+        )
         try:
-            net_http_request_ttl = tenant._server.config_lookup(
-                'net_http_request_ttl', tenant.get_sys_config()
+            tenant_gc_task = tenant.create_task(
+                _gc(tenant, net_http_request_ttl), interruptable=False
             )
-            tasks = [
-                tenant.create_task(
-                    _gc(tenant, net_http_request_ttl), interruptable=False
-                )
-            ]
-            if tasks:
-                await asyncio.wait(tasks)
+            logger.info(f"Running GC for {tenant.get_instance_name()!r}")
+            await tenant_gc_task
         except Exception as ex:
             logger.debug(
                 "GC of std::net::http::ScheduledRequest failed (instance: %s)",

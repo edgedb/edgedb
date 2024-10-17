@@ -19,12 +19,12 @@
 
 import typing
 import json
+import datetime
 
 from edb.testbase import http as tb
-import edb.testbase.server as server
 
 
-class StdNetTestCase(server.QueryTestCase):
+class StdNetTestCase(tb.BaseHttpTest):
     mock_server: typing.Optional[tb.MockHttpServer] = None
     base_url: str
 
@@ -45,17 +45,18 @@ class StdNetTestCase(server.QueryTestCase):
             async with tr:
                 updated_result = await self.con.query_single(
                     """
-                    with
-                        nh as module std::net::http,
-                        net as module std::net,
-                        request := (
-                            select nh::ScheduledRequest
-                            filter .id = <uuid>$id
-                        )
+                    with request := (
+                        <std::net::http::ScheduledRequest><uuid>$id
+                    )
                     select request {
                         id,
                         state,
                         failure,
+                        response: {
+                            status,
+                            body,
+                            headers
+                        }
                     };
                     """,
                     id=request_id,
@@ -63,30 +64,8 @@ class StdNetTestCase(server.QueryTestCase):
                 state = str(updated_result.state)
                 self.assertNotEqual(state, 'Pending')
                 self.assertNotEqual(state, 'InProgress')
-
-    async def _get_final_request_result(self, request_id: str):
-        return await self.con.query_single(
-            """
-            with
-                nh as module std::net::http,
-                net as module std::net,
-                request := (
-                    select nh::ScheduledRequest
-                    filter .id = <uuid>$id
-                )
-            select request {
-                id,
-                state,
-                failure,
-                response: {
-                    status,
-                    body,
-                    headers
-                }
-            };
-            """,
-            id=request_id,
-        )
+                return updated_result
+        raise AssertionError("Failed to get final request result")
 
     async def test_http_std_net_con_schedule_request_get_01(self):
         assert self.mock_server is not None
@@ -118,6 +97,7 @@ class StdNetTestCase(server.QueryTestCase):
                 request := (
                     insert nh::ScheduledRequest {
                         created_at := datetime_of_statement(),
+                        updated_at := datetime_of_statement(),
                         state := std::net::RequestState.Pending,
 
                         url := url,
@@ -149,10 +129,7 @@ class StdNetTestCase(server.QueryTestCase):
         self.assertIn(("x-test-header", "test-value"), headers)
 
         # Wait for the request to complete
-        await self._wait_for_request_completion(result.id)
-
-        # Check the table as well
-        table_result = await self._get_final_request_result(result.id)
+        table_result = await self._wait_for_request_completion(result.id)
         self.assertEqual(str(table_result.state), 'Completed')
         self.assertIsNone(table_result.failure)
         self.assertEqual(table_result.response.status, 200)
@@ -225,10 +202,7 @@ class StdNetTestCase(server.QueryTestCase):
         self.assertEqual(requests_for_example[0].body, "Hello, world!")
 
         # Wait for the request to complete
-        await self._wait_for_request_completion(result.id)
-
-        # Check the final result
-        table_result = await self._get_final_request_result(result.id)
+        table_result = await self._wait_for_request_completion(result.id)
         self.assertEqual(str(table_result.state), 'Completed')
         self.assertIsNone(table_result.failure)
         self.assertEqual(table_result.response.status, 200)
@@ -247,7 +221,6 @@ class StdNetTestCase(server.QueryTestCase):
             """
             with
                 nh as module std::net::http,
-                net as module std::net,
                 url := <str>$url,
                 request := (
                     nh::schedule_request(
@@ -259,14 +232,132 @@ class StdNetTestCase(server.QueryTestCase):
                 id,
                 state,
                 failure,
+                response,
             };
             """,
             url=bad_url,
         )
 
-        await self._wait_for_request_completion(result.id)
-        table_result = await self._get_final_request_result(result.id)
+        table_result = await self._wait_for_request_completion(result.id)
         self.assertEqual(str(table_result.state), 'Failed')
         self.assertIsNotNone(table_result.failure)
         self.assertEqual(str(table_result.failure.kind), 'NetworkError')
         self.assertIsNone(table_result.response)
+
+    async def test_http_std_net_gc_01(self):
+        assert self.mock_server is not None
+        await self.con.execute(
+            """
+            configure instance
+            set net_http_request_ttl := <std::duration>'10 seconds';
+            """
+        )
+
+        example_request = (
+            'POST',
+            self.base_url,
+            '/test-post-01',
+        )
+        url = f"{example_request[1]}{example_request[2]}"
+        self.mock_server.register_route_handler(*example_request)(
+            (
+                json.dumps(
+                    {
+                        "message": "Hello, world!",
+                    }
+                ),
+                200,
+                {"Content-Type": "application/json"},
+            )
+        )
+        await self._wait_for_db_config("net_http_request_ttl")
+
+        try:
+            result = await self.con.query_single(
+                """
+                with
+                    nh as module std::net::http,
+                    url := <str>$url,
+                    expired := <datetime>$expired,
+                    fresh := <datetime>$fresh,
+                    request_expired := (
+                        insert nh::ScheduledRequest {
+                            created_at := expired - <std::duration>'1 hour',
+                            updated_at := expired,
+                            state := std::net::RequestState.Completed,
+                            url := url,
+                            method := nh::Method.`GET`,
+                        }
+                    ),
+                    request_old_but_recently_updated := (
+                        insert nh::ScheduledRequest {
+                            created_at := expired - <std::duration>'1 hour',
+                            updated_at := expired + <std::duration>'1 hour',
+                            state := std::net::RequestState.Completed,
+                            url := url,
+                            method := nh::Method.`GET`,
+                        }
+                    ),
+                    request_fresh := (
+                        insert nh::ScheduledRequest {
+                            created_at := fresh,
+                            updated_at := fresh,
+                            state := std::net::RequestState.Completed,
+                            url := url,
+                            method := nh::Method.`GET`,
+                        }
+                    ),
+                select {
+                    expired_id := request_expired.id,
+                    old_but_recently_updated_id := request_old_but_recently_updated.id,
+                    fresh_id := request_fresh.id,
+                };
+                """,
+                url=url,
+                expired=datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(seconds=10),
+                fresh=datetime.datetime.now(datetime.timezone.utc),
+            )
+
+            expired_id = result.expired_id
+            old_but_recently_updated_id = result.old_but_recently_updated_id
+            fresh_id = result.fresh_id
+
+            # Check that the expired request has been deleted
+            async for tr in self.try_until_succeeds(
+                delay=2, timeout=120, ignore=(AssertionError,)
+            ):
+                async with tr:
+                    does_expired_request_exist = await self.con.query_single(
+                        """
+                        with
+                            request := (
+                                select std::net::http::ScheduledRequest filter
+                                    .id = <uuid>$id
+                            )
+                        select exists request;
+                        """,
+                        id=expired_id,
+                    )
+                    self.assertFalse(does_expired_request_exist)
+
+            # Check that the fresh, and old but recently updated request still exists
+            do_fresh_requests_exist = await self.con.query_single(
+                """
+                with
+                    requests := (
+                        select std::net::http::ScheduledRequest filter
+                            .id in array_unpack(<array<uuid>>($ids))
+                    )
+                select exists requests;
+                """,
+                ids=[old_but_recently_updated_id, fresh_id],
+            )
+
+            self.assertTrue(do_fresh_requests_exist)
+        finally:
+            await self.con.execute(
+                """
+                configure instance reset net_http_request_ttl;
+                """
+            )
