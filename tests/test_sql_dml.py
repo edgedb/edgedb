@@ -967,11 +967,6 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [[doc_id, user_id]])
 
-    @test.xfail('''
-        RETURNING clause doesn't support table names
-
-        ERROR:  cannot find table `Document`
-    ''')
     async def test_sql_dml_insert_44(self):
         # Test that RETURNING supports "Table".col format
         res = await self.squery_values(
@@ -1359,11 +1354,6 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, 'DELETE 1')
 
-    @test.xfail('''
-        RETURNING clause doesn't support table names
-
-        ERROR:  cannot find table `Document`
-    ''')
     async def test_sql_dml_delete_14(self):
         # Test that RETURNING supports "Table".col format
 
@@ -1806,11 +1796,6 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             ],
         )
 
-    @test.xfail('''
-        RETURNING clause doesn't support table names
-
-        ERROR:  cannot find table `Document`
-    ''')
     async def test_sql_dml_update_17(self):
         # Test that RETURNING supports "Table".col format
 
