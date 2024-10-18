@@ -40,6 +40,10 @@ if typing.TYPE_CHECKING:
 logger = logging.getLogger("edb.server.net_worker")
 
 POLLING_INTERVAL = statypes.Duration(microseconds=10 * 1_000_000)  # 10 seconds
+# TODO: Make this configurable via server config
+NET_HTTP_REQUEST_TTL = statypes.Duration(
+    microseconds=3600 * 1_000_000
+)  # 1 hour
 
 
 async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
@@ -368,37 +372,21 @@ async def _gc(tenant: edbtenant.Tenant, expires_in: statypes.Duration) -> None:
 
 
 async def gc(server: edbserver.BaseServer) -> None:
-    tasks = [
-        asyncio.create_task(_tenant_gc_loop(tenant))
-        for tenant in server.iter_tenants()
-        if tenant.accept_new_tasks
-    ]
-    try:
-        await asyncio.wait(tasks)
-    except Exception as ex:
-        logger.debug(
-            "GC of std::net::http::ScheduledRequest failed", exc_info=ex
-        )
-
-
-async def _tenant_gc_loop(tenant: edbtenant.Tenant) -> None:
     while True:
-        net_http_request_ttl = tenant._server.config_lookup(
-            'net_http_request_ttl', tenant.get_sys_config()
-        )
-        try:
-            tenant_gc_task = tenant.create_task(
-                _gc(tenant, net_http_request_ttl), interruptable=False
+        tasks = [
+            tenant.create_task(
+                _gc(tenant, NET_HTTP_REQUEST_TTL), interruptable=False
             )
-            logger.info(f"Running GC for {tenant.get_instance_name()!r}")
-            await tenant_gc_task
+            for tenant in server.iter_tenants()
+            if tenant.accept_new_tasks
+        ]
+        try:
+            await asyncio.wait(tasks)
         except Exception as ex:
             logger.debug(
-                "GC of std::net::http::ScheduledRequest failed (instance: %s)",
-                tenant.get_instance_name(),
-                exc_info=ex,
+                "GC of std::net::http::ScheduledRequest failed", exc_info=ex
             )
         finally:
             await asyncio.sleep(
-                net_http_request_ttl.to_microseconds() / 1_000_000.0
+                NET_HTTP_REQUEST_TTL.to_microseconds() / 1_000_000.0
             )
