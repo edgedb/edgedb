@@ -1553,15 +1553,19 @@ PG_CATALOG: Dict[str, List[Tuple[ColumnName, ColumnType]]] = {
         ("stats_reset", "timestamp with time zone"),
     ],
     "pg_stat_bgwriter": [
-        ("checkpoints_timed", "bigint"),
-        ("checkpoints_req", "bigint"),
-        ("checkpoint_write_time", "double precision"),
-        ("checkpoint_sync_time", "double precision"),
-        ("buffers_checkpoint", "bigint"),
+        # XXX: Several fields of this type seem to have been removed
+        # by Postgres 17. Is omitting them an acceptable breakage of
+        # our emulation or should we try to fake them?
+
+        # ("checkpoints_timed", "bigint"),
+        # ("checkpoints_req", "bigint"),
+        # ("checkpoint_write_time", "double precision"),
+        # ("checkpoint_sync_time", "double precision"),
+        # ("buffers_checkpoint", "bigint"),
         ("buffers_clean", "bigint"),
         ("maxwritten_clean", "bigint"),
-        ("buffers_backend", "bigint"),
-        ("buffers_backend_fsync", "bigint"),
+        # ("buffers_backend", "bigint"),
+        # ("buffers_backend_fsync", "bigint"),
         ("buffers_alloc", "bigint"),
         ("stats_reset", "timestamp with time zone"),
     ],
@@ -1667,8 +1671,12 @@ PG_CATALOG: Dict[str, List[Tuple[ColumnName, ColumnType]]] = {
         ("heap_blks_scanned", "bigint"),
         ("heap_blks_vacuumed", "bigint"),
         ("index_vacuum_count", "bigint"),
-        ("max_dead_tuples", "bigint"),
-        ("num_dead_tuples", "bigint"),
+        # XXX: Several fields of this type seem to have been removed
+        # by Postgres 17. Is omitting them an acceptable breakage of
+        # our emulation or should we try to fake them?
+
+        # ("max_dead_tuples", "bigint"),
+        # ("num_dead_tuples", "bigint"),
     ],
     "pg_stat_replication": [
         ("pid", "integer"),
