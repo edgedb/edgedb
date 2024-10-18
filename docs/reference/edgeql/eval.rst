@@ -30,7 +30,7 @@ A nested query is called a *subquery*.  Here, the phrase
 A query is evaluated recursively using the following procedure:
 
 1. Make a list of simple paths (i.e., paths that begin with a set reference)
-   appearing directly the query.  For every path in the list, find all paths
+   appearing directly in the query.  For every path in the list, find all paths
    which begin with the same set reference and treat their longest common
    prefix as an equivalent set reference.
 

@@ -1,6 +1,5 @@
 .. _index_toplevel:
 
-
 ====================
 EdgeDB documentation
 ====================

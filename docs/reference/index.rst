@@ -1,4 +1,5 @@
 .. eql:section-intro-page:: reference
+.. edb:tag:: other
 .. versioned-section::
 
 .. _ref_reference_index:

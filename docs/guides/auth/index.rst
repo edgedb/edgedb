@@ -1,3 +1,5 @@
+.. edb:tag:: auth
+
 .. _ref_guide_auth:
 
 ====
