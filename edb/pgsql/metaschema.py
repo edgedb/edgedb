@@ -5900,9 +5900,9 @@ def _schema_alias_view_name(
     return ('edgedb', name)
 
 
-def _generate_sql_information_schema() -> List[dbops.Command]:
-
-    system_columns = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
+def _generate_sql_information_schema(
+    backend_version: params.BackendVersion
+) -> List[dbops.Command]:
 
     # A helper view that contains all data tables we expose over SQL, excluding
     # introspection tables.
@@ -6321,7 +6321,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         """.format(
                 ",".join(
                     f"pt.{col}"
-                    for col, _ in sql_introspection.PG_CATALOG["pg_type"][3:]
+                    for col, _, _ in sql_introspection.PG_CATALOG["pg_type"][3:]
                 )
             ),
         ),
@@ -6877,77 +6877,6 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         ),
     ]
 
-    def construct_pg_view(table_name: str, columns: List[str]) -> dbops.View:
-        if table_name in (
-            'pg_aggregate',
-            'pg_am',
-            'pg_amop',
-            'pg_amproc',
-            'pg_attrdef',
-            'pg_attribute',
-            'pg_auth_members',
-            'pg_authid',
-            'pg_cast',
-            'pg_class',
-            'pg_collation',
-            'pg_constraint',
-            'pg_conversion',
-            'pg_database',
-            'pg_db_role_setting',
-            'pg_default_acl',
-            'pg_depend',
-            'pg_description',
-            'pg_enum',
-            'pg_event_trigger',
-            'pg_extension',
-            'pg_foreign_data_wrapper',
-            'pg_foreign_server',
-            'pg_foreign_table',
-            'pg_index',
-            'pg_inherits',
-            'pg_init_privs',
-            'pg_language',
-            'pg_largeobject',
-            'pg_largeobject_metadata',
-            'pg_namespace',
-            'pg_opclass',
-            'pg_operator',
-            'pg_opfamily',
-            'pg_partitioned_table',
-            'pg_policy',
-            'pg_publication',
-            'pg_publication_rel',
-            'pg_range',
-            'pg_replication_origin',
-            'pg_rewrite',
-            'pg_seclabel',
-            'pg_sequence',
-            'pg_shdepend',
-            'pg_shdescription',
-            'pg_shseclabel',
-            'pg_statistic',
-            'pg_statistic_ext',
-            'pg_statistic_ext_data',
-            'pg_subscription_rel',
-            'pg_tablespace',
-            'pg_transform',
-            'pg_trigger',
-            'pg_ts_config',
-            'pg_ts_config_map',
-            'pg_ts_dict',
-            'pg_ts_parser',
-            'pg_ts_template',
-            'pg_type',
-            'pg_user_mapping',
-        ):
-            columns = list(columns) + system_columns
-
-        columns_sql = ','.join('o.' + c for c in columns)
-        return trampoline.VersionedView(
-            name=("edgedbsql", table_name),
-            query=f"SELECT {columns_sql} FROM pg_catalog.{table_name} o",
-        )
-
     # We expose most of the views as empty tables, just to prevent errors when
     # the tools do introspection.
     # For the tables that it turns out are actually needed, we handcraft the
@@ -6966,39 +6895,133 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 query="SELECT {} LIMIT 0".format(
                     ",".join(
                         f"NULL::information_schema.{type} AS {name}"
-                        for name, type in columns
+                        for name, type, _ver_since in columns
                     )
                 ),
             )
         )
 
+    PG_TABLES_SKIP = {
+        'pg_type',
+        'pg_attribute',
+        'pg_namespace',
+        'pg_class',
+        'pg_database',
+        'pg_proc',
+        'pg_operator',
+        'pg_pltemplate',
+        'pg_stats',
+        'pg_stats_ext_exprs',
+        'pg_statistic',
+        'pg_statistic_ext',
+        'pg_statistic_ext_data',
+        'pg_rewrite',
+        'pg_cast',
+        'pg_index',
+        'pg_constraint',
+        'pg_trigger',
+        'pg_subscription',
+    }
+
+    PG_TABLES_WITH_SYSTEM_COLS = {
+        'pg_aggregate',
+        'pg_am',
+        'pg_amop',
+        'pg_amproc',
+        'pg_attrdef',
+        'pg_attribute',
+        'pg_auth_members',
+        'pg_authid',
+        'pg_cast',
+        'pg_class',
+        'pg_collation',
+        'pg_constraint',
+        'pg_conversion',
+        'pg_database',
+        'pg_db_role_setting',
+        'pg_default_acl',
+        'pg_depend',
+        'pg_description',
+        'pg_enum',
+        'pg_event_trigger',
+        'pg_extension',
+        'pg_foreign_data_wrapper',
+        'pg_foreign_server',
+        'pg_foreign_table',
+        'pg_index',
+        'pg_inherits',
+        'pg_init_privs',
+        'pg_language',
+        'pg_largeobject',
+        'pg_largeobject_metadata',
+        'pg_namespace',
+        'pg_opclass',
+        'pg_operator',
+        'pg_opfamily',
+        'pg_partitioned_table',
+        'pg_policy',
+        'pg_publication',
+        'pg_publication_rel',
+        'pg_range',
+        'pg_replication_origin',
+        'pg_rewrite',
+        'pg_seclabel',
+        'pg_sequence',
+        'pg_shdepend',
+        'pg_shdescription',
+        'pg_shseclabel',
+        'pg_statistic',
+        'pg_statistic_ext',
+        'pg_statistic_ext_data',
+        'pg_subscription_rel',
+        'pg_tablespace',
+        'pg_transform',
+        'pg_trigger',
+        'pg_ts_config',
+        'pg_ts_config_map',
+        'pg_ts_dict',
+        'pg_ts_parser',
+        'pg_ts_template',
+        'pg_type',
+        'pg_user_mapping',
+    }
+
+    SYSTEM_COLUMNS = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
+
+    def construct_pg_view(
+        table_name: str, backend_version: params.BackendVersion
+    ) -> Optional[dbops.View]:
+        pg_columns = sql_introspection.PG_CATALOG[table_name]
+
+        columns = []
+        has_columns = False
+        for c_name, c_typ, c_ver_since in pg_columns:
+            if c_ver_since <= backend_version.major:
+                columns.append('o.' + c_name)
+                has_columns = True
+            elif c_typ:
+                columns.append(f'NULL::{c_typ} as {c_name}')
+            else:
+                columns.append(f'NULL as {c_name}')
+        if not has_columns:
+            return None
+
+        if table_name in PG_TABLES_WITH_SYSTEM_COLS:
+            for c_name in SYSTEM_COLUMNS:
+                columns.append('o.' + c_name)
+
+        return trampoline.VersionedView(
+            name=("edgedbsql", table_name),
+            query=f"SELECT {','.join(columns)} FROM pg_catalog.{table_name} o",
+        )
+
     views.extend(pg_catalog_views)
 
-    for table_name, columns in sql_introspection.PG_CATALOG.items():
-        if table_name in [
-            'pg_type',
-            'pg_attribute',
-            'pg_namespace',
-            'pg_class',
-            'pg_database',
-            'pg_proc',
-            'pg_operator',
-            'pg_pltemplate',
-            'pg_stats',
-            'pg_stats_ext_exprs',
-            'pg_statistic',
-            'pg_statistic_ext',
-            'pg_statistic_ext_data',
-            'pg_rewrite',
-            'pg_cast',
-            'pg_index',
-            'pg_constraint',
-            'pg_trigger',
-            'pg_subscription',
-        ]:
+    for table_name in sql_introspection.PG_CATALOG.keys():
+        if table_name in PG_TABLES_SKIP:
             continue
-
-        views.append(construct_pg_view(table_name, [c for c, _ in columns]))
+        if v := construct_pg_view(table_name, backend_version):
+            views.append(v)
 
     util_functions = [
         trampoline.VersionedFunction(
@@ -7345,7 +7368,11 @@ def get_support_views(
     for alias_view in sys_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
-    commands.add_commands(_generate_sql_information_schema())
+    commands.add_commands(
+        _generate_sql_information_schema(
+            backend_params.instance_params.version
+        )
+    )
 
     # The synthetic type views (cfg::, sys::) need to be trampolined
     trampolines = []

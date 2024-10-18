@@ -1864,8 +1864,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         tran = self.scon.transaction()
         await tran.start()
 
-        await self.scon.execute('INSERT INTO "ContentSummary" DEFAULT VALUES')
-
         # no access policies
         res = await self.squery_values('SELECT x FROM "ContentSummary"')
         self.assertEqual(res, [[5]])
@@ -1892,7 +1890,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         await tran.start()
 
         # allowed without applying access policies
-        await self.scon.execute('INSERT INTO "ContentSummary" DEFAULT VALUES')
 
         await self.scon.execute('SET LOCAL apply_access_policies_sql TO true')
 
@@ -1900,7 +1897,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         await self.scon.execute(
             """SET LOCAL "global default::filter_title" TO 'summary'"""
         )
-        await self.scon.execute('INSERT INTO "ContentSummary" DEFAULT VALUES')
 
         # not allowed when filter_title is something else
         await self.scon.execute(
