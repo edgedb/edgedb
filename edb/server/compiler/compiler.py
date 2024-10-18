@@ -60,6 +60,7 @@ from edb.common import verutils
 from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 
@@ -1577,6 +1578,28 @@ def _compile_ql_query(
     is_explain = explain_data is not None
     current_tx = ctx.state.current_tx()
 
+    sql_info: Dict[str, Any] = {}
+    if (
+        not ctx.bootstrap_mode
+        and ctx.backend_runtime_params.has_stat_statements
+    ):
+        sql_info.update({
+            'query': qlcodegen.generate_source(ql),
+        })
+        if ctx.cache_key is not None and script_info is None:
+            cache_key = ctx.cache_key
+        else:
+            # This is a temporary workaround for commands in a script to get
+            # unique "queryId", so that the stats of scripts show correctly,
+            # before we have separate cache entries for commands in a script.
+            key_hash = hashlib.blake2b(digest_size=16)
+            key_hash.update(
+                json.dumps(sql_info).encode(defines.EDGEDB_ENCODING)
+            )
+            cache_key = uuidgen.from_bytes(key_hash.digest())
+        sql_info['queryId'] = cache_key.int >> 64
+        sql_info['cacheKey'] = str(cache_key)
+
     base_schema = (
         ctx.compiler_state.std_schema
         if not _get_config_val(ctx, '__internal_query_reflschema')
@@ -1642,12 +1665,11 @@ def _compile_ql_query(
 
     # If requested, embed the EdgeQL text in the SQL.
     if debug.flags.edgeql_text_in_sql and source:
-        sql_debug_obj = dict(edgeql=source.text())
-        sql_debug_prefix = '-- ' + json.dumps(sql_debug_obj) + '\n'
-        sql_text = sql_debug_prefix + sql_text
-        if func_call_sql is not None:
-            func_call_sql = sql_debug_prefix + func_call_sql
-    sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
+        sql_info['edgeql'] = source.text()
+    if sql_info:
+        sql_info_prefix = '-- ' + json.dumps(sql_info) + '\n'
+    else:
+        sql_info_prefix = ''
 
     globals = None
     if ir.globals:
@@ -1679,21 +1701,23 @@ def _compile_ql_query(
     )
 
     sql_hash = _hash_sql(
-        sql_bytes,
+        sql_text.encode(defines.EDGEDB_ENCODING),
         mode=str(ctx.output_format).encode(),
         intype=in_type_id.bytes,
         outtype=out_type_id.bytes)
 
     cache_func_call = None
     if func_call_sql is not None:
-        func_call_sql_bytes = func_call_sql.encode(defines.EDGEDB_ENCODING)
         func_call_sql_hash = _hash_sql(
-            func_call_sql_bytes,
+            func_call_sql.encode(defines.EDGEDB_ENCODING),
             mode=str(ctx.output_format).encode(),
             intype=in_type_id.bytes,
             outtype=out_type_id.bytes,
         )
-        cache_func_call = (func_call_sql_bytes, func_call_sql_hash)
+        cache_func_call = (
+            (sql_info_prefix + func_call_sql).encode(defines.EDGEDB_ENCODING),
+            func_call_sql_hash,
+        )
 
     if is_explain:
         if isinstance(ir.schema, s_schema.ChainedSchema):
@@ -1708,7 +1732,7 @@ def _compile_ql_query(
         query_asts = None
 
     return dbstate.Query(
-        sql=(sql_bytes,),
+        sql=((sql_info_prefix + sql_text).encode(defines.EDGEDB_ENCODING),),
         sql_hash=sql_hash,
         cache_sql=cache_sql,
         cache_func_call=cache_func_call,

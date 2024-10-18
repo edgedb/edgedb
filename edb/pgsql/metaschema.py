@@ -4871,6 +4871,109 @@ class PadBase64StringFunction(trampoline.VersionedFunction):
         )
 
 
+class ResetQueryStatsFunction(trampoline.VersionedFunction):
+    text = r"""
+    DECLARE
+        tenant_id TEXT;
+        other_tenant_exists BOOLEAN;
+        db_oid OID;
+    BEGIN
+        tenant_id := edgedb_VER.get_backend_tenant_id();
+
+        SELECT EXISTS (
+            SELECT 1
+            FROM
+                pg_database dat
+                CROSS JOIN LATERAL (
+                    SELECT
+                        edgedb_VER.shobj_metadata(dat.oid, 'pg_database')
+                            AS description
+                ) AS d
+            WHERE
+                (d.description)->>'id' IS NOT NULL
+                AND (d.description)->>'tenant_id' != tenant_id
+        ) INTO other_tenant_exists;
+
+        IF branch_name IS NULL THEN
+            IF other_tenant_exists THEN
+                RETURN edgedbext.edb_stat_statements_reset(
+                    0,  -- userid
+                    ARRAY(
+                        SELECT
+                            dat.oid
+                        FROM
+                            pg_database dat
+                            CROSS JOIN LATERAL (
+                                SELECT
+                                    edgedb_VER.shobj_metadata(dat.oid,
+                                                              'pg_database')
+                                        AS description
+                            ) AS d
+                        WHERE
+                            (d.description)->>'id' IS NOT NULL
+                            AND (d.description)->>'tenant_id' = tenant_id
+                    ),
+                    COALESCE(query_id, 0)
+                );
+            ELSE
+                RETURN edgedbext.edb_stat_statements_reset(
+                    0,  -- userid
+                    '{}',  -- database oid
+                    COALESCE(query_id, 0)
+                );
+            END IF;
+        ELSE
+            SELECT
+                dat.oid INTO db_oid
+            FROM
+                pg_database dat
+                CROSS JOIN LATERAL (
+                    SELECT
+                        edgedb_VER.shobj_metadata(dat.oid, 'pg_database')
+                            AS description
+                ) AS d
+            WHERE
+                (d.description)->>'id' IS NOT NULL
+                AND (d.description)->>'tenant_id' = tenant_id
+                AND edgedb_VER.get_database_frontend_name(dat.datname) =
+                    branch_name;
+
+            IF db_oid IS NULL THEN
+                RETURN NULL::edgedbt.timestamptz_t;
+            END IF;
+
+            RETURN edgedbext.edb_stat_statements_reset(
+                0,  -- userid
+                ARRAY[db_oid],
+                COALESCE(query_id, 0)
+            );
+        END IF;
+
+        RETURN now()::edgedbt.timestamptz_t;
+    END;
+    """
+
+    noop_text = r"""
+        BEGIN
+        RETURN NULL::edgedbt.timestamptz_t;
+        END;
+    """
+
+    def __init__(self, enable_stats: bool) -> None:
+        super().__init__(
+            name=('edgedb', 'reset_query_stats'),
+            args=[
+                ('branch_name', ('text',)),
+                ('minmax_only', ('bool',)),
+                ('query_id', ('bigint',)),
+            ],
+            returns=('edgedbt', 'timestamptz_t'),
+            volatility='volatile',
+            language='plpgsql',
+            text=self.text if enable_stats else self.noop_text,
+        )
+
+
 def _maybe_trampoline(
     cmd: dbops.Command, out: list[trampoline.Trampoline]
 ) -> None:
@@ -5094,6 +5197,7 @@ def get_bootstrap_commands(
         dbops.CreateFunction(FTSNormalizeDocFunction()),
         dbops.CreateFunction(FTSToRegconfig()),
         dbops.CreateFunction(PadBase64StringFunction()),
+        dbops.CreateFunction(ResetQueryStatsFunction(False)),
     ]
 
     commands = dbops.CommandGroup()
@@ -5115,15 +5219,19 @@ async def create_pg_extensions(
     commands.add_command(
         dbops.CreateSchema(name=ext_schema, conditional=True),
     )
-    if (
-        inst_params.existing_exts is None
-        or inst_params.existing_exts.get("uuid-ossp") is None
-    ):
-        commands.add_commands([
-            dbops.CreateExtension(
-                dbops.Extension(name='uuid-ossp', schema=ext_schema),
-            ),
-        ])
+    extensions = ["uuid-ossp"]
+    if backend_params.has_stat_statements:
+        extensions.append("edb_stat_statements")
+    for ext in extensions:
+        if (
+            inst_params.existing_exts is None
+            or inst_params.existing_exts.get(ext) is None
+        ):
+            commands.add_commands([
+                dbops.CreateExtension(
+                    dbops.Extension(name=ext, schema=ext_schema),
+                ),
+            ])
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
@@ -5809,6 +5917,77 @@ def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
 
     objects = {
         Ver: view_query
+    }
+
+    views: list[dbops.View] = []
+    for obj, query in objects.items():
+        tabview = trampoline.VersionedView(
+            name=tabname(schema, obj), query=query)
+        views.append(tabview)
+
+    return views
+
+
+def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
+    QueryStats = schema.get(
+        'sys::QueryStats',
+        type=s_objtypes.ObjectType,
+    )
+
+    def float64_to_duration_t(val: str) -> str:
+        return f"({val} * interval '1ms')::edgedbt.duration_t"
+
+    query_stats_fields = {
+        'id': "s.cache_key",
+        'name': "s.cache_key::text",
+        'name__internal': "s.queryid::text",
+        'builtin': "false",
+        'internal': "false",
+        'computed_fields': 'ARRAY[]::text[]',
+
+        'branch': "((d.description)->>'id')::uuid",
+        'query': "s.query",
+        'query_id': "s.queryid",
+
+        'plans': 's.plans',
+        'total_plan_time': float64_to_duration_t('s.total_plan_time'),
+        'min_plan_time': float64_to_duration_t('s.min_plan_time'),
+        'max_plan_time': float64_to_duration_t('s.max_plan_time'),
+        'mean_plan_time': float64_to_duration_t('s.mean_plan_time'),
+        'stddev_plan_time': float64_to_duration_t('s.stddev_plan_time'),
+
+        'calls': 's.calls',
+        'total_exec_time': float64_to_duration_t('s.total_exec_time'),
+        'min_exec_time': float64_to_duration_t('s.min_exec_time'),
+        'max_exec_time': float64_to_duration_t('s.max_exec_time'),
+        'mean_exec_time': float64_to_duration_t('s.mean_exec_time'),
+        'stddev_exec_time': float64_to_duration_t('s.stddev_exec_time'),
+
+        'rows': 's.rows',
+        'stats_since': 's.stats_since::edgedbt.timestamptz_t',
+        'minmax_stats_since': 's.minmax_stats_since::edgedbt.timestamptz_t',
+    }
+
+    query_stats_query = fr'''
+        SELECT
+            {format_fields(schema, QueryStats, query_stats_fields)}
+        FROM
+            edgedbext.edb_stat_statements AS s
+            INNER JOIN pg_database dat ON s.dbid = dat.oid
+            CROSS JOIN LATERAL (
+                SELECT
+                    edgedb_VER.shobj_metadata(dat.oid, 'pg_database')
+                        AS description
+            ) AS d
+        WHERE
+            s.cache_key IS NOT NULL
+            AND (d.description)->>'id' IS NOT NULL
+            AND (d.description)->>'tenant_id'
+                = edgedb_VER.get_backend_tenant_id()
+    '''
+
+    objects = {
+        QueryStats: query_stats_query,
     }
 
     views: list[dbops.View] = []
@@ -7289,6 +7468,15 @@ def get_synthetic_type_views(
 
     for verview in _generate_schema_ver_views(schema):
         commands.add_command(dbops.CreateView(verview, or_replace=True))
+
+    if backend_params.has_stat_statements:
+        for stats_view in _generate_stats_views(schema):
+            commands.add_command(dbops.CreateView(stats_view, or_replace=True))
+        commands.add_command(
+            dbops.CreateFunction(
+                ResetQueryStatsFunction(True), or_replace=True
+            )
+        )
 
     return commands
 
