@@ -68,6 +68,7 @@ from . import pgconnparams
 
 from .ha import adaptive as adaptive_ha
 from .ha import base as ha_base
+from .http import HttpClient
 from .pgcon import errors as pgcon_errors
 
 if TYPE_CHECKING:
@@ -78,6 +79,9 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger("edb.server")
+
+
+HTTP_MAX_CONNECTIONS = 100
 
 
 class RoleDescriptor(TypedDict):
@@ -131,6 +135,8 @@ class Tenant(ha_base.ClusterProtocol):
     _jwt_sub_allowlist: frozenset[str] | None
     _jwt_revocation_list_file: pathlib.Path | None
     _jwt_revocation_list: frozenset[str] | None
+
+    _http_client: HttpClient | None
 
     def __init__(
         self,
@@ -203,6 +209,8 @@ class Tenant(ha_base.ClusterProtocol):
         self._jwt_revocation_list_file = None
         self._jwt_revocation_list = None
 
+        self._http_client = None
+
         # If it isn't stored in instdata, it is the old default.
         self.default_database = defines.EDGEDB_OLD_DEFAULT_DB
 
@@ -237,6 +245,11 @@ class Tenant(ha_base.ClusterProtocol):
     def set_server(self, server: edbserver.BaseServer) -> None:
         self._server = server
         self.__loop = server.get_loop()
+
+    def get_http_client(self) -> HttpClient:
+        if self._http_client is None:
+            self._http_client = HttpClient(HTTP_MAX_CONNECTIONS)
+        return self._http_client
 
     def on_switch_over(self):
         # Bumping this serial counter will "cancel" all pending connections

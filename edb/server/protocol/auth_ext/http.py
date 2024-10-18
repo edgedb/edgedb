@@ -31,7 +31,15 @@ import os
 import mimetypes
 import uuid
 
-from typing import Any, Optional, Tuple, FrozenSet, cast, TYPE_CHECKING
+from typing import (
+    Any,
+    Optional,
+    Tuple,
+    FrozenSet,
+    cast,
+    TYPE_CHECKING,
+    Callable,
+)
 
 import aiosmtplib
 from jwcrypto import jwk, jwt
@@ -79,6 +87,27 @@ class Router:
         self.base_path = base_path
         self.tenant = tenant
         self.test_mode = tenant.server.in_test_mode()
+
+    def _get_url_munger(
+        self, request: protocol.HttpRequest
+    ) -> Callable[[str], str] | None:
+        """
+        Returns a callable that can be used to modify the base URL
+        when making requests to the OAuth provider.
+
+        This is used to redirect requests to the test OAuth provider
+        when running in test mode.
+        """
+        if not self.test_mode:
+            return None
+        test_url = (
+            request.params[b'oauth-test-server'].decode()
+            if (request.params and b'oauth-test-server' in request.params)
+            else None
+        )
+        if test_url:
+            return lambda path: f"{test_url}{urllib.parse.quote(path)}"
+        return None
 
     async def handle_request(
         self,
@@ -270,7 +299,10 @@ class Router:
             query, "challenge", fallback_keys=["code_challenge"]
         )
         oauth_client = oauth.Client(
-            db=self.db, provider_name=provider_name, base_url=self.test_url
+            db=self.db,
+            provider_name=provider_name,
+            url_munger=self._get_url_munger(request),
+            http_client=self.tenant.get_http_client(),
         )
         await pkce.create(self.db, challenge)
         authorize_url = await oauth_client.get_authorize_url(
@@ -369,7 +401,8 @@ class Router:
         oauth_client = oauth.Client(
             db=self.db,
             provider_name=provider_name,
-            base_url=self.test_url,
+            url_munger=self._get_url_munger(request),
+            http_client=self.tenant.get_http_client(),
         )
         (
             identity,

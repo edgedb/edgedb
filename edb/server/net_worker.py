@@ -24,12 +24,11 @@ import typing
 import asyncio
 import logging
 import base64
-import os
 
 from edb.ir import statypes
 from edb.server import defines
 from edb.server.protocol import execute
-from edb.server._http import Http
+from edb.server.http import HttpClient
 from edb.common import retryloop
 from . import dbview
 
@@ -97,77 +96,6 @@ async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
             tenant.get_instance_name(),
             exc_info=ex,
         )
-
-
-class HttpClient:
-    def __init__(self, limit: int):
-        self._client = Http(limit)
-        self._fd = self._client._fd
-        self._task = None
-        self._skip_reads = 0
-        self._loop = asyncio.get_running_loop()
-        self._task = self._loop.create_task(self._boot(self._loop))
-        self._next_id = 0
-        self._requests: dict[int, asyncio.Future] = {}
-
-    def __del__(self) -> None:
-        if self._task:
-            self._task.cancel()
-            self._task = None
-
-    def _update_limit(self, limit: int):
-        self._client._update_limit(limit)
-
-    async def request(
-        self,
-        *,
-        method: str,
-        url: str,
-        content: bytes | None,
-        headers: list[tuple[str, str]] | None,
-    ):
-        if content is None:
-            content = bytes()
-        if headers is None:
-            headers = []
-        id = self._next_id
-        self._next_id += 1
-        self._requests[id] = asyncio.Future()
-        try:
-            self._client._request(id, url, method, content, headers)
-            resp = await self._requests[id]
-            return resp
-        finally:
-            del self._requests[id]
-
-    async def _boot(self, loop: asyncio.AbstractEventLoop) -> None:
-        logger.info("Python-side HTTP client booted")
-        reader = asyncio.StreamReader(loop=loop)
-        reader_protocol = asyncio.StreamReaderProtocol(reader)
-        fd = os.fdopen(self._client._fd, 'rb')
-        transport, _ = await loop.connect_read_pipe(lambda: reader_protocol, fd)
-        try:
-            while len(await reader.read(1)) == 1:
-                if not self._client or not self._task:
-                    break
-                if self._skip_reads > 0:
-                    self._skip_reads -= 1
-                    continue
-                msg = self._client._read()
-                if not msg:
-                    break
-                self._process_message(msg)
-        finally:
-            transport.close()
-
-    def _process_message(self, msg):
-        msg_type, id, data = msg
-
-        if id in self._requests:
-            if msg_type == 1:
-                self._requests[id].set_result(data)
-            elif msg_type == 0:
-                self._requests[id].set_exception(Exception(data))
 
 
 def create_http(tenant: edbtenant.Tenant):

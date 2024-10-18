@@ -37,7 +37,7 @@ class BaseProvider:
         client_secret: str,
         *,
         additional_scope: str | None,
-        http_factory: Callable[..., http_client.HttpClient],
+        http_factory: Callable[..., http_client.AuthHttpClient],
     ):
         self.name = name
         self.issuer_url = issuer_url
