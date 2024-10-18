@@ -16,51 +16,49 @@
 # limitations under the License.
 #
 
-from typing import Any
-import urllib.parse
+from typing import Any, Callable, Self
 
-import hishel
-import httpx
+from edb.server import http
 
 
-class HttpClient(httpx.AsyncClient):
+class AuthHttpClient:
     def __init__(
         self,
-        *args: Any,
-        edgedb_test_url: str | None,
-        base_url: str,
-        **kwargs: Any,
+        http_client: http.HttpClient,
+        url_munger: Callable[[str], str] | None = None,
+        base_url: str | None = None,
     ):
-        self.edgedb_orig_base_url = None
-        if edgedb_test_url:
-            self.edgedb_orig_base_url = urllib.parse.quote(base_url, safe='')
-            base_url = edgedb_test_url
-        cache = hishel.AsyncCacheTransport(
-            transport=httpx.AsyncHTTPTransport(),
-            storage=hishel.AsyncInMemoryStorage(capacity=5),
-        )
-        super().__init__(
-            *args, base_url=base_url, transport=cache, **kwargs
-        )
+        self.url_munger = url_munger
+        self.http_client = http_client
+        self.base_url = base_url
 
-    async def post(  # type: ignore[override]
+    async def post(
         self,
         path: str,
-        *args: Any,
-        **kwargs: Any,
-    ) -> httpx.Response:
-        if self.edgedb_orig_base_url:
-            path = f'{self.edgedb_orig_base_url}{path}'
-        return await super().post(
-            path, *args, **kwargs
+        *,
+        headers: dict[str, str] | None = None,
+        data: bytes | str | dict[str, str] | None = None,
+        json: Any | None = None,
+    ) -> http.Response:
+        if self.base_url:
+            path = self.base_url + path
+        if self.url_munger:
+            path = self.url_munger(path)
+        return await self.http_client.post(
+            path, headers=headers, data=data, json=json
         )
 
-    async def get(  # type: ignore[override]
-        self,
-        path: str,
-        *args: Any,
-        **kwargs: Any,
-    ) -> httpx.Response:
-        if self.edgedb_orig_base_url:
-            path = f'{self.edgedb_orig_base_url}{path}'
-        return await super().get(path, *args, **kwargs)
+    async def get(
+        self, path: str, *, headers: dict[str, str] | None = None
+    ) -> http.Response:
+        if self.base_url:
+            path = self.base_url + path
+        if self.url_munger:
+            path = self.url_munger(path)
+        return await self.http_client.get(path, headers=headers)
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *args) -> None:  # type: ignore
+        pass

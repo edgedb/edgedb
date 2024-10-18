@@ -19,23 +19,29 @@
 
 import json
 
-from typing import cast, Any
+from typing import cast, Any, Callable
 from edb.server.protocol import execute
+from edb.server.http import HttpClient
 
 from . import github, google, azure, apple, discord, slack
-from . import config, errors, util, data, base, http_client
+from . import config, errors, util, data, base, http_client as _http_client
 
 
 class Client:
     provider: base.BaseProvider
 
     def __init__(
-        self, db: Any, provider_name: str, base_url: str | None = None
+        self,
+        *,
+        db: Any,
+        provider_name: str,
+        http_client: HttpClient,
+        url_munger: Callable[[str], str] | None = None,
     ):
         self.db = db
 
-        http_factory = lambda *args, **kwargs: http_client.HttpClient(
-            *args, edgedb_test_url=base_url, **kwargs
+        http_factory = lambda *args, **kwargs: _http_client.AuthHttpClient(
+            *args, url_munger=url_munger, http_client=http_client, **kwargs  # type: ignore
         )
 
         provider_config = self._get_provider_config(provider_name)
