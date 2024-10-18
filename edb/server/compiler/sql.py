@@ -18,20 +18,24 @@
 
 
 from __future__ import annotations
-from typing import Tuple, Mapping, Sequence, List, TYPE_CHECKING, Optional
+from typing import Any, Tuple, Mapping, Sequence, List, TYPE_CHECKING, Optional
 
 import dataclasses
 import functools
 import hashlib
 import immutables
+import json
 
 from edb import errors
+from edb.common import uuidgen
+from edb.server import defines
 
 from edb.schema import schema as s_schema
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common as pg_common
 from edb.pgsql import codegen as pg_codegen
+from edb.pgsql import params as pg_params
 from edb.pgsql import parser as pg_parser
 
 from . import dbstate
@@ -62,6 +66,7 @@ def compile_sql(
     current_user: str,
     allow_user_specified_id: Optional[bool],
     apply_access_policies_sql: Optional[bool],
+    backend_runtime_params: pg_params.BackendRuntimeParams,
 ) -> List[dbstate.SQLQueryUnit]:
     opts = ResolverOptionsPartial(
         query_str=query_str,
@@ -76,6 +81,7 @@ def compile_sql(
     for stmt in stmts:
         orig_text = pg_codegen.generate_source(stmt)
         fe_settings = tx_state.current_fe_settings()
+        track_stats = False
 
         unit = dbstate.SQLQueryUnit(
             orig_query=orig_text,
@@ -182,10 +188,10 @@ def compile_sql(
 
             sql_trailer = f"{param_text} AS ({stmt_source.text})"
 
-            mangled_stmt_name = compute_stmt_name(
+            mangled_stmt_name = compute_stmt_name(hash_stmt_name(
                 f"PREPARE {pg_common.quote_ident(stmt.name)}{sql_trailer}",
                 tx_state,
-            )
+            ))
 
             sql_text = (
                 f"PREPARE {pg_common.quote_ident(mangled_stmt_name)}"
@@ -200,6 +206,7 @@ def compile_sql(
                 translation_data=stmt_source.translation_data,
             )
             unit.command_complete_tag = dbstate.TagPlain(tag=b"PREPARE")
+            track_stats = True
 
         elif isinstance(stmt, pgast.ExecuteStmt):
             orig_name = stmt.name
@@ -216,6 +223,8 @@ def compile_sql(
                 stmt_name=orig_name,
                 be_stmt_name=mangled_name.encode("utf-8"),
             )
+            track_stats = True
+
         elif isinstance(stmt, pgast.DeallocateStmt):
             orig_name = stmt.name
             mangled_name = prepared_stmt_map.get(orig_name)
@@ -248,8 +257,26 @@ def compile_sql(
             unit.translation_data = stmt_source.translation_data
             unit.command_complete_tag = stmt_resolved.command_complete_tag
             unit.params = stmt_resolved.params
+            track_stats = True
 
-        unit.stmt_name = compute_stmt_name(unit.query, tx_state).encode("utf-8")
+        stmt_hash = hash_stmt_name(unit.query, tx_state)
+        unit.stmt_name = compute_stmt_name(stmt_hash).encode("utf-8")
+
+        if track_stats and backend_runtime_params.has_stat_statements:
+            cache_key = uuidgen.from_bytes(stmt_hash.digest()[:16])
+            sql_debug_obj = {
+                'query': orig_text,
+                'type': defines.QueryType.SQL,
+                'queryId': cache_key.int >> 64,
+                'cacheKey': str(cache_key),
+            }
+            prefix = ''.join([
+                '-- ',
+                json.dumps(sql_debug_obj),
+                '\n',
+            ])
+            unit.prefix_len = len(prefix)
+            unit.query = prefix + unit.query
 
         tx_state.apply(unit)
         sql_units.append(unit)
@@ -342,7 +369,7 @@ def is_setting_truthy(val: str | int | float) -> bool:
         return False
 
 
-def compute_stmt_name(text: str, tx_state: dbstate.SQLTransactionState) -> str:
+def hash_stmt_name(text: str, tx_state: dbstate.SQLTransactionState) -> Any:
     stmt_hash = hashlib.sha1(text.encode("utf-8"))
     for setting_name in sorted(FE_SETTINGS_MUTABLE):
         try:
@@ -351,6 +378,10 @@ def compute_stmt_name(text: str, tx_state: dbstate.SQLTransactionState) -> str:
             pass
         else:
             stmt_hash.update(f"{setting_name}:{setting_value}".encode("utf-8"))
+    return stmt_hash
+
+
+def compute_stmt_name(stmt_hash: Any) -> str:
     return f"edb{stmt_hash.hexdigest()}"
 
 

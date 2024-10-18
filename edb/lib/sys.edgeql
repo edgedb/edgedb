@@ -28,6 +28,10 @@ CREATE SCALAR TYPE sys::VersionStage
     EXTENDING enum<dev, alpha, beta, rc, final>;
 
 
+CREATE SCALAR TYPE sys::QueryType
+    EXTENDING enum<EdgeQL, SQL>;
+
+
 CREATE ABSTRACT TYPE sys::SystemObject EXTENDING schema::Object;
 
 CREATE ABSTRACT TYPE sys::ExternalObject EXTENDING sys::SystemObject;
@@ -83,6 +87,43 @@ CREATE TYPE sys::Role EXTENDING
 
 ALTER TYPE sys::Role {
     CREATE MULTI LINK member_of -> sys::Role;
+};
+
+
+CREATE TYPE sys::QueryStats EXTENDING sys::ExternalObject {
+    CREATE LINK branch -> sys::Branch;
+    CREATE PROPERTY query -> std::str;
+    CREATE PROPERTY query_id -> std::int64;
+    CREATE PROPERTY query_type -> sys::QueryType;
+
+    CREATE PROPERTY plans -> std::int64;
+    CREATE PROPERTY total_plan_time -> std::duration;
+    CREATE PROPERTY min_plan_time -> std::duration;
+    CREATE PROPERTY max_plan_time -> std::duration;
+    CREATE PROPERTY mean_plan_time -> std::duration;
+    CREATE PROPERTY stddev_plan_time -> std::duration;
+
+    CREATE PROPERTY calls -> std::int64;
+    CREATE PROPERTY total_exec_time -> std::duration;
+    CREATE PROPERTY min_exec_time -> std::duration;
+    CREATE PROPERTY max_exec_time -> std::duration;
+    CREATE PROPERTY mean_exec_time -> std::duration;
+    CREATE PROPERTY stddev_exec_time -> std::duration;
+
+    CREATE PROPERTY rows -> std::int64;
+    CREATE PROPERTY stats_since -> std::datetime;
+    CREATE PROPERTY minmax_stats_since -> std::datetime;
+};
+
+
+CREATE FUNCTION
+sys::reset_query_stats(
+    named only branch_name: OPTIONAL std::str = {},
+    named only query_id: OPTIONAL std::int64 = {},
+    named only minmax_only: OPTIONAL std::bool = {},
+) -> OPTIONAL std::datetime {
+    SET volatility := 'Volatile';
+    USING SQL FUNCTION 'edgedb.reset_query_stats';
 };
 
 

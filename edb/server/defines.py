@@ -20,6 +20,8 @@
 from __future__ import annotations
 from typing import TypeAlias
 
+import enum
+
 from edb import buildmeta
 
 from edb.common import enum as s_enum
@@ -100,3 +102,10 @@ MULTITENANT_TENANT_DESTROY_TIMEOUT = 30
 class TxIsolationLevel(s_enum.StrEnum):
     RepeatableRead = 'REPEATABLE READ'
     Serializable = 'SERIALIZABLE'
+
+
+# Mapping to the backend `edb_stat_statements.stmt_type` values,
+# as well as `sys::QueryType` in edb/lib/sys.edgeql
+class QueryType(enum.IntEnum):
+    EdgeQL = 1
+    SQL = 2

@@ -12,6 +12,7 @@ indent_style = space
 indent_size = 2
 indent_style = space
 
-[ext/*.{c,cpp,h}]
-indent_size = 4
+[edb_stat_statements/*.{c,h,l,y,pl,pm}]
 indent_style = tab
+indent_size = tab
+tab_width = 4

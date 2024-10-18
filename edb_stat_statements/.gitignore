@@ -1,0 +1,9 @@
+# Generated subdirectories
+/log/
+/results/
+/tmp_check/
+/expected/dml.out
+/expected/level_tracking.out
+/expected/parallel.out
+/expected/utility.out
+/expected/wal.out
