@@ -218,11 +218,11 @@ def register_projections(target_list: List[pgast.ResTarget], *, ctx: Context):
 
 
 PG_TOAST_TABLE: List[
-    Tuple[sql_introspection.ColumnName, sql_introspection.ColumnType]
+    Tuple[sql_introspection.ColumnName, sql_introspection.ColumnType, int]
 ] = [
-    ('chunk_id', None),
-    ('chunk_seq', None),
-    ('chunk_data', None),
+    ('chunk_id', None, 13),
+    ('chunk_seq', None, 13),
+    ('chunk_data', None, 13),
 ]
 
 
@@ -256,7 +256,7 @@ def resolve_relation(
     if preset_tables and relation.name in preset_tables[0]:
         cols = [
             context.Column(name=n, kind=context.ColumnByName(reference_as=n))
-            for n, _type in preset_tables[0][relation.name]
+            for n, _type, _ver_since in preset_tables[0][relation.name]
         ]
         cols.extend(_construct_system_columns())
         table = context.Table(name=relation.name, columns=cols)

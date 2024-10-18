@@ -5900,9 +5900,9 @@ def _schema_alias_view_name(
     return ('edgedb', name)
 
 
-def _generate_sql_information_schema() -> List[dbops.Command]:
-
-    system_columns = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
+def _generate_sql_information_schema(
+    backend_version: params.BackendVersion
+) -> List[dbops.Command]:
 
     # A helper view that contains all data tables we expose over SQL, excluding
     # introspection tables.
@@ -6321,7 +6321,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         """.format(
                 ",".join(
                     f"pt.{col}"
-                    for col, _ in sql_introspection.PG_CATALOG["pg_type"][3:]
+                    for col, _, _ in sql_introspection.PG_CATALOG["pg_type"][3:]
                 )
             ),
         ),
@@ -6877,6 +6877,52 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         ),
     ]
 
+    # We expose most of the views as empty tables, just to prevent errors when
+    # the tools do introspection.
+    # For the tables that it turns out are actually needed, we handcraft the
+    # views that expose the actual data.
+    # I've been cautious about exposing too much data, for example limiting
+    # pg_type to pg_catalog and pg_toast namespaces.
+    views: list[dbops.View] = []
+    views.extend(tables_and_columns)
+
+    for table_name, columns in sql_introspection.INFORMATION_SCHEMA.items():
+        if table_name in ["tables", "columns"]:
+            continue
+        views.append(
+            trampoline.VersionedView(
+                name=("edgedbsql", table_name),
+                query="SELECT {} LIMIT 0".format(
+                    ",".join(
+                        f"NULL::information_schema.{type} AS {name}"
+                        for name, type, _ver_since in columns
+                    )
+                ),
+            )
+        )
+
+    PG_TABLES_SKIP = {
+        'pg_type',
+        'pg_attribute',
+        'pg_namespace',
+        'pg_class',
+        'pg_database',
+        'pg_proc',
+        'pg_operator',
+        'pg_pltemplate',
+        'pg_stats',
+        'pg_stats_ext_exprs',
+        'pg_statistic',
+        'pg_statistic_ext',
+        'pg_statistic_ext_data',
+        'pg_rewrite',
+        'pg_cast',
+        'pg_index',
+        'pg_constraint',
+        'pg_trigger',
+        'pg_subscription',
+    }
+
     PG_TABLES_WITH_SYSTEM_COLS = {
         'pg_aggregate',
         'pg_am',
@@ -6939,71 +6985,43 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         'pg_type',
         'pg_user_mapping',
     }
-    
 
-    def construct_pg_view(table_name: str, columns: List[str]) -> dbops.View:
+    SYSTEM_COLUMNS = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
+
+    def construct_pg_view(
+        table_name: str, backend_version: params.BackendVersion
+    ) -> Optional[dbops.View]:
+        pg_columns = sql_introspection.PG_CATALOG[table_name]
+
+        columns = []
+        has_columns = False
+        for c_name, c_typ, c_ver_since in pg_columns:
+            if c_ver_since <= backend_version.major:
+                columns.append('o.' + c_name)
+                has_columns = True
+            elif c_typ:
+                columns.append(f'NULL::{c_typ} as {c_name}')
+            else:
+                columns.append(f'NULL as {c_name}')
+        if not has_columns:
+            return None
+
         if table_name in PG_TABLES_WITH_SYSTEM_COLS:
-            columns = list(columns) + system_columns
+            for c_name in SYSTEM_COLUMNS:
+                columns.append('o.' + c_name)
 
-        columns_sql = ','.join('o.' + c for c in columns)
         return trampoline.VersionedView(
             name=("edgedbsql", table_name),
-            query=f"SELECT {columns_sql} FROM pg_catalog.{table_name} o",
-        )
-
-    # We expose most of the views as empty tables, just to prevent errors when
-    # the tools do introspection.
-    # For the tables that it turns out are actually needed, we handcraft the
-    # views that expose the actual data.
-    # I've been cautious about exposing too much data, for example limiting
-    # pg_type to pg_catalog and pg_toast namespaces.
-    views: list[dbops.View] = []
-    views.extend(tables_and_columns)
-
-    for table_name, columns in sql_introspection.INFORMATION_SCHEMA.items():
-        if table_name in ["tables", "columns"]:
-            continue
-        views.append(
-            trampoline.VersionedView(
-                name=("edgedbsql", table_name),
-                query="SELECT {} LIMIT 0".format(
-                    ",".join(
-                        f"NULL::information_schema.{type} AS {name}"
-                        for name, type in columns
-                    )
-                ),
-            )
+            query=f"SELECT {','.join(columns)} FROM pg_catalog.{table_name} o",
         )
 
     views.extend(pg_catalog_views)
 
-    PG_TABLES_CUSTOM = {
-        'pg_type',
-        'pg_attribute',
-        'pg_namespace',
-        'pg_class',
-        'pg_database',
-        'pg_proc',
-        'pg_operator',
-        'pg_pltemplate',
-        'pg_stats',
-        'pg_stats_ext_exprs',
-        'pg_statistic',
-        'pg_statistic_ext',
-        'pg_statistic_ext_data',
-        'pg_rewrite',
-        'pg_cast',
-        'pg_index',
-        'pg_constraint',
-        'pg_trigger',
-        'pg_subscription',
-    }
-
-    for table_name, columns in sql_introspection.PG_CATALOG.items():
-        if table_name in PG_TABLES_CUSTOM:
+    for table_name in sql_introspection.PG_CATALOG.keys():
+        if table_name in PG_TABLES_SKIP:
             continue
-
-        views.append(construct_pg_view(table_name, [c for c, _ in columns]))
+        if v := construct_pg_view(table_name, backend_version):
+            views.append(v)
 
     util_functions = [
         trampoline.VersionedFunction(
@@ -7350,7 +7368,11 @@ def get_support_views(
     for alias_view in sys_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
-    commands.add_commands(_generate_sql_information_schema())
+    commands.add_commands(
+        _generate_sql_information_schema(
+            backend_params.instance_params.version
+        )
+    )
 
     # The synthetic type views (cfg::, sys::) need to be trampolined
     trampolines = []
