@@ -1529,6 +1529,15 @@ def cleanup_tpldbdump(tpldbdump: bytes) -> bytes:
         flags=re.MULTILINE,
     )
 
+    # PostgreSQL 17 adds a transaction_timeout config setting that
+    # didn't exist on earlier versions.
+    tpldbdump = re.sub(
+        rb'^SET transaction_timeout = 0;$',
+        rb'',
+        tpldbdump,
+        flags=re.MULTILINE,
+    )
+
     return tpldbdump
 
 
@@ -2138,7 +2147,6 @@ async def _populate_misc_instance_data(
             json.dumps(json_single_role_metadata),
         )
 
-    assert backend_params.has_create_database
     if not backend_params.has_create_database:
         await _store_static_json_cache(
             ctx,
