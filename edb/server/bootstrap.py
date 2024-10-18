@@ -1529,6 +1529,15 @@ def cleanup_tpldbdump(tpldbdump: bytes) -> bytes:
         flags=re.MULTILINE,
     )
 
+    # PostgreSQL 17 adds a transaction_timeout config setting that
+    # didn't exist on earlier versions.
+    tpldbdump = re.sub(
+        rb'^SET transaction_timeout = 0;$',
+        rb'',
+        tpldbdump,
+        flags=re.MULTILINE,
+    )
+
     return tpldbdump
 
 
