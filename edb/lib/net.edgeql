@@ -52,6 +52,7 @@ CREATE TYPE std::net::http::Response EXTENDING std::BaseObject {
 CREATE TYPE std::net::http::ScheduledRequest extending std::BaseObject {
     CREATE REQUIRED PROPERTY state: std::net::RequestState;
     CREATE REQUIRED PROPERTY created_at: std::datetime;
+    CREATE REQUIRED PROPERTY updated_at: std::datetime;
     CREATE PROPERTY failure: tuple<kind: std::net::RequestFailureKind, message: str>;
 
     CREATE REQUIRED PROPERTY url: std::str;
@@ -61,7 +62,10 @@ CREATE TYPE std::net::http::ScheduledRequest extending std::BaseObject {
 
     CREATE LINK response: std::net::http::Response {
         CREATE CONSTRAINT exclusive;
+        ON SOURCE DELETE DELETE TARGET;
     };
+
+    CREATE INDEX ON ((.state, .updated_at));
 };
 
 ALTER TYPE std::net::http::Response {
@@ -90,6 +94,7 @@ std::net::http::schedule_request(
             body := body,
 
             created_at := std::datetime_of_statement(),
+            updated_at := std::datetime_of_statement(),
             state := std::net::RequestState.Pending,
         }
     ));
