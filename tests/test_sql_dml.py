@@ -967,6 +967,18 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [[doc_id, user_id]])
 
+    async def test_sql_dml_insert_44(self):
+        # Test that RETURNING supports "Table".col format
+        res = await self.squery_values(
+            '''
+            INSERT INTO "Document" (title) VALUES ('Test returning')
+            RETURNING "Document".id
+            '''
+        )
+        docid = res[0][0]
+        res = await self.squery_values('SELECT id, title FROM "Document"')
+        self.assertEqual(res, [[docid, 'Test returning (new)']])
+
     async def test_sql_dml_delete_01(self):
         # delete, inspect CommandComplete tag
 
@@ -1341,6 +1353,24 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             user_id,
         )
         self.assertEqual(res, 'DELETE 1')
+
+    async def test_sql_dml_delete_14(self):
+        # Test that RETURNING supports "Table".col format
+
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document" (title)
+            VALUES ('Test returning')
+            '''
+        )
+        res = await self.squery_values(
+            '''
+            DELETE FROM "Document"
+            WHERE title LIKE 'Test returning%'
+            RETURNING "Document".title
+            ''',
+        )
+        self.assertEqual(res, [['Test returning (new)']])
 
     async def test_sql_dml_update_01(self):
         # update, inspect CommandComplete tag
@@ -1765,6 +1795,25 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 [doc_id, user_id],
             ],
         )
+
+    async def test_sql_dml_update_17(self):
+        # Test that RETURNING supports "Table".col format
+
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document" (title)
+            VALUES ('Report')
+            '''
+        )
+        res = await self.squery_values(
+            '''
+            UPDATE "Document"
+            SET title = 'Test returning'
+            WHERE title LIKE 'Report%'
+            RETURNING "Document".title
+            ''',
+        )
+        self.assertEqual(res, [['Test returning (updated)']])
 
     async def test_sql_dml_01(self):
         # update/delete only
