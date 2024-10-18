@@ -1129,6 +1129,9 @@ async def create_branch(
         elif line.startswith('CREATE TYPE'):
             if any(skip in line for skip in to_skip):
                 skipping = True
+        elif line == 'SET transaction_timeout = 0;':
+            continue
+
         if skipping:
             continue
         new_lines.append(line)
