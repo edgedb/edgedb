@@ -324,7 +324,8 @@ async def _delete_requests(
 ) -> None:
     def _warn(e):
         logger.warning(
-            "Failed to delete std::net::http::ScheduledRequest, retrying. Reason: %s",
+            "Failed to delete std::net::http::ScheduledRequest, retrying."
+            " Reason: %s",
             e,
         )
 

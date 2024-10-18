@@ -19,7 +19,6 @@
 
 import typing
 import json
-import datetime
 
 from edb.testbase import http as tb
 
