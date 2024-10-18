@@ -2138,7 +2138,6 @@ async def _populate_misc_instance_data(
             json.dumps(json_single_role_metadata),
         )
 
-    assert backend_params.has_create_database
     if not backend_params.has_create_database:
         await _store_static_json_cache(
             ctx,
