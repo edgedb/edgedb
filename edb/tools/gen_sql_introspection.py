@@ -52,7 +52,7 @@ async def run():
         print_header(file)
         print_schema(file, "information_schema", schemas_by_version)
         print_schema(file, "pg_catalog", schemas_by_version)
-    
+
     print('Done.')
 
 
