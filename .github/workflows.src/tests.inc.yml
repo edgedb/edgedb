@@ -59,7 +59,7 @@
     << caller() >>
 
     - name: Upload shared artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a  # 4.3.6
       with:
         name: shared-artifacts
         path: .tmp

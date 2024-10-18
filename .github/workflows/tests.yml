@@ -97,7 +97,7 @@ jobs:
         | xargs curl > .tmp/time_stats.csv
 
     - name: Upload shared artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a  # 4.3.6
       with:
         name: shared-artifacts
         path: .tmp
@@ -581,7 +581,7 @@ jobs:
         edb test -j2 -v -s ${SHARD}/16 --running-times-log=.results/shard_${SHARD}.csv
 
     - name: Upload test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a  # 4.3.6
       with:
         name: python-test-results-${{ matrix.shard }}
         path: .results
@@ -738,7 +738,7 @@ jobs:
         edb test --list > .tmp/all_tests.txt
 
     - name: Upload list of tests
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a  # 4.3.6
       with:
         name: test-list
         path: .tmp
