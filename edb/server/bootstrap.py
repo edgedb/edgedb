@@ -1556,12 +1556,17 @@ async def _init_stdlib(
         src_hash=src_hash,
         cache_dir=cache_dir,
     )
-    tpldbdump_package = read_data_cache(
-        tpldbdump_cache,
-        pickled=True,
-        src_hash=src_hash,
-        cache_dir=cache_dir,
-    )
+
+    backend_params = cluster.get_runtime_params()
+
+    tpldbdump_package = None
+    if backend_params.instance_params.version.major == 17:
+        tpldbdump_package = read_data_cache(
+            tpldbdump_cache,
+            pickled=True,
+            src_hash=src_hash,
+            cache_dir=cache_dir,
+        )
     if args.inplace_upgrade_prepare:
         tpldbdump = None
 
@@ -1600,7 +1605,6 @@ async def _init_stdlib(
     ))
     await _populate_misc_instance_data(ctx)
 
-    backend_params = cluster.get_runtime_params()
     if not args.inplace_upgrade_prepare:
         logger.info('Creating the necessary PostgreSQL extensions...')
         await metaschema.create_pg_extensions(conn, backend_params)
