@@ -57,7 +57,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-EDGEDB="edgedb -H localhost -P $PORT --tls-security insecure"
+EDGEDB="edgedb -H localhost -P $PORT --tls-security insecure --wait-until-available 120sec"
 
 # Wait for the server to come up and see it is working
 $EDGEDB -b select query 'select count(User)' | grep 2
