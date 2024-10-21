@@ -2,9 +2,9 @@
 
 .. _ref_sql_support:
 
-=======================
-SQL interface of EdgeDB
-=======================
+=====================
+SQL adapter of EdgeDB
+=====================
 
 .. edb:youtube-embed:: 0KdY2MPb2oc
 
@@ -20,12 +20,12 @@ namely INSERT, DELETE and UPDATE statements.
 It does not, however, support PostgreSQL Data Definition Language
 (e.g. ``CREATE TABLE``). This means that it is not possible to use SQL
 connections to EdgeDB to modify its schema. Instead, the schema should be
-managed using migrations and EdgeQL commands.
+managed using ESDL (EdgeDB Schema Definition Language) and migration commands.
 
-Any Postgres-compatible client can connect to your EdgeDB database by using the
+Any Postgres-compatible client can connect to an EdgeDB database by using the
 same port that is used for the EdgeDB protocol and the
-:versionreplace:`database;5.0:branch` name, username, and password you already
-use for your database.
+:versionreplace:`database;5.0:branch` name, username, and password already used
+for the database.
 
 .. versionchanged:: _default
 
@@ -186,24 +186,29 @@ Multi properties are in separate tables. ``source`` is the ``id`` of the Movie.
 
     SELECT source, target FROM "Movie.labels";
 
-When types are extended, parent object types' tables will by default contain
-all objects of both the type and any types extended by it. The query below will
+When using inheritance, parent object types' tables will by default contain
+all objects of both the parent type and any child types. The query below will
 return all ``common::Content`` objects as well as all ``Movie`` objects.
 
 .. code-block:: sql
 
     SELECT id, title FROM common."Content";
 
-To omit objects of extended types, use ``ONLY``. This query will return
+To omit objects of child types, use ``ONLY``. This query will return
 ``common::Content`` objects but not ``Movie`` objects.
 
 .. code-block:: sql
 
     SELECT id, title FROM ONLY common."Content";
 
-The SQL connector supports read-only statements and will throw errors if the
-client attempts ``INSERT``, ``UPDATE``, ``DELETE``, or any DDL command. It
-supports all SQL expressions supported by Postgres.
+The SQL adapter supports a large majority of SQL language, including:
+- ``SELECT`` and all read-only constructs,
+  (``WITH``, sub-queries, ``JOIN``, ...),
+- ``INSERT`` / ``UPDATE`` / ``DELETE``,
+- ``COPY ... FROM``,
+- ``SET`` / ``RESET`` / ``SHOW``,
+- transaction commands,
+- ``PREPARE`` / ``EXECUTE`` / ``DEALLOCATE``.
 
 .. code-block:: sql
 
@@ -216,8 +221,8 @@ supports all SQL expressions supported by Postgres.
         WHERE act.source = m.id
     );
 
-EdgeDB accomplishes this by emulating the ``information_schema`` and
-``pg_catalog`` views to mimic the catalogs provided by Postgres 13.
+The SQL adapter emulates the ``information_schema`` and ``pg_catalog`` views to
+mimic the catalogs provided by Postgres 13.
 
 .. note::
 
@@ -253,7 +258,7 @@ Tested SQL tools
    include `XMIN Replication`_, incremental updates using "a user-defined
    monotonically increasing id," and full table updates.
 .. [2] dbt models are built and stored in the database as either tables or
-   views. Because the EdgeDB SQL connector does not allow writing or even
+   views. Because the EdgeDB SQL adapter does not allow writing or even
    creating schemas, view, or tables, any attempt to materialize dbt models
    will result in errors. If you want to build the models, we suggest first
    transferring your data to a true Postgres instance via pg_dump or Airbyte.
@@ -263,6 +268,80 @@ Tested SQL tools
    https://www.postgresql.org/docs/current/runtime-config-replication.html
 .. _XMIN Replication:
    https://www.postgresql.org/docs/15/ddl-system-columns.html
+
+
+ESDL to PostgreSQL
+==================
+
+As mentioned, the SQL schema of the database is managed trough EdgeDB Schema
+Definition Language (ESDL). Here is a breakdown of how each of the ESDL
+construct is mapped to PostgreSQL schema:
+
+- Objects types are mapped into tables.
+  Each table has columns ``id UUID`` and ``__type__ UUID`` and one column for
+  each single property or link.
+
+- Single properties are mapped to tables columns.
+
+- Single links are mapped to table columns with suffix ``_id`` and are of type
+  ``UUID``. They contain the ids of the link's target type.
+
+- Multi properties are mapped to tables with two columns:
+  - ``source UUID``, which contains the id of the property's source object type,
+  - ``target``, which contains values of the property.
+
+- Multi links are mapped to tables with columns:
+  - ``source UUID``, which contains the id of the property's source object type,
+  - ``target UUID``, which contains the ids of the link's target object type,
+  - one column for each link property, using the same rules as properties on
+    object types.
+
+- Aliases are not mapped to PostgreSQL schema.
+
+- Globals are mapped to connection settings, prefixed with ``global ``.
+  For example, a ``global default::username: str`` can be set using
+  ``SET "global default::username" TO 'Tom'``.
+
+- Access policies are applied to object type tables when setting
+  ``apply_access_policies_sql`` is set to ``true``.
+
+- Mutation rewrites and triggers are applied to all DML commands.
+
+
+DML commands
+============
+
+When using ``INSERT``, ``DELETE`` or ``UPDATE`` on any table, mutation rewrites
+and triggers are applied. These commands do not have a straight-forward
+translation to EdgeQL DML commands, but instead use the following mapping:
+
+- ``INSERT INTO "Foo"`` object table maps to ``insert Foo``,
+
+- ``INSERT INTO "Foo.keywords"`` link/property table maps to an
+  ``update Foo { keywords += ... }``,
+
+- ``DELETE FROM "Foo"`` object table maps to ``delete Foo``,
+
+- ``DELETE FROM "Foo.keywords"`` link property/table maps to
+  ``update Foo { keywords -= ... }``,
+
+- ``UPDATE "Foo"`` object table maps to ``update Foo set { ... }``,
+
+- ``UPDATE "Foo.keywords"`` is not supported.
+
+
+Connection settings
+===================
+
+SQL adapter supports a limited subset of PostgreSQL connection settings.
+There are the following additionally connection settings:
+- ``allow_user_specified_id`` (default ``false``),
+- ``apply_access_policies_sql`` (default ``false``),
+- settings prefixed with ``global `` can use used to set values of globals.
+
+Note that if ``allow_user_specified_id`` or ``apply_access_policies_sql`` are
+unset, they default to configuration set by ``configure current database``
+EdgeQL command.
 
 
 Example: gradual transition from ORMs to EdgeDB
@@ -276,7 +355,7 @@ project.
 In this case, the project can start the transition by migrating the ORM models
 to EdgeDB Schema Definition Language.
 
-For example, such Hibernate ORM model in Java: 
+For example, such Hibernate ORM model in Java:
 
 .. code-block:: java
 
@@ -285,7 +364,7 @@ For example, such Hibernate ORM model in Java:
         @Id
         @GeneratedValue(strategy = GenerationType.UUID)
         UUID id;
-        
+
         private String title;
 
         @NotNull
@@ -318,9 +397,9 @@ table, just as it would have been created with the following DDL command:
     );
 
 When translating the old ORM model to EdgeDB SDL, one should aim to make the
-SQL schema of EdgeDB as similar to the SQL schema that the ORM expects.
+SQL schema of EdgeDB match the SQL schema that the ORM expects.
 
-When this is complete, any query that used to work with the old, plain
+When this match is accomplished, any query that used to work with the old, plain
 PostgreSQL, should now also work with the EdgeDB. For example, we can execute
 the following query:
 
@@ -328,14 +407,14 @@ the following query:
 
     INSERT INTO "Movie" (title, releaseYear)
     VALUES ("Madagascar", 2012)
-    RETURNING id, title, releaseYear
+    RETURNING id, title, releaseYear;
 
-As the last step, we can export the data from our old database into an ``.sql``
-file and then import it into EdgeDB:
+To complete the migration, the data can be exported from our old database into
+an ``.sql`` file, which can be import it into EdgeDB:
 
 .. code-block:: bash
 
-    $ pg_dump {your PostgreSLQ connection params} \
+    $ pg_dump {your PostgreSQL connection params} \
         --data-only --inserts --no-owner --no-privileges \
         > dump.sql
 
@@ -352,7 +431,5 @@ But it allows any new models to use EdgeDB schema, EdgeQL and code generators
 for the client language of choice. The ORM-based code can now also be gradually
 rewritten to use EdgeQL, one model at the time.
 
-.. TODO:
-.. - old primary keys that are not uuid,
-.. - old properties that are named id, __type__, source or target,
-.. - renaming properties in the transition. 
+For a detailed migration example, see repository
+`edgedb/hibernate-example <https://github.com/edgedb/hibernate-example>`.
