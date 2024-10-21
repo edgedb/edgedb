@@ -1,10 +1,10 @@
 .. versionadded:: 3.0
 
-.. _ref_sql_support:
+.. _ref_sql_adapter:
 
-=====================
-SQL adapter of EdgeDB
-=====================
+===========
+SQL adapter
+===========
 
 .. edb:youtube-embed:: 0KdY2MPb2oc
 
@@ -61,7 +61,7 @@ for the database.
 
     The insecure DSN returned by the CLI for EdgeDB Cloud instances will not
     contain the password. You will need to either :ref:`create a new role and
-    set the password <ref_sql_support_new_role>`, using those values to connect
+    set the password <ref_sql_adapter_new_role>`, using those values to connect
     to your SQL client, or change the password of the existing role, using that
     role name along with the newly created password.
 
@@ -85,7 +85,7 @@ for the database.
     ``libpq.dll``, click "Properties," and find the version on the "Details"
     tab.
 
-.. _ref_sql_support_new_role:
+.. _ref_sql_adapter_new_role:
 
 Creating a new role
 -------------------
