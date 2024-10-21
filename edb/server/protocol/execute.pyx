@@ -206,13 +206,13 @@ async def _parse(
         )
 
     query_req = rpc.CompilationRequest(
-        db.server.compilation_config_serializer
-    ).update(
-        edgeql.Source.from_string(query),
+        source=edgeql.Source.from_string(query),
         protocol_version=edbdef.CURRENT_PROTOCOL,
+        schema_version=dbv.schema_version,
+        compilation_config_serializer=db.server.compilation_config_serializer,
         input_format=input_format,
         output_format=output_format,
-    ).set_schema_version(dbv.schema_version)
+    )
 
     compiled = await dbv.parse(
         query_req,

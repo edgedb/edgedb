@@ -801,21 +801,23 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.write(self.make_state_data_description_msg())
             raise
 
-        rv = rpc.CompilationRequest(self.server.compilation_config_serializer)
-        rv.update(
-            self._tokenize(query),
-            self.protocol_version,
+        cfg_ser = self.server.compilation_config_serializer
+        rv = rpc.CompilationRequest(
+            source=self._tokenize(query),
+            protocol_version=self.protocol_version,
+            schema_version=_dbview.schema_version,
+            compilation_config_serializer=cfg_ser,
             output_format=output_format,
             expect_one=expect_one,
             implicit_limit=implicit_limit,
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
-        ).set_schema_version(_dbview.schema_version)
-        rv.set_modaliases(_dbview.get_modaliases())
-        rv.set_session_config(_dbview.get_session_config())
-        rv.set_database_config(_dbview.get_database_config())
-        rv.set_system_config(_dbview.get_compilation_system_config())
+            modaliases=_dbview.get_modaliases(),
+            session_config=_dbview.get_session_config(),
+            database_config=_dbview.get_database_config(),
+            system_config=_dbview.get_compilation_system_config(),
+        )
         return rv, allow_capabilities
 
     async def parse(self):
@@ -1430,12 +1432,13 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     async def _execute_utility_stmt(self, eql: str, pgcon):
         cdef dbview.DatabaseConnectionView _dbview = self.get_dbview()
 
+        cfg_ser = self.server.compilation_config_serializer
         query_req = rpc.CompilationRequest(
-            self.server.compilation_config_serializer
+            source=edgeql.Source.from_string(eql),
+            protocol_version=self.protocol_version,
+            schema_version=_dbview.schema_version,
+            compilation_config_serializer=cfg_ser,
         )
-        query_req.update(
-            edgeql.Source.from_string(eql), self.protocol_version
-        ).set_schema_version(_dbview.schema_version)
 
         compiled = await _dbview.parse(query_req)
         query_unit_group = compiled.query_unit_group
@@ -1826,14 +1829,15 @@ async def run_script(
     await conn._start_connection(database)
     try:
         _dbview = conn.get_dbview()
+        cfg_ser = server.compilation_config_serializer
         compiled = await _dbview.parse(
             rpc.CompilationRequest(
-                server.compilation_config_serializer
-            ).update(
-                edgeql.Source.from_string(script),
-                conn.protocol_version,
+                source=edgeql.Source.from_string(script),
+                protocol_version=conn.protocol_version,
+                schema_version=_dbview.schema_version,
+                compilation_config_serializer=cfg_ser,
                 output_format=FMT_NONE,
-            ).set_schema_version(_dbview.schema_version)
+            ),
         )
         if len(compiled.query_unit_group) > 1:
             await conn._execute_script(compiled, b'')
