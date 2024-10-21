@@ -1886,10 +1886,14 @@ def _fini_resolve_dml(
     stmt: pgast.DMLQuery, compiled_dml: context.CompiledDML, *, ctx: Context
 ) -> Tuple[pgast.Query, context.Table]:
     if stmt.returning_list:
+        assert isinstance(stmt.relation.relation, pgast.Relation)
+        assert stmt.relation.relation.name
+
         res_query, res_table = _resolve_returning_rows(
             stmt.returning_list,
             compiled_dml.output_relation_name,
             compiled_dml.output_namespace,
+            stmt.relation.relation.name,
             stmt.relation.alias.aliasname,
             ctx,
         )
@@ -1930,6 +1934,7 @@ def _resolve_returning_rows(
     returning_list: List[pgast.ResTarget],
     output_relation_name: str,
     output_namespace: Mapping[str, pgast.BaseExpr],
+    subject_name: str,
     subject_alias: Optional[str],
     ctx: context.ResolverContextLevel,
 ) -> Tuple[pgast.Query, context.Table]:
@@ -1943,6 +1948,7 @@ def _resolve_returning_rows(
         ]
     )
     inserted_table = context.Table(
+        name=subject_name,
         alias=subject_alias,
         reference_as=inserted_rvar_name,
     )
