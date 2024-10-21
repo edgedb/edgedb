@@ -202,8 +202,8 @@ To omit objects of child types, use ``ONLY``. This query will return
     SELECT id, title FROM ONLY common."Content";
 
 The SQL adapter supports a large majority of SQL language, including:
-- ``SELECT`` and all read-only constructs,
-  (``WITH``, sub-queries, ``JOIN``, ...),
+
+- ``SELECT`` and all read-only constructs (``WITH``, sub-query, ``JOIN``, ...),
 - ``INSERT`` / ``UPDATE`` / ``DELETE``,
 - ``COPY ... FROM``,
 - ``SET`` / ``RESET`` / ``SHOW``,
@@ -294,7 +294,7 @@ construct is mapped to PostgreSQL schema:
   - ``source UUID``, which contains the id of the property's source object type,
   - ``target UUID``, which contains the ids of the link's target object type,
   - one column for each link property, using the same rules as properties on
-    object types.
+  object types.
 
 - Aliases are not mapped to PostgreSQL schema.
 
@@ -335,9 +335,10 @@ Connection settings
 
 SQL adapter supports a limited subset of PostgreSQL connection settings.
 There are the following additionally connection settings:
+
 - ``allow_user_specified_id`` (default ``false``),
 - ``apply_access_policies_sql`` (default ``false``),
-- settings prefixed with ``global `` can use used to set values of globals.
+- settings prefixed with ``"global "`` can use used to set values of globals.
 
 Note that if ``allow_user_specified_id`` or ``apply_access_policies_sql`` are
 unset, they default to configuration set by ``configure current database``
@@ -432,4 +433,4 @@ for the client language of choice. The ORM-based code can now also be gradually
 rewritten to use EdgeQL, one model at the time.
 
 For a detailed migration example, see repository
-`edgedb/hibernate-example <https://github.com/edgedb/hibernate-example>`.
+`edgedb/hibernate-example <https://github.com/edgedb/hibernate-example>`_.
