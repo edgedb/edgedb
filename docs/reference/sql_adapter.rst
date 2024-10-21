@@ -358,7 +358,7 @@ to EdgeDB Schema Definition Language.
 
 For example, such Hibernate ORM model in Java:
 
-.. code-block:: java
+.. code-block::
 
     @Entity
     class Movie {
@@ -371,7 +371,7 @@ For example, such Hibernate ORM model in Java:
         @NotNull
         private Integer releaseYear;
 
-        ... getters and setters ...
+        // ... getters and setters ...
     }
 
 ... would be translated to the following EdgeDB SDL:
