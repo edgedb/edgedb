@@ -24,7 +24,7 @@ Reference
     backend_ha
     configuration
     http
-    sql_support
+    sql_adapter
     protocol/index
     bindings/index
     admin/index
