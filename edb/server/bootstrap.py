@@ -906,7 +906,10 @@ def prepare_patch(
     elif kind == 'sql-introspection':
         support_view_commands = dbops.CommandGroup()
         support_view_commands.add_commands(
-            metaschema._generate_sql_information_schema())
+            metaschema._generate_sql_information_schema(
+                backend_params.instance_params.version
+            )
+        )
         support_view_commands.generate(subblock)
 
         _generate_drop_views(support_view_commands, preblock)
@@ -960,7 +963,10 @@ def prepare_patch(
             )
         ])
         support_view_commands.add_commands(
-            metaschema._generate_sql_information_schema())
+            metaschema._generate_sql_information_schema(
+                backend_params.instance_params.version
+            )
+        )
 
         _generate_drop_views(support_view_commands, preblock)
 
