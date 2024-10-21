@@ -1888,7 +1888,7 @@ def _fini_resolve_dml(
     if stmt.returning_list:
         assert isinstance(stmt.relation.relation, pgast.Relation)
         assert stmt.relation.relation.name
-        
+
         res_query, res_table = _resolve_returning_rows(
             stmt.returning_list,
             compiled_dml.output_relation_name,
