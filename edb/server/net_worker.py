@@ -337,6 +337,10 @@ async def _delete_requests(
     )
     async for iteration in rloop:
         async with iteration:
+            if not db.tenant.is_database_connectable(db.name):
+                # Don't run the net_worker if the database is not
+                # connectable, e.g. being dropped
+                continue
             result_json = await execute.parse_execute_json(
                 db,
                 """
@@ -363,10 +367,6 @@ async def _gc(tenant: edbtenant.Tenant, expires_in: statypes.Duration) -> None:
         async with asyncio.TaskGroup() as g:
             for db in tenant.iter_dbs():
                 if db.name == defines.EDGEDB_SYSTEM_DB:
-                    continue
-                if not tenant.is_database_connectable(db.name):
-                    # Don't run the net_worker if the database is not
-                    # connectable, e.g. being dropped
                     continue
                 g.create_task(_delete_requests(db, expires_in))
     except Exception as ex:
