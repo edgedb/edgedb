@@ -337,7 +337,7 @@ async def _delete_requests(
     )
     async for iteration in rloop:
         async with iteration:
-            result = await execute.parse_execute_json(
+            result_json = await execute.parse_execute_json(
                 db,
                 """
                 with requests := (
@@ -351,6 +351,7 @@ async def _delete_requests(
                 variables={"expires_in": expires_in.to_backend_str()},
                 cached_globally=True,
             )
+            result: list[dict] = json.loads(result_json)
             if len(result) > 0:
                 logger.info(f"Deleted requests: {result!r}")
             else:
@@ -362,6 +363,10 @@ async def _gc(tenant: edbtenant.Tenant, expires_in: statypes.Duration) -> None:
         async with asyncio.TaskGroup() as g:
             for db in tenant.iter_dbs():
                 if db.name == defines.EDGEDB_SYSTEM_DB:
+                    continue
+                if not tenant.is_database_connectable(db.name):
+                    # Don't run the net_worker if the database is not
+                    # connectable, e.g. being dropped
                     continue
                 g.create_task(_delete_requests(db, expires_in))
     except Exception as ex:
@@ -382,7 +387,8 @@ async def gc(server: edbserver.BaseServer) -> None:
             if tenant.accept_new_tasks
         ]
         try:
-            await asyncio.wait(tasks)
+            if tasks:
+                await asyncio.wait(tasks)
         except Exception as ex:
             logger.debug(
                 "GC of std::net::http::ScheduledRequest failed", exc_info=ex
