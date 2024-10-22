@@ -19,7 +19,7 @@
 
 CREATE EXTENSION PACKAGE ai VERSION '1.0' {
     set ext_module := "ext::ai";
-    set dependencies := ["pgvector==0.5"];
+    set dependencies := ["pgvector==0.7"];
 
     create module ext::ai;
 

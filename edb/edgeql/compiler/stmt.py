@@ -314,6 +314,9 @@ def compile_InternalGroupQuery(
             span=expr.span,
         )
 
+    _protect_expr(expr.subject, ctx=ctx)
+    _protect_expr(expr.result, ctx=ctx)
+
     with ctx.subquery() as sctx:
         stmt = irast.GroupStmt(by=expr.by)
         init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
@@ -373,8 +376,8 @@ def compile_InternalGroupQuery(
             stmt.group_binding = _make_group_binding(
                 subject_stype, expr.group_alias, ctx=topctx)
 
-            # Compile the shape on the group binding, in case we need it
-            viewgen.late_compile_view_shapes(stmt.group_binding, ctx=topctx)
+            # # Compile the shape on the group binding, in case we need it
+            # viewgen.late_compile_view_shapes(stmt.group_binding, ctx=topctx)
 
             if expr.grouping_alias:
                 ctx.env.schema, grouping_stype = s_types.Array.create(
@@ -404,6 +407,10 @@ def compile_InternalGroupQuery(
             pathctx.register_set_in_scope(
                 stmt.group_binding, path_scope=bctx.path_scope, ctx=bctx
             )
+
+            # Compile the shape on the group binding, in case we need it
+            viewgen.late_compile_view_shapes(stmt.group_binding, ctx=bctx)
+
             node = bctx.path_scope.find_descendant(stmt.group_binding.path_id)
             not_none(node).is_group = True
             for using_value, _ in stmt.using.values():

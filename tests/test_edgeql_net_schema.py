@@ -79,6 +79,7 @@ class TestEdgeQLNetSchema(tb.DDLTestCase):
                 request := (
                     insert nh::ScheduledRequest {
                         created_at := datetime_of_statement(),
+                        updated_at := datetime_of_statement(),
                         state := std::net::RequestState.Completed,
 
                         url := "http://example.com",

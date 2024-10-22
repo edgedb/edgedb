@@ -26,10 +26,24 @@ union (
 for x in {[0, 1, 2.3], [1, 1, 10.11], [4.5, 6.7, 8.9]}
 union (
     (insert Basic {p_str := to_str(<json>x)}),
-    (insert IVFFlat_L2 {vec := <v3>x}),
-    (insert IVFFlat_IP {vec := <v3>x}),
-    (insert IVFFlat_Cosine {vec := <v3>x}),
-    (insert HNSW_L2 {vec := <v3>x}),
-    (insert HNSW_IP {vec := <v3>x}),
-    (insert HNSW_Cosine {vec := <v3>x}),
+    (insert IVFFlat_vec_L2 {vec := <v3>x}),
+    (insert IVFFlat_vec_IP {vec := <v3>x}),
+    (insert IVFFlat_vec_Cosine {vec := <v3>x}),
+    (insert HNSW_vec_L2 {vec := <v3>x}),
+    (insert HNSW_vec_IP {vec := <v3>x}),
+    (insert HNSW_vec_Cosine {vec := <v3>x}),
+    (insert HNSW_vec_L1 {vec := <v3>x}),
+
+    (insert IVFFlat_hv_L2 {vec := <hv3>x}),
+    (insert IVFFlat_hv_IP {vec := <hv3>x}),
+    (insert IVFFlat_hv_Cosine {vec := <hv3>x}),
+    (insert HNSW_hv_L2 {vec := <hv3>x}),
+    (insert HNSW_hv_IP {vec := <hv3>x}),
+    (insert HNSW_hv_Cosine {vec := <hv3>x}),
+    (insert HNSW_hv_L1 {vec := <hv3>x}),
+
+    (insert HNSW_sv_L2 {vec := <sv3><v3>x}),
+    (insert HNSW_sv_IP {vec := <sv3><v3>x}),
+    (insert HNSW_sv_Cosine {vec := <sv3><v3>x}),
+    (insert HNSW_sv_L1 {vec := <sv3><v3>x}),
 );

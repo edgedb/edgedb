@@ -61,7 +61,10 @@ def sort_results(results, sort):
             results.sort(key=sort)
 
 
-def assert_data_shape(data, shape, fail, message=None, from_sql=False):
+def assert_data_shape(
+    data, shape, fail,
+    message=None, from_sql=False, rel_tol=None, abs_tol=None,
+):
     try:
         import asyncpg
         from asyncpg import types as pgtypes
@@ -71,6 +74,8 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                 'SQL tests skipped: asyncpg not installed')
 
     base_fail = fail
+    rel_tol = 1e-04 if rel_tol is None else rel_tol
+    abs_tol = 1e-15 if abs_tol is None else abs_tol
 
     def fail(msg):
         base_fail(f'{msg}\nshape: {shape!r}\ndata: {data!r}')
@@ -265,7 +270,7 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                 return _assert_type_shape(path, data, shape)
             elif isinstance(shape, float):
                 if not math.isclose(data, shape,
-                                    rel_tol=1e-04, abs_tol=1e-15):
+                                    rel_tol=rel_tol, abs_tol=abs_tol):
                     fail(
                         f'{message}: not isclose({data}, {shape}) '
                         f'{_format_path(path)}')
@@ -337,7 +342,7 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                 return _assert_type_shape(path, data, shape)
             elif isinstance(shape, float):
                 if not math.isclose(data, shape,
-                                    rel_tol=1e-04, abs_tol=1e-15):
+                                    rel_tol=rel_tol, abs_tol=abs_tol):
                     fail(
                         f'{message}: not isclose({data}, {shape}) '
                         f'{_format_path(path)}')

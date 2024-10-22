@@ -498,7 +498,7 @@ class ArgumentInliner(ast.NodeTransformer):
                 # Inline param as an expr ref. The pg compiler will find the
                 # appropriate rvar.
                 self.mapped_args[node.path_id] = arg.expr.path_id
-                return setgen.ensure_set(
+                inlined_param_expr = setgen.ensure_set(
                     irast.InlinedParameterExpr(
                         typeref=arg.expr.typeref,
                         required=node.expr.required,
@@ -507,6 +507,8 @@ class ArgumentInliner(ast.NodeTransformer):
                     path_id=arg.expr.path_id,
                     ctx=self.ctx,
                 )
+                inlined_param_expr.shape = node.shape
+                return inlined_param_expr
             else:
                 # Directly inline the set.
                 # Used for default values, which are constants.

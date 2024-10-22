@@ -27,6 +27,8 @@ from edb.testbase import server as tb
 class TestTriggers(tb.QueryTestCase):
     '''The scope of the tests is testing various modes of Object creation.'''
 
+    NO_FACTOR = True
+
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'insert.esdl')
 
