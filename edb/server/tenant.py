@@ -1228,6 +1228,18 @@ class Tenant(ha_base.ClusterProtocol):
                         early=True,
                     )
 
+        # Early introspection runs *before* we start accepting tasks.
+        # This means that if we are one of multiple frontends, and we
+        # get a ensure-database-not-used message, we aren't able to
+        # handle it. This can result in us hanging onto a connection
+        # that another frontend wants to get rid of.
+        #
+        # We still want to use the pool, though, since it limits our
+        # connections in the way we want.
+        #
+        # Hack around this by pruning the connection ourself.
+        await self._pg_pool.prune_inactive_connections(dbname)
+
     async def _introspect_dbs(self) -> None:
         async with self.use_sys_pgcon() as syscon:
             dbnames = await self._server.get_dbnames(syscon)
