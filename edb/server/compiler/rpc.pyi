@@ -44,6 +44,8 @@ class CompilationRequest:
         *,
         source: edgeql.Source,
         protocol_version: defines.ProtocolVersion,
+        schema_version: uuid.UUID,
+        compilation_config_serializer: sertypes.CompilationConfigSerializer,
         output_format: enums.OutputFormat = enums.OutputFormat.BINARY,
         input_format: enums.InputFormat = enums.InputFormat.BINARY,
         expect_one: bool = False,
@@ -51,12 +53,10 @@ class CompilationRequest:
         inline_typeids: bool = False,
         inline_typenames: bool = False,
         inline_objectids: bool = True,
-        schema_version: uuid.UUID | None = None,
         modaliases: typing.Mapping[str | None, str] | None = None,
         session_config: typing.Mapping[str, config.SettingValue] | None = None,
         database_config: typing.Mapping[str, config.SettingValue] | None = None,
         system_config: typing.Mapping[str, config.SettingValue] | None = None,
-        compilation_config_serializer: sertypes.CompilationConfigSerializer,
     ):
         ...
 
