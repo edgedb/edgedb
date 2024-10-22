@@ -1,4 +1,5 @@
 .. eql:section-intro-page:: cli
+.. edb:tag:: cli
 
 .. _ref_cli_overview:
 

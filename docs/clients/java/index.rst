@@ -1,3 +1,5 @@
+.. edb:tag:: java
+
 .. _edgedb-java-intro:
 
 ====

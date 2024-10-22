@@ -1,3 +1,5 @@
+.. edb:tag:: elixir
+
 .. _edgedb-elixir-intro:
 
 ======

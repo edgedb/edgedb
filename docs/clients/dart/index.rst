@@ -1,3 +1,5 @@
+.. edb:tag:: dart
+
 .. _edgedb-dart-intro:
 
 ====

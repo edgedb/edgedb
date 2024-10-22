@@ -1,3 +1,5 @@
+.. edb:tag:: rust
+
 .. _ref_rust_index:
 
 ====

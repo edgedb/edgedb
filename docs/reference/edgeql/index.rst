@@ -1,3 +1,5 @@
+.. edb:tag:: edgeql
+
 .. _ref_eql_statements:
 
 EdgeQL

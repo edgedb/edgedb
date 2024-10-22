@@ -1,4 +1,5 @@
 .. _ref_cheatsheets:
+.. edb:tag:: other
 
 ===========
 Cheatsheets

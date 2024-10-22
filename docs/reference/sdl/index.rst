@@ -1,3 +1,5 @@
+.. edb:tag:: schema
+
 .. _ref_eql_sdl:
 
 SDL

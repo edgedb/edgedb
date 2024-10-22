@@ -1,3 +1,5 @@
+.. edb:tag:: ai
+
 .. _ref_ai_overview:
 
 ==

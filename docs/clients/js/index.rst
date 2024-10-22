@@ -1,3 +1,5 @@
+.. edb:tag:: js/ts
+
 .. _edgedb-js-intro:
 
 ==========

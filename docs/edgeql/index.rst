@@ -1,4 +1,5 @@
 .. eql:section-intro-page:: edgeql
+.. edb:tag:: edgeql
 .. versioned-section::
 
 .. _ref_edgeql:
