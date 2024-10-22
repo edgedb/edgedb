@@ -346,14 +346,14 @@ async def _delete_requests(
                     and (datetime_of_statement() - .updated_at) >
                     <duration>$expires_in
                 )
-                delete requests;
+                select count((delete requests));
                 """,
                 variables={"expires_in": expires_in.to_backend_str()},
                 cached_globally=True,
             )
-            result: list[dict] = json.loads(result_json)
-            if len(result) > 0:
-                logger.info(f"Deleted requests: {result!r}")
+            result: list[int] = json.loads(result_json)
+            if result[0] > 0:
+                logger.info(f"Deleted {result[0]} requests")
             else:
                 logger.info(f"No requests to delete")
 
