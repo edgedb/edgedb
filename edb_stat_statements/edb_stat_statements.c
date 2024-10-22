@@ -130,6 +130,9 @@ typedef enum EdbStmtType {
 	EDB_SQL		= 2,
 } EdbStmtType;
 
+/*
+ * Internal states parsing the info JSON.
+ */
 typedef enum EdbStmtInfoParseState {
 	EDB_STMT_INFO_PARSE_NOOP		= 0,
 	EDB_STMT_INFO_PARSE_QUERY		= 1 << 0,
@@ -138,6 +141,10 @@ typedef enum EdbStmtInfoParseState {
 	EDB_STMT_INFO_PARSE_TYPE		= 1 << 3,
 } EdbStmtInfoParseState;
 
+/*
+ * The info JSON parsing is only considered a success
+ * if all the fields listed below are found.
+ */
 #define EDB_STMT_INFO_PARSE_REQUIRED \
 	(EDB_STMT_INFO_PARSE_QUERY \
 	 & EDB_STMT_INFO_PARSE_QUERY_ID \
@@ -145,6 +152,9 @@ typedef enum EdbStmtInfoParseState {
 	 & EDB_STMT_INFO_PARSE_TYPE \
 	)
 
+/*
+ * The result of parsing the info JSON by edbss_extract_stmt_info().
+ */
 typedef struct EdbStmtInfo {
 	const char *query;
 	int query_len;
@@ -153,6 +163,15 @@ typedef struct EdbStmtInfo {
 	EdbStmtType stmt_type;
 } EdbStmtInfo;
 
+/*
+ * The custom "semantic state" structure for info JSON parsing.
+ * This is used internally as the `semstate` pointer of the parser,
+ * keeping track of:
+ *   - level of nested JSON objects
+ *   - known object keys we've found
+ *   - current key/state we're parsing
+ *   - pointer to the parse result struct
+ */
 typedef struct EdbStmtInfoSemState {
 	int nested_level;
 	uint found;
@@ -352,8 +371,10 @@ PG_FUNCTION_INFO_V1(edb_stat_statements_reset);
 PG_FUNCTION_INFO_V1(edb_stat_statements);
 PG_FUNCTION_INFO_V1(edb_stat_statements_info);
 
-bool
-edbss_extract_stmt_info(const char* query_str, int query_len, EdbStmtInfo *info);
+EdbStmtInfo *
+edbss_extract_stmt_info(const char* query_str, int query_len);
+static inline void
+edbss_free_stmt_info(EdbStmtInfo *info);
 static JsonParseErrorType
 edbss_json_struct_start(void *semstate);
 static JsonParseErrorType
@@ -540,15 +561,17 @@ _PG_init(void)
 
 /*
  * Extract EdgeDB query info from the JSON in the leading comment.
+ * If success, returns a palloc-ed EdbStmtInfo which must be freed
+ * after usage with edbss_free_stmt_info().
  */
-bool
-edbss_extract_stmt_info(const char* query_str, int query_len, EdbStmtInfo *info) {
+EdbStmtInfo *
+edbss_extract_stmt_info(const char* query_str, int query_len) {
 	int prefix_len = strlen(EDB_STMT_MAGIC_PREFIX);
 	const char *info_str = query_str;
 	int info_len = 0;
 
 	if (query_len <= prefix_len)
-		return UINT64CONST(0);
+		return NULL;
 
 	if (strncmp(info_str, EDB_STMT_MAGIC_PREFIX, prefix_len) == 0) {
 		const char *c;
@@ -561,6 +584,7 @@ edbss_extract_stmt_info(const char* query_str, int query_len, EdbStmtInfo *info)
 	}
 
 	if (info_len > 0) {
+		EdbStmtInfo *info = (EdbStmtInfo *) palloc0(sizeof(EdbStmtInfo));
 		EdbStmtInfoSemState state = {
 				.info = info,
 				.state = EDB_STMT_INFO_PARSE_NOOP,
@@ -584,14 +608,30 @@ edbss_extract_stmt_info(const char* query_str, int query_len, EdbStmtInfo *info)
 				.object_field_start = edbss_json_ofield_start,
 				.scalar = edbss_json_scalar,
 		};
+		JsonParseErrorType parse_rv = pg_parse_json(lex, &sem);
+		freeJsonLexContext(lex);
 
-		if (pg_parse_json(lex, &sem) == JSON_SUCCESS)
+		if (parse_rv == JSON_SUCCESS)
 			if ((state.found & EDB_STMT_INFO_PARSE_REQUIRED) == EDB_STMT_INFO_PARSE_REQUIRED)
 				if (info->query_id != UINT64CONST(0))
-					return true;
+					return info;
+
+		edbss_free_stmt_info(info);
 	}
 
-	return false;
+	return NULL;
+}
+
+/*
+ * Frees the given EdbStmtInfo struct as well as
+ * its owning sub-fields (query and cache_key).
+ */
+static inline void
+edbss_free_stmt_info(EdbStmtInfo *info) {
+	Assert(info != NULL);
+	pfree((void *) info->query);
+	pfree(info->cache_key);
+	pfree(info);
 }
 
 static JsonParseErrorType
@@ -623,42 +663,44 @@ edbss_json_ofield_start(void *semstate, char *fname, bool isnull) {
 			state->state = EDB_STMT_INFO_PARSE_TYPE;
 		}
 	}
+	pfree(fname);  /* must not use object_field_end */
 	return JSON_SUCCESS;
 }
 
 static JsonParseErrorType
 edbss_json_scalar(void *semstate, char *token, JsonTokenType tokenType) {
 	EdbStmtInfoSemState *state = (EdbStmtInfoSemState *) semstate;
+	Assert(token != NULL);
 	switch (state->state) {
 		case EDB_STMT_INFO_PARSE_QUERY:
 			if (tokenType == JSON_TOKEN_STRING) {
 				state->info->query = token;
 				state->info->query_len = (int) strlen(token);
 				break;
-			} else {
-				return JSON_SEM_ACTION_FAILED;
 			}
+			goto fail;
+
 		case EDB_STMT_INFO_PARSE_QUERY_ID:
 			if (tokenType == JSON_TOKEN_NUMBER) {
 				char *endptr;
 				uint64 query_id = strtoull(token, &endptr, 10);
 				if (*endptr == '\0' && query_id != UINT64_MAX) {
 					state->info->query_id = query_id;
+					pfree(token);
 					break;
-				} else {
-					return JSON_SEM_ACTION_FAILED;
 				}
-			} else {
-				return JSON_SEM_ACTION_FAILED;
 			}
+			goto fail;
+
 		case EDB_STMT_INFO_PARSE_CACHE_KEY:
 			if (tokenType == JSON_TOKEN_STRING) {
 				Datum cache_key = DirectFunctionCall1(uuid_in, CStringGetDatum(token));
 				state->info->cache_key = DatumGetUUIDP(cache_key);
+				pfree(token);
 				break;
-			} else {
-				return JSON_SEM_ACTION_FAILED;
 			}
+			goto fail;
+
 		case EDB_STMT_INFO_PARSE_TYPE:
 			if (tokenType == JSON_TOKEN_NUMBER) {
 				char *endptr;
@@ -666,17 +708,24 @@ edbss_json_scalar(void *semstate, char *token, JsonTokenType tokenType) {
 				if (*endptr == '\0' && type_val != LONG_MAX) {
 					if (type_val == EDB_EDGEQL || type_val == EDB_SQL) {
 						state->info->stmt_type = type_val;
+						pfree(token);
 						break;
 					}
 				}
 			}
-			return JSON_SEM_ACTION_FAILED;
+			goto fail;
+
 		case EDB_STMT_INFO_PARSE_NOOP:
+			pfree(token);
 			return JSON_SUCCESS;
 	}
 	state->found |= state->state;
 	state->state = EDB_STMT_INFO_PARSE_NOOP;
 	return JSON_SUCCESS;
+
+fail:
+	pfree(token);
+	return JSON_SEM_ACTION_FAILED;
 }
 
 /*
@@ -1029,7 +1078,7 @@ error:
 static void
 pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 {
-	EdbStmtInfo info = { 0 };
+	EdbStmtInfo *info;
 	const char *query_str;
 	int query_location, query_len;
 
@@ -1059,17 +1108,17 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 	query_location = query->stmt_location;
 	query_len = query->stmt_len;
 	query_str = CleanQuerytext(pstate->p_sourcetext, &query_location, &query_len);
-	if (edbss_extract_stmt_info(query_str, query_len, &info)) {
-		query->queryId = info.query_id;
+	if ((info = edbss_extract_stmt_info(query_str, query_len)) != NULL) {
+		query->queryId = info->query_id;
 
 		/* We immediately create a hash table entry for the query,
 		 * so that we don't need to parse the query info JSON later
 		 * again for the query with the same queryId.
 		 */
-		pgss_store(info.query,
-				   info.query_id,
+		pgss_store(info->query,
+				   info->query_id,
 				   0,
-				   info.query_len,
+				   info->query_len,
 				   PGSS_INVALID,
 				   0,
 				   0,
@@ -1078,10 +1127,11 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 				   NULL,
 				   NULL,
 				   true,
-				   info.cache_key,
-				   info.stmt_type,
+				   info->cache_key,
+				   info->stmt_type,
 				   0,
 				   0);
+		edbss_free_stmt_info(info);
 	} else if (!edbss_track_unrecognized) {
 		query->queryId = UINT64CONST(0);
 	} else if (jstate && jstate->clocations_count > 0)
@@ -1542,6 +1592,7 @@ pgss_store(const char *query, uint64 queryId,
 	pgssEntry  *entry;
 	char	   *norm_query = NULL;
 	int			encoding = GetDatabaseEncoding();
+	EdbStmtInfo *info = NULL;
 
 	Assert(query != NULL);
 
@@ -1591,17 +1642,16 @@ pgss_store(const char *query, uint64 queryId,
 			/* Try extract from the context of plan/execute.
 			 * This is usually happening after a stats reset.
 			 */
-			EdbStmtInfo info;
-			if (edbss_extract_stmt_info(query, query_len, &info)) {
+			if ((info = edbss_extract_stmt_info(query, query_len)) != NULL) {
 				/* We should just get the same queryId again
 				 * as we extracted before the reset in post_parse.
 				 */
-				if (info.query_id != queryId)
+				if (info->query_id != queryId)
 					goto done;
-				query = info.query;
-				query_len = info.query_len;
-				cache_key = info.cache_key;
-				stmt_type = info.stmt_type;
+				query = info->query;
+				query_len = info->query_len;
+				cache_key = info->cache_key;
+				stmt_type = info->stmt_type;
 			} else if (!edbss_track_unrecognized) {
 				/* skip unrecognized statements unless we're told not to */
 				goto done;
@@ -1783,6 +1833,9 @@ done:
 	/* We postpone this clean-up until we're out of the lock */
 	if (norm_query)
 		pfree(norm_query);
+
+	if (info)
+		edbss_free_stmt_info(info);
 }
 
 /*
