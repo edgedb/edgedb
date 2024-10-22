@@ -542,6 +542,28 @@ class ArgumentInliner(ast.NodeTransformer):
 
         return cast(irast.Base, self.generic_visit(node))
 
+    # Don't transform pointer refs.
+    # They are updated in other places, such as cardinality inference.
+    def visit_PointerRef(
+        self, node: irast.PointerRef
+    ) -> irast.Base:
+        return node
+
+    def visit_TupleIndirectionPointerRef(
+        self, node: irast.TupleIndirectionPointerRef
+    ) -> irast.Base:
+        return node
+
+    def visit_SpecialPointerRef(
+        self, node: irast.SpecialPointerRef
+    ) -> irast.Base:
+        return node
+
+    def visit_TypeIntersectionPointerRef(
+        self, node: irast.TypeIntersectionPointerRef
+    ) -> irast.Base:
+        return node
+
 
 class _SpecialCaseFunc(Protocol):
     def __call__(
