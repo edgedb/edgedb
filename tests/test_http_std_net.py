@@ -20,6 +20,7 @@
 import typing
 import json
 
+from edb import errors
 from edb.testbase import http as tb
 
 
@@ -87,30 +88,34 @@ class StdNetTestCase(tb.BaseHttpTest):
             )
         )
 
-        result = await self.con.query_single(
-            """
-            with
-                nh as module std::net::http,
-                net as module std::net,
-                url := <str>$url,
-                request := (
-                    insert nh::ScheduledRequest {
-                        created_at := datetime_of_statement(),
-                        updated_at := datetime_of_statement(),
-                        state := std::net::RequestState.Pending,
+        async for tr in self.try_until_succeeds(
+            delay=2, timeout=120, ignore=(errors.TransactionSerializationError,)
+        ):
+            async with tr:
+                result = await self.con.query_single(
+                    """
+                    with
+                        nh as module std::net::http,
+                        net as module std::net,
+                        url := <str>$url,
+                        request := (
+                            insert nh::ScheduledRequest {
+                                created_at := datetime_of_statement(),
+                                updated_at := datetime_of_statement(),
+                                state := std::net::RequestState.Pending,
 
-                        url := url,
-                        method := nh::Method.`GET`,
-                        headers := [
-                            ("Accept", "application/json"),
-                            ("x-test-header", "test-value"),
-                        ],
-                    }
+                                url := url,
+                                method := nh::Method.`GET`,
+                                headers := [
+                                    ("Accept", "application/json"),
+                                    ("x-test-header", "test-value"),
+                                ],
+                            }
+                        )
+                    select request {*};
+                    """,
+                    url=url,
                 )
-            select request {*};
-            """,
-            url=url,
-        )
 
         requests_for_example = None
         async for tr in self.try_until_succeeds(
@@ -160,29 +165,32 @@ class StdNetTestCase(tb.BaseHttpTest):
             )
         )
 
-        result = await self.con.query_single(
-            """
-            with
-                nh as module std::net::http,
-                net as module std::net,
-                url := <str>$url,
-                body := <bytes>$body,
-                request := (
-                    nh::schedule_request(
-                        url,
-                        method := nh::Method.POST,
-                        headers := [
-                            ("Accept", "application/json"),
-                            ("x-test-header", "test-value"),
-                        ],
-                        body := body,
-                    )
+        async for tr in self.try_until_succeeds(
+            delay=2, timeout=120, ignore=(errors.TransactionSerializationError,)
+        ):
+            async with tr:
+                result = await self.con.query_single(
+                    """
+                    with
+                        nh as module std::net::http,
+                        url := <str>$url,
+                        body := <bytes>$body,
+                        request := (
+                            nh::schedule_request(
+                                url,
+                                method := nh::Method.POST,
+                                headers := [
+                                    ("Accept", "application/json"),
+                                    ("x-test-header", "test-value"),
+                                ],
+                                body := body,
+                            )
+                        )
+                    select request {*};
+                    """,
+                    url=url,
+                    body=b"Hello, world!",
                 )
-            select request {*};
-            """,
-            url=url,
-            body=b"Hello, world!",
-        )
 
         requests_for_example = None
         async for tr in self.try_until_succeeds(
@@ -216,26 +224,27 @@ class StdNetTestCase(tb.BaseHttpTest):
         # Test a request to a known-bad address
         bad_url = "http://256.256.256.256"
 
-        result = await self.con.query_single(
-            """
-            with
-                nh as module std::net::http,
-                url := <str>$url,
-                request := (
-                    nh::schedule_request(
-                        url,
-                        method := nh::Method.`GET`
-                    )
+        async for tr in self.try_until_succeeds(
+            delay=2, timeout=120, ignore=(errors.TransactionSerializationError,)
+        ):
+            async with tr:
+                result = await self.con.query_single(
+                    """
+                    with
+                        nh as module std::net::http,
+                        url := <str>$url,
+                        request := (
+                            nh::schedule_request(url)
+                        )
+                    select request {
+                        id,
+                        state,
+                        failure,
+                        response,
+                    };
+                    """,
+                    url=bad_url,
                 )
-            select request {
-                id,
-                state,
-                failure,
-                response,
-            };
-            """,
-            url=bad_url,
-        )
 
         table_result = await self._wait_for_request_completion(result.id)
         self.assertEqual(str(table_result.state), 'Failed')
