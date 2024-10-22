@@ -1629,13 +1629,16 @@ class DeleteFunction(FunctionCommand, adapts=s_funcs.DeleteFunction):
 
             if not overload:
                 variadic = func.get_params(schema).find_variadic(schema)
-                self.pgops.add(
-                    dbops.DropFunction(
-                        name=self.get_pgname(func, schema),
-                        args=self.compile_args(func, schema),
-                        has_variadic=variadic is not None,
+                if func.get_volatility(schema) != ql_ft.Volatility.Modifying:
+                    # Modifying functions are not compiled.
+                    # See: compile_edgeql_function
+                    self.pgops.add(
+                        dbops.DropFunction(
+                            name=self.get_pgname(func, schema),
+                            args=self.compile_args(func, schema),
+                            has_variadic=variadic is not None,
+                        )
                     )
-                )
 
         return super().apply(schema, context)
 
