@@ -350,6 +350,7 @@ async def _delete_requests(
                 """,
                 variables={"expires_in": expires_in.to_backend_str()},
                 cached_globally=True,
+                tx_isolation=defines.TxIsolationLevel.RepeatableRead,
             )
             if len(result) > 0:
                 logger.info(f"Deleted requests: {result!r}")
