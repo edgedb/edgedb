@@ -30,9 +30,11 @@ from .enums import Capability, Cardinality
 from .enums import InputFormat, OutputFormat
 from .explain import analyze_explain_output
 from .ddl import repair_schema
+from .rpc import CompilationRequest
 
 __all__ = (
     'Cardinality',
+    'CompilationRequest',
     'Compiler',
     'CompilerState',
     'CompileContext',
