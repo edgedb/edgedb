@@ -32,6 +32,9 @@ class TestQueryStatsMixin:
     async def _query_for_stats(self):
         raise NotImplementedError
 
+    async def _configure_track(self, option: str):
+        raise NotImplementedError
+
     async def _bad_query_for_stats(self):
         raise NotImplementedError
 
@@ -47,20 +50,33 @@ class TestQueryStatsMixin:
             )
             select sum(stats.calls)
         '''
+
+        # Take the initial tracking number of executions
         calls = await self.con.query_single(stats_query, self.stats_type)
 
+        # Execute the query one more time
         await self._query_for_stats()
         self.assertEqual(
             await self.con.query_single(stats_query, self.stats_type),
             calls + 1,
         )
 
+        # Bad queries are not tracked
         await self._bad_query_for_stats()
         self.assertEqual(
             await self.con.query_single(stats_query, self.stats_type),
             calls + 1,
         )
 
+        # Turn off cfg::Config.track_query_stats, verify tracking is stopped
+        await self._configure_track('None')
+        await self._query_for_stats()
+        self.assertEqual(
+            await self.con.query_single(stats_query, self.stats_type),
+            calls + 1,
+            )
+
+        # sys::reset_query_stats() branch filter works correctly
         self.assertIsNone(
             await self.con.query_single(
                 "select sys::reset_query_stats(branch_name := 'non_exdb')"
@@ -71,6 +87,7 @@ class TestQueryStatsMixin:
             calls + 1,
         )
 
+        # sys::reset_query_stats() works correctly
         self.assertIsNotNone(
             await self.con.query('select sys::reset_query_stats()')
         )
@@ -131,6 +148,12 @@ class TestEdgeQLSys(tb.QueryTestCase, TestQueryStatsMixin):
             [],
         )
 
+    async def _configure_track(self, option: str):
+        await self.con.query(f'''
+            configure session set track_query_stats :=
+                <cfg::QueryStatsOption>{common.quote_literal(option)};
+        ''')
+
     async def _bad_query_for_stats(self):
         async with self.assertRaisesRegexTx(
             edgedb.InvalidReferenceError, 'does not exist'
@@ -152,6 +175,13 @@ class TestSQLSys(tb.SQLQueryTestCase, TestQueryStatsMixin):
             ),
             [[self.stats_magic_word]],
         )
+
+    async def _configure_track(self, option: str):
+        # XXX: we should probably translate the config name in the compiler,
+        # so that we can use the frontend name (track_query_stats) here instead
+        await self.scon.execute(f'''
+            set "edb_stat_statements.track" TO {option};
+        ''')
 
     async def _bad_query_for_stats(self):
         with self.assertRaisesRegex(
