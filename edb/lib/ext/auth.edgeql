@@ -395,6 +395,14 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         };
     };
 
+    create function ext::auth::webhook_signing_key_exists(
+        webhook_config: ext::auth::WebhookConfig
+    ) -> std::bool {
+        using (
+            select exists webhook_config.signing_secret_key
+        );
+    };
+
     create type ext::auth::AuthConfig extending cfg::ExtensionConfig {
         create multi link providers: ext::auth::ProviderConfig {
             create annotation std::description :=

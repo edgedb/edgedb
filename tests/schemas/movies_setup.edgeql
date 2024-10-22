@@ -67,3 +67,7 @@ insert Content {
     title := 'Halo 3',
     genre := (select Genre filter .name = 'Fiction' limit 1)
 };
+
+set global filter_title := 'summary';
+insert ContentSummary;
+reset global filter_title;

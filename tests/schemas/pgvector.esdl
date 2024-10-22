@@ -18,6 +18,8 @@
 
 
 scalar type v3 extending ext::pgvector::vector<3>;
+scalar type hv3 extending ext::pgvector::halfvec<3>;
+scalar type sv3 extending ext::pgvector::sparsevec<3>;
 
 scalar type myf64 extending float64 {
     constraint max_value(100);
@@ -30,34 +32,94 @@ type Basic {
     p_json: json {rewrite insert using (to_json(__subject__.p_str))};
 }
 
-type IVFFlat_L2 {
+type IVFFlat_vec_L2 {
     required vec: v3;
     index ext::pgvector::ivfflat_euclidean(lists := 100) on (.vec);
 }
 
-type IVFFlat_IP {
+type IVFFlat_vec_IP {
     required vec: v3;
     index ext::pgvector::ivfflat_ip(lists := 100) on (.vec);
 }
 
-type IVFFlat_Cosine {
+type IVFFlat_vec_Cosine {
     required vec: v3;
     index ext::pgvector::ivfflat_cosine(lists := 100) on (.vec);
 }
 
-type HNSW_L2 {
+type HNSW_vec_L2 {
     required vec: v3;
     index ext::pgvector::hnsw_euclidean() on (.vec);
 }
 
-type HNSW_IP {
+type HNSW_vec_IP {
     required vec: v3;
     index ext::pgvector::hnsw_ip(m := 4) on (.vec);
 }
 
-type HNSW_Cosine {
+type HNSW_vec_Cosine {
     required vec: v3;
     index ext::pgvector::hnsw_cosine(m := 2, ef_construction := 4) on (.vec);
+}
+
+type HNSW_vec_L1 {
+    required vec: v3;
+    index ext::pgvector::hnsw_taxicab() on (.vec);
+}
+
+type IVFFlat_hv_L2 {
+    required vec: hv3;
+    index ext::pgvector::ivfflat_hv_euclidean(lists := 100) on (.vec);
+}
+
+type IVFFlat_hv_IP {
+    required vec: hv3;
+    index ext::pgvector::ivfflat_hv_ip(lists := 100) on (.vec);
+}
+
+type IVFFlat_hv_Cosine {
+    required vec: hv3;
+    index ext::pgvector::ivfflat_hv_cosine(lists := 100) on (.vec);
+}
+
+type HNSW_hv_L2 {
+    required vec: hv3;
+    index ext::pgvector::hnsw_hv_euclidean() on (.vec);
+}
+
+type HNSW_hv_IP {
+    required vec: hv3;
+    index ext::pgvector::hnsw_hv_ip(m := 4) on (.vec);
+}
+
+type HNSW_hv_Cosine {
+    required vec: hv3;
+    index ext::pgvector::hnsw_hv_cosine(m := 2, ef_construction := 4) on (.vec);
+}
+
+type HNSW_hv_L1 {
+    required vec: hv3;
+    index ext::pgvector::hnsw_hv_taxicab() on (.vec);
+}
+
+type HNSW_sv_L2 {
+    required vec: sv3;
+    index ext::pgvector::hnsw_sv_euclidean() on (.vec);
+}
+
+type HNSW_sv_IP {
+    required vec: sv3;
+    index ext::pgvector::hnsw_sv_ip(m := 4) on (.vec);
+}
+
+type HNSW_sv_Cosine {
+    required vec: sv3;
+    index ext::pgvector::hnsw_sv_cosine(m := 2, ef_construction := 4) on (.vec);
+}
+
+type HNSW_sv_L1 {
+    required vec: sv3;
+    index ext::pgvector::hnsw_sv_taxicab() on (.vec);
 }
 
 type Con {

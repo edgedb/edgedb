@@ -8,7 +8,6 @@ jobs:
   prep:
     runs-on: ubuntu-latest
     outputs:
-      branch: ${{ steps.whichver.outputs.branch }}
 
 
       if_debian_buster_x86_64: ${{ steps.scm.outputs.if_debian_buster_x86_64 }}
@@ -62,13 +61,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Determine package version
-      shell: bash
-      run: |
-        branch=${GITHUB_REF#refs/heads/}
-        echo branch="${branch}" >> $GITHUB_OUTPUT
-      id: whichver
 
 
     - name: Determine SCM revision
@@ -440,7 +432,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "debian"
@@ -464,7 +456,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "debian"
@@ -488,7 +480,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "debian"
@@ -512,7 +504,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "debian"
@@ -536,7 +528,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "debian"
@@ -560,7 +552,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "debian"
@@ -584,7 +576,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
@@ -608,7 +600,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
@@ -632,7 +624,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
@@ -656,7 +648,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
@@ -680,7 +672,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
@@ -704,7 +696,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
@@ -728,7 +720,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-noble@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
@@ -752,7 +744,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-noble@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
@@ -776,7 +768,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "centos"
@@ -800,7 +792,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "centos"
@@ -824,7 +816,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "rockylinux"
@@ -848,7 +840,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "rockylinux"
@@ -872,7 +864,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "linux"
@@ -897,7 +889,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linux-aarch64@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "linux"
@@ -922,7 +914,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-x86_64@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "linux"
@@ -948,7 +940,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-aarch64@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "linux"
@@ -1017,7 +1009,7 @@ jobs:
 
     - name: Build
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "macos"
@@ -1088,7 +1080,7 @@ jobs:
 
     - name: Build
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "macos"

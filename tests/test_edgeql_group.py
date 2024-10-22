@@ -820,6 +820,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             '''
         )
 
+    @tb.needs_factoring_weakly
     async def test_edgeql_group_by_group_by_03b(self):
         await self._test_edgeql_group_by_group_by_03(
             '''
@@ -1572,6 +1573,11 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         assert stype.is_view(ctx.env.schema) when in _inline_type_computable
     """)
     async def test_edgeql_group_issue_6481(self):
+        # NO_FACTOR makes it pass but we don't want it to unexpected
+        # pass since it still fails on other modes
+        if self.NO_FACTOR:
+            raise RuntimeError('sigh')
+
         await self.assert_query_result(
             r'''
             select (
@@ -1688,3 +1694,11 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 }
             ])
         )
+
+
+class TestEdgeQLGroupNoFactor(TestEdgeQLGroup):
+    NO_FACTOR = True
+
+
+class TestEdgeQLGroupWarnFactor(TestEdgeQLGroup):
+    WARN_FACTOR = True

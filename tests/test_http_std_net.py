@@ -21,10 +21,9 @@ import typing
 import json
 
 from edb.testbase import http as tb
-import edb.testbase.server as server
 
 
-class StdNetTestCase(server.QueryTestCase):
+class StdNetTestCase(tb.BaseHttpTest):
     mock_server: typing.Optional[tb.MockHttpServer] = None
     base_url: str
 
@@ -45,17 +44,18 @@ class StdNetTestCase(server.QueryTestCase):
             async with tr:
                 updated_result = await self.con.query_single(
                     """
-                    with
-                        nh as module std::net::http,
-                        net as module std::net,
-                        request := (
-                            select nh::ScheduledRequest
-                            filter .id = <uuid>$id
-                        )
+                    with request := (
+                        <std::net::http::ScheduledRequest><uuid>$id
+                    )
                     select request {
                         id,
                         state,
                         failure,
+                        response: {
+                            status,
+                            body,
+                            headers
+                        }
                     };
                     """,
                     id=request_id,
@@ -63,30 +63,8 @@ class StdNetTestCase(server.QueryTestCase):
                 state = str(updated_result.state)
                 self.assertNotEqual(state, 'Pending')
                 self.assertNotEqual(state, 'InProgress')
-
-    async def _get_final_request_result(self, request_id: str):
-        return await self.con.query_single(
-            """
-            with
-                nh as module std::net::http,
-                net as module std::net,
-                request := (
-                    select nh::ScheduledRequest
-                    filter .id = <uuid>$id
-                )
-            select request {
-                id,
-                state,
-                failure,
-                response: {
-                    status,
-                    body,
-                    headers
-                }
-            };
-            """,
-            id=request_id,
-        )
+                return updated_result
+        raise AssertionError("Failed to get final request result")
 
     async def test_http_std_net_con_schedule_request_get_01(self):
         assert self.mock_server is not None
@@ -118,6 +96,7 @@ class StdNetTestCase(server.QueryTestCase):
                 request := (
                     insert nh::ScheduledRequest {
                         created_at := datetime_of_statement(),
+                        updated_at := datetime_of_statement(),
                         state := std::net::RequestState.Pending,
 
                         url := url,
@@ -149,10 +128,7 @@ class StdNetTestCase(server.QueryTestCase):
         self.assertIn(("x-test-header", "test-value"), headers)
 
         # Wait for the request to complete
-        await self._wait_for_request_completion(result.id)
-
-        # Check the table as well
-        table_result = await self._get_final_request_result(result.id)
+        table_result = await self._wait_for_request_completion(result.id)
         self.assertEqual(str(table_result.state), 'Completed')
         self.assertIsNone(table_result.failure)
         self.assertEqual(table_result.response.status, 200)
@@ -225,10 +201,7 @@ class StdNetTestCase(server.QueryTestCase):
         self.assertEqual(requests_for_example[0].body, "Hello, world!")
 
         # Wait for the request to complete
-        await self._wait_for_request_completion(result.id)
-
-        # Check the final result
-        table_result = await self._get_final_request_result(result.id)
+        table_result = await self._wait_for_request_completion(result.id)
         self.assertEqual(str(table_result.state), 'Completed')
         self.assertIsNone(table_result.failure)
         self.assertEqual(table_result.response.status, 200)
@@ -247,7 +220,6 @@ class StdNetTestCase(server.QueryTestCase):
             """
             with
                 nh as module std::net::http,
-                net as module std::net,
                 url := <str>$url,
                 request := (
                     nh::schedule_request(
@@ -259,13 +231,13 @@ class StdNetTestCase(server.QueryTestCase):
                 id,
                 state,
                 failure,
+                response,
             };
             """,
             url=bad_url,
         )
 
-        await self._wait_for_request_completion(result.id)
-        table_result = await self._get_final_request_result(result.id)
+        table_result = await self._wait_for_request_completion(result.id)
         self.assertEqual(str(table_result.state), 'Failed')
         self.assertIsNotNone(table_result.failure)
         self.assertEqual(str(table_result.failure.kind), 'NetworkError')

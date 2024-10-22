@@ -272,6 +272,11 @@ a.field-note:hover {
 .oauth-buttons a span {
   margin-left: 12px;
 }
+.oauth-buttons a img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
 .oauth-buttons.collapsed {
   flex-direction: row;
   flex-wrap: wrap;
