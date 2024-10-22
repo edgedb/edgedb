@@ -10698,6 +10698,2592 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=True,
         )
 
+    async def test_edgeql_functions_inline_nested_basic_01(self):
+        # Directly passing parameter
+        await self.con.execute('''
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x)
+            };
+            create function foo(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(x))
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(x))',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_02(self):
+        # Indirectly passing parameter
+        await self.con.execute('''
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x * x)
+            };
+            create function foo(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(x + 1))
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [4],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [4, 9, 16],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(x))',
+            [4, 9, 16],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_03(self):
+        # Calling same inner function with different parameters
+        await self.con.execute('''
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x * x)
+            };
+            create function foo(x: int64, y: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(x) + inner(y));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{}, <int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1, <int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<int64>{}, 1)',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1, 10)',
+            [101],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3}, 10)',
+            [101, 104, 109],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo(1, {10, 20, 30})',
+            [101, 401, 901],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3}, {10, 20, 30})',
+            [101, 104, 109, 401, 404, 409, 901, 904, 909],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union ('
+            '    for y in {10, 20, 30} union ('
+            '        select foo(x, y)'
+            '    )'
+            ')',
+            [101, 104, 109, 401, 404, 409, 901, 904, 909],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_04(self):
+        # Directly passing parameter with default
+        await self.con.execute('''
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x * x)
+            };
+            create function foo(x: int64 = 9) -> int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo()',
+            [81],
+        )
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [1, 4, 9],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(x))',
+            [1, 4, 9],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_05(self):
+        # Indirectly passing parameter with default
+        await self.con.execute('''
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x * x)
+            };
+            create function foo(x: int64 = 9) -> int64 {
+                set is_inlined := true;
+                using (inner(x+1));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo()',
+            [100],
+        )
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [4],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [4, 9, 16],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(x))',
+            [4, 9, 16],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_06(self):
+        # Inner function with default parameter
+        await self.con.execute('''
+            create function inner(x: int64 = 9) -> int64 {
+                set is_inlined := true;
+                using (x * x)
+            };
+            create function foo1() -> int64 {
+                set is_inlined := true;
+                using (inner());
+            };
+            create function foo2(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo1()',
+            [81],
+        )
+        await self.assert_query_result(
+            'select foo2(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo2(1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo2({1, 2, 3})',
+            [1, 4, 9],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo2(x))',
+            [1, 4, 9],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_07(self):
+        # Directly passing optional parameter
+        await self.con.execute('''
+            create function inner(x: optional int64) -> optional int64 {
+                set is_inlined := true;
+                using (x * x)
+            };
+            create function foo(x: optional int64) -> int64 {
+                set is_inlined := true;
+                using (inner(x) ?? 99);
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [99],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [1, 4, 9],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(x))',
+            [1, 4, 9],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_08(self):
+        # Indirectly passing optional parameter
+        await self.con.execute('''
+            create function inner(x: optional int64) -> optional int64 {
+                set is_inlined := true;
+                using (x * x)
+            };
+            create function foo(x: optional int64) -> int64 {
+                set is_inlined := true;
+                using (inner(x+1) ?? 99);
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [99],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [4],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [4, 9, 16],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(x))',
+            [4, 9, 16],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_09(self):
+        # Inner function with optional parameter
+        await self.con.execute('''
+            create function inner(x: optional int64) -> int64 {
+                set is_inlined := true;
+                using ((x * x) ?? 99)
+            };
+            create function foo1() -> int64 {
+                set is_inlined := true;
+                using (inner(<int64>{}));
+            };
+            create function foo2(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo1()',
+            [99],
+        )
+        await self.assert_query_result(
+            'select foo2(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo2(1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo2({1, 2, 3})',
+            [1, 4, 9],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo2(x))',
+            [1, 4, 9],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_10(self):
+        # Directly passing variadic parameter
+        await self.con.execute('''
+            create function inner(x: array<int64>) -> int64 {
+                set is_inlined := true;
+                using (sum(array_unpack(x)))
+            };
+            create function foo(variadic x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo()',
+            [0],
+        )
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo(1, 2, 3)',
+            [6],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo({1, 2}, {10, 20})',
+            [11, 12, 21, 22],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(x))',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_11(self):
+        # Indirectly passing variadic parameter
+        await self.con.execute('''
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x)
+            };
+            create function foo(variadic x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(sum(array_unpack(x))));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo()',
+            [0],
+        )
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo(1, 2, 3)',
+            [6],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo({1, 2}, {10, 20})',
+            [11, 12, 21, 22],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(x))',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_12(self):
+        # Inner function with variadic parameter
+        await self.con.execute('''
+            create function inner(variadic x: int64) -> int64 {
+                set is_inlined := true;
+                using (sum(array_unpack(x)))
+            };
+            create function foo1() -> int64 {
+                set is_inlined := true;
+                using (inner());
+            };
+            create function foo2(x: int64, y: int64, z: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(x, y, z));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo1()',
+            [0],
+        )
+        await self.assert_query_result(
+            'select foo2(<int64>{}, <int64>{}, <int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo2(1, 2, 3)',
+            [6],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo2(x, x * 10, x * 100))',
+            [111, 222, 333],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_13(self):
+        # Directly passing named parameter
+        await self.con.execute('''
+            create function inner(named only a: int64) -> int64 {
+                set is_inlined := true;
+                using (a * a)
+            };
+            create function foo(named only a: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(a := a));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(a := <int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(a := 1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo(a := {1, 2, 3})',
+            [1, 4, 9],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(a := x))',
+            [1, 4, 9],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_14(self):
+        # Indirectly passing named parameter
+        await self.con.execute('''
+            create function inner(named only a: int64) -> int64 {
+                set is_inlined := true;
+                using (a * a)
+            };
+            create function foo(named only a: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(a := a + 1));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(a := <int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(a := 1)',
+            [4],
+        )
+        await self.assert_query_result(
+            'select foo(a := {1, 2, 3})',
+            [4, 9, 16],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(a := x))',
+            [4, 9, 16],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_15(self):
+        # Passing named parameter as positional
+        await self.con.execute('''
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x * x)
+            };
+            create function foo(named only a: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(a));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(a := <int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(a := 1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo(a := {1, 2, 3})',
+            [1, 4, 9],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(a := x))',
+            [1, 4, 9],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_16(self):
+        # Passing positional parameter as named
+        await self.con.execute('''
+            create function inner(named only a: int64) -> int64 {
+                set is_inlined := true;
+                using (a * a)
+            };
+            create function foo(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(a := x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [1, 4, 9],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {1, 2, 3} union (select foo(x))',
+            [1, 4, 9],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_17(self):
+        # Variety of paremeter types
+        await self.con.execute('''
+            create function inner1(x: int64, y: int64) -> int64 {
+                set is_inlined := true;
+                using (x + y)
+            };
+            create function inner2(x: array<int64>) -> int64 {
+                set is_inlined := true;
+                using (sum(array_unpack(x)))
+            };
+            create function foo(
+                x: int64,
+                y: int64 = 90,
+                variadic z: int64,
+                named only a: int64,
+                named only b: int64 = 90000
+            ) -> int64 {
+                set is_inlined := true;
+                using (inner1(x, a) + inner1(y, b) + inner2(z));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(1, a := 1000)',
+            [91091],
+        )
+        await self.assert_query_result(
+            'select foo(1, 10, a := 1000)',
+            [91011],
+        )
+        await self.assert_query_result(
+            'select foo(1, a := 1000, b := 10000)',
+            [11091],
+        )
+        await self.assert_query_result(
+            'select foo(1, 10, a := 1000, b := 10000)',
+            [11011],
+        )
+        await self.assert_query_result(
+            'select foo(1, 10, 100, a := 1000)',
+            [91111],
+        )
+        await self.assert_query_result(
+            'select foo(1, 10, 100, a := 1000, b := 10000)',
+            [11111],
+        )
+        await self.assert_query_result(
+            'select foo(1, 10, 100, 200, a := 1000)',
+            [91311],
+        )
+        await self.assert_query_result(
+            'select foo(1, 10, 100, 200, a := 1000, b := 10000)',
+            [11311],
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_18(self):
+        # For in inner function
+        await self.con.execute('''
+            create function inner(x: int64) -> set of int64 {
+                set is_inlined := true;
+                using (for y in {x, x + 1, x + 2} union (y))
+            };
+            create function foo(x: int64) -> set of int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(10)',
+            [10, 11, 12],
+        )
+        await self.assert_query_result(
+            'select foo({10, 20, 30})',
+            [10, 11, 12, 20, 21, 22, 30, 31, 32],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {10, 20, 30} union (select foo(x))',
+            [10, 11, 12, 20, 21, 22, 30, 31, 32],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_19(self):
+        # For in outer function
+        await self.con.execute('''
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x)
+            };
+            create function foo(x: int64) -> set of int64 {
+                set is_inlined := true;
+                using (for y in {x, x + 1, x + 2} union (inner(y)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(10)',
+            [10, 11, 12],
+        )
+        await self.assert_query_result(
+            'select foo({10, 20, 30})',
+            [10, 11, 12, 20, 21, 22, 30, 31, 32],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {10, 20, 30} union (select foo(x))',
+            [10, 11, 12, 20, 21, 22, 30, 31, 32],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_basic_20(self):
+        # Deeply nested
+        await self.con.execute('''
+            create function inner1(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x+1)
+            };
+            create function inner2(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner1(x+2))
+            };
+            create function inner3(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner2(x+3))
+            };
+            create function foo(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner3(x+4))
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [11],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [11, 12, 13],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_array_01(self):
+        # Return array from inner function
+        await self.con.execute('''
+            create function inner(x: int64) -> array<int64> {
+                set is_inlined := true;
+                using ([x]);
+            };
+            create function foo(x: int64) -> array<int64> {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [[1]],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [[1], [2], [3]],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_array_02(self):
+        # Access array element in inner function
+        await self.con.execute('''
+            create function inner(x: array<int64>) -> int64 {
+                set is_inlined := true;
+                using (x[0]);
+            };
+            create function foo(x: array<int64>) -> int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<array<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo([1])',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({[1], [2, 3]})',
+            [1, 2],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_array_03(self):
+        # Access array element in outer function
+        await self.con.execute('''
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: array<int64>) -> int64 {
+                set is_inlined := true;
+                using (inner(x[0]));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<array<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo([1])',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({[1], [2, 3]})',
+            [1, 2],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_array_04(self):
+        # Directly passing array parameter
+        await self.con.execute('''
+            create function inner(x: array<int64>) -> array<int64> {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: array<int64>) -> array<int64> {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<array<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo([1])',
+            [[1]],
+        )
+        await self.assert_query_result(
+            'select foo({[1], [2, 3]})',
+            [[1], [2, 3]],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_array_05(self):
+        # Indirectly passing array parameter
+        await self.con.execute('''
+            create function inner(x: array<int64>) -> array<int64> {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: array<int64>) -> array<int64> {
+                set is_inlined := true;
+                using (inner((select x)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<array<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo([1])',
+            [[1]],
+        )
+        await self.assert_query_result(
+            'select foo({[1], [2, 3]})',
+            [[1], [2, 3]],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_array_06(self):
+        # Inner function with array parameter
+        await self.con.execute('''
+            create function inner(x: array<int64>) -> array<int64> {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: int64) -> array<int64> {
+                set is_inlined := true;
+                using (inner([x]));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [[1]],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [[1], [2], [3]],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_array_07(self):
+        # Directly passing array parameter with default
+        await self.con.execute('''
+            create function inner(x: array<int64>) -> array<int64> {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(
+                x: array<int64> = [9]
+            ) -> array<int64> {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo()',
+            [[9]],
+        )
+        await self.assert_query_result(
+            'select foo(<array<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo([1])',
+            [[1]],
+        )
+        await self.assert_query_result(
+            'select foo({[1], [2, 3]})',
+            [[1], [2, 3]],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_array_08(self):
+        # Directly passing array parameter with default
+        await self.con.execute('''
+            create function inner(x: array<int64>) -> array<int64> {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(
+                x: array<int64> = [9]
+            ) -> array<int64> {
+                set is_inlined := true;
+                using (inner((select x)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo()',
+            [[9]],
+        )
+        await self.assert_query_result(
+            'select foo(<array<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo([1])',
+            [[1]],
+        )
+        await self.assert_query_result(
+            'select foo({[1], [2, 3]})',
+            [[1], [2, 3]],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_array_09(self):
+        # Inner function with array parameter with default
+        await self.con.execute('''
+            create function inner(x: array<int64> = [9]) -> array<int64> {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo1() -> array<int64> {
+                set is_inlined := true;
+                using (inner());
+            };
+            create function foo2(
+                x: array<int64>
+            ) -> array<int64> {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo1()',
+            [[9]],
+        )
+        await self.assert_query_result(
+            'select foo2(<array<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo2([1])',
+            [[1]],
+        )
+        await self.assert_query_result(
+            'select foo2({[1], [2, 3]})',
+            [[1], [2, 3]],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_array_10(self):
+        # Unpack array in inner function
+        await self.con.execute('''
+            create function inner(x: array<int64>) -> set of int64 {
+                set is_inlined := true;
+                using (array_unpack(x));
+            };
+            create function foo(x: array<int64>) -> set of int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<array<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo([1])',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({[1], [2, 3]})',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_array_11(self):
+        # Unpack array in outer function
+        await self.con.execute('''
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: array<int64>) -> set of int64 {
+                set is_inlined := true;
+                using (inner(array_unpack(x)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<array<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo([1])',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({[1], [2, 3]})',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_tuple_01(self):
+        # Return tuple from inner function
+        await self.con.execute('''
+            create function inner(x: int64) -> tuple<int64> {
+                set is_inlined := true;
+                using ((x,));
+            };
+            create function foo(x: int64) -> tuple<int64> {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [(1,)],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [(1,), (2,), (3,)],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3}).0',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_tuple_02(self):
+        # Return named tuple from inner function
+        await self.con.execute('''
+            create function inner(x: int64) -> tuple<a: int64> {
+                set is_inlined := true;
+                using ((a := x));
+            };
+            create function foo(x: int64) -> tuple<a: int64> {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [{'a': 1}],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3}) order by .a',
+            [{'a': 1}, {'a': 2}, {'a': 3}],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3}).a',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_tuple_03(self):
+        # Accessing tuple element in inner function
+        await self.con.execute('''
+            create function inner(
+                x: tuple<int64>
+            ) -> int64 {
+                set is_inlined := true;
+                using (x.0);
+            };
+            create function foo(
+                x: tuple<int64>
+            ) -> int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<tuple<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((1,))',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({(1,), (2,), (3,)})',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_tuple_04(self):
+        # Accessing tuple element in outer function
+        await self.con.execute('''
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(
+                x: tuple<int64>
+            ) -> int64 {
+                set is_inlined := true;
+                using (inner(x.0));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<tuple<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((1,))',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({(1,), (2,), (3,)})',
+            [1, 2, 3],
+        )
+
+    async def test_edgeql_functions_inline_nested_tuple_05(self):
+        # Accessing named tuple element in inner function
+        await self.con.execute('''
+            create function inner(
+                x: tuple<a: int64>
+            ) -> int64 {
+                set is_inlined := true;
+                using (x.a);
+            };
+            create function foo(
+                x: tuple<a: int64>
+            ) -> int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<tuple<a: int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((a := 1))',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({(a := 1), (a := 2), (a := 3)})',
+            [1, 2, 3],
+        )
+
+    async def test_edgeql_functions_inline_nested_tuple_06(self):
+        # Accessing named tuple element in outer function
+        await self.con.execute('''
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(
+                x: tuple<a: int64>
+            ) -> int64 {
+                set is_inlined := true;
+                using (inner(x.a));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<tuple<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((a := 1))',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({(a := 1), (a := 2), (a := 3)})',
+            [1, 2, 3],
+        )
+
+    async def test_edgeql_functions_inline_nested_tuple_07(self):
+        # Directly passing tuple parameter
+        await self.con.execute('''
+            create function inner(
+                x: tuple<int64>
+            ) -> tuple<int64> {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(
+                x: tuple<int64>
+            ) -> tuple<int64> {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<tuple<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((1,))',
+            [(1,)],
+        )
+        await self.assert_query_result(
+            'select foo({(1,), (2,), (3,)})',
+            [(1,), (2,), (3,)],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_tuple_08(self):
+        # Indirectly passing tuple parameter
+        await self.con.execute('''
+            create function inner(
+                x: tuple<int64>
+            ) -> tuple<int64> {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(
+                x: tuple<int64>
+            ) -> tuple<int64> {
+                set is_inlined := true;
+                using (inner((select x)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<tuple<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((1,))',
+            [(1,)],
+        )
+        await self.assert_query_result(
+            'select foo({(1,), (2,), (3,)})',
+            [(1,), (2,), (3,)],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_tuple_09(self):
+        # Inner function with tuple parameter
+        await self.con.execute('''
+            create function inner(
+                x: tuple<int64>
+            ) -> tuple<int64> {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(
+                x: int64
+            ) -> tuple<int64> {
+                set is_inlined := true;
+                using (inner((x,)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [(1,)],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [(1,), (2,), (3,)],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_tuple_10(self):
+        # Directly passing a tuple parameter with default
+        await self.con.execute('''
+            create function inner(
+                x: tuple<int64>
+            ) -> tuple<int64> {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(
+                x: tuple<int64> = (9,)
+            ) -> tuple<int64> {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo()',
+            [(9,)],
+        )
+        await self.assert_query_result(
+            'select foo(<tuple<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((1,))',
+            [(1,)],
+        )
+        await self.assert_query_result(
+            'select foo({(1,), (2,), (3,)})',
+            [(1,), (2,), (3,)],
+        )
+
+    async def test_edgeql_functions_inline_nested_tuple_11(self):
+        # Indirectly passing tuple parameter with default
+        await self.con.execute('''
+            create function inner(
+                x: tuple<int64>
+            ) -> tuple<int64> {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(
+                x: tuple<int64> = (9,)
+            ) -> tuple<int64> {
+                set is_inlined := true;
+                using (inner((select x)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo()',
+            [(9,)],
+        )
+        await self.assert_query_result(
+            'select foo(<tuple<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((1,))',
+            [(1,)],
+        )
+        await self.assert_query_result(
+            'select foo({(1,), (2,), (3,)})',
+            [(1,), (2,), (3,)],
+        )
+
+    async def test_edgeql_functions_inline_nested_tuple_12(self):
+        # Inner function with tuple parameter with default
+        await self.con.execute('''
+            create function inner(
+                x: tuple<int64> = (9,)
+            ) -> tuple<int64> {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo1() -> tuple<int64> {
+                set is_inlined := true;
+                using (inner());
+            };
+            create function foo2(
+                x: tuple<int64>
+            ) -> tuple<int64> {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo1()',
+            [(9,)],
+        )
+        await self.assert_query_result(
+            'select foo2(<tuple<int64>>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo2((1,))',
+            [(1,)],
+        )
+        await self.assert_query_result(
+            'select foo2({(1,), (2,), (3,)})',
+            [(1,), (2,), (3,)],
+        )
+
+    async def test_edgeql_functions_inline_nested_object_01(self):
+        # Directly passing object parameter
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner(x: Bar) -> Bar {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: Bar) -> Bar {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<Bar>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar filter .a = 1)).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar)).a',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_02(self):
+        # Indirectly passing object parameter
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner(x: Bar) -> Bar {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: Bar) -> Bar {
+                set is_inlined := true;
+                using (inner((select x)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<Bar>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar filter .a = 1)).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar)).a',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_03(self):
+        # Inner function with object parameter
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner(x: Bar) -> Bar {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: int64) -> optional Bar {
+                set is_inlined := true;
+                using (inner((select Bar filter .a = x limit 1)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3, 4}).a',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_04(self):
+        # Inner function returning object
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner(x: int64) -> optional Bar {
+                set is_inlined := true;
+                using ((select Bar filter .a = x limit 1));
+            };
+            create function foo(x: int64) -> optional Bar {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3, 4}).a',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_05(self):
+        # Outer function returning object
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: int64) -> optional Bar {
+                set is_inlined := true;
+                using ((select Bar filter .a = inner(x) limit 1));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3, 4}).a',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_06(self):
+        # Inner function returning set of object
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner(x: int64) -> set of Bar {
+                set is_inlined := true;
+                using ((select Bar filter .a <= x));
+            };
+            create function foo(x: int64) -> set of Bar {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3}).a',
+            [1, 1, 1, 2, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_07(self):
+        # Outer function returning set of object
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: int64) -> set of Bar {
+                set is_inlined := true;
+                using ((select Bar filter .a <= inner(x)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(2).a',
+            [1, 2],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3}).a',
+            [1, 1, 1, 2, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_08(self):
+        # Directly passing optional object parameter
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner(x: optional Bar) -> optional int64 {
+                set is_inlined := true;
+                using (x.a ?? 99);
+            };
+            create function foo(x: optional Bar) -> optional int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<Bar>{})',
+            [99],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar filter .a = 1))',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar))',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_09(self):
+        # Indirectly passing optional object parameter
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner(x: optional Bar) -> optional int64 {
+                set is_inlined := true;
+                using (x.a ?? 99);
+            };
+            create function foo(x: optional Bar) -> optional int64 {
+                set is_inlined := true;
+                using (inner((select x)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<Bar>{})',
+            [99],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar filter .a = 1))',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar))',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_10(self):
+        # Inner function with optional object parameter
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner(x: optional Bar) -> int64 {
+                set is_inlined := true;
+                using (x.a ?? 99);
+            };
+            create function foo1() -> int64 {
+                set is_inlined := true;
+                using (inner(<Bar>{}));
+            };
+            create function foo2(x: Bar) -> int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo1()',
+            [99],
+        )
+        await self.assert_query_result(
+            'select foo2(<Bar>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo2((select Bar filter .a = 1))',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo2((select Bar))',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_11(self):
+        # Check path factoring
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner() -> set of tuple<int64, int64> {
+                set is_inlined := true;
+                using ((Bar.a, count(Bar)));
+            };
+            create function foo() -> set of tuple<int64, int64> {
+                set is_inlined := true;
+                using (inner());
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo()',
+            [[1, 1], [2, 1], [3, 1]],
+        )
+        await self.assert_query_result(
+            'select (foo(), foo())',
+            [
+                [[1, 1], [1, 1]], [[1, 1], [2, 1]], [[1, 1], [3, 1]],
+                [[2, 1], [1, 1]], [[2, 1], [2, 1]], [[2, 1], [3, 1]],
+                [[3, 1], [1, 1]], [[3, 1], [2, 1]], [[3, 1], [3, 1]],
+            ],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select (Bar.a, foo())',
+            [
+                [1, [1, 1]], [1, [2, 1]], [1, [3, 1]],
+                [2, [1, 1]], [2, [2, 1]], [2, [3, 1]],
+                [3, [1, 1]], [3, [2, 1]], [3, [3, 1]],
+            ],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select (foo(), Bar.a)',
+            [
+                [[1, 1], 1], [[1, 1], 2], [[1, 1], 3],
+                [[2, 1], 1], [[2, 1], 2], [[2, 1], 3],
+                [[3, 1], 1], [[3, 1], 2], [[3, 1], 3],
+            ],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_12(self):
+        # Check path factoring
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner1(x: Bar) -> int64 {
+                set is_inlined := true;
+                using (x.a);
+            };
+            create function inner2(x: Bar) -> int64 {
+                set is_inlined := true;
+                using (count(Bar));
+            };
+            create function foo(x: Bar) -> tuple<int64, int64> {
+                set is_inlined := true;
+                using ((inner1(x), inner2(x)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<Bar>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar filter .a = 1))',
+            [[1, 3]],
+        )
+        await self.assert_query_result(
+            'select ('
+            '    foo((select Bar filter .a = 1)),'
+            '    foo((select Bar filter .a = 2)),'
+            ')',
+            [[[1, 3], [2, 3]]],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar))',
+            [[1, 3], [2, 3], [3, 3]],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_13(self):
+        # Directly passing complex type object parameter
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property a -> int64;
+                create required property b -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            insert Baz{a := 4, b := 1};
+            insert Baz{a := 5, b := 2};
+            insert Baz{a := 6, b := 3};
+            create function inner(x: Bar | Baz) -> Bar | Baz {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: Bar | Baz) -> Bar | Baz {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<Bar>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<Baz>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<Bar | Baz>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar filter .a = 1)).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar)).a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo((select Baz filter .a = 4)).a',
+            [4],
+        )
+        await self.assert_query_result(
+            'select foo((select Baz)).a',
+            [4, 5, 6],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo((select {Bar, Baz})).a',
+            [1, 2, 3, 4, 5, 6],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_14(self):
+        # Indirectly passing complex type object parameter
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property a -> int64;
+                create required property b -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            insert Baz{a := 4, b := 1};
+            insert Baz{a := 5, b := 2};
+            insert Baz{a := 6, b := 3};
+            create function inner(x: Bar | Baz) -> Bar | Baz {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: Bar | Baz) -> Bar | Baz {
+                set is_inlined := true;
+                using (inner((select x)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<Bar>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<Baz>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<Bar | Baz>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar filter .a = 1)).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar)).a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo((select Baz filter .a = 4)).a',
+            [4],
+        )
+        await self.assert_query_result(
+            'select foo((select Baz)).a',
+            [4, 5, 6],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo((select {Bar, Baz})).a',
+            [1, 2, 3, 4, 5, 6],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_15(self):
+        # Inner function with complex type object parameter
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property a -> int64;
+                create required property b -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            insert Baz{a := 4, b := 1};
+            insert Baz{a := 5, b := 2};
+            insert Baz{a := 6, b := 3};
+            create function inner(x: Bar | Baz) -> Bar | Baz {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo1(x: Bar) -> Bar | Baz {
+                set is_inlined := true;
+                using (inner(x));
+            };
+            create function foo2(x: Baz) -> Bar | Baz {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo1(<Bar>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo2(<Baz>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo1((select Bar filter .a = 1)).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo1((select Bar)).a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo2((select Baz filter .a = 4)).a',
+            [4],
+        )
+        await self.assert_query_result(
+            'select foo2((select Baz)).a',
+            [4, 5, 6],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_16(self):
+        # Type intersection in inner function
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Bar2 extending Bar;
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            insert Bar2{a := 4};
+            insert Bar2{a := 5};
+            insert Bar2{a := 6};
+            create function inner(x: Bar) -> optional Bar2 {
+                set is_inlined := true;
+                using (x[is Bar2]);
+            };
+            create function foo(x: Bar) -> optional Bar2 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<Bar>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<Bar2>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar filter .a = 1)).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar filter .a = 4)).a',
+            [4],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar2 filter .a = 4)).a',
+            [4],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar)).a',
+            [4, 5, 6],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo((select Bar2)).a',
+            [4, 5, 6],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_17(self):
+        # Type intersection in outer function
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Bar2 extending Bar;
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            insert Bar2{a := 4};
+            insert Bar2{a := 5};
+            insert Bar2{a := 6};
+            create function inner(x: Bar2) -> optional Bar2 {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: Bar) -> optional Bar2 {
+                set is_inlined := true;
+                using (inner(x[is Bar2]));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<Bar>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(<Bar2>{}).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar filter .a = 1)).a',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar filter .a = 4)).a',
+            [4],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar2 filter .a = 4)).a',
+            [4],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar)).a',
+            [4, 5, 6],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo((select Bar2)).a',
+            [4, 5, 6],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_object_18(self):
+        # Access linked object in inner function
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required link bar -> Bar;
+            };
+            create type Bazz {
+                create required link baz -> Baz;
+            };
+            insert Bazz{baz := (insert Baz{bar := (insert Bar{a := 1})})};
+            insert Bazz{baz := (insert Baz{bar := (insert Bar{a := 2})})};
+            insert Bazz{baz := (insert Baz{bar := (insert Bar{a := 3})})};
+            create function inner1(x: Bar) -> int64 {
+                set is_inlined := true;
+                using (x.a);
+            };
+            create function inner2(x: Baz) -> int64 {
+                set is_inlined := true;
+                using (inner1(x.bar));
+            };
+            create function foo(x: Bazz) -> int64 {
+                set is_inlined := true;
+                using (inner2(x.baz));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<Bazz>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select Bazz filter .baz.bar.a = 1))',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo((select Bazz))',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_shape_01(self):
+        # Put result of inner function taking Bar.a into Bar
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: Bar) -> int64 {
+                set is_inlined := true;
+                using ((select x{a, b := inner(x.a)}).b);
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<Bar>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar filter .a = 1))',
+            [1],
+        )
+        await self.assert_query_result(
+            'select foo(Bar)',
+            [1, 2, 3],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_shape_02(self):
+        # Put result of inner function taking Bar into Bar
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner(x: Bar) -> int64 {
+                set is_inlined := true;
+                using (x.a + 90);
+            };
+            create function foo(x: Bar) -> tuple<int64, int64> {
+                set is_inlined := true;
+                using (
+                    with y := (select x{a, b := inner(x)})
+                    select (y.a, y.b)
+                );
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<Bar>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo((select Bar filter .a = 1))',
+            [(1, 91)],
+        )
+        await self.assert_query_result(
+            'select foo(Bar)',
+            [(1, 91), (2, 92), (3, 93)],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_shape_03(self):
+        # Put result of inner function taking number into Bar
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x + 90);
+            };
+            create function foo(x: int64) -> set of tuple<int64, int64> {
+                set is_inlined := true;
+                using (
+                    with y := (select Bar{a, b := inner(x)})
+                    select (y.a, y.b)
+                );
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [(1, 91), (2, 91), (3, 91)],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo(Bar.a)',
+            [
+                (1, 91), (1, 92), (1, 93),
+                (2, 91), (2, 92), (2, 93),
+                (3, 91), (3, 92), (3, 93),
+            ],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_shape_04(self):
+        # Put result of inner function using Bar into Bar
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            create function inner() -> int64 {
+                set is_inlined := true;
+                using (count(Bar));
+            };
+            create function foo(x: int64) -> set of tuple<int64, int64> {
+                set is_inlined := true;
+                using (
+                    with y := (select Bar{a, b := inner()} filter .a = x)
+                    select (y.a, y.b)
+                );
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [(1, 3)],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [(1, 3), (2, 3), (3, 3)],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_shape_05(self):
+        # Put result of inner function taking Baz.b and returning Bar into Baz
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property a -> int64;
+                create required property b -> int64;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            insert Baz{a := 4, b := 1};
+            insert Baz{a := 5, b := 2};
+            insert Baz{a := 6, b := 3};
+            create function inner(x: int64) -> Bar {
+                set is_inlined := true;
+                using (assert_exists((select Bar filter .a = x limit 1)));
+            };
+            create function foo(x: int64) -> set of tuple<int64, int64> {
+                set is_inlined := true;
+                using (
+                    with y := (select Baz{a, c := inner(.b).a} filter .b = x)
+                    select (y.a, y.b)
+                );
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [(4, 1)],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [(4, 1), (5, 2), (6, 3)],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_shape_06(self):
+        # Put result of inner function taking Baz.bar into Baz
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property b -> int64;
+                create required link bar -> Bar;
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            insert Baz{
+                b := 4,
+                bar := assert_exists((select Bar filter .a = 1 limit 1)),
+            };
+            insert Baz{
+                b := 5,
+                bar := assert_exists((select Bar filter .a = 2 limit 1)),
+            };
+            insert Baz{
+                b := 6,
+                bar := assert_exists((select Bar filter .a = 3 limit 1)),
+            };
+            create function inner(x: Bar) -> int64 {
+                set is_inlined := true;
+                using (x.a);
+            };
+            create function foo(x: int64) -> set of tuple<int64, int64> {
+                set is_inlined := true;
+                using (
+                    with y := (select Baz{a := inner(.bar), b} filter .a = x)
+                    select (y.a, y.b)
+                );
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [(1, 4)],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [(1, 4), (2, 5), (3, 6)],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_shape_07(self):
+        # Put result of inner function taking Baz.bar@b into Baz
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required link bar -> Bar {
+                    create property b -> int64;
+                };
+            };
+            insert Bar{a := 1};
+            insert Bar{a := 2};
+            insert Bar{a := 3};
+            insert Baz{
+                bar := assert_exists((select Bar filter .a = 1 limit 1)) {
+                    @b := 4
+                }
+            };
+            insert Baz{
+                bar := assert_exists((select Bar filter .a = 2 limit 1)) {
+                    @b := 5
+                }
+            };
+            insert Baz{
+                bar := assert_exists((select Bar filter .a = 3 limit 1)) {
+                    @b := 6
+                }
+            };
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (x);
+            };
+            create function foo(x: int64) -> set of tuple<int64, int64> {
+                set is_inlined := true;
+                using (
+                    with y := (
+                        select Baz{a := .bar.a, b := inner(.bar@b)}
+                        filter .a = x
+                    )
+                    select (y.a, y.b)
+                );
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [(1, 4)],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [(1, 4), (2, 5), (3, 6)],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_global_01(self):
+        # Use computed global in inner function
+        await self.con.execute('''
+            create global a := 1;
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (global a + x);
+            };
+            create function foo(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [2],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [2, 3, 4],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_global_02(self):
+        # Use non-computed global in inner function
+        await self.con.execute('''
+            create global a -> int64;
+            create function inner(x: int64) -> optional int64 {
+                set is_inlined := true;
+                using (global a + x);
+            };
+            create function foo(x: int64) -> optional int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [],
+            sort=True,
+        )
+
+        await self.con.execute('''
+            set global a := 1;
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [2],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [2, 3, 4],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_global_03(self):
+        # Pass computed global to inner function
+        await self.con.execute('''
+            create global a := 1;
+            create function inner(x: int64, y: int64) -> int64 {
+                set is_inlined := true;
+                using (x + y);
+            };
+            create function foo(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(global a, x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [2],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [2, 3, 4],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_global_04(self):
+        # Pass non-computed global to inner function
+        await self.con.execute('''
+            create global a -> int64;
+            create function inner(x: int64, y: int64) -> optional int64 {
+                set is_inlined := true;
+                using (x + y);
+            };
+            create function foo(x: int64) -> optional int64 {
+                set is_inlined := true;
+                using (inner(global a, x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [],
+            sort=True,
+        )
+
+        await self.con.execute('''
+            set global a := 1;
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [2],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [2, 3, 4],
+            sort=True,
+        )
+
     async def test_edgeql_functions_inline_nested_global_05(self):
         # Use computed global in inner non-inlined function
         # - inlined > non-inlined
@@ -10813,6 +13399,93 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             };
             create function foo(x: int64) -> optional int64 {
                 using (inner2(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [],
+            sort=True,
+        )
+
+        await self.con.execute('''
+            set global a := 1;
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [2],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [2, 3, 4],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_global_09(self):
+        # Use computed global in deeply nested inner non-inlined function
+        # - inlined > inlined > inlined > non-inlined
+        await self.con.execute('''
+            create global a := 1;
+            create function inner1(x: int64) -> int64 {
+                using (global a + x);
+            };
+            create function inner2(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner1(x));
+            };
+            create function inner3(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner2(x));
+            };
+            create function foo(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner3(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [2],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [2, 3, 4],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_global_10(self):
+        # Use computed global in deeply nested inner non-inlined function
+        # - inlined > inlined > inlined > non-inlined
+        await self.con.execute('''
+            create global a -> int64;
+            create function inner1(x: int64) -> optional int64 {
+                using (global a + x);
+            };
+            create function inner2(x: int64) -> optional int64 {
+                set is_inlined := true;
+                using (inner1(x));
+            };
+            create function inner3(x: int64) -> optional int64 {
+                set is_inlined := true;
+                using (inner2(x));
+            };
+            create function foo(x: int64) -> optional int64 {
+                set is_inlined := true;
+                using (inner3(x));
             };
         ''')
         await self.assert_query_result(
@@ -13121,6 +15794,180 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_functions_inline_insert_nested_01(self):
+        # Simple inner modifying function
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function inner(x: int64) -> Bar {
+                set is_inlined := true;
+                using ((insert Bar{ a := x }));
+            };
+            create function foo(x: int64) -> Bar {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+
+        await self.assert_query_result(
+            'select foo(1).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1],
+        )
+
+        await self.assert_query_result(
+            'for x in {2, 3, 4} union (foo(x).a)',
+            [2, 3, 4],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_insert_nested_02(self):
+        # Putting the result of an inner modifying function into shape
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property b -> int64;
+                create required link bar -> Bar;
+            };
+            create function inner1(x: int64) -> Bar {
+                set is_inlined := true;
+                using ((insert Bar{ a := x }))
+            };
+            create function inner2(x: int64, y: int64) -> Baz {
+                set is_inlined := true;
+                using ((insert Baz{ b := y, bar := inner1(x) }))
+            };
+            create function foo(x: int64, y: int64) -> Baz {
+                set is_inlined := true;
+                using (inner2(x, y))
+            };
+        ''')
+
+        await self.assert_query_result(
+            'select foo(1, 10){a := .bar.a, b := .b}',
+            [{'a': 1, 'b': 10}],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b := .b} order by .a',
+            [{'a': 1, 'b': 10}],
+        )
+
+        await self.assert_query_result(
+            'select ('
+            '    for x in {2, 3} union ('
+            '        for y in {20, 30} union ('
+            '            foo(x, y){a := .bar.a, b := .b}'
+            '        )'
+            '    )'
+            ') order by .a then .b',
+            [
+                {'a': 2, 'b': 20},
+                {'a': 2, 'b': 30},
+                {'a': 3, 'b': 20},
+                {'a': 3, 'b': 30},
+            ],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 2, 3, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b := .b} order by .a',
+            [
+                {'a': 1, 'b': 10},
+                {'a': 2, 'b': 20},
+                {'a': 2, 'b': 30},
+                {'a': 3, 'b': 20},
+                {'a': 3, 'b': 30},
+            ],
+        )
+
+    async def test_edgeql_functions_inline_insert_nested_03(self):
+        # Putting the result of an inner modifying function into shape with
+        # link property
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required link bar -> Bar {
+                    create property b -> int64;
+                };
+            };
+            create function inner1(x: int64) -> Bar {
+                set is_inlined := true;
+                using ((insert Bar{ a := x }))
+            };
+            create function inner2(x: int64, y: int64) -> Baz {
+                set is_inlined := true;
+                using ((insert Baz{ bar := inner1(x){ @b := y } }))
+            };
+            create function foo(x: int64, y: int64) -> Baz {
+                set is_inlined := true;
+                using (inner2(x, y))
+            };
+        ''')
+
+        await self.assert_query_result(
+            'select foo(1, 10){a := .bar.a, b := .bar@b}',
+            [{'a': 1, 'b': 10}],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b := .bar@b} order by .a',
+            [{'a': 1, 'b': 10}],
+        )
+
+        await self.assert_query_result(
+            'select ('
+            '    for x in {2, 3} union ('
+            '        for y in {20, 30} union ('
+            '            foo(x, y){a := .bar.a, b := .bar@b}'
+            '        )'
+            '    )'
+            ') order by .a then .b',
+            [
+                {'a': 2, 'b': 20},
+                {'a': 2, 'b': 30},
+                {'a': 3, 'b': 20},
+                {'a': 3, 'b': 30},
+            ],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 2, 3, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz{a := .bar.a, b := .bar@b} order by .a',
+            [
+                {'a': 1, 'b': 10},
+                {'a': 2, 'b': 20},
+                {'a': 2, 'b': 30},
+                {'a': 3, 'b': 20},
+                {'a': 3, 'b': 30},
+            ],
+        )
+
     async def test_edgeql_functions_inline_update_basic_01(self):
         await self.con.execute('''
             create type Bar {
@@ -14962,6 +17809,132 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_functions_inline_update_nested_01(self):
+        # Simple inner modifying function
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function inner(x: int64) -> set of Bar {
+                set is_inlined := true;
+                using ((update Bar set { a := x }));
+            };
+            create function foo(x: int64) -> set of Bar {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(1).a',
+            [1, 1, 1],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 1, 1],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_update_nested_02(self):
+        # Putting the result of an inner modifying function into shape
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create type Baz {
+                create required property b -> int64;
+                create multi link bar -> Bar;
+            };
+            create function inner1(y: int64) -> set of Bar {
+                set is_inlined := true;
+                using ((update Bar filter .a <= y set { a := .a - 1 }));
+            };
+            create function inner2(x: int64, y: int64) -> set of Baz {
+                set is_inlined := true;
+                using (
+                    (update Baz filter .b <= x set {
+                        bar := assert_distinct(inner1(y)),
+                    })
+                );
+            };
+            create function foo(x: int64, y: int64) -> set of Baz {
+                set is_inlined := true;
+                using (inner2(x, y));
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Baz;
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+                insert Baz{b := 4};
+                insert Baz{b := 5};
+                insert Baz{b := 6};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(4, 1){a := .bar.a, b}',
+            [
+                {'a': [0], 'b': 4},
+            ],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [0, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz {'
+            '    a := (select .bar order by .a).a,'
+            '    b,'
+            '} order by .b',
+            [
+                {'a': [0], 'b': 4},
+                {'a': [], 'b': 5},
+                {'a': [], 'b': 6},
+            ],
+        )
+
+        # Inner update will return an empty set for all subsequent calls.
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(5, 2){a := .bar.a, b}',
+            [
+                {'a': [0, 1], 'b': 4},
+                {'a': [], 'b': 5},
+            ],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [0, 1, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Baz {'
+            '    a := (select .bar order by .a).a,'
+            '    b,'
+            '} order by .b',
+            [
+                {'a': [0, 1], 'b': 4},
+                {'a': [], 'b': 5},
+                {'a': [], 'b': 6},
+            ],
+        )
+
     async def test_edgeql_functions_inline_delete_basic_01(self):
         await self.con.execute('''
             create type Bar {
@@ -16256,4 +19229,48 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [
                 {'a': 1, 'b': 7},
             ],
+        )
+
+    async def test_edgeql_functions_inline_delete_nested_01(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function inner(x: int64) -> set of Bar {
+                set is_inlined := true;
+                using ((delete Bar filter .a <= x));
+            };
+            create function foo(x: int64) -> set of Bar {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(1).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [2, 3],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'select foo(2).a',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3],
         )
