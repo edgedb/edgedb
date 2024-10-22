@@ -25,6 +25,7 @@ import immutables
 
 from edb import errors
 from edb.server import compiler
+from edb.server import defines as edbdef
 from edb.server.compiler import sertypes
 from edb.server.dbview import dbview
 
@@ -48,6 +49,7 @@ async def parse_execute_json(
     query_cache_enabled: Optional[bool] = None,
     cached_globally: bool = False,
     use_metrics: bool = True,
+    tx_isolation: edbdef.TxIsolationLevel | None = None,
 ) -> bytes:
     ...
 

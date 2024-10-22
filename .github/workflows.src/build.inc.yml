@@ -2,7 +2,6 @@
   prep:
     runs-on: ubuntu-latest
     outputs:
-      branch: ${{ steps.whichver.outputs.branch }}
 <% if subdist == "nightly" %>
 <% for tgt in targets.linux + targets.macos %>
       if_<< tgt.name.replace('-', '_') >>: ${{ steps.scm.outputs.if_<< tgt.name.replace('-', '_') >> }}
@@ -10,13 +9,6 @@
 <% endif %>
     steps:
     - uses: actions/checkout@v4
-
-    - name: Determine package version
-      shell: bash
-      run: |
-        branch=${GITHUB_REF#refs/heads/}
-        echo branch="${branch}" >> $GITHUB_OUTPUT
-      id: whichver
 
 <% if subdist == "nightly" %>
     - name: Determine SCM revision
@@ -93,7 +85,7 @@
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/<< plat_id >>@master
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         <%- if subdist != "" %>
         PKG_SUBDIST: "<< subdist >>"
@@ -175,7 +167,7 @@
 
     - name: Build
       env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        SRC_REF: "${{ github.sha }}"
         <%- if subdist != "nightly" %>
         BUILD_IS_RELEASE: "true"
         <%- endif %>
