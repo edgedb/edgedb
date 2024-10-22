@@ -1110,6 +1110,7 @@ async def _start_openai_like_chat(
                     data = message.get("choices")[0]
                     delta = data.get("delta")
                     role = delta.get("role")
+                    usage = message.get("usage")
                     if role:
                         event_data = json.dumps({
                             "type": "message_start",
@@ -1117,7 +1118,8 @@ async def _start_openai_like_chat(
                                 "id": message["id"],
                                 "role": role,
                                 "model": message["model"],
-                            }
+                            },
+                            "usage": usage,
                         }).encode("utf-8")
                         event = (
                             b'event: message_start\n'
@@ -1282,7 +1284,7 @@ async def _start_anthropic_chat(
                 if sse.event == "message_start":
                     message = sse.json()["message"]
                     for k in tuple(message):
-                        if k not in {"id", "type", "role", "model"}:
+                        if k not in {"id", "type", "role", "model", "usage"}:
                             del message[k]
                     message_data = json.dumps(message).encode("utf-8")
                     event = (

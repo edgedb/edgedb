@@ -86,7 +86,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         };
 
         alter property api_url {
-            set default := 'https://api.openai.com/v1'
+            set default := 'https://api.openai.com/v1';
         };
 
         alter property api_style {
@@ -107,7 +107,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         };
 
         alter property api_url {
-            set default := 'https://api.mistral.ai/v1'
+            set default := 'https://api.mistral.ai/v1';
         };
 
         alter property api_style {
@@ -128,7 +128,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         };
 
         alter property api_url {
-            set default := 'https://api.anthropic.com/v1'
+            set default := 'https://api.anthropic.com/v1';
         };
 
         alter property api_style {
@@ -140,9 +140,10 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
     create type ext::ai::Config extending cfg::ExtensionConfig {
         create required property indexer_naptime: std::duration {
             set default := <std::duration>'10s';
-            create annotation std::description :=
-                "Specifies the minimum delay between deferred ext::ai::index "
-                ++ "indexer runs on any given branch.";
+            create annotation std::description := '
+                Specifies the minimum delay between runs of the 
+                deferred ext::ai::index indexer on any given branch.
+            ';
         };
 
         create multi link providers: ext::ai::ProviderConfig {
@@ -261,11 +262,22 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             ext::ai::text_gen_model_context_window := "16385";
     };
 
-    create abstract type ext::ai::OpenAIGPT_4_TurboModel
+    create abstract type ext::ai::OpenAIGPT_4_TurboPreviewModel
         extending ext::ai::TextGenerationModel
     {
         alter annotation
             ext::ai::model_name := "gpt-4-turbo-preview";
+        alter annotation
+            ext::ai::model_provider := "builtin::openai";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "128000";
+    };
+
+    create abstract type ext::ai::OpenAIGPT_4_TurboModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "gpt-4-turbo";
         alter annotation
             ext::ai::model_provider := "builtin::openai";
         alter annotation
@@ -322,6 +334,17 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
     };
 
     # Anthropic models.
+    create abstract type ext::ai::AnthropicClaude_3_5_SonnetModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "claude-3-5-sonnet-20240620";
+        alter annotation
+            ext::ai::model_provider := "builtin::anthropic";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "200000";
+    };
+
     create abstract type ext::ai::AnthropicClaude3HaikuModel
         extending ext::ai::TextGenerationModel
     {
