@@ -993,7 +993,7 @@ class Tenant(ha_base.ClusterProtocol):
             conns = await pgcon.sql_fetch_col(
                 b"""
                 SELECT
-                    pid
+                    row_to_json(pg_stat_activity)
                 FROM
                     pg_stat_activity
                 WHERE
@@ -1003,8 +1003,14 @@ class Tenant(ha_base.ClusterProtocol):
             )
 
         if conns:
+            debug_info = ""
+            if self.server.in_dev_mode() or self.server.in_test_mode():
+                jconns = [json.loads(conn) for conn in conns]
+                debug_info = ": " + json.dumps(jconns)
+
             raise errors.ExecutionError(
-                f"database branch {dbname!r} is being accessed by other users"
+                f"database branch {dbname!r} is being accessed by "
+                f"other users{debug_info}"
             )
 
     @contextlib.asynccontextmanager
