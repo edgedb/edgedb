@@ -577,10 +577,11 @@ class Compiler:
     ) -> Tuple[
         dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
     ]:
-        request = rpc.CompilationRequest(
-            self.state.compilation_config_serializer
+        request = rpc.CompilationRequest.deserialize(
+            serialized_request,
+            original_query,
+            self.state.compilation_config_serializer,
         )
-        request.deserialize(serialized_request, original_query)
 
         units, cstate = self.compile(
             user_schema,
@@ -598,7 +599,7 @@ class Compiler:
             request.inline_typenames,
             request.protocol_version,
             request.inline_objectids,
-            request.json_parameters,
+            request.input_format is enums.InputFormat.JSON,
             cache_key=request.get_cache_key(),
         )
         return units, cstate
@@ -684,10 +685,11 @@ class Compiler:
     ) -> Tuple[
         dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
     ]:
-        request = rpc.CompilationRequest(
-            self.state.compilation_config_serializer
+        request = rpc.CompilationRequest.deserialize(
+            serialized_request,
+            original_query,
+            self.state.compilation_config_serializer,
         )
-        request.deserialize(serialized_request, original_query)
 
         # Apply session differences if any
         if (
@@ -712,7 +714,7 @@ class Compiler:
             request.inline_typenames,
             request.protocol_version,
             request.inline_objectids,
-            request.json_parameters,
+            request.input_format is enums.InputFormat.JSON,
             expect_rollback=expect_rollback,
             cache_key=request.get_cache_key(),
         )

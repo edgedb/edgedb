@@ -442,13 +442,14 @@ class TestCompilerPool(tbs.TestCase):
                 )
 
                 orig_query = 'SELECT 123'
+                cfg_ser = compiler.state.compilation_config_serializer
                 request = rpc.CompilationRequest(
-                    compiler.state.compilation_config_serializer
-                ).update(
                     source=edgeql.Source.from_string(orig_query),
                     protocol_version=(1, 0),
+                    schema_version=uuid.uuid4(),
+                    compilation_config_serializer=cfg_ser,
                     implicit_limit=101,
-                ).set_schema_version(uuid.uuid4())
+                )
 
                 await asyncio.gather(*(pool_.compile_in_tx(
                     None,
@@ -476,15 +477,15 @@ class TestCompilerPool(tbs.TestCase):
         )
 
         def test(source: edgeql.Source):
+            cfg_ser = compiler.state.compilation_config_serializer
             request1 = rpc.CompilationRequest(
-                compiler.state.compilation_config_serializer
-            ).update(
                 source=source,
                 protocol_version=(1, 0),
-            ).set_schema_version(uuid.uuid4())
-            request2 = rpc.CompilationRequest(
-                compiler.state.compilation_config_serializer
-            ).deserialize(request1.serialize(), "<unknown>")
+                schema_version=uuid.uuid4(),
+                compilation_config_serializer=cfg_ser,
+            )
+            request2 = rpc.CompilationRequest.deserialize(
+                request1.serialize(), "<unknown>", cfg_ser)
             self.assertEqual(hash(request1), hash(request2))
             self.assertEqual(request1, request2)
 

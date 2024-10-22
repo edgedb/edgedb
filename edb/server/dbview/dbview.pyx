@@ -419,9 +419,11 @@ cdef class Database:
 
     def hydrate_cache(self, query_cache):
         for _, in_data, out_data in query_cache:
-            query_req = rpc.CompilationRequest(
-                self.server.compilation_config_serializer)
-            query_req.deserialize(in_data, "<unknown>")
+            query_req = rpc.CompilationRequest.deserialize(
+                in_data,
+                "<unknown>",
+                self.server.compilation_config_serializer,
+            )
 
             if query_req not in self._eql_to_compiled:
                 unit = dbstate.QueryUnit.deserialize(out_data)
