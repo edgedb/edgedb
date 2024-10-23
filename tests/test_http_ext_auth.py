@@ -1045,7 +1045,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            user_request = ("GET", "https://discord.com/api/v10", "users/@me")
+            user_request = ("GET", "https://discord.com", "api/v10/users/@me")
             self.mock_oauth_server.register_route_handler(*user_request)(
                 (
                     json.dumps(
@@ -1419,8 +1419,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             discovery_request = (
                 "GET",
-                "https://login.microsoftonline.com/common/v2.0",
-                ".well-known/openid-configuration",
+                "https://login.microsoftonline.com",
+                "common/v2.0/.well-known/openid-configuration",
             )
             self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
@@ -1493,8 +1493,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             discovery_request = (
                 "GET",
-                "https://login.microsoftonline.com/common/v2.0",
-                ".well-known/openid-configuration",
+                "https://login.microsoftonline.com",
+                "common/v2.0/.well-known/openid-configuration",
             )
             self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
