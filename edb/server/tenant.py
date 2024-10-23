@@ -68,6 +68,7 @@ from . import pgconnparams
 
 from .ha import adaptive as adaptive_ha
 from .ha import base as ha_base
+from .http import HttpClient
 from .pgcon import errors as pgcon_errors
 
 if TYPE_CHECKING:
@@ -78,6 +79,9 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger("edb.server")
+
+
+HTTP_MAX_CONNECTIONS = 100
 
 
 class RoleDescriptor(TypedDict):
@@ -131,6 +135,8 @@ class Tenant(ha_base.ClusterProtocol):
     _jwt_sub_allowlist: frozenset[str] | None
     _jwt_revocation_list_file: pathlib.Path | None
     _jwt_revocation_list: frozenset[str] | None
+
+    _http_client: HttpClient | None
 
     def __init__(
         self,
@@ -203,6 +209,8 @@ class Tenant(ha_base.ClusterProtocol):
         self._jwt_revocation_list_file = None
         self._jwt_revocation_list = None
 
+        self._http_client = None
+
         # If it isn't stored in instdata, it is the old default.
         self.default_database = defines.EDGEDB_OLD_DEFAULT_DB
 
@@ -237,6 +245,11 @@ class Tenant(ha_base.ClusterProtocol):
     def set_server(self, server: edbserver.BaseServer) -> None:
         self._server = server
         self.__loop = server.get_loop()
+
+    def get_http_client(self) -> HttpClient:
+        if self._http_client is None:
+            self._http_client = HttpClient(HTTP_MAX_CONNECTIONS)
+        return self._http_client
 
     def on_switch_over(self):
         # Bumping this serial counter will "cancel" all pending connections
@@ -993,7 +1006,7 @@ class Tenant(ha_base.ClusterProtocol):
             conns = await pgcon.sql_fetch_col(
                 b"""
                 SELECT
-                    pid
+                    row_to_json(pg_stat_activity)
                 FROM
                     pg_stat_activity
                 WHERE
@@ -1003,8 +1016,14 @@ class Tenant(ha_base.ClusterProtocol):
             )
 
         if conns:
+            debug_info = ""
+            if self.server.in_dev_mode() or self.server.in_test_mode():
+                jconns = [json.loads(conn) for conn in conns]
+                debug_info = ": " + json.dumps(jconns)
+
             raise errors.ExecutionError(
-                f"database branch {dbname!r} is being accessed by other users"
+                f"database branch {dbname!r} is being accessed by "
+                f"other users{debug_info}"
             )
 
     @contextlib.asynccontextmanager
@@ -1221,6 +1240,18 @@ class Tenant(ha_base.ClusterProtocol):
                         ext_config_settings=None,
                         early=True,
                     )
+
+        # Early introspection runs *before* we start accepting tasks.
+        # This means that if we are one of multiple frontends, and we
+        # get a ensure-database-not-used message, we aren't able to
+        # handle it. This can result in us hanging onto a connection
+        # that another frontend wants to get rid of.
+        #
+        # We still want to use the pool, though, since it limits our
+        # connections in the way we want.
+        #
+        # Hack around this by pruning the connection ourself.
+        await self._pg_pool.prune_inactive_connections(dbname)
 
     async def _introspect_dbs(self) -> None:
         async with self.use_sys_pgcon() as syscon:

@@ -24,12 +24,11 @@ import typing
 import asyncio
 import logging
 import base64
-import os
 
 from edb.ir import statypes
 from edb.server import defines
 from edb.server.protocol import execute
-from edb.server._http import Http
+from edb.server.http import HttpClient
 from edb.common import retryloop
 from . import dbview
 
@@ -47,10 +46,10 @@ NET_HTTP_REQUEST_TTL = statypes.Duration(
 
 
 async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
-    net_http_max_connections = tenant._server.config_lookup(
-        'net_http_max_connections', tenant.get_sys_config()
+    http_max_connections = tenant._server.config_lookup(
+        'http_max_connections', tenant.get_sys_config()
     )
-    http_client._update_limit(net_http_max_connections)
+    http_client._update_limit(http_max_connections)
     try:
         async with (asyncio.TaskGroup() as g,):
             for db in tenant.iter_dbs():
@@ -99,82 +98,11 @@ async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
         )
 
 
-class HttpClient:
-    def __init__(self, limit: int):
-        self._client = Http(limit)
-        self._fd = self._client._fd
-        self._task = None
-        self._skip_reads = 0
-        self._loop = asyncio.get_running_loop()
-        self._task = self._loop.create_task(self._boot(self._loop))
-        self._next_id = 0
-        self._requests: dict[int, asyncio.Future] = {}
-
-    def __del__(self) -> None:
-        if self._task:
-            self._task.cancel()
-            self._task = None
-
-    def _update_limit(self, limit: int):
-        self._client._update_limit(limit)
-
-    async def request(
-        self,
-        *,
-        method: str,
-        url: str,
-        content: bytes | None,
-        headers: list[tuple[str, str]] | None,
-    ):
-        if content is None:
-            content = bytes()
-        if headers is None:
-            headers = []
-        id = self._next_id
-        self._next_id += 1
-        self._requests[id] = asyncio.Future()
-        try:
-            self._client._request(id, url, method, content, headers)
-            resp = await self._requests[id]
-            return resp
-        finally:
-            del self._requests[id]
-
-    async def _boot(self, loop: asyncio.AbstractEventLoop) -> None:
-        logger.info("Python-side HTTP client booted")
-        reader = asyncio.StreamReader(loop=loop)
-        reader_protocol = asyncio.StreamReaderProtocol(reader)
-        fd = os.fdopen(self._client._fd, 'rb')
-        transport, _ = await loop.connect_read_pipe(lambda: reader_protocol, fd)
-        try:
-            while len(await reader.read(1)) == 1:
-                if not self._client or not self._task:
-                    break
-                if self._skip_reads > 0:
-                    self._skip_reads -= 1
-                    continue
-                msg = self._client._read()
-                if not msg:
-                    break
-                self._process_message(msg)
-        finally:
-            transport.close()
-
-    def _process_message(self, msg):
-        msg_type, id, data = msg
-
-        if id in self._requests:
-            if msg_type == 1:
-                self._requests[id].set_result(data)
-            elif msg_type == 0:
-                self._requests[id].set_exception(Exception(data))
-
-
 def create_http(tenant: edbtenant.Tenant):
-    net_http_max_connections = tenant._server.config_lookup(
-        'net_http_max_connections', tenant.get_sys_config()
+    http_max_connections = tenant._server.config_lookup(
+        'http_max_connections', tenant.get_sys_config()
     )
-    return HttpClient(net_http_max_connections)
+    return HttpClient(http_max_connections)
 
 
 async def http(server: edbserver.BaseServer) -> None:
@@ -337,7 +265,11 @@ async def _delete_requests(
     )
     async for iteration in rloop:
         async with iteration:
-            result = await execute.parse_execute_json(
+            if not db.tenant.is_database_connectable(db.name):
+                # Don't run the net_worker if the database is not
+                # connectable, e.g. being dropped
+                continue
+            result_json = await execute.parse_execute_json(
                 db,
                 """
                 with requests := (
@@ -346,13 +278,15 @@ async def _delete_requests(
                     and (datetime_of_statement() - .updated_at) >
                     <duration>$expires_in
                 )
-                delete requests;
+                select count((delete requests));
                 """,
                 variables={"expires_in": expires_in.to_backend_str()},
                 cached_globally=True,
+                tx_isolation=defines.TxIsolationLevel.RepeatableRead,
             )
-            if len(result) > 0:
-                logger.info(f"Deleted requests: {result!r}")
+            result: list[int] = json.loads(result_json)
+            if result[0] > 0:
+                logger.info(f"Deleted {result[0]} requests")
             else:
                 logger.info(f"No requests to delete")
 
@@ -382,7 +316,8 @@ async def gc(server: edbserver.BaseServer) -> None:
             if tenant.accept_new_tasks
         ]
         try:
-            await asyncio.wait(tasks)
+            if tasks:
+                await asyncio.wait(tasks)
         except Exception as ex:
             logger.debug(
                 "GC of std::net::http::ScheduledRequest failed", exc_info=ex

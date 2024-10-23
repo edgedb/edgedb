@@ -330,9 +330,12 @@ class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
 
 class MultiHostMockHttpServerHandler(MockHttpServerHandler):
     def get_server_and_path(self) -> tuple[str, str]:
-        server, path = self.path.lstrip('/').split('/', 1)
-        server = urllib.parse.unquote(server)
-        return server, path
+        # Path looks like:
+        # http://127.0.0.1:32881/https%3A//slack.com/.well-known/openid-configuration
+        raw_url = urllib.parse.unquote(self.path.lstrip('/'))
+        url = urllib.parse.urlparse(raw_url)
+        return (f'{url.scheme}://{url.netloc}',
+                url.path.lstrip('/'))
 
 
 ResponseType = tuple[str, int] | tuple[str, int, dict[str, str]]
@@ -416,9 +419,10 @@ class MockHttpServer:
             body=body,
         )
         self.requests[key].append(request_details)
-
         if key not in self.routes:
-            handler.send_error(404)
+            error_message = (f"No route handler for {key}\n\n"
+                f"Available routes:\n{self.routes}")
+            handler.send_error(404, message=error_message)
             return
 
         registered_handler = self.routes[key]

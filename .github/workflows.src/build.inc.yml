@@ -152,7 +152,7 @@
       uses: actions/setup-python@v5
       if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
       with:
-        python-version: "3.x"
+        python-version: "3.12"
 
     - name: Set up NodeJS
       uses: actions/setup-node@v4

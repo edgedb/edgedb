@@ -158,23 +158,29 @@ async def delete(db: edbtenant.dbview.Database, id: str) -> None:
     assert len(result_json) == 1
 
 
+async def _delete_challenge(db: edbtenant.dbview.Database) -> None:
+    if not db.tenant.is_database_connectable(db.name):
+        # Don't run gc if the database is not connectable, e.g. being dropped
+        return
+
+    await execute.parse_execute_json(
+        db,
+        """
+        delete ext::auth::PKCEChallenge filter
+            (datetime_of_statement() - .created_at) >
+            <duration>$validity
+        """,
+        variables={"validity": VALIDITY.to_backend_str()},
+        cached_globally=True,
+    )
+
+
 async def _gc(tenant: edbtenant.Tenant) -> None:
     try:
         async with asyncio.TaskGroup() as g:
             for db in tenant.iter_dbs():
                 if "auth" in db.extensions:
-                    g.create_task(
-                        execute.parse_execute_json(
-                            db,
-                            """
-                            delete ext::auth::PKCEChallenge filter
-                                (datetime_of_statement() - .created_at) >
-                                <duration>$validity
-                            """,
-                            variables={"validity": VALIDITY.to_backend_str()},
-                            cached_globally=True,
-                        ),
-                    )
+                    g.create_task(_delete_challenge(db))
     except Exception as ex:
         logger.debug(
             "GC of ext::auth::PKCEChallenge failed (instance: %s)",

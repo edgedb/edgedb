@@ -28,6 +28,7 @@ from edb import edgeql
 from edb import graphql
 
 from edb.common import debug
+from edb.common import uuidgen
 from edb.pgsql import params as pgparams
 from edb.schema import schema as s_schema
 from edb.server import compiler
@@ -195,7 +196,7 @@ def compile(
 ):
     client_schema = clients[client_id]
     db = client_schema.dbs[dbname]
-    units, cstate = COMPILER.compile_request(
+    units, cstate = COMPILER.compile_serialized_request(
         db.user_schema,
         client_schema.global_schema,
         db.reflection_cache,
@@ -225,6 +226,7 @@ def compile_in_tx(
 ):
     global LAST_STATE
     if cstate == state.REUSE_LAST_STATE_MARKER:
+        assert LAST_STATE is not None
         cstate = LAST_STATE
     else:
         cstate = pickle.loads(cstate)
@@ -236,7 +238,8 @@ def compile_in_tx(
             client_schema = clients[client_id]
             db = client_schema.dbs[dbname]
             cstate.set_root_user_schema(db.user_schema)
-    units, cstate = COMPILER.compile_in_tx_request(cstate, *args, **kwargs)
+    units, cstate = COMPILER.compile_serialized_request_in_tx(
+        cstate, *args, **kwargs)
     LAST_STATE = cstate
     return units, pickle.dumps(cstate, -1)
 
@@ -286,23 +289,30 @@ def compile_graphql(
         edgeql.generate_source(gql_op.edgeql_ast, pretty=True),
     )
 
+    cfg_ser = COMPILER.state.compilation_config_serializer
+    request = compiler.CompilationRequest(
+        source=source,
+        protocol_version=defines.CURRENT_PROTOCOL,
+        schema_version=uuidgen.uuid4(),
+        compilation_config_serializer=cfg_ser,
+        output_format=compiler.OutputFormat.JSON,
+        input_format=compiler.InputFormat.JSON,
+        expect_one=True,
+        implicit_limit=0,
+        inline_typeids=False,
+        inline_typenames=False,
+        inline_objectids=False,
+        modaliases=None,
+        session_config=None,
+    )
+
     unit_group, _ = COMPILER.compile(
         user_schema=db.user_schema,
         global_schema=client_schema.global_schema,
         reflection_cache=db.reflection_cache,
         database_config=db.database_config,
         system_config=client_schema.instance_config,
-        source=source,
-        sess_modaliases=None,
-        sess_config=None,
-        output_format=compiler.OutputFormat.JSON,
-        expect_one=True,
-        implicit_limit=0,
-        inline_typeids=False,
-        inline_typenames=False,
-        inline_objectids=False,
-        json_parameters=True,
-        protocol_version=defines.CURRENT_PROTOCOL,
+        request=request,
     )
 
     return unit_group, gql_op

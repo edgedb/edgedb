@@ -27,7 +27,18 @@ class StdNetTestCase(tb.BaseHttpTest):
     mock_server: typing.Optional[tb.MockHttpServer] = None
     base_url: str
 
+    # Queries need to run outside of transactions here, but we *also*
+    # want them to be able to run concurrently against the same
+    # database (to exercise concurrency issues), so we also override
+    # parallelism granuality below.
+    TRANSACTION_ISOLATION = False
+
+    @classmethod
+    def get_parallelism_granularity(cls):
+        return 'default'
+
     def setUp(self):
+        super().setUp()
         self.mock_server = tb.MockHttpServer()
         self.mock_server.start()
         self.base_url = self.mock_server.get_base_url().rstrip("/")
@@ -36,6 +47,7 @@ class StdNetTestCase(tb.BaseHttpTest):
         if self.mock_server is not None:
             self.mock_server.stop()
         self.mock_server = None
+        super().tearDown()
 
     async def _wait_for_request_completion(self, request_id: str):
         async for tr in self.try_until_succeeds(
