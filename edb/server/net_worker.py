@@ -265,7 +265,11 @@ async def _delete_requests(
     )
     async for iteration in rloop:
         async with iteration:
-            result = await execute.parse_execute_json(
+            if not db.tenant.is_database_connectable(db.name):
+                # Don't run the net_worker if the database is not
+                # connectable, e.g. being dropped
+                continue
+            result_json = await execute.parse_execute_json(
                 db,
                 """
                 with requests := (
@@ -274,14 +278,15 @@ async def _delete_requests(
                     and (datetime_of_statement() - .updated_at) >
                     <duration>$expires_in
                 )
-                delete requests;
+                select count((delete requests));
                 """,
                 variables={"expires_in": expires_in.to_backend_str()},
                 cached_globally=True,
                 tx_isolation=defines.TxIsolationLevel.RepeatableRead,
             )
-            if len(result) > 0:
-                logger.info(f"Deleted requests: {result!r}")
+            result: list[int] = json.loads(result_json)
+            if result[0] > 0:
+                logger.info(f"Deleted {result[0]} requests")
             else:
                 logger.info(f"No requests to delete")
 
@@ -311,7 +316,8 @@ async def gc(server: edbserver.BaseServer) -> None:
             if tenant.accept_new_tasks
         ]
         try:
-            await asyncio.wait(tasks)
+            if tasks:
+                await asyncio.wait(tasks)
         except Exception as ex:
             logger.debug(
                 "GC of std::net::http::ScheduledRequest failed", exc_info=ex
