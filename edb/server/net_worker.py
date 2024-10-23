@@ -46,10 +46,10 @@ NET_HTTP_REQUEST_TTL = statypes.Duration(
 
 
 async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
-    net_http_max_connections = tenant._server.config_lookup(
-        'net_http_max_connections', tenant.get_sys_config()
+    http_max_connections = tenant._server.config_lookup(
+        'http_max_connections', tenant.get_sys_config()
     )
-    http_client._update_limit(net_http_max_connections)
+    http_client._update_limit(http_max_connections)
     try:
         async with (asyncio.TaskGroup() as g,):
             for db in tenant.iter_dbs():
@@ -99,10 +99,10 @@ async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
 
 
 def create_http(tenant: edbtenant.Tenant):
-    net_http_max_connections = tenant._server.config_lookup(
-        'net_http_max_connections', tenant.get_sys_config()
+    http_max_connections = tenant._server.config_lookup(
+        'http_max_connections', tenant.get_sys_config()
     )
-    return HttpClient(net_http_max_connections)
+    return HttpClient(http_max_connections)
 
 
 async def http(server: edbserver.BaseServer) -> None:
