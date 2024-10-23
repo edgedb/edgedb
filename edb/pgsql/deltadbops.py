@@ -485,7 +485,13 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
         return [dbops.CreateFunction(func, or_replace=True)]
 
     def drop_constr_trigger_function(self, proc_name: Tuple[str, ...]):
-        return [dbops.DropFunction(name=proc_name, args=(), if_exists=True)]
+        return [dbops.DropFunction(
+            name=proc_name,
+            args=(),
+            # Use a condition instead of if_exists ot reduce annoying
+            # debug spew from postgres.
+            conditions=[dbops.FunctionExists(name=proc_name, args=())],
+        )]
 
     def create_constraint(self, constraint: SchemaConstraintTableConstraint):
         # Add the constraint normally to our table

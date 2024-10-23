@@ -29,7 +29,7 @@ cdef class CompilationRequest:
         readonly object source
         readonly object protocol_version
         readonly object output_format
-        readonly bint json_parameters
+        readonly object input_format
         readonly bint expect_one
         readonly int implicit_limit
         readonly bint inline_typeids
@@ -46,4 +46,3 @@ cdef class CompilationRequest:
         object cache_key
 
     cdef _serialize(self)
-    cdef _deserialize_v0(self, bytes data, str query_text)

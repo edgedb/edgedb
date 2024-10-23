@@ -362,6 +362,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
         self.mock_net_server = tb.MockHttpServer()
         self.mock_net_server.start()
+        super().setUp()
 
     def tearDown(self):
         if self.mock_oauth_server is not None:
@@ -369,6 +370,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         if self.mock_net_server is not None:
             self.mock_net_server.stop()
         self.mock_oauth_server = None
+        super().tearDown()
 
     @classmethod
     def get_setup_script(cls):

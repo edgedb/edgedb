@@ -565,7 +565,7 @@ class Compiler:
             apply_access_policies_sql=apply_access_policies_sql,
         )
 
-    def compile_request(
+    def compile_serialized_request(
         self,
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
@@ -577,54 +577,35 @@ class Compiler:
     ) -> Tuple[
         dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
     ]:
-        request = rpc.CompilationRequest(
-            self.state.compilation_config_serializer
+        request = rpc.CompilationRequest.deserialize(
+            serialized_request,
+            original_query,
+            self.state.compilation_config_serializer,
         )
-        request.deserialize(serialized_request, original_query)
 
         units, cstate = self.compile(
-            user_schema,
-            global_schema,
-            reflection_cache,
-            database_config,
-            system_config,
-            request.source,
-            request.modaliases,
-            request.session_config,
-            request.output_format,
-            request.expect_one,
-            request.implicit_limit,
-            request.inline_typeids,
-            request.inline_typenames,
-            request.protocol_version,
-            request.inline_objectids,
-            request.json_parameters,
-            cache_key=request.get_cache_key(),
+            user_schema=user_schema,
+            global_schema=global_schema,
+            reflection_cache=reflection_cache,
+            database_config=database_config,
+            system_config=system_config,
+            request=request,
         )
         return units, cstate
 
     def compile(
         self,
+        *,
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
         reflection_cache: immutables.Map[str, Tuple[str, ...]],
         database_config: Optional[immutables.Map[str, config.SettingValue]],
         system_config: Optional[immutables.Map[str, config.SettingValue]],
-        source: edgeql.Source,
-        sess_modaliases: Optional[immutables.Map[Optional[str], str]],
-        sess_config: Optional[immutables.Map[str, config.SettingValue]],
-        output_format: enums.OutputFormat,
-        expect_one: bool,
-        implicit_limit: int,
-        inline_typeids: bool,
-        inline_typenames: bool,
-        protocol_version: defines.ProtocolVersion,
-        inline_objectids: bool = True,
-        json_parameters: bool = False,
-        cache_key: Optional[uuid.UUID] = None,
+        request: rpc.CompilationRequest,
     ) -> Tuple[dbstate.QueryUnitGroup,
                Optional[dbstate.CompilerConnectionState]]:
 
+        sess_config = request.session_config
         if sess_config is None:
             sess_config = EMPTY_MAP
 
@@ -634,6 +615,7 @@ class Compiler:
         if system_config is None:
             system_config = EMPTY_MAP
 
+        sess_modaliases = request.modaliases
         if sess_modaliases is None:
             sess_modaliases = DEFAULT_MODULE_ALIASES_MAP
 
@@ -650,19 +632,19 @@ class Compiler:
         ctx = CompileContext(
             compiler_state=self.state,
             state=state,
-            output_format=output_format,
-            expected_cardinality_one=expect_one,
-            implicit_limit=implicit_limit,
-            inline_typeids=inline_typeids,
-            inline_typenames=inline_typenames,
-            inline_objectids=inline_objectids,
-            json_parameters=json_parameters,
-            source=source,
-            protocol_version=protocol_version,
-            cache_key=cache_key,
+            output_format=request.output_format,
+            expected_cardinality_one=request.expect_one,
+            implicit_limit=request.implicit_limit,
+            inline_typeids=request.inline_typeids,
+            inline_typenames=request.inline_typenames,
+            inline_objectids=request.inline_objectids,
+            json_parameters=request.input_format is enums.InputFormat.JSON,
+            source=request.source,
+            protocol_version=request.protocol_version,
+            cache_key=request.get_cache_key(),
         )
 
-        unit_group = compile(ctx=ctx, source=source)
+        unit_group = compile(ctx=ctx, source=request.source)
         tx_started = False
         for unit in unit_group:
             if unit.tx_id:
@@ -674,7 +656,7 @@ class Compiler:
         else:
             return unit_group, None
 
-    def compile_in_tx_request(
+    def compile_serialized_request_in_tx(
         self,
         state: dbstate.CompilerConnectionState,
         txid: int,
@@ -684,11 +666,28 @@ class Compiler:
     ) -> Tuple[
         dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
     ]:
-        request = rpc.CompilationRequest(
-            self.state.compilation_config_serializer
+        request = rpc.CompilationRequest.deserialize(
+            serialized_request,
+            original_query,
+            self.state.compilation_config_serializer,
         )
-        request.deserialize(serialized_request, original_query)
+        return self.compile_in_tx(
+            state=state,
+            txid=txid,
+            request=request,
+            expect_rollback=expect_rollback,
+        )
 
+    def compile_in_tx(
+        self,
+        *,
+        state: dbstate.CompilerConnectionState,
+        txid: int,
+        request: rpc.CompilationRequest,
+        expect_rollback: bool = False,
+    ) -> Tuple[
+        dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
+    ]:
         # Apply session differences if any
         if (
             request.modaliases is not None
@@ -701,39 +700,6 @@ class Compiler:
         ):
             state.current_tx().update_session_config(session_config)
 
-        units, cstate = self.compile_in_tx(
-            state,
-            txid,
-            request.source,
-            request.output_format,
-            request.expect_one,
-            request.implicit_limit,
-            request.inline_typeids,
-            request.inline_typenames,
-            request.protocol_version,
-            request.inline_objectids,
-            request.json_parameters,
-            expect_rollback=expect_rollback,
-            cache_key=request.get_cache_key(),
-        )
-        return units, cstate
-
-    def compile_in_tx(
-        self,
-        state: dbstate.CompilerConnectionState,
-        txid: int,
-        source: edgeql.Source,
-        output_format: enums.OutputFormat,
-        expect_one: bool,
-        implicit_limit: int,
-        inline_typeids: bool,
-        inline_typenames: bool,
-        protocol_version: defines.ProtocolVersion,
-        inline_objectids: bool = True,
-        json_parameters: bool = False,
-        expect_rollback: bool = False,
-        cache_key: Optional[uuid.UUID] = None,
-    ) -> Tuple[dbstate.QueryUnitGroup, dbstate.CompilerConnectionState]:
         if (
             expect_rollback and
             state.current_tx().id != txid and
@@ -741,27 +707,28 @@ class Compiler:
         ):
             # This is a special case when COMMIT MIGRATION fails, the compiler
             # doesn't have the right transaction state, so we just roll back.
-            return self._try_compile_rollback(source)[0], state
+            return self._try_compile_rollback(request.source)[0], state
         else:
             state.sync_tx(txid)
 
         ctx = CompileContext(
             compiler_state=self.state,
             state=state,
-            output_format=output_format,
-            expected_cardinality_one=expect_one,
-            implicit_limit=implicit_limit,
-            inline_typeids=inline_typeids,
-            inline_typenames=inline_typenames,
-            inline_objectids=inline_objectids,
-            source=source,
-            protocol_version=protocol_version,
-            json_parameters=json_parameters,
+            output_format=request.output_format,
+            expected_cardinality_one=request.expect_one,
+            implicit_limit=request.implicit_limit,
+            inline_typeids=request.inline_typeids,
+            inline_typenames=request.inline_typenames,
+            inline_objectids=request.inline_objectids,
+            source=request.source,
+            protocol_version=request.protocol_version,
+            json_parameters=request.input_format is enums.InputFormat.JSON,
             expect_rollback=expect_rollback,
-            cache_key=cache_key,
+            cache_key=request.get_cache_key(),
         )
 
-        return compile(ctx=ctx, source=source), ctx.state
+        units = compile(ctx=ctx, source=request.source)
+        return units, ctx.state
 
     def interpret_backend_error(
         self,
@@ -1276,7 +1243,14 @@ def compile_schema_storage_in_delta(
                 # We drop first instead of using or_replace, in case
                 # something about the arguments changed.
                 df = pg_dbops.DropFunction(
-                    name=func.name, args=func.args or (), if_exists=True
+                    name=func.name,
+                    args=func.args or (),
+                    # Use a condition instead of if_exists ot reduce annoying
+                    # debug spew from postgres.
+                    conditions=[pg_dbops.FunctionExists(
+                        name=func.name,
+                        args=func.args or (),
+                    )],
                 )
                 df.generate(funcblock)
 

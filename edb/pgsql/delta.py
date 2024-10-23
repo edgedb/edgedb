@@ -1629,13 +1629,16 @@ class DeleteFunction(FunctionCommand, adapts=s_funcs.DeleteFunction):
 
             if not overload:
                 variadic = func.get_params(schema).find_variadic(schema)
-                self.pgops.add(
-                    dbops.DropFunction(
-                        name=self.get_pgname(func, schema),
-                        args=self.compile_args(func, schema),
-                        has_variadic=variadic is not None,
+                if func.get_volatility(schema) != ql_ft.Volatility.Modifying:
+                    # Modifying functions are not compiled.
+                    # See: compile_edgeql_function
+                    self.pgops.add(
+                        dbops.DropFunction(
+                            name=self.get_pgname(func, schema),
+                            args=self.compile_args(func, schema),
+                            has_variadic=variadic is not None,
+                        )
                     )
-                )
 
         return super().apply(schema, context)
 
@@ -5370,10 +5373,10 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
 
         id = sn.QualName(
             module=prop.get_name(schema).module, name=str(prop.id))
-        index_name = common.convert_name(id, 'idx0', catenate=True)
+        index_name = common.convert_name(id, 'idx0', catenate=False)
 
         pg_index = dbops.Index(
-            name=index_name, table_name=new_table_name,
+            name=index_name[1], table_name=new_table_name,
             unique=False, columns=[src_col],
             metadata={'code': DEFAULT_INDEX_CODE},
         )

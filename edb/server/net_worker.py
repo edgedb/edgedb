@@ -354,6 +354,7 @@ async def _delete_requests(
                 """,
                 variables={"expires_in": expires_in.to_backend_str()},
                 cached_globally=True,
+                tx_isolation=defines.TxIsolationLevel.RepeatableRead,
             )
             result: list[int] = json.loads(result_json)
             if result[0] > 0:

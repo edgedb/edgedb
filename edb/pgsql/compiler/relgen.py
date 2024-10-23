@@ -3323,7 +3323,13 @@ def _compile_func_epilogue(
         aspect=pgce.PathAspect.VALUE,
     )
 
-    aspects: Tuple[pgce.PathAspect, ...] = (pgce.PathAspect.VALUE,)
+    aspects: Tuple[pgce.PathAspect, ...]
+    if expr.body:
+        # For inlined functions, we want all of the aspects provided.
+        aspects = tuple(pathctx.list_path_aspects(func_rel, ir_set.path_id))
+    else:
+        # Otherwise we just know we have value.
+        aspects = (pgce.PathAspect.VALUE,)
 
     func_rvar = relctx.new_rel_rvar(ir_set, func_rel, ctx=ctx)
     relctx.include_rvar(
@@ -3605,6 +3611,12 @@ def process_set_as_func_expr(
             _compile_inlined_call_args(ir_set, ctx=newctx)
 
             set_expr = dispatch.compile(expr.body, ctx=newctx)
+            # Map the path id so that we can extract source aspects
+            # from it, which we want so that we can directly select
+            # from an INSERT instead of using overlays.
+            pathctx.put_path_id_map(
+                newctx.rel, ir_set.path_id, expr.body.path_id
+            )
 
         else:
             args = _compile_call_args(ir_set, ctx=newctx)

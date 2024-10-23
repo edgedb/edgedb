@@ -993,7 +993,7 @@ class Tenant(ha_base.ClusterProtocol):
             conns = await pgcon.sql_fetch_col(
                 b"""
                 SELECT
-                    pid
+                    row_to_json(pg_stat_activity)
                 FROM
                     pg_stat_activity
                 WHERE
@@ -1003,8 +1003,14 @@ class Tenant(ha_base.ClusterProtocol):
             )
 
         if conns:
+            debug_info = ""
+            if self.server.in_dev_mode() or self.server.in_test_mode():
+                jconns = [json.loads(conn) for conn in conns]
+                debug_info = ": " + json.dumps(jconns)
+
             raise errors.ExecutionError(
-                f"database branch {dbname!r} is being accessed by other users"
+                f"database branch {dbname!r} is being accessed by "
+                f"other users{debug_info}"
             )
 
     @contextlib.asynccontextmanager
@@ -1221,6 +1227,18 @@ class Tenant(ha_base.ClusterProtocol):
                         ext_config_settings=None,
                         early=True,
                     )
+
+        # Early introspection runs *before* we start accepting tasks.
+        # This means that if we are one of multiple frontends, and we
+        # get a ensure-database-not-used message, we aren't able to
+        # handle it. This can result in us hanging onto a connection
+        # that another frontend wants to get rid of.
+        #
+        # We still want to use the pool, though, since it limits our
+        # connections in the way we want.
+        #
+        # Hack around this by pruning the connection ourself.
+        await self._pg_pool.prune_inactive_connections(dbname)
 
     async def _introspect_dbs(self) -> None:
         async with self.use_sys_pgcon() as syscon:

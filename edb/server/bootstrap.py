@@ -1135,6 +1135,9 @@ async def create_branch(
         elif line.startswith('CREATE TYPE'):
             if any(skip in line for skip in to_skip):
                 skipping = True
+        elif line == 'SET transaction_timeout = 0;':
+            continue
+
         if skipping:
             continue
         new_lines.append(line)
@@ -1530,6 +1533,15 @@ def cleanup_tpldbdump(tpldbdump: bytes) -> bytes:
     # elide these to preserve compatibility with earlier servers.
     tpldbdump = re.sub(
         rb',\s*multirange_type_name\s*=[^,\n]+',
+        rb'',
+        tpldbdump,
+        flags=re.MULTILINE,
+    )
+
+    # PostgreSQL 17 adds a transaction_timeout config setting that
+    # didn't exist on earlier versions.
+    tpldbdump = re.sub(
+        rb'^SET transaction_timeout = 0;$',
         rb'',
         tpldbdump,
         flags=re.MULTILINE,
@@ -2144,7 +2156,6 @@ async def _populate_misc_instance_data(
             json.dumps(json_single_role_metadata),
         )
 
-    assert backend_params.has_create_database
     if not backend_params.has_create_database:
         await _store_static_json_cache(
             ctx,
