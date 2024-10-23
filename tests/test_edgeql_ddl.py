@@ -13664,6 +13664,35 @@ type default::Foo {
                     DROP FUNCTION foo___1(a: int64);
                 ''')
 
+    @staticmethod
+    def order_migrations(migrations):
+        # Migrations are implicitly ordered based on parent_id.
+        # For now, assume that there is a single "initial" migration
+        # and all migrations have at most one child.
+
+        # Find initial migration with no parents.
+        ordered = [
+            migration
+            for migration in migrations
+            if not migration['parents']
+        ]
+
+        # Repeatedly find descendents until no more can be found.
+        prev_ids = [migration['id'] for migration in ordered]
+        while prev_ids:
+            curr_migrations = [
+                migration
+                for migration in migrations
+                if any(
+                    parent['id'] in prev_ids
+                    for parent in migration['parents']
+                )
+            ]
+            ordered.extend(curr_migrations)
+            prev_ids = [migration['id'] for migration in curr_migrations]
+
+        return ordered
+
     async def test_edgeql_ddl_migration_sdl_01(self):
         await self.con.execute('''
             CONFIGURE SESSION SET store_migration_sdl :=
@@ -13696,42 +13725,12 @@ type default::Foo {
             drop type A;
         ''')
 
-        # Migrations implicitly ordered based on parent_id.
-        # Fetch the migrations and sort them here.
-        migrations = json.loads(await self.con.query_json(
-            'select schema::Migration { id, parent_ids := .parents.id, sdl }'
-        ))
-
-        # Find migrations with no parents.
-        sdl = [
-            migration['sdl']
-            for migration in migrations
-            if not migration['parent_ids']
-        ]
-
-        # Repeatedly find descendents until no more can be found.
-        prev_ids = [
-            migration['id']
-            for migration in migrations
-            if not migration['parent_ids']
-        ]
-        while prev_ids:
-            sdl.extend(
-                migration['sdl']
-                for migration in migrations
-                if any(
-                    parent_id in prev_ids
-                    for parent_id in migration['parent_ids']
-                )
-            )
-            prev_ids = [
-                migration['id']
-                for migration in migrations
-                if any(
-                    parent_id in prev_ids
-                    for parent_id in migration['parent_ids']
-                )
-            ]
+        migrations = TestEdgeQLDDL.order_migrations(
+            json.loads(await self.con.query_json('''
+                select schema::Migration { id, parents: { id }, sdl }
+            '''))
+        )
+        sdl = [migration['sdl'] for migration in migrations]
 
         self.assert_data_shape(
             sdl,
@@ -13823,8 +13822,15 @@ type default::Foo {
             }]
         )
 
-        await self.assert_query_result(
-            'select schema::Migration { script, sdl }',
+        migrations = TestEdgeQLDDL.order_migrations(
+            json.loads(await self.con.query_json('''
+                select schema::Migration {
+                    id, parents: { id }, script, sdl
+                }
+            '''))
+        )
+        self.assert_data_shape(
+            migrations,
             [
                 {
                     'script': (
@@ -13871,8 +13877,15 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 };
         ''')
 
-        await self.assert_query_result(
-            'select schema::Migration { script, sdl }',
+        migrations = TestEdgeQLDDL.order_migrations(
+            json.loads(await self.con.query_json('''
+                select schema::Migration {
+                    id, parents: { id }, script, sdl
+                }
+            '''))
+        )
+        self.assert_data_shape(
+            migrations,
             [
                 {
                     'script': (
@@ -13933,10 +13946,20 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             };
         ''')
 
-        await self.assert_query_result(
-            '''
-            SELECT schema::Migration { message, generated_by, script, sdl }
-            ''',
+        migrations = TestEdgeQLDDL.order_migrations(
+            json.loads(await self.con.query_json('''
+                select schema::Migration {
+                    id,
+                    parents: { id },
+                    message,
+                    generated_by,
+                    script,
+                    sdl,
+                }
+            '''))
+        )
+        self.assert_data_shape(
+            migrations,
             [
                 {
                     'generated_by': 'DevMode',
@@ -13964,10 +13987,20 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Type3
         ''')
 
-        await self.assert_query_result(
-            '''
-            SELECT schema::Migration { message, generated_by, script, sdl }
-            ''',
+        migrations = TestEdgeQLDDL.order_migrations(
+            json.loads(await self.con.query_json('''
+                select schema::Migration {
+                    id,
+                    parents: { id },
+                    message,
+                    generated_by,
+                    script,
+                    sdl,
+                }
+            '''))
+        )
+        self.assert_data_shape(
+            migrations,
             [
                 {
                     'generated_by': 'DevMode',
