@@ -212,7 +212,7 @@ mt_config_reloads = registry.new_counter(
 
 mt_config_reload_errors = registry.new_counter(
     'mt_config_reload_errors_total',
-    'Total number of the main multi-tenant config file reloads.',
+    'Total number of the main multi-tenant config file reload errors.',
 )
 
 mt_tenant_successful_actions = registry.new_labeled_counter(
