@@ -1243,7 +1243,14 @@ def compile_schema_storage_in_delta(
                 # We drop first instead of using or_replace, in case
                 # something about the arguments changed.
                 df = pg_dbops.DropFunction(
-                    name=func.name, args=func.args or (), if_exists=True
+                    name=func.name,
+                    args=func.args or (),
+                    # Use a condition instead of if_exists ot reduce annoying
+                    # debug spew from postgres.
+                    conditions=[pg_dbops.FunctionExists(
+                        name=func.name,
+                        args=func.args or (),
+                    )],
                 )
                 df.generate(funcblock)
 
