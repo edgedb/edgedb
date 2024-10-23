@@ -131,7 +131,7 @@ async def send_fake_email(tenant: tenant.Tenant) -> None:
 async def _protected_send(
     coro: Coroutine[Any, Any, None], tenant: tenant.Tenant
 ) -> None:
-    task = tenant.create_task(coro, interruptable=False)
+    task = tenant.create_task(coro, interruptable=True)
     # Prevent timing attack
     await asyncio.sleep(random.random() * 0.5)
     # Expose e.g. configuration errors

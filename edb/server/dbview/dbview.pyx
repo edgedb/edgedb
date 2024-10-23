@@ -453,6 +453,9 @@ cdef class Database:
                 if self.user_schema_pickle is None:
                     await self.tenant.introspect_db(self.name)
 
+    def is_introspected(self):
+        return self.user_schema_pickle is not None
+
     def lookup_config(self, name: str):
         spec = self._index._sys_config_spec
         if self.user_config_spec is not None:

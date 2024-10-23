@@ -193,7 +193,7 @@ async def gc(server: edbserver.BaseServer) -> None:
     while True:
         try:
             tasks = [
-                tenant.create_task(_gc(tenant), interruptable=False)
+                tenant.create_task(_gc(tenant), interruptable=True)
                 for tenant in server.iter_tenants()
                 if tenant.accept_new_tasks
             ]
