@@ -306,6 +306,7 @@ class MultiTenantServer(server.BaseServer):
 
         async def _add_tenant():
             current_tenant.set(conf["instance-name"])
+            metrics.mt_tenant_add_total.inc(1.0, current_tenant.get())
             rloop = retryloop.RetryLoop(
                 backoff=retryloop.exp_backoff(),
                 timeout=300,
@@ -320,9 +321,6 @@ class MultiTenantServer(server.BaseServer):
                                 tenant = await self._create_tenant(conf)
                                 self._tenants[sni] = tenant
                                 metrics.mt_tenants_total.inc()
-                                metrics.mt_tenant_successful_actions.inc(
-                                    1.0, tenant.get_instance_name(), 'add'
-                                )
                                 logger.info("Added Tenant %s", sni)
                             self._tenants_serial[sni] = serial
 
@@ -338,9 +336,7 @@ class MultiTenantServer(server.BaseServer):
             async with self._tenants_lock[sni]:
                 if serial > self._tenants_serial.get(sni, 0):
                     self._tenants_conf.pop(sni, None)
-            metrics.mt_tenant_action_errors.inc(
-                1.0, conf["instance-name"], 'add'
-            )
+            metrics.mt_tenant_add_errors.inc(1.0, conf["instance-name"])
 
     async def _remove_tenant(self, serial: int, sni: str):
         tenant = None
@@ -349,19 +345,19 @@ class MultiTenantServer(server.BaseServer):
                 if serial > self._tenants_serial.get(sni, 0):
                     if sni in self._tenants:
                         tenant = self._tenants.pop(sni)
+                        metrics.mt_tenant_remove_total.inc(
+                            1.0, tenant.get_instance_name()
+                        )
                         current_tenant.set(tenant.get_instance_name())
                         await self._destroy_tenant(tenant)
                         metrics.mt_tenants_total.dec()
-                        metrics.mt_tenant_successful_actions.inc(
-                            1.0, tenant.get_instance_name(), 'remove'
-                        )
                         logger.info("Removed Tenant %s", sni)
                     self._tenants_serial[sni] = serial
         except Exception:
             logger.critical("Failed to remove Tenant %s", sni, exc_info=True)
             if tenant is not None:
-                metrics.mt_tenant_action_errors.inc(
-                    1.0, tenant.get_instance_name(), 'remove'
+                metrics.mt_tenant_remove_errors.inc(
+                    1.0, tenant.get_instance_name(),
                 )
 
     async def _reload_tenant(self, serial: int, sni: str, conf: TenantConfig):
@@ -370,6 +366,9 @@ class MultiTenantServer(server.BaseServer):
             async with self._tenants_lock[sni]:
                 if serial > self._tenants_serial.get(sni, 0):
                     if tenant := self._tenants.get(sni):
+                        metrics.mt_tenant_reload_total.inc(
+                            1.0, tenant.get_instance_name()
+                        )
                         current_tenant.set(tenant.get_instance_name())
 
                         orig = self._last_tenants_conf.get(sni, {})
@@ -402,9 +401,6 @@ class MultiTenantServer(server.BaseServer):
                             return
 
                         tenant.reload()
-                        metrics.mt_tenant_successful_actions.inc(
-                            1.0, tenant.get_instance_name(), 'reload'
-                        )
                         logger.info("Reloaded Tenant %s", sni)
 
                     # GOTCHA: reloading tenant doesn't increase the tenant
@@ -413,8 +409,8 @@ class MultiTenantServer(server.BaseServer):
         except Exception:
             logger.critical("Failed to reload Tenant %s", sni, exc_info=True)
             if tenant is not None:
-                metrics.mt_tenant_action_errors.inc(
-                    1.0, tenant.get_instance_name(), 'reload'
+                metrics.mt_tenant_reload_errors.inc(
+                    1.0, tenant.get_instance_name()
                 )
 
     def get_debug_info(self):

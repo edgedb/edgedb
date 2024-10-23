@@ -1369,13 +1369,13 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             '\nedgedb_server_mt_config_reload_errors_total 0.0\n', data
         )
         self.assertIn(
-            '\nedgedb_server_mt_tenant_successful_actions_total'
-            '{tenant="localtest1",action="add"} 1.0\n',
+            '\nedgedb_server_mt_tenant_add_total'
+            '{tenant="localtest1"} 1.0\n',
             data,
         )
         self.assertNotIn(
-            '\nedgedb_server_mt_tenant_successful_actions_total'
-            '{tenant="localtest1",action="remove"} 1.0\n',
+            '\nedgedb_server_mt_tenant_remove_total'
+            '{tenant="localtest1"} 1.0\n',
             data,
         )
 
@@ -1400,13 +1400,13 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             data,
         )
         self.assertIn(
-            '\nedgedb_server_mt_tenant_successful_actions_total'
-            '{tenant="localtest1",action="add"} 1.0\n',
+            '\nedgedb_server_mt_tenant_add_total'
+            '{tenant="localtest1"} 1.0\n',
             data,
         )
         self.assertIn(
-            '\nedgedb_server_mt_tenant_successful_actions_total'
-            '{tenant="localtest1",action="remove"} 1.0\n',
+            '\nedgedb_server_mt_tenant_remove_total'
+            '{tenant="localtest1"} 1.0\n',
             data,
         )
 
@@ -1431,13 +1431,13 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             data,
         )
         self.assertIn(
-            '\nedgedb_server_mt_tenant_successful_actions_total'
-            '{tenant="localtest1",action="add"} 2.0\n',
+            '\nedgedb_server_mt_tenant_add_total'
+            '{tenant="localtest1"} 2.0\n',
             data,
         )
         self.assertIn(
-            '\nedgedb_server_mt_tenant_successful_actions_total'
-            '{tenant="localtest1",action="remove"} 1.0\n',
+            '\nedgedb_server_mt_tenant_remove_total'
+            '{tenant="localtest1"} 1.0\n',
             data,
         )
 

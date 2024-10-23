@@ -215,14 +215,38 @@ mt_config_reload_errors = registry.new_counter(
     'Total number of the main multi-tenant config file reload errors.',
 )
 
-mt_tenant_successful_actions = registry.new_labeled_counter(
-    'mt_tenant_successful_actions_total',
-    'Number of successful tenant actions (add/remove/reload).',
-    labels=("tenant", "action"),
+mt_tenant_add_total = registry.new_labeled_counter(
+    'mt_tenant_add_total',
+    'Total number of new tenants the server attempted to add.',
+    labels=("tenant",),
 )
 
-mt_tenant_action_errors = registry.new_labeled_counter(
-    'mt_tenant_action_errors_total',
-    'Number of failed tenant actions (add/remove/reload).',
-    labels=("tenant", "action"),
+mt_tenant_add_errors = registry.new_labeled_counter(
+    'mt_tenant_add_errors_total',
+    'Total number of tenants the server failed to add.',
+    labels=("tenant",),
+)
+
+mt_tenant_remove_total = registry.new_labeled_counter(
+    'mt_tenant_remove_total',
+    'Total number of tenants the server attempted to remove.',
+    labels=("tenant",),
+)
+
+mt_tenant_remove_errors = registry.new_labeled_counter(
+    'mt_tenant_remove_errors_total',
+    'Total number of tenants the server failed to remove.',
+    labels=("tenant",),
+)
+
+mt_tenant_reload_total = registry.new_labeled_counter(
+    'mt_tenant_reload_total',
+    'Total number of tenants the server attempted to reload.',
+    labels=("tenant",),
+)
+
+mt_tenant_reload_errors = registry.new_labeled_counter(
+    'mt_tenant_reload_errors_total',
+    'Total number of tenants the server failed to reload.',
+    labels=("tenant",),
 )
