@@ -257,15 +257,53 @@ def load_ext_uninstall(
         shutil.rmtree(target_dir)
 
 
+def load_ext_list_packages() -> None:
+    from edb import buildmeta
+
+    ext_dir = buildmeta.get_extension_dir_path()
+
+    exts = []
+    try:
+        with os.scandir(ext_dir) as it:
+            for entry in it:
+                entry_path = pathlib.Path(entry)
+                manifest_path = entry_path / 'MANIFEST.toml'
+                if (
+                    entry.is_dir()
+                    and manifest_path.exists()
+                ):
+                    with open(manifest_path, 'rb') as m:
+                        manifest = tomllib.load(m)
+
+                    info = dict(
+                        key=entry_path.name,
+                        extension_name=manifest['name'],
+                        extension_version=manifest['version'],
+                        path=str(entry_path.absolute()),
+                    )
+
+                    exts.append(info)
+    except FileNotFoundError:
+        pass
+
+    print(json.dumps(exts, indent=4))
+
+
 def load_ext_main(
     *,
-    uninstall: bool,
+    package: pathlib.Path | None,
+    uninstall: pathlib.Path | None,
+    list_packages: bool,
     **kwargs,
 ) -> None:
     if uninstall:
-        load_ext_uninstall(**kwargs)
+        load_ext_uninstall(uninstall, **kwargs)
+    elif package:
+        load_ext_install(package, **kwargs)
+    elif list_packages:
+        load_ext_list_packages()
     else:
-        load_ext_install(**kwargs)
+        raise AssertionError('No command specified?')
 
 
 parser = argparse.ArgumentParser(description='Install an extension package')
@@ -284,12 +322,18 @@ parser.add_argument(
     help="Use the specified pg_config binary to find the Postgres "
          "to install into (instead of using the bundled one)"
 )
-parser.add_argument(
-    '--uninstall', action='store_true',
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument(
+    '--list-packages', action='store_true',
+    help="List the extension packages that are installed (in JSON)"
+)
+group.add_argument(
+    '--uninstall', metavar='NAME',
+    type=pathlib.Path,
     help="Uninstall a package (by package directory name) instead of "
          "installing it"
 )
-parser.add_argument('package', type=pathlib.Path)
+group.add_argument('package', nargs='?', type=pathlib.Path)
 
 
 def main(argv: tuple[str, ...] | None = None):
