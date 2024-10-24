@@ -528,6 +528,7 @@ class SQLQueryUnit:
     orig_query: str = dataclasses.field(repr=False)
     """Original query text before translation."""
 
+    prefix_len: int = 0
     translation_data: Optional[pgcodegen.TranslationData] = None
     """Translation source map."""
 
