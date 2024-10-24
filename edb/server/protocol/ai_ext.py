@@ -1801,7 +1801,7 @@ async def _get_model_provider(
     model_name: str,
 ) -> str:
     provider = await _get_model_annotation_as_json(
-        db, base_model_type, model_name, "ext::ai::model_name")
+        db, base_model_type, model_name, "ext::ai::model_provider")
     return cast(str, provider)
 
 
