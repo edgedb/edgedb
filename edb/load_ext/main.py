@@ -29,6 +29,7 @@ from __future__ import annotations
 
 
 import argparse
+import json
 import os
 import pathlib
 import shutil
@@ -49,10 +50,14 @@ CONFIG_PATHS = {
 def install_pg_extension(
     pkg: pathlib.Path,
     pg_config: dict[str, str],
+    manifest_target: pathlib.Path | None,
 ) -> None:
+
+    to_install = []
     with zipfile.ZipFile(pkg) as z:
         base = get_dir(z)
 
+        # Compute what files to install
         for entry in z.infolist():
             fpath = pathlib.Path(entry.filename)
 
@@ -70,20 +75,49 @@ def install_pg_extension(
                 # print("Skipping", fpath)
                 continue
 
-            config_dir = pg_config[config_field]
             fpath = fpath.relative_to(
                 pathlib.Path(fpath.parts[0])
                 / fpath.parts[1]
                 / 'postgresql'
             )
+            to_install.append((entry.filename, config_field, fpath))
 
+        # Write a manifest out of all the files installed into the
+        # postgres installation.
+        if manifest_target:
+            manifest_contents = [
+                {'postgres_dir': config_field, 'path': str(fpath)}
+                for _, config_field, fpath in to_install
+            ]
+            with open(manifest_target, "w") as f:
+                json.dump(manifest_contents, f)
+
+        # Install them
+        for zip_name, config_field, fpath in to_install:
+            config_dir = pg_config[config_field]
             target_file = config_dir / fpath
 
             os.makedirs(target_file.parent, exist_ok=True)
-            with z.open(entry) as src:
+            with z.open(zip_name) as src:
                 with open(target_file, "wb") as dst:
                     print("Installing", target_file)
                     shutil.copyfileobj(src, dst)
+
+
+def uninstall_pg_extension(
+    pg_manifest: list[dict[str, str]],
+    pg_config: dict[str, str],
+) -> None:
+    for entry in pg_manifest:
+        config_field = entry['postgres_dir']
+        fpath = entry['path']
+
+        full_path = pathlib.Path(pg_config[config_field]) / fpath
+        print("Removing", full_path)
+        try:
+            os.remove(full_path)
+        except FileNotFoundError:
+            print("Could not remove missing", full_path)
 
 
 def get_pg_config(pg_config_path: pathlib.Path) -> dict[str, str]:
@@ -117,7 +151,7 @@ def get_dir(z: zipfile.ZipFile) -> pathlib.Path:
 def install_edgedb_extension(
     pkg: pathlib.Path,
     ext_dir: pathlib.Path,
-) -> None:
+) -> pathlib.Path:
     with tempfile.TemporaryDirectory() as tdir, \
          zipfile.ZipFile(pkg) as z:
 
@@ -155,18 +189,21 @@ def install_edgedb_extension(
         # message. Oh well.
         shutil.move(ttarget, ext_dir)
 
+    return target
 
-def load_ext_main(
+
+def load_ext_install(
     package: pathlib.Path,
     skip_edgedb: bool,
     skip_postgres: bool,
     with_pg_config: pathlib.Path | None,
 ) -> None:
+    target_dir = None
     if not skip_edgedb:
         from edb import buildmeta
 
         ext_dir = buildmeta.get_extension_dir_path()
-        install_edgedb_extension(package, ext_dir)
+        target_dir = install_edgedb_extension(package, ext_dir)
 
     if not skip_postgres:
         if with_pg_config is None:
@@ -174,7 +211,61 @@ def load_ext_main(
             with_pg_config = buildmeta.get_pg_config_path()
 
         pg_config = get_pg_config(with_pg_config)
-        install_pg_extension(package, pg_config)
+        pg_manifest = target_dir / "PG_MANIFEST.json" if target_dir else None
+        install_pg_extension(package, pg_config, pg_manifest)
+
+
+def load_ext_uninstall(
+    package: pathlib.Path,
+    skip_edgedb: bool,
+    skip_postgres: bool,
+    with_pg_config: pathlib.Path | None,
+) -> None:
+    from edb import buildmeta
+    target_dir = None
+    if len(package.parts) != 1:
+        print(
+            f'ERROR: {package} is not a valid extension name'
+        )
+        sys.exit(1)
+
+    ext_dir = buildmeta.get_extension_dir_path()
+    target_dir = ext_dir / package
+
+    if not target_dir.exists():
+        print(
+            f'ERROR: Extension {package} is not currently '
+            f'installed at {target_dir}'
+        )
+        sys.exit(1)
+
+    if not skip_postgres:
+        try:
+            with open(target_dir / "PG_MANIFEST.json") as f:
+                pg_manifest = json.load(f)
+        except FileNotFoundError:
+            pg_manifest = []
+
+        if with_pg_config is None:
+            with_pg_config = buildmeta.get_pg_config_path()
+
+        pg_config = get_pg_config(with_pg_config)
+        uninstall_pg_extension(pg_manifest, pg_config)
+
+    if not skip_edgedb:
+        print("Removing", target_dir)
+        shutil.rmtree(target_dir)
+
+
+def load_ext_main(
+    *,
+    uninstall: bool,
+    **kwargs,
+) -> None:
+    if uninstall:
+        load_ext_uninstall(**kwargs)
+    else:
+        load_ext_install(**kwargs)
 
 
 parser = argparse.ArgumentParser(description='Install an extension package')
@@ -192,6 +283,11 @@ parser.add_argument(
     '--with-pg-config', metavar='PATH',
     help="Use the specified pg_config binary to find the Postgres "
          "to install into (instead of using the bundled one)"
+)
+parser.add_argument(
+    '--uninstall', action='store_true',
+    help="Uninstall a package (by package directory name) instead of "
+         "installing it"
 )
 parser.add_argument('package', type=pathlib.Path)
 
