@@ -7,7 +7,6 @@ on:
 jobs:
   prep:
     runs-on: ubuntu-latest
-    outputs:
 
     steps:
     - uses: actions/checkout@v4
