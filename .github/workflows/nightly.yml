@@ -12,8 +12,8 @@ on:
 jobs:
   prep:
     runs-on: ubuntu-latest
-    outputs:
 
+    outputs:
 
       if_debian_buster_x86_64: ${{ steps.scm.outputs.if_debian_buster_x86_64 }}
 
