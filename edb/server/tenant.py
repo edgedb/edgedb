@@ -591,6 +591,18 @@ class Tenant(ha_base.ClusterProtocol):
     def accept_new_tasks(self):
         return self._accept_new_tasks
 
+    def is_db_ready(self, dbname: str) -> bool:
+        if not self._accept_new_tasks:
+            return False
+
+        if (
+            not (db := self.maybe_get_db(dbname=dbname))
+            or not db.is_introspected()
+        ):
+            return False
+
+        return True
+
     def create_task(
         self,
         coro: Coroutine,
@@ -962,7 +974,8 @@ class Tenant(ha_base.ClusterProtocol):
 
     def is_database_connectable(self, dbname: str) -> bool:
         return (
-            dbname != defines.EDGEDB_TEMPLATE_DB
+            self._running
+            and dbname != defines.EDGEDB_TEMPLATE_DB
             and dbname not in self._block_new_connections
         )
 
@@ -1662,7 +1675,7 @@ class Tenant(ha_base.ClusterProtocol):
         self.create_task(task(), interruptable=True)
 
     def on_remote_ddl(self, dbname: str) -> None:
-        if not self._accept_new_tasks:
+        if not self.is_db_ready(dbname):
             return
 
         # Triggered by a postgres notification event 'schema-changes'
@@ -1826,7 +1839,7 @@ class Tenant(ha_base.ClusterProtocol):
         dbname: str,
         keys: Optional[list[str]],
     ) -> None:
-        if not self._accept_new_tasks:
+        if not self.is_db_ready(dbname):
             return
 
         async def task():

@@ -120,7 +120,7 @@ async def http(server: edbserver.BaseServer) -> None:
                     tasks.append(
                         tenant.create_task(
                             _http_task(tenant, tenant_http[tenant]),
-                            interruptable=False,
+                            interruptable=True,
                         )
                     )
             # Remove unused tenant_http entries
@@ -310,7 +310,7 @@ async def gc(server: edbserver.BaseServer) -> None:
     while True:
         tasks = [
             tenant.create_task(
-                _gc(tenant, NET_HTTP_REQUEST_TTL), interruptable=False
+                _gc(tenant, NET_HTTP_REQUEST_TTL), interruptable=True
             )
             for tenant in server.iter_tenants()
             if tenant.accept_new_tasks

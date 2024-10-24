@@ -1,8 +1,8 @@
 <% macro workflow(targets, publications, subdist="", publish_all=False) %>
   prep:
     runs-on: ubuntu-latest
-    outputs:
 <% if subdist == "nightly" %>
+    outputs:
 <% for tgt in targets.linux + targets.macos %>
       if_<< tgt.name.replace('-', '_') >>: ${{ steps.scm.outputs.if_<< tgt.name.replace('-', '_') >> }}
 <% endfor %>

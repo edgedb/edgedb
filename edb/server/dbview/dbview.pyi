@@ -118,6 +118,9 @@ class Database:
     def lookup_config(self, name: str) -> Any:
         ...
 
+    def is_introspected(self) -> bool:
+        ...
+
 class DatabaseConnectionView:
     def in_tx(self) -> bool:
         ...
