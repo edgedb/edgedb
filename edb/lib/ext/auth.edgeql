@@ -407,71 +407,25 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
         );
     };
 
-    create type ext::auth::AuthConfig extending cfg::ExtensionConfig {
-        create multi link providers: ext::auth::ProviderConfig {
+    create scalar type ext::auth::SMTPSecurity extending enum<
+        PlainText,
+        TLS,
+        STARTTLS,
+        STARTTLSOrPlainText,
+    >;
+
+    create abstract type ext::auth::EmailProviderConfig extending
+        cfg::ConfigObject {
+        create required property name: std::str {
+            create constraint exclusive;
             create annotation std::description :=
-                "Configuration for auth provider clients.";
+                "The name of the email provider.";
         };
 
-        create link ui: ext::auth::UIConfig {
-            create annotation std::description :=
-                "Configuration for builtin auth UI. If not set the builtin \
-                UI is disabled.";
-        };
-
-        create multi link webhooks: ext::auth::WebhookConfig {
-            create annotation std::description :=
-                "Configuration for webhooks.";
-        };
-
-        create property app_name: std::str {
-            create annotation std::description :=
-                "The name of your application.";
-        };
-
-        create property logo_url: std::str {
-            create annotation std::description :=
-                "A url to an image of your application's logo.";
-        };
-
-        create property dark_logo_url: std::str {
-            create annotation std::description :=
-                "A url to an image of your application's logo to be used \
-                with the dark theme.";
-        };
-
-        create property brand_color: std::str {
-            create annotation std::description :=
-                "The brand color of your application as a hex string.";
-        };
-
-        create property auth_signing_key: std::str {
-            set secret := true;
-            create annotation std::description :=
-                "The signing key used for auth extension. Must be at \
-                least 32 characters long.";
-        };
-
-        create property token_time_to_live: std::duration {
-            create annotation std::description :=
-                "The time after which an auth token expires. A value of 0 \
-                indicates that the token should never expire.";
-            set default := <std::duration>'336 hours';
-        };
-
-        create multi property allowed_redirect_urls: std::str {
-            create annotation std::description :=
-                "When redirecting the user in various flows, the URL will be \
-                checked against this list to ensure they are going \
-                to a trusted domain controlled by the application. URLs are \
-                matched based on checking if the candidate redirect URL is \
-                a match or a subdirectory of any of these allowed URLs";
-        };
     };
 
-    create scalar type ext::auth::SMTPSecurity extending enum<PlainText, TLS, STARTTLS, STARTTLSOrPlainText>;
-
-    create type ext::auth::SMTPConfig extending cfg::ExtensionConfig {
+    create type ext::auth::SMTPProviderConfig extending
+        ext::auth::EmailProviderConfig {
         create property sender: std::str {
             create annotation std::description :=
                 "\"From\" address of system emails sent for e.g. \
@@ -518,6 +472,78 @@ CREATE EXTENSION PACKAGE auth VERSION '1.0' {
             set default := <std::duration>'15 seconds';
             create annotation std::description :=
                 "Maximum time for each SMTP request.";
+        };
+    };
+
+    create type ext::auth::AuthConfig extending cfg::ExtensionConfig {
+        create multi link providers: ext::auth::ProviderConfig {
+            create annotation std::description :=
+                "Configuration for auth provider clients.";
+        };
+
+        create link ui: ext::auth::UIConfig {
+            create annotation std::description :=
+                "Configuration for builtin auth UI. If not set the builtin \
+                UI is disabled.";
+        };
+
+        create multi link webhooks: ext::auth::WebhookConfig {
+            create annotation std::description :=
+                "Configuration for webhooks.";
+        };
+
+        create multi link email_providers: ext::auth::EmailProviderConfig {
+            create annotation std::description :=
+                "Configuration for available email providers.";
+        };
+
+        create property current_email_provider_name: std::str {
+            create annotation std::description :=
+                "The name of the current email provider.";
+        };
+
+        create property app_name: std::str {
+            create annotation std::description :=
+                "The name of your application.";
+        };
+
+        create property logo_url: std::str {
+            create annotation std::description :=
+                "A url to an image of your application's logo.";
+        };
+
+        create property dark_logo_url: std::str {
+            create annotation std::description :=
+                "A url to an image of your application's logo to be used \
+                with the dark theme.";
+        };
+
+        create property brand_color: std::str {
+            create annotation std::description :=
+                "The brand color of your application as a hex string.";
+        };
+
+        create property auth_signing_key: std::str {
+            set secret := true;
+            create annotation std::description :=
+                "The signing key used for auth extension. Must be at \
+                least 32 characters long.";
+        };
+
+        create property token_time_to_live: std::duration {
+            create annotation std::description :=
+                "The time after which an auth token expires. A value of 0 \
+                indicates that the token should never expire.";
+            set default := <std::duration>'336 hours';
+        };
+
+        create multi property allowed_redirect_urls: std::str {
+            create annotation std::description :=
+                "When redirecting the user in various flows, the URL will be \
+                checked against this list to ensure they are going \
+                to a trusted domain controlled by the application. URLs are \
+                matched based on checking if the candidate redirect URL is \
+                a match or a subdirectory of any of these allowed URLs";
         };
     };
 

@@ -266,14 +266,21 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::brand_color := '{BRAND_COLOR}';
 
+        CONFIGURE CURRENT DATABASE SET
+        ext::auth::AuthConfig::current_email_provider_name :=
+            "email_hosting_is_easy";
+
         CONFIGURE CURRENT DATABASE
         INSERT ext::auth::UIConfig {{
           redirect_to := 'https://example.com/app',
           redirect_to_on_signup := 'https://example.com/signup/app',
         }};
 
-        CONFIGURE CURRENT DATABASE SET
-        ext::auth::SMTPConfig::sender := '{SENDER}';
+        CONFIGURE CURRENT DATABASE
+        INSERT ext::auth::SMTPProviderConfig {{
+          name := "email_hosting_is_easy",
+          sender := '{SENDER}',
+        }};
 
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::allowed_redirect_urls := {{
