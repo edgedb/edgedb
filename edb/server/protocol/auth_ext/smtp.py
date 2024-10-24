@@ -58,6 +58,9 @@ async def send_email(
             int(os.environ.get("EDGEDB_SERVER_AUTH_SMTP_CONCURRENCY", 5))
         )
 
+    # TODO: Figure out how to get the correct SMTPProviderConfig based on
+    #       the provider name and the currently configured provider.
+
     host = (
         util.maybe_get_config(
             db,
