@@ -196,6 +196,9 @@ class HttpClient:
             if msg_type == 0:  # Error
                 if id in self._requests:
                     self._requests[id].set_exception(Exception(data[0]))
+                if id in self._streaming:
+                    self._streaming[id].put_nowait(None)
+                    del self._streaming[id]
             elif msg_type == 1:  # Response
                 if id in self._requests:
                     self._requests[id].set_result(data)
