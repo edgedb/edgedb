@@ -180,11 +180,6 @@ class ExtensionPackageCommand(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> sd.Command:
-        if not context.stdmode and not context.testmode:
-            raise errors.UnsupportedFeatureError(
-                'user-defined extension packages are not supported yet',
-                span=astnode.span
-            )
 
         return super()._cmd_tree_from_ast(schema, astnode, context)
 
@@ -249,6 +244,12 @@ class CreateExtensionPackage(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> CreateExtensionPackage:
+        if not context.stdmode and not context.testmode:
+            raise errors.UnsupportedFeatureError(
+                'user-defined extension packages are not supported yet',
+                span=astnode.span
+            )
+
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, CreateExtensionPackage)
         assert isinstance(astnode, qlast.CreateExtensionPackage)
@@ -292,6 +293,23 @@ class DeleteExtensionPackage(
     sd.DeleteObject[ExtensionPackage],
 ):
     astnode = qlast.DropExtensionPackage
+
+    def _delete_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if (
+            not context.stdmode
+            and self.scls.get_builtin(schema)
+        ):
+            name = self.scls.get_shortname(schema)
+            raise errors.UnsupportedFeatureError(
+                f"cannot drop builtin extension package '{name}'",
+                span=self.span,
+            )
+
+        return super()._delete_begin(schema, context)
 
 
 class ExtensionCommandContext(
