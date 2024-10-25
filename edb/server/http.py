@@ -54,6 +54,15 @@ class HttpClient:
         self._requests: dict[int, asyncio.Future] = {}
 
     def __del__(self) -> None:
+        self.close()
+
+    def __enter__(self) -> HttpClient:
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
+
+    def close(self) -> None:
         if self._task:
             self._task.cancel()
             self._task = None
@@ -70,10 +79,12 @@ class HttpClient:
             return headers
         raise ValueError(f"Invalid headers type: {type(headers)}")
 
-    def _process_content(self,
-                         headers: list[tuple[str, str]],
-                         data: bytes | str | dict[str, str] | None = None,
-                         json: Any | None = None) -> bytes:
+    def _process_content(
+        self,
+        headers: list[tuple[str, str]],
+        data: bytes | str | dict[str, str] | None = None,
+        json: Any | None = None,
+    ) -> bytes:
         if json is not None:
             data = json_lib.dumps(json).encode('utf-8')
             headers.append(('Content-Type', 'application/json'))
@@ -81,7 +92,9 @@ class HttpClient:
             data = data.encode('utf-8')
         elif isinstance(data, dict):
             data = urllib.parse.urlencode(data).encode('utf-8')
-            headers.append(('Content-Type', 'application/x-www-form-urlencoded'))
+            headers.append(
+                ('Content-Type', 'application/x-www-form-urlencoded')
+            )
         elif data is None:
             data = bytes()
         elif isinstance(data, bytes):
@@ -111,9 +124,7 @@ class HttpClient:
         finally:
             del self._requests[id]
 
-    async def get(
-        self, path: str, *, headers: HeaderType = None
-    ) -> Response:
+    async def get(self, path: str, *, headers: HeaderType = None) -> Response:
         headers_list = self._process_headers(headers)
         result = await self.request(
             method="GET", path=path, data=None, headers=headers_list
@@ -151,13 +162,13 @@ class HttpClient:
         self._next_id += 1
         self._requests[id] = asyncio.Future()
         try:
-            self._client._request_sse(id, path=path, method=method, content=data, headers=headers_list)
+            self._client._request_sse(id, path, method, data, headers_list)
             resp = await self._requests[id]
-            return resp
+            if id in self._streaming:
+                return ResponseSSE.from_tuple(resp, self._streaming[id])
+            return Response.from_tuple(resp)
         finally:
             del self._requests[id]
-
-        return Response.from_tuple(result)
 
     async def _boot(self, loop: asyncio.AbstractEventLoop) -> None:
         logger.info("Python-side HTTP client booted")
@@ -180,28 +191,35 @@ class HttpClient:
             transport.close()
 
     def _process_message(self, msg):
-        msg_type, id, *data = msg
-
-        if id in self._requests:
+        try:
+            msg_type, id, data = msg
             if msg_type == 0:  # Error
-                self._requests[id].set_exception(Exception(data[0]))
+                if id in self._requests:
+                    self._requests[id].set_exception(Exception(data[0]))
             elif msg_type == 1:  # Response
-                self._requests[id].set_result(data[0])
+                if id in self._requests:
+                    self._requests[id].set_result(data)
             elif msg_type == 2:  # SSEStart
-                self._requests[id].set_result(data[0])
+                if id in self._requests:
+                    self._streaming[id] = asyncio.Queue()
+                    self._requests[id].set_result(data)
             elif msg_type == 3:  # SSEEvent
-                # Set the result and re-arm the future
-                self._streaming[id][0].set_result(data[0])
-                self._streaming[id][0] = asyncio.Future()
+                if id in self._streaming:
+                    self._streaming[id].put_nowait(data)
             elif msg_type == 4:  # SSEEnd
-                self._streaming[id][0].set_result(None)
-                del self._streaming[id]
+                if id in self._streaming:
+                    self._streaming[id].put_nowait(None)
+                    del self._streaming[id]
+        except Exception as e:
+            logger.error(f"Error processing message: {e}", exc_info=True)
+            raise
+
 
 class CaseInsensitiveDict(dict):
     def __init__(self, data: Optional[list[Tuple[str, str]]] = None):
         super().__init__()
         if data:
-            for k, v in data:
+            for k, v in data.items():
                 self[k.lower()] = v
 
     def __setitem__(self, key: str, value: str):
@@ -226,11 +244,12 @@ class CaseInsensitiveDict(dict):
             self[key] = value
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Response:
     status_code: int
     body: bytes
     headers: CaseInsensitiveDict
+    is_streaming: bool = False
 
     @classmethod
     def from_tuple(cls, data: Tuple[int, bytes, dict[str, str]]):
@@ -245,28 +264,34 @@ class Response:
     def text(self) -> str:
         return self.body.decode('utf-8')
 
+
+@dataclasses.dataclass(frozen=True)
 class ResponseSSE:
     status_code: int
     headers: CaseInsensitiveDict
+    _stream: asyncio.Queue = dataclasses.field(repr=False)
+    is_streaming: bool = True
 
-    def __init__(self, status_code: int, headers: dict[str, str], stream: list[asyncio.Future]):
-        self.status_code = status_code
-        self.headers = CaseInsensitiveDict(headers)
-        self._buffer = b''
-        self._stream = stream
+    @classmethod
+    def from_tuple(
+        cls, data: Tuple[int, dict[str, str]], stream: asyncio.Queue
+    ):
+        status_code, headers = data
+        headers = CaseInsensitiveDict(headers)
+        return cls(status_code, headers, stream)
 
-    @dataclasses.dataclass
+    @dataclasses.dataclass(frozen=True)
     class SSEEvent:
         event: str
         data: str
         id: Optional[str] = None
-        retry: Optional[int] = None
 
-    async def __aiter__(self):
+    def __aiter__(self):
         return self
 
     async def __anext__(self):
-        next = await self._stream[0]
+        next = await self._stream.get()
         if next is None:
             raise StopAsyncIteration
-        return next
+        id, data, event = next
+        return self.SSEEvent(event, data, id)

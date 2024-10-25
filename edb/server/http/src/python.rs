@@ -46,9 +46,9 @@ impl ToPyObject for RustToPythonMessage {
                 .to_object(py),
             SSEStart(conn, (status, headers)) => (2, conn, (status, headers)).to_object(py),
             SSEEvent(conn, message) => {
-                (3, conn, &message.id, &message.data, &message.event).to_object(py)
+                (3, conn, (&message.id, &message.data, &message.event)).to_object(py)
             }
-            SSEEnd(conn) => (4, conn).to_object(py),
+            SSEEnd(conn) => (4, conn, ()).to_object(py),
         }
     }
 }
@@ -119,8 +119,9 @@ async fn request(
     body: Vec<u8>,
     headers: Vec<(String, String)>,
 ) -> Result<reqwest::Response, String> {
+    eprintln!("request: {method} {url}");
     let method =
-        Method::from_bytes(method.as_bytes()).map_err(|e| format!("Invalid HTTP method: {}", e))?;
+        Method::from_bytes(method.as_bytes()).map_err(|e| format!("Invalid HTTP method: {e:?}"))?;
 
     let mut req = client.request(method, url);
 
@@ -135,7 +136,7 @@ async fn request(
     let resp = req
         .send()
         .await
-        .map_err(|e| format!("Request failed: {}", e))?;
+        .map_err(|e| format!("Request failed: {e:?}"))?;
 
     Ok(resp)
 }
@@ -153,10 +154,72 @@ async fn request_bytes(
     let body = resp
         .bytes()
         .await
-        .map_err(|e| format!("Failed to read response body: {}", e))?
+        .map_err(|e| format!("Failed to read response body: {e:?}"))?
         .to_vec();
 
     Ok((status, body, headers))
+}
+
+async fn request_sse(
+    client: reqwest::Client,
+    id: PythonConnId,
+    url: String,
+    method: String,
+    body: Vec<u8>,
+    headers: Vec<(String, String)>,
+    rpc_pipe: Rc<RpcPipe>,
+) -> Result<(), String> {
+    let response = request(client, url, method, body, headers).await?;
+
+    if response.headers().get("content-type")
+        != Some(&HeaderValue::from_static("text/event-stream"))
+    {
+        let headers = process_headers(response.headers());
+        let status = response.status();
+        let body = match response.bytes().await {
+            Ok(bytes) => bytes.to_vec(),
+            Err(e) => {
+                return Err(format!("Failed to read response body: {e:?}"));
+            }
+        };
+        _ = rpc_pipe
+            .write(RustToPythonMessage::Response(
+                id,
+                (status.as_u16(), body, headers),
+            ))
+            .await;
+
+        return Ok(());
+    }
+
+    let headers = process_headers(response.headers());
+    let status = response.status();
+    _ = rpc_pipe
+        .write(RustToPythonMessage::SSEStart(
+            id,
+            (status.as_u16(), headers.clone()),
+        ))
+        .await;
+
+    let mut stream = response.bytes_stream().eventsource();
+    loop {
+        let chunk = match stream.try_next().await {
+            Ok(None) => break,
+            Ok(Some(chunk)) => chunk,
+            Err(e) => {
+                return Err(format!("Failed to read response body: {e:?}"));
+            }
+        };
+        if rpc_pipe
+            .write(RustToPythonMessage::SSEEvent(id, chunk))
+            .await
+            .is_err()
+        {
+            break;
+        }
+    }
+
+    Ok(())
 }
 
 fn process_headers(headers: &reqwest::header::HeaderMap) -> HashMap<String, String> {
@@ -378,63 +441,12 @@ async fn execute(
             let Ok(permit) = permit_manager.acquire().await else {
                 return;
             };
-            match request(client, url, method, body, headers).await {
-                Ok(response) => {
-                    // We may still receive a non-SSE response, so we need to check
-                    // the content type.
-                    if response.headers().get("content-type") != Some(&HeaderValue::from_static("text/event-stream")) {
-                        let headers = process_headers(response.headers());
-                        let status = response.status();
-                        let body = match response.bytes().await {
-                            Ok(bytes) => bytes.to_vec(),
-                            Err(e) => {
-                                _ = rpc_pipe.write(RustToPythonMessage::Error(id, format!("Failed to read response body: {}", e))).await;
-                                return;
-                            }
-                        };
-                        _ = rpc_pipe
-                            .write(RustToPythonMessage::Response(
-                                id,
-                                (status.as_u16(), body, headers),
-                            ))
-                            .await;
-                        return;
-                    }
-
-                    let headers = process_headers(response.headers());
-                    let status = response.status();
-                    _ = rpc_pipe
-                        .write(RustToPythonMessage::SSEStart(
-                            id,
-                            (status.as_u16(), headers),
-                        ))
-                        .await;
-                    let mut stream = response.bytes_stream().eventsource();
-                    loop {
-                        let chunk = match stream.try_next().await {
-                            Ok(None) => break,
-                            Ok(Some(chunk)) => chunk,
-                            Err(e) => {
-                                _ = rpc_pipe
-                                    .write(RustToPythonMessage::Error(
-                                        id,
-                                        format!("Failed to read response body: {}", e),
-                                    ))
-                                    .await;
-                                return;
-                            }
-                        };
-                        if rpc_pipe
-                            .write(RustToPythonMessage::SSEEvent(id, chunk))
-                            .await
-                            .is_err()
-                        {
-                            return;
-                        }
-                    }
-                }
+            match request_sse(client, id, url, method, body, headers, rpc_pipe.clone()).await {
+                Ok(..) => {}
                 Err(err) => {
-                    _ = rpc_pipe.write(RustToPythonMessage::Error(id, err)).await;
+                    _ = rpc_pipe
+                        .write(RustToPythonMessage::Error(id, format!("SSE error: {err}")))
+                        .await;
                 }
             }
             drop(permit);
