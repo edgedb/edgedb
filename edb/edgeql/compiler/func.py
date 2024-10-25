@@ -338,21 +338,7 @@ def compile_FunctionCall(
         tuple_path_ids = []
 
     global_args = None
-    if inline_func:
-        def find_using_global(node: irast.FunctionCall) -> bool:
-            return node.global_args is not None and len(node.global_args) > 0
-
-        if ast.find_children(
-            inline_func,
-            irast.FunctionCall,
-            test_func=find_using_global,
-            terminate_early=True,
-        ):
-            global_args = get_globals(
-                expr, matched_call, candidates=funcs, ctx=ctx
-            )
-
-    else:
+    if not inline_func:
         global_args = get_globals(
             expr, matched_call, candidates=funcs, ctx=ctx
         )
