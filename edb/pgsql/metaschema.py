@@ -6875,6 +6875,37 @@ def _generate_sql_information_schema(
         WHERE FALSE
         """,
         ),
+        trampoline.VersionedView(
+            name=("edgedbsql", "pg_tables"),
+            query="""
+        SELECT
+            n.nspname AS schemaname,
+            c.relname AS tablename,
+            pg_get_userbyid(c.relowner) AS tableowner,
+            t.spcname AS tablespace,
+            c.relhasindex AS hasindexes,
+            c.relhasrules AS hasrules,
+            c.relhastriggers AS hastriggers,
+            c.relrowsecurity AS rowsecurity
+        FROM edgedbsql_VER.pg_class c
+        LEFT JOIN edgedbsql_VER.pg_namespace n ON n.oid = c.relnamespace
+        LEFT JOIN pg_tablespace t ON t.oid = c.reltablespace
+        WHERE c.relkind = ANY (ARRAY['r'::"char", 'p'::"char"])
+        """,
+        ),
+        trampoline.VersionedView(
+            name=("edgedbsql", "pg_views"),
+            query="""
+        SELECT
+            n.nspname AS schemaname,
+            c.relname AS viewname,
+            pg_get_userbyid(c.relowner) AS viewowner,
+            pg_get_viewdef(c.oid) AS definition
+        FROM edgedbsql_VER.pg_class c
+        LEFT JOIN edgedbsql_VER.pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'v'::"char"
+        """,
+        ),
     ]
 
     # We expose most of the views as empty tables, just to prevent errors when
@@ -6921,6 +6952,8 @@ def _generate_sql_information_schema(
         'pg_constraint',
         'pg_trigger',
         'pg_subscription',
+        'pg_tables',
+        'pg_views',
     }
 
     PG_TABLES_WITH_SYSTEM_COLS = {
