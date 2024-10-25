@@ -40,10 +40,6 @@ jobs:
 
       if_ubuntu_jammy_aarch64: ${{ steps.scm.outputs.if_ubuntu_jammy_aarch64 }}
 
-      if_ubuntu_noble_x86_64: ${{ steps.scm.outputs.if_ubuntu_noble_x86_64 }}
-
-      if_ubuntu_noble_aarch64: ${{ steps.scm.outputs.if_ubuntu_noble_aarch64 }}
-
       if_centos_8_x86_64: ${{ steps.scm.outputs.if_centos_8_x86_64 }}
 
       if_centos_8_aarch64: ${{ steps.scm.outputs.if_centos_8_aarch64 }}
@@ -87,14 +83,12 @@ jobs:
 
         idx_file=buster.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing debian-buster-x86_64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-buster-x86_64'
+          val=false
         fi
 
         echo if_debian_buster_x86_64="$val" >> $GITHUB_OUTPUT
@@ -103,14 +97,12 @@ jobs:
 
         idx_file=buster.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing debian-buster-aarch64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-buster-aarch64'
+          val=false
         fi
 
         echo if_debian_buster_aarch64="$val" >> $GITHUB_OUTPUT
@@ -119,14 +111,12 @@ jobs:
 
         idx_file=bullseye.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing debian-bullseye-x86_64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-bullseye-x86_64'
+          val=false
         fi
 
         echo if_debian_bullseye_x86_64="$val" >> $GITHUB_OUTPUT
@@ -135,14 +125,12 @@ jobs:
 
         idx_file=bullseye.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing debian-bullseye-aarch64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-bullseye-aarch64'
+          val=false
         fi
 
         echo if_debian_bullseye_aarch64="$val" >> $GITHUB_OUTPUT
@@ -151,14 +139,12 @@ jobs:
 
         idx_file=bookworm.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing debian-bookworm-x86_64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-bookworm-x86_64'
+          val=false
         fi
 
         echo if_debian_bookworm_x86_64="$val" >> $GITHUB_OUTPUT
@@ -167,14 +153,12 @@ jobs:
 
         idx_file=bookworm.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing debian-bookworm-aarch64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing debian-bookworm-aarch64'
+          val=false
         fi
 
         echo if_debian_bookworm_aarch64="$val" >> $GITHUB_OUTPUT
@@ -183,14 +167,12 @@ jobs:
 
         idx_file=bionic.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing ubuntu-bionic-x86_64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-bionic-x86_64'
+          val=false
         fi
 
         echo if_ubuntu_bionic_x86_64="$val" >> $GITHUB_OUTPUT
@@ -199,14 +181,12 @@ jobs:
 
         idx_file=bionic.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing ubuntu-bionic-aarch64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-bionic-aarch64'
+          val=false
         fi
 
         echo if_ubuntu_bionic_aarch64="$val" >> $GITHUB_OUTPUT
@@ -215,14 +195,12 @@ jobs:
 
         idx_file=focal.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing ubuntu-focal-x86_64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-focal-x86_64'
+          val=false
         fi
 
         echo if_ubuntu_focal_x86_64="$val" >> $GITHUB_OUTPUT
@@ -231,14 +209,12 @@ jobs:
 
         idx_file=focal.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing ubuntu-focal-aarch64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-focal-aarch64'
+          val=false
         fi
 
         echo if_ubuntu_focal_aarch64="$val" >> $GITHUB_OUTPUT
@@ -247,14 +223,12 @@ jobs:
 
         idx_file=jammy.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing ubuntu-jammy-x86_64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-jammy-x86_64'
+          val=false
         fi
 
         echo if_ubuntu_jammy_x86_64="$val" >> $GITHUB_OUTPUT
@@ -263,62 +237,26 @@ jobs:
 
         idx_file=jammy.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing ubuntu-jammy-aarch64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing ubuntu-jammy-aarch64'
+          val=false
         fi
 
         echo if_ubuntu_jammy_aarch64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
-        idx_file=noble.nightly.json
-        if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
-        fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing ubuntu-noble-x86_64'
-            val=false
-          fi
-        fi
-
-        echo if_ubuntu_noble_x86_64="$val" >> $GITHUB_OUTPUT
-
-        val=true
-
-        idx_file=noble.nightly.json
-        if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
-        fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing ubuntu-noble-aarch64'
-            val=false
-          fi
-        fi
-
-        echo if_ubuntu_noble_aarch64="$val" >> $GITHUB_OUTPUT
-
-        val=true
-
         idx_file=el8.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing centos-8-x86_64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing centos-8-x86_64'
+          val=false
         fi
 
         echo if_centos_8_x86_64="$val" >> $GITHUB_OUTPUT
@@ -327,14 +265,12 @@ jobs:
 
         idx_file=el8.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing centos-8-aarch64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing centos-8-aarch64'
+          val=false
         fi
 
         echo if_centos_8_aarch64="$val" >> $GITHUB_OUTPUT
@@ -343,14 +279,12 @@ jobs:
 
         idx_file=el9.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing rockylinux-9-x86_64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing rockylinux-9-x86_64'
+          val=false
         fi
 
         echo if_rockylinux_9_x86_64="$val" >> $GITHUB_OUTPUT
@@ -359,21 +293,19 @@ jobs:
 
         idx_file=el9.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl --fail -o /tmp/$idx_file -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file || true
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
-        if [ -e "/tmp/$idx_file" ]; then
-          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-          if [ -n "$out" ]; then
-            echo 'Skip rebuilding existing rockylinux-9-aarch64'
-            val=false
-          fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing rockylinux-9-aarch64'
+          val=false
         fi
 
         echo if_rockylinux_9_aarch64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
-        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-gnu.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-gnu.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing linux-x86_64'
           val=false
@@ -383,7 +315,7 @@ jobs:
 
         val=true
 
-        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-gnu.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-gnu.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing linux-aarch64'
           val=false
@@ -393,7 +325,7 @@ jobs:
 
         val=true
 
-        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing linuxmusl-x86_64'
           val=false
@@ -403,7 +335,7 @@ jobs:
 
         val=true
 
-        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing linuxmusl-aarch64'
           val=false
@@ -414,7 +346,7 @@ jobs:
 
         val=true
 
-        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing macos-x86_64'
           val=false
@@ -424,7 +356,7 @@ jobs:
 
         val=true
 
-        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing macos-aarch64'
           val=false
@@ -699,7 +631,7 @@ jobs:
         path: artifacts/ubuntu-jammy
 
   build-ubuntu-jammy-aarch64:
-    runs-on: ubuntu-latest
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
     needs: prep
 
     if: needs.prep.outputs.if_ubuntu_jammy_aarch64 == 'true'
@@ -721,54 +653,6 @@ jobs:
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
-
-  build-ubuntu-noble-x86_64:
-    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
-    needs: prep
-
-    if: needs.prep.outputs.if_ubuntu_noble_x86_64 == 'true'
-
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-noble@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "noble"
-        EXTRA_OPTIMIZATIONS: "true"
-        METAPKG_GIT_CACHE: disabled
-
-    - uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a  # 4.3.6
-      with:
-        name: builds-ubuntu-noble-x86_64
-        path: artifacts/ubuntu-noble
-
-  build-ubuntu-noble-aarch64:
-    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
-    needs: prep
-
-    if: needs.prep.outputs.if_ubuntu_noble_aarch64 == 'true'
-
-
-    steps:
-    - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-noble@master
-      env:
-        SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_REVISION: "<current-date>"
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "noble"
-        EXTRA_OPTIMIZATIONS: "true"
-        METAPKG_GIT_CACHE: disabled
-
-    - uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a  # 4.3.6
-      with:
-        name: builds-ubuntu-noble-aarch64
-        path: artifacts/ubuntu-noble
 
   build-centos-8-x86_64:
     runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
@@ -1337,7 +1221,7 @@ jobs:
 
   test-ubuntu-jammy-aarch64:
     needs: [build-ubuntu-jammy-aarch64]
-    runs-on: ubuntu-latest
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -1351,48 +1235,6 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
-
-  test-ubuntu-noble-x86_64:
-    needs: [build-ubuntu-noble-x86_64]
-    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-noble-x86_64
-        path: artifacts/ubuntu-noble
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-noble@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "noble"
-        PKG_PLATFORM_LIBC: ""
-        # edb test with -j higher than 1 seems to result in workflow
-        # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 0
-
-  test-ubuntu-noble-aarch64:
-    needs: [build-ubuntu-noble-aarch64]
-    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-noble-aarch64
-        path: artifacts/ubuntu-noble
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-noble@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "noble"
         PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
@@ -2213,7 +2055,7 @@ jobs:
 
   check-published-ubuntu-jammy-aarch64:
     needs: [publish-ubuntu-jammy-aarch64]
-    runs-on: ubuntu-latest
+    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v4
@@ -2235,110 +2077,6 @@ jobs:
         PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-  publish-ubuntu-noble-x86_64:
-    needs: [test-ubuntu-noble-x86_64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-noble-x86_64
-        path: artifacts/ubuntu-noble
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "noble"
-        PKG_PLATFORM_LIBC: ""
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-ubuntu-noble-x86_64:
-    needs: [publish-ubuntu-noble-x86_64]
-    runs-on: ['package-builder', 'self-hosted', 'linux', 'x64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-noble-x86_64
-        path: artifacts/ubuntu-noble
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: ubuntu-noble
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-noble@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "noble"
-        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
-    outputs:
-      version-slot: ${{ steps.describe.outputs.version-slot }}
-      version-core: ${{ steps.describe.outputs.version-core }}
-      catalog-version: ${{ steps.describe.outputs.catalog-version }}
-
-  publish-ubuntu-noble-aarch64:
-    needs: [test-ubuntu-noble-aarch64]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-noble-aarch64
-        path: artifacts/ubuntu-noble
-
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "noble"
-        PKG_PLATFORM_LIBC: ""
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-  check-published-ubuntu-noble-aarch64:
-    needs: [publish-ubuntu-noble-aarch64]
-    runs-on: ['package-builder', 'self-hosted', 'linux', 'arm64']
-
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: builds-ubuntu-noble-aarch64
-        path: artifacts/ubuntu-noble
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: ubuntu-noble
-
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-noble@master
-      env:
-        PKG_NAME: "${{ steps.describe.outputs.name }}"
-        PKG_SUBDIST: "nightly"
-        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net:22/
-        PKG_PLATFORM: "ubuntu"
-        PKG_PLATFORM_VERSION: "noble"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
@@ -2959,14 +2697,6 @@ jobs:
       - test-ubuntu-jammy-aarch64
       - publish-ubuntu-jammy-aarch64
       - check-published-ubuntu-jammy-aarch64
-      - build-ubuntu-noble-x86_64
-      - test-ubuntu-noble-x86_64
-      - publish-ubuntu-noble-x86_64
-      - check-published-ubuntu-noble-x86_64
-      - build-ubuntu-noble-aarch64
-      - test-ubuntu-noble-aarch64
-      - publish-ubuntu-noble-aarch64
-      - check-published-ubuntu-noble-aarch64
       - build-centos-8-x86_64
       - test-centos-8-x86_64
       - publish-centos-8-x86_64
