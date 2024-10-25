@@ -268,6 +268,25 @@ def _lookup_column(
             (t, c) for t, c in matched_columns if t.precedence == max_precedence
         ]
 
+    # when ambiguous references have been used in USING clause,
+    # pick the column from the left table
+    if (
+        len(matched_columns) == 2
+        and matched_columns[0][1].name == matched_columns[1][1].name
+    ):
+        matched_name = matched_columns[0][1].name
+        matched_tables = [t for t, _c in matched_columns]
+
+        for c_name, t_left, t_right in ctx.scope.factored_columns:
+            if matched_name != c_name:
+                continue
+            if t_left not in matched_tables or t_right not in matched_tables:
+                continue
+
+            c_left = next(c for c in t_left.columns if c.name == matched_name)
+            matched_columns = [(t_left, c_left)]
+            break
+
     if len(matched_columns) > 1:
         potential_tables = ', '.join([t.name or '' for t, _ in matched_columns])
         raise errors.QueryError(

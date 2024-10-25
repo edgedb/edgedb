@@ -72,6 +72,13 @@ class Scope:
     # Common Table Expressions
     ctes: List[CTE] = field(default_factory=lambda: [])
 
+    # Pairs of columns of the same name that have been compared in a USING
+    # clause. This makes unqualified references to their name them un-ambagious,
+    # it resolves to the column in the left (first) table.
+    factored_columns: List[Tuple[str, Table, Table]] = field(
+        default_factory=lambda: []
+    )
+
 
 @dataclass(kw_only=True)
 class Table:
