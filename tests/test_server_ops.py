@@ -1334,7 +1334,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     )
                     for i in range(1, 7):
                         name = f"_test_server_ops_multi_tenant_{i}"
-                        with self.subTest(name):
+                        with self.subTest(name, i=i):
                             await getattr(self, name)(mtargs)
             finally:
                 try:
@@ -1361,6 +1361,24 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             await conn.aclose()
 
     async def _test_server_ops_multi_tenant_3(self, mtargs: MultiTenantArgs):
+        data = mtargs.sd.fetch_metrics()
+        self.assertIn(
+            '\nedgedb_server_mt_tenants_current 2.0\n', data
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_config_reload_errors_total 0.0\n', data
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_tenant_add_total'
+            '{tenant="localtest1"} 1.0\n',
+            data,
+        )
+        self.assertNotIn(
+            '\nedgedb_server_mt_tenant_remove_total'
+            '{tenant="localtest1"} 1.0\n',
+            data,
+        )
+
         conf1 = mtargs.conf.pop("1.localhost")
         mtargs.reload_server()
 
@@ -1372,6 +1390,26 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
         await self._test_server_ops_multi_tenant_2(mtargs)
 
+        data = mtargs.sd.fetch_metrics()
+        self.assertIn(
+            '\nedgedb_server_mt_tenants_current 1.0\n',
+            data,
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_config_reload_errors_total 0.0\n',
+            data,
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_tenant_add_total'
+            '{tenant="localtest1"} 1.0\n',
+            data,
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_tenant_remove_total'
+            '{tenant="localtest1"} 1.0\n',
+            data,
+        )
+
         mtargs.conf["1.localhost"] = conf1
         mtargs.reload_server()
 
@@ -1382,6 +1420,26 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 await self._test_server_ops_multi_tenant_1(mtargs)
 
         await self._test_server_ops_multi_tenant_2(mtargs)
+
+        data = mtargs.sd.fetch_metrics()
+        self.assertIn(
+            '\nedgedb_server_mt_tenants_current 2.0\n',
+            data,
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_config_reload_errors_total 0.0\n',
+            data,
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_tenant_add_total'
+            '{tenant="localtest1"} 2.0\n',
+            data,
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_tenant_remove_total'
+            '{tenant="localtest1"} 1.0\n',
+            data,
+        )
 
     async def _test_server_ops_multi_tenant_4(self, mtargs: MultiTenantArgs):
         mtargs.rd1.file.seek(0)

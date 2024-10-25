@@ -52,7 +52,7 @@ async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
     http_client._update_limit(http_max_connections)
     try:
         async with (asyncio.TaskGroup() as g,):
-            for db in tenant.iter_dbs():
+            for db in list(tenant.iter_dbs()):
                 if db.name == defines.EDGEDB_SYSTEM_DB:
                     # Don't run the net_worker for system database
                     continue
@@ -124,7 +124,7 @@ async def http(server: edbserver.BaseServer) -> None:
                         )
                     )
             # Remove unused tenant_http entries
-            for tenant in tenant_http.keys():
+            for tenant in list(tenant_http.keys()):
                 if tenant not in tenant_set:
                     del tenant_http[tenant]
             if tasks:
