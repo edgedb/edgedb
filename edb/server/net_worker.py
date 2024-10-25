@@ -166,8 +166,8 @@ async def handle_request(
         )
         response = await client.request(
             method=request.method,
-            url=request.url,
-            content=request.body,
+            path=request.url,
+            data=request.body,
             headers=headers,
         )
         response_status, response_bytes, response_hdict = response
