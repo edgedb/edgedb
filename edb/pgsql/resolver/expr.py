@@ -406,7 +406,14 @@ func_calls_remapping: Dict[Tuple[str, ...], Tuple[str, ...]] = {
         common.versioned_schema('edgedbsql'),
         '_pg_truetypmod',
     ),
-    ('pg_catalog', 'format_type'): ('edgedb', '_format_type'),
+    ('pg_catalog', 'format_type'): (
+        common.versioned_schema('edgedbsql'),
+        '_format_type',
+    ),
+    ('format_type',): (
+        common.versioned_schema('edgedbsql'),
+        '_format_type',
+    ),
 }
 
 
