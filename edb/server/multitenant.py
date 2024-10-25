@@ -355,10 +355,9 @@ class MultiTenantServer(server.BaseServer):
                     self._tenants_serial[sni] = serial
         except Exception:
             logger.critical("Failed to remove Tenant %s", sni, exc_info=True)
-            if tenant is not None:
-                metrics.mt_tenant_remove_errors.inc(
-                    1.0, tenant.get_instance_name(),
-                )
+            metrics.mt_tenant_remove_errors.inc(
+                1.0, tenant.get_instance_name() if tenant else 'unknown'
+            )
 
     async def _reload_tenant(self, serial: int, sni: str, conf: TenantConfig):
         tenant = None
@@ -408,10 +407,9 @@ class MultiTenantServer(server.BaseServer):
                     # removing of the tenant.
         except Exception:
             logger.critical("Failed to reload Tenant %s", sni, exc_info=True)
-            if tenant is not None:
-                metrics.mt_tenant_reload_errors.inc(
-                    1.0, tenant.get_instance_name()
-                )
+            metrics.mt_tenant_reload_errors.inc(
+                1.0, tenant.get_instance_name() if tenant else 'unknown'
+            )
 
     def get_debug_info(self):
         parent = super().get_debug_info()
