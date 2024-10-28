@@ -38,6 +38,7 @@ import http
 import itertools
 import json
 import logging
+import uuid
 
 import httpx
 import httpx_sse
@@ -499,7 +500,7 @@ class EmbeddingsParams(rs.Params[EmbeddingsData]):
     token_count: int
     shortening: Optional[int]
 
-    entries: list[tuple[bytes, ...]]
+    entries: list[PendingEmbedding]
 
     def costs(self) -> dict[str, int]:
         return {
@@ -541,7 +542,7 @@ class EmbeddingsRequest(rs.Request[EmbeddingsData]):
 class EmbeddingsResult(rs.Result[EmbeddingsData]):
 
     pgconn: Optional[Any] = None
-    entries: Optional[list[tuple[bytes, ...]]] = None
+    entries: Optional[list[PendingEmbedding]] = None
 
     async def finalize(self) -> None:
         if isinstance(self.data, rs.Error):
@@ -550,11 +551,11 @@ class EmbeddingsResult(rs.Result[EmbeddingsData]):
             return
 
         groups = itertools.groupby(
-            self.entries, key=lambda e: e[2:],
+            self.entries, key=lambda e: (e.target_rel, e.target_attr),
         )
         offset = 0
-        for (rel, attr, *_), items in groups:
-            ids = [item[0] for item in items]
+        for (rel, attr), items in groups:
+            ids = [item.id for item in items]
             await _update_embeddings_in_db(
                 self.pgconn,
                 rel,
@@ -616,7 +617,7 @@ async def _generate_embeddings_params(
         for model_name in provider_models
     }
 
-    model_entries: dict[str, list[tuple[bytes, ...]]] = {}
+    model_pending_entries: dict[str, list[PendingEmbedding]] = {}
 
     for model_name in provider_models:
         logger.debug(
@@ -624,82 +625,38 @@ async def _generate_embeddings_params(
             f"indexes via {provider_name!r}"
         )
 
-        where_clause = ""
-        if (
-            model_name in model_excluded_ids
-            and (excluded_ids := model_excluded_ids[model_name])
-        ):
-            # Only exclude long text if it won't be auto-truncated.
-            logger.debug(
-                f"{task_name} skipping {len(excluded_ids)} indexes "
-                f"for {model_name!r}"
-            )
-            where_clause = (f"""
-                WHERE
-                    q."id" not in ({','.join(
-                        "'" + excluded_id + "'"
-                        for excluded_id in excluded_ids
-                    )})
-                    OR q."truncate_to_max"
-            """)
-
-        entries = await pgconn.sql_fetch(
-            f"""
-            SELECT
-                *
-            FROM
-                (
-                    SELECT
-                        "id",
-                        "text",
-                        "target_rel",
-                        "target_attr",
-                        "target_dims_shortening",
-                        "truncate_to_max"
-                    FROM
-                        edgedbext."ai_pending_embeddings_{model_name}"
-                    LIMIT
-                        500
-                ) AS q
-            {where_clause}
-            ORDER BY
-                q."target_dims_shortening",
-                q."target_rel"
-            """.encode()
+        pending_embeddings = await _get_pending_embeddings(
+            pgconn, model_name, model_excluded_ids
         )
 
-        if not entries:
+        if not pending_embeddings:
             continue
 
-        logger.debug(f"{task_name} found {len(entries)} entries to index")
+        logger.debug(
+            f"{task_name} found {len(pending_embeddings)} entries to index"
+        )
 
         try:
-            model_list = model_entries[model_name]
+            model_list = model_pending_entries[model_name]
         except KeyError:
-            model_list = model_entries[model_name] = []
+            model_list = model_pending_entries[model_name] = []
 
-        model_list.extend(entries)
+        model_list.extend(pending_embeddings)
 
     embeddings_params: list[EmbeddingsParams] = []
 
-    for model_name, entries in model_entries.items():
-        groups = itertools.groupby(entries, key=lambda e: e[4])
-        for shortening_datum, part_iter in groups:
-            if shortening_datum is not None:
-                shortening = int.from_bytes(
-                    shortening_datum,
-                    byteorder="big",
-                    signed=False,
-                )
-            else:
-                shortening = None
+    for model_name, pending_embeddings in model_pending_entries.items():
+        groups = itertools.groupby(
+            pending_embeddings, key=lambda e: e.target_dims_shortening
+        )
+        for shortening, part_iter in groups:
             part = list(part_iter)
 
             inputs: list[str] = []
             total_token_count: int = 0
             for entry in part:
-                input = entry[1].decode("utf-8")
-                truncate_to_max = bool.from_bytes(entry[5])
+                input = entry.text
+                truncate_to_max = entry.truncate_to_max
 
                 if model_name in model_tokenizers:
                     tokenizer = model_tokenizers[model_name]
@@ -722,7 +679,7 @@ async def _generate_embeddings_params(
                             if model_name not in model_excluded_ids:
                                 model_excluded_ids[model_name] = []
                             model_excluded_ids[model_name].append(
-                                uuidgen.from_bytes(entry[0]).hex
+                                entry.id.hex
                             )
                             continue
 
@@ -765,6 +722,92 @@ async def _generate_embeddings_params(
                 ))
 
     return embeddings_params
+
+
+@dataclass(frozen=True, kw_only=True)
+class PendingEmbedding:
+    id: uuid.UUID
+    text: str
+    target_rel: str
+    target_attr: str
+    target_dims_shortening: Optional[int]
+    truncate_to_max: bool
+
+
+async def _get_pending_embeddings(
+    pgconn: pgcon.PGConnection,
+    model_name: str,
+    model_excluded_ids: dict[str, list[str]],
+) -> list[PendingEmbedding]:
+    task_name = _task_name.get()
+
+    where_clause = ""
+    if (
+        model_name in model_excluded_ids
+        and (excluded_ids := model_excluded_ids[model_name])
+    ):
+        # Only exclude long text if it won't be auto-truncated.
+        logger.debug(
+            f"{task_name} skipping {len(excluded_ids)} indexes "
+            f"for {model_name!r}"
+        )
+        where_clause = (f"""
+            WHERE
+                q."id" not in ({','.join(
+                    "'" + excluded_id + "'"
+                    for excluded_id in excluded_ids
+                )})
+                OR q."truncate_to_max"
+        """)
+
+    entries = await pgconn.sql_fetch(
+        f"""
+        SELECT
+            *
+        FROM
+            (
+                SELECT
+                    "id",
+                    "text",
+                    "target_rel",
+                    "target_attr",
+                    "target_dims_shortening",
+                    "truncate_to_max"
+                FROM
+                    edgedbext."ai_pending_embeddings_{model_name}"
+                LIMIT
+                    500
+            ) AS q
+        {where_clause}
+        ORDER BY
+            q."target_dims_shortening",
+            q."target_rel"
+        """.encode()
+    )
+
+    if not entries:
+        return []
+
+    result = []
+    for entry in entries:
+        result.append(PendingEmbedding(
+            id=uuidgen.from_bytes(entry[0]),
+            text=entry[1].decode("utf-8"),
+            target_rel=entry[2].decode(),
+            target_attr=entry[3].decode(),
+            target_dims_shortening=(
+                int.from_bytes(
+                    entry[4],
+                    byteorder="big",
+                    signed=False,
+                )
+                if entry[4] is not None else
+                None
+            ),
+            truncate_to_max=bool.from_bytes(entry[5]),
+        ))
+
+    return result
 
 
 def _batch_embeddings_inputs(
@@ -834,19 +877,19 @@ def _batch_embeddings_inputs(
 
 async def _update_embeddings_in_db(
     pgconn: pgcon.PGConnection,
-    rel: bytes,
-    attr: bytes,
-    ids: list[bytes],
+    rel: str,
+    attr: str,
+    ids: list[uuid.UUID],
     embeddings: bytes,
     offset: int,
 ) -> int:
-    id_array = '", "'.join(uuidgen.from_bytes(ub).hex for ub in ids)
+    id_array = '", "'.join(id.hex for id in ids)
     entries = await pgconn.sql_fetch_val(
         f"""
         WITH upd AS (
-            UPDATE {rel.decode()} AS target
+            UPDATE {rel} AS target
             SET
-                {attr.decode()} = (
+                {attr} = (
                     (embeddings.data ->> 'embedding')::edgedb.vector)
             FROM
                 (
