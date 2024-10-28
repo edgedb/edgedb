@@ -155,7 +155,7 @@ class HttpClient:
         headers: HeaderType = None,
         data: bytes | str | dict[str, str] | None = None,
         json: Any | None = None,
-    ) -> tuple[int, bytes, dict[str, str]]:
+    ) -> tuple[int, bytearray, dict[str, str]]:
         path = self._process_path(path)
         headers_list = self._process_headers(headers)
         headers_list.append(("User-Agent", self._user_agent))
@@ -174,7 +174,9 @@ class HttpClient:
                         response_time_ms=int((time.time() - start_time) * 1000),
                         error_code=status_code,
                         response_body_size=len(body),
-                        response_content_type=headers.get('content-type', ''),
+                        response_content_type=dict(headers_list).get(
+                            'content-type', ''
+                        ),
                         request_body_size=len(data),
                         request_content_type=dict(headers_list).get(
                             'content-type', ''
@@ -238,7 +240,9 @@ class HttpClient:
                         response_time_ms=int((time.time() - start_time) * 1000),
                         error_code=status_code,
                         response_body_size=len(body),
-                        response_content_type=headers.get('content-type', ''),
+                        response_content_type=dict(headers_list).get(
+                            'content-type', ''
+                        ),
                         request_body_size=len(data),
                         request_content_type=dict(headers_list).get(
                             'content-type', ''

@@ -1172,6 +1172,7 @@ async def aconnect_sse(
             )
         yield response
 
+
 async def _start_openai_like_chat(
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,

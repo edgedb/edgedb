@@ -28,6 +28,7 @@ from datetime import datetime
 from . import data, errors
 from edb.server.http import HttpClient
 
+
 class BaseProvider:
     def __init__(
         self,

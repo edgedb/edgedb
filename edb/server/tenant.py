@@ -254,7 +254,9 @@ class Tenant(ha_base.ClusterProtocol):
             self._http_client = HttpClient(
                 http_max_connections,
                 user_agent=f"EdgeDB {buildmeta.get_version_string(short=True)}",
-                stat_callback=lambda stat: logger.info(f"HTTP stat: {originator} {stat}"),
+                stat_callback=lambda stat: logger.debug(
+                    f"HTTP stat: {originator} {stat}"
+                ),
             )
         return self._http_client
 
