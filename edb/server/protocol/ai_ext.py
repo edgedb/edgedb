@@ -41,7 +41,6 @@ import uuid
 
 import tiktoken
 from mistral_common.tokens.tokenizers import mistral as mistral_tokenizer
-from http import HTTPStatus
 
 from edb import errors
 from edb.common import asyncutil
@@ -66,8 +65,8 @@ logger = logging.getLogger("edb.server.ai_ext")
 
 
 class AIExtError(Exception):
-    http_status: ClassVar[HTTPStatus] = (
-        HTTPStatus.INTERNAL_SERVER_ERROR)
+    http_status: ClassVar[http.HTTPStatus] = (
+        http.HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def __init__(
         self,
@@ -77,7 +76,7 @@ class AIExtError(Exception):
         super().__init__(*args)
         self._json = json
 
-    def get_http_status(self) -> HTTPStatus:
+    def get_http_status(self) -> http.HTTPStatus:
         return self.__class__.http_status
 
     def json(self) -> dict[str, Any]:
@@ -103,7 +102,7 @@ class InternalError(AIExtError):
 
 
 class BadRequestError(AIExtError):
-    http_status = HTTPStatus.BAD_REQUEST
+    http_status = http.HTTPStatus.BAD_REQUEST
 
 
 class ApiStyle(s_enum.StrEnum):
@@ -1195,7 +1194,7 @@ async def _start_openai_like_chat(
         ) as event_source:
             async for sse in event_source:
                 if not response.sent:
-                    response.status = HTTPStatus.OK
+                    response.status = http.HTTPStatus.OK
                     response.content_type = b'text/event-stream'
                     response.close_connection = False
                     response.custom_headers["Cache-Control"] = "no-cache"
@@ -1288,7 +1287,7 @@ async def _start_openai_like_chat(
                 f"{result.status_code}: {result.text}"
             )
 
-        response.status = HTTPStatus.OK
+        response.status = http.HTTPStatus.OK
         response_text = result.json()["choices"][0]["message"]["content"]
         response.content_type = b'application/json'
         response.body = json.dumps({
@@ -1381,7 +1380,7 @@ async def _start_anthropic_chat(
         ) as event_source:
             async for sse in event_source:
                 if not response.sent:
-                    response.status = HTTPStatus.OK
+                    response.status = http.HTTPStatus.OK
                     response.content_type = b'text/event-stream'
                     response.close_connection = False
                     response.custom_headers["Cache-Control"] = "no-cache"
@@ -1445,7 +1444,7 @@ async def _start_anthropic_chat(
                 f"{result.status_code}: {result.text}"
             )
 
-        response.status = HTTPStatus.OK
+        response.status = http.HTTPStatus.OK
         response.content_type = b'application/json'
         response_text = result.json()["content"][0]["text"]
         response.body = json.dumps({
@@ -1467,17 +1466,17 @@ async def handle_request(
 ) -> None:
     if len(args) != 1 or args[0] not in {"rag", "embeddings"}:
         response.body = b'Unknown path'
-        response.status = HTTPStatus.NOT_FOUND
+        response.status = http.HTTPStatus.NOT_FOUND
         response.close_connection = True
         return
     if request.method != b"POST":
         response.body = b"Invalid request method"
-        response.status = HTTPStatus.METHOD_NOT_ALLOWED
+        response.status = http.HTTPStatus.METHOD_NOT_ALLOWED
         response.close_connection = True
         return
     if request.content_type != b"application/json":
         response.body = b"Expected application/json input"
-        response.status = HTTPStatus.BAD_REQUEST
+        response.status = http.HTTPStatus.BAD_REQUEST
         response.close_connection = True
         return
 
@@ -1490,7 +1489,7 @@ async def handle_request(
             await _handle_embeddings_request(request, response, db, tenant)
         else:
             response.body = b'Unknown path'
-            response.status = HTTPStatus.NOT_FOUND
+            response.status = http.HTTPStatus.NOT_FOUND
             response.close_connection = True
             return
     except Exception as ex:
@@ -1771,7 +1770,7 @@ async def _handle_embeddings_request(
     if isinstance(result.data, rs.Error):
         raise AIProviderError(result.data.message)
 
-    response.status = HTTPStatus.OK
+    response.status = http.HTTPStatus.OK
     response.content_type = b'application/json'
     response.body = result.data.embeddings
 

@@ -34,12 +34,11 @@ import logging
 import os
 import json as json_lib
 import urllib.parse
+from http import HTTPStatus as HTTPStatus
 
 from edb.server._http import Http
 
 logger = logging.getLogger("edb.server")
-
-
 HeaderType = Optional[Union[list[tuple[str, str]], dict[str, str]]]
 
 
