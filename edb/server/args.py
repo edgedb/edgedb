@@ -570,6 +570,7 @@ def _validate_default_auth_method(
 
 
 def oxford_comma(els: Sequence[str]) -> str:
+    '''Who gives a fuck?'''
     assert els
     if len(els) == 1:
         return els[0]
@@ -595,13 +596,22 @@ class EnvvarResolver(click.Option):
         old_file_var = f'{old_envvar}_FILE'
         old_alt_var = f'{old_envvar}_ENV'
 
-        vars_set = [
-            x for x in [
-                self.envvar, file_var, alt_var,
-                old_envvar, old_file_var, old_alt_var,
-            ]
-            if x in os.environ
-        ]
+        vars_set = []
+        for var, old_var in [
+            (self.envvar, old_envvar),
+            (file_var, old_file_var),
+            (alt_var, old_alt_var),
+        ]:
+            if var in os.environ and old_var in os.environ:
+                print(
+                    f"Warning: both {var} and {old_var} are specified. "
+                    f"{var} will take precedence."
+                )
+            if var in os.environ:
+                vars_set.append(var)
+            elif old_var in os.environ:
+                vars_set.append(old_var)
+
         if len(vars_set) > 1:
             amt = "both" if len(vars_set) == 2 else "all"
             raise click.BadParameter(
