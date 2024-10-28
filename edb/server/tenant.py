@@ -246,7 +246,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._server = server
         self.__loop = server.get_loop()
 
-    def get_http_client(self) -> HttpClient:
+    def get_http_client(self, *, originator: str) -> HttpClient:
         if self._http_client is None:
             self._http_client = HttpClient(HTTP_MAX_CONNECTIONS)
         return self._http_client

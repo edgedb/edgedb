@@ -34,18 +34,14 @@ import abc
 import asyncio
 import contextlib
 import contextvars
-import http
 import itertools
 import json
 import logging
 import uuid
 
-import httpx
-import httpx_sse
-
 import tiktoken
 from mistral_common.tokens.tokenizers import mistral as mistral_tokenizer
-
+from http import HTTPStatus
 
 from edb import errors
 from edb.common import asyncutil
@@ -54,7 +50,7 @@ from edb.common import enum as s_enum
 from edb.common import markup
 from edb.common import uuidgen
 
-from edb.server import compiler
+from edb.server import compiler, http
 from edb.server.compiler import sertypes
 from edb.server.protocol import execute
 from edb.server.protocol import request_scheduler as rs
@@ -70,8 +66,8 @@ logger = logging.getLogger("edb.server.ai_ext")
 
 
 class AIExtError(Exception):
-    http_status: ClassVar[http.HTTPStatus] = (
-        http.HTTPStatus.INTERNAL_SERVER_ERROR)
+    http_status: ClassVar[HTTPStatus] = (
+        HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def __init__(
         self,
@@ -81,7 +77,7 @@ class AIExtError(Exception):
         super().__init__(*args)
         self._json = json
 
-    def get_http_status(self) -> http.HTTPStatus:
+    def get_http_status(self) -> HTTPStatus:
         return self.__class__.http_status
 
     def json(self) -> dict[str, Any]:
@@ -107,7 +103,7 @@ class InternalError(AIExtError):
 
 
 class BadRequestError(AIExtError):
-    http_status = http.HTTPStatus.BAD_REQUEST
+    http_status = HTTPStatus.BAD_REQUEST
 
 
 class ApiStyle(s_enum.StrEnum):
@@ -297,9 +293,9 @@ async def _ext_ai_index_builder_controller_loop(
 
     try:
         while True:
+            models = []
+            sleep_timer: rs.Timer = rs.Timer(None, False)
             try:
-                models = []
-                sleep_timer: rs.Timer = rs.Timer(None, False)
                 async with tenant.with_pgcon(dbname) as pgconn:
                     models = await _ext_ai_fetch_active_models(pgconn)
                     if models:
@@ -309,6 +305,7 @@ async def _ext_ai_index_builder_controller_loop(
                             provider_contexts = _prepare_provider_contexts(
                                 db,
                                 pgconn,
+                                tenant.get_http_client(originator="ai/index"),
                                 models,
                                 provider_schedulers,
                                 naptime,
@@ -388,6 +385,7 @@ async def _ext_ai_unlock(
 def _prepare_provider_contexts(
     db: dbview.Database,
     pgconn: pgcon.PGConnection,
+    http_client: http.HttpClient,
     models: list[tuple[int, str, str]],
     provider_schedulers: dict[str, ProviderScheduler],
     naptime: float,
@@ -433,6 +431,7 @@ def _prepare_provider_contexts(
             naptime=naptime,
             db=db,
             pgconn=pgconn,
+            http_client=http_client,
             provider_models=provider_models,
         )
 
@@ -473,6 +472,7 @@ class ProviderContext(rs.Context):
 
     db: dbview.Database
     pgconn: pgcon.PGConnection
+    http_client: http.HttpClient
     provider_models: list[str]
 
 
@@ -494,6 +494,7 @@ class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
         return await _generate_embeddings_params(
             context.db,
             context.pgconn,
+            context.http_client,
             self.provider_name,
             context.provider_models,
             self.model_excluded_ids,
@@ -518,6 +519,7 @@ class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
 @dataclass(frozen=True, kw_only=True)
 class EmbeddingsParams(rs.Params[EmbeddingsData]):
     pgconn: pgcon.PGConnection
+    http_client: http.HttpClient
     provider: ProviderConfig
     model_name: str
     inputs: list[tuple[PendingEmbedding, str]]
@@ -546,6 +548,7 @@ class EmbeddingsRequest(rs.Request[EmbeddingsData]):
                 self.params.model_name,
                 [input[1] for input in self.params.inputs],
                 self.params.shortening,
+                self.params.http_client
             )
             result.pgconn = self.params.pgconn
             result.pending_entries = [
@@ -600,6 +603,7 @@ class EmbeddingsResult(rs.Result[EmbeddingsData]):
 async def _generate_embeddings_params(
     db: dbview.Database,
     pgconn: pgcon.PGConnection,
+    http_client: http.HttpClient,
     provider_name: str,
     provider_models: list[str],
     model_excluded_ids: dict[str, list[str]],
@@ -724,6 +728,7 @@ async def _generate_embeddings_params(
                 input_entries.append(pending_entry)
 
             if model_name in model_tokenizers:
+                tokenizer = model_tokenizers[model_name]
                 max_batch_tokens = model_max_batch_tokens[model_name]
                 if isinstance(tokens_rate_limit, int):
                     # If the rate limit is lower than the batch limit, use that
@@ -753,6 +758,7 @@ async def _generate_embeddings_params(
                         inputs=inputs,
                         token_count=batch_token_count,
                         shortening=shortening,
+                        http_client=http_client,
                     ))
 
             else:
@@ -769,6 +775,7 @@ async def _generate_embeddings_params(
                     inputs=inputs,
                     token_count=total_token_count,
                     shortening=shortening,
+                    http_client=http_client,
                 ))
 
     return embeddings_params
@@ -975,6 +982,7 @@ async def _generate_embeddings(
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
+    http_client: http.HttpClient,
 ) -> EmbeddingsResult:
     task_name = _task_name.get()
     count = len(inputs)
@@ -986,7 +994,7 @@ async def _generate_embeddings(
 
     if provider.api_style == ApiStyle.OpenAI:
         return await _generate_openai_embeddings(
-            provider, model_name, inputs, shortening,
+            provider, model_name, inputs, shortening, http_client
         )
     else:
         raise RuntimeError(
@@ -1000,6 +1008,7 @@ async def _generate_openai_embeddings(
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
+    http_client: http.HttpClient,
 ) -> EmbeddingsResult:
 
     headers = {
@@ -1007,7 +1016,7 @@ async def _generate_openai_embeddings(
     }
     if provider.name == "builtin::openai" and provider.client_id:
         headers["OpenAI-Organization"] = provider.client_id
-    client = httpx.AsyncClient(
+    client = http_client.with_context(
         headers=headers,
         base_url=provider.api_url,
     )
@@ -1040,7 +1049,7 @@ async def _generate_openai_embeddings(
         )
 
     return EmbeddingsResult(
-        data=(error if error else EmbeddingsData(result.content)),
+        data=(error if error else EmbeddingsData(result.body)),
         limits=_read_openai_limits(result),
     )
 
@@ -1113,6 +1122,7 @@ async def _start_chat(
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
     provider: ProviderConfig,
+    http_client: http.HttpClient,
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
@@ -1120,11 +1130,11 @@ async def _start_chat(
     if provider.api_style == "OpenAI":
         await _start_openai_chat(
             protocol, request, response,
-            provider, model_name, messages, stream)
+            provider, http_client, model_name, messages, stream)
     elif provider.api_style == "Anthropic":
         await _start_anthropic_chat(
             protocol, request, response,
-            provider, model_name, messages, stream)
+            provider, http_client, model_name, messages, stream)
     else:
         raise RuntimeError(
             f"unsupported model provider API style: {provider.api_style}, "
@@ -1134,32 +1144,40 @@ async def _start_chat(
 
 @contextlib.asynccontextmanager
 async def aconnect_sse(
-    client: httpx.AsyncClient,
+    client: http.HttpClient,
     method: str,
     url: str,
     **kwargs: Any,
-) -> AsyncIterator[httpx_sse.EventSource]:
+) -> AsyncIterator[http.ResponseSSE]:
     headers = kwargs.pop("headers", {})
     headers["Accept"] = "text/event-stream"
     headers["Cache-Control"] = "no-store"
 
-    stream = client.stream(method, url, headers=headers, **kwargs)
-    async with stream as response:
+    stm = await client.stream_sse(
+        method=method,
+        path=url,
+        headers=headers,
+        **kwargs
+    )
+    if isinstance(stm, http.Response):
+        raise AIProviderError(
+            f"API call to generate chat completions failed with status "
+            f"{stm.status_code}: {stm.text}"
+        )
+    with stm as response:
         if response.status_code >= 400:
-            await response.aread()
+            # Unlikely that we have a streaming response with a non-200 result
             raise AIProviderError(
                 f"API call to generate chat completions failed with status "
-                f"{response.status_code}: {response.text}"
+                f"{response.status_code}"
             )
-        else:
-            yield httpx_sse.EventSource(response)
-
+        yield response
 
 async def _start_openai_like_chat(
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
-    client: httpx.AsyncClient,
+    client: http.HttpClient,
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
@@ -1175,9 +1193,9 @@ async def _start_openai_like_chat(
                 "stream": True,
             }
         ) as event_source:
-            async for sse in event_source.aiter_sse():
+            async for sse in event_source:
                 if not response.sent:
-                    response.status = http.HTTPStatus.OK
+                    response.status = HTTPStatus.OK
                     response.content_type = b'text/event-stream'
                     response.close_connection = False
                     response.custom_headers["Cache-Control"] = "no-cache"
@@ -1265,13 +1283,12 @@ async def _start_openai_like_chat(
         )
 
         if result.status_code >= 400:
-            await result.aread()
             raise AIProviderError(
                 f"API call to generate chat completions failed with status "
                 f"{result.status_code}: {result.text}"
             )
 
-        response.status = http.HTTPStatus.OK
+        response.status = HTTPStatus.OK
         response_text = result.json()["choices"][0]["message"]["content"]
         response.content_type = b'application/json'
         response.body = json.dumps({
@@ -1284,6 +1301,7 @@ async def _start_openai_chat(
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
     provider: ProviderConfig,
+    http_client: http.HttpClient,
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
@@ -1295,7 +1313,7 @@ async def _start_openai_chat(
     if provider.name == "builtin::openai" and provider.client_id:
         headers["OpenAI-Organization"] = provider.client_id
 
-    client = httpx.AsyncClient(
+    client = http_client.with_context(
         base_url=provider.api_url,
         headers=headers,
     )
@@ -1316,6 +1334,7 @@ async def _start_anthropic_chat(
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
     provider: ProviderConfig,
+    http_client: http.HttpClient,
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
@@ -1328,7 +1347,7 @@ async def _start_anthropic_chat(
         headers["anthropic-version"] = "2023-06-01"
         headers["anthropic-beta"] = "messages-2023-12-15"
 
-    client = httpx.AsyncClient(
+    client = http_client.with_context(
         headers={
             "anthropic-version": "2023-06-01",
             "anthropic-beta": "messages-2023-12-15",
@@ -1360,9 +1379,9 @@ async def _start_anthropic_chat(
                 "max_tokens": 4096,
             }
         ) as event_source:
-            async for sse in event_source.aiter_sse():
+            async for sse in event_source:
                 if not response.sent:
-                    response.status = http.HTTPStatus.OK
+                    response.status = HTTPStatus.OK
                     response.content_type = b'text/event-stream'
                     response.close_connection = False
                     response.custom_headers["Cache-Control"] = "no-cache"
@@ -1421,13 +1440,12 @@ async def _start_anthropic_chat(
         )
 
         if result.status_code >= 400:
-            await result.aread()
             raise AIProviderError(
                 f"API call to generate chat completions failed with status "
                 f"{result.status_code}: {result.text}"
             )
 
-        response.status = http.HTTPStatus.OK
+        response.status = HTTPStatus.OK
         response.content_type = b'application/json'
         response_text = result.json()["content"][0]["text"]
         response.body = json.dumps({
@@ -1449,17 +1467,17 @@ async def handle_request(
 ) -> None:
     if len(args) != 1 or args[0] not in {"rag", "embeddings"}:
         response.body = b'Unknown path'
-        response.status = http.HTTPStatus.NOT_FOUND
+        response.status = HTTPStatus.NOT_FOUND
         response.close_connection = True
         return
     if request.method != b"POST":
         response.body = b"Invalid request method"
-        response.status = http.HTTPStatus.METHOD_NOT_ALLOWED
+        response.status = HTTPStatus.METHOD_NOT_ALLOWED
         response.close_connection = True
         return
     if request.content_type != b"application/json":
         response.body = b"Expected application/json input"
-        response.status = http.HTTPStatus.BAD_REQUEST
+        response.status = HTTPStatus.BAD_REQUEST
         response.close_connection = True
         return
 
@@ -1472,7 +1490,7 @@ async def handle_request(
             await _handle_embeddings_request(request, response, db, tenant)
         else:
             response.body = b'Unknown path'
-            response.status = http.HTTPStatus.NOT_FOUND
+            response.status = HTTPStatus.NOT_FOUND
             response.close_connection = True
             return
     except Exception as ex:
@@ -1497,6 +1515,8 @@ async def _handle_rag_request(
     tenant: srv_tenant.Tenant,
 ) -> None:
     try:
+        http_client = tenant.get_http_client(originator="ai/rag")
+
         body = json.loads(request.body)
         if not isinstance(body, dict):
             raise TypeError(
@@ -1600,6 +1620,7 @@ async def _handle_rag_request(
 
     vector_query = await _generate_embeddings_for_type(
         db,
+        http_client,
         ctx_query,
         content=query,
     )
@@ -1694,6 +1715,7 @@ async def _handle_rag_request(
         request,
         response,
         provider,
+        http_client,
         model,
         messages,
         stream,
@@ -1744,11 +1766,12 @@ async def _handle_embeddings_request(
         model_name,
         inputs,
         shortening=None,
+        http_client=tenant.get_http_client(originator="ai/embeddings")
     )
     if isinstance(result.data, rs.Error):
         raise AIProviderError(result.data.message)
 
-    response.status = http.HTTPStatus.OK
+    response.status = HTTPStatus.OK
     response.content_type = b'application/json'
     response.body = result.data.embeddings
 
@@ -1907,6 +1930,7 @@ async def _get_model_annotation_as_int(
 
 async def _generate_embeddings_for_type(
     db: dbview.Database,
+    http_client: http.HttpClient,
     type_query: str,
     content: str,
 ) -> bytes:
@@ -2000,7 +2024,8 @@ async def _generate_embeddings_for_type(
     else:
         shortening = None
     result = await _generate_embeddings(
-        provider, index["model"], [content], shortening=shortening)
+        provider, index["model"], [content], shortening=shortening,
+        http_client=http_client)
     if isinstance(result.data, rs.Error):
         raise AIProviderError(result.data.message)
     return result.data.embeddings

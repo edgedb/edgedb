@@ -24,7 +24,7 @@ from edb.server.protocol import execute
 from edb.server.http import HttpClient
 
 from . import github, google, azure, apple, discord, slack
-from . import config, errors, util, data, base, http_client as _http_client
+from . import config, errors, util, data, base
 
 
 class Client:
@@ -40,8 +40,8 @@ class Client:
     ):
         self.db = db
 
-        http_factory = lambda *args, **kwargs: _http_client.AuthHttpClient(
-            *args, url_munger=url_munger, http_client=http_client, **kwargs  # type: ignore
+        http_factory = lambda *args, **kwargs: http_client.with_context(
+            *args, url_munger=url_munger, **kwargs
         )
 
         provider_config = self._get_provider_config(provider_name)

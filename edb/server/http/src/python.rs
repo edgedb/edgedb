@@ -119,7 +119,6 @@ async fn request(
     body: Vec<u8>,
     headers: Vec<(String, String)>,
 ) -> Result<reqwest::Response, String> {
-    eprintln!("request: {method} {url}");
     let method =
         Method::from_bytes(method.as_bytes()).map_err(|e| format!("Invalid HTTP method: {e:?}"))?;
 

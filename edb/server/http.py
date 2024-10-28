@@ -24,6 +24,8 @@ from typing import (
     Mapping,
     Optional,
     Union,
+    Self,
+    Callable,
 )
 
 import asyncio
@@ -49,7 +51,7 @@ class HttpClient:
         self._skip_reads = 0
         self._loop = asyncio.get_running_loop()
         self._task = self._loop.create_task(self._boot(self._loop))
-        self._streaming = {}
+        self._streaming: dict[int, asyncio.Queue[Any]] = {}
         self._next_id = 0
         self._requests: dict[int, asyncio.Future] = {}
 
@@ -77,6 +79,7 @@ class HttpClient:
             return [(k, v) for k, v in headers.items()]
         if isinstance(headers, list):
             return headers
+        print(headers)
         raise ValueError(f"Invalid headers type: {type(headers)}")
 
     def _process_content(
@@ -103,6 +106,25 @@ class HttpClient:
             raise ValueError(f"Invalid content type: {type(data)}")
         return data
 
+    def _process_path(self, path: str) -> str:
+        return path
+
+    def with_context(
+        self,
+        *,
+        base_url: Optional[str] = None,
+        headers: HeaderType = None,
+        url_munger: Optional[Callable[[str], str]] = None,
+    ) -> Self:
+        """Create an HttpClient with common optional base URL and headers that
+        will be applied to all requests."""
+        return HttpClientContext(
+            http_client=self,
+            base_url=base_url,
+            headers=headers,
+            url_munger=url_munger,
+        )  # type: ignore
+
     async def request(
         self,
         *,
@@ -112,6 +134,7 @@ class HttpClient:
         data: bytes | str | dict[str, str] | None = None,
         json: Any | None = None,
     ) -> tuple[int, bytes, dict[str, str]]:
+        path = self._process_path(path)
         headers_list = self._process_headers(headers)
         data = self._process_content(headers_list, data, json)
         id = self._next_id
@@ -125,9 +148,8 @@ class HttpClient:
             del self._requests[id]
 
     async def get(self, path: str, *, headers: HeaderType = None) -> Response:
-        headers_list = self._process_headers(headers)
         result = await self.request(
-            method="GET", path=path, data=None, headers=headers_list
+            method="GET", path=path, data=None, headers=headers
         )
         return Response.from_tuple(result)
 
@@ -139,10 +161,8 @@ class HttpClient:
         data: bytes | str | dict[str, str] | None = None,
         json: Any | None = None,
     ) -> Response:
-        headers_list = self._process_headers(headers)
-        data = self._process_content(headers_list, data, json)
         result = await self.request(
-            method="POST", path=path, data=data, headers=headers_list
+            method="POST", path=path, data=data, json=json, headers=headers
         )
         return Response.from_tuple(result)
 
@@ -155,6 +175,7 @@ class HttpClient:
         data: bytes | str | dict[str, str] | None = None,
         json: Any | None = None,
     ) -> Response | ResponseSSE:
+        path = self._process_path(path)
         headers_list = self._process_headers(headers)
         data = self._process_content(headers_list, data, json)
 
@@ -217,12 +238,70 @@ class HttpClient:
             logger.error(f"Error processing message: {e}", exc_info=True)
             raise
 
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *args) -> None:  # type: ignore
+        pass
+
+
+class HttpClientContext(HttpClient):
+    def __init__(
+        self,
+        http_client: HttpClient,
+        url_munger: Callable[[str], str] | None = None,
+        headers: HeaderType = None,
+        base_url: str | None = None,
+    ):
+        self._task = None
+        self.url_munger = url_munger
+        self.http_client = http_client
+        self.base_url = base_url
+        self.headers = super()._process_headers(headers)
+
+    def _process_headers(self, headers):
+        headers = super()._process_headers(headers)
+        headers += self.headers
+        return headers
+
+    def _process_path(self, path):
+        path = super()._process_path(path)
+        if self.base_url is not None:
+            path = self.base_url + path
+        if self.url_munger is not None:
+            path = self.url_munger(path)
+        return path
+
+    async def request(
+        self, *, method, path, headers=None, data=None, json=None
+    ):
+        path = self._process_path(path)
+        headers = self._process_headers(headers)
+        return await self.http_client.request(
+            method=method, path=path, headers=headers, data=data, json=json
+        )
+
+    async def stream_sse(
+        self, path, *, method="POST", headers=None, data=None, json=None
+    ):
+        path = self._process_path(path)
+        headers = self._process_headers(headers)
+        return await self.http_client.stream_sse(
+            path, method=method, headers=headers, data=data, json=json
+        )
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *args) -> None:  # type: ignore
+        pass
+
 
 class CaseInsensitiveDict(dict):
     def __init__(self, data: Optional[list[Tuple[str, str]]] = None):
         super().__init__()
         if data:
-            for k, v in data.items():
+            for k, v in data:
                 self[k.lower()] = v
 
     def __setitem__(self, key: str, value: str):
@@ -267,6 +346,18 @@ class Response:
     def text(self) -> str:
         return self.body.decode('utf-8')
 
+    def __aenter__(self) -> Self:
+        return self
+
+    def __aexit__(self, exc_type, exc_value, traceback):
+        pass
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
+
 
 @dataclasses.dataclass(frozen=True)
 class ResponseSSE:
@@ -280,7 +371,7 @@ class ResponseSSE:
         cls, data: Tuple[int, dict[str, str]], stream: asyncio.Queue
     ):
         status_code, headers = data
-        headers = CaseInsensitiveDict(headers)
+        headers = CaseInsensitiveDict([(k, v) for k, v in headers.items()])
         return cls(status_code, headers, stream)
 
     @dataclasses.dataclass(frozen=True)
@@ -298,3 +389,15 @@ class ResponseSSE:
             raise StopAsyncIteration
         id, data, event = next
         return self.SSEEvent(event, data, id)
+
+    def __aenter__(self) -> Self:
+        return self
+
+    def __aexit__(self, exc_type, exc_value, traceback):
+        pass
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass

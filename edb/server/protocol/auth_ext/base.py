@@ -25,8 +25,8 @@ from typing import Any, Callable
 from jwcrypto import jwt, jwk
 from datetime import datetime
 
-from . import data, errors, http_client
-
+from . import data, errors
+from edb.server.http import HttpClient
 
 class BaseProvider:
     def __init__(
@@ -37,7 +37,7 @@ class BaseProvider:
         client_secret: str,
         *,
         additional_scope: str | None,
-        http_factory: Callable[..., http_client.AuthHttpClient],
+        http_factory: Callable[..., HttpClient],
     ):
         self.name = name
         self.issuer_url = issuer_url

@@ -302,7 +302,7 @@ class Router:
             db=self.db,
             provider_name=provider_name,
             url_munger=self._get_url_munger(request),
-            http_client=self.tenant.get_http_client(),
+            http_client=self.tenant.get_http_client(originator="auth"),
         )
         await pkce.create(self.db, challenge)
         authorize_url = await oauth_client.get_authorize_url(
@@ -402,7 +402,7 @@ class Router:
             db=self.db,
             provider_name=provider_name,
             url_munger=self._get_url_munger(request),
-            http_client=self.tenant.get_http_client(),
+            http_client=self.tenant.get_http_client(originator="auth"),
         )
         (
             identity,
