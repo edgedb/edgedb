@@ -4747,53 +4747,6 @@ class FTSToRegconfig(trampoline.VersionedFunction):
         )
 
 
-class FormatTypeFunction(trampoline.VersionedFunction):
-    """Used instead of pg_catalog.format_type in pg_dump."""
-
-    text = r'''
-    SELECT
-        CASE WHEN t.typcategory = 'A'
-        THEN (
-            SELECT
-                quote_ident(nspname) || '.' ||
-                quote_ident(el.typname) || tm.mod || '[]'
-            FROM edgedbsql_VER.pg_namespace
-            WHERE oid = el.typnamespace
-        )
-        ELSE (
-            SELECT
-                quote_ident(nspname) || '.' ||
-                quote_ident(t.typname) || tm.mod
-            FROM edgedbsql_VER.pg_namespace
-            WHERE oid = t.typnamespace
-        )
-        END
-    FROM
-        (
-            SELECT
-                CASE WHEN typemod >= 0
-                THEN '(' || typemod::text || ')'
-                ELSE ''
-                END AS mod
-        ) as tm,
-        edgedbsql_VER.pg_type t
-    LEFT JOIN edgedbsql_VER.pg_type el ON t.typelem = el.oid
-    WHERE t.oid = typeoid
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_format_type'),
-            args=[
-                ('typeoid', ('oid',)),
-                ('typemod', ('integer',)),
-            ],
-            returns=('text',),
-            volatility='stable',
-            text=self.text,
-        )
-
-
 class UuidGenerateV1mcFunction(trampoline.VersionedFunction):
     def __init__(self, ext_schema: str) -> None:
         super().__init__(
@@ -6017,7 +5970,7 @@ def _generate_sql_information_schema(
         volatility='stable',
         text=r'''
             SELECT COALESCE (
-                -- is the nmae in virtual_tables?
+                -- is the name in virtual_tables?
                 (
                     SELECT vt.table_name::name
                     FROM edgedbsql_VER.virtual_tables vt
@@ -7214,6 +7167,57 @@ def _generate_sql_information_schema(
                 FROM edgedbsql_VER.pg_class pc
                 WHERE id = pc.oid
             '''
+        ),
+        trampoline.VersionedFunction(
+            # Used instead of pg_catalog.format_type in pg_dump.
+            name=('edgedbsql', '_format_type'),
+            args=[
+                ('typeoid', ('oid',)),
+                ('typemod', ('integer',)),
+            ],
+            returns=('text',),
+            volatility='STABLE',
+            text=r'''
+                SELECT
+                    CASE
+                        -- arrays
+                        WHEN t.typcategory = 'A' THEN (
+                            SELECT
+                                quote_ident(nspname) || '.' ||
+                                quote_ident(el.typname) || tm.mod || '[]'
+                            FROM edgedbsql_VER.pg_namespace
+                            WHERE oid = el.typnamespace
+                        )
+
+                        -- composite (tuples) and types in irregular schemas
+                        WHEN (
+                            t.typcategory = 'C' OR COALESCE(tn.nspname IN (
+                                'edgedb', 'edgedbt', 'edgedbpub', 'edgedbstd',
+                                'edgedb_VER', 'edgedbstd_VER'
+                            ), TRUE)
+                        ) THEN (
+                            SELECT
+                                quote_ident(nspname) || '.' ||
+                                quote_ident(t.typname) || tm.mod
+                            FROM edgedbsql_VER.pg_namespace
+                            WHERE oid = t.typnamespace
+                        )
+                        ELSE format_type(typeoid, typemod)
+                    END
+                FROM edgedbsql_VER.pg_type t
+                LEFT JOIN pg_namespace tn ON t.typnamespace = tn.oid
+                LEFT JOIN edgedbsql_VER.pg_type el ON t.typelem = el.oid
+
+                CROSS JOIN (
+                    SELECT
+                        CASE
+                            WHEN typemod >= 0 THEN '(' || typemod::text || ')'
+                            ELSE ''
+                        END AS mod
+                ) as tm
+
+                WHERE t.oid = typeoid
+            ''',
         )
     ]
 
@@ -7439,7 +7443,6 @@ async def generate_support_functions(
         dbops.CreateFunction(IssubclassFunction()),
         dbops.CreateFunction(IssubclassFunction2()),
         dbops.CreateFunction(GetSchemaObjectNameFunction()),
-        dbops.CreateFunction(FormatTypeFunction()),
     ]
     commands.add_commands(cmds)
 
