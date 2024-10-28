@@ -146,6 +146,7 @@ class HttpClient:
             headers=headers,
             url_munger=url_munger,
         )  # type: ignore
+
     async def request(
         self,
         *,
@@ -168,16 +169,20 @@ class HttpClient:
             resp = await self._requests[id]
             if self._stat_callback:
                 status_code, body, headers = resp
-                self._stat_callback(HttpStat(
-                    response_time_ms=int((time.time() - start_time) * 1000),
-                    error_code=status_code,
-                    response_body_size=len(body),
-                    response_content_type=headers.get('content-type', ''),
-                    request_body_size=len(data),
-                    request_content_type=dict(headers_list).get('content-type', ''),
-                    method=method,
-                    streaming=False
-                ))
+                self._stat_callback(
+                    HttpStat(
+                        response_time_ms=int((time.time() - start_time) * 1000),
+                        error_code=status_code,
+                        response_body_size=len(body),
+                        response_content_type=headers.get('content-type', ''),
+                        request_body_size=len(data),
+                        request_content_type=dict(headers_list).get(
+                            'content-type', ''
+                        ),
+                        method=method,
+                        streaming=False,
+                    )
+                )
             return resp
         finally:
             del self._requests[id]
@@ -228,16 +233,20 @@ class HttpClient:
                     body = b''
                 else:
                     status_code, body, headers = resp
-                self._stat_callback(HttpStat(
-                    response_time_ms=int((time.time() - start_time) * 1000),
-                    error_code=status_code,
-                    response_body_size=len(body),
-                    response_content_type=headers.get('content-type', ''),
-                    request_body_size=len(data),
-                    request_content_type=dict(headers_list).get('content-type', ''),
-                    method=method,
-                    streaming=id in self._streaming
-                ))
+                self._stat_callback(
+                    HttpStat(
+                        response_time_ms=int((time.time() - start_time) * 1000),
+                        error_code=status_code,
+                        response_body_size=len(body),
+                        response_content_type=headers.get('content-type', ''),
+                        request_body_size=len(data),
+                        request_content_type=dict(headers_list).get(
+                            'content-type', ''
+                        ),
+                        method=method,
+                        streaming=id in self._streaming,
+                    )
+                )
             if id in self._streaming:
                 return ResponseSSE.from_tuple(resp, self._streaming[id])
             return Response.from_tuple(resp)
@@ -382,18 +391,21 @@ class CaseInsensitiveDict(dict):
 @dataclasses.dataclass(frozen=True)
 class Response:
     status_code: int
-    body: bytes
+    body: bytearray
     headers: CaseInsensitiveDict
     is_streaming: bool = False
 
     @classmethod
-    def from_tuple(cls, data: Tuple[int, bytes, dict[str, str]]):
+    def from_tuple(cls, data: Tuple[int, bytearray, dict[str, str]]):
         status_code, body, headers_list = data
         headers = CaseInsensitiveDict([(k, v) for k, v in headers_list.items()])
         return cls(status_code, body, headers)
 
     def json(self):
         return json_lib.loads(self.body.decode('utf-8'))
+
+    def bytes(self):
+        return bytes(self.body)
 
     @property
     def text(self) -> str:
@@ -454,4 +466,3 @@ class ResponseSSE:
 
     def __exit__(self, exc_type, exc_value, traceback):
         pass
-
