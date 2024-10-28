@@ -180,6 +180,11 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                     }
                 )
 
+        # Cleanup
+        await self.con.execute('''
+            delete Astronomy;
+        ''')
+
     async def test_ext_ai_indexing_02(self):
         qry = '''
             with
@@ -263,6 +268,11 @@ class TestExtAI(tb.BaseHttpExtensionTest):
             variables=dict(qv=qv),
         )
 
+        # Cleanup
+        await self.con.execute('''
+            delete Stuff;
+        ''')
+
     async def test_ext_ai_indexing_03(self):
         await self.con.execute(
             """
@@ -319,6 +329,12 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                         "qv": [1 for i in range(10)],
                     }
                 )
+
+        # Cleanup
+        await self.con.execute('''
+            delete Star;
+            delete Supernova;
+        ''')
 
     async def _assert_index_use(self, query, *args):
         def look(obj):
@@ -381,6 +397,71 @@ class TestExtAI(tb.BaseHttpExtensionTest):
             ''',
             json.dumps(qv),
         )
+
+    async def test_ext_ai_indexing_05(self):
+        await self.con.execute(
+            """
+            insert Astronomy {
+                content := 'Skies on Venus are orange'
+            };
+            insert Astronomy {
+                content := 'Skies on Mars are red'
+            };
+            insert Astronomy {
+                content := 'Skies on Pluto are black and starry'
+            };
+            insert Astronomy {
+                content := 'Skies on Earth are blue'
+            };
+            """,
+        )
+
+        async for tr in self.try_until_succeeds(
+            ignore=(AssertionError,),
+            timeout=10.0,
+        ):
+            async with tr:
+                await self.assert_query_result(
+                    r'''
+                    with
+                        result := ext::ai::search(
+                            Astronomy, <array<float32>>$qv)
+                    select
+                        result.object {
+                            content,
+                            distance := result.distance,
+                        }
+                    order by
+                        result.distance asc empty last
+                        then result.object.content
+                    ''',
+                    [
+                        {
+                            'content': 'Skies on Pluto are black and starry',
+                            'distance': 0.3545027756320972,
+                        },
+                        {
+                            'content': 'Skies on Earth are blue',
+                            'distance': 0.3675444679663241,
+                        },
+                        {
+                            'content': 'Skies on Mars are red',
+                            'distance': 0.4284523933505918,
+                        },
+                        {
+                            'content': 'Skies on Venus are orange',
+                            'distance': 0.4606401100294063,
+                        },
+                    ],
+                    variables={
+                        "qv": [1 for i in range(10)],
+                    }
+                )
+
+        # Cleanup
+        await self.con.execute('''
+            delete Astronomy;
+        ''')
 
 
 class CharacterTokenizer(ai_ext.Tokenizer):

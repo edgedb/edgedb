@@ -211,6 +211,30 @@ class MistralTokenizer(Tokenizer):
         return cast(str, self.tokenizer.decode(tokens))
 
 
+class TestTokenizer(Tokenizer):
+
+    _instances: dict[str, TestTokenizer] = {}
+
+    @classmethod
+    def for_model(cls, model_name: str) -> TestTokenizer:
+        if model_name in cls._instances:
+            return cls._instances[model_name]
+
+        tokenizer = TestTokenizer()
+        cls._instances[model_name] = tokenizer
+
+        return tokenizer
+
+    def encode(self, text: str) -> list[int]:
+        return [ord(c) for c in text]
+
+    def encode_padding(self) -> int:
+        return 0
+
+    def decode(self, tokens: list[int]) -> str:
+        return ''.join(chr(c) for c in tokens)
+
+
 @dataclass
 class ProviderConfig:
     name: str
@@ -600,6 +624,11 @@ async def _generate_embeddings_params(
     elif provider_name == 'builtin::mistral':
         model_tokenizers = {
             model_name: MistralTokenizer.for_model(model_name)
+            for model_name in provider_models
+        }
+    elif provider_name == 'custom::test':
+        model_tokenizers = {
+            model_name: TestTokenizer.for_model(model_name)
             for model_name in provider_models
         }
 
