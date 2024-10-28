@@ -135,6 +135,7 @@ class HttpClient:
     ) -> tuple[int, bytes, dict[str, str]]:
         path = self._process_path(path)
         headers_list = self._process_headers(headers)
+        headers_list.append(("User-Agent", "EdgeDB"))
         data = self._process_content(headers_list, data, json)
         id = self._next_id
         self._next_id += 1
@@ -176,6 +177,7 @@ class HttpClient:
     ) -> Response | ResponseSSE:
         path = self._process_path(path)
         headers_list = self._process_headers(headers)
+        headers_list.append(("User-Agent", "EdgeDB"))
         data = self._process_content(headers_list, data, json)
 
         id = self._next_id

@@ -2404,6 +2404,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 {"state": state_token, "code": "abc123"},
                 path="callback",
             )
+
             self.assertEqual(data, b"")
             self.assertEqual(status, 302)
 
