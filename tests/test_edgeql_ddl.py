@@ -5162,6 +5162,54 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [True]
         )
 
+    async def test_edgeql_ddl_function_40(self):
+        '''
+        Overloading with a modifying function.
+        '''
+
+        await self.con.execute('''
+            create type Bar;
+            create type Bar2 extending Bar;
+            create function foo(x: Bar) -> int64 {
+                using (1);
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+            edgedb.SchemaDefinitionError,
+            'cannot overload an existing function with a modifying function',
+        ):
+            await self.con.execute('''
+                create function foo(x: Bar2) -> int64 {
+                    set volatility := schema::Volatility.Modifying;
+                    using (1);
+                };
+            ''')
+
+    async def test_edgeql_ddl_function_41(self):
+        '''
+        Overloading a modifying function.
+        '''
+
+        await self.con.execute('''
+            create type Bar;
+            create type Bar2 extending Bar;
+            create function foo(x: Bar) -> int64 {
+                set volatility := schema::Volatility.Modifying;
+                using (1);
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+            edgedb.SchemaDefinitionError,
+            'cannot overload an existing modifying function',
+        ):
+            await self.con.execute('''
+                create function foo(x: Bar2) -> int64 {
+                    using (1);
+                };
+            ''')
+
     async def test_edgeql_ddl_function_inh_01(self):
         await self.con.execute("""
             create abstract type T;
