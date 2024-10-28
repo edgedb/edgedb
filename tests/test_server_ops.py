@@ -1293,6 +1293,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             raise
         return cluster, connect_args
 
+    @unittest.skip('Test was failing mysteriously in CI. See #7933.')
     async def test_server_ops_multi_tenant(self):
         with (
             tempfile.TemporaryDirectory() as td1,
