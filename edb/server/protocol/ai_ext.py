@@ -496,11 +496,9 @@ class EmbeddingsParams(rs.Params[EmbeddingsData]):
     pgconn: pgcon.PGConnection
     provider: ProviderConfig
     model_name: str
-    inputs: list[str]
+    inputs: list[tuple[PendingEmbedding, str]]
     token_count: int
     shortening: Optional[int]
-
-    entries: list[PendingEmbedding]
 
     def costs(self) -> dict[str, int]:
         return {
@@ -522,11 +520,13 @@ class EmbeddingsRequest(rs.Request[EmbeddingsData]):
             result = await _generate_embeddings(
                 self.params.provider,
                 self.params.model_name,
-                self.params.inputs,
+                [input[1] for input in self.params.inputs],
                 self.params.shortening,
             )
             result.pgconn = self.params.pgconn
-            result.entries = self.params.entries
+            result.pending_entries = [
+                input[0] for input in self.params.inputs
+            ]
             return result
         except AIExtError as e:
             logger.error(f"{task_name}: {e}")
@@ -542,16 +542,22 @@ class EmbeddingsRequest(rs.Request[EmbeddingsData]):
 class EmbeddingsResult(rs.Result[EmbeddingsData]):
 
     pgconn: Optional[Any] = None
-    entries: Optional[list[PendingEmbedding]] = None
+    pending_entries: Optional[list[PendingEmbedding]] = None
 
     async def finalize(self) -> None:
         if isinstance(self.data, rs.Error):
             return
-        if self.pgconn is None or self.entries is None:
+        if self.pgconn is None or self.pending_entries is None:
             return
 
+        # Entries must line up with the embeddings data:
+        # - `_generate_embeddings` produces produces embeddings data matching
+        #   the order of its inputs
+        #
+        # Entries must be grouped by target rel:
+        # - `_generate_embeddings_params` sorts inputs by target rel before
         groups = itertools.groupby(
-            self.entries, key=lambda e: (e.target_rel, e.target_attr),
+            self.pending_entries, key=lambda e: (e.target_rel, e.target_attr),
         )
         offset = 0
         for (rel, attr), items in groups:
@@ -625,15 +631,15 @@ async def _generate_embeddings_params(
             f"indexes via {provider_name!r}"
         )
 
-        pending_embeddings = await _get_pending_embeddings(
+        pending_entries = await _get_pending_embeddings(
             pgconn, model_name, model_excluded_ids
         )
 
-        if not pending_embeddings:
+        if not pending_entries:
             continue
 
         logger.debug(
-            f"{task_name} found {len(pending_embeddings)} entries to index"
+            f"{task_name} found {len(pending_entries)} entries to index"
         )
 
         try:
@@ -641,22 +647,22 @@ async def _generate_embeddings_params(
         except KeyError:
             model_list = model_pending_entries[model_name] = []
 
-        model_list.extend(pending_embeddings)
+        model_list.extend(pending_entries)
 
     embeddings_params: list[EmbeddingsParams] = []
 
-    for model_name, pending_embeddings in model_pending_entries.items():
+    for model_name, pending_entries in model_pending_entries.items():
         groups = itertools.groupby(
-            pending_embeddings, key=lambda e: e.target_dims_shortening
+            pending_entries, key=lambda e: e.target_dims_shortening
         )
         for shortening, part_iter in groups:
             part = list(part_iter)
 
-            inputs: list[str] = []
+            input_texts: list[str] = []
+            input_entries: list[PendingEmbedding] = []
             total_token_count: int = 0
-            for entry in part:
-                input = entry.text
-                truncate_to_max = entry.truncate_to_max
+            for pending_entry in part:
+                text = pending_entry.text
 
                 if model_name in model_tokenizers:
                     tokenizer = model_tokenizers[model_name]
@@ -665,13 +671,13 @@ async def _generate_embeddings_params(
                         - tokenizer.encode_padding()
                     )
 
-                    if truncate_to_max:
-                        input = tokenizer.shorten_to_token_length(
-                            input, truncate_length
+                    if pending_entry.truncate_to_max:
+                        text = tokenizer.shorten_to_token_length(
+                            text, truncate_length
                         )
                         total_token_count += truncate_length
                     else:
-                        current_token_count = len(tokenizer.encode(input))
+                        current_token_count = len(tokenizer.encode(text))
 
                         if current_token_count > truncate_length:
                             # If the text is too long, mark it as excluded and
@@ -679,13 +685,14 @@ async def _generate_embeddings_params(
                             if model_name not in model_excluded_ids:
                                 model_excluded_ids[model_name] = []
                             model_excluded_ids[model_name].append(
-                                entry.id.hex
+                                pending_entry.id.hex
                             )
                             continue
 
                         total_token_count += current_token_count
 
-                inputs.append(input)
+                input_texts.append(text)
+                input_entries.append(pending_entry)
 
             if model_name in model_tokenizers:
                 max_batch_tokens = model_max_batch_tokens[model_name]
@@ -696,21 +703,36 @@ async def _generate_embeddings_params(
 
                 # Group the input into batches based on token count
                 batches = _batch_embeddings_inputs(
-                    tokenizer, inputs, max_batch_tokens
+                    tokenizer, input_texts, max_batch_tokens
                 )
 
-                for batch, batch_token_count in batches:
+                for batch_input_indexes, batch_token_count in batches:
+                    inputs = [
+                        (input_entries[index], input_texts[index])
+                        for index in batch_input_indexes
+                    ]
+
+                    # Sort the batches by target_rel. This groups embeddings
+                    # for each table together.
+                    # This is necessary for `EmbeddingsResult.finalize()`
+                    inputs.sort(key=lambda e: e[0].target_rel)
+
                     embeddings_params.append(EmbeddingsParams(
                         pgconn=pgconn,
                         provider=provider_cfg,
                         model_name=model_name,
-                        inputs=batch,
+                        inputs=inputs,
                         token_count=batch_token_count,
                         shortening=shortening,
-                        entries=part,
                     ))
 
             else:
+                inputs = list(zip(input_entries, input_texts))
+                # Sort the inputs by target_rel. This groups embeddings
+                # for each table together.
+                # This is necessary for `EmbeddingsResult.finalize()`
+                inputs.sort(key=lambda e: e[0].target_rel)
+
                 embeddings_params.append(EmbeddingsParams(
                     pgconn=pgconn,
                     provider=provider_cfg,
@@ -718,7 +740,6 @@ async def _generate_embeddings_params(
                     inputs=inputs,
                     token_count=total_token_count,
                     shortening=shortening,
-                    entries=part,
                 ))
 
     return embeddings_params
@@ -780,8 +801,7 @@ async def _get_pending_embeddings(
             ) AS q
         {where_clause}
         ORDER BY
-            q."target_dims_shortening",
-            q."target_rel"
+            q."target_dims_shortening"
         """.encode()
     )
 
@@ -814,11 +834,11 @@ def _batch_embeddings_inputs(
     tokenizer: Tokenizer,
     inputs: list[str],
     max_batch_tokens: int,
-) -> list[tuple[list[str], int]]:
+) -> list[tuple[list[int], int]]:
     """Create batches of embeddings inputs.
 
     Returns batches which are a tuple of:
-    - Input strings grouped to avoid exceeding the max_batch_token
+    - Indexes of input strings grouped to avoid exceeding the max_batch_token
     - The batch's token count
     """
 
@@ -835,9 +855,6 @@ def _batch_embeddings_inputs(
         reverse=False,
     )
 
-    def unbatched_input(unbatched_index: int) -> str:
-        return inputs[unbatched_input_indexes[unbatched_index]]
-
     def unbatched_token_count(unbatched_index: int) -> int:
         return input_token_counts[unbatched_input_indexes[unbatched_index]]
 
@@ -848,10 +865,10 @@ def _batch_embeddings_inputs(
     ):
         unbatched_input_indexes.pop()
 
-    batches: list[tuple[list[str], int]] = []
+    batches: list[tuple[list[int], int]] = []
     while unbatched_input_indexes:
         # Start with the largest available input
-        batch = [unbatched_input(-1)]
+        batch_input_indexes = [unbatched_input_indexes[-1]]
         batch_token_count = unbatched_token_count(-1)
         unbatched_input_indexes.pop()
 
@@ -864,13 +881,13 @@ def _batch_embeddings_inputs(
                     batch_token_count + unbatched_token_count(unbatched_index)
                     <= max_batch_tokens
                 ):
-                    batch.append(unbatched_input(unbatched_index))
+                    batch_input_indexes.append(unbatched_input_indexes[unbatched_index])
                     batch_token_count += unbatched_token_count(unbatched_index)
                     unbatched_input_indexes.pop(unbatched_index)
                 else:
                     unbatched_index += 1
 
-        batches.append((batch, batch_token_count))
+        batches.append((batch_input_indexes, batch_token_count))
 
     return batches
 

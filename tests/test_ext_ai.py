@@ -411,7 +411,7 @@ class TestExtAIUtils(unittest.TestCase):
                 ['1', '22', '333', '4444'],
                 10
             ),
-            [(['4444', '1', '22', '333'], 10)],
+            [([3, 0, 1, 2], 10)],
         )
         self.assertEqual(
             ai_ext._batch_embeddings_inputs(
@@ -420,8 +420,8 @@ class TestExtAIUtils(unittest.TestCase):
                 10
             ),
             [
-                (['55555', '1', '22'], 8),
-                (['4444', '333'], 7),
+                ([4, 0, 1], 8),
+                ([3, 2], 7),
             ],
         )
         self.assertEqual(
@@ -431,9 +431,9 @@ class TestExtAIUtils(unittest.TestCase):
                 10
             ),
             [
-                (['666666', '1', '22'], 9),
-                (['55555', '333'], 8),
-                (['4444'], 4),
+                ([5, 0, 1], 9),
+                ([4, 2], 8),
+                ([3], 4),
             ],
         )
         self.assertEqual(
@@ -443,9 +443,9 @@ class TestExtAIUtils(unittest.TestCase):
                 10
             ),
             [
-                (['666666', '1', '22'], 9),
-                (['55555', '333'], 8),
-                (['4444'], 4),
+                ([5, 0, 1], 9),
+                ([4, 2], 8),
+                ([3], 4),
             ],
         )
         self.assertEqual(
@@ -455,7 +455,7 @@ class TestExtAIUtils(unittest.TestCase):
                 10
             ),
             [
-                (['55555', '1', '22'], 8),
-                (['4444', '333'], 7),
+                ([4, 0, 1], 8),
+                ([3, 2], 7),
             ],
         )
