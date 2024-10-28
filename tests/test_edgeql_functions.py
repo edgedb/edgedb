@@ -10698,6 +10698,154 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             sort=True,
         )
 
+    async def test_edgeql_functions_inline_nested_global_05(self):
+        # Use computed global in inner non-inlined function
+        # - inlined > non-inlined
+        await self.con.execute('''
+            create global a := 1;
+            create function inner(x: int64) -> int64 {
+                using (global a + x);
+            };
+            create function foo(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [2],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [2, 3, 4],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_global_06(self):
+        # Use non-computed global in inner non-inlined function
+        # - inlined > non-inlined
+        await self.con.execute('''
+            create global a -> int64;
+            create function inner(x: int64) -> optional int64 {
+                using (global a + x);
+            };
+            create function foo(x: int64) -> optional int64 {
+                set is_inlined := true;
+                using (inner(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [],
+            sort=True,
+        )
+
+        await self.con.execute('''
+            set global a := 1;
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [2],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [2, 3, 4],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_global_07(self):
+        # Use computed global nested in non-inlined function
+        # - non-inlined > inlined > non-inlined
+        await self.con.execute('''
+            create global a := 1;
+            create function inner1(x: int64) -> int64 {
+                using (global a + x);
+            };
+            create function inner2(x: int64) -> int64 {
+                set is_inlined := true;
+                using (inner1(x));
+            };
+            create function foo(x: int64) -> int64 {
+                using (inner2(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [2],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [2, 3, 4],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_nested_global_08(self):
+        # Use non-computed global nested in non-inlined function
+        # - non-inlined > inlined > non-inlined
+        await self.con.execute('''
+            create global a -> int64;
+            create function inner1(x: int64) -> optional int64 {
+                using (global a + x);
+            };
+            create function inner2(x: int64) -> optional int64 {
+                set is_inlined := true;
+                using (inner1(x));
+            };
+            create function foo(x: int64) -> optional int64 {
+                using (inner2(x));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [],
+            sort=True,
+        )
+
+        await self.con.execute('''
+            set global a := 1;
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(1)',
+            [2],
+        )
+        await self.assert_query_result(
+            'select foo({1, 2, 3})',
+            [2, 3, 4],
+            sort=True,
+        )
+
     async def test_edgeql_functions_inline_modifying_cardinality_01(self):
         await self.con.execute('''
             create function foo(x: int64) -> int64 {
