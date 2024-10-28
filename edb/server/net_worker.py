@@ -99,10 +99,7 @@ async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
 
 
 def create_http(tenant: edbtenant.Tenant):
-    http_max_connections = tenant._server.config_lookup(
-        'http_max_connections', tenant.get_sys_config()
-    )
-    return HttpClient(http_max_connections)
+    return tenant.get_http_client(originator="std::net")
 
 
 async def http(server: edbserver.BaseServer) -> None:
