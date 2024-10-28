@@ -859,6 +859,7 @@ cdef _check_for_ise(exc):
         exc = exc.exceptions[0]
 
     if not isinstance(exc, errors.EdgeDBError):
+        # TODO(rename): change URL once we can
         nexc = errors.InternalServerError(
             f'{type(exc).__name__}: {exc}',
             hint=(

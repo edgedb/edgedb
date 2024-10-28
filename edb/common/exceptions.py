@@ -104,7 +104,7 @@ def excepthook(exctype, exc, tb):
         markup.dump(exc, file=sys.stderr)
 
         if _is_internal_error(exc):
-            # XXX: rename
+            # TODO(rename): change URL once we can
             print(
                 f'This is most likely a bug in Gel. '
                 f'Please consider opening an issue ticket '
