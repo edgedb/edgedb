@@ -174,8 +174,8 @@ async fn request_sse(
     headers: Vec<(String, String)>,
     rpc_pipe: Rc<RpcPipe>,
 ) -> Result<(), String> {
-    eprintln!("Entering SSE");
-    let guard = guard((), |_| eprintln!("Exiting SSE due to cancellation"));
+    trace!("Entering SSE");
+    let guard = guard((), |_| trace!("Exiting SSE due to cancellation"));
     let response = request(client, url, method, body, headers).await?;
 
     if response.headers().get("content-type")
@@ -413,10 +413,10 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
             rpc_pipe,
         ));
         if let (Some(id), Some(backpressure)) = (id, backpressure) {
-            tasks.lock().unwrap().insert(id, HttpTask {
-                task,
-                backpressure
-            });
+            tasks
+                .lock()
+                .unwrap()
+                .insert(id, HttpTask { task, backpressure });
         }
     }
 }
@@ -430,8 +430,6 @@ async fn execute(
     client: reqwest::Client,
     rpc_pipe: Rc<RpcPipe>,
 ) {
-    eprintln!("{id:?} {rpc:?}");
-
     // If a request task was booted by this request, remove it from the list of
     // tasks when we exit.
     if let Some(id) = id {
@@ -468,7 +466,18 @@ async fn execute(
             let Ok(permit) = permit_manager.acquire().await else {
                 return;
             };
-            match request_sse(client, id, backpressure.unwrap(), url, method, body, headers, rpc_pipe.clone()).await {
+            match request_sse(
+                client,
+                id,
+                backpressure.unwrap(),
+                url,
+                method,
+                body,
+                headers,
+                rpc_pipe.clone(),
+            )
+            .await
+            {
                 Ok(..) => {}
                 Err(err) => {
                     _ = rpc_pipe
