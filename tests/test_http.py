@@ -118,7 +118,8 @@ class HttpTest(tb.BaseHttpTest):
                 await client.get("httpx://uh-oh")
 
     async def test_immediate_connection_drop(self):
-        """Test handling of a connection that is dropped immediately by the server"""
+        """Test handling of a connection that is dropped immediately by the
+        server"""
 
         async def mock_drop_server(
             _reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -142,7 +143,8 @@ class HttpTest(tb.BaseHttpTest):
             await server.wait_closed()
 
     async def test_immediate_connection_drop_streaming(self):
-        """Test handling of a connection that is dropped immediately by the server"""
+        """Test handling of a connection that is dropped immediately by the
+        server"""
 
         async def mock_drop_server(
             _reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -206,6 +208,9 @@ class HttpTest(tb.BaseHttpTest):
             await writer.drain()
 
             for i in range(3):
+                writer.write(b": test comment that should be ignored\n\n")
+                await writer.drain()
+
                 writer.write(
                     f"event: message\ndata: Event {i + 1}\n\n".encode()
                 )
