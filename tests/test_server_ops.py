@@ -785,7 +785,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
     async def test_server_ops_schema_metrics_01(self):
         def _extkey(extension: str) -> str:
             return (
-                f'edgedb_server_extension_used'
+                f'edgedb_server_extension_used_branch_count_current'
                 f'{{tenant="localtest",extension="{extension}"}}'
             )
 

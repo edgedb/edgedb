@@ -195,7 +195,7 @@ auth_providers = registry.new_labeled_gauge(
 )
 
 extension_used = registry.new_labeled_gauge(
-    'extension_used',
+    'extension_used_branch_count_current',
     'How many branches an extension is used by.',
     labels=('tenant', 'extension'),
 )
