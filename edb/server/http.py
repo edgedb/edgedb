@@ -217,6 +217,9 @@ class HttpClient:
         data: bytes | str | dict[str, str] | None = None,
         json: Any | None = None,
     ) -> Response | ResponseSSE:
+        """Create a streaming request. Note that there is no backpressure on the
+        SSE events, so the called must continuously iterate on the response to
+        avoid excessive memory use."""
         path = self._process_path(path)
         headers_list = self._process_headers(headers)
         headers_list.append(("User-Agent", self._user_agent))
@@ -252,7 +255,13 @@ class HttpClient:
                     )
                 )
             if id in self._streaming:
-                return ResponseSSE.from_tuple(resp, self._streaming[id])
+                # Valid to call multiple times
+                cancel = lambda: self._client._close(id)
+                # Acknowledge SSE message (for backpressure)
+                ack = lambda: self._client._ack_sse(id)
+                return ResponseSSE.from_tuple(
+                    resp, self._streaming[id], cancel, ack
+                )
             return Response.from_tuple(resp)
         finally:
             del self._requests[id]
@@ -433,15 +442,21 @@ class ResponseSSE:
     status_code: int
     headers: CaseInsensitiveDict
     _stream: asyncio.Queue = dataclasses.field(repr=False)
+    _cancel: Callable[[], None] = dataclasses.field(repr=False)
+    _ack: Callable[[], None] = dataclasses.field(repr=False)
     is_streaming: bool = True
 
     @classmethod
     def from_tuple(
-        cls, data: Tuple[int, dict[str, str]], stream: asyncio.Queue
+        cls,
+        data: Tuple[int, dict[str, str]],
+        stream: asyncio.Queue,
+        cancel: Callable[[], None],
+        ack: Callable[[], None],
     ):
         status_code, headers = data
         headers = CaseInsensitiveDict([(k, v) for k, v in headers.items()])
-        return cls(status_code, headers, stream)
+        return cls(status_code, headers, stream, cancel, ack)
 
     @dataclasses.dataclass(frozen=True)
     class SSEEvent:
@@ -449,24 +464,33 @@ class ResponseSSE:
         data: str
         id: Optional[str] = None
 
+    def close(self):
+        self._cancel()
+
+    def __del__(self):
+        self.close()
+
     def __aiter__(self):
         return self
 
     async def __anext__(self):
         next = await self._stream.get()
-        if next is None:
-            raise StopAsyncIteration
-        id, data, event = next
-        return self.SSEEvent(event, data, id)
+        try:
+            if next is None:
+                raise StopAsyncIteration
+            id, data, event = next
+            return self.SSEEvent(event, data, id)
+        finally:
+            self._ack()
 
     def __aenter__(self) -> Self:
         return self
 
     def __aexit__(self, exc_type, exc_value, traceback):
-        pass
+        self.close()
 
     def __enter__(self) -> Self:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        pass
+        self.close()

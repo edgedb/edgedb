@@ -2,7 +2,7 @@ use eventsource_stream::Eventsource;
 use futures::{future::poll_fn, TryStreamExt};
 use pyo3::{exceptions::PyException, prelude::*, types::PyByteArray};
 use reqwest::{header::HeaderValue, Method};
-use scopeguard::{defer, ScopeGuard};
+use scopeguard::{defer, guard, ScopeGuard};
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -18,9 +18,12 @@ use tokio::{
     sync::{AcquireError, Semaphore, SemaphorePermit},
     task::{JoinHandle, LocalSet},
 };
-use tracing::{error, info, trace, warn};
+use tracing::{error, info, trace};
 
 pyo3::create_exception!(_http, InternalError, PyException);
+
+/// The backlog for SSE message
+const SSE_QUEUE_SIZE: usize = 100;
 
 type PythonConnId = u64;
 
@@ -63,6 +66,8 @@ enum PythonToRustMessage {
     RequestSse(PythonConnId, String, String, Vec<u8>, Vec<(String, String)>),
     /// Close an SSE connection
     Close(PythonConnId),
+    /// Acknowledge an SSE message
+    Ack(PythonConnId),
 }
 
 type PipeSender = tokio::net::unix::pipe::Sender;
@@ -162,12 +167,15 @@ async fn request_bytes(
 async fn request_sse(
     client: reqwest::Client,
     id: PythonConnId,
+    backpressure: Arc<Semaphore>,
     url: String,
     method: String,
     body: Vec<u8>,
     headers: Vec<(String, String)>,
     rpc_pipe: Rc<RpcPipe>,
 ) -> Result<(), String> {
+    eprintln!("Entering SSE");
+    let guard = guard((), |_| eprintln!("Exiting SSE due to cancellation"));
     let response = request(client, url, method, body, headers).await?;
 
     if response.headers().get("content-type")
@@ -188,6 +196,7 @@ async fn request_sse(
             ))
             .await;
 
+        ScopeGuard::into_inner(guard);
         return Ok(());
     }
 
@@ -209,6 +218,10 @@ async fn request_sse(
                 return Err(format!("Failed to read response body: {e:?}"));
             }
         };
+        let Ok(permit) = backpressure.acquire().await else {
+            break;
+        };
+        permit.forget();
         if rpc_pipe
             .write(RustToPythonMessage::SSEEvent(id, chunk))
             .await
@@ -218,6 +231,7 @@ async fn request_sse(
         }
     }
 
+    ScopeGuard::into_inner(guard);
     Ok(())
 }
 
@@ -355,6 +369,11 @@ impl PermitManager {
     }
 }
 
+struct HttpTask {
+    task: JoinHandle<()>,
+    backpressure: Arc<Semaphore>,
+}
+
 async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
     let rpc_pipe = Rc::new(rpc_pipe);
 
@@ -367,7 +386,7 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
     let client = client.build().unwrap();
 
     let permit_manager = Rc::new(PermitManager::new(capacity));
-    let tasks = Arc::new(Mutex::new(HashMap::<PythonConnId, JoinHandle<()>>::new()));
+    let tasks = Arc::new(Mutex::new(HashMap::<PythonConnId, HttpTask>::new()));
 
     loop {
         let Some(rpc) = poll_fn(|cx| rpc_pipe.python_to_rust.borrow_mut().poll_recv(cx)).await
@@ -378,35 +397,44 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
         let client = client.clone();
         trace!("Received RPC: {rpc:?}");
         let rpc_pipe = rpc_pipe.clone();
-        let id = match rpc {
+        let (id, backpressure) = match rpc {
             PythonToRustMessage::Request(id, ..) | PythonToRustMessage::RequestSse(id, ..) => {
-                Some(id)
+                (Some(id), Some(Semaphore::new(SSE_QUEUE_SIZE).into()))
             }
-            _ => None,
+            _ => (None, None),
         };
         let task = tokio::task::spawn_local(execute(
             id.clone(),
+            backpressure.clone(),
             tasks.clone(),
             rpc,
             permit_manager.clone(),
             client,
             rpc_pipe,
         ));
-        if let Some(id) = id {
-            tasks.lock().unwrap().insert(id, task);
+        if let (Some(id), Some(backpressure)) = (id, backpressure) {
+            tasks.lock().unwrap().insert(id, HttpTask {
+                task,
+                backpressure
+            });
         }
     }
 }
 
 async fn execute(
-    id_clone: Option<u64>,
-    tasks_clone: Arc<Mutex<HashMap<u64, JoinHandle<()>>>>,
+    id: Option<u64>,
+    backpressure: Option<Arc<Semaphore>>,
+    tasks_clone: Arc<Mutex<HashMap<u64, HttpTask>>>,
     rpc: PythonToRustMessage,
     permit_manager: Rc<PermitManager>,
     client: reqwest::Client,
     rpc_pipe: Rc<RpcPipe>,
 ) {
-    if let Some(id) = id_clone {
+    eprintln!("{id:?} {rpc:?}");
+
+    // If a request task was booted by this request, remove it from the list of
+    // tasks when we exit.
+    if let Some(id) = id {
         defer!(_ = tasks_clone.lock().unwrap().remove(&id));
     }
 
@@ -440,7 +468,7 @@ async fn execute(
             let Ok(permit) = permit_manager.acquire().await else {
                 return;
             };
-            match request_sse(client, id, url, method, body, headers, rpc_pipe.clone()).await {
+            match request_sse(client, id, backpressure.unwrap(), url, method, body, headers, rpc_pipe.clone()).await {
                 Ok(..) => {}
                 Err(err) => {
                     _ = rpc_pipe
@@ -450,12 +478,17 @@ async fn execute(
             }
             drop(permit);
         }
+        Ack(id) => {
+            let lock = tasks_clone.lock().unwrap();
+            if let Some(task) = lock.get(&id) {
+                task.backpressure.add_permits(1);
+            }
+        }
         Close(id) => {
             let Some(task) = tasks_clone.lock().unwrap().remove(&id) else {
-                warn!("No connection with id {id}");
                 return;
             };
-            task.abort();
+            task.task.abort();
         }
     }
 }
@@ -537,9 +570,15 @@ impl Http {
             .map_err(|_| internal_error("In shutdown"))
     }
 
-    fn _close_sse(&self, id: PythonConnId) -> PyResult<()> {
+    fn _close(&self, id: PythonConnId) -> PyResult<()> {
         self.python_to_rust
             .send(PythonToRustMessage::Close(id))
+            .map_err(|_| internal_error("In shutdown"))
+    }
+
+    fn _ack_sse(&self, id: PythonConnId) -> PyResult<()> {
+        self.python_to_rust
+            .send(PythonToRustMessage::Ack(id))
             .map_err(|_| internal_error("In shutdown"))
     }
 

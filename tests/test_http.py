@@ -134,7 +134,15 @@ class HttpTest(tb.BaseHttpTest):
         """Since the regular mock server doesn't support SSE, we need to test
         with a real socket. We handle just enough HTTP to get the job done."""
 
-        async def mock_sse_server(_reader, writer):
+        is_closed = False
+
+        async def mock_sse_server(
+            reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        ):
+            nonlocal is_closed
+
+            await reader.readline()
+
             headers = (
                 b"HTTP/1.1 200 OK\r\n"
                 b"Content-Type: text/event-stream\r\n"
@@ -144,19 +152,23 @@ class HttpTest(tb.BaseHttpTest):
             writer.write(headers)
             await writer.drain()
 
-            events = [
-                b"event: message\ndata: Event 1\n\n",
-                b"event: message\ndata: Event 2\n\n",
-                b"event: message\ndata: Event 3\n\n",
-            ]
-
-            for event in events:
-                writer.write(event)
+            for i in range(3):
+                writer.write(
+                    f"event: message\ndata: Event {i + 1}\n\n".encode()
+                )
                 await writer.drain()
                 await asyncio.sleep(0.1)
 
-            writer.close()
-            await writer.wait_closed()
+            # Write enough messages that we get a broken pipe. The response gets
+            # closed below and will refuse any further messages.
+            try:
+                for _ in range(50):
+                    writer.writelines([b"event: message", b"data: XX", b""])
+                await writer.drain()
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                is_closed = True
 
         server = await asyncio.start_server(mock_sse_server, 'localhost', 0)
         addr = server.sockets[0].getsockname()
@@ -167,6 +179,7 @@ class HttpTest(tb.BaseHttpTest):
                 response = await client.stream_sse(url, method="GET")
                 assert response.status_code == 200
                 assert response.headers['Content-Type'] == 'text/event-stream'
+                assert isinstance(response, http.ResponseSSE)
 
                 events = []
                 async for event in response:
@@ -183,3 +196,5 @@ class HttpTest(tb.BaseHttpTest):
         async with server:
             client_future = asyncio.create_task(client_task())
             await asyncio.wait_for(client_future, timeout=5.0)
+
+        assert is_closed
