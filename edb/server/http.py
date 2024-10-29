@@ -119,6 +119,7 @@ class HttpClient:
 
     def _update_limit(self, limit: int):
         if self._client is not None and limit != self._limit:
+            self._limit = limit
             self._client._update_limit(limit)
 
     def _process_headers(self, headers: HeaderType) -> list[tuple[str, str]]:
@@ -320,7 +321,7 @@ class HttpClient:
             msg_type, id, data = msg
             if msg_type == 0:  # Error
                 if id in self._requests:
-                    self._requests[id].set_exception(Exception(data[0]))
+                    self._requests[id].set_exception(Exception(data))
                 if id in self._streaming:
                     self._streaming[id].put_nowait(None)
                     del self._streaming[id]

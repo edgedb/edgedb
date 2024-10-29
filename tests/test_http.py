@@ -112,6 +112,59 @@ class HttpTest(tb.BaseHttpTest):
             )
             self.assertEqual(result.headers["X-Test"], "test!")
 
+    async def test_bad_url(self):
+        with http.HttpClient(100) as client:
+            with self.assertRaisesRegex(Exception, "Scheme"):
+                await client.get("httpx://uh-oh")
+
+    async def test_immediate_connection_drop(self):
+        """Test handling of a connection that is dropped immediately by the server"""
+
+        async def mock_drop_server(
+            _reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        ):
+            # Close connection immediately without sending any response
+            writer.close()
+            await writer.wait_closed()
+
+        server = await asyncio.start_server(mock_drop_server, 'localhost', 0)
+        addr = server.sockets[0].getsockname()
+        url = f'http://{addr[0]}:{addr[1]}/drop'
+
+        try:
+            with http.HttpClient(100) as client:
+                with self.assertRaisesRegex(
+                    Exception, "Connection reset by peer"
+                ):
+                    await client.get(url)
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    async def test_immediate_connection_drop_streaming(self):
+        """Test handling of a connection that is dropped immediately by the server"""
+
+        async def mock_drop_server(
+            _reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        ):
+            # Close connection immediately without sending any response
+            writer.close()
+            await writer.wait_closed()
+
+        server = await asyncio.start_server(mock_drop_server, 'localhost', 0)
+        addr = server.sockets[0].getsockname()
+        url = f'http://{addr[0]}:{addr[1]}/drop'
+
+        try:
+            with http.HttpClient(100) as client:
+                with self.assertRaisesRegex(
+                    Exception, "Connection reset by peer"
+                ):
+                    await client.stream_sse(url)
+        finally:
+            server.close()
+            await server.wait_closed()
+
     async def test_streaming_get_with_no_sse(self):
         with http.HttpClient(100) as client:
             example_request = (
