@@ -194,6 +194,12 @@ auth_providers = registry.new_labeled_gauge(
     labels=('tenant', 'branch'),
 )
 
+extension_used = registry.new_labeled_gauge(
+    'extension_used_branch_count_current',
+    'How many branches an extension is used by.',
+    labels=('tenant', 'extension'),
+)
+
 auth_successful_logins = registry.new_labeled_counter(
     "auth_successful_logins_total",
     "Number of successful logins in the Auth extension.",

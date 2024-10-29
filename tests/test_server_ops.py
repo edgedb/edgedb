@@ -782,6 +782,37 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 finally:
                     await con.aclose()
 
+    async def test_server_ops_schema_metrics_01(self):
+        def _extkey(extension: str) -> str:
+            return (
+                f'edgedb_server_extension_used_branch_count_current'
+                f'{{tenant="localtest",extension="{extension}"}}'
+            )
+
+        async with tb.start_edgedb_server(
+            default_auth_method=args.ServerAuthMethod.Trust,
+            net_worker_mode='disabled',
+        ) as sd:
+            con = await sd.connect()
+            try:
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_extkey('graphql'), 0), 0)
+                self.assertEqual(metrics.get(_extkey('pg_trgm'), 0), 0)
+
+                await con.execute('create extension graphql')
+                await con.execute('create extension pg_trgm')
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_extkey('graphql'), 0), 1)
+                self.assertEqual(metrics.get(_extkey('pg_trgm'), 0), 1)
+
+                await con.execute('drop extension graphql')
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_extkey('graphql'), 0), 0)
+                self.assertEqual(metrics.get(_extkey('pg_trgm'), 0), 1)
+
+            finally:
+                await con.aclose()
+
     async def test_server_ops_downgrade_to_cleartext(self):
         async with tb.start_edgedb_server(
             binary_endpoint_security=args.ServerEndpointSecurityMode.Optional,

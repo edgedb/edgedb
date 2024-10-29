@@ -98,6 +98,10 @@ cdef class Database:
     cdef _remove_view(self, view)
     cdef _observe_auth_ext_config(self)
     cdef _update_backend_ids(self, new_types)
+    cdef _set_extensions(
+        self,
+        extensions,
+    )
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema_pickle,

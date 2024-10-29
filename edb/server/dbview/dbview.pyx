@@ -159,7 +159,8 @@ cdef class Database:
             self.user_config_spec = config.FlatSpec(*ext_config_settings)
         self.reflection_cache = reflection_cache
         self.backend_ids = backend_ids
-        self.extensions = extensions
+        self.extensions = set()
+        self._set_extensions(extensions)
         self._observe_auth_ext_config()
 
         self._cache_worker_task = self._cache_queue = None
@@ -186,7 +187,7 @@ cdef class Database:
         if self._cache_notify_task:
             self._cache_notify_task.cancel()
             self._cache_notify_task = None
-        self.extensions = set()
+        self._set_extensions(set())
         self.start_stop_extensions()
 
     async def monitor(self, worker, name):
@@ -301,6 +302,19 @@ cdef class Database:
             max_batch_size=100,
         )
 
+    cdef _set_extensions(self, extensions):
+        # Update metrics about extension use
+        tname = self.tenant.get_instance_name()
+        for ext in self.extensions:
+            if ext not in extensions:
+                metrics.extension_used.dec(1, tname, ext)
+
+        for ext in extensions:
+            if ext not in self.extensions:
+                metrics.extension_used.inc(1, tname, ext)
+
+        self.extensions = extensions
+
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema_pickle,
@@ -319,7 +333,7 @@ cdef class Database:
         self.dbver = next_dbver()
 
         self.user_schema_pickle = new_schema_pickle
-        self.extensions = extensions
+        self._set_extensions(extensions)
         self.user_config_spec = config.FlatSpec(*ext_config_settings)
 
         if backend_ids is not None:
