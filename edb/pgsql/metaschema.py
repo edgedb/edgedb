@@ -6397,7 +6397,7 @@ def _generate_sql_information_schema(
         trampoline.VersionedView(
             name=("edgedbsql", "pg_index"),
             query="""
-        SELECT 
+        SELECT
             pi.indexrelid,
             pi.indrelid,
             pi.indnatts,
@@ -6439,7 +6439,6 @@ def _generate_sql_information_schema(
             WHERE vt.pg_type_id = pr.reltype
               AND pa.attname = 'id'
         ) is_id ON TRUE
-        
         """,
         ),
         trampoline.VersionedView(
