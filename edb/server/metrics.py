@@ -200,6 +200,12 @@ extension_used = registry.new_labeled_gauge(
     labels=('tenant', 'extension'),
 )
 
+feature_used = registry.new_labeled_gauge(
+    'feature_used_branch_count_current',
+    'How many branches a schema feature is used by.',
+    labels=('tenant', 'feature'),
+)
+
 auth_successful_logins = registry.new_labeled_counter(
     "auth_successful_logins_total",
     "Number of successful logins in the Auth extension.",

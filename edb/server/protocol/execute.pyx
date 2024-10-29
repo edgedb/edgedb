@@ -420,6 +420,7 @@ async def execute_script(
         bint parse
 
     user_schema = extensions = ext_config_settings = cached_reflection = None
+    feature_used_metrics = None
     global_schema = roles = None
     unit_group = compiled.query_unit_group
 
@@ -496,6 +497,7 @@ async def execute_script(
                     extensions = query_unit.extensions
                     ext_config_settings = query_unit.ext_config_settings
                     cached_reflection = query_unit.cached_reflection
+                    feature_used_metrics = query_unit.feature_used_metrics
 
                 if query_unit.global_schema:
                     global_schema = query_unit.global_schema
@@ -577,6 +579,7 @@ async def execute_script(
                 global_schema,
                 roles,
                 cached_reflection,
+                feature_used_metrics,
             )
             if side_effects:
                 await process_side_effects(dbv, side_effects, conn)

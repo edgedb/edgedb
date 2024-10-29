@@ -1218,6 +1218,7 @@ class Tenant(ha_base.ClusterProtocol):
             backend_ids=backend_ids,
             extensions=extensions,
             ext_config_settings=parsed_db.ext_config_settings,
+            feature_used_metrics=parsed_db.feature_used_metrics,
         )
         db.set_state_serializer(
             parsed_db.protocol_version,

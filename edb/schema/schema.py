@@ -506,6 +506,7 @@ class Schema(abc.ABC):
         *,
         exclude_stdlib: bool = False,
         exclude_global: bool = False,
+        exclude_extensions: bool = False,
         exclude_internal: bool = True,
         included_modules: Optional[Iterable[sn.Name]] = None,
         excluded_modules: Optional[Iterable[sn.Name]] = None,
@@ -1499,6 +1500,7 @@ class FlatSchema(Schema):
         *,
         exclude_stdlib: bool = False,
         exclude_global: bool = False,
+        exclude_extensions: bool = False,
         exclude_internal: bool = True,
         included_modules: Optional[Iterable[sn.Name]] = None,
         excluded_modules: Optional[Iterable[sn.Name]] = None,
@@ -1512,6 +1514,7 @@ class FlatSchema(Schema):
             self._id_to_type,
             exclude_stdlib=exclude_stdlib,
             exclude_global=exclude_global,
+            exclude_extensions=exclude_extensions,
             exclude_internal=exclude_internal,
             included_modules=included_modules,
             excluded_modules=excluded_modules,
@@ -1613,6 +1616,7 @@ class SchemaIterator(Generic[so.Object_T]):
         *,
         exclude_stdlib: bool = False,
         exclude_global: bool = False,
+        exclude_extensions: bool = False,
         exclude_internal: bool = True,
         included_modules: Optional[Iterable[sn.Name]],
         excluded_modules: Optional[Iterable[sn.Name]],
@@ -1661,6 +1665,12 @@ class SchemaIterator(Generic[so.Object_T]):
         if exclude_stdlib:
             filters.append(
                 lambda schema, obj: not isinstance(obj, s_pseudo.PseudoType)
+            )
+
+        if exclude_extensions:
+            filters.append(
+                lambda schema, obj:
+                obj.get_name(schema).get_root_module_name() != EXT_MODULE
             )
 
         if exclude_global:
@@ -2138,6 +2148,7 @@ class ChainedSchema(Schema):
         *,
         exclude_stdlib: bool = False,
         exclude_global: bool = False,
+        exclude_extensions: bool = False,
         exclude_internal: bool = True,
         included_modules: Optional[Iterable[sn.Name]] = None,
         excluded_modules: Optional[Iterable[sn.Name]] = None,
@@ -2151,6 +2162,7 @@ class ChainedSchema(Schema):
             self._get_object_ids(),
             exclude_global=exclude_global,
             exclude_stdlib=exclude_stdlib,
+            exclude_extensions=exclude_extensions,
             exclude_internal=exclude_internal,
             included_modules=included_modules,
             excluded_modules=excluded_modules,

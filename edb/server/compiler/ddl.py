@@ -40,9 +40,17 @@ from edb.edgeql import quote as qlquote
 from edb.schema import database as s_db
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as s_delta
+from edb.schema import expraliases as s_expraliases
+from edb.schema import functions as s_func
+from edb.schema import globals as s_globals
+from edb.schema import indexes as s_indexes
 from edb.schema import migrations as s_migrations
 from edb.schema import objects as s_obj
+from edb.schema import policies as s_policies
+from edb.schema import pointers as s_pointers
+from edb.schema import rewrites as s_rewrites
 from edb.schema import schema as s_schema
+from edb.schema import triggers as s_triggers
 from edb.schema import utils as s_utils
 from edb.schema import version as s_ver
 
@@ -165,6 +173,7 @@ def compile_and_apply_ddl_stmt(
             user_schema=current_tx.get_user_schema(),
             is_transactional=True,
             warnings=tuple(delta.warnings),
+            feature_used_metrics=None,
         )
 
     store_migration_sdl = compiler._get_config_val(ctx, 'store_migration_sdl')
@@ -196,6 +205,7 @@ def compile_and_apply_ddl_stmt(
             user_schema=current_tx.get_user_schema(),
             is_transactional=True,
             warnings=tuple(delta.warnings),
+            feature_used_metrics=None,
         )
 
     # Apply and adapt delta, build native delta plan, which
@@ -271,6 +281,7 @@ def compile_and_apply_ddl_stmt(
         debug.header('Delta Script')
         debug.dump_code(b'\n'.join(sql), lexer='sql')
 
+    new_user_schema = current_tx.get_user_schema_if_updated()
     return dbstate.DDLQuery(
         sql=sql,
         is_transactional=is_transactional,
@@ -280,11 +291,15 @@ def compile_and_apply_ddl_stmt(
         create_db_template=create_db_template,
         create_db_mode=create_db_mode,
         ddl_stmt_id=ddl_stmt_id,
-        user_schema=current_tx.get_user_schema_if_updated(),  # type: ignore
+        user_schema=new_user_schema,
         cached_reflection=current_tx.get_cached_reflection_if_updated(),
         global_schema=current_tx.get_global_schema_if_updated(),
         config_ops=config_ops,
         warnings=tuple(delta.warnings),
+        feature_used_metrics=(
+            produce_feature_used_metrics(ctx.compiler_state, new_user_schema)
+            if new_user_schema else None
+        ),
     )
 
 
@@ -1169,6 +1184,53 @@ def _reset_schema(
     )
 
 
+_FEATURE_NAMES: dict[type[s_obj.Object], str] = {
+    s_policies.AccessPolicy: 'policy',
+    s_triggers.Trigger: 'trigger',
+    s_rewrites.Rewrite: 'rewrite',
+    s_globals.Global: 'global',
+    s_expraliases.Alias: 'alias',
+    s_func.Function: 'function',
+}
+
+
+def produce_feature_used_metrics(
+    compiler_state: compiler.CompilerState,
+    user_schema: s_schema.Schema,
+) -> dict[str, float]:
+    schema = s_schema.ChainedSchema(
+        compiler_state.std_schema,
+        user_schema,
+        # Skipping global schema is a little dodgy but not that bad
+        s_schema.EMPTY_SCHEMA,
+    )
+
+    features: dict[str, float] = {}
+    # TODO(perf): Should we optimize peeking into the innards directly
+    # so we can skip creating the proxies?
+    for obj in user_schema.get_objects(
+        type=s_obj.Object, exclude_extensions=True,
+    ):
+        typ = type(obj)
+        if (key := _FEATURE_NAMES.get(typ)):
+            features[key] = 1
+
+        if isinstance(obj, s_globals.Global) and obj.get_expr(user_schema):
+            features['computed_global'] = 1
+        elif (
+            isinstance(obj, s_pointers.Pointer)
+            and obj.get_expr(user_schema)
+        ):
+            features['computed_pointer'] = 1
+        elif (
+            isinstance(obj, s_indexes.Index)
+            and s_indexes.is_fts_index(schema, obj)
+        ):
+            features['fts'] = 1
+
+    return features
+
+
 def repair_schema(
     ctx: compiler.CompileContext,
 ) -> Optional[tuple[tuple[bytes, ...], s_schema.Schema, Any]]:
@@ -1280,7 +1342,6 @@ def administer_reindex(
     from edb.schema import objtypes as s_objtypes
     from edb.schema import constraints as s_constraints
     from edb.schema import indexes as s_indexes
-    from edb.schema import pointers as s_pointers
 
     if len(ql.expr.args) != 1 or ql.expr.kwargs:
         raise errors.QueryError(
@@ -1418,7 +1479,6 @@ def administer_vacuum(
     from edb.ir import ast as irast
     from edb.ir import typeutils as irtypeutils
     from edb.schema import objtypes as s_objtypes
-    from edb.schema import pointers as s_pointers
 
     # check that the kwargs are valid
     kwargs: Dict[str, str] = {}

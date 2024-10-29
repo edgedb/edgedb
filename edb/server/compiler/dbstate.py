@@ -159,7 +159,8 @@ class SessionStateQuery(BaseQuery):
 @dataclasses.dataclass(frozen=True)
 class DDLQuery(BaseQuery):
 
-    user_schema: s_schema.FlatSchema
+    user_schema: Optional[s_schema.FlatSchema]
+    feature_used_metrics: Optional[dict[str, float]]
     global_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None
     is_transactional: bool = True
@@ -184,6 +185,7 @@ class TxControlQuery(BaseQuery):
     user_schema: Optional[s_schema.Schema] = None
     global_schema: Optional[s_schema.Schema] = None
     cached_reflection: Any = None
+    feature_used_metrics: Optional[dict[str, float]] = None
 
     sp_name: Optional[str] = None
     sp_id: Optional[int] = None
@@ -336,6 +338,10 @@ class QueryUnit:
     # If present, represents the future schema state after
     # the command is run. The schema is pickled.
     user_schema: Optional[bytes] = None
+    # If present, represents updated metrics about feature use induced
+    # by the new user_schema.
+    feature_used_metrics: Optional[dict[str, float]] = None
+
     # Unlike user_schema, user_schema_version usually exist, pointing to the
     # latest user schema, which is self.user_schema if changed, or the user
     # schema this QueryUnit was compiled upon.
@@ -619,6 +625,7 @@ class ParsedDatabase:
     schema_version: uuid.UUID
     database_config: immutables.Map[str, config.SettingValue]
     ext_config_settings: list[config.Setting]
+    feature_used_metrics: dict[str, float]
 
     protocol_version: defines.ProtocolVersion
     state_serializer: sertypes.StateSerializer

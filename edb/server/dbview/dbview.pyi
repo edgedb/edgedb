@@ -186,6 +186,7 @@ class DatabaseIndex:
         extensions: Optional[set[str]],
         ext_config_settings: Optional[list[config.Setting]],
         early: bool = False,
+        feature_used_metrics: Optional[Mapping[str, float]] = ...,
     ) -> Database:
         ...
 
