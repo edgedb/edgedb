@@ -141,6 +141,8 @@ def resolve_column_kind(
         case context.ColumnStaticVal(val=val):
             # special case: __type__ static value
             return _uuid_const(val)
+        case context.ColumnPgExpr(expr=expr):
+            return expr
         case context.ColumnComputable(pointer=pointer):
 
             expr = pointer.get_expr(ctx.schema)
@@ -277,14 +279,33 @@ def _lookup_column(
         matched_name = matched_columns[0][1].name
         matched_tables = [t for t, _c in matched_columns]
 
-        for c_name, t_left, t_right in ctx.scope.factored_columns:
+        for c_name, t_left, t_right, join_type in ctx.scope.factored_columns:
             if matched_name != c_name:
                 continue
-            if t_left not in matched_tables or t_right not in matched_tables:
+            if not (t_left in matched_tables and t_right in matched_tables):
                 continue
 
-            c_left = next(c for c in t_left.columns if c.name == matched_name)
-            matched_columns = [(t_left, c_left)]
+            c_left = next(c for c in t_left.columns if c.name == c_name)
+            c_right = next(c for c in t_right.columns if c.name == c_name)
+
+            if join_type == 'INNER' or join_type == 'LEFT':
+                matched_columns = [(t_left, c_left)]
+            elif join_type == 'RIGHT':
+                matched_columns = [(t_right, c_right)]
+            elif join_type == 'FULL':
+                coalesce = pgast.CoalesceExpr(
+                    args=[
+                        resolve_column_kind(t_left, c_left.kind, ctx=ctx),
+                        resolve_column_kind(t_right, c_right.kind, ctx=ctx),
+                    ]
+                )
+                c_coalesce = context.Column(
+                    name=c_name,
+                    kind=context.ColumnPgExpr(expr=coalesce),
+                )
+                matched_columns = [(t_left, c_coalesce)]
+            else:
+                raise NotImplementedError()
             break
 
     if len(matched_columns) > 1:
@@ -295,7 +316,7 @@ def _lookup_column(
             span=column_ref.span,
         )
 
-    return (matched_columns[0],)
+    return matched_columns
 
 
 def _lookup_in_table(

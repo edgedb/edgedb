@@ -191,7 +191,9 @@ def _resolve_JoinExpr(
                 subctx.scope.tables = [rtable]
                 r_expr = dispatch.resolve(c, ctx=subctx)
 
-            ctx.scope.factored_columns.append((c_name, ltable, rtable))
+            ctx.scope.factored_columns.append(
+                (c_name, ltable, rtable, join.type)
+            )
 
             quals = pgastutils.extend_binop(
                 quals,

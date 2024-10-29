@@ -73,9 +73,9 @@ class Scope:
     ctes: List[CTE] = field(default_factory=lambda: [])
 
     # Pairs of columns of the same name that have been compared in a USING
-    # clause. This makes unqualified references to their name them un-ambagious,
-    # it resolves to the column in the left (first) table.
-    factored_columns: List[Tuple[str, Table, Table]] = field(
+    # clause. This makes unqualified references to their name them un-ambagious.
+    # The fourth tuple element is the join type.
+    factored_columns: List[Tuple[str, Table, Table, str]] = field(
         default_factory=lambda: []
     )
 
@@ -156,6 +156,12 @@ class ColumnComputable(ColumnKind):
     # An EdgeQL computable property. To get the AST for this column, EdgeQL
     # compiler needs to be invoked.
     pointer: s_pointers.Pointer
+
+
+@dataclass(kw_only=True)
+class ColumnPgExpr(ColumnKind):
+    # Value that was provided by some special resolver path.
+    expr: pgast.BaseExpr
 
 
 @dataclass(kw_only=True, eq=False, slots=True, repr=False)

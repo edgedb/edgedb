@@ -816,6 +816,50 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [[1, 'a', 1, 'a', 1, 'a']])
 
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id) AS (SELECT 1 UNION SELECT 2),
+                b(id) AS (SELECT 1 UNION SELECT 3)
+            SELECT a.id, b.id, id
+            FROM a INNER JOIN b USING (id);
+            '''
+        )
+        self.assertEqual(res, [[1, 1, 1]])
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id) AS (SELECT 1 UNION SELECT 2),
+                b(id) AS (SELECT 1 UNION SELECT 3)
+            SELECT a.id, b.id, id
+            FROM a RIGHT JOIN b USING (id);
+            '''
+        )
+        self.assertEqual(res, [[1, 1, 1], [None, 3, 3]])
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id) AS (SELECT 1 UNION SELECT 2),
+                b(id) AS (SELECT 1 UNION SELECT 3)
+            SELECT a.id, b.id, id
+            FROM a RIGHT OUTER JOIN b USING (id);
+            '''
+        )
+        self.assertEqual(res, [[1, 1, 1], [None, 3, 3]])
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id) AS (SELECT 1 UNION SELECT 2),
+                b(id) AS (SELECT 1 UNION SELECT 3)
+            SELECT a.id, b.id, id
+            FROM a FULL JOIN b USING (id);
+            '''
+        )
+        self.assertEqual(res, [[1, 1, 1], [2, None, 2], [None, 3, 3]])
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
