@@ -69,8 +69,8 @@ class HttpClient:
         self._fd = self._client._fd
         self._task = None
         self._skip_reads = 0
-        self._loop = asyncio.get_running_loop()
-        self._task = self._loop.create_task(self._boot(self._loop))
+        self._loop: Optional[asyncio.AbstractEventLoop] = asyncio.get_running_loop()
+        self._task = None
         self._streaming: dict[int, asyncio.Queue[Any]] = {}
         self._next_id = 0
         self._requests: dict[int, asyncio.Future] = {}
@@ -87,9 +87,16 @@ class HttpClient:
         self.close()
 
     def close(self) -> None:
-        if self._task:
+        if self._task is not None:
             self._task.cancel()
             self._task = None
+            self._loop = None
+
+    def _ensure_task(self):
+        if self._loop is None:
+            raise Exception("HttpClient was closed")
+        if self._task is None:
+            self._task = self._loop.create_task(self._boot(self._loop))
 
     def _update_limit(self, limit: int):
         self._client._update_limit(limit)
@@ -156,6 +163,7 @@ class HttpClient:
         data: bytes | str | dict[str, str] | None = None,
         json: Any | None = None,
     ) -> tuple[int, bytearray, dict[str, str]]:
+        self._ensure_task()
         path = self._process_path(path)
         headers_list = self._process_headers(headers)
         headers_list.append(("User-Agent", self._user_agent))
@@ -220,6 +228,7 @@ class HttpClient:
         """Create a streaming request. Note that there is no backpressure on the
         SSE events, so the called must continuously iterate on the response to
         avoid excessive memory use."""
+        self._ensure_task()
         path = self._process_path(path)
         headers_list = self._process_headers(headers)
         headers_list.append(("User-Agent", self._user_agent))

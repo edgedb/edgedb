@@ -516,6 +516,7 @@ impl Http {
         thread::Builder::new()
             .name("edgedb-http".to_string())
             .spawn(move || {
+                defer!(info!("Rust-side Http thread exiting"));
                 info!("Rust-side Http thread booted");
                 let rt = tokio::runtime::Builder::new_current_thread()
                     .enable_time()
@@ -536,7 +537,7 @@ impl Http {
 
                 local.block_on(&rt, run_and_block(max_capacity, rpc_pipe));
             })
-            .unwrap();
+            .expect("Failed to create HTTP thread");
 
         let notify_fd = rxfd.recv().unwrap();
         Http {
