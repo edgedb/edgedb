@@ -301,6 +301,7 @@ class DeleteExtensionPackage(
     ) -> s_schema.Schema:
         if (
             not context.stdmode
+            and not context.testmode
             and self.scls.get_builtin(schema)
         ):
             name = self.scls.get_shortname(schema)
