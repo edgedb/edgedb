@@ -307,15 +307,11 @@ cdef class Database:
         tname = self.tenant.get_instance_name()
         for ext in self.extensions:
             if ext not in extensions:
-                metrics.extension_used.dec(
-                    1, self.tenant.get_instance_name(), ext
-                )
+                metrics.extension_used.dec(1, tname, ext)
 
         for ext in extensions:
             if ext not in self.extensions:
-                metrics.extension_used.inc(
-                    1, self.tenant.get_instance_name(), ext
-                )
+                metrics.extension_used.inc(1, tname, ext)
 
         self.extensions = extensions
 
