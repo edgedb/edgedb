@@ -128,7 +128,7 @@ class HttpTest(tb.BaseHttpTest):
             writer.close()
             await writer.wait_closed()
 
-        server = await asyncio.start_server(mock_drop_server, 'localhost', 0)
+        server = await asyncio.start_server(mock_drop_server, '127.0.0.1', 0)
         addr = server.sockets[0].getsockname()
         url = f'http://{addr[0]}:{addr[1]}/drop'
 
@@ -153,7 +153,7 @@ class HttpTest(tb.BaseHttpTest):
             writer.close()
             await writer.wait_closed()
 
-        server = await asyncio.start_server(mock_drop_server, 'localhost', 0)
+        server = await asyncio.start_server(mock_drop_server, '127.0.0.1', 0)
         addr = server.sockets[0].getsockname()
         url = f'http://{addr[0]}:{addr[1]}/drop'
 
@@ -228,7 +228,7 @@ class HttpTest(tb.BaseHttpTest):
             except Exception:
                 is_closed = True
 
-        server = await asyncio.start_server(mock_sse_server, 'localhost', 0)
+        server = await asyncio.start_server(mock_sse_server, '127.0.0.1', 0)
         addr = server.sockets[0].getsockname()
         url = f'http://{addr[0]}:{addr[1]}/sse'
 
