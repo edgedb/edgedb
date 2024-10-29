@@ -6434,11 +6434,15 @@ def _generate_sql_information_schema(
         -- find indexes that are on virtual tables and on `id` columns
         LEFT JOIN LATERAL (
             SELECT TRUE AS t
-            FROM edgedbsql_VER.virtual_tables vt
-            LEFT JOIN pg_attribute pa ON pa.attrelid = pi.indrelid
-            WHERE vt.pg_type_id = pr.reltype
+            FROM pg_attribute pa
+            WHERE pa.attrelid = pi.indrelid
+              AND pa.attnum = ANY(pi.indkey)
               AND pa.attname = 'id'
         ) is_id ON TRUE
+
+        -- for our tables show only primary key indexes
+        LEFT JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pr.reltype
+        WHERE vt.id IS NULL OR is_id.t IS NOT NULL
         """,
         ),
         trampoline.VersionedView(
