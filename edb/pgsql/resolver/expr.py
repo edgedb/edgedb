@@ -141,8 +141,8 @@ def resolve_column_kind(
         case context.ColumnStaticVal(val=val):
             # special case: __type__ static value
             return _uuid_const(val)
-        case context.ColumnPgExpr(expr=expr):
-            return expr
+        case context.ColumnPgExpr(expr=e):
+            return e
         case context.ColumnComputable(pointer=pointer):
 
             expr = pointer.get_expr(ctx.schema)
