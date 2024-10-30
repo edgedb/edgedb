@@ -1649,19 +1649,6 @@ class FunctionCommand(
 
         ir = expr.irast
 
-        if ir.dml_exprs:
-            if not (
-                context.allow_dml_in_functions
-                or self._get_attribute_value(schema, context, 'is_inlined')
-            ):
-                # DML inside function body detected. Right now is a good
-                # opportunity to raise exceptions or give warnings.
-                raise errors.InvalidFunctionDefinitionError(
-                    'data-modifying statements are not allowed in function'
-                    ' bodies',
-                    span=ir.dml_exprs[0].span,
-                )
-
         spec_volatility: Optional[ft.Volatility] = (
             self.get_specified_attribute_value('volatility', schema, context))
 

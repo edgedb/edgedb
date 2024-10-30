@@ -325,9 +325,6 @@ def _get_delta_context_args(ctx: compiler.CompileContext) -> dict[str, Any]:
     return dict(
         stdmode=ctx.bootstrap_mode,
         testmode=compiler._get_config_val(ctx, '__internal_testmode'),
-        allow_dml_in_functions=(
-            compiler._get_config_val(ctx, 'allow_dml_in_functions')
-        ),
         store_migration_sdl=(
             compiler._get_config_val(ctx, 'store_migration_sdl')
         ) == 'AlwaysStore',
@@ -490,9 +487,6 @@ def _start_migration(
             base_schema=base_schema,
             current_schema=schema,
             testmode=(compiler._get_config_val(ctx, '__internal_testmode')),
-            allow_dml_in_functions=(
-                compiler._get_config_val(ctx, 'allow_dml_in_functions')
-            ),
         )
         query = dataclasses.replace(query, warnings=tuple(warnings))
 
@@ -1303,7 +1297,6 @@ def repair_schema(
     context_args = _get_delta_context_args(ctx)
     context_args.update(dict(
         testmode=True,
-        allow_dml_in_functions=True,
     ))
 
     text = s_ddl.ddl_text_from_schema(schema)

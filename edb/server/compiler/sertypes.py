@@ -1631,7 +1631,6 @@ class StateSerializerFactory:
             config := cfg::Config {
                 session_idle_transaction_timeout: <duration>'0:05:00',
                 query_execution_timeout: <duration>'0:00:00',
-                allow_dml_in_functions: false,
                 allow_bare_ddl: AlwaysAllow,
                 apply_access_policies: true,
             },
