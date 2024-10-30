@@ -275,7 +275,7 @@ class TestHttpAuth(BaseTestHttpAuth):
                 ).dump() + protocol.Sync().dump(),
                 headers={
                     "Content-Type": mime_type,
-                    "X-EdgeDB-User": args["user"],
+                    "X-Gel-User": args["user"],
                     "Authorization": f"Bearer {token.decode("ascii")}"
                 },
             )

@@ -752,13 +752,13 @@ class Tenant(ha_base.ClusterProtocol):
     @contextlib.asynccontextmanager
     async def use_sys_pgcon(self) -> AsyncGenerator[pgcon.PGConnection, None]:
         if not self._initing and not self._running:
-            raise RuntimeError("EdgeDB server is not running.")
+            raise RuntimeError("Gel server is not running.")
 
         await self._sys_pgcon_waiter.acquire()
 
         if not self._initing and not self._running:
             self._sys_pgcon_waiter.release()
-            raise RuntimeError("EdgeDB server is not running.")
+            raise RuntimeError("Gel server is not running.")
 
         if self.__sys_pgcon is None or not self.__sys_pgcon.is_healthy():
             conn, self.__sys_pgcon = self.__sys_pgcon, None
@@ -998,7 +998,7 @@ class Tenant(ha_base.ClusterProtocol):
             if close_frontend_conns:
                 self._server.request_stop_fe_conns(dbname)
             else:
-                # If there are open EdgeDB connections to the `dbname` DB
+                # If there are open Gel connections to the `dbname` DB
                 # just raise the error Postgres would have raised itself.
                 raise errors.ExecutionError(
                     f"database branch {dbname!r} is being accessed by "

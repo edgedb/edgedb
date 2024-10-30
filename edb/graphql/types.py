@@ -77,7 +77,7 @@ from . import errors as g_errors
 
 
 '''
-This module is responsible for mapping EdgeDB types onto the GraphQL
+This module is responsible for mapping Gel types onto the GraphQL
 types. However, this is an imperfect mapping because not all the types
 or relationships between them can be expressed.
 
@@ -100,7 +100,7 @@ link that targets __UserAlias__friends. This type gets reflected into
 a GraphQL _edb__UserAlias__friends that implements... what? We have 2
 options:
 
-    1) Implement interfaces mirroring the EdgeDB types: User, Object.
+    1) Implement interfaces mirroring the Gel types: User, Object.
 
     2) Implement it's own interface (or just omit interfaces here,
        since if the interface is unique it's not adding anything).
@@ -451,7 +451,7 @@ class GQLCoreSchema:
             return f'{inputtype}{name}'
 
     def gql_to_edb_name(self, name: str) -> str:
-        '''Convert the GraphQL field name into an EdgeDB type/view name.'''
+        '''Convert the GraphQL field name into an Gel type/view name.'''
         if '__' in name:
             return name.replace('__', '::')
         else:
@@ -1532,7 +1532,7 @@ class GQLCoreSchema:
                 self._gql_inobjtypes[f'Insert{t_name}'] = gqlinserttype
 
     def get(self, name: str, *, dummy: bool = False) -> GQLBaseType:
-        '''Get a special GQL type either by name or based on EdgeDB type.'''
+        '''Get a special GQL type either by name or based on Gel type.'''
         # normalize name and possibly add 'edb_base' to kwargs
         edb_base = None
         kwargs: Dict[str, Any] = {'dummy': dummy}

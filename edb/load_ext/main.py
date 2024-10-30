@@ -195,11 +195,12 @@ def install_edgedb_extension(
 def load_ext_install(
     package: pathlib.Path,
     skip_edgedb: bool,
+    skip_gel: bool,
     skip_postgres: bool,
     with_pg_config: pathlib.Path | None,
 ) -> None:
     target_dir = None
-    if not skip_edgedb:
+    if not skip_edgedb and not skip_gel:
         from edb import buildmeta
 
         ext_dir = buildmeta.get_extension_dir_path()
@@ -218,6 +219,7 @@ def load_ext_install(
 def load_ext_uninstall(
     package: pathlib.Path,
     skip_edgedb: bool,
+    skip_gel: bool,
     skip_postgres: bool,
     with_pg_config: pathlib.Path | None,
 ) -> None:
@@ -252,7 +254,7 @@ def load_ext_uninstall(
         pg_config = get_pg_config(with_pg_config)
         uninstall_pg_extension(pg_manifest, pg_config)
 
-    if not skip_edgedb:
+    if not skip_edgedb and not skip_gel:
         print("Removing", target_dir)
         shutil.rmtree(target_dir)
 
@@ -308,9 +310,12 @@ def load_ext_main(
 
 parser = argparse.ArgumentParser(description='Install an extension package')
 parser.add_argument(
-    '--skip-edgedb', action='store_true',
-    help="Skip installing the extension package into the EdgeDB "
+    '--skip-gel', action='store_true',
+    help="Skip installing the extension package into the Gel "
           "installation",
+)
+parser.add_argument(
+    '--skip-edgedb', action='store_true', help=argparse.SUPPRESS,
 )
 parser.add_argument(
     '--skip-postgres', action='store_true',

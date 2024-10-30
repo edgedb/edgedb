@@ -1379,7 +1379,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
     async def test_sql_query_version(self):
         version = await self.scon.fetchrow("select version()")
         self.assertTrue(version["version"].startswith("PostgreSQL "))
-        self.assertIn("EdgeDB", version["version"])
+        self.assertIn("Gel", version["version"])
 
     async def test_sql_transaction_01(self):
         await self.scon.execute(
