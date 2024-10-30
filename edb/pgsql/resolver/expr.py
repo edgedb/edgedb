@@ -141,6 +141,8 @@ def resolve_column_kind(
         case context.ColumnStaticVal(val=val):
             # special case: __type__ static value
             return _uuid_const(val)
+        case context.ColumnPgExpr(expr=e):
+            return e
         case context.ColumnComputable(pointer=pointer):
 
             expr = pointer.get_expr(ctx.schema)
@@ -268,6 +270,44 @@ def _lookup_column(
             (t, c) for t, c in matched_columns if t.precedence == max_precedence
         ]
 
+    # when ambiguous references have been used in USING clause,
+    # we resolve them to first or the second column or a COALESCE of the two.
+    if (
+        len(matched_columns) == 2
+        and matched_columns[0][1].name == matched_columns[1][1].name
+    ):
+        matched_name = matched_columns[0][1].name
+        matched_tables = [t for t, _c in matched_columns]
+
+        for c_name, t_left, t_right, join_type in ctx.scope.factored_columns:
+            if matched_name != c_name:
+                continue
+            if not (t_left in matched_tables and t_right in matched_tables):
+                continue
+
+            c_left = next(c for c in t_left.columns if c.name == c_name)
+            c_right = next(c for c in t_right.columns if c.name == c_name)
+
+            if join_type == 'INNER' or join_type == 'LEFT':
+                matched_columns = [(t_left, c_left)]
+            elif join_type == 'RIGHT':
+                matched_columns = [(t_right, c_right)]
+            elif join_type == 'FULL':
+                coalesce = pgast.CoalesceExpr(
+                    args=[
+                        resolve_column_kind(t_left, c_left.kind, ctx=ctx),
+                        resolve_column_kind(t_right, c_right.kind, ctx=ctx),
+                    ]
+                )
+                c_coalesce = context.Column(
+                    name=c_name,
+                    kind=context.ColumnPgExpr(expr=coalesce),
+                )
+                matched_columns = [(t_left, c_coalesce)]
+            else:
+                raise NotImplementedError()
+            break
+
     if len(matched_columns) > 1:
         potential_tables = ', '.join([t.name or '' for t, _ in matched_columns])
         raise errors.QueryError(
@@ -276,7 +316,7 @@ def _lookup_column(
             span=column_ref.span,
         )
 
-    return (matched_columns[0],)
+    return matched_columns
 
 
 def _lookup_in_table(

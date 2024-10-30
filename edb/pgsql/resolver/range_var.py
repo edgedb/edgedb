@@ -180,12 +180,21 @@ def _resolve_JoinExpr(
 
     if join.using_clause:
         for c in join.using_clause:
+            assert len(c.name) == 1
+            assert isinstance(c.name[-1], str)
+            c_name = c.name[-1]
+
             with ctx.child() as subctx:
                 subctx.scope.tables = [ltable]
                 l_expr = dispatch.resolve(c, ctx=subctx)
             with ctx.child() as subctx:
                 subctx.scope.tables = [rtable]
                 r_expr = dispatch.resolve(c, ctx=subctx)
+
+            ctx.scope.factored_columns.append(
+                (c_name, ltable, rtable, join.type)
+            )
+
             quals = pgastutils.extend_binop(
                 quals,
                 pgast.Expr(
