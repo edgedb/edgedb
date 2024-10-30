@@ -94,7 +94,9 @@ class Client(local.Client):
         assert len(result_json) == 1
         return data.EmailFactor(**result_json[0])
 
-    async def authenticate(self, email: str, password: str) -> data.LocalIdentity:
+    async def authenticate(
+        self, email: str, password: str
+    ) -> data.LocalIdentity:
         r = await execute.parse_execute_json(
             db=self.db,
             query="""\

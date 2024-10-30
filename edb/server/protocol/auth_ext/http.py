@@ -437,7 +437,8 @@ class Router:
             {"code": pkce_code, "provider": provider_name},
         )
         logger.info(
-            f"OAuth callback successful: identity_id={identity.id}, new_identity={new_identity}"
+            "OAuth callback successful: "
+            f"identity_id={identity.id}, new_identity={new_identity}"
         )
         response.status = http.HTTPStatus.FOUND
         response.custom_headers["Location"] = new_url
@@ -481,23 +482,24 @@ class Router:
         if base64_url_encoded_verifier.decode() == pkce_object.challenge:
             await pkce.delete(self.db, code)
 
+            identity_id = pkce_object.identity_id
             await self._maybe_send_webhook(
                 webhook.IdentityAuthenticated(
                     event_id=str(uuid.uuid4()),
                     timestamp=datetime.datetime.now(datetime.timezone.utc),
-                    identity_id=pkce_object.identity_id,
+                    identity_id=identity_id,
                 )
             )
-            session_token = self._make_session_token(pkce_object.identity_id)
+            session_token = self._make_session_token(identity_id)
             logger.info(
-                f"Token exchange successful: identity_id={pkce_object.identity_id}"
+                f"Token exchange successful: identity_id={identity_id}"
             )
             response.status = http.HTTPStatus.OK
             response.content_type = b"application/json"
             response.body = json.dumps(
                 {
                     "auth_token": session_token,
-                    "identity_id": pkce_object.identity_id,
+                    "identity_id": identity_id,
                     "provider_token": pkce_object.auth_token,
                     "provider_refresh_token": pkce_object.refresh_token,
                 }
@@ -1256,8 +1258,9 @@ class Router:
                 )
                 await auth_emails.send_fake_email(self.tenant)
             else:
+                identity_id = email_factor.identity.id
                 magic_link_token = magic_link_client.make_magic_link_token(
-                    identity_id=email_factor.identity.id,
+                    identity_id=identity_id,
                     callback_url=callback_url,
                     challenge=challenge,
                 )
@@ -1265,7 +1268,7 @@ class Router:
                     webhook.MagicLinkRequested(
                         event_id=str(uuid.uuid4()),
                         timestamp=datetime.datetime.now(datetime.timezone.utc),
-                        identity_id=email_factor.identity.id,
+                        identity_id=identity_id,
                         email_factor_id=email_factor.id,
                         magic_link_token=magic_link_token,
                     )
@@ -1277,8 +1280,8 @@ class Router:
                     redirect_on_failure=redirect_on_failure,
                 )
                 logger.info(
-                    f"Sent magic link email: identity_id={email_factor.identity.id}, "
-                    f"email={email}"
+                    "Sent magic link email: "
+                    f"identity_id={identity_id}, email={email}"
                 )
 
             return_data = {
