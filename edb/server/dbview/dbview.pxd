@@ -91,6 +91,7 @@ cdef class Database:
         readonly object reflection_cache
         readonly object backend_ids
         readonly object extensions
+        readonly object _feature_used_metrics
 
     cdef _invalidate_caches(self)
     cdef _cache_compiled_query(self, key, compiled)
@@ -102,12 +103,14 @@ cdef class Database:
         self,
         extensions,
     )
+    cdef _set_feature_used_metrics(self, feature_used_metrics)
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema_pickle,
         schema_version,
         extensions,
         ext_config_settings,
+        feature_used_metrics,
         reflection_cache=?,
         backend_ids=?,
         db_config=?,
@@ -208,6 +211,7 @@ cdef class DatabaseConnectionView:
         global_schema,
         roles,
         cached_reflection,
+        feature_used_metrics,
     )
 
     cdef get_user_config_spec(self)

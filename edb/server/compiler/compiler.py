@@ -814,6 +814,9 @@ class Compiler:
             ext_config_settings=ext_config_settings,
             protocol_version=defines.CURRENT_PROTOCOL,
             state_serializer=state_serializer,
+            feature_used_metrics=ddl.produce_feature_used_metrics(
+                self.state, user_schema
+            ),
         )
 
     def make_state_serializer(
@@ -1945,6 +1948,11 @@ def _compile_ql_transaction(
         global_schema=final_global_schema,
         sp_name=sp_name,
         sp_id=sp_id,
+        feature_used_metrics=(
+            ddl.produce_feature_used_metrics(
+                ctx.compiler_state, final_user_schema
+            ) if final_user_schema else None
+        ),
     )
 
 
@@ -2477,6 +2485,7 @@ def _try_compile(
                     unit.extensions, unit.ext_config_settings = (
                         _extract_extensions(ctx, comp.user_schema)
                     )
+                unit.feature_used_metrics = comp.feature_used_metrics
                 if comp.cached_reflection is not None:
                     unit.cached_reflection = \
                         pickle.dumps(comp.cached_reflection, -1)
@@ -2505,6 +2514,7 @@ def _try_compile(
                     unit.extensions, unit.ext_config_settings = (
                         _extract_extensions(ctx, comp.user_schema)
                     )
+                unit.feature_used_metrics = comp.feature_used_metrics
                 if comp.cached_reflection is not None:
                     unit.cached_reflection = \
                         pickle.dumps(comp.cached_reflection, -1)
