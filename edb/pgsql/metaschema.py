@@ -5914,7 +5914,7 @@ def _generate_sql_information_schema(
             schema_name,
             table_name,
             sm.id AS module_id,
-            pt.oid AS backend_id
+            pt.oid AS pg_type_id
         FROM all_tables at
         JOIN edgedb_VER."_SchemaModule" sm ON sm.name = at.module_name
         LEFT JOIN pg_type pt ON pt.typname = at.id::text
@@ -5974,7 +5974,7 @@ def _generate_sql_information_schema(
                 (
                     SELECT vt.table_name::name
                     FROM edgedbsql_VER.virtual_tables vt
-                    WHERE vt.backend_id = typeoid
+                    WHERE vt.pg_type_id = typeoid
                 ),
                 -- is this a scalar or tuple?
                 (
@@ -6021,7 +6021,7 @@ def _generate_sql_information_schema(
                 (
                     SELECT edgedbsql_VER.uuid_to_oid(vt.module_id)
                     FROM edgedbsql_VER.virtual_tables vt
-                    WHERE vt.backend_id = typeoid
+                    WHERE vt.pg_type_id = typeoid
                 ),
                 -- just replace "edgedbpub" with "public"
                 (SELECT nsdef.oid WHERE typens = nspub.oid),
@@ -6291,78 +6291,18 @@ def _generate_sql_information_schema(
         WHERE NOT (pn.nspname = 'edgedbpub' AND pc.conbin IS NOT NULL)
         """
         ),
+
+        # pg_class that contains classes only for tables
+        # This is needed so we can use it to filter pg_index to indexes only on
+        # visible tables.
         trampoline.VersionedView(
-            name=("edgedbsql", "pg_index"),
+            name=("edgedbsql", "pg_class_tables"),
             query="""
-        SELECT pi.*, pi.tableoid, pi.xmin, pi.cmin, pi.xmax, pi.cmax, pi.ctid
-        FROM pg_index pi
-        LEFT JOIN pg_class pr ON pi.indrelid = pr.oid
-        LEFT JOIN pg_catalog.pg_namespace pn ON pr.relnamespace = pn.oid
-        WHERE pn.nspname <> 'edgedbpub'
-        """,
-        ),
-        trampoline.VersionedView(
-            name=("edgedbsql", "pg_class"),
-            query="""
-        WITH
-            nsdef AS (
-                SELECT edgedbsql_VER.uuid_to_oid(id) AS oid
-                FROM edgedb_VER."_SchemaModule"
-                WHERE name = 'default'
-            )
         -- Postgres tables
         SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
         FROM pg_class pc
         JOIN pg_namespace pn ON pc.relnamespace = pn.oid
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
-
-        UNION ALL
-
-        -- get all the tuples
-        SELECT
-            pc.oid,
-            edgedbsql_VER._long_name(pc.reltype::text, tup.name) as relname,
-            nsdef.oid as relnamespace,
-            pc.reltype,
-            pc.reloftype,
-            pc.relowner,
-            pc.relam,
-            pc.relfilenode,
-            pc.reltablespace,
-            pc.relpages,
-            pc.reltuples,
-            pc.relallvisible,
-            pc.reltoastrelid,
-            pc.relhasindex,
-            pc.relisshared,
-            pc.relpersistence,
-            pc.relkind,
-            pc.relnatts,
-            0 as relchecks, -- don't care about CHECK constraints
-            pc.relhasrules,
-            pc.relhastriggers,
-            pc.relhassubclass,
-            pc.relrowsecurity,
-            pc.relforcerowsecurity,
-            pc.relispopulated,
-            pc.relreplident,
-            pc.relispartition,
-            pc.relrewrite,
-            pc.relfrozenxid,
-            pc.relminmxid,
-            pc.relacl,
-            pc.reloptions,
-            pc.relpartbound,
-            pc.tableoid,
-            pc.xmin,
-            pc.cmin,
-            pc.xmax,
-            pc.cmax,
-            pc.ctid
-        FROM
-            nsdef,
-            pg_class pc
-        JOIN edgedb_VER."_SchemaTuple" tup ON tup.backend_id = pc.reltype
 
         UNION ALL
 
@@ -6408,14 +6348,124 @@ def _generate_sql_information_schema(
             pc.cmax,
             pc.ctid
         FROM pg_class pc
-        JOIN edgedbsql_VER.virtual_tables vt ON vt.backend_id = pc.reltype
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pc.reltype
+        """,
+        ),
+        trampoline.VersionedView(
+            name=("edgedbsql", "pg_index"),
+            query="""
+        SELECT
+            pi.indexrelid,
+            pi.indrelid,
+            pi.indnatts,
+            pi.indnkeyatts,
+            CASE
+                WHEN COALESCE(is_id.t, FALSE) THEN TRUE
+                ELSE pi.indisprimary
+            END AS indisunique,
+            pi.indnullsnotdistinct,
+            CASE
+                WHEN COALESCE(is_id.t, FALSE) THEN TRUE
+                ELSE pi.indisprimary
+            END AS indisprimary,
+            pi.indisexclusion,
+            pi.indimmediate,
+            pi.indisclustered,
+            pi.indisvalid,
+            pi.indcheckxmin,
+            pi.indisready,
+            pi.indislive,
+            pi.indisreplident,
+            pi.indkey,
+            pi.indcollation,
+            pi.indclass,
+            pi.indoption,
+            pi.indexprs,
+            pi.indpred,
+            pi.tableoid, pi.xmin, pi.cmin, pi.xmax, pi.cmax, pi.ctid
+        FROM pg_index pi
+
+        -- filter by tables visible in pg_class
+        INNER JOIN edgedbsql_VER.pg_class_tables pr ON pi.indrelid = pr.oid
+
+        -- find indexes that are on virtual tables and on `id` columns
+        LEFT JOIN LATERAL (
+            SELECT TRUE AS t
+            FROM pg_attribute pa
+            WHERE pa.attrelid = pi.indrelid
+              AND pa.attnum = ANY(pi.indkey)
+              AND pa.attname = 'id'
+        ) is_id ON TRUE
+
+        -- for our tables show only primary key indexes
+        LEFT JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pr.reltype
+        WHERE vt.id IS NULL OR is_id.t IS NOT NULL
+        """,
+        ),
+        trampoline.VersionedView(
+            name=("edgedbsql", "pg_class"),
+            query="""
+        -- tables
+        SELECT pc.*
+        FROM edgedbsql_VER.pg_class_tables pc
 
         UNION
 
         -- indexes
         SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
         FROM pg_class pc
-        JOIN edgedbsql_VER.pg_index pi ON pc.oid = pi.indexrelid
+        JOIN pg_index pi ON pc.oid = pi.indexrelid
+
+        UNION
+
+        -- compound types (tuples)
+        SELECT
+            pc.oid,
+            edgedbsql_VER._long_name(pc.reltype::text, tup.name) as relname,
+            nsdef.oid as relnamespace,
+            pc.reltype,
+            pc.reloftype,
+            pc.relowner,
+            pc.relam,
+            pc.relfilenode,
+            pc.reltablespace,
+            pc.relpages,
+            pc.reltuples,
+            pc.relallvisible,
+            pc.reltoastrelid,
+            pc.relhasindex,
+            pc.relisshared,
+            pc.relpersistence,
+            pc.relkind,
+            pc.relnatts,
+            0 as relchecks, -- don't care about CHECK constraints
+            pc.relhasrules,
+            pc.relhastriggers,
+            pc.relhassubclass,
+            pc.relrowsecurity,
+            pc.relforcerowsecurity,
+            pc.relispopulated,
+            pc.relreplident,
+            pc.relispartition,
+            pc.relrewrite,
+            pc.relfrozenxid,
+            pc.relminmxid,
+            pc.relacl,
+            pc.reloptions,
+            pc.relpartbound,
+            pc.tableoid,
+            pc.xmin,
+            pc.cmin,
+            pc.xmax,
+            pc.cmax,
+            pc.ctid
+        FROM pg_class pc
+        JOIN edgedb_VER."_SchemaTuple" tup ON tup.backend_id = pc.reltype
+        JOIN (
+            SELECT edgedbsql_VER.uuid_to_oid(id) AS oid
+            FROM edgedb_VER."_SchemaModule"
+            WHERE name = 'default'
+        ) nsdef ON TRUE
         """,
         ),
 
@@ -6518,7 +6568,7 @@ def _generate_sql_information_schema(
 
         FROM edgedb_VER."_SchemaPointer" sp
         JOIN edgedbsql_VER.virtual_tables vt ON vt.id = sp.source
-        JOIN pg_class pc ON pc.reltype = vt.backend_id
+        JOIN pg_class pc ON pc.reltype = vt.pg_type_id
 
         -- try to find existing pg_attribute (it will not exist for computeds)
         LEFT JOIN pg_attribute pa ON (
@@ -6586,7 +6636,7 @@ def _generate_sql_information_schema(
             pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
         FROM pg_attribute pa
         JOIN pg_class pc ON pc.oid = pa.attrelid
-        JOIN edgedbsql_VER.virtual_tables vt ON vt.backend_id = pc.reltype
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pc.reltype
         WHERE pa.attnum < 0
         ) t
         """,
