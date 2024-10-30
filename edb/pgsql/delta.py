@@ -1348,6 +1348,15 @@ class FunctionCommand(MetaCommand):
         if func.get_volatility(schema) == ql_ft.Volatility.Modifying:
             # Modifying functions cannot be compiled correctly and should be
             # inlined at the call point.
+
+            if func.find_object_param_overloads(schema) is not None:
+                raise errors.SchemaDefinitionError(
+                    f"cannot overload an existing function "
+                    f"with a modifying function: "
+                    f"'{func.get_shortname(schema)}'",
+                    span=self.span,
+                )
+
             return None, False
 
         nativecode: s_expr.Expression = not_none(func.get_nativecode(schema))
@@ -1362,9 +1371,20 @@ class FunctionCommand(MetaCommand):
 
         obj_overload = func.find_object_param_overloads(schema)
         if obj_overload is not None:
-            ov, ov_param_idx = obj_overload
+            overloads, ov_param_idx = obj_overload
+            if any(
+                overload.get_volatility(schema) == ql_ft.Volatility.Modifying
+                for overload in overloads
+            ):
+                raise errors.SchemaDefinitionError(
+                    f"cannot overload an existing modifying function: "
+                    f"'{func.get_shortname(schema)}'",
+                    span=self.span,
+                )
+
             body = self.compile_edgeql_overloaded_function_body(
-                func, ov, ov_param_idx, schema, context)
+                func, overloads, ov_param_idx, schema, context
+            )
             replace = True
         else:
             sql_res = compiler.compile_ir_to_sql_tree(
