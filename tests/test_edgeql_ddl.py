@@ -5910,6 +5910,40 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ['ABCDE!']
         )
 
+    async def test_edgeql_ddl_function_recompile_03(self):
+        # Check that modifying functions are recompiled
+        await self.con.execute('''
+            create type Bar { create property a -> int64 };
+            create function inner(x: int64) -> Bar using ((
+                insert Bar { a := x }
+            ));
+            create function test(x: int64) -> Bar using (inner(x));
+        ''')
+
+        await self.assert_query_result(
+            'select test(1).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1],
+        )
+
+        await self.con.execute('''
+            alter function test(x: int64) {
+                using ((insert Bar { a := x + 10 }));
+            };
+        ''')
+        await self.assert_query_result(
+            'select test(2).a',
+            [12],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 12],
+            sort=True,
+        )
+
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaError,

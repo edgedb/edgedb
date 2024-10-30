@@ -1150,62 +1150,6 @@ class TestServerConfig(tb.QueryTestCase):
                 CREATE TYPE Foo;
             ''')
 
-            async with self.assertRaisesRegexTx(
-                edgedb.InvalidFunctionDefinitionError,
-                'data-modifying statements are not allowed in function bodies'
-            ):
-                await self.con.execute('''
-                    CREATE FUNCTION foo() -> Foo USING (INSERT Foo);
-                ''')
-
-            async with self._run_and_rollback():
-                await self.con.execute('''
-                    CONFIGURE SESSION SET allow_dml_in_functions := true;
-                ''')
-
-                await self.con.execute('''
-                    CREATE FUNCTION foo() -> Foo USING (INSERT Foo);
-                ''')
-
-            async with self.assertRaisesRegexTx(
-                edgedb.InvalidFunctionDefinitionError,
-                'data-modifying statements are not allowed in function bodies'
-            ):
-                await self.con.execute('''
-                    CREATE FUNCTION foo() -> Foo USING (INSERT Foo);
-                ''')
-
-            async with self._run_and_rollback():
-                # Session prohibits DML in functions.
-                await self.con.execute('''
-                    CONFIGURE SESSION SET allow_dml_in_functions := false;
-                ''')
-
-                # Database allows it.
-                await self.con.execute('''
-                    CONFIGURE CURRENT DATABASE
-                        SET allow_dml_in_functions := true;
-                ''')
-
-                # Session wins.
-                async with self.assertRaisesRegexTx(
-                    edgedb.InvalidFunctionDefinitionError,
-                    'data-modifying statements are not'
-                    ' allowed in function bodies'
-                ):
-                    await self.con.execute('''
-                        CREATE FUNCTION foo() -> Foo USING (INSERT Foo);
-                    ''')
-
-                await self.con.execute('''
-                    CONFIGURE SESSION RESET allow_dml_in_functions;
-                ''')
-
-                # Now OK.
-                await self.con.execute('''
-                    CREATE FUNCTION foo() -> Foo USING (INSERT Foo);
-                ''')
-
             async with self._run_and_rollback():
                 await self.con.execute('''
                     CONFIGURE SESSION SET allow_bare_ddl :=
