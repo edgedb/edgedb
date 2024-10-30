@@ -140,7 +140,7 @@ class Property(
     def is_link_property(self, schema: s_schema.Schema) -> bool:
         source = self.get_source(schema)
         if source is None:
-            raise ValueError(f'{self.get_verbosename(schema)} is abstract')
+            return False
         return isinstance(source, pointers.Pointer)
 
     def allow_ref_propagation(
