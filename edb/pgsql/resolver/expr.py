@@ -271,7 +271,7 @@ def _lookup_column(
         ]
 
     # when ambiguous references have been used in USING clause,
-    # pick the column from the left table
+    # we resolve them to first or the second column or a COALESCE of the two.
     if (
         len(matched_columns) == 2
         and matched_columns[0][1].name == matched_columns[1][1].name

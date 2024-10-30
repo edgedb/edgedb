@@ -73,7 +73,7 @@ class Scope:
     ctes: List[CTE] = field(default_factory=lambda: [])
 
     # Pairs of columns of the same name that have been compared in a USING
-    # clause. This makes unqualified references to their name them un-ambagious.
+    # clause. This makes unqualified references to their name them un-ambiguous.
     # The fourth tuple element is the join type.
     factored_columns: List[Tuple[str, Table, Table, str]] = field(
         default_factory=lambda: []
