@@ -860,6 +860,47 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 self.assertEqual(metrics.get(_extkey('graphql'), 0), 0)
                 self.assertEqual(metrics.get(_featkey('function'), 0), 1)
 
+                # More detailed testing
+
+                await con.execute('create type Foo;')
+
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_featkey('index'), 0), 0)
+                self.assertEqual(metrics.get(_featkey('constraint'), 0), 0)
+
+                await con.execute('''
+                    alter type Foo create constraint expression on (true)
+                ''')
+
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_featkey('index'), 0), 0)
+                self.assertEqual(metrics.get(_featkey('constraint'), 0), 1)
+                self.assertEqual(metrics.get(_featkey('constraint_expr'), 0), 1)
+                self.assertEqual(
+                    metrics.get(_featkey('multiple_inheritance'), 0), 0
+                )
+                self.assertEqual(metrics.get(_featkey('scalar'), 0), 0)
+                self.assertEqual(metrics.get(_featkey('enum'), 0), 0)
+                self.assertEqual(metrics.get(_featkey('link_property'), 0), 0)
+
+                await con.execute('''
+                    create type Bar;
+                    create type Baz extending Foo, Bar;
+                    create scalar type EnumType02 extending enum<foo, bar>;
+
+                    create type Lol { create multi link foo -> Bar {
+                        create property x -> str;
+                    } };
+                ''')
+
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(
+                    metrics.get(_featkey('multiple_inheritance'), 0), 1
+                )
+                self.assertEqual(metrics.get(_featkey('scalar'), 0), 1)
+                self.assertEqual(metrics.get(_featkey('enum'), 0), 1)
+                self.assertEqual(metrics.get(_featkey('link_property'), 0), 1)
+
             finally:
                 await con.aclose()
                 if con2:

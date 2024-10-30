@@ -37,6 +37,9 @@ from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 from edb.edgeql import quote as qlquote
 
+
+from edb.schema import annos as s_annos
+from edb.schema import constraints as s_constraints
 from edb.schema import database as s_db
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as s_delta
@@ -44,11 +47,15 @@ from edb.schema import expraliases as s_expraliases
 from edb.schema import functions as s_func
 from edb.schema import globals as s_globals
 from edb.schema import indexes as s_indexes
+from edb.schema import links as s_links
 from edb.schema import migrations as s_migrations
 from edb.schema import objects as s_obj
+from edb.schema import objtypes as s_objtypes
 from edb.schema import policies as s_policies
 from edb.schema import pointers as s_pointers
+from edb.schema import properties as s_properties
 from edb.schema import rewrites as s_rewrites
+from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import triggers as s_triggers
 from edb.schema import utils as s_utils
@@ -1185,12 +1192,15 @@ def _reset_schema(
 
 
 _FEATURE_NAMES: dict[type[s_obj.Object], str] = {
+    s_annos.AnnotationValue: 'annotation',
     s_policies.AccessPolicy: 'policy',
     s_triggers.Trigger: 'trigger',
     s_rewrites.Rewrite: 'rewrite',
     s_globals.Global: 'global',
     s_expraliases.Alias: 'alias',
     s_func.Function: 'function',
+    s_indexes.Index: 'index',
+    s_scalars.ScalarType: 'scalar',
 }
 
 
@@ -1206,6 +1216,10 @@ def produce_feature_used_metrics(
     )
 
     features: dict[str, float] = {}
+
+    def _track(key: str) -> None:
+        features[key] = 1
+
     # TODO(perf): Should we optimize peeking into the innards directly
     # so we can skip creating the proxies?
     for obj in user_schema.get_objects(
@@ -1213,20 +1227,57 @@ def produce_feature_used_metrics(
     ):
         typ = type(obj)
         if (key := _FEATURE_NAMES.get(typ)):
-            features[key] = 1
+            _track(key)
 
         if isinstance(obj, s_globals.Global) and obj.get_expr(user_schema):
-            features['computed_global'] = 1
+            _track('computed_global')
         elif (
-            isinstance(obj, s_pointers.Pointer)
+            isinstance(obj, s_properties.Property)
+        ):
+            if obj.get_expr(user_schema):
+                _track('computed_property')
+            elif obj.get_cardinality(schema).is_multi():
+                _track('multi_property')
+
+            if (
+                obj.is_link_property(schema)
+                and not obj.is_special_pointer(schema)
+            ):
+                _track('link_property')
+        elif (
+            isinstance(obj, s_links.Link)
             and obj.get_expr(user_schema)
         ):
-            features['computed_pointer'] = 1
+            _track('computed_link')
         elif (
             isinstance(obj, s_indexes.Index)
             and s_indexes.is_fts_index(schema, obj)
         ):
-            features['fts'] = 1
+            _track('fts')
+        elif (
+            isinstance(obj, s_constraints.Constraint)
+            and not (
+                (subject := obj.get_subject(schema))
+                and isinstance(subject, s_properties.Property)
+                and subject.is_special_pointer(schema)
+            )
+        ):
+            _track('constraint')
+            exclusive_constr = schema.get(
+                'std::exclusive', type=s_constraints.Constraint
+            )
+            if not obj.issubclass(schema, exclusive_constr):
+                _track('constraint_expr')
+        elif (
+            isinstance(obj, s_objtypes.ObjectType)
+            and len(obj.get_bases(schema).objects(schema)) > 1
+        ):
+            _track('multiple_inheritance')
+        elif (
+            isinstance(obj, s_scalars.ScalarType)
+            and obj.is_enum(schema)
+        ):
+            _track('enum')
 
     return features
 
