@@ -6338,6 +6338,10 @@ def _generate_sql_information_schema(
         WHERE NOT (pn.nspname = 'edgedbpub' AND pc.conbin IS NOT NULL)
         """
         ),
+
+        # pg_class that contains classes only for tables
+        # This is needed so we can use it to filter pg_index to indexes only on
+        # visible tables.
         trampoline.VersionedView(
             name=("edgedbsql", "pg_class_tables"),
             query="""
