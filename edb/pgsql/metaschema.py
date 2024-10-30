@@ -6914,6 +6914,18 @@ def _generate_sql_information_schema(
         WHERE c.relkind = 'v'::"char"
         """,
         ),
+        # Omit all descriptions (comments), becase all non-system comments
+        # are our internal implementation details.
+        trampoline.VersionedView(
+            name=("edgedbsql", "pg_description"),
+            query="""
+        SELECT
+            *,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_description
+        WHERE FALSE
+        """,
+        ),
     ]
 
     # We expose most of the views as empty tables, just to prevent errors when
@@ -6962,6 +6974,7 @@ def _generate_sql_information_schema(
         'pg_subscription',
         'pg_tables',
         'pg_views',
+        'pg_description',
     }
 
     PG_TABLES_WITH_SYSTEM_COLS = {
@@ -6982,7 +6995,6 @@ def _generate_sql_information_schema(
         'pg_db_role_setting',
         'pg_default_acl',
         'pg_depend',
-        'pg_description',
         'pg_enum',
         'pg_event_trigger',
         'pg_extension',
