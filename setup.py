@@ -413,21 +413,30 @@ def _compile_cli(build_base, build_temp):
     env = dict(os.environ)
     env['CARGO_TARGET_DIR'] = str(build_temp / 'rust' / 'cli')
     env['PSQL_DEFAULT_PATH'] = build_base / 'postgres' / 'install' / 'bin'
-    git_ref = env.get("EDGEDBCLI_GIT_REV") or EDGEDBCLI_COMMIT
-    git_rev = _get_git_rev(EDGEDBCLI_REPO, git_ref)
-
-    subprocess.run(
-        [
-            'cargo', 'install',
-            '--verbose', '--verbose',
+    path = env.get("EDGEDBCLI_PATH")
+    args = [
+        'cargo', 'install',
+        '--verbose', '--verbose',
+        '--bin', 'edgedb',
+        '--root', rust_root,
+        '--features=dev_mode',
+        '--locked',
+        '--debug',
+    ]
+    if path:
+        args.extend([
+            '--path', path,
+        ])
+    else:
+        git_ref = env.get("EDGEDBCLI_GIT_REV") or EDGEDBCLI_COMMIT
+        git_rev = _get_git_rev(EDGEDBCLI_REPO, git_ref)
+        args.extend([
             '--git', EDGEDBCLI_REPO,
             '--rev', git_rev,
-            '--bin', 'edgedb',
-            '--root', rust_root,
-            '--features=dev_mode',
-            '--locked',
-            '--debug',
-        ],
+        ])
+
+    subprocess.run(
+        args,
         env=env,
         check=True,
     )
