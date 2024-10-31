@@ -999,23 +999,6 @@ class Compiler:
                 delta_ext_ai.get_ext_ai_pre_restore_script(schema))
             units += compile(ctx=ctx, source=ddl_source).units
 
-        if allow_dml_in_functions:
-            # Check if any functions actually contained DML.
-            for func in schema.get_objects(
-                type=s_func.Function,
-                exclude_stdlib=True,
-            ):
-                if (
-                    func.get_volatility(schema) == qltypes.Volatility.Modifying
-                    and not func.get_is_inlined(schema)
-                ):
-                    break
-            else:
-                ddl_source = edgeql.Source.from_string(
-                    'CONFIGURE CURRENT DATABASE RESET allow_dml_in_functions;',
-                )
-                units += compile(ctx=ctx, source=ddl_source).units
-
         restore_blocks = []
         tables = []
         repopulate_units = []

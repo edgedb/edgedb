@@ -228,7 +228,6 @@ async def _upgrade_one(
 
     keys: dict[str, Any] = dict(
         testmode=True,
-        allow_dml_in_functions=True,
     )
 
     # Apply the DDL, but *only* execute the schema storage part!!
