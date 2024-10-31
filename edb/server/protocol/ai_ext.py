@@ -1163,7 +1163,7 @@ async def aconnect_sse(
             f"API call to generate chat completions failed with status "
             f"{stm.status_code}: {stm.text}"
         )
-    with stm as response:
+    async with stm as response:
         if response.status_code >= 400:
             # Unlikely that we have a streaming response with a non-200 result
             raise AIProviderError(

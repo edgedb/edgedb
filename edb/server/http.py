@@ -454,16 +454,10 @@ class Response:
     def text(self) -> str:
         return self.body.decode('utf-8')
 
-    def __aenter__(self) -> Self:
+    async def __aenter__(self) -> Self:
         return self
 
-    def __aexit__(self, exc_type, exc_value, traceback):
-        pass
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
+    async def __aexit__(self, exc_type, exc_value, traceback):
         pass
 
 
@@ -513,14 +507,8 @@ class ResponseSSE:
         finally:
             self._ack()
 
-    def __aenter__(self) -> Self:
+    async def __aenter__(self) -> Self:
         return self
 
-    def __aexit__(self, exc_type, exc_value, traceback):
-        self.close()
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
+    async def __aexit__(self, exc_type, exc_value, traceback):
         self.close()

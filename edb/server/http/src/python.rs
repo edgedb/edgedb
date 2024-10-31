@@ -397,6 +397,9 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
         let client = client.clone();
         trace!("Received RPC: {rpc:?}");
         let rpc_pipe = rpc_pipe.clone();
+        // Allocate a task ID and backpressure object if we're initiating a
+        // request. This would be less awkward if we allocated in the Rust side
+        // of the code rather than the Python side.
         let (id, backpressure) = match rpc {
             PythonToRustMessage::Request(id, ..) | PythonToRustMessage::RequestSse(id, ..) => {
                 (Some(id), Some(Semaphore::new(SSE_QUEUE_SIZE).into()))
