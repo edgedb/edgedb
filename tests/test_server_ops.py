@@ -35,10 +35,11 @@ import sys
 import tempfile
 import time
 import unittest
+import urllib.error
+import urllib.request
 import uuid
 
 import edgedb
-import httpx
 from edgedb import errors
 
 from edb import protocol
@@ -1028,15 +1029,25 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             security=args.ServerSecurityMode.Strict,
         ) as sd:
             def test(url):
-                resp = httpx.get(url, verify=sd.tls_cert_file)
-                self.assertFalse(resp.is_success)
-
-                resp = httpx.get(
-                    url,
-                    verify=sd.tls_cert_file,
-                    cert=(str(client_ssl_cert_file), str(client_ssl_key_file)),
+                # Connection without the client cert fails
+                tls_context = ssl.create_default_context(
+                    ssl.Purpose.SERVER_AUTH,
+                    cafile=sd.tls_cert_file,
                 )
-                self.assertTrue(resp.is_success)
+                error_code = None
+                try:
+                    resp = urllib.request.urlopen(url, context=tls_context)
+                except urllib.error.HTTPError as e:
+                    error_code = e.code
+                self.assertEqual(error_code, 401)
+
+                # But once we load the client it will work
+                tls_context.load_cert_chain(
+                    client_ssl_cert_file,
+                    client_ssl_key_file,
+                )
+                resp = urllib.request.urlopen(url, context=tls_context)
+                self.assertEqual(resp.status, 200)
 
             test(f'https://{sd.host}:{sd.port}/metrics')
             test(f'https://{sd.host}:{sd.port}/server/status/alive')
