@@ -166,7 +166,7 @@ def install_edgedb_extension(
 
         print("Installing", target)
 
-        ttarget = pathlib.Path(tdir) / pkg.stem
+        ttarget = pathlib.Path(tdir) / dirname
         os.mkdir(ttarget)
 
         with z.open(str(dirname / 'MANIFEST.toml')) as m:
