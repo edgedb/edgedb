@@ -551,7 +551,8 @@ def _describe_object_shape(
         link_props.append(False)
         links.append(not ptr.is_property(ctx.schema))
         cardinalities.append(cardinality_from_ptr(ptr, ctx.schema))
-        ptr_source = ptr.get_source(ctx.schema)
+        ctx.schema, material_ptr = ptr.material_type(ctx.schema)
+        ptr_source = material_ptr.get_source(ctx.schema)
         assert isinstance(ptr_source, s_objtypes.ObjectType)
         ctx.schema, ptr_source = ptr_source.material_type(ctx.schema)
         assert ptr_source is not None
