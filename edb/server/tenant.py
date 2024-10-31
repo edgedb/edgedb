@@ -246,9 +246,18 @@ class Tenant(ha_base.ClusterProtocol):
         self._server = server
         self.__loop = server.get_loop()
 
-    def get_http_client(self) -> HttpClient:
+    def get_http_client(self, *, originator: str) -> HttpClient:
         if self._http_client is None:
-            self._http_client = HttpClient(HTTP_MAX_CONNECTIONS)
+            http_max_connections = self._server.config_lookup(
+                'http_max_connections', self.get_sys_config()
+            )
+            self._http_client = HttpClient(
+                http_max_connections,
+                user_agent=f"EdgeDB {buildmeta.get_version_string(short=True)}",
+                stat_callback=lambda stat: logger.debug(
+                    f"HTTP stat: {originator} {stat}"
+                ),
+            )
         return self._http_client
 
     def on_switch_over(self):
