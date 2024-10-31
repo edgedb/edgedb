@@ -81,8 +81,6 @@ test = [
     'sphinxcontrib-serializinghtml<1.1.10',
     'sphinxcontrib-qthelp<1.0.7',
     'sphinx_code_tabs~=0.5.3',
-
-    'httpx~=0.24.1',
 ]
 
 docs = [
