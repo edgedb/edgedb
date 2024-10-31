@@ -26,6 +26,10 @@ rust: build-reqs
 	BUILD_EXT_MODE=rust-only python setup.py build_ext --inplace
 
 
+cli: build-reqs
+	python setup.py build_cli
+
+
 docs: build-reqs
 	find docs -name '*.rst' | xargs touch
 	$(MAKE) -C docs html SPHINXOPTS=$(SPHINXOPTS) BUILDDIR="../build"
