@@ -2044,7 +2044,8 @@ class Router:
                     event=event,
                 )
                 logger.info(
-                    f"Sent webhook request {request_id} for event {event!r}"
+                    f"Sent webhook request {request_id} "
+                    f"to {webhook_config.url} for event {event!r}"
                 )
 
     def _get_callback_url(self) -> str:
