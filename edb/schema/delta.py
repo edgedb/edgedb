@@ -1639,35 +1639,6 @@ class DeltaRoot(CommandGroup, context_class=DeltaRootContext):
 
         return schema
 
-    def apply_subcommands(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> s_schema.Schema:
-        from . import modules
-        from . import types as s_types
-
-        mods = []
-
-        for cmop in self.get_subcommands(type=modules.CreateModule):
-            schema = cmop.apply(schema, context)
-            mods.append(cmop.scls)
-
-        for amop in self.get_subcommands(type=modules.AlterModule):
-            schema = amop.apply(schema, context)
-            mods.append(amop.scls)
-
-        for objop in self.get_subcommands():
-            if not isinstance(objop, (modules.CreateModule,
-                                      modules.AlterModule,
-                                      s_types.DeleteCollectionType)):
-                schema = objop.apply(schema, context)
-
-        for cop in self.get_subcommands(type=s_types.DeleteCollectionType):
-            schema = cop.apply(schema, context)
-
-        return schema
-
     def is_data_safe(self) -> bool:
         return all(
             subcmd.is_data_safe()
