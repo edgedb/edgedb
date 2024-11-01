@@ -3844,8 +3844,7 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
         with self.new_context(schema, context, scls):
             if (
-                not self.canonical
-                and self.if_unused
+                self.if_unused
                 and self._has_outside_references(schema, context)
             ):
                 parent_ctx = context.parent()
