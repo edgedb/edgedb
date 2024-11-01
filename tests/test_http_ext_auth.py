@@ -3474,6 +3474,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                             challenge := <str>$challenge,
                             auth_token := <str>$auth_token,
                             refresh_token := <str>$refresh_token,
+                            id_token := <str>$id_token,
                             identity := (
                                 insert ext::auth::Identity {
                                     issuer := "https://example.com",
@@ -3486,12 +3487,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         challenge,
                         auth_token,
                         refresh_token,
+                        id_token,
                         identity_id := .identity.id
                     }
                     """,
                     challenge=challenge.decode(),
                     auth_token="a_provider_token",
                     refresh_token="a_refresh_token",
+                    id_token="an_id_token",
                 )
 
                 # Correct code, random verifier
@@ -3530,6 +3533,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         "identity_id": str(pkce.identity_id),
                         "provider_token": "a_provider_token",
                         "provider_refresh_token": "a_refresh_token",
+                        "provider_id_token": "an_id_token",
                     },
                 )
                 async for tr in self.try_until_succeeds(

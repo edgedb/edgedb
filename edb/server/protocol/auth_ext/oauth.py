@@ -104,16 +104,18 @@ class Client:
 
     async def handle_callback(
         self, code: str, redirect_uri: str
-    ) -> tuple[data.Identity, bool, str | None, str | None]:
+    ) -> tuple[data.Identity, bool, str | None, str | None, str | None]:
         response = await self.provider.exchange_code(code, redirect_uri)
         user_info = await self.provider.fetch_user_info(response)
         auth_token = response.access_token
         refresh_token = response.refresh_token
+        source_id_token = user_info.source_id_token
 
         return (
             *(await self._handle_identity(user_info)),
             auth_token,
             refresh_token,
+            source_id_token,
         )
 
     async def _handle_identity(
