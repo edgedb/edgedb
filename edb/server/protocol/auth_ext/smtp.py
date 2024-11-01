@@ -188,7 +188,7 @@ async def send_email(
                     )
                     if errors:
                         logger.error(
-                            f"Errors occurred while sending SMTP message: {errors}"
+                            f"SMTP server returned errors: {errors}"
                         )
                     else:
                         logger.info(
