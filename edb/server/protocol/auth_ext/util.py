@@ -106,7 +106,7 @@ def get_config_typename(config_value: edb_config.SettingValue) -> str:
 def escape_and_truncate(input_str: str | None, max_len: int) -> str | None:
     if input_str is None:
         return None
-    return html.escape(input_str)[:max_len]
+    return html.escape(input_str[:max_len])
 
 
 def get_app_details_config(db: Any) -> config.AppDetailsConfig:
