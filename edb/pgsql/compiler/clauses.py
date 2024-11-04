@@ -34,6 +34,7 @@ from edb.pgsql import types as pg_types
 from . import astutils
 from . import context
 from . import dispatch
+from . import dml
 from . import enums as pgce
 from . import output
 from . import pathctx
@@ -263,7 +264,7 @@ def compile_output(
 def compile_dml_bindings(
         stmt: irast.Stmt, *,
         ctx: context.CompilerContextLevel) -> None:
-    for binding in (stmt.bindings or ()):
+    for binding, volatility in (stmt.bindings or ()):
         # If something we are WITH binding contains DML, we want to
         # compile it *now*, in the context of its initial appearance
         # and not where the variable is used. This will populate
@@ -272,6 +273,62 @@ def compile_dml_bindings(
         if irutils.contains_dml(binding):
             with ctx.substmt() as bctx:
                 dispatch.compile(binding, ctx=bctx)
+
+        elif volatility.is_volatile():
+            last_iterator = ctx.enclosing_cte_iterator
+            with ctx.newrel() as bctx:
+                dml.merge_iterator(last_iterator, bctx.rel, ctx=bctx)
+                setup_iterator_volatility(last_iterator, ctx=bctx)
+
+                dispatch.compile(binding, ctx=bctx)
+
+                # Add iterator identity
+                bind_pathid = (
+                    irast.PathId.new_dummy(ctx.env.aliases.get('bind_path'))
+                )
+                with bctx.subrel() as bind_pathid_ctx:
+                    relctx.create_iterator_identity_for_path(
+                        bind_pathid, bind_pathid_ctx.rel, ctx=bind_pathid_ctx
+                    )
+                bind_id_rvar = relctx.rvar_for_rel(
+                    bind_pathid_ctx.rel, lateral=True, ctx=bctx
+                )
+                relctx.include_rvar(
+                    bctx.rel, bind_id_rvar, path_id=bind_pathid, ctx=bctx
+                )
+
+                # Ensure binding appears in CTE
+                pathctx.get_path_output(
+                    bctx.rel,
+                    binding.path_id,
+                    aspect=pgce.PathAspect.SERIALIZED,
+                    env=bctx.env,
+                )
+                pathctx.put_path_bond(bctx.rel, binding.path_id, iterator=True)
+
+            bind_cte = pgast.CommonTableExpr(
+                name=ctx.env.aliases.get('bind'),
+                query=bctx.rel,
+                materialized=False,
+            )
+
+            bind_iterator = pgast.IteratorCTE(
+                path_id=bind_pathid,
+                cte=bind_cte,
+                parent=last_iterator,
+                other_paths=(
+                    (binding.path_id, pgce.PathAspect.SERIALIZED),
+                ),
+                iterator_bond=True,
+            )
+            ctx.toplevel_stmt.append_cte(bind_cte)
+
+            # Merge the new iterator
+            ctx.path_scope = ctx.path_scope.new_child()
+            dml.merge_iterator(bind_iterator, ctx.rel, ctx=ctx)
+            setup_iterator_volatility(bind_iterator, ctx=ctx)
+
+            ctx.enclosing_cte_iterator = bind_iterator
 
 
 def compile_filter_clause(
