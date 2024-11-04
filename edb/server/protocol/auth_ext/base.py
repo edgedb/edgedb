@@ -173,6 +173,7 @@ class OpenIDConnectProvider(BaseProvider):
             name=payload.get("name"),
             email=payload.get("email"),
             picture=payload.get("picture"),
+            source_id_token=id_token,
         )
 
     async def _get_oidc_config(self) -> data.OpenIDConfig:

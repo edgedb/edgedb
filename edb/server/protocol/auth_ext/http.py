@@ -409,6 +409,7 @@ class Router:
             new_identity,
             auth_token,
             refresh_token,
+            id_token,
         ) = await oauth_client.handle_callback(code, self._get_callback_url())
         pkce_code = await pkce.link_identity_challenge(
             self.db, identity.id, challenge
@@ -419,6 +420,7 @@ class Router:
                 id=pkce_code,
                 auth_token=auth_token,
                 refresh_token=refresh_token,
+                id_token=id_token,
             )
         new_url = util.join_url_params(
             (
@@ -486,6 +488,7 @@ class Router:
                     "identity_id": pkce_object.identity_id,
                     "provider_token": pkce_object.auth_token,
                     "provider_refresh_token": pkce_object.refresh_token,
+                    "provider_id_token": pkce_object.id_token,
                 }
             ).encode()
         else:
