@@ -4031,7 +4031,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             body_str = body.decode()
 
-            self.assertIn(APP_NAME[:100], body_str)
+            self.assertIn(f"{APP_NAME[:100]}...", body_str)
             self.assertIn(LOGO_URL, body_str)
             self.assertIn(BRAND_COLOR, body_str)
 
@@ -4065,7 +4065,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertIsInstance(body_json["rp"], dict)
             self.assertIn("name", body_json["rp"])
-            self.assertEqual(body_json["rp"]["name"], APP_NAME[:100])
+            self.assertEqual(body_json["rp"]["name"], f"{APP_NAME[:100]}...")
             self.assertIn("id", body_json["rp"])
             self.assertEqual(body_json["rp"]["id"], "example.com")
 
