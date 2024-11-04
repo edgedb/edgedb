@@ -466,7 +466,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 edgedb.QueryError,
                 r"Cannot query field 'gibberish' on type 'Query'\. "
                 r"There's no corresponding type or alias \"gibberish\" "
-                r"exposed in EdgeDB\. Please check the configuration settings "
+                r"exposed in Gel\. Please check the configuration settings "
                 r"for this port to make sure that you're connecting to the "
                 r"right database\.",
                 _line=3, _col=21):
@@ -482,7 +482,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 edgedb.QueryError,
                 r"Cannot query field 'more__gibberish' on type 'Query'\. "
                 r"There's no corresponding type or alias \"more::gibberish\" "
-                r"exposed in EdgeDB\. Please check the configuration settings "
+                r"exposed in Gel\. Please check the configuration settings "
                 r"for this port to make sure that you're connecting to the "
                 r"right database\.",
                 _line=3, _col=21):

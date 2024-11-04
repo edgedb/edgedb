@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     SourceOrPathId = s_types.Type | s_pointers.Pointer | pathid.PathId
 
 
-@dataclass
+@dataclass(kw_only=True)
 class GlobalCompilerOptions:
     """Compiler toggles that affect compilation as a whole."""
 
@@ -102,7 +102,7 @@ class GlobalCompilerOptions:
     dump_restore_mode: bool = False
 
 
-@dataclass
+@dataclass(kw_only=True)
 class CompilerOptions(GlobalCompilerOptions):
 
     #: Module name aliases.

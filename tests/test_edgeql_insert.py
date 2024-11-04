@@ -4224,7 +4224,7 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             "SELECT Note.name",
-            ["foo!", "bar"]
+            {"foo!", "bar"}
         )
 
     async def test_edgeql_insert_dependent_11(self):

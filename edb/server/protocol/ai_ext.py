@@ -34,17 +34,13 @@ import abc
 import asyncio
 import contextlib
 import contextvars
-import http
 import itertools
 import json
 import logging
-
-import httpx
-import httpx_sse
+import uuid
 
 import tiktoken
 from mistral_common.tokens.tokenizers import mistral as mistral_tokenizer
-
 
 from edb import errors
 from edb.common import asyncutil
@@ -53,7 +49,7 @@ from edb.common import enum as s_enum
 from edb.common import markup
 from edb.common import uuidgen
 
-from edb.server import compiler
+from edb.server import compiler, http
 from edb.server.compiler import sertypes
 from edb.server.protocol import execute
 from edb.server.protocol import request_scheduler as rs
@@ -210,6 +206,30 @@ class MistralTokenizer(Tokenizer):
         return cast(str, self.tokenizer.decode(tokens))
 
 
+class TestTokenizer(Tokenizer):
+
+    _instances: dict[str, TestTokenizer] = {}
+
+    @classmethod
+    def for_model(cls, model_name: str) -> TestTokenizer:
+        if model_name in cls._instances:
+            return cls._instances[model_name]
+
+        tokenizer = TestTokenizer()
+        cls._instances[model_name] = tokenizer
+
+        return tokenizer
+
+    def encode(self, text: str) -> list[int]:
+        return [ord(c) for c in text]
+
+    def encode_padding(self) -> int:
+        return 0
+
+    def decode(self, tokens: list[int]) -> str:
+        return ''.join(chr(c) for c in tokens)
+
+
 @dataclass
 class ProviderConfig:
     name: str
@@ -272,9 +292,9 @@ async def _ext_ai_index_builder_controller_loop(
 
     try:
         while True:
+            models = []
+            sleep_timer: rs.Timer = rs.Timer(None, False)
             try:
-                models = []
-                sleep_timer: rs.Timer = rs.Timer(None, False)
                 async with tenant.with_pgcon(dbname) as pgconn:
                     models = await _ext_ai_fetch_active_models(pgconn)
                     if models:
@@ -284,6 +304,7 @@ async def _ext_ai_index_builder_controller_loop(
                             provider_contexts = _prepare_provider_contexts(
                                 db,
                                 pgconn,
+                                tenant.get_http_client(originator="ai/index"),
                                 models,
                                 provider_schedulers,
                                 naptime,
@@ -363,6 +384,7 @@ async def _ext_ai_unlock(
 def _prepare_provider_contexts(
     db: dbview.Database,
     pgconn: pgcon.PGConnection,
+    http_client: http.HttpClient,
     models: list[tuple[int, str, str]],
     provider_schedulers: dict[str, ProviderScheduler],
     naptime: float,
@@ -408,6 +430,7 @@ def _prepare_provider_contexts(
             naptime=naptime,
             db=db,
             pgconn=pgconn,
+            http_client=http_client,
             provider_models=provider_models,
         )
 
@@ -448,6 +471,7 @@ class ProviderContext(rs.Context):
 
     db: dbview.Database
     pgconn: pgcon.PGConnection
+    http_client: http.HttpClient
     provider_models: list[str]
 
 
@@ -469,6 +493,7 @@ class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
         return await _generate_embeddings_params(
             context.db,
             context.pgconn,
+            context.http_client,
             self.provider_name,
             context.provider_models,
             self.model_excluded_ids,
@@ -493,13 +518,12 @@ class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
 @dataclass(frozen=True, kw_only=True)
 class EmbeddingsParams(rs.Params[EmbeddingsData]):
     pgconn: pgcon.PGConnection
+    http_client: http.HttpClient
     provider: ProviderConfig
     model_name: str
-    inputs: list[str]
+    inputs: list[tuple[PendingEmbedding, str]]
     token_count: int
     shortening: Optional[int]
-
-    entries: list[tuple[bytes, ...]]
 
     def costs(self) -> dict[str, int]:
         return {
@@ -521,11 +545,14 @@ class EmbeddingsRequest(rs.Request[EmbeddingsData]):
             result = await _generate_embeddings(
                 self.params.provider,
                 self.params.model_name,
-                self.params.inputs,
+                [input[1] for input in self.params.inputs],
                 self.params.shortening,
+                self.params.http_client
             )
             result.pgconn = self.params.pgconn
-            result.entries = self.params.entries
+            result.pending_entries = [
+                input[0] for input in self.params.inputs
+            ]
             return result
         except AIExtError as e:
             logger.error(f"{task_name}: {e}")
@@ -541,20 +568,26 @@ class EmbeddingsRequest(rs.Request[EmbeddingsData]):
 class EmbeddingsResult(rs.Result[EmbeddingsData]):
 
     pgconn: Optional[Any] = None
-    entries: Optional[list[tuple[bytes, ...]]] = None
+    pending_entries: Optional[list[PendingEmbedding]] = None
 
     async def finalize(self) -> None:
         if isinstance(self.data, rs.Error):
             return
-        if self.pgconn is None or self.entries is None:
+        if self.pgconn is None or self.pending_entries is None:
             return
 
+        # Entries must line up with the embeddings data:
+        # - `_generate_embeddings` produces produces embeddings data matching
+        #   the order of its inputs
+        #
+        # Entries must be grouped by target rel:
+        # - `_generate_embeddings_params` sorts inputs by target rel before
         groups = itertools.groupby(
-            self.entries, key=lambda e: e[2:],
+            self.pending_entries, key=lambda e: (e.target_rel, e.target_attr),
         )
         offset = 0
-        for (rel, attr, *_), items in groups:
-            ids = [item[0] for item in items]
+        for (rel, attr), items in groups:
+            ids = [item.id for item in items]
             await _update_embeddings_in_db(
                 self.pgconn,
                 rel,
@@ -569,6 +602,7 @@ class EmbeddingsResult(rs.Result[EmbeddingsData]):
 async def _generate_embeddings_params(
     db: dbview.Database,
     pgconn: pgcon.PGConnection,
+    http_client: http.HttpClient,
     provider_name: str,
     provider_models: list[str],
     model_excluded_ids: dict[str, list[str]],
@@ -595,6 +629,11 @@ async def _generate_embeddings_params(
             model_name: MistralTokenizer.for_model(model_name)
             for model_name in provider_models
         }
+    elif provider_name == 'custom::test':
+        model_tokenizers = {
+            model_name: TestTokenizer.for_model(model_name)
+            for model_name in provider_models
+        }
 
     model_max_input_tokens: dict[str, int] = {
         model_name: await _get_model_annotation_as_int(
@@ -616,7 +655,7 @@ async def _generate_embeddings_params(
         for model_name in provider_models
     }
 
-    model_entries: dict[str, list[tuple[bytes, ...]]] = {}
+    model_pending_entries: dict[str, list[PendingEmbedding]] = {}
 
     for model_name in provider_models:
         logger.debug(
@@ -624,82 +663,38 @@ async def _generate_embeddings_params(
             f"indexes via {provider_name!r}"
         )
 
-        where_clause = ""
-        if (
-            model_name in model_excluded_ids
-            and (excluded_ids := model_excluded_ids[model_name])
-        ):
-            # Only exclude long text if it won't be auto-truncated.
-            logger.debug(
-                f"{task_name} skipping {len(excluded_ids)} indexes "
-                f"for {model_name!r}"
-            )
-            where_clause = (f"""
-                WHERE
-                    q."id" not in ({','.join(
-                        "'" + excluded_id + "'"
-                        for excluded_id in excluded_ids
-                    )})
-                    OR q."truncate_to_max"
-            """)
-
-        entries = await pgconn.sql_fetch(
-            f"""
-            SELECT
-                *
-            FROM
-                (
-                    SELECT
-                        "id",
-                        "text",
-                        "target_rel",
-                        "target_attr",
-                        "target_dims_shortening",
-                        "truncate_to_max"
-                    FROM
-                        edgedbext."ai_pending_embeddings_{model_name}"
-                    LIMIT
-                        500
-                ) AS q
-            {where_clause}
-            ORDER BY
-                q."target_dims_shortening",
-                q."target_rel"
-            """.encode()
+        pending_entries = await _get_pending_embeddings(
+            pgconn, model_name, model_excluded_ids
         )
 
-        if not entries:
+        if not pending_entries:
             continue
 
-        logger.debug(f"{task_name} found {len(entries)} entries to index")
+        logger.debug(
+            f"{task_name} found {len(pending_entries)} entries to index"
+        )
 
         try:
-            model_list = model_entries[model_name]
+            model_list = model_pending_entries[model_name]
         except KeyError:
-            model_list = model_entries[model_name] = []
+            model_list = model_pending_entries[model_name] = []
 
-        model_list.extend(entries)
+        model_list.extend(pending_entries)
 
     embeddings_params: list[EmbeddingsParams] = []
 
-    for model_name, entries in model_entries.items():
-        groups = itertools.groupby(entries, key=lambda e: e[4])
-        for shortening_datum, part_iter in groups:
-            if shortening_datum is not None:
-                shortening = int.from_bytes(
-                    shortening_datum,
-                    byteorder="big",
-                    signed=False,
-                )
-            else:
-                shortening = None
+    for model_name, pending_entries in model_pending_entries.items():
+        groups = itertools.groupby(
+            pending_entries, key=lambda e: e.target_dims_shortening
+        )
+        for shortening, part_iter in groups:
             part = list(part_iter)
 
-            inputs: list[str] = []
+            input_texts: list[str] = []
+            input_entries: list[PendingEmbedding] = []
             total_token_count: int = 0
-            for entry in part:
-                input = entry[1].decode("utf-8")
-                truncate_to_max = bool.from_bytes(entry[5])
+            for pending_entry in part:
+                text = pending_entry.text
 
                 if model_name in model_tokenizers:
                     tokenizer = model_tokenizers[model_name]
@@ -708,13 +703,13 @@ async def _generate_embeddings_params(
                         - tokenizer.encode_padding()
                     )
 
-                    if truncate_to_max:
-                        input = tokenizer.shorten_to_token_length(
-                            input, truncate_length
+                    if pending_entry.truncate_to_max:
+                        text = tokenizer.shorten_to_token_length(
+                            text, truncate_length
                         )
                         total_token_count += truncate_length
                     else:
-                        current_token_count = len(tokenizer.encode(input))
+                        current_token_count = len(tokenizer.encode(text))
 
                         if current_token_count > truncate_length:
                             # If the text is too long, mark it as excluded and
@@ -722,15 +717,17 @@ async def _generate_embeddings_params(
                             if model_name not in model_excluded_ids:
                                 model_excluded_ids[model_name] = []
                             model_excluded_ids[model_name].append(
-                                uuidgen.from_bytes(entry[0]).hex
+                                pending_entry.id.hex
                             )
                             continue
 
                         total_token_count += current_token_count
 
-                inputs.append(input)
+                input_texts.append(text)
+                input_entries.append(pending_entry)
 
             if model_name in model_tokenizers:
+                tokenizer = model_tokenizers[model_name]
                 max_batch_tokens = model_max_batch_tokens[model_name]
                 if isinstance(tokens_rate_limit, int):
                     # If the rate limit is lower than the batch limit, use that
@@ -739,21 +736,37 @@ async def _generate_embeddings_params(
 
                 # Group the input into batches based on token count
                 batches = _batch_embeddings_inputs(
-                    tokenizer, inputs, max_batch_tokens
+                    tokenizer, input_texts, max_batch_tokens
                 )
 
-                for batch, batch_token_count in batches:
+                for batch_input_indexes, batch_token_count in batches:
+                    inputs = [
+                        (input_entries[index], input_texts[index])
+                        for index in batch_input_indexes
+                    ]
+
+                    # Sort the batches by target_rel. This groups embeddings
+                    # for each table together.
+                    # This is necessary for `EmbeddingsResult.finalize()`
+                    inputs.sort(key=lambda e: e[0].target_rel)
+
                     embeddings_params.append(EmbeddingsParams(
                         pgconn=pgconn,
                         provider=provider_cfg,
                         model_name=model_name,
-                        inputs=batch,
+                        inputs=inputs,
                         token_count=batch_token_count,
                         shortening=shortening,
-                        entries=part,
+                        http_client=http_client,
                     ))
 
             else:
+                inputs = list(zip(input_entries, input_texts))
+                # Sort the inputs by target_rel. This groups embeddings
+                # for each table together.
+                # This is necessary for `EmbeddingsResult.finalize()`
+                inputs.sort(key=lambda e: e[0].target_rel)
+
                 embeddings_params.append(EmbeddingsParams(
                     pgconn=pgconn,
                     provider=provider_cfg,
@@ -761,21 +774,106 @@ async def _generate_embeddings_params(
                     inputs=inputs,
                     token_count=total_token_count,
                     shortening=shortening,
-                    entries=part,
+                    http_client=http_client,
                 ))
 
     return embeddings_params
+
+
+@dataclass(frozen=True, kw_only=True)
+class PendingEmbedding:
+    id: uuid.UUID
+    text: str
+    target_rel: str
+    target_attr: str
+    target_dims_shortening: Optional[int]
+    truncate_to_max: bool
+
+
+async def _get_pending_embeddings(
+    pgconn: pgcon.PGConnection,
+    model_name: str,
+    model_excluded_ids: dict[str, list[str]],
+) -> list[PendingEmbedding]:
+    task_name = _task_name.get()
+
+    where_clause = ""
+    if (
+        model_name in model_excluded_ids
+        and (excluded_ids := model_excluded_ids[model_name])
+    ):
+        # Only exclude long text if it won't be auto-truncated.
+        logger.debug(
+            f"{task_name} skipping {len(excluded_ids)} indexes "
+            f"for {model_name!r}"
+        )
+        where_clause = (f"""
+            WHERE
+                q."id" not in ({','.join(
+                    "'" + excluded_id + "'"
+                    for excluded_id in excluded_ids
+                )})
+                OR q."truncate_to_max"
+        """)
+
+    entries = await pgconn.sql_fetch(
+        f"""
+        SELECT
+            *
+        FROM
+            (
+                SELECT
+                    "id",
+                    "text",
+                    "target_rel",
+                    "target_attr",
+                    "target_dims_shortening",
+                    "truncate_to_max"
+                FROM
+                    edgedbext."ai_pending_embeddings_{model_name}"
+                LIMIT
+                    500
+            ) AS q
+        {where_clause}
+        ORDER BY
+            q."target_dims_shortening"
+        """.encode()
+    )
+
+    if not entries:
+        return []
+
+    result = []
+    for entry in entries:
+        result.append(PendingEmbedding(
+            id=uuidgen.from_bytes(entry[0]),
+            text=entry[1].decode("utf-8"),
+            target_rel=entry[2].decode(),
+            target_attr=entry[3].decode(),
+            target_dims_shortening=(
+                int.from_bytes(
+                    entry[4],
+                    byteorder="big",
+                    signed=False,
+                )
+                if entry[4] is not None else
+                None
+            ),
+            truncate_to_max=bool.from_bytes(entry[5]),
+        ))
+
+    return result
 
 
 def _batch_embeddings_inputs(
     tokenizer: Tokenizer,
     inputs: list[str],
     max_batch_tokens: int,
-) -> list[tuple[list[str], int]]:
+) -> list[tuple[list[int], int]]:
     """Create batches of embeddings inputs.
 
     Returns batches which are a tuple of:
-    - Input strings grouped to avoid exceeding the max_batch_token
+    - Indexes of input strings grouped to avoid exceeding the max_batch_token
     - The batch's token count
     """
 
@@ -792,9 +890,6 @@ def _batch_embeddings_inputs(
         reverse=False,
     )
 
-    def unbatched_input(unbatched_index: int) -> str:
-        return inputs[unbatched_input_indexes[unbatched_index]]
-
     def unbatched_token_count(unbatched_index: int) -> int:
         return input_token_counts[unbatched_input_indexes[unbatched_index]]
 
@@ -805,10 +900,10 @@ def _batch_embeddings_inputs(
     ):
         unbatched_input_indexes.pop()
 
-    batches: list[tuple[list[str], int]] = []
+    batches: list[tuple[list[int], int]] = []
     while unbatched_input_indexes:
         # Start with the largest available input
-        batch = [unbatched_input(-1)]
+        batch_input_indexes = [unbatched_input_indexes[-1]]
         batch_token_count = unbatched_token_count(-1)
         unbatched_input_indexes.pop()
 
@@ -821,32 +916,32 @@ def _batch_embeddings_inputs(
                     batch_token_count + unbatched_token_count(unbatched_index)
                     <= max_batch_tokens
                 ):
-                    batch.append(unbatched_input(unbatched_index))
+                    batch_input_indexes.append(unbatched_input_indexes[unbatched_index])
                     batch_token_count += unbatched_token_count(unbatched_index)
                     unbatched_input_indexes.pop(unbatched_index)
                 else:
                     unbatched_index += 1
 
-        batches.append((batch, batch_token_count))
+        batches.append((batch_input_indexes, batch_token_count))
 
     return batches
 
 
 async def _update_embeddings_in_db(
     pgconn: pgcon.PGConnection,
-    rel: bytes,
-    attr: bytes,
-    ids: list[bytes],
+    rel: str,
+    attr: str,
+    ids: list[uuid.UUID],
     embeddings: bytes,
     offset: int,
 ) -> int:
-    id_array = '", "'.join(uuidgen.from_bytes(ub).hex for ub in ids)
+    id_array = '", "'.join(id.hex for id in ids)
     entries = await pgconn.sql_fetch_val(
         f"""
         WITH upd AS (
-            UPDATE {rel.decode()} AS target
+            UPDATE {rel} AS target
             SET
-                {attr.decode()} = (
+                {attr} = (
                     (embeddings.data ->> 'embedding')::edgedb.vector)
             FROM
                 (
@@ -886,6 +981,7 @@ async def _generate_embeddings(
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
+    http_client: http.HttpClient,
 ) -> EmbeddingsResult:
     task_name = _task_name.get()
     count = len(inputs)
@@ -897,7 +993,7 @@ async def _generate_embeddings(
 
     if provider.api_style == ApiStyle.OpenAI:
         return await _generate_openai_embeddings(
-            provider, model_name, inputs, shortening,
+            provider, model_name, inputs, shortening, http_client
         )
     else:
         raise RuntimeError(
@@ -911,6 +1007,7 @@ async def _generate_openai_embeddings(
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
+    http_client: http.HttpClient,
 ) -> EmbeddingsResult:
 
     headers = {
@@ -918,7 +1015,7 @@ async def _generate_openai_embeddings(
     }
     if provider.name == "builtin::openai" and provider.client_id:
         headers["OpenAI-Organization"] = provider.client_id
-    client = httpx.AsyncClient(
+    client = http_client.with_context(
         headers=headers,
         base_url=provider.api_url,
     )
@@ -951,7 +1048,7 @@ async def _generate_openai_embeddings(
         )
 
     return EmbeddingsResult(
-        data=(error if error else EmbeddingsData(result.content)),
+        data=(error if error else EmbeddingsData(result.bytes())),
         limits=_read_openai_limits(result),
     )
 
@@ -1024,6 +1121,7 @@ async def _start_chat(
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
     provider: ProviderConfig,
+    http_client: http.HttpClient,
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
@@ -1040,13 +1138,13 @@ async def _start_chat(
 ) -> None:
     if provider.api_style == "OpenAI":
         await _start_openai_chat(
-            protocol, request, response, provider, model_name,
+            protocol, request, response, provider, http_client, model_name,
             messages, stream, temperature, top_p, max_tokens, seed, 
             safe_prompt, logit_bias, logprobs, user, tools
   )
     elif provider.api_style == "Anthropic":
         await _start_anthropic_chat(
-            protocol, request, response, provider, model_name, 
+            protocol, request, response, provider, http_client, model_name, 
             messages, stream, temperature, top_p, top_k, tools, max_tokens)
     else:
         raise RuntimeError(
@@ -1057,32 +1155,41 @@ async def _start_chat(
 
 @contextlib.asynccontextmanager
 async def aconnect_sse(
-    client: httpx.AsyncClient,
+    client: http.HttpClient,
     method: str,
     url: str,
     **kwargs: Any,
-) -> AsyncIterator[httpx_sse.EventSource]:
+) -> AsyncIterator[http.ResponseSSE]:
     headers = kwargs.pop("headers", {})
     headers["Accept"] = "text/event-stream"
     headers["Cache-Control"] = "no-store"
 
-    stream = client.stream(method, url, headers=headers, **kwargs)
-    async with stream as response:
+    stm = await client.stream_sse(
+        method=method,
+        path=url,
+        headers=headers,
+        **kwargs
+    )
+    if isinstance(stm, http.Response):
+        raise AIProviderError(
+            f"API call to generate chat completions failed with status "
+            f"{stm.status_code}: {stm.text}"
+        )
+    async with stm as response:
         if response.status_code >= 400:
-            await response.aread()
+            # Unlikely that we have a streaming response with a non-200 result
             raise AIProviderError(
                 f"API call to generate chat completions failed with status "
-                f"{response.status_code}: {response.text}"
+                f"{response.status_code}"
             )
-        else:
-            yield httpx_sse.EventSource(response)
+        yield response
 
 
 async def _start_openai_like_chat(
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
-    client: httpx.AsyncClient,
+    client: http.HttpClient,
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
@@ -1127,6 +1234,7 @@ async def _start_openai_like_chat(
             finish_reason = "unknown"
 
             async for sse in event_source.aiter_sse():
+            # async for sse in event_source:
                 if not response.sent:
                     response.status = http.HTTPStatus.OK
                     response.content_type = b'text/event-stream'
@@ -1287,7 +1395,6 @@ async def _start_openai_like_chat(
         )
    
         if result.status_code >= 400:
-            await result.aread()
             raise AIProviderError(
                 f"API call to generate chat completions failed with status "
                 f"{result.status_code}: {result.text}"
@@ -1328,6 +1435,7 @@ async def _start_openai_chat(
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
     provider: ProviderConfig,
+    http_client: http.HttpClient,
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
@@ -1348,7 +1456,7 @@ async def _start_openai_chat(
     if provider.name == "builtin::openai" and provider.client_id:
         headers["OpenAI-Organization"] = provider.client_id
 
-    client = httpx.AsyncClient(
+    client = http_client.with_context(
         base_url=provider.api_url,
         headers=headers,
     )
@@ -1378,6 +1486,7 @@ async def _start_anthropic_chat(
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
     provider: ProviderConfig,
+    http_client: http.HttpClient,
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
@@ -1395,7 +1504,7 @@ async def _start_anthropic_chat(
         headers["anthropic-version"] = "2023-06-01"
         headers["anthropic-beta"] = "messages-2023-12-15"
 
-    client = httpx.AsyncClient(
+    client = http_client.with_context(
         headers={
             "anthropic-version": "2023-06-01",
             "anthropic-beta": "messages-2023-12-15",
@@ -1505,6 +1614,7 @@ async def _start_anthropic_chat(
             global tool_index
             tool_index = 0
             async for sse in event_source.aiter_sse():
+            # async for sse in event_source:
                 if not response.sent:
                     response.status = http.HTTPStatus.OK
                     response.content_type = b'text/event-stream'
@@ -1600,7 +1710,6 @@ async def _start_anthropic_chat(
             }
         )
         if result.status_code >= 400:
-            await result.aread()
             raise AIProviderError(
                 f"API call to generate chat completions failed with status "
                 f"{result.status_code}: {result.text}"
@@ -1700,6 +1809,8 @@ async def _handle_rag_request(
     tenant: srv_tenant.Tenant,
 ) -> None:
     try:
+        http_client = tenant.get_http_client(originator="ai/rag")
+
         body = json.loads(request.body)
         if not isinstance(body, dict):
             raise TypeError(
@@ -1804,6 +1915,7 @@ async def _handle_rag_request(
 
     vector_query = await _generate_embeddings_for_type(
         db,
+        http_client,
         ctx_query,
         content=query,
     )
@@ -1927,6 +2039,7 @@ async def _handle_rag_request(
         request,
         response,
         provider,
+        http_client,
         model,
         messages,
         stream,
@@ -1987,6 +2100,7 @@ async def _handle_embeddings_request(
         model_name,
         inputs,
         shortening=None,
+        http_client=tenant.get_http_client(originator="ai/embeddings")
     )
     if isinstance(result.data, rs.Error):
         raise AIProviderError(result.data.message)
@@ -2150,6 +2264,7 @@ async def _get_model_annotation_as_int(
 
 async def _generate_embeddings_for_type(
     db: dbview.Database,
+    http_client: http.HttpClient,
     type_query: str,
     content: str,
 ) -> bytes:
@@ -2243,7 +2358,8 @@ async def _generate_embeddings_for_type(
     else:
         shortening = None
     result = await _generate_embeddings(
-        provider, index["model"], [content], shortening=shortening)
+        provider, index["model"], [content], shortening=shortening,
+        http_client=http_client)
     if isinstance(result.data, rs.Error):
         raise AIProviderError(result.data.message)
     return result.data.embeddings

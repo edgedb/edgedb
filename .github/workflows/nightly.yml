@@ -12,8 +12,8 @@ on:
 jobs:
   prep:
     runs-on: ubuntu-latest
-    outputs:
 
+    outputs:
 
       if_debian_buster_x86_64: ${{ steps.scm.outputs.if_debian_buster_x86_64 }}
 
@@ -999,7 +999,7 @@ jobs:
       uses: actions/setup-python@v5
       if: true
       with:
-        python-version: "3.x"
+        python-version: "3.12"
 
     - name: Set up NodeJS
       uses: actions/setup-node@v4
@@ -1070,7 +1070,7 @@ jobs:
       uses: actions/setup-python@v5
       if: true
       with:
-        python-version: "3.x"
+        python-version: "3.12"
 
     - name: Set up NodeJS
       uses: actions/setup-node@v4

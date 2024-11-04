@@ -68,6 +68,7 @@ from . import pgconnparams
 
 from .ha import adaptive as adaptive_ha
 from .ha import base as ha_base
+from .http import HttpClient
 from .pgcon import errors as pgcon_errors
 
 if TYPE_CHECKING:
@@ -78,6 +79,9 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger("edb.server")
+
+
+HTTP_MAX_CONNECTIONS = 100
 
 
 class RoleDescriptor(TypedDict):
@@ -131,6 +135,8 @@ class Tenant(ha_base.ClusterProtocol):
     _jwt_sub_allowlist: frozenset[str] | None
     _jwt_revocation_list_file: pathlib.Path | None
     _jwt_revocation_list: frozenset[str] | None
+
+    _http_client: HttpClient | None
 
     def __init__(
         self,
@@ -203,6 +209,8 @@ class Tenant(ha_base.ClusterProtocol):
         self._jwt_revocation_list_file = None
         self._jwt_revocation_list = None
 
+        self._http_client = None
+
         # If it isn't stored in instdata, it is the old default.
         self.default_database = defines.EDGEDB_OLD_DEFAULT_DB
 
@@ -237,6 +245,20 @@ class Tenant(ha_base.ClusterProtocol):
     def set_server(self, server: edbserver.BaseServer) -> None:
         self._server = server
         self.__loop = server.get_loop()
+
+    def get_http_client(self, *, originator: str) -> HttpClient:
+        if self._http_client is None:
+            http_max_connections = self._server.config_lookup(
+                'http_max_connections', self.get_sys_config()
+            )
+            self._http_client = HttpClient(
+                http_max_connections,
+                user_agent=f"EdgeDB {buildmeta.get_version_string(short=True)}",
+                stat_callback=lambda stat: logger.debug(
+                    f"HTTP stat: {originator} {stat}"
+                ),
+            )
+        return self._http_client
 
     def on_switch_over(self):
         # Bumping this serial counter will "cancel" all pending connections
@@ -507,9 +529,21 @@ class Tenant(ha_base.ClusterProtocol):
             compiler_state=compiler.state,
             global_schema=global_schema,
             user_schema=s_schema.FlatSchema(),
-            bootstrap_mode=True,
             internal_schema_mode=True,
         )
+
+        # Extension installation only works if stdmode or testmode is
+        # set.  Force testmode to be set, since we don't want to set
+        # stdmode, because we want any externally loaded extensions to
+        # be marked as *not* builtin.
+        compilerctx.state.current_tx().update_session_config(immutables.Map({
+            '__internal_testmode': config.SettingValue(
+                name='__internal_testmode',
+                value=True,
+                source='hack',
+                scope=None,  # type: ignore
+            )
+        }))
 
         script = '\n'.join(scripts)
         _, sql_script = edbcompiler.compile_edgeql_script(compilerctx, script)
@@ -577,6 +611,18 @@ class Tenant(ha_base.ClusterProtocol):
     @property
     def accept_new_tasks(self):
         return self._accept_new_tasks
+
+    def is_db_ready(self, dbname: str) -> bool:
+        if not self._accept_new_tasks:
+            return False
+
+        if (
+            not (db := self.maybe_get_db(dbname=dbname))
+            or not db.is_introspected()
+        ):
+            return False
+
+        return True
 
     def create_task(
         self,
@@ -715,13 +761,13 @@ class Tenant(ha_base.ClusterProtocol):
     @contextlib.asynccontextmanager
     async def use_sys_pgcon(self) -> AsyncGenerator[pgcon.PGConnection, None]:
         if not self._initing and not self._running:
-            raise RuntimeError("EdgeDB server is not running.")
+            raise RuntimeError("Gel server is not running.")
 
         await self._sys_pgcon_waiter.acquire()
 
         if not self._initing and not self._running:
             self._sys_pgcon_waiter.release()
-            raise RuntimeError("EdgeDB server is not running.")
+            raise RuntimeError("Gel server is not running.")
 
         if self.__sys_pgcon is None or not self.__sys_pgcon.is_healthy():
             conn, self.__sys_pgcon = self.__sys_pgcon, None
@@ -949,7 +995,8 @@ class Tenant(ha_base.ClusterProtocol):
 
     def is_database_connectable(self, dbname: str) -> bool:
         return (
-            dbname != defines.EDGEDB_TEMPLATE_DB
+            self._running
+            and dbname != defines.EDGEDB_TEMPLATE_DB
             and dbname not in self._block_new_connections
         )
 
@@ -960,7 +1007,7 @@ class Tenant(ha_base.ClusterProtocol):
             if close_frontend_conns:
                 self._server.request_stop_fe_conns(dbname)
             else:
-                # If there are open EdgeDB connections to the `dbname` DB
+                # If there are open Gel connections to the `dbname` DB
                 # just raise the error Postgres would have raised itself.
                 raise errors.ExecutionError(
                     f"database branch {dbname!r} is being accessed by "
@@ -993,7 +1040,7 @@ class Tenant(ha_base.ClusterProtocol):
             conns = await pgcon.sql_fetch_col(
                 b"""
                 SELECT
-                    pid
+                    row_to_json(pg_stat_activity)
                 FROM
                     pg_stat_activity
                 WHERE
@@ -1003,8 +1050,14 @@ class Tenant(ha_base.ClusterProtocol):
             )
 
         if conns:
+            debug_info = ""
+            if self.server.in_dev_mode() or self.server.in_test_mode():
+                jconns = [json.loads(conn) for conn in conns]
+                debug_info = ": " + json.dumps(jconns)
+
             raise errors.ExecutionError(
-                f"database branch {dbname!r} is being accessed by other users"
+                f"database branch {dbname!r} is being accessed by "
+                f"other users{debug_info}"
             )
 
     @contextlib.asynccontextmanager
@@ -1174,6 +1227,7 @@ class Tenant(ha_base.ClusterProtocol):
             backend_ids=backend_ids,
             extensions=extensions,
             ext_config_settings=parsed_db.ext_config_settings,
+            feature_used_metrics=parsed_db.feature_used_metrics,
         )
         db.set_state_serializer(
             parsed_db.protocol_version,
@@ -1221,6 +1275,18 @@ class Tenant(ha_base.ClusterProtocol):
                         ext_config_settings=None,
                         early=True,
                     )
+
+        # Early introspection runs *before* we start accepting tasks.
+        # This means that if we are one of multiple frontends, and we
+        # get a ensure-database-not-used message, we aren't able to
+        # handle it. This can result in us hanging onto a connection
+        # that another frontend wants to get rid of.
+        #
+        # We still want to use the pool, though, since it limits our
+        # connections in the way we want.
+        #
+        # Hack around this by pruning the connection ourself.
+        await self._pg_pool.prune_inactive_connections(dbname)
 
     async def _introspect_dbs(self) -> None:
         async with self.use_sys_pgcon() as syscon:
@@ -1631,7 +1697,7 @@ class Tenant(ha_base.ClusterProtocol):
         self.create_task(task(), interruptable=True)
 
     def on_remote_ddl(self, dbname: str) -> None:
-        if not self._accept_new_tasks:
+        if not self.is_db_ready(dbname):
             return
 
         # Triggered by a postgres notification event 'schema-changes'
@@ -1795,7 +1861,7 @@ class Tenant(ha_base.ClusterProtocol):
         dbname: str,
         keys: Optional[list[str]],
     ) -> None:
-        if not self._accept_new_tasks:
+        if not self.is_db_ready(dbname):
             return
 
         async def task():

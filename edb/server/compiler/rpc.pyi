@@ -29,7 +29,7 @@ class CompilationRequest:
     source: edgeql.Source
     protocol_version: defines.ProtocolVersion
     output_format: enums.OutputFormat
-    json_parameters: bool
+    input_format: enums.InputFormat
     expect_one: bool
     implicit_limit: int
     inline_typeids: bool
@@ -41,7 +41,22 @@ class CompilationRequest:
 
     def __init__(
         self,
+        *,
+        source: edgeql.Source,
+        protocol_version: defines.ProtocolVersion,
+        schema_version: uuid.UUID,
         compilation_config_serializer: sertypes.CompilationConfigSerializer,
+        output_format: enums.OutputFormat = enums.OutputFormat.BINARY,
+        input_format: enums.InputFormat = enums.InputFormat.BINARY,
+        expect_one: bool = False,
+        implicit_limit: int = 0,
+        inline_typeids: bool = False,
+        inline_typenames: bool = False,
+        inline_objectids: bool = True,
+        modaliases: typing.Mapping[str | None, str] | None = None,
+        session_config: typing.Mapping[str, config.SettingValue] | None = None,
+        database_config: typing.Mapping[str, config.SettingValue] | None = None,
+        system_config: typing.Mapping[str, config.SettingValue] | None = None,
     ):
         ...
 
@@ -86,7 +101,13 @@ class CompilationRequest:
     def serialize(self) -> bytes:
         ...
 
-    def deserialize(self, data: bytes, query_text: str) -> CompilationRequest:
+    @classmethod
+    def deserialize(
+        cls,
+        data: bytes,
+        query_text: str,
+        compilation_config_serializer: sertypes.CompilationConfigSerializer,
+    ) -> CompilationRequest:
         ...
 
     def get_cache_key(self) -> uuid.UUID:

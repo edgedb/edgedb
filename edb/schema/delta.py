@@ -1291,7 +1291,6 @@ class CommandContext:
         testmode: bool = False,
         internal_schema_mode: bool = False,
         disable_dep_verification: bool = False,
-        allow_dml_in_functions: bool = False,
         store_migration_sdl: bool = False,
         descriptive_mode: bool = False,
         schema_object_ids: Optional[
@@ -1314,7 +1313,6 @@ class CommandContext:
         self.testmode = testmode
         self.descriptive_mode = descriptive_mode
         self.disable_dep_verification = disable_dep_verification
-        self.allow_dml_in_functions = allow_dml_in_functions
         self.store_migration_sdl = store_migration_sdl
         self.renames: Dict[sn.Name, sn.Name] = {}
         self.early_renames: Dict[sn.Name, sn.Name] = {}
@@ -1638,35 +1636,6 @@ class DeltaRoot(CommandGroup, context_class=DeltaRootContext):
             schema = self.apply_prerequisites(schema, context)
             schema = self.apply_subcommands(schema, context)
             schema = self.apply_caused(schema, context)
-
-        return schema
-
-    def apply_subcommands(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> s_schema.Schema:
-        from . import modules
-        from . import types as s_types
-
-        mods = []
-
-        for cmop in self.get_subcommands(type=modules.CreateModule):
-            schema = cmop.apply(schema, context)
-            mods.append(cmop.scls)
-
-        for amop in self.get_subcommands(type=modules.AlterModule):
-            schema = amop.apply(schema, context)
-            mods.append(amop.scls)
-
-        for objop in self.get_subcommands():
-            if not isinstance(objop, (modules.CreateModule,
-                                      modules.AlterModule,
-                                      s_types.DeleteCollectionType)):
-                schema = objop.apply(schema, context)
-
-        for cop in self.get_subcommands(type=s_types.DeleteCollectionType):
-            schema = cop.apply(schema, context)
 
         return schema
 
@@ -3846,8 +3815,7 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
         with self.new_context(schema, context, scls):
             if (
-                not self.canonical
-                and self.if_unused
+                self.if_unused
                 and self._has_outside_references(schema, context)
             ):
                 parent_ctx = context.parent()

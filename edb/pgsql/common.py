@@ -229,11 +229,11 @@ def _edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
 
 
 def edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
-    """Convert EdgeDB name to a valid PostgresSQL column name.
+    """Convert Gel name to a valid PostgresSQL column name.
 
     PostgreSQL has a limit of 63 characters for column names.
 
-    @param name: EdgeDB name to convert
+    @param name: Gel name to convert
     @return: PostgreSQL column name
     """
     if not (0 <= prefix_length < s_def.MAX_NAME_LENGTH):

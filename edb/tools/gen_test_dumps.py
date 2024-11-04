@@ -134,7 +134,7 @@ async def _gen_test_dumps(*, jobs: int, tests_dir: str, data_dir: str) -> None:
     cluster = edgedb_cluster.Cluster(pathlib.Path(data_dir), testmode=True)
     print(
         f"Generating test dumps for version {version}"
-        f" with a temporary EdgeDB instance in {data_dir}..."
+        f" with a temporary Gel instance in {data_dir}..."
     )
 
     try:

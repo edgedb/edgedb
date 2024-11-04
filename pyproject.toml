@@ -1,6 +1,6 @@
 [project]
-name = "edgedb-server"
-description = "EdgeDB Server"
+name = "gel-server"
+description = "Gel Server"
 requires-python = '>=3.12.0'
 dynamic = ["version"]
 dependencies = [
@@ -18,8 +18,6 @@ dependencies = [
     'psutil~=5.8',
     'setproctitle~=1.2',
 
-    'httpx~=0.24.1',
-    'httpx-sse~=0.4.0',
     'hishel==0.0.24',
     'webauthn~=2.0.0',
     'argon2-cffi~=23.1.0',
@@ -29,11 +27,17 @@ dependencies = [
 ]
 
 [project.scripts]
+edb = "edb.tools.edb:edbcommands"
+
 edgedb-server = "edb.server.main:main"
 edgedb-load-ext = "edb.load_ext.main:main"
 edgedb-ls = "edb.language_server.main:main"
-edb = "edb.tools.edb:edbcommands"
 edgedb = "edb.cli:rustcli"
+
+gel-server = "edb.server.main:main"
+gel-load-ext = "edb.load_ext.main:main"
+gel-ls = "edb.language_server.main:main"
+gel = "edb.cli:rustcli"
 
 [project.optional-dependencies]
 test = [

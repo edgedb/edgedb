@@ -5162,6 +5162,54 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [True]
         )
 
+    async def test_edgeql_ddl_function_40(self):
+        '''
+        Overloading with a modifying function.
+        '''
+
+        await self.con.execute('''
+            create type Bar;
+            create type Bar2 extending Bar;
+            create function foo(x: Bar) -> int64 {
+                using (1);
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+            edgedb.SchemaDefinitionError,
+            'cannot overload an existing function with a modifying function',
+        ):
+            await self.con.execute('''
+                create function foo(x: Bar2) -> int64 {
+                    set volatility := schema::Volatility.Modifying;
+                    using (1);
+                };
+            ''')
+
+    async def test_edgeql_ddl_function_41(self):
+        '''
+        Overloading a modifying function.
+        '''
+
+        await self.con.execute('''
+            create type Bar;
+            create type Bar2 extending Bar;
+            create function foo(x: Bar) -> int64 {
+                set volatility := schema::Volatility.Modifying;
+                using (1);
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+            edgedb.SchemaDefinitionError,
+            'cannot overload an existing modifying function',
+        ):
+            await self.con.execute('''
+                create function foo(x: Bar2) -> int64 {
+                    using (1);
+                };
+            ''')
+
     async def test_edgeql_ddl_function_inh_01(self):
         await self.con.execute("""
             create abstract type T;
@@ -5706,14 +5754,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             create global Y -> str { set default := '2' };
             create type Z { create property p := '3' };
             insert Z;
-            create function test() -> set of str using (
-                X ++ (global Y) ++ Z.p
+            create function W() -> str using ('4');
+            create function V0() -> str {
+                set is_inlined := true;
+                using ('5')
+            };
+            create function V() -> str using (V0());
+            create function inner() -> set of str using (
+                X ++ (global Y) ++ Z.p ++ W() ++ V()
             );
+            create function test() -> set of str using (inner());
         ''')
 
         await self.assert_query_result(
             'select test()',
-            ['123']
+            ['12345']
         )
 
         await self.con.execute('''
@@ -5721,7 +5776,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
         await self.assert_query_result(
             'select test()',
-            ['A23']
+            ['A2345']
         )
 
         await self.con.execute('''
@@ -5729,7 +5784,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
         await self.assert_query_result(
             'select test()',
-            ['AB3']
+            ['AB345']
         )
 
         await self.con.execute('''
@@ -5737,7 +5792,156 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
         await self.assert_query_result(
             'select test()',
-            ['ABC']
+            ['ABC45']
+        )
+
+        await self.con.execute('''
+            alter function W() {
+                using ('D')
+            };
+        ''')
+        await self.assert_query_result(
+            'select test()',
+            ['ABCD5']
+        )
+
+        await self.con.execute('''
+            alter function V0() {
+                using ('E')
+            };
+        ''')
+        await self.assert_query_result(
+            'select test()',
+            ['ABCDE']
+        )
+
+        # Check changing inner function to inlined
+        await self.con.execute('''
+            alter function inner() {
+                set is_inlined := true;
+                using (X ++ (global Y) ++ Z.p ++ W() ++ V() ++ '!');
+            };
+        ''')
+        await self.assert_query_result(
+            'select test()',
+            ['ABCDE!']
+        )
+
+    async def test_edgeql_ddl_function_recompile_02(self):
+        # Test that we recompile functions as things change
+        # Changes indirectly via inlined function
+        await self.con.execute('''
+            create alias X0 := '1';
+            create alias X := X0;
+            create global Y -> str { set default := '2' };
+            create type Z { create property p := '3' };
+            insert Z;
+            create function W() -> str using ('4');
+            create function V0() -> str {
+                set is_inlined := true;
+                using ('5')
+            };
+            create function V() -> str using (V0());
+            create function inner() -> set of str {
+                set is_inlined := true;
+                using (X ++ (global Y) ++ Z.p ++ W() ++ V())
+            };
+            create function test() -> set of str using (inner());
+        ''')
+
+        await self.assert_query_result(
+            'select test()',
+            ['12345']
+        )
+
+        await self.con.execute('''
+            alter alias X0 using ('A');
+        ''')
+        await self.assert_query_result(
+            'select test()',
+            ['A2345']
+        )
+
+        await self.con.execute('''
+            alter global Y { set default := 'B' };
+        ''')
+        await self.assert_query_result(
+            'select test()',
+            ['AB345']
+        )
+
+        await self.con.execute('''
+            alter type Z alter property p using ('C');
+        ''')
+        await self.assert_query_result(
+            'select test()',
+            ['ABC45']
+        )
+
+        await self.con.execute('''
+            alter function W() {
+                using ('D')
+            };
+        ''')
+        await self.assert_query_result(
+            'select test()',
+            ['ABCD5']
+        )
+
+        await self.con.execute('''
+            alter function V0() {
+                using ('E')
+            };
+        ''')
+        await self.assert_query_result(
+            'select test()',
+            ['ABCDE']
+        )
+
+        # Check changing inner function from inlined
+        await self.con.execute('''
+            alter function inner() {
+                set is_inlined := false;
+                using (X ++ (global Y) ++ Z.p ++ W() ++ V() ++ '!');
+            };
+        ''')
+        await self.assert_query_result(
+            'select test()',
+            ['ABCDE!']
+        )
+
+    async def test_edgeql_ddl_function_recompile_03(self):
+        # Check that modifying functions are recompiled
+        await self.con.execute('''
+            create type Bar { create property a -> int64 };
+            create function inner(x: int64) -> Bar using ((
+                insert Bar { a := x }
+            ));
+            create function test(x: int64) -> Bar using (inner(x));
+        ''')
+
+        await self.assert_query_result(
+            'select test(1).a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1],
+        )
+
+        await self.con.execute('''
+            alter function test(x: int64) {
+                using ((insert Bar { a := x + 10 }));
+            };
+        ''')
+        await self.assert_query_result(
+            'select test(2).a',
+            [12],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 12],
+            sort=True,
         )
 
     async def test_edgeql_ddl_module_01(self):
@@ -13664,6 +13868,35 @@ type default::Foo {
                     DROP FUNCTION foo___1(a: int64);
                 ''')
 
+    @staticmethod
+    def order_migrations(migrations):
+        # Migrations are implicitly ordered based on parent_id.
+        # For now, assume that there is a single "initial" migration
+        # and all migrations have at most one child.
+
+        # Find initial migration with no parents.
+        ordered = [
+            migration
+            for migration in migrations
+            if not migration['parents']
+        ]
+
+        # Repeatedly find descendents until no more can be found.
+        prev_ids = [migration['id'] for migration in ordered]
+        while prev_ids:
+            curr_migrations = [
+                migration
+                for migration in migrations
+                if any(
+                    parent['id'] in prev_ids
+                    for parent in migration['parents']
+                )
+            ]
+            ordered.extend(curr_migrations)
+            prev_ids = [migration['id'] for migration in curr_migrations]
+
+        return ordered
+
     async def test_edgeql_ddl_migration_sdl_01(self):
         await self.con.execute('''
             CONFIGURE SESSION SET store_migration_sdl :=
@@ -13696,42 +13929,12 @@ type default::Foo {
             drop type A;
         ''')
 
-        # Migrations implicitly ordered based on parent_id.
-        # Fetch the migrations and sort them here.
-        migrations = json.loads(await self.con.query_json(
-            'select schema::Migration { id, parent_ids := .parents.id, sdl }'
-        ))
-
-        # Find migrations with no parents.
-        sdl = [
-            migration['sdl']
-            for migration in migrations
-            if not migration['parent_ids']
-        ]
-
-        # Repeatedly find descendents until no more can be found.
-        prev_ids = [
-            migration['id']
-            for migration in migrations
-            if not migration['parent_ids']
-        ]
-        while prev_ids:
-            sdl.extend(
-                migration['sdl']
-                for migration in migrations
-                if any(
-                    parent_id in prev_ids
-                    for parent_id in migration['parent_ids']
-                )
-            )
-            prev_ids = [
-                migration['id']
-                for migration in migrations
-                if any(
-                    parent_id in prev_ids
-                    for parent_id in migration['parent_ids']
-                )
-            ]
+        migrations = TestEdgeQLDDL.order_migrations(
+            json.loads(await self.con.query_json('''
+                select schema::Migration { id, parents: { id }, sdl }
+            '''))
+        )
+        sdl = [migration['sdl'] for migration in migrations]
 
         self.assert_data_shape(
             sdl,
@@ -13823,8 +14026,15 @@ type default::Foo {
             }]
         )
 
-        await self.assert_query_result(
-            'select schema::Migration { script, sdl }',
+        migrations = TestEdgeQLDDL.order_migrations(
+            json.loads(await self.con.query_json('''
+                select schema::Migration {
+                    id, parents: { id }, script, sdl
+                }
+            '''))
+        )
+        self.assert_data_shape(
+            migrations,
             [
                 {
                     'script': (
@@ -13871,8 +14081,15 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 };
         ''')
 
-        await self.assert_query_result(
-            'select schema::Migration { script, sdl }',
+        migrations = TestEdgeQLDDL.order_migrations(
+            json.loads(await self.con.query_json('''
+                select schema::Migration {
+                    id, parents: { id }, script, sdl
+                }
+            '''))
+        )
+        self.assert_data_shape(
+            migrations,
             [
                 {
                     'script': (
@@ -13933,10 +14150,20 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             };
         ''')
 
-        await self.assert_query_result(
-            '''
-            SELECT schema::Migration { message, generated_by, script, sdl }
-            ''',
+        migrations = TestEdgeQLDDL.order_migrations(
+            json.loads(await self.con.query_json('''
+                select schema::Migration {
+                    id,
+                    parents: { id },
+                    message,
+                    generated_by,
+                    script,
+                    sdl,
+                }
+            '''))
+        )
+        self.assert_data_shape(
+            migrations,
             [
                 {
                     'generated_by': 'DevMode',
@@ -13964,10 +14191,20 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Type3
         ''')
 
-        await self.assert_query_result(
-            '''
-            SELECT schema::Migration { message, generated_by, script, sdl }
-            ''',
+        migrations = TestEdgeQLDDL.order_migrations(
+            json.loads(await self.con.query_json('''
+                select schema::Migration {
+                    id,
+                    parents: { id },
+                    message,
+                    generated_by,
+                    script,
+                    sdl,
+                }
+            '''))
+        )
+        self.assert_data_shape(
+            migrations,
             [
                 {
                     'generated_by': 'DevMode',

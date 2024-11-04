@@ -989,7 +989,6 @@ class Collection(Type, s_abc.Collection):
         if not isinstance(self, CollectionExprAlias):
             delta.if_exists = True
             delta.if_unused = True
-            delta.canonical = False
         return delta
 
     @classmethod

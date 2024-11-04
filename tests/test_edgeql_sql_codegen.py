@@ -42,6 +42,18 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
     SCHEMA_cards = os.path.join(os.path.dirname(__file__), 'schemas',
                                 'cards.esdl')
 
+    @classmethod
+    def get_schema_script(cls):
+        script = super().get_schema_script()
+        # Setting internal params like is_inlined in the schema
+        # doesn't work right so we override the script to add DDL.
+        return script + '''
+            create function cards::ins_bot(name: str) -> cards::Bot {
+                set is_inlined := true;
+                using (insert cards::Bot { name := "asdf" });
+            };
+        '''
+
     def _compile_to_tree(self, source):
         qltree = qlparser.parse_query(source)
         ir = compiler.compile_ast_to_ir(
@@ -461,3 +473,50 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             "ON CONFLICT", sql,
             "insert unless conflict not using ON CONFLICT"
         )
+
+    def test_codegen_inlined_insert_01(self):
+        # Test that we don't use an overlay when selecting from a
+        # simple function that does an INSERT.
+        sql = self._compile('''
+            WITH MODULE cards
+            select ins_bot("asdf") { id, name }
+        ''')
+
+        table_obj = self.schema.get("cards::Bot")
+        count = sql.count(str(table_obj.id))
+        # The table should only be referenced once, in the INSERT.
+        # If we reference it more than that, we're probably selecting it.
+        self.assertEqual(
+            count,
+            1,
+            f"Bot selected from and not just inserted: {sql}")
+
+    def test_codegen_inlined_insert_02(self):
+        # Test that we don't use an overlay when selecting from a
+        # net::http::schedule_request
+        sql = self._compile('''
+            with
+                nh as module std::net::http,
+                url := <str>$url,
+                request := (
+                    nh::schedule_request(
+                        url,
+                        method := nh::Method.`GET`
+                    )
+                )
+            select request {
+                id,
+                state,
+                failure,
+                response,
+            }
+        ''')
+
+        table_obj = self.schema.get("std::net::http::ScheduledRequest")
+        count = sql.count(str(table_obj.id))
+        # The table should only be referenced once, in the INSERT.
+        # If we reference it more than that, we're probably selecting it.
+        self.assertEqual(
+            count,
+            1,
+            f"ScheduledRequest selected from and not just inserted: {sql}")

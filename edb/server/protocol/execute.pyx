@@ -206,13 +206,13 @@ async def _parse(
         )
 
     query_req = rpc.CompilationRequest(
-        db.server.compilation_config_serializer
-    ).update(
-        edgeql.Source.from_string(query),
+        source=edgeql.Source.from_string(query),
         protocol_version=edbdef.CURRENT_PROTOCOL,
+        schema_version=dbv.schema_version,
+        compilation_config_serializer=db.server.compilation_config_serializer,
         input_format=input_format,
         output_format=output_format,
-    ).set_schema_version(dbv.schema_version)
+    )
 
     compiled = await dbv.parse(
         query_req,
@@ -420,6 +420,7 @@ async def execute_script(
         bint parse
 
     user_schema = extensions = ext_config_settings = cached_reflection = None
+    feature_used_metrics = None
     global_schema = roles = None
     unit_group = compiled.query_unit_group
 
@@ -496,6 +497,7 @@ async def execute_script(
                     extensions = query_unit.extensions
                     ext_config_settings = query_unit.ext_config_settings
                     cached_reflection = query_unit.cached_reflection
+                    feature_used_metrics = query_unit.feature_used_metrics
 
                 if query_unit.global_schema:
                     global_schema = query_unit.global_schema
@@ -577,6 +579,7 @@ async def execute_script(
                 global_schema,
                 roles,
                 cached_reflection,
+                feature_used_metrics,
             )
             if side_effects:
                 await process_side_effects(dbv, side_effects, conn)
@@ -859,10 +862,11 @@ cdef _check_for_ise(exc):
         exc = exc.exceptions[0]
 
     if not isinstance(exc, errors.EdgeDBError):
+        # TODO(rename): change URL once we can
         nexc = errors.InternalServerError(
             f'{type(exc).__name__}: {exc}',
             hint=(
-                f'This is most likely a bug in EdgeDB. '
+                f'This is most likely a bug in Gel. '
                 f'Please consider opening an issue ticket '
                 f'at https://github.com/edgedb/edgedb/issues/new'
                 f'?template=bug_report.md'
