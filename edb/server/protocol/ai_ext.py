@@ -1233,8 +1233,7 @@ async def _start_openai_like_chat(
             global finish_reason
             finish_reason = "unknown"
 
-            async for sse in event_source.aiter_sse():
-            # async for sse in event_source:
+            async for sse in event_source:
                 if not response.sent:
                     response.status = http.HTTPStatus.OK
                     response.content_type = b'text/event-stream'
@@ -1258,7 +1257,7 @@ async def _start_openai_like_chat(
                         + b'data: {"type": "message_stop"}\n\n'
                     )
                     protocol.write_raw(event)
-                    continue
+                    break
 
                 message = sse.json()
                 if message.get("object") == "chat.completion.chunk":
@@ -1266,7 +1265,6 @@ async def _start_openai_like_chat(
                     delta = data.get("delta")
                     role = delta.get("role")
                     tool_calls = delta.get("tool_calls")
-
                     if role:
                         event_data = json.dumps({
                             "type": "message_start",
@@ -1613,8 +1611,7 @@ async def _start_anthropic_chat(
         ) as event_source:
             global tool_index
             tool_index = 0
-            async for sse in event_source.aiter_sse():
-            # async for sse in event_source:
+            async for sse in event_source:
                 if not response.sent:
                     response.status = http.HTTPStatus.OK
                     response.content_type = b'text/event-stream'
