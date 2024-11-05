@@ -143,8 +143,8 @@ CREATE TYPE cfg::SMTPProviderConfig EXTENDING cfg::EmailProviderConfig {
         CREATE ANNOTATION std::description :=
             "Password for login after connected to SMTP server.";
     };
-    CREATE REQUIRED PROPERTY security -> ext::auth::SMTPSecurity {
-        SET default := ext::auth::SMTPSecurity.STARTTLSOrPlainText;
+    CREATE REQUIRED PROPERTY security -> cfg::SMTPSecurity {
+        SET default := cfg::SMTPSecurity.STARTTLSOrPlainText;
         CREATE ANNOTATION std::description :=
             "Security mode of the connection to SMTP server. \
             By default, initiate a STARTTLS upgrade if supported by the \
@@ -224,11 +224,13 @@ ALTER TYPE cfg::AbstractConfig {
     };
 
     CREATE MULTI LINK email_providers -> cfg::EmailProviderConfig {
-        CREATE ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION std::description :=
+            'The list of email providers that can be used to send emails.';
     };
 
     CREATE PROPERTY current_email_provider_name -> std::str {
-        CREATE ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION std::description :=
+            'The name of the current email provider.';
     };
 
     CREATE PROPERTY allow_dml_in_functions -> std::bool {
