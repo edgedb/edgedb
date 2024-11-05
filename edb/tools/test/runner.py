@@ -590,10 +590,13 @@ class MultiLineRenderer(BaseRenderer):
             # Prevent the rendered output from "jumping" up/down when we
             # render 2 lines worth of running tests just after we rendered
             # 3 lines.
-            for _ in range(self.max_label_lines_rendered[label] - tests_lines):
+            lkey = label.split(':')[0]
+            # ^- We can't just use `label`, as we append extra information
+            # to the "Running: (..)" label, so strip that
+            for _ in range(self.max_label_lines_rendered[lkey] - tests_lines):
                 lines.append(' ' * cols)
-            self.max_label_lines_rendered[label] = max(
-                self.max_label_lines_rendered[label],
+            self.max_label_lines_rendered[lkey] = max(
+                self.max_label_lines_rendered[lkey],
                 tests_lines
             )
 
