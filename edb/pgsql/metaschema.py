@@ -4456,8 +4456,13 @@ class GetPgTypeForEdgeDBTypeFunction2(trampoline.VersionedFunction):
                     'invalid_parameter_value',
                     msg => (
                         format(
-                            'cannot determine OID of Gel type %L',
-                            "typeid"::text
+                            'cannot determine Postgres OID of Gel %s(%L)%s',
+                            "kind",
+                            "typeid"::text,
+                            (case when "elemid" is not null
+                             then ' with element type ' || "elemid"::text
+                             else ''
+                             end)
                         )
                     )
                 )

@@ -595,6 +595,26 @@ class CreateScalarType(
 
         return cmd
 
+    def _create_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._create_begin(schema, context)
+        if (
+            not context.canonical
+            and not self.scls.get_abstract(schema)
+            and not self.scls.get_transient(schema)
+        ):
+            # Create an array type for this scalar eagerly.
+            # We mostly do this so that we know the `backend_id`
+            # of the array type when running translation of SQL
+            # involving arrays of scalars.
+            schema2, arr_t = s_types.Array.from_subtypes(schema, [self.scls])
+            self.add_caused(arr_t.as_shell(schema2).as_create_delta(schema2))
+
+        return schema
+
     def validate_create(
         self,
         schema: s_schema.Schema,
@@ -819,3 +839,19 @@ class DeleteScalarType(
             return None
         else:
             return super()._get_ast(schema, context, parent_node=parent_node)
+
+    def _delete_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if not context.canonical:
+            schema2, arr_typ = s_types.Array.from_subtypes(schema, [self.scls])
+            arr_op = arr_typ.init_delta_command(
+                schema2,
+                sd.DeleteObject,
+                if_exists=True,
+            )
+            self.add_prerequisite(arr_op)
+
+        return super()._delete_begin(schema, context)

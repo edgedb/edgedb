@@ -2026,45 +2026,65 @@ def compile_sys_queries(
     # The code below re-syncs backend_id properties of Gel builtin
     # types with the actual OIDs in the DB.
     backend_id_fixup_edgeql = '''
-        WITH
-          _ := (
-            UPDATE {schema::ScalarType, schema::Tuple}
-            FILTER
-                NOT (.abstract ?? False)
-                AND NOT (.transient ?? False)
-            SET {
-                backend_id := sys::_get_pg_type_for_edgedb_type(
-                    .id,
-                    .__type__.name,
-                    <uuid>{},
-                    [is schema::ScalarType].sql_type ?? (
-                      select [is schema::ScalarType]
-                      .bases[is schema::ScalarType] limit 1
-                    ).sql_type,
-                )
-            }
-          ),
-          _ := (
-            UPDATE {schema::Array, schema::Range, schema::MultiRange}
-            FILTER
-                NOT (.abstract ?? False)
-                AND NOT (.transient ?? False)
-            SET {
-                backend_id := sys::_get_pg_type_for_edgedb_type(
-                    .id,
-                    .__type__.name,
-                    .element_type.id,
-                    <str>{},
-                )
-            }
-          ),
-        SELECT 1;
+        UPDATE schema::ScalarType
+        FILTER
+            NOT (.abstract ?? False)
+            AND NOT (.transient ?? False)
+        SET {
+            backend_id := sys::_get_pg_type_for_edgedb_type(
+                .id,
+                .__type__.name,
+                <uuid>{},
+                [is schema::ScalarType].sql_type ?? (
+                    select [is schema::ScalarType]
+                    .bases[is schema::ScalarType] limit 1
+                ).sql_type,
+            )
+        };
+        UPDATE schema::Tuple
+        FILTER
+            NOT (.abstract ?? False)
+            AND NOT (.transient ?? False)
+        SET {
+            backend_id := sys::_get_pg_type_for_edgedb_type(
+                .id,
+                .__type__.name,
+                <uuid>{},
+                [is schema::ScalarType].sql_type ?? (
+                    select [is schema::ScalarType]
+                    .bases[is schema::ScalarType] limit 1
+                ).sql_type,
+            )
+        };
+        UPDATE {schema::Range, schema::MultiRange}
+        FILTER
+            NOT (.abstract ?? False)
+            AND NOT (.transient ?? False)
+        SET {
+            backend_id := sys::_get_pg_type_for_edgedb_type(
+                .id,
+                .__type__.name,
+                .element_type.id,
+                <str>{},
+            )
+        };
+        UPDATE schema::Array
+        FILTER
+            NOT (.abstract ?? False)
+            AND NOT (.transient ?? False)
+        SET {
+            backend_id := sys::_get_pg_type_for_edgedb_type(
+                .id,
+                .__type__.name,
+                .element_type.id,
+                <str>{},
+            )
+        };
     '''
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
         backend_id_fixup_edgeql,
-        expected_cardinality_one=True,
     )
     queries['backend_id_fixup'] = sql
 
