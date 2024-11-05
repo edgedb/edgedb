@@ -633,7 +633,7 @@ async def execute_system_config(
     conn: pgcon.PGConnection,
     dbv: dbview.DatabaseConnectionView,
     query_unit: compiler.QueryUnit,
-    state: bytes,
+    state: bytes | None,
 ):
     if query_unit.is_system_config:
         dbv.server.before_alter_system_config()
