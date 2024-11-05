@@ -286,17 +286,12 @@ class Router:
             request.url.query.decode("ascii") if request.url.query else ""
         )
         provider_name = _get_search_param(query, "provider")
-        redirect_to = _get_search_param(query, "redirect_to")
-        redirect_to_on_signup = _maybe_get_search_param(
-            query, "redirect_to_on_signup"
+        allowed_redirect_to = self._make_allowed_url(
+            _get_search_param(query, "redirect_to")
         )
-        allowed_redirect_to = self._make_allowed_url(redirect_to)
-        allowed_redirect_to_on_signup: Optional[AllowedUrl] = None
-
-        if redirect_to_on_signup:
-            allowed_redirect_to_on_signup = self._make_allowed_url(
-                redirect_to_on_signup
-            )
+        allowed_redirect_to_on_signup = self._maybe_make_allowed_url(
+            _maybe_get_search_param(query, "redirect_to_on_signup")
+        )
         challenge = _get_search_param(
             query, "challenge", fallback_keys=["code_challenge"]
         )
@@ -389,16 +384,12 @@ class Router:
         try:
             claims = self._verify_and_extract_claims(state)
             provider_name = cast(str, claims["provider"])
-            redirect_to = cast(str, claims["redirect_to"])
-            redirect_to_on_signup = cast(
-                Optional[str], claims.get("redirect_to_on_signup")
+            allowed_redirect_to = self._make_allowed_url(
+                cast(str, claims["redirect_to"])
             )
-            allowed_redirect_to = self._make_allowed_url(redirect_to)
-            allowed_redirect_to_on_signup: Optional[AllowedUrl] = None
-            if redirect_to_on_signup:
-                allowed_redirect_to_on_signup = self._make_allowed_url(
-                    redirect_to_on_signup
-                )
+            allowed_redirect_to_on_signup = self._maybe_make_allowed_url(
+                cast(Optional[str], claims.get("redirect_to_on_signup"))
+            )
             challenge = cast(str, claims["challenge"])
         except Exception:
             raise errors.InvalidData("Invalid state token")
@@ -508,10 +499,9 @@ class Router:
     ) -> None:
         data = self._get_data_from_request(request)
 
-        maybe_redirect_to = cast(Optional[str], data.get("redirect_to"))
-        allowed_redirect_to: Optional[AllowedUrl] = None
-        if maybe_redirect_to:
-            allowed_redirect_to = self._make_allowed_url(maybe_redirect_to)
+        allowed_redirect_to = self._maybe_make_allowed_url(
+            cast(Optional[str], data.get("redirect_to"))
+        )
 
         maybe_challenge = cast(Optional[str], data.get("challenge"))
         register_provider_name = cast(Optional[str], data.get("provider"))
@@ -531,7 +521,9 @@ class Router:
                 identity_id=identity.id,
                 verify_url=verify_url,
                 maybe_challenge=maybe_challenge,
-                maybe_redirect_to=maybe_redirect_to,
+                maybe_redirect_to=(
+                    allowed_redirect_to.url if allowed_redirect_to else None
+                ),
             )
 
             await self._maybe_send_webhook(
@@ -608,7 +600,7 @@ class Router:
                 response.body = json.dumps(response_dict).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
-                "redirect_on_failure", maybe_redirect_to
+                "redirect_on_failure", data.get("redirect_to")
             )
             if redirect_on_failure is not None:
                 error_message = str(ex)
@@ -642,10 +634,9 @@ class Router:
 
         await pkce.create(self.db, challenge)
 
-        maybe_redirect_to = data.get("redirect_to")
-        allowed_redirect_to: Optional[AllowedUrl] = None
-        if maybe_redirect_to:
-            allowed_redirect_to = self._make_allowed_url(maybe_redirect_to)
+        allowed_redirect_to = self._maybe_make_allowed_url(
+            cast(Optional[str], data.get("redirect_to"))
+        )
 
         email_password_client = email_password.Client(db=self.db)
         try:
@@ -684,7 +675,7 @@ class Router:
                 response.body = json.dumps(response_dict).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
-                "redirect_on_failure", maybe_redirect_to
+                "redirect_on_failure", data.get("redirect_to")
             )
             if redirect_on_failure is not None:
                 error_message = str(ex)
@@ -900,10 +891,9 @@ class Router:
             raise errors.InvalidData(
                 "Redirect URL does not match any allowed URLs.",
             )
-        maybe_redirect_to = data.get("redirect_to")
-        allowed_redirect_to: Optional[AllowedUrl] = None
-        if maybe_redirect_to:
-            allowed_redirect_to = self._make_allowed_url(maybe_redirect_to)
+        allowed_redirect_to = self._maybe_make_allowed_url(
+            data.get("redirect_to")
+        )
 
         try:
             try:
@@ -974,7 +964,7 @@ class Router:
 
         except Exception as ex:
             redirect_on_failure = data.get(
-                "redirect_on_failure", maybe_redirect_to
+                "redirect_on_failure", data.get("redirect_to")
             )
             if redirect_on_failure is not None:
                 error_message = str(ex)
@@ -1008,10 +998,9 @@ class Router:
         password = data['password']
         email_password_client = email_password.Client(db=self.db)
 
-        maybe_redirect_to = data.get("redirect_to")
-        allowed_redirect_to: Optional[AllowedUrl] = None
-        if maybe_redirect_to:
-            allowed_redirect_to = self._make_allowed_url(maybe_redirect_to)
+        allowed_redirect_to = self._maybe_make_allowed_url(
+            data.get("redirect_to")
+        )
 
         try:
 
@@ -1044,7 +1033,7 @@ class Router:
                 response.body = json.dumps(response_dict).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
-                "redirect_on_failure", maybe_redirect_to
+                "redirect_on_failure", data.get("redirect_to")
             )
             if redirect_on_failure is not None:
                 error_message = str(ex)
@@ -1089,15 +1078,13 @@ class Router:
                 "Callback URL does not match any allowed URLs.",
             )
 
-        redirect_on_failure = data["redirect_on_failure"]
         allowed_redirect_on_failure = self._make_allowed_url(
-            redirect_on_failure
+            data["redirect_on_failure"]
         )
 
-        maybe_redirect_to = data.get("redirect_to")
-        allowed_redirect_to: Optional[AllowedUrl] = None
-        if maybe_redirect_to:
-            allowed_redirect_to = self._make_allowed_url(maybe_redirect_to)
+        allowed_redirect_to = self._maybe_make_allowed_url(
+            data.get("redirect_to")
+        )
 
         magic_link_client = magic_link.Client(
             db=self.db,
@@ -1108,7 +1095,7 @@ class Router:
 
         request_accepts_json: bool = request.accept == b"application/json"
 
-        if not request_accepts_json and not maybe_redirect_to:
+        if not request_accepts_json and not allowed_redirect_to:
             raise errors.InvalidData(
                 "Request must accept JSON or provide a redirect URL."
             )
@@ -1153,7 +1140,7 @@ class Router:
             await magic_link_client.send_magic_link(
                 email=email,
                 link_url=f"{self.base_path}/magic-link/authenticate",
-                redirect_on_failure=redirect_on_failure,
+                redirect_on_failure=allowed_redirect_on_failure.url,
                 token=magic_link_token,
             )
 
@@ -1230,10 +1217,9 @@ class Router:
                     "Error redirect URL does not match any allowed URLs.",
                 )
 
-            maybe_redirect_to = data.get("redirect_to")
-            allowed_redirect_to: Optional[AllowedUrl] = None
-            if maybe_redirect_to:
-                allowed_redirect_to = self._make_allowed_url(maybe_redirect_to)
+            allowed_redirect_to = self._maybe_make_allowed_url(
+                data.get("redirect_to")
+            )
 
             magic_link_client = magic_link.Client(
                 db=self.db,
@@ -1294,7 +1280,7 @@ class Router:
                 response.body = json.dumps(return_data).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
-                "redirect_on_failure", maybe_redirect_to
+                "redirect_on_failure", data.get("redirect_to")
             )
             if redirect_on_failure is None:
                 raise ex
@@ -2451,6 +2437,11 @@ class Router:
                 "Redirect URL does not match any allowed URLs.",
             )
         return AllowedUrl(url)
+
+    def _maybe_make_allowed_url(
+        self, url: Optional[str]
+    ) -> Optional[AllowedUrl]:
+        return self._make_allowed_url(url) if url else None
 
 
 @dataclasses.dataclass
