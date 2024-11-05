@@ -1170,6 +1170,30 @@ class Compiler:
         return explain.analyze_explain_output(
             query_asts_pickled, data, self.state.std_schema)
 
+    def validate_schema_equivalence(
+        self,
+        schema_a: bytes,
+        schema_b: bytes,
+        global_schema: bytes,
+        conn_state_pickle: Any,
+    ) -> None:
+        if conn_state_pickle:
+            conn_state = pickle.loads(conn_state_pickle)
+            if (
+                conn_state
+                and (
+                    conn_state.current_tx().get_migration_state()
+                    or conn_state.current_tx().get_migration_rewrite_state()
+                )
+            ):
+                return
+        ddl.validate_schema_equivalence(
+            self.state,
+            pickle.loads(schema_a),
+            pickle.loads(schema_b),
+            pickle.loads(global_schema),
+        )
+
 
 def compile_schema_storage_in_delta(
     ctx: CompileContext,

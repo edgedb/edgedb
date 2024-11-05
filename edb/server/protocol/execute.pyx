@@ -358,6 +358,20 @@ async def execute(
             if config_ops:
                 await dbv.apply_config_ops(be_conn, config_ops)
 
+            if query_unit.user_schema and debug.flags.delta_validate_reflection:
+                global_schema = (
+                    query_unit.global_schema or dbv.get_global_schema_pickle())
+                new_user_schema = await dbv.tenant._debug_introspect(
+                    be_conn, global_schema)
+                compiler_pool = dbv.server.get_compiler_pool()
+                await compiler_pool.validate_schema_equivalence(
+                    query_unit.user_schema,
+                    new_user_schema,
+                    global_schema,
+                    dbv._last_comp_state,
+                )
+                query_unit.user_schema = new_user_schema
+
     except Exception as ex:
         # If we made schema changes, include the new schema in the
         # exception so that it can be used when interpreting.
@@ -571,6 +585,22 @@ async def execute_script(
         raise
 
     else:
+        updated_user_schema = False
+        if user_schema and debug.flags.delta_validate_reflection:
+            cur_global_schema = (
+                global_schema or dbv.get_global_schema_pickle())
+            new_user_schema = await dbv.tenant._debug_introspect(
+                conn, cur_global_schema)
+            compiler_pool = dbv.server.get_compiler_pool()
+            await compiler_pool.validate_schema_equivalence(
+                user_schema,
+                new_user_schema,
+                cur_global_schema,
+                dbv._last_comp_state,
+            )
+            user_schema = new_user_schema
+            updated_user_schema = True
+
         if not in_tx:
             side_effects = dbv.commit_implicit_tx(
                 user_schema,
@@ -586,6 +616,9 @@ async def execute_script(
             state = dbv.serialize_state()
             if state is not orig_state:
                 conn.last_state = state
+        elif updated_user_schema:
+            dbv._in_tx_user_schema_pickle = user_schema
+
         if unit_group.state_serializer is not None:
             dbv.set_state_serializer(unit_group.state_serializer)
 
