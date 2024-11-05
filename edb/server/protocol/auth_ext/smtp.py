@@ -24,6 +24,7 @@ import email.message
 import os
 import pickle
 import hashlib
+import logging
 
 import aiosmtplib
 
@@ -34,6 +35,9 @@ from . import util
 
 
 _semaphore: asyncio.BoundedSemaphore | None = None
+
+
+logger = logging.getLogger('edb.server.smtp')
 
 
 async def send_email(
@@ -132,19 +136,6 @@ async def send_email(
                 # Currently we are not reusing SMTP connections, but ideally we
                 # should replace this with a pool of connections, and drop idle
                 # connections after configured time.
-                args = dict(
-                    message=message,
-                    sender=sender,
-                    recipients=recipients,
-                    hostname=host,
-                    port=port,
-                    username=username,
-                    password=password,
-                    timeout=req_timeout,
-                    use_tls=use_tls,
-                    start_tls=start_tls,
-                    validate_certs=validate_certs,
-                )
                 if test_mode:
                     recipients_list: list[str]
                     if isinstance(recipients, str):
@@ -166,6 +157,40 @@ async def send_email(
                     if os.path.exists(test_file):
                         os.unlink(test_file)
                     with open(test_file, "wb") as f:
+                        args = dict(
+                            message=message,
+                            sender=sender,
+                            recipients=recipients,
+                            hostname=host,
+                            port=port,
+                            username=username,
+                            password=password,
+                            timeout=req_timeout,
+                            use_tls=use_tls,
+                            start_tls=start_tls,
+                            validate_certs=validate_certs,
+                        )
                         pickle.dump(args, f)
                 else:
-                    await aiosmtplib.send(**args)  # type: ignore
+                    logger.info(f"Sending SMTP message to {host}:{port}")
+                    errors, response = await aiosmtplib.send(
+                        message,
+                        sender=sender,
+                        recipients=recipients,
+                        hostname=host,
+                        port=port,
+                        username=username,
+                        password=password,
+                        timeout=req_timeout,
+                        use_tls=use_tls,
+                        start_tls=start_tls,
+                        validate_certs=validate_certs,
+                    )
+                    if errors:
+                        logger.error(
+                            f"SMTP server returned errors: {errors}"
+                        )
+                    else:
+                        logger.info(
+                            f"SMTP message sent successfully: {response}"
+                        )
