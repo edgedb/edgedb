@@ -30,6 +30,7 @@ import hashlib
 import os
 import mimetypes
 import uuid
+import dataclasses
 
 from typing import (
     Any,
@@ -285,20 +286,12 @@ class Router:
             request.url.query.decode("ascii") if request.url.query else ""
         )
         provider_name = _get_search_param(query, "provider")
-        redirect_to = _get_search_param(query, "redirect_to")
-        redirect_to_on_signup = _maybe_get_search_param(
-            query, "redirect_to_on_signup"
+        allowed_redirect_to = self._make_allowed_url(
+            _get_search_param(query, "redirect_to")
         )
-        if not self._is_url_allowed(redirect_to):
-            raise errors.InvalidData(
-                "Redirect URL does not match any allowed URLs.",
-            )
-        if redirect_to_on_signup and not self._is_url_allowed(
-            redirect_to_on_signup
-        ):
-            raise errors.InvalidData(
-                "Redirect URL does not match any allowed URLs.",
-            )
+        allowed_redirect_to_on_signup = self._maybe_make_allowed_url(
+            _maybe_get_search_param(query, "redirect_to_on_signup")
+        )
         challenge = _get_search_param(
             query, "challenge", fallback_keys=["code_challenge"]
         )
@@ -312,11 +305,19 @@ class Router:
         authorize_url = await oauth_client.get_authorize_url(
             redirect_uri=self._get_callback_url(),
             state=self._make_state_claims(
-                provider_name, redirect_to, redirect_to_on_signup, challenge
+                provider_name,
+                allowed_redirect_to.url,
+                (
+                    allowed_redirect_to_on_signup.url
+                    if allowed_redirect_to_on_signup
+                    else None
+                ),
+                challenge,
             ),
         )
-        response.status = http.HTTPStatus.FOUND
-        response.custom_headers["Location"] = authorize_url
+        # n.b. Explicitly allow authorization URL to be outside of allowed
+        # URLs because it is a trusted URL from the identity provider.
+        self._do_redirect(response, AllowedUrl(authorize_url))
 
     async def handle_callback(
         self,
@@ -361,11 +362,6 @@ class Router:
             except Exception:
                 raise errors.InvalidData("Invalid state token")
 
-            if not self._is_url_allowed(redirect_to):
-                raise errors.InvalidData(
-                    "Redirect URL does not match any allowed URLs.",
-                )
-
             params = {
                 "error": error,
             }
@@ -375,11 +371,10 @@ class Router:
                 error_str += f": {error_description}"
 
             logger.debug(f"OAuth provider returned an error: {error_str}")
-            response.custom_headers["Location"] = util.join_url_params(
-                redirect_to, params
+            return self._try_redirect(
+                response,
+                util.join_url_params(redirect_to, params),
             )
-            response.status = http.HTTPStatus.FOUND
-            return
 
         if code is None:
             raise errors.InvalidData(
@@ -389,20 +384,12 @@ class Router:
         try:
             claims = self._verify_and_extract_claims(state)
             provider_name = cast(str, claims["provider"])
-            redirect_to = cast(str, claims["redirect_to"])
-            redirect_to_on_signup = cast(
-                Optional[str], claims.get("redirect_to_on_signup")
+            allowed_redirect_to = self._make_allowed_url(
+                cast(str, claims["redirect_to"])
             )
-            if not self._is_url_allowed(redirect_to):
-                raise errors.InvalidData(
-                    "Redirect URL does not match any allowed URLs.",
-                )
-            if redirect_to_on_signup and not self._is_url_allowed(
-                redirect_to_on_signup
-            ):
-                raise errors.InvalidData(
-                    "Redirect URL does not match any allowed URLs.",
-                )
+            allowed_redirect_to_on_signup = self._maybe_make_allowed_url(
+                cast(Optional[str], claims.get("redirect_to_on_signup"))
+            )
             challenge = cast(str, claims["challenge"])
         except Exception:
             raise errors.InvalidData("Invalid state token")
@@ -428,20 +415,20 @@ class Router:
                 auth_token=auth_token,
                 refresh_token=refresh_token,
             )
-        new_url = util.join_url_params(
-            (
-                (redirect_to_on_signup or redirect_to)
-                if new_identity
-                else redirect_to
-            ),
-            {"code": pkce_code, "provider": provider_name},
+        new_url = (
+            (allowed_redirect_to_on_signup or allowed_redirect_to)
+            if new_identity
+            else allowed_redirect_to
+        ).map(
+            lambda u: util.join_url_params(
+                u, {"code": pkce_code, "provider": provider_name}
+            )
         )
         logger.info(
             "OAuth callback successful: "
             f"identity_id={identity.id}, new_identity={new_identity}"
         )
-        response.status = http.HTTPStatus.FOUND
-        response.custom_headers["Location"] = new_url
+        self._do_redirect(response, new_url)
 
     async def handle_token(
         self,
@@ -491,9 +478,7 @@ class Router:
                 )
             )
             session_token = self._make_session_token(identity_id)
-            logger.info(
-                f"Token exchange successful: identity_id={identity_id}"
-            )
+            logger.info(f"Token exchange successful: identity_id={identity_id}")
             response.status = http.HTTPStatus.OK
             response.content_type = b"application/json"
             response.body = json.dumps(
@@ -514,11 +499,10 @@ class Router:
     ) -> None:
         data = self._get_data_from_request(request)
 
-        maybe_redirect_to = cast(Optional[str], data.get("redirect_to"))
-        if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
-            raise errors.InvalidData(
-                "Redirect URL does not match any allowed URLs.",
-            )
+        allowed_redirect_to = self._maybe_make_allowed_url(
+            cast(Optional[str], data.get("redirect_to"))
+        )
+
         maybe_challenge = cast(Optional[str], data.get("challenge"))
         register_provider_name = cast(Optional[str], data.get("provider"))
         if register_provider_name is None:
@@ -537,7 +521,9 @@ class Router:
                 identity_id=identity.id,
                 verify_url=verify_url,
                 maybe_challenge=maybe_challenge,
-                maybe_redirect_to=maybe_redirect_to,
+                maybe_redirect_to=(
+                    allowed_redirect_to.url if allowed_redirect_to else None
+                ),
             )
 
             await self._maybe_send_webhook(
@@ -601,10 +587,12 @@ class Router:
                 f"pkce_id={pkce_code!r}"
             )
 
-            if maybe_redirect_to is not None:
-                response.status = http.HTTPStatus.FOUND
-                response.custom_headers["Location"] = util.join_url_params(
-                    maybe_redirect_to, response_dict
+            if allowed_redirect_to is not None:
+                self._do_redirect(
+                    response,
+                    allowed_redirect_to.map(
+                        lambda u: util.join_url_params(u, response_dict)
+                    ),
                 )
             else:
                 response.status = http.HTTPStatus.CREATED
@@ -612,23 +600,23 @@ class Router:
                 response.body = json.dumps(response_dict).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
-                "redirect_on_failure", maybe_redirect_to
+                "redirect_on_failure", data.get("redirect_to")
             )
             if redirect_on_failure is not None:
-                response.status = http.HTTPStatus.FOUND
                 error_message = str(ex)
                 email = data.get("email", "")
                 logger.error(
                     f"Error creating identity: error={error_message}, "
                     f"email={email}"
                 )
-                redirect_params = {
-                    "error": error_message,
-                    "email": email,
-                }
-                response.custom_headers["Location"] = util.join_url_params(
-                    redirect_on_failure, redirect_params
+                error_redirect_url = util.join_url_params(
+                    redirect_on_failure,
+                    {
+                        "error": error_message,
+                        "email": email,
+                    },
                 )
+                return self._try_redirect(response, error_redirect_url)
             else:
                 raise ex
 
@@ -646,11 +634,9 @@ class Router:
 
         await pkce.create(self.db, challenge)
 
-        maybe_redirect_to = data.get("redirect_to")
-        if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
-            raise errors.InvalidData(
-                "Redirect URL does not match any allowed URLs.",
-            )
+        allowed_redirect_to = self._maybe_make_allowed_url(
+            cast(Optional[str], data.get("redirect_to"))
+        )
 
         email_password_client = email_password.Client(db=self.db)
         try:
@@ -676,10 +662,12 @@ class Router:
                 f"Authentication successful: identity_id={local_identity.id}, "
                 f"pkce_id={pkce_code}"
             )
-            if maybe_redirect_to:
-                response.status = http.HTTPStatus.FOUND
-                response.custom_headers["Location"] = util.join_url_params(
-                    maybe_redirect_to, response_dict
+            if allowed_redirect_to:
+                self._do_redirect(
+                    response,
+                    allowed_redirect_to.map(
+                        lambda u: util.join_url_params(u, response_dict)
+                    ),
                 )
             else:
                 response.status = http.HTTPStatus.OK
@@ -687,27 +675,23 @@ class Router:
                 response.body = json.dumps(response_dict).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
-                "redirect_on_failure", maybe_redirect_to
+                "redirect_on_failure", data.get("redirect_to")
             )
             if redirect_on_failure is not None:
-                if not self._is_url_allowed(redirect_on_failure):
-                    raise errors.InvalidData(
-                        "Redirect URL does not match any allowed URLs.",
-                    )
                 error_message = str(ex)
                 email = data.get("email", "")
                 logger.error(
                     f"Error authenticating: error={error_message}, "
                     f"email={email}"
                 )
-                response.status = http.HTTPStatus.FOUND
-                redirect_params = {
-                    "error": error_message,
-                    "email": email,
-                }
-                response.custom_headers["Location"] = util.join_url_params(
-                    redirect_on_failure, redirect_params
+                error_redirect_url = util.join_url_params(
+                    redirect_on_failure,
+                    {
+                        "error": error_message,
+                        "email": email,
+                    },
                 )
+                return self._try_redirect(response, error_redirect_url)
             else:
                 raise ex
 
@@ -763,9 +747,9 @@ class Router:
                 code = await pkce.link_identity_challenge(
                     self.db, identity_id, challenge
                 )
-                response.status = http.HTTPStatus.FOUND
-                response.custom_headers["Location"] = _with_appended_qs(
-                    redirect_to, {"code": [code]}
+                return self._try_redirect(
+                    response,
+                    util.join_url_params(redirect_to, {"code": code}),
                 )
             case (str(challenge), _):
                 await pkce.create(self.db, challenge)
@@ -775,11 +759,12 @@ class Router:
                 response.status = http.HTTPStatus.OK
                 response.content_type = b"application/json"
                 response.body = json.dumps({"code": code}).encode()
+                return
             case (_, str(redirect_to)):
-                response.status = http.HTTPStatus.FOUND
-                response.custom_headers["Location"] = redirect_to
+                return self._try_redirect(response, redirect_to)
             case (_, _):
                 response.status = http.HTTPStatus.NO_CONTENT
+                return
 
     async def handle_resend_verification_email(
         self,
@@ -906,11 +891,9 @@ class Router:
             raise errors.InvalidData(
                 "Redirect URL does not match any allowed URLs.",
             )
-        maybe_redirect_to = data.get("redirect_to")
-        if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
-            raise errors.InvalidData(
-                "Redirect URL does not match any allowed URLs.",
-            )
+        allowed_redirect_to = self._maybe_make_allowed_url(
+            data.get("redirect_to")
+        )
 
         try:
             try:
@@ -961,10 +944,12 @@ class Router:
                 "email_sent": email,
             }
 
-            if maybe_redirect_to:
-                response.status = http.HTTPStatus.FOUND
-                response.custom_headers["Location"] = util.join_url_params(
-                    maybe_redirect_to, return_data
+            if allowed_redirect_to:
+                return self._do_redirect(
+                    response,
+                    allowed_redirect_to.map(
+                        lambda u: util.join_url_params(u, return_data)
+                    ),
                 )
             else:
                 response.status = http.HTTPStatus.OK
@@ -979,25 +964,24 @@ class Router:
 
         except Exception as ex:
             redirect_on_failure = data.get(
-                "redirect_on_failure", maybe_redirect_to
+                "redirect_on_failure", data.get("redirect_to")
             )
             if redirect_on_failure is not None:
-                if not self._is_url_allowed(redirect_on_failure):
-                    raise errors.InvalidData(
-                        "Redirect URL does not match any allowed URLs.",
-                    )
                 error_message = str(ex)
                 logger.error(
                     f"Error sending reset email: error={error_message}, "
                     f"email={email}"
                 )
-                response.status = http.HTTPStatus.FOUND
-                redirect_params = {
-                    "error": error_message,
-                    "email": email,
-                }
-                response.custom_headers["Location"] = util.join_url_params(
-                    redirect_on_failure, redirect_params
+                redirect_url = util.join_url_params(
+                    redirect_on_failure,
+                    {
+                        "error": error_message,
+                        "email": email,
+                    },
+                )
+                return self._try_redirect(
+                    response,
+                    redirect_url,
                 )
             else:
                 raise ex
@@ -1014,11 +998,9 @@ class Router:
         password = data['password']
         email_password_client = email_password.Client(db=self.db)
 
-        maybe_redirect_to = data.get("redirect_to")
-        if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
-            raise errors.InvalidData(
-                "Redirect URL does not match any allowed URLs.",
-            )
+        allowed_redirect_to = self._maybe_make_allowed_url(
+            data.get("redirect_to")
+        )
 
         try:
 
@@ -1038,10 +1020,12 @@ class Router:
                 f"Reset password: identity_id={identity_id}, pkce_id={code}"
             )
 
-            if maybe_redirect_to:
-                response.status = http.HTTPStatus.FOUND
-                response.custom_headers["Location"] = util.join_url_params(
-                    maybe_redirect_to, response_dict
+            if allowed_redirect_to:
+                return self._do_redirect(
+                    response,
+                    allowed_redirect_to.map(
+                        lambda u: util.join_url_params(u, response_dict)
+                    ),
                 )
             else:
                 response.status = http.HTTPStatus.OK
@@ -1049,26 +1033,22 @@ class Router:
                 response.body = json.dumps(response_dict).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
-                "redirect_on_failure", maybe_redirect_to
+                "redirect_on_failure", data.get("redirect_to")
             )
             if redirect_on_failure is not None:
-                if not self._is_url_allowed(redirect_on_failure):
-                    raise errors.InvalidData(
-                        "Redirect URL does not match any allowed URLs.",
-                    )
                 error_message = str(ex)
                 logger.error(
                     f"Error resetting password: error={error_message}, "
                     f"reset_token={reset_token}"
                 )
-                response.status = http.HTTPStatus.FOUND
-                redirect_params = {
-                    "error": error_message,
-                    "reset_token": reset_token,
-                }
-                response.custom_headers["Location"] = util.join_url_params(
-                    redirect_on_failure, redirect_params
+                redirect_url = util.join_url_params(
+                    redirect_on_failure,
+                    {
+                        "error": error_message,
+                        "reset_token": reset_token,
+                    },
                 )
+                return self._try_redirect(response, redirect_url)
             else:
                 raise ex
 
@@ -1093,20 +1073,19 @@ class Router:
         email = data["email"]
         challenge = data["challenge"]
         callback_url = data["callback_url"]
-        redirect_on_failure = data["redirect_on_failure"]
         if not self._is_url_allowed(callback_url):
             raise errors.InvalidData(
                 "Callback URL does not match any allowed URLs.",
             )
-        if not self._is_url_allowed(redirect_on_failure):
-            raise errors.InvalidData(
-                "Error redirect URL does not match any allowed URLs.",
-            )
-        maybe_redirect_to = data.get("redirect_to")
-        if maybe_redirect_to and not self._is_url_allowed(maybe_redirect_to):
-            raise errors.InvalidData(
-                "Redirect URL does not match any allowed URLs.",
-            )
+
+        allowed_redirect_on_failure = self._make_allowed_url(
+            data["redirect_on_failure"]
+        )
+
+        allowed_redirect_to = self._maybe_make_allowed_url(
+            data.get("redirect_to")
+        )
+
         magic_link_client = magic_link.Client(
             db=self.db,
             issuer=self.base_path,
@@ -1116,7 +1095,7 @@ class Router:
 
         request_accepts_json: bool = request.accept == b"application/json"
 
-        if not request_accepts_json and not maybe_redirect_to:
+        if not request_accepts_json and not allowed_redirect_to:
             raise errors.InvalidData(
                 "Request must accept JSON or provide a redirect URL."
             )
@@ -1161,7 +1140,7 @@ class Router:
             await magic_link_client.send_magic_link(
                 email=email,
                 link_url=f"{self.base_path}/magic-link/authenticate",
-                redirect_on_failure=redirect_on_failure,
+                redirect_on_failure=allowed_redirect_on_failure.url,
                 token=magic_link_token,
             )
 
@@ -1173,10 +1152,12 @@ class Router:
                 response.status = http.HTTPStatus.OK
                 response.content_type = b"application/json"
                 response.body = json.dumps(return_data).encode()
-            elif maybe_redirect_to:
-                response.status = http.HTTPStatus.FOUND
-                response.custom_headers["Location"] = util.join_url_params(
-                    maybe_redirect_to, return_data
+            elif allowed_redirect_to:
+                return self._do_redirect(
+                    response,
+                    allowed_redirect_to.map(
+                        lambda u: util.join_url_params(u, return_data)
+                    ),
                 )
             else:
                 # This should not happen since we check earlier for this case
@@ -1188,20 +1169,21 @@ class Router:
             if request_accepts_json:
                 raise ex
 
-            response.status = http.HTTPStatus.FOUND
-
             error_message = str(ex)
             logger.error(
                 f"Error sending magic link: error={error_message}, "
                 f"email={email}"
             )
-            redirect_params = {
-                "error": error_message,
-                "email": email,
-            }
-            response.custom_headers["Location"] = util.join_url_params(
-                redirect_on_failure, redirect_params
+            redirect_url = allowed_redirect_on_failure.map(
+                lambda u: util.join_url_params(
+                    u,
+                    {
+                        "error": error_message,
+                        "email": email,
+                    },
+                )
             )
+            return self._do_redirect(response, redirect_url)
 
     async def handle_magic_link_email(
         self,
@@ -1235,13 +1217,10 @@ class Router:
                     "Error redirect URL does not match any allowed URLs.",
                 )
 
-            maybe_redirect_to = data.get("redirect_to")
-            if maybe_redirect_to and not self._is_url_allowed(
-                maybe_redirect_to
-            ):
-                raise errors.InvalidData(
-                    "Redirect URL does not match any allowed URLs.",
-                )
+            allowed_redirect_to = self._maybe_make_allowed_url(
+                data.get("redirect_to")
+            )
+
             magic_link_client = magic_link.Client(
                 db=self.db,
                 issuer=self.base_path,
@@ -1288,10 +1267,12 @@ class Router:
                 "email_sent": email,
             }
 
-            if maybe_redirect_to:
-                response.status = http.HTTPStatus.FOUND
-                response.custom_headers["Location"] = util.join_url_params(
-                    maybe_redirect_to, return_data
+            if allowed_redirect_to:
+                return self._do_redirect(
+                    response,
+                    allowed_redirect_to.map(
+                        lambda u: util.join_url_params(u, return_data)
+                    ),
                 )
             else:
                 response.status = http.HTTPStatus.OK
@@ -1299,7 +1280,7 @@ class Router:
                 response.body = json.dumps(return_data).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
-                "redirect_on_failure", maybe_redirect_to
+                "redirect_on_failure", data.get("redirect_to")
             )
             if redirect_on_failure is None:
                 raise ex
@@ -1309,14 +1290,14 @@ class Router:
                     f"Error sending magic link email: error={error_message}, "
                     f"email={email}"
                 )
-                response.status = http.HTTPStatus.FOUND
-                redirect_params = {
-                    "error": error_message,
-                    "email": email,
-                }
-                response.custom_headers["Location"] = util.join_url_params(
-                    redirect_on_failure, redirect_params
+                error_redirect_url = util.join_url_params(
+                    redirect_on_failure,
+                    {
+                        "error": error_message,
+                        "email": email,
+                    },
                 )
+                self._try_redirect(response, error_redirect_url)
 
     async def handle_magic_link_authenticate(
         self,
@@ -1346,10 +1327,11 @@ class Router:
                 identity_id, datetime.datetime.now(datetime.timezone.utc)
             )
 
-            response.status = http.HTTPStatus.FOUND
-            response.custom_headers["Location"] = util.join_url_params(
-                callback_url, {"code": code}
+            return self._try_redirect(
+                response,
+                util.join_url_params(callback_url, {"code": code}),
             )
+
         except Exception as ex:
             redirect_on_failure = _maybe_get_search_param(
                 query, "redirect_on_failure"
@@ -1357,22 +1339,18 @@ class Router:
             if redirect_on_failure is None:
                 raise ex
             else:
-                if not self._is_url_allowed(redirect_on_failure):
-                    raise errors.InvalidData(
-                        "Redirect URL does not match any allowed URLs.",
-                    )
-                response.status = http.HTTPStatus.FOUND
                 error_message = str(ex)
                 logger.error(
                     f"Error authenticating magic link: error={error_message}, "
                     f"token={token}"
                 )
-                redirect_params = {
-                    "error": error_message,
-                }
-                response.custom_headers["Location"] = util.join_url_params(
-                    redirect_on_failure, redirect_params
+                redirect_url = util.join_url_params(
+                    redirect_on_failure,
+                    {
+                        "error": error_message,
+                    },
                 )
+                return self._try_redirect(response, redirect_url)
 
     async def handle_webauthn_register_options(
         self,
@@ -1883,10 +1861,10 @@ class Router:
 
                     redirect_to = maybe_redirect_to or redirect_to
                     redirect_to = (
-                        _with_appended_qs(
+                        util.join_url_params(
                             redirect_to,
                             {
-                                "code": [maybe_pkce_code],
+                                "code": maybe_pkce_code,
                             },
                         )
                         if maybe_pkce_code
@@ -1912,9 +1890,7 @@ class Router:
 
         # Only redirect back if verification succeeds
         if is_valid:
-            response.status = http.HTTPStatus.FOUND
-            response.custom_headers["Location"] = redirect_to
-            return
+            return self._try_redirect(response, redirect_to)
 
         app_details_config = self._get_app_details_config()
         response.status = http.HTTPStatus.OK
@@ -2445,6 +2421,36 @@ class Router:
 
         return False
 
+    def _do_redirect(
+        self, response: protocol.HttpResponse, allowed_url: AllowedUrl
+    ) -> None:
+        response.status = http.HTTPStatus.FOUND
+        response.custom_headers["Location"] = allowed_url.url
+
+    def _try_redirect(self, response: protocol.HttpResponse, url: str) -> None:
+        allowed_url = self._make_allowed_url(url)
+        self._do_redirect(response, allowed_url)
+
+    def _make_allowed_url(self, url: str) -> AllowedUrl:
+        if not self._is_url_allowed(url):
+            raise errors.InvalidData(
+                "Redirect URL does not match any allowed URLs.",
+            )
+        return AllowedUrl(url)
+
+    def _maybe_make_allowed_url(
+        self, url: Optional[str]
+    ) -> Optional[AllowedUrl]:
+        return self._make_allowed_url(url) if url else None
+
+
+@dataclasses.dataclass
+class AllowedUrl:
+    url: str
+
+    def map(self, f: Callable[[str], str]) -> "AllowedUrl":
+        return AllowedUrl(f(self.url))
+
 
 def _fail_with_error(
     *,
@@ -2532,15 +2538,6 @@ def _set_cookie(
     if path is not None:
         val["path"] = path
     response.custom_headers["Set-Cookie"] = val.OutputString()
-
-
-def _with_appended_qs(url: str, query: dict[str, list[str]]) -> str:
-    url_parts = list(urllib.parse.urlparse(url))
-    existing_query = urllib.parse.parse_qs(url_parts[4])
-    existing_query.update(query)
-
-    url_parts[4] = urllib.parse.urlencode(existing_query, doseq=True)
-    return urllib.parse.urlunparse(url_parts)
 
 
 def _check_keyset(candidate: dict[str, Any], keyset: set[str]) -> None:
