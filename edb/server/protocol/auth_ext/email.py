@@ -3,9 +3,9 @@ import urllib.parse
 import random
 
 from typing import Any, Coroutine
-from edb.server import tenant
+from edb.server import tenant, smtp
 
-from . import util, ui, smtp
+from . import util, ui
 
 
 async def send_password_reset_email(
@@ -15,7 +15,6 @@ async def send_password_reset_email(
     reset_url: str,
     test_mode: bool,
 ) -> None:
-    from_addr = util.get_config(db, "ext::auth::SMTPConfig::sender")
     app_details_config = util.get_app_details_config(db)
     if app_details_config is None:
         email_args = {}
@@ -27,16 +26,13 @@ async def send_password_reset_email(
             brand_color=app_details_config.brand_color,
         )
     msg = ui.render_password_reset_email(
-        from_addr=from_addr,
         to_addr=to_addr,
         reset_url=reset_url,
         **email_args,
     )
-    coro = smtp.send_email(
-        db,
+    smtp_provider = smtp.SMTP(db)
+    coro = smtp_provider.send(
         msg,
-        sender=from_addr,
-        recipients=to_addr,
         test_mode=test_mode,
     )
     await _protected_send(coro, tenant)
@@ -51,7 +47,6 @@ async def send_verification_email(
     provider: str,
     test_mode: bool,
 ) -> None:
-    from_addr = util.get_config(db, "ext::auth::SMTPConfig::sender")
     app_details_config = util.get_app_details_config(db)
     verification_token_params = urllib.parse.urlencode(
         {
@@ -71,16 +66,13 @@ async def send_verification_email(
             brand_color=app_details_config.brand_color,
         )
     msg = ui.render_verification_email(
-        from_addr=from_addr,
         to_addr=to_addr,
         verify_url=verify_url,
         **email_args,
     )
-    coro = smtp.send_email(
-        db,
+    smtp_provider = smtp.SMTP(db)
+    coro = smtp_provider.send(
         msg,
-        sender=from_addr,
-        recipients=to_addr,
         test_mode=test_mode,
     )
     await _protected_send(coro, tenant)
@@ -93,7 +85,6 @@ async def send_magic_link_email(
     link: str,
     test_mode: bool,
 ) -> None:
-    from_addr = util.get_config(db, "ext::auth::SMTPConfig::sender")
     app_details_config = util.get_app_details_config(db)
     if app_details_config is None:
         email_args = {}
@@ -105,16 +96,13 @@ async def send_magic_link_email(
             brand_color=app_details_config.brand_color,
         )
     msg = ui.render_magic_link_email(
-        from_addr=from_addr,
         to_addr=to_addr,
         link=link,
         **email_args,
     )
-    coro = smtp.send_email(
-        db,
+    smtp_provider = smtp.SMTP(db)
+    coro = smtp_provider.send(
         msg,
-        sender=from_addr,
-        recipients=to_addr,
         test_mode=test_mode,
     )
     await _protected_send(coro, tenant)

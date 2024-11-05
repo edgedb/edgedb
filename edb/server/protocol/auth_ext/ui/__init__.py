@@ -20,9 +20,7 @@ from __future__ import annotations
 from typing import cast, Optional
 
 import html
-
-from email.mime import multipart
-from email.mime import text as mime_text
+import email.message
 
 from edb.server.protocol.auth_ext import config as auth_config
 
@@ -701,21 +699,17 @@ def render_magic_link_sent_page(
 
 def render_password_reset_email(
     *,
-    from_addr: str,
     to_addr: str,
     reset_url: str,
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = "#007bff",
-) -> multipart.MIMEMultipart:
-    msg = multipart.MIMEMultipart()
-    msg["From"] = from_addr
+) -> email.message.EmailMessage:
+    msg = email.message.EmailMessage()
     msg["To"] = to_addr
     msg["Subject"] = "Reset password"
-    alternative = multipart.MIMEMultipart('alternative')
-    plain_text_msg = mime_text.MIMEText(
-        f"""
+    plain_text_content = f"""
 Somebody requested a new password for the {app_name or ''} account associated
 with {to_addr}.
 
@@ -723,13 +717,8 @@ Please paste the following URL into your browser address bar to verify your
 email address:
 
 {reset_url}
-        """,
-        "plain",
-        "utf-8",
-    )
-    alternative.attach(plain_text_msg)
-
-    content = f"""
+        """
+    html_content = f"""
 <tr>
   <td
     style="
@@ -940,52 +929,42 @@ email address:
   </td>
 </tr>
     """  # noqa: E501
-    html_msg = mime_text.MIMEText(
+
+    msg.set_content(plain_text_content, subtype="plain")
+    msg.add_alternative(
         render.base_default_email(
+            content=html_content,
             app_name=app_name,
             logo_url=logo_url,
-            content=content,
         ),
-        "html",
-        "utf-8",
+        subtype="html",
     )
-    alternative.attach(html_msg)
-    msg.attach(alternative)
     return msg
 
 
 def render_verification_email(
     *,
-    from_addr: str,
     to_addr: str,
     verify_url: str,
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = "#007bff",
-) -> multipart.MIMEMultipart:
-    msg = multipart.MIMEMultipart()
-    msg["From"] = from_addr
+) -> email.message.EmailMessage:
+    msg = email.message.EmailMessage()
     msg["To"] = to_addr
     msg["Subject"] = (
         f"Verify your email{f' for {app_name}' if app_name else ''}"
     )
-    alternative = multipart.MIMEMultipart('alternative')
-    plain_text_msg = mime_text.MIMEText(
-        f"""
+    plain_text_content = f"""
 Congratulations, you're registered{f' at {app_name}' if app_name else ''}!
 
 Please paste the following URL into your browser address bar to verify your
 email address:
 
 {verify_url}
-        """,
-        "plain",
-        "utf-8",
-    )
-    alternative.attach(plain_text_msg)
-
-    content = f"""
+        """
+    html_content = f"""
 <tr>
   <td
     align="left"
@@ -1113,50 +1092,38 @@ email address:
     </div>
   </td>
 </tr>
-
-"""
-
-    html_msg = mime_text.MIMEText(
+    """
+    msg.set_content(plain_text_content, subtype="plain")
+    msg.set_content(
         render.base_default_email(
+            content=html_content,
             app_name=app_name,
             logo_url=logo_url,
-            content=content,
         ),
-        "html",
-        "utf-8",
+        subtype="html",
     )
-    alternative.attach(html_msg)
-    msg.attach(alternative)
     return msg
 
 
 def render_magic_link_email(
     *,
-    from_addr: str,
     to_addr: str,
     link: str,
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
     brand_color: Optional[str] = "#007bff",
-) -> multipart.MIMEMultipart:
-    msg = multipart.MIMEMultipart()
-    msg["From"] = from_addr
+) -> email.message.EmailMessage:
+    msg = email.message.EmailMessage()
     msg["To"] = to_addr
     msg["Subject"] = "Sign in link"
-    alternative = multipart.MIMEMultipart('alternative')
-    plain_text_msg = mime_text.MIMEText(
-        f"""
+    plain_text_content = f"""
 Please paste the following URL into your browser address bar to be signed into
 your account:
 
 {link}
-        """,
-        "plain",
-        "utf-8",
-    )
-    alternative.attach(plain_text_msg)
-    content = f"""
+        """
+    html_content = f"""
 <tr>
   <td
     align="left"
@@ -1249,15 +1216,13 @@ your account:
   </td>
 </tr>
     """
-    html_msg = mime_text.MIMEText(
+    msg.set_content(plain_text_content, subtype="plain")
+    msg.set_content(
         render.base_default_email(
+            content=html_content,
             app_name=app_name,
             logo_url=logo_url,
-            content=content,
         ),
-        "html",
-        "utf-8",
+        subtype="html",
     )
-    alternative.attach(html_msg)
-    msg.attach(alternative)
     return msg
