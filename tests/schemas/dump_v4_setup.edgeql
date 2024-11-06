@@ -56,9 +56,6 @@ CONFIGURE CURRENT DATABASE SET
 ext::auth::AuthConfig::token_time_to_live := <duration>'24 hours';
 
 CONFIGURE CURRENT DATABASE SET
-ext::auth::SMTPConfig::sender := 'noreply@example.com';
-
-CONFIGURE CURRENT DATABASE SET
 ext::auth::AuthConfig::allowed_redirect_urls := {
     'https://example.com'
 };
