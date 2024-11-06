@@ -130,47 +130,56 @@ def compile_materialized_exprs(
                     path_id=mat_set.materialized.path_id, ctx=matctx):
                 continue
 
-            mat_ids = set(mat_set.uses)
+            _compile_materialized_expr(query, mat_set, ctx=matctx)
 
-            # We pack optional things into arrays also, since it works.
-            # TODO: use NULL?
-            card = mat_set.cardinality
-            assert card != qltypes.Cardinality.UNKNOWN
-            is_singleton = card.is_single() and not card.can_be_zero()
 
-            old_scope = matctx.path_scope
-            matctx.path_scope = old_scope.new_child()
-            for mat_id in mat_ids:
-                for k in old_scope:
-                    if k.startswith(mat_id):
-                        matctx.path_scope[k] = None
-            mat_qry = relgen.set_as_subquery(
-                mat_set.materialized, as_value=True, ctx=matctx
-            )
+def _compile_materialized_expr(
+    query: pgast.SelectStmt,
+    mat_set: irast.MaterializedSet,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> None:
+    mat_ids = set(mat_set.uses)
 
-            if not is_singleton:
-                mat_qry = relctx.set_to_array(
-                    path_id=mat_set.materialized.path_id,
-                    query=mat_qry,
-                    ctx=matctx)
+    # We pack optional things into arrays also, since it works.
+    # TODO: use NULL?
+    card = mat_set.cardinality
+    assert card != qltypes.Cardinality.UNKNOWN
+    is_singleton = card.is_single() and not card.can_be_zero()
 
-            if not mat_qry.target_list[0].name:
-                mat_qry.target_list[0].name = ctx.env.aliases.get('v')
+    old_scope = ctx.path_scope
+    ctx.path_scope = old_scope.new_child()
+    for mat_id in mat_ids:
+        for k in old_scope:
+            if k.startswith(mat_id):
+                ctx.path_scope[k] = None
+    mat_qry = relgen.set_as_subquery(
+        mat_set.materialized, as_value=True, ctx=ctx
+    )
 
-            ref = pgast.ColumnRef(
-                name=[mat_qry.target_list[0].name],
-                is_packed_multi=not is_singleton,
-            )
-            for mat_id in mat_ids:
-                pathctx.put_path_packed_output(mat_qry, mat_id, ref)
+    if not is_singleton:
+        mat_qry = relctx.set_to_array(
+            path_id=mat_set.materialized.path_id,
+            query=mat_qry,
+            ctx=ctx)
 
-            mat_rvar = relctx.rvar_for_rel(mat_qry, lateral=True, ctx=matctx)
-            for mat_id in mat_ids:
-                relctx.include_rvar(
-                    query, mat_rvar, path_id=mat_id,
-                    flavor='packed', update_mask=False, pull_namespace=False,
-                    ctx=matctx,
-                )
+    if not mat_qry.target_list[0].name:
+        mat_qry.target_list[0].name = ctx.env.aliases.get('v')
+
+    ref = pgast.ColumnRef(
+        name=[mat_qry.target_list[0].name],
+        is_packed_multi=not is_singleton,
+    )
+    for mat_id in mat_ids:
+        pathctx.put_path_packed_output(mat_qry, mat_id, ref)
+
+    mat_rvar = relctx.rvar_for_rel(mat_qry, lateral=True, ctx=ctx)
+    for mat_id in mat_ids:
+        relctx.include_rvar(
+            query, mat_rvar, path_id=mat_id,
+            flavor='packed', update_mask=False, pull_namespace=False,
+            ctx=ctx,
+        )
 
 
 def compile_iterator_expr(
@@ -274,41 +283,52 @@ def compile_dml_bindings(
             with ctx.substmt() as bctx:
                 dispatch.compile(binding, ctx=bctx)
 
+        # If something we are WITH binding is volatile, we similarly
+        # want to compile it *now*. Unlike with DML, we need to
+        # manually construct the CTE here.
         elif volatility.is_volatile():
-            last_iterator = ctx.enclosing_cte_iterator
-            with ctx.newrel() as bctx:
-                dml.merge_iterator(last_iterator, bctx.rel, ctx=bctx)
-                setup_iterator_volatility(last_iterator, ctx=bctx)
+            materialized_set = None
+            if (
+                stmt.materialized_sets
+                and binding.typeref.id in stmt.materialized_sets
+            ):
+                materialized_set = stmt.materialized_sets[binding.typeref.id]
+            assert materialized_set is not None
 
-                dispatch.compile(binding, ctx=bctx)
+            last_iterator = ctx.enclosing_cte_iterator
+
+            with (
+                context.output_format(ctx, context.OutputFormat.NATIVE),
+                ctx.newrel() as matctx
+            ):
+                matctx.materializing |= {stmt}
+                matctx.expr_exposed = True
+
+                dml.merge_iterator(last_iterator, matctx.rel, ctx=matctx)
+                setup_iterator_volatility(last_iterator, ctx=matctx)
+
+                _compile_materialized_expr(
+                    matctx.rel, materialized_set, ctx=matctx
+                )
 
                 # Add iterator identity
                 bind_pathid = (
                     irast.PathId.new_dummy(ctx.env.aliases.get('bind_path'))
                 )
-                with bctx.subrel() as bind_pathid_ctx:
+                with matctx.subrel() as bind_pathid_ctx:
                     relctx.create_iterator_identity_for_path(
                         bind_pathid, bind_pathid_ctx.rel, ctx=bind_pathid_ctx
                     )
                 bind_id_rvar = relctx.rvar_for_rel(
-                    bind_pathid_ctx.rel, lateral=True, ctx=bctx
+                    bind_pathid_ctx.rel, lateral=True, ctx=matctx
                 )
                 relctx.include_rvar(
-                    bctx.rel, bind_id_rvar, path_id=bind_pathid, ctx=bctx
+                    matctx.rel, bind_id_rvar, path_id=bind_pathid, ctx=matctx
                 )
-
-                # Ensure binding appears in CTE
-                pathctx.get_path_output(
-                    bctx.rel,
-                    binding.path_id,
-                    aspect=pgce.PathAspect.SERIALIZED,
-                    env=bctx.env,
-                )
-                pathctx.put_path_bond(bctx.rel, binding.path_id, iterator=True)
 
             bind_cte = pgast.CommonTableExpr(
                 name=ctx.env.aliases.get('bind'),
-                query=bctx.rel,
+                query=matctx.rel,
                 materialized=False,
             )
 
@@ -316,9 +336,6 @@ def compile_dml_bindings(
                 path_id=bind_pathid,
                 cte=bind_cte,
                 parent=last_iterator,
-                other_paths=(
-                    (binding.path_id, pgce.PathAspect.SERIALIZED),
-                ),
                 iterator_bond=True,
             )
             ctx.toplevel_stmt.append_cte(bind_cte)
