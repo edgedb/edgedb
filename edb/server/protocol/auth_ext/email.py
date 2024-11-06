@@ -1,11 +1,17 @@
 import asyncio
 import urllib.parse
 import random
+import logging
+import email.message
 
 from typing import Any, Coroutine
 from edb.server import tenant, smtp
+from edb import errors
 
 from . import util, ui
+
+
+logger = logging.getLogger("edb.server.ext.auth")
 
 
 async def send_password_reset_email(
@@ -30,12 +36,7 @@ async def send_password_reset_email(
         reset_url=reset_url,
         **email_args,
     )
-    smtp_provider = smtp.SMTP(db)
-    coro = smtp_provider.send(
-        msg,
-        test_mode=test_mode,
-    )
-    await _protected_send(coro, tenant)
+    await _do_send(db, tenant, msg, test_mode)
 
 
 async def send_verification_email(
@@ -70,12 +71,7 @@ async def send_verification_email(
         verify_url=verify_url,
         **email_args,
     )
-    smtp_provider = smtp.SMTP(db)
-    coro = smtp_provider.send(
-        msg,
-        test_mode=test_mode,
-    )
-    await _protected_send(coro, tenant)
+    await _do_send(db, tenant, msg, test_mode)
 
 
 async def send_magic_link_email(
@@ -100,12 +96,7 @@ async def send_magic_link_email(
         link=link,
         **email_args,
     )
-    smtp_provider = smtp.SMTP(db)
-    coro = smtp_provider.send(
-        msg,
-        test_mode=test_mode,
-    )
-    await _protected_send(coro, tenant)
+    await _do_send(db, tenant, msg, test_mode)
 
 
 async def send_fake_email(tenant: tenant.Tenant) -> None:
@@ -125,3 +116,23 @@ async def _protected_send(
     # Expose e.g. configuration errors
     if task.done():
         await task
+
+
+async def _do_send(
+    db: Any,
+    tenant: tenant.Tenant,
+    msg: email.message.EmailMessage,
+    test_mode: bool,
+) -> None:
+    try:
+        smtp_provider = smtp.SMTP(db)
+        coro = smtp_provider.send(
+            msg,
+            test_mode=test_mode,
+        )
+        await _protected_send(coro, tenant)
+    except errors.ConfigurationError as e:
+        logger.debug(
+            "No cfg::EmailProvider configured, skipping email", exc_info=e
+        )
+        await send_fake_email(tenant)
