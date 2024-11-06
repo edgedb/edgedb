@@ -35,7 +35,6 @@ import sys
 import struct
 import textwrap
 import time
-from collections import deque
 
 cimport cython
 cimport cpython
@@ -1306,7 +1305,7 @@ cdef class PGConnection:
 
     async def sql_extended_query(
         self,
-        actions: list[PGMessage],
+        actions,
         fe_conn: frontend.AbstractFrontendConnection,
         dbver: int,
         dbv: pg_ext.ConnectionView,
@@ -1335,7 +1334,7 @@ cdef class PGConnection:
 
     def _write_sql_extended_query(
         self,
-        actions: list[PGMessage],
+        actions,
         dbver: int,
         dbv: pg_ext.ConnectionView,
     ) -> bytes:
@@ -1545,7 +1544,7 @@ cdef class PGConnection:
 
     async def _parse_sql_extended_query(
         self,
-        actions: list[PGMessage],
+        actions,
         fe_conn: frontend.AbstractFrontendConnection,
         dbver: int,
         dbv: pg_ext.ConnectionView,
@@ -2830,7 +2829,7 @@ cdef bytes FLUSH_MESSAGE = bytes(WriteBuffer.new_message(b'H').end_message())
 cdef EdegDBCodecContext DEFAULT_CODEC_CONTEXT = EdegDBCodecContext()
 
 
-cdef str setting_to_sql(setting: tuple[str | int | float, ...]):
+cdef setting_to_sql(setting):
     return ', '.join(setting_val_to_sql(v) for v in setting)
 
 
