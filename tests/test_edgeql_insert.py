@@ -5822,23 +5822,34 @@ class TestInsert(tb.QueryTestCase):
 
     @tb.needs_factoring_weakly
     async def test_edgeql_insert_volatile_01(self):
-        # Ideally we'll support these versions eventually
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError,
-                "cannot refer to volatile WITH bindings from DML"):
-            await self.con.execute('''
-                WITH name := <str>random(),
-                INSERT Person { name := name, tag := name };
-            ''')
+        await self.con.execute('''
+            WITH name := <str>random(),
+            INSERT Person { name := name, tag := name };
+        ''')
 
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError,
-                "cannot refer to volatile WITH bindings from DML"):
-            await self.con.execute('''
-                WITH name := <str>random(),
-                SELECT (INSERT Person { name := name, tag := name });
-            ''')
+        await self.assert_query_result(
+            r'''
+                SELECT all(Person.name = Person.tag)
+            ''',
+            [True]
+        )
 
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_02(self):
+        await self.con.execute('''
+            WITH name := <str>random(),
+            SELECT (INSERT Person { name := name, tag := name });
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT all(Person.name = Person.tag)
+            ''',
+            [True]
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_03(self):
         await self.con.execute('''
             FOR name in {<str>random()}
             UNION (INSERT Person { name := name, tag := name });
