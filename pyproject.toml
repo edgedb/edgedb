@@ -44,7 +44,7 @@ test = [
     'black~=24.2.0',
     'coverage~=7.4',
     'ruff==0.3.7',
-    'asyncpg~=0.29.0',
+    'asyncpg~=0.30.0',
 
     # Needed for testing asyncutil
     'async_solipsism==0.5.0',
