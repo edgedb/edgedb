@@ -86,7 +86,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         };
 
         alter property api_url {
-            set default := 'https://api.openai.com/v1';
+            set default := 'https://api.openai.com/v1'
         };
 
         alter property api_style {
@@ -107,7 +107,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         };
 
         alter property api_url {
-            set default := 'https://api.mistral.ai/v1';
+            set default := 'https://api.mistral.ai/v1'
         };
 
         alter property api_style {
@@ -128,7 +128,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         };
 
         alter property api_url {
-            set default := 'https://api.anthropic.com/v1';
+            set default := 'https://api.anthropic.com/v1'
         };
 
         alter property api_style {
