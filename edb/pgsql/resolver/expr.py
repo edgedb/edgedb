@@ -24,6 +24,7 @@ from typing import Optional, Tuple, Iterator, Sequence, Dict, List, cast, Set
 import uuid
 
 from edb import errors
+from edb.common.typeutils import not_none
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common
@@ -327,7 +328,7 @@ def _lookup_in_table(
             yield (table, column)
 
 
-def _lookup_table(tab_name: str, ctx: Context) -> context.Table:
+def _maybe_lookup_table(tab_name: str, ctx: Context) -> context.Table | None:
     matched_tables: List[context.Table] = []
     for t in ctx.scope.tables:
         t_name = t.alias or t.name
@@ -335,7 +336,7 @@ def _lookup_table(tab_name: str, ctx: Context) -> context.Table:
             matched_tables.append(t)
 
     if not matched_tables:
-        raise errors.QueryError(f'cannot find table `{tab_name}`')
+        return None
 
     # apply precedence
     if len(matched_tables) > 1:
@@ -348,6 +349,13 @@ def _lookup_table(tab_name: str, ctx: Context) -> context.Table:
         raise errors.QueryError(f'ambiguous table `{tab_name}`')
 
     table = matched_tables[0]
+    return table
+
+
+def _lookup_table(tab_name: str, ctx: Context) -> context.Table:
+    table = _maybe_lookup_table(tab_name, ctx=ctx)
+    if table is None:
+        raise errors.QueryError(f'cannot find table `{tab_name}`')
     return table
 
 
@@ -434,6 +442,35 @@ def resolve_SortBy(
         node=dispatch.resolve(expr.node, ctx=ctx),
         dir=expr.dir,
         nulls=expr.nulls,
+    )
+
+
+
+@dispatch._resolve.register
+def resolve_LockingClause(
+    expr: pgast.LockingClause,
+    *,
+    ctx: Context,
+) -> pgast.LockingClause:
+    lrels = expr.locked_rels
+    if lrels is not None:
+        resolved_lrels = []
+        for rvar in lrels:
+            ltable = _lookup_table(not_none(rvar.relation.name), ctx=ctx)
+            resolved_lrels.append(
+                pgast.RelRangeVar(
+                    relation=pgast.Relation(
+                        name=ltable.reference_as,
+                    )
+                )
+            )
+    else:
+        resolved_lrels = None
+
+    return pgast.LockingClause(
+        strength=expr.strength,
+        locked_rels=resolved_lrels,
+        wait_policy=expr.wait_policy,
     )
 
 

@@ -166,6 +166,7 @@ def resolve_SelectStmt(
     sort_clause = dispatch.resolve_opt_list(stmt.sort_clause, ctx=ctx)
     limit_offset = dispatch.resolve_opt(stmt.limit_offset, ctx=ctx)
     limit_count = dispatch.resolve_opt(stmt.limit_count, ctx=ctx)
+    locking_clause = dispatch.resolve_opt_list(stmt.locking_clause, ctx=ctx)
 
     ctes.extend(extract_ctes_from_ctx(ctx))
 
@@ -178,6 +179,7 @@ def resolve_SelectStmt(
         sort_clause=sort_clause,
         limit_offset=limit_offset,
         limit_count=limit_count,
+        locking_clause=locking_clause,
         ctes=ctes if len(ctes) > 0 else None,
     )
     return (

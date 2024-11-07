@@ -401,6 +401,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.limit_count)
             self.indentation -= 1
 
+        if node.locking_clause:
+            self.indentation += 1
+            self.new_lines = 1
+            self.visit_list(node.locking_clause, separator=" ")
+            self.indentation -= 1
+
         if self.reordered and not node.op:
             self.indentation += 1
 
@@ -864,6 +870,15 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 raise GeneratorError(
                     'unexpected NULLS order: {}'.format(node.nulls)
                 )
+
+    def visit_LockingClause(self, node: pgast.LockingClause) -> None:
+        self.write("FOR ", str(node.strength))
+        if node.locked_rels:
+            self.write(" OF ")
+            self.visit_list(node.locked_rels)
+        if node.wait_policy is not None:
+            if kw := str(node.wait_policy):
+                self.write(f" {kw}")
 
     def visit_TypeCast(self, node: pgast.TypeCast) -> None:
         # '::' has very high precedence, so parenthesize the expression.
