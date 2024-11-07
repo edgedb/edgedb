@@ -150,7 +150,8 @@ class SMTP:
                         self._send_test_mode_email(message)
                     else:
                         logger.info(
-                            f"Sending SMTP message to {self.client.hostname}:{self.client.port}"
+                            "Sending SMTP message to "
+                            f"{self.client.hostname}:{self.client.port}"
                         )
 
                         errors, response = await self.client.send_message(
