@@ -235,7 +235,7 @@ APPLE_SECRET = 'c' * 32
 DISCORD_SECRET = 'd' * 32
 SLACK_SECRET = 'd' * 32
 GENERIC_OIDC_SECRET = 'e' * 32
-APP_NAME = "Test App"
+APP_NAME = "Test App" * 13
 LOGO_URL = "http://example.com/logo.png"
 DARK_LOGO_URL = "http://example.com/darklogo.png"
 BRAND_COLOR = "f0f8ff"
@@ -4035,7 +4035,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             body_str = body.decode()
 
-            self.assertIn(APP_NAME, body_str)
+            self.assertIn(f"{APP_NAME[:100]}...", body_str)
             self.assertIn(LOGO_URL, body_str)
             self.assertIn(BRAND_COLOR, body_str)
 
@@ -4069,7 +4069,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertIsInstance(body_json["rp"], dict)
             self.assertIn("name", body_json["rp"])
-            self.assertEqual(body_json["rp"]["name"], APP_NAME)
+            self.assertEqual(body_json["rp"]["name"], f"{APP_NAME[:100]}...")
             self.assertIn("id", body_json["rp"])
             self.assertEqual(body_json["rp"]["id"], "example.com")
 
