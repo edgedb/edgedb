@@ -905,6 +905,62 @@ class Compiler:
             blocks=descriptors,
         )
 
+    def _reprocess_restore_config(
+        self,
+        stmts: list[qlast.Base],
+    ) -> list[qlast.Base]:
+        '''Do any rewrites to the restore script needed.
+
+        This is intended to patch over certain backwards incompatible
+        changes to config. We try not to do that too much, but when we
+        do, dumps still need to work.
+        '''
+
+        new_stmts = []
+        smtp_config = {}
+
+        for stmt in stmts:
+            # ext::auth::SMTPConfig got removed and moved into a cfg
+            # object, so intercept those and rewrite them.
+            if (
+                isinstance(stmt, qlast.ConfigSet)
+                and stmt.name.module == 'ext::auth::SMTPConfig'
+            ):
+                smtp_config[stmt.name.name] = stmt.expr
+            else:
+                new_stmts.append(stmt)
+
+        if smtp_config:
+            # Do the rewrite of SMTPConfig
+            smtp_config['name'] = qlast.Constant.string('_default')
+
+            new_stmts.append(
+                qlast.ConfigInsert(
+                    scope=qltypes.ConfigScope.DATABASE,
+                    name=qlast.ObjectRef(
+                        module='cfg', name='SMTPProviderConfig'
+                    ),
+                    shape=[
+                        qlast.ShapeElement(
+                            expr=qlast.Path(steps=[qlast.Ptr(name=name)]),
+                            compexpr=expr,
+                        )
+                        for name, expr in smtp_config.items()
+                    ],
+                )
+            )
+            new_stmts.append(
+                qlast.ConfigSet(
+                    scope=qltypes.ConfigScope.DATABASE,
+                    name=qlast.ObjectRef(
+                        name='current_email_provider_name'
+                    ),
+                    expr=qlast.Constant.string('_default'),
+                )
+            )
+
+        return new_stmts
+
     def describe_database_restore(
         self,
         user_schema_pickle: bytes,
@@ -984,7 +1040,11 @@ class Compiler:
 
         # The state serializer generated below is somehow inappropriate,
         # so it's simply ignored here and the I/O process will do it on its own
-        units = compile(ctx=ctx, source=ddl_source).units
+        statements = edgeql.parse_block(ddl_source)
+        statements = self._reprocess_restore_config(statements)
+        units = _try_compile_ast(
+            ctx=ctx, source=ddl_source, statements=statements
+        ).units
 
         _check_force_database_error(ctx, scope='restore')
 
@@ -2363,8 +2423,26 @@ def _try_compile(
         if text.startswith(sentinel):
             time.sleep(float(text[len(sentinel):text.index("\n")]))
 
-    default_cardinality = enums.Cardinality.NO_RESULT
     statements = edgeql.parse_block(source)
+    return _try_compile_ast(statements=statements, source=source, ctx=ctx)
+
+
+def _try_compile_ast(
+    *,
+    ctx: CompileContext,
+    statements: list[qlast.Base],
+    source: edgeql.Source,
+) -> dbstate.QueryUnitGroup:
+    if _get_config_val(ctx, '__internal_testmode'):
+        # This is a bad but simple way to emulate a slow compilation for tests.
+        # Ideally, we should have a testmode function that is hooked to sleep
+        # as `simple_special_case`, or wait for a notification from the test.
+        sentinel = "# EDGEDB_TEST_COMPILER_SLEEP = "
+        text = source.text()
+        if text.startswith(sentinel):
+            time.sleep(float(text[len(sentinel):text.index("\n")]))
+
+    default_cardinality = enums.Cardinality.NO_RESULT
     statements_len = len(statements)
 
     if not len(statements):  # pragma: no cover
