@@ -857,7 +857,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
     def allow_ref_propagation(
         self,
         schema: s_schema.Schema,
-        constext: sd.CommandContext,
+        context: sd.CommandContext,
         refdict: so.RefDict,
     ) -> bool:
         object_type = self.get_source(schema)

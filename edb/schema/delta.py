@@ -3758,7 +3758,7 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             orig_schema = ctx.original_schema
             if refs:
                 for ref in refs:
-                    if (not context.is_deleting(ref)
+                    if (not self._is_deleting_ref(schema, context, ref)
                             and ref.is_blocking_ref(orig_schema, self.scls)):
                         ref_strs.append(
                             ref.get_verbosename(orig_schema, with_parent=True))
@@ -3780,6 +3780,21 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             schema = self._finalize_affected_refs(schema, context)
 
         return schema
+
+    def _is_deleting_ref(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        ref: so.Object,
+    ) -> bool:
+        if context.is_deleting(ref):
+            return True
+
+        for op in self.get_prerequisites():
+            if isinstance(op, DeleteObject) and op.scls == ref:
+                return True
+
+        return False
 
     def _has_outside_references(
         self,
