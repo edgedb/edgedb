@@ -2171,6 +2171,7 @@ def has_implicit_tid(
 
     return (
         stype.is_object_type()
+        and not stype.is_free_object_type(ctx.env.schema)
         and not is_mutation
         and ctx.implicit_tid_in_shapes
     )
@@ -2182,6 +2183,7 @@ def has_implicit_tname(
 
     return (
         stype.is_object_type()
+        and not stype.is_free_object_type(ctx.env.schema)
         and not is_mutation
         and ctx.implicit_tname_in_shapes
     )

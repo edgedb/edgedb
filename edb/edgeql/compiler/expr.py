@@ -1078,7 +1078,7 @@ def compile_type_check_op(
     ltype = setgen.get_set_type(left, ctx=ctx)
     typeref = typegen.ql_typeexpr_to_ir_typeref(expr.right, ctx=ctx)
 
-    if ltype.is_object_type():
+    if ltype.is_object_type() and not ltype.is_free_object_type(ctx.env.schema):
         left = setgen.ptr_step_set(
             left, expr=None, source=ltype, ptr_name='__type__',
             span=expr.span, ctx=ctx
