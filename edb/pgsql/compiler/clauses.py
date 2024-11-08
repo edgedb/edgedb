@@ -270,7 +270,7 @@ def compile_output(
     return val
 
 
-def compile_dml_bindings(
+def compile_volatile_bindings(
         stmt: irast.Stmt, *,
         ctx: context.CompilerContextLevel) -> None:
     for binding, volatility in (stmt.bindings or ()):

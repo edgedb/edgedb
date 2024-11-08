@@ -54,7 +54,7 @@ def compile_SelectStmt(
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
         # Common setup.
-        clauses.compile_dml_bindings(stmt, ctx=ctx)
+        clauses.compile_volatile_bindings(stmt, ctx=ctx)
 
         query = ctx.stmt
 
