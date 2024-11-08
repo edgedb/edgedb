@@ -26,8 +26,10 @@ from mypy import exprtotype
 import mypy.plugin as mypy_plugin
 from mypy import mro
 from mypy import nodes
+from mypy import options as mypy_options
 from mypy import types
-from mypy import semanal
+from mypy import typevars as mypy_typevars
+from mypy import semanal_shared as mypy_semanal
 from mypy.plugins import common as mypy_helpers
 from mypy.server import trigger as mypy_trigger
 
@@ -71,12 +73,14 @@ class EDBPlugin(mypy_plugin.Plugin):
             transformers.append(
                 SchemaClassTransformer(
                     ctx,
+                    self.options,
                     field_makers={'edb.schema.objects.SchemaField'},
                 )
             )
             transformers.append(
                 StructTransformer(
                     ctx,
+                    self.options,
                     field_makers={'edb.schema.objects.Field'},
                 )
             )
@@ -85,6 +89,7 @@ class EDBPlugin(mypy_plugin.Plugin):
             transformers.append(
                 StructTransformer(
                     ctx,
+                    self.options,
                     field_makers={'edb.common.struct.Field'},
                 )
             )
@@ -93,6 +98,7 @@ class EDBPlugin(mypy_plugin.Plugin):
             transformers.append(
                 ASTClassTransformer(
                     ctx,
+                    self.options,
                 )
             )
 
@@ -206,8 +212,10 @@ class BaseTransformer:
     def __init__(
         self,
         ctx: mypy_plugin.ClassDefContext,
+        options: mypy_options.Options,
     ) -> None:
         self._ctx = ctx
+        self._options = options
 
     def transform(self):
         ctx = self._ctx
@@ -344,8 +352,8 @@ class BaseTransformer:
         # var bounds), defer. If we skip deferring and stick something
         # in our symbol table anyway, we'll get in trouble.  (Arguably
         # plugins.common ought to help us with this, but oh well.)
-        self_type = mypy_helpers.fill_typevars(cls_info)
-        if semanal.has_placeholder(self_type):
+        self_type = mypy_typevars.fill_typevars(cls_info)
+        if mypy_semanal.has_placeholder(self_type):
             raise DeferException
 
         if (
@@ -368,9 +376,10 @@ class BaseStructTransformer(BaseTransformer):
     def __init__(
         self,
         ctx: mypy_plugin.ClassDefContext,
+        options: mypy_options.Options,
         field_makers: AbstractSet[str],
     ) -> None:
-        super().__init__(ctx)
+        super().__init__(ctx, options)
         self._field_makers = field_makers
 
     def _field_from_field_def(
@@ -417,7 +426,10 @@ class BaseStructTransformer(BaseTransformer):
 
         if ftype is None:
             try:
-                un_type = exprtotype.expr_to_unanalyzed_type(type_arg)
+                un_type = exprtotype.expr_to_unanalyzed_type(
+                    type_arg,
+                    options=self._options,
+                )
             except exprtotype.TypeTranslationError:
                 ctx.api.fail('Cannot resolve schema field type', type_arg)
             else:

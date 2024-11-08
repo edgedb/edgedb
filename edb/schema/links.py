@@ -415,7 +415,7 @@ class CreateLink(
                     op.new_value.resolve(schema)
                     if isinstance(op.new_value, so.ObjectShell)
                     else op.new_value)
-
+                assert isinstance(new_type, s_types.Type)
                 new_type_ast = utils.typeref_to_ast(schema, op.new_value)
                 cast_expr = None
                 # If the type isn't assignment castable, generate a

@@ -292,7 +292,7 @@ def evaluate_SliceIndirection(
 
     base, start, stop = vals
 
-    value = base[start:stop]
+    value = base[start:stop]  # type: ignore[index]
     return _process_op_result(
         value, slice.expr.typeref, schema, span=slice.span)
 

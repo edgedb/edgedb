@@ -2401,10 +2401,9 @@ class ObjectCollection(
         else:
             typeargs = types[0] if len(types) == 1 else types
         attrs = {k: getattr(self, k) for k in self.__slots__ if k != '_ids'}
-        # Mypy fails to resolve typeargs properly
         return (
             cls.__restore__,
-            (typeargs, tuple(self._ids), attrs)  # type: ignore
+            (typeargs, tuple(self._ids), attrs)
         )
 
     @classmethod
