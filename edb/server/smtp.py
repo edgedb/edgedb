@@ -213,9 +213,9 @@ def _get_current_email_provider(
 
     found = None
     for obj in db.lookup_config("email_providers"):
-        as_json = obj.to_json_value()
-        as_json.pop('_tname', None)
-        if as_json.get("name") == current_provider_name:
+        if obj.name == current_provider_name:
+            as_json = obj.to_json_value()
+            as_json.pop('_tname', None)
             found = SMTPProviderConfig(**as_json)
             break
 
