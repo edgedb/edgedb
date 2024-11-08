@@ -212,7 +212,11 @@ def _get_current_email_provider(
         raise errors.ConfigurationError("No email provider configured")
 
     found = None
-    for obj in db.lookup_config("email_providers"):
+    objs = (
+        db.lookup_config("email_providers")
+        + db.tenant._sidechannel_email_configs
+    )
+    for obj in objs:
         if obj.name == current_provider_name:
             as_json = obj.to_json_value()
             as_json.pop('_tname', None)
