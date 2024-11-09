@@ -268,3 +268,4 @@ lint.flake8-bugbear.extend-immutable-calls = [
 [tool.pyright]
 # Pyright has no idea about metaclass-generated getters for schema fields.
 reportAttributeAccessIssue = false
+typeCheckingMode = "off"
