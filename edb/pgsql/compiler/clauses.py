@@ -283,10 +283,10 @@ def compile_volatile_bindings(
             with ctx.substmt() as bctx:
                 dispatch.compile(binding, ctx=bctx)
 
-        # If something we are WITH binding is volatile, we similarly
-        # want to compile it *now*. Unlike with DML, we need to
-        # manually construct the CTE here.
-        elif volatility.is_volatile():
+        # If something we are WITH binding is volatile and the stmt contains
+        # dml, we similarly want to compile it *now*. Unlike with DML, we need
+        # to manually construct the CTE here.
+        elif volatility.is_volatile() and irutils.contains_dml(stmt):
             materialized_set = None
             if (
                 stmt.materialized_sets
