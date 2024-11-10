@@ -57,7 +57,7 @@ test = [
     'MarkupSafe~=1.1',
     'PyYAML~=6.0',
 
-    'mypy~=1.10.0',
+    'mypy[faster-cache] ~= 1.13.0',
     # mypy stub packages; when updating, you can use mypy --install-types
     # to install stub packages and then pip freeze to read out the specifier
     'types-docutils~=0.17.0,<0.17.6', # incomplete nodes.document.__init__
