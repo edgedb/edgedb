@@ -34,8 +34,9 @@ from edb.schema import types as s_types
 
 from edb.ir import ast as irast
 
-
 from edb.edgeql import compiler as qlcompiler
+
+from edb.server.pgcon import errors as pgerror
 
 from . import dispatch
 from . import context
@@ -260,7 +261,8 @@ def _lookup_column(
 
     if not matched_columns:
         raise errors.QueryError(
-            f'cannot find column `{col_name}`', span=column_ref.span
+            f'cannot find column `{col_name}`', span=column_ref.span,
+            pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
         )
 
     # apply precedence

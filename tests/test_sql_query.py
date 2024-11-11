@@ -860,6 +860,17 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [[1, 1, 1], [2, None, 2], [None, 3, 3]])
 
+    async def test_sql_query_44(self):
+        # range function that is an "sql value function", whatever that is
+
+        # to be exact: User is *parsed* as function call CURRENT_USER
+        # we'd ideally want a message that hints that it should use quotes
+
+        with self.assertRaisesRegex(
+            asyncpg.InvalidColumnReferenceError, 'cannot find column `name`'
+        ):
+            await self.squery_values('SELECT name FROM User')
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
