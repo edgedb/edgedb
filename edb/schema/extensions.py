@@ -104,6 +104,52 @@ class ExtensionPackage(
         return shortname.name
 
 
+class ExtensionPackageMigration(
+    so.GlobalObject,
+    s_anno.AnnotationSubject,
+    qlkind=qltypes.SchemaObjectClass.EXTENSION_PACKAGE_MIGRATION,
+    data_safe=False,
+):
+
+    # Note: !!!!!!
+    # ExtensionPackageMigration, like all GlobalObjects, needs to store its
+    # data in globally stored JSON instead of via reflection schema.
+    # When you add a field to ExtensionPackageMigration, you must also update
+    # CreateExtensionPackageMigration in pgsql/delta.py and
+    # _generate_extension_views in metaschema to store and retrieve
+    # the data from json.
+
+    from_version = so.SchemaField(
+        verutils.Version,
+        compcoef=0.9,
+    )
+
+    to_version = so.SchemaField(
+        verutils.Version,
+        compcoef=0.9,
+    )
+
+    script = so.SchemaField(
+        str,
+        compcoef=0.9,
+    )
+
+    sql_early_script = so.SchemaField(
+        str, default=None, compcoef=0.9)
+
+    sql_late_script = so.SchemaField(
+        str, default=None, compcoef=0.9)
+
+    @classmethod
+    def get_shortname_static(cls, name: sn.Name) -> sn.UnqualName:
+        return sn.UnqualName(sn.shortname_from_fullname(name).name)
+
+    @classmethod
+    def get_displayname_static(cls, name: sn.Name) -> str:
+        shortname = cls.get_shortname_static(name)
+        return shortname.name
+
+
 class Extension(
     so.Object,
     qlkind=qltypes.SchemaObjectClass.EXTENSION,
@@ -172,16 +218,6 @@ class ExtensionPackageCommand(
         quals = ['pkg', str(parsed_version)]
         pnn = sn.get_specialized_name(sn.UnqualName(astnode.name.name), *quals)
         return sn.UnqualName(pnn)
-
-    @classmethod
-    def _cmd_tree_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: sd.CommandContext,
-    ) -> sd.Command:
-
-        return super()._cmd_tree_from_ast(schema, astnode, context)
 
 
 def get_package(
@@ -307,6 +343,122 @@ class DeleteExtensionPackage(
             name = self.scls.get_shortname(schema)
             raise errors.UnsupportedFeatureError(
                 f"cannot drop builtin extension package '{name}'",
+                span=self.span,
+            )
+
+        return super()._delete_begin(schema, context)
+
+
+class ExtensionPackageMigrationCommandContext(
+    sd.ObjectCommandContext[ExtensionPackageMigration],
+    s_anno.AnnotationSubjectCommandContext,
+):
+    pass
+
+
+class ExtensionPackageMigrationCommand(
+    sd.GlobalObjectCommand[ExtensionPackageMigration],
+    s_anno.AnnotationSubjectCommand[ExtensionPackageMigration],
+    context_class=ExtensionPackageCommandContext,
+):
+
+    @classmethod
+    def _classname_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext
+    ) -> sn.UnqualName:
+        assert isinstance(astnode, qlast.ExtensionPackageMigrationCommand)
+        from_version = verutils.parse_version(astnode.from_version.value)
+        to_version = verutils.parse_version(astnode.to_version.value)
+        quals = ['pkg-migration', str(from_version), str(to_version)]
+        pnn = sn.get_specialized_name(sn.UnqualName(astnode.name.name), *quals)
+        return sn.UnqualName(pnn)
+
+
+class CreateExtensionPackageMigration(
+    ExtensionPackageMigrationCommand,
+    sd.CreateObject[ExtensionPackageMigration],
+):
+    astnode = qlast.CreateExtensionPackageMigration
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> CreateExtensionPackageMigration:
+        if not context.stdmode and not context.testmode:
+            raise errors.UnsupportedFeatureError(
+                'user-defined extension packages are not supported yet',
+                span=astnode.span
+            )
+
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, CreateExtensionPackageMigration)
+        assert isinstance(astnode, qlast.CreateExtensionPackageMigration)
+        assert astnode.body.text is not None
+
+        from_version = verutils.parse_version(astnode.from_version.value)
+        cmd.set_attribute_value('from_version', from_version)
+        to_version = verutils.parse_version(astnode.to_version.value)
+        cmd.set_attribute_value('to_version', to_version)
+        cmd.set_attribute_value('script', astnode.body.text)
+        cmd.set_attribute_value('builtin', context.stdmode)
+
+        if not cmd.has_attribute_value('internal'):
+            cmd.set_attribute_value('internal', False)
+
+        return cmd
+
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        assert isinstance(node, qlast.CreateExtensionPackageMigration)
+        if op.property == 'script':
+            node.body = qlast.NestedQLBlock(
+                text=op.new_value,
+                commands=cast(
+                    List[qlast.DDLOperation],
+                    qlparser.parse_block(op.new_value)),
+            )
+        elif op.property == 'from_version':
+            node.from_version = qlast.Constant.string(
+                value=str(op.new_value),
+            )
+        elif op.property == 'to_version':
+            node.to_version = qlast.Constant.string(
+                value=str(op.new_value),
+            )
+        else:
+            super()._apply_field_ast(schema, context, node, op)
+
+
+class DeleteExtensionPackageMigration(
+    ExtensionPackageMigrationCommand,
+    sd.DeleteObject[ExtensionPackageMigration],
+):
+    astnode = qlast.DropExtensionPackageMigration
+
+    def _delete_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if (
+            not context.stdmode
+            and not context.testmode
+            and self.scls.get_builtin(schema)
+        ):
+            name = self.scls.get_shortname(schema)
+            raise errors.UnsupportedFeatureError(
+                f"cannot drop builtin extension package migration '{name}'",
                 span=self.span,
             )
 

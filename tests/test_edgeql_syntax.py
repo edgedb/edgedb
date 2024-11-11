@@ -4407,6 +4407,14 @@ aa';
         CREATE EXTENSION PACKAGE foo VERSION 'aaa';
         """
 
+    def test_edgeql_syntax_ddl_create_extension_package_04(self):
+        """
+        CREATE EXTENSION PACKAGE foo VERSION '1.0' {
+            set ext_module := "ext::foo";
+            CREATE TYPE Foo;
+        };
+        """
+
     def test_edgeql_syntax_ddl_drop_extension_package_01(self):
         """
         DROP EXTENSION PACKAGE foo VERSION '1.0';

@@ -914,6 +914,30 @@ class DropExtensionPackage(DropObject, ExtensionPackageCommand):
     pass
 
 
+class ExtensionPackageMigrationCommand(GlobalObjectCommand):
+
+    __abstract_node__ = True
+    __rust_ignore__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.EXTENSION_PACKAGE_MIGRATION
+    )
+    from_version: Constant
+    to_version: Constant
+
+
+class CreateExtensionPackageMigration(
+    CreateObject, ExtensionPackageMigrationCommand
+):
+
+    body: NestedQLBlock
+
+
+class DropExtensionPackageMigration(
+    DropObject, ExtensionPackageMigrationCommand
+):
+    pass
+
+
 class ExtensionCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True

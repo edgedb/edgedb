@@ -7189,6 +7189,112 @@ class DeleteExtensionPackage(
         return schema
 
 
+class CreateExtensionPackageMigration(
+    MetaCommand,
+    adapts=s_exts.CreateExtensionPackageMigration,
+):
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().apply(schema, context)
+
+        ext_id = str(self.scls.id)
+        name__internal = str(self.scls.get_name(schema))
+        name = self.scls.get_displayname(schema)
+        from_version = self.scls.get_from_version(schema)._asdict()
+        from_version['stage'] = from_version['stage'].name.lower()
+        to_version = self.scls.get_to_version(schema)._asdict()
+        to_version['stage'] = to_version['stage'].name.lower()
+
+        metadata = {
+            ext_id: {
+                'id': ext_id,
+                'name': name,
+                'name__internal': name__internal,
+                'script': self.scls.get_script(schema),
+                'from_version': from_version,
+                'to_version': to_version,
+                'builtin': self.scls.get_builtin(schema),
+                'internal': self.scls.get_internal(schema),
+                'sql_early_script': self.scls.get_sql_early_script(schema),
+                'sql_late_script': self.scls.get_sql_late_script(schema),
+            }
+        }
+
+        ctx_backend_params = context.backend_runtime_params
+        if ctx_backend_params is not None:
+            backend_params = cast(
+                params.BackendRuntimeParams, ctx_backend_params)
+        else:
+            backend_params = params.get_default_runtime_params()
+
+        if backend_params.has_create_database:
+            self.pgops.add(
+                dbops.UpdateMetadataSection(
+                    dbops.DatabaseWithTenant(name=edbdef.EDGEDB_TEMPLATE_DB),
+                    section='ExtensionPackageMigration',
+                    metadata=metadata
+                )
+            )
+        else:
+            self.pgops.add(
+                dbops.UpdateSingleDBMetadataSection(
+                    edbdef.EDGEDB_TEMPLATE_DB,
+                    section='ExtensionPackageMigration',
+                    metadata=metadata
+                )
+            )
+
+        return schema
+
+
+class DeleteExtensionPackageMigration(
+    MetaCommand,
+    adapts=s_exts.DeleteExtensionPackageMigration,
+):
+    # XXX: 100% duplication with DeleteExtensionPackage
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().apply(schema, context)
+
+        ctx_backend_params = context.backend_runtime_params
+        if ctx_backend_params is not None:
+            backend_params = cast(
+                params.BackendRuntimeParams, ctx_backend_params)
+        else:
+            backend_params = params.get_default_runtime_params()
+
+        ext_id = str(self.scls.id)
+        metadata = {
+            ext_id: None
+        }
+
+        if backend_params.has_create_database:
+            self.pgops.add(
+                dbops.UpdateMetadataSection(
+                    dbops.DatabaseWithTenant(name=edbdef.EDGEDB_TEMPLATE_DB),
+                    section='ExtensionPackageMigration',
+                    metadata=metadata
+                )
+            )
+        else:
+            self.pgops.add(
+                dbops.UpdateSingleDBMetadataSection(
+                    edbdef.EDGEDB_TEMPLATE_DB,
+                    section='ExtensionPackageMigration',
+                    metadata=metadata
+                )
+            )
+
+        return schema
+
+
 class ExtensionCommand(MetaCommand):
     pass
 
