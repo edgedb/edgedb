@@ -867,7 +867,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         # we'd ideally want a message that hints that it should use quotes
 
         with self.assertRaisesRegex(
-            asyncpg.exceptions.DataError, 'cannot find column `name`'
+            asyncpg.InvalidColumnReferenceError, 'cannot find column `name`'
         ):
             await self.squery_values('SELECT name FROM User')
 
