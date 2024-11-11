@@ -848,7 +848,6 @@ class TestSQLParse(tb.BaseDocTest):
         SELECT * FROM my_table ORDER BY field ASC NULLS LAST USING @>
         """
 
-    @test.xfail("unsupported")
     def test_sql_parse_query_02(self):
         """
         SELECT m.* FROM mytable AS m FOR UPDATE

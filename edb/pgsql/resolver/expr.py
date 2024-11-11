@@ -445,7 +445,6 @@ def resolve_SortBy(
     )
 
 
-
 @dispatch._resolve.register
 def resolve_LockingClause(
     expr: pgast.LockingClause,
