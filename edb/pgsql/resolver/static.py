@@ -27,6 +27,7 @@ from edb import errors
 from edb.pgsql import ast as pgast
 from edb.pgsql import parser as pgparser
 from edb.server import defines
+from edb.server.pgcon import errors as pgerror
 
 from . import context
 from . import dispatch
