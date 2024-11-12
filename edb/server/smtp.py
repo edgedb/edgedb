@@ -213,7 +213,7 @@ def _get_current_email_provider(
 
     found = None
     objs = (
-        db.lookup_config("email_providers")
+        list(db.lookup_config("email_providers"))
         + db.tenant._sidechannel_email_configs
     )
     for obj in objs:
