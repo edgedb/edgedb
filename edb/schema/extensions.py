@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import Any, Optional, Tuple, Type, Iterator, List, cast
 
+import collections
 import contextlib
 import uuid
 
@@ -262,12 +263,12 @@ def get_package(
     return pkgs[0]
 
 
-def get_package_migration(
+def get_package_migrations(
     name: sn.Name,
     from_version: verutils.Version,
     to_version: verutils.Version,
     schema: s_schema.Schema,
-) -> ExtensionPackageMigration:
+) -> list[ExtensionPackageMigration]:
     # TODO: We need to figure out migration chains
     #
     # That will have some fiddliness, though, with when SQL extension
@@ -275,8 +276,8 @@ def get_package_migration(
     filters = [
         lambda schema, mig: (
             mig.get_shortname(schema) == name
-            and mig.get_from_version(schema) == from_version
-            and mig.get_to_version(schema) == to_version
+            # and mig.get_from_version(schema) == from_version
+            # and mig.get_to_version(schema) == to_version
         )
     ]
 
@@ -284,17 +285,46 @@ def get_package_migration(
         type=ExtensionPackageMigration,
         extra_filters=filters,
     ))
+    # Build a graph of available migrations.  We make this
+    # complicated, just in case, but probably it will be simple.
+    # TODO: What about missing packages?
+    graph: dict[
+        verutils.Version,
+        list[tuple[verutils.Version, ExtensionPackageMigration]],
+    ] = {}
+    for mig in migs:
+        fromv = mig.get_from_version(schema)
+        tov = mig.get_to_version(schema)
+        graph.setdefault(fromv, []).append((tov, mig))
+    for tgts in graph.values():
+        tgts.sort()
 
-    if not migs:
+    # BFS it out
+    sources = {}
+    todo = collections.deque([from_version])
+    while todo:
+        cur_node = todo.popleft()
+        if cur_node == to_version:
+            break
+        for next_ver, mig in graph.get(cur_node, []):
+            if next_ver not in sources:
+                sources[next_ver] = cur_node, mig
+                todo.append(next_ver)
+    else:
         dname = str(name)
         raise errors.SchemaError(
             f'cannot create migrate extension {dname!r} from '
             f'{from_version} to {to_version}'
         )
 
-    assert len(migs) == 1
+    # Trace back the path
+    mig_path = []
+    while cur_node in sources:
+        cur_node, mig = sources[cur_node]
+        mig_path.append(mig)
+    mig_path.reverse()
 
-    return migs[0]
+    return mig_path
 
 
 # XXX: Trying to CREATE/DROP these from within a transaction managed
@@ -738,18 +768,33 @@ class AlterExtension(
 
         if not context.canonical:
             assert self.to_version
-            self.migration = get_package_migration(
-                self.classname, from_version, self.to_version, schema
-            )
 
-            script = self.migration.get_script(schema)
-            if script:
-                block, _ = qlparser.parse_extension_package_body_block(script)
-                for subastnode in block.commands:
-                    subcmd = sd.compile_ddl(
-                        schema, subastnode, context=context)
-                    if subcmd is not None:
-                        self.add(subcmd)
+            if not self.migration:
+                migrations = get_package_migrations(
+                    self.classname, from_version, self.to_version, schema
+                )
+            else:
+                migrations = [self.migration]
+
+            if len(migrations) == 1:
+                self.migration = migrations[0]
+
+                script = self.migration.get_script(schema)
+                if script:
+                    block, _ = qlparser.parse_extension_package_body_block(
+                        script)
+                    for subastnode in block.commands:
+                        subcmd = sd.compile_ddl(
+                            schema, subastnode, context=context)
+                        if subcmd is not None:
+                            self.add(subcmd)
+            else:
+                for migration in migrations:
+                    self.add(AlterExtension(
+                        classname=self.classname,
+                        to_version=migration.get_to_version(schema),
+                        migration=migration,
+                    ))
 
         return schema
 
