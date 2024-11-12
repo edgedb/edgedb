@@ -52,7 +52,7 @@ async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
     http_client._update_limit(http_max_connections)
     try:
         async with (asyncio.TaskGroup() as g,):
-            for db in tenant.iter_dbs():
+            for db in list(tenant.iter_dbs()):
                 if db.name == defines.EDGEDB_SYSTEM_DB:
                     # Don't run the net_worker for system database
                     continue
@@ -99,10 +99,7 @@ async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
 
 
 def create_http(tenant: edbtenant.Tenant):
-    http_max_connections = tenant._server.config_lookup(
-        'http_max_connections', tenant.get_sys_config()
-    )
-    return HttpClient(http_max_connections)
+    return tenant.get_http_client(originator="std::net")
 
 
 async def http(server: edbserver.BaseServer) -> None:
@@ -124,7 +121,7 @@ async def http(server: edbserver.BaseServer) -> None:
                         )
                     )
             # Remove unused tenant_http entries
-            for tenant in tenant_http.keys():
+            for tenant in list(tenant_http.keys()):
                 if tenant not in tenant_set:
                     del tenant_http[tenant]
             if tasks:
@@ -166,8 +163,8 @@ async def handle_request(
         )
         response = await client.request(
             method=request.method,
-            url=request.url,
-            content=request.body,
+            path=request.url,
+            data=request.body,
             headers=headers,
         )
         response_status, response_bytes, response_hdict = response

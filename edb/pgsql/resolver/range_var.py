@@ -180,12 +180,21 @@ def _resolve_JoinExpr(
 
     if join.using_clause:
         for c in join.using_clause:
+            assert len(c.name) == 1
+            assert isinstance(c.name[-1], str)
+            c_name = c.name[-1]
+
             with ctx.child() as subctx:
                 subctx.scope.tables = [ltable]
                 l_expr = dispatch.resolve(c, ctx=subctx)
             with ctx.child() as subctx:
                 subctx.scope.tables = [rtable]
                 r_expr = dispatch.resolve(c, ctx=subctx)
+
+            ctx.scope.factored_columns.append(
+                (c_name, ltable, rtable, join.type)
+            )
+
             quals = pgastutils.extend_binop(
                 quals,
                 pgast.Expr(
@@ -289,19 +298,21 @@ def _resolve_RangeFunction(
 ) -> Tuple[pgast.BaseRangeVar, context.Table]:
     with ctx.lateral() if range_var.lateral else ctx.child() as subctx:
 
-        functions = []
+        functions: List[pgast.BaseExpr] = []
         col_names = []
         for function in range_var.functions:
-
-            name = function.name[len(function.name) - 1]
-            if name in range_functions.COLUMNS:
-                col_names.extend(range_functions.COLUMNS[name])
-            elif name == 'unnest':
-                col_names.extend('unnest' for _ in function.args)
-            else:
-                col_names.append(name)
-
-            functions.append(dispatch.resolve(function, ctx=subctx))
+            match function:
+                case pgast.FuncCall():
+                    name = function.name[len(function.name) - 1]
+                    if name in range_functions.COLUMNS:
+                        col_names.extend(range_functions.COLUMNS[name])
+                    elif name == 'unnest':
+                        col_names.extend('unnest' for _ in function.args)
+                    else:
+                        col_names.append(name)
+                    functions.append(dispatch.resolve(function, ctx=subctx))
+                case _:
+                    functions.append(dispatch.resolve(function, ctx=subctx))
 
         inferred_columns = [
             context.Column(

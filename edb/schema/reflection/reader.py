@@ -210,6 +210,8 @@ def parse_into(
                     if type(v) is not ftype:
                         if issubclass(ftype, verutils.Version):
                             objdata[findex] = _parse_version(v)
+                        elif issubclass(ftype, s_name.Name):
+                            objdata[findex] = s_name.name_from_string(v)
                         elif (
                             issubclass(ftype, checked.ParametricContainer)
                             and ftype.types

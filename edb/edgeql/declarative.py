@@ -615,6 +615,7 @@ def _trace_item_layout(
         obj = local_obj
 
     assert fq_name is not None
+    PointerType: type[qltracer.Pointer]
 
     if isinstance(node, qlast.BasedOnTuple):
         bases = []

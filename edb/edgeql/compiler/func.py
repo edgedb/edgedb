@@ -337,7 +337,11 @@ def compile_FunctionCall(
     else:
         tuple_path_ids = []
 
-    global_args = get_globals(expr, matched_call, candidates=funcs, ctx=ctx)
+    global_args = None
+    if not inline_func:
+        global_args = get_globals(
+            expr, matched_call, candidates=funcs, ctx=ctx
+        )
 
     fcall = irast.FunctionCall(
         args=final_args,
@@ -537,6 +541,28 @@ class ArgumentInliner(ast.NodeTransformer):
             return result
 
         return cast(irast.Base, self.generic_visit(node))
+
+    # Don't transform pointer refs.
+    # They are updated in other places, such as cardinality inference.
+    def visit_PointerRef(
+        self, node: irast.PointerRef
+    ) -> irast.Base:
+        return node
+
+    def visit_TupleIndirectionPointerRef(
+        self, node: irast.TupleIndirectionPointerRef
+    ) -> irast.Base:
+        return node
+
+    def visit_SpecialPointerRef(
+        self, node: irast.SpecialPointerRef
+    ) -> irast.Base:
+        return node
+
+    def visit_TypeIntersectionPointerRef(
+        self, node: irast.TypeIntersectionPointerRef
+    ) -> irast.Base:
+        return node
 
 
 class _SpecialCaseFunc(Protocol):

@@ -16,9 +16,9 @@
 # limitations under the License.
 #
 
-"""A specialized client API for EdgeDB tests.
+"""A specialized client API for Gel tests.
 
-Historically EdgeDB tests relied on a very specific client API that
+Historically Gel tests relied on a very specific client API that
 is no longer supported by edgedb-python. Here we implement that API
 (for example, transactions can be nested and are non-retrying).
 """

@@ -27,6 +27,7 @@ from typing import (
     List,
     NamedTuple,
     NoReturn,
+    Sequence,
 )
 
 import logging
@@ -568,6 +569,17 @@ def _validate_default_auth_method(
     return ServerAuthMethods(methods)
 
 
+def oxford_comma(els: Sequence[str]) -> str:
+    '''Who gives a fuck?'''
+    assert els
+    if len(els) == 1:
+        return els[0]
+    elif len(els) == 2:
+        return f'{els[0]} and {els[1]}'
+    else:
+        return f'{", ".join(els[:-1])}, and {els[-1]}'
+
+
 class EnvvarResolver(click.Option):
     def resolve_envvar_value(self, ctx: click.Context):
         if self.envvar is None:
@@ -580,24 +592,36 @@ class EnvvarResolver(click.Option):
         file_var = f'{self.envvar}_FILE'
         alt_var = f'{self.envvar}_ENV'
 
-        var_val = os.environ.get(self.envvar)
-        alt_var_val = os.environ.get(alt_var)
-        file_var_val = os.environ.get(file_var)
+        old_envvar = self.envvar.replace('GEL_', 'EDGEDB_')
+        old_file_var = f'{old_envvar}_FILE'
+        old_alt_var = f'{old_envvar}_ENV'
 
-        if var_val and file_var_val:
-            raise click.BadParameter(
-                f'{self.envvar} and ${file_var} are exclusive, '
-                f'but both are set.')
+        vars_set = []
+        for var, old_var in [
+            (self.envvar, old_envvar),
+            (file_var, old_file_var),
+            (alt_var, old_alt_var),
+        ]:
+            if var in os.environ and old_var in os.environ:
+                print(
+                    f"Warning: both {var} and {old_var} are specified. "
+                    f"{var} will take precedence."
+                )
+            if var in os.environ:
+                vars_set.append(var)
+            elif old_var in os.environ:
+                vars_set.append(old_var)
 
-        if var_val and alt_var_val:
+        if len(vars_set) > 1:
+            amt = "both" if len(vars_set) == 2 else "all"
             raise click.BadParameter(
-                f'{self.envvar} and ${alt_var} are exclusive, '
-                f'but both are set.')
+                f'{oxford_comma(vars_set)} are exclusive, '
+                f'but {amt} are set.'
+            )
 
-        if file_var_val and alt_var_val:
-            raise click.BadParameter(
-                f'{file_var} and ${alt_var} are exclusive, '
-                f'but both are set.')
+        var_val = os.environ.get(self.envvar) or os.environ.get(old_envvar)
+        alt_var_val = os.environ.get(alt_var) or os.environ.get(old_alt_var)
+        file_var_val = os.environ.get(file_var) or os.environ.get(old_file_var)
 
         if alt_var_val:
             var_val = os.environ.get(alt_var_val)
@@ -620,20 +644,20 @@ class EnvvarResolver(click.Option):
 server_options = typeutils.chain_decorators([
     click.option(
         '-D', '--data-dir', type=PathPath(),
-        envvar="EDGEDB_SERVER_DATADIR", cls=EnvvarResolver,
+        envvar="GEL_SERVER_DATADIR", cls=EnvvarResolver,
         help='database cluster directory'),
     click.option(
         '--postgres-dsn', type=str, hidden=True,
         help='[DEPRECATED] DSN of a remote Postgres cluster, if using one'),
     click.option(
         '--backend-dsn', type=str,
-        envvar="EDGEDB_SERVER_BACKEND_DSN", cls=EnvvarResolver,
+        envvar="GEL_SERVER_BACKEND_DSN", cls=EnvvarResolver,
         help='DSN of a remote backend cluster, if using one. '
              'Also supports HA clusters, for example: stolon+consul+http://'
              'localhost:8500/test_cluster'),
     click.option(
         '--enable-backend-adaptive-ha', 'backend_adaptive_ha', is_flag=True,
-        help='If backend adaptive HA is enabled, the EdgeDB server will '
+        help='If backend adaptive HA is enabled, the Gel server will '
              'monitor the health of the backend cluster and shutdown all '
              'backend connections if threshold is reached, until reconnected '
              'again using the same DSN (HA should have updated the DNS '
@@ -642,9 +666,10 @@ server_options = typeutils.chain_decorators([
         '--tenant-id',
         type=str,
         callback=_validate_tenant_id,
-        envvar="EDGEDB_SERVER_TENANT_ID",
+        envvar="GEL_SERVER_TENANT_ID",
+        cls=EnvvarResolver,
         help='Specifies the tenant ID of this server when hosting'
-             ' multiple EdgeDB instances on one Postgres cluster.'
+             ' multiple Gel instances on one Postgres cluster.'
              ' Must be an alphanumeric ASCII string, maximum'
              f' {schema_defines.MAX_TENANT_ID_LENGTH} characters long.',
     ),
@@ -657,12 +682,14 @@ server_options = typeutils.chain_decorators([
     ),
     click.option(
         '--multitenant-config-file', type=PathPath(), metavar="PATH",
-        envvar="EDGEDB_SERVER_MULTITENANT_CONFIG_FILE",
+        envvar="GEL_SERVER_MULTITENANT_CONFIG_FILE",
+        cls=EnvvarResolver,
         hidden=True,
     ),
     click.option(
         '-l', '--log-level',
-        envvar="EDGEDB_SERVER_LOG_LEVEL",
+        envvar="GEL_SERVER_LOG_LEVEL",
+        cls=EnvvarResolver,
         default='i',
         type=click.Choice(
             ['debug', 'd', 'info', 'i', 'warn', 'w',
@@ -683,21 +710,21 @@ server_options = typeutils.chain_decorators([
         help='[DEPRECATED] bootstrap the database cluster and exit'),
     click.option(
         '--bootstrap-only', is_flag=True,
-        envvar="EDGEDB_SERVER_BOOTSTRAP_ONLY", cls=EnvvarResolver,
+        envvar="GEL_SERVER_BOOTSTRAP_ONLY", cls=EnvvarResolver,
         help='bootstrap the database cluster and exit'),
     click.option(
         '--inplace-upgrade-prepare', type=PathPath(),
-        envvar="EDGEDB_SERVER_INPLACE_UPGRADE_PREPARE",
+        envvar="GEL_SERVER_INPLACE_UPGRADE_PREPARE",
         cls=EnvvarResolver,
         help='try to do an in-place upgrade with the specified dump file'),
     click.option(
         '--inplace-upgrade-rollback', type=bool, is_flag=True,
-        envvar="EDGEDB_SERVER_INPLACE_UPGRADE_ROLLBACK",
+        envvar="GEL_SERVER_INPLACE_UPGRADE_ROLLBACK",
         cls=EnvvarResolver,
         help='rollback a prepared upgrade'),
     click.option(
         '--inplace-upgrade-finalize', type=bool, is_flag=True,
-        envvar="EDGEDB_SERVER_INPLACE_UPGRADE_FINALIZE",
+        envvar="GEL_SERVER_INPLACE_UPGRADE_FINALIZE",
         cls=EnvvarResolver,
         help='finalize an in-place upgrade'),
     click.option(
@@ -711,7 +738,7 @@ server_options = typeutils.chain_decorators([
         help='[DEPRECATED] the name of the default database owner'),
     click.option(
         '--bootstrap-command', metavar="QUERIES",
-        envvar="EDGEDB_SERVER_BOOTSTRAP_COMMAND", cls=EnvvarResolver,
+        envvar="GEL_SERVER_BOOTSTRAP_COMMAND", cls=EnvvarResolver,
         help='run the commands when initializing the database. '
              'Queries are executed by default user within default '
              'database. May be used with or without `--bootstrap-only`.'),
@@ -733,12 +760,12 @@ server_options = typeutils.chain_decorators([
         default=False),
     click.option(
         '-I', '--bind-address', type=str, multiple=True,
-        envvar="EDGEDB_SERVER_BIND_ADDRESS", cls=EnvvarResolver,
+        envvar="GEL_SERVER_BIND_ADDRESS", cls=EnvvarResolver,
         help='IP addresses to listen on, specify multiple times for more than '
              'one address to listen on'),
     click.option(
         '-P', '--port', type=PortType(), default=None,
-        envvar="EDGEDB_SERVER_PORT", cls=EnvvarResolver,
+        envvar="GEL_SERVER_PORT", cls=EnvvarResolver,
         help='port to listen on'),
     click.option(
         '-b', '--background', is_flag=True, help='daemonize'),
@@ -751,19 +778,22 @@ server_options = typeutils.chain_decorators([
         '--daemon-group', type=int),
     click.option(
         '--runstate-dir', type=PathPath(), default=None,
-        envvar="EDGEDB_SERVER_RUNSTATE_DIR",
+        envvar="GEL_SERVER_RUNSTATE_DIR",
+        cls=EnvvarResolver,
         help=f'directory where UNIX sockets and other temporary '
              f'runtime files will be placed ({_get_runstate_dir_default()} '
              f'by default)'),
     click.option(
         '--extensions-dir', type=PathPath(), default=(), multiple=True,
-        envvar="EDGEDB_SERVER_EXTENSIONS_DIR",
+        envvar="GEL_SERVER_EXTENSIONS_DIR",
+        cls=EnvvarResolver,
         help=f'directory where third-party extension packages are loaded from'),
     click.option(
         '--max-backend-connections', type=int, metavar='NUM',
-        envvar="EDGEDB_SERVER_MAX_BACKEND_CONNECTIONS",
-        help=f'The maximum NUM of connections this EdgeDB instance could make '
-             f'to the backend PostgreSQL cluster. If not set, EdgeDB will '
+        envvar="GEL_SERVER_MAX_BACKEND_CONNECTIONS",
+        cls=EnvvarResolver,
+        help=f'The maximum NUM of connections this Gel instance could make '
+             f'to the backend PostgreSQL cluster. If not set, Gel will '
              f'detect and calculate the NUM: RAM/100MiB='
              f'{compute_default_max_backend_connections()} for local '
              f'Postgres or pg_settings.max_connections for remote Postgres, '
@@ -771,13 +801,15 @@ server_options = typeutils.chain_decorators([
         callback=_validate_max_backend_connections),
     click.option(
         '--compiler-pool-size', type=int,
-        envvar="EDGEDB_SERVER_COMPILER_POOL_SIZE",
+        envvar="GEL_SERVER_COMPILER_POOL_SIZE",
+        cls=EnvvarResolver,
         callback=_validate_compiler_pool_size),
     click.option(
         '--compiler-pool-mode',
         type=CompilerPoolModeChoice(),
         default=CompilerPoolMode.Default.value,
-        envvar="EDGEDB_SERVER_COMPILER_POOL_MODE",
+        envvar="GEL_SERVER_COMPILER_POOL_MODE",
+        cls=EnvvarResolver,
         help='Choose a mode for the compiler pool to scale. "fixed" means the '
              'pool will not scale and sticks to --compiler-pool-size, while '
              '"on_demand" means the pool will maintain at least 1 worker and '
@@ -789,7 +821,8 @@ server_options = typeutils.chain_decorators([
         '--compiler-pool-addr',
         hidden=True,
         callback=_validate_host_port,
-        envvar="EDGEDB_SERVER_COMPILER_POOL_ADDR",
+        envvar="GEL_SERVER_COMPILER_POOL_ADDR",
+        cls=EnvvarResolver,
         help=f'Specify the host[:port] of the compiler pool to connect to, '
              f'only used if --compiler-pool-mode=remote. Default host is '
              f'localhost, port is {defines.EDGEDB_REMOTE_COMPILER_PORT}',
@@ -799,7 +832,8 @@ server_options = typeutils.chain_decorators([
         hidden=True,
         type=int,
         default=100,
-        envvar="EDGEDB_SERVER_COMPILER_POOL_TENANT_CACHE_SIZE",
+        envvar="GEL_SERVER_COMPILER_POOL_TENANT_CACHE_SIZE",
+        cls=EnvvarResolver,
         help="Maximum number of tenants for which each compiler worker can "
              "cache their schemas, "
              "only used when --compiler-pool-mode=fixed_multi_tenant"
@@ -832,7 +866,8 @@ server_options = typeutils.chain_decorators([
     click.option(
         '--tls-cert-file',
         type=PathPath(),
-        envvar="EDGEDB_SERVER_TLS_CERT_FILE",
+        envvar="GEL_SERVER_TLS_CERT_FILE",
+        cls=EnvvarResolver,
         help='Specifies a path to a file containing a server TLS certificate '
              'in PEM format, as well as possibly any number of CA '
              'certificates needed to establish the certificate '
@@ -843,14 +878,15 @@ server_options = typeutils.chain_decorators([
     click.option(
         '--tls-key-file',
         type=PathPath(),
-        envvar="EDGEDB_SERVER_TLS_KEY_FILE",
+        envvar="GEL_SERVER_TLS_KEY_FILE",
+        cls=EnvvarResolver,
         help='Specifies a path to a file containing the private key in PEM '
              'format.  If the file does not exist and the --tls-cert-mode '
              'option is set to "generate_self_signed", the private key will '
              'be automatically created in the specified path.'),
     click.option(
         '--tls-cert-mode',
-        envvar="EDGEDB_SERVER_TLS_CERT_MODE", cls=EnvvarResolver,
+        envvar="GEL_SERVER_TLS_CERT_MODE", cls=EnvvarResolver,
         type=click.Choice(
             ['default'] + list(ServerTlsCertMode.__members__.values()),
             case_sensitive=True,
@@ -874,6 +910,7 @@ server_options = typeutils.chain_decorators([
         '--tls-client-ca-file',
         type=PathPath(),
         envvar='EDGEDB_SERVER_TLS_CLIENT_CA_FILE',
+        cls=EnvvarResolver,
         help='Specifies a path to a file containing a TLS CA certificate to '
              'verify client certificates on demand. When set, the default '
              'authentication method of HTTP_METRICS(/metrics) and HTTP_HEALTH'
@@ -888,7 +925,8 @@ server_options = typeutils.chain_decorators([
              'Use --tls-cert-mode=generate_self_signed instead.'),
     click.option(
         '--binary-endpoint-security',
-        envvar="EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY",
+        envvar="GEL_SERVER_BINARY_ENDPOINT_SECURITY",
+        cls=EnvvarResolver,
         type=click.Choice(
             ['default', 'tls', 'optional'],
             case_sensitive=True,
@@ -900,7 +938,8 @@ server_options = typeutils.chain_decorators([
     ),
     click.option(
         '--http-endpoint-security',
-        envvar="EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY",
+        envvar="GEL_SERVER_HTTP_ENDPOINT_SECURITY",
+        cls=EnvvarResolver,
         type=click.Choice(
             ['default', 'tls', 'optional'],
             case_sensitive=True,
@@ -912,7 +951,8 @@ server_options = typeutils.chain_decorators([
     ),
     click.option(
         '--security',
-        envvar="EDGEDB_SERVER_SECURITY",
+        envvar="GEL_SERVER_SECURITY",
+        cls=EnvvarResolver,
         type=click.Choice(
             ['default', 'strict', 'insecure_dev_mode'],
             case_sensitive=True,
@@ -928,7 +968,8 @@ server_options = typeutils.chain_decorators([
     click.option(
         '--jws-key-file',
         type=PathPath(),
-        envvar="EDGEDB_SERVER_JWS_KEY_FILE",
+        envvar="GEL_SERVER_JWS_KEY_FILE",
+        cls=EnvvarResolver,
         hidden=True,
         help='Specifies a path to a file containing a public key in PEM '
              'format used to verify JWT signatures. The file could also '
@@ -940,7 +981,7 @@ server_options = typeutils.chain_decorators([
         help='Deprecated: no longer in use.'),
     click.option(
         '--jose-key-mode',
-        envvar="EDGEDB_SERVER_JOSE_KEY_MODE", cls=EnvvarResolver,
+        envvar="GEL_SERVER_JOSE_KEY_MODE", cls=EnvvarResolver,
         type=click.Choice(
             ['default'] + list(JOSEKeyMode.__members__.values()),
             case_sensitive=True,
@@ -961,7 +1002,8 @@ server_options = typeutils.chain_decorators([
     click.option(
         '--jwt-sub-allowlist-file',
         type=PathPath(),
-        envvar="EDGEDB_SERVER_JWT_SUB_ALLOWLIST_FILE",
+        envvar="GEL_SERVER_JWT_SUB_ALLOWLIST_FILE",
+        cls=EnvvarResolver,
         hidden=True,
         help='A file where the server can obtain a list of all JWT subjects '
              'that are allowed to access this instance. '
@@ -971,7 +1013,8 @@ server_options = typeutils.chain_decorators([
     click.option(
         '--jwt-revocation-list-file',
         type=PathPath(),
-        envvar="EDGEDB_SERVER_JWT_REVOCATION_LIST_FILE",
+        envvar="GEL_SERVER_JWT_REVOCATION_LIST_FILE",
+        cls=EnvvarResolver,
         hidden=True,
         help='A file where the server can obtain a list of all JWT ids '
              'that are allowed to access this instance. '
@@ -980,7 +1023,7 @@ server_options = typeutils.chain_decorators([
     ),
     click.option(
         "--default-auth-method",
-        envvar="EDGEDB_SERVER_DEFAULT_AUTH_METHOD", cls=EnvvarResolver,
+        envvar="GEL_SERVER_DEFAULT_AUTH_METHOD", cls=EnvvarResolver,
         callback=_validate_default_auth_method,
         type=str,
         help=(
@@ -992,7 +1035,8 @@ server_options = typeutils.chain_decorators([
     ),
     click.option(
         "--readiness-state-file",
-        envvar="EDGEDB_SERVER_READINESS_STATE_FILE",
+        envvar="GEL_SERVER_READINESS_STATE_FILE",
+        cls=EnvvarResolver,
         type=PathPath(),
         help=(
             "Path to a file containing the value for server readiness state. "
@@ -1006,26 +1050,29 @@ server_options = typeutils.chain_decorators([
     ),
     click.option(
         '--instance-name',
-        envvar="EDGEDB_SERVER_INSTANCE_NAME",
+        envvar="GEL_SERVER_INSTANCE_NAME",
+        cls=EnvvarResolver,
         type=str, default=None, hidden=True,
         help='Server instance name.'),
     click.option(
         '--backend-capabilities',
-        envvar="EDGEDB_SERVER_BACKEND_CAPABILITIES",
+        envvar="GEL_SERVER_BACKEND_CAPABILITIES",
+        cls=EnvvarResolver,
         type=BackendCapabilitySet(),
         help="A space-separated set of backend capabilities, which are "
-             "required to be present, or absent if prefixed with ~. EdgeDB "
+             "required to be present, or absent if prefixed with ~. Gel "
              "will only start if the actual backend capabilities match the "
              "specified set. However if the backend was never bootstrapped, "
              "the capabilities prefixed with ~ will be *disabled permanently* "
-             "in EdgeDB as if the backend never had them."
+             "in Gel as if the backend never had them."
     ),
     click.option(
         '--version', is_flag=True,
         help='Show the version and exit.'),
     click.option(
         '--admin-ui',
-        envvar="EDGEDB_SERVER_ADMIN_UI",
+        envvar="GEL_SERVER_ADMIN_UI",
+        cls=EnvvarResolver,
         type=click.Choice(
             ['default', 'enabled', 'disabled'],
             case_sensitive=True,
@@ -1034,13 +1081,13 @@ server_options = typeutils.chain_decorators([
         help='Enable admin UI.'),
     click.option(
         '--disable-dynamic-system-config', is_flag=True,
-        envvar="EDGEDB_SERVER_DISABLE_DYNAMIC_SYSTEM_CONFIG",
+        envvar="GEL_SERVER_DISABLE_DYNAMIC_SYSTEM_CONFIG",
         cls=EnvvarResolver,
         help="Disable dynamic configuration of system config values",
     ),
     click.option(
         "--reload-config-files",
-        envvar="EDGEDB_SERVER_RELOAD_CONFIG_FILES", cls=EnvvarResolver,
+        envvar="GEL_SERVER_RELOAD_CONFIG_FILES", cls=EnvvarResolver,
         type=click.Choice(
             list(ReloadTrigger.__members__.values()), case_sensitive=True
         ),
@@ -1051,7 +1098,7 @@ server_options = typeutils.chain_decorators([
     ),
     click.option(
         "--net-worker-mode",
-        envvar="EDGEDB_SERVER_NET_WORKER_MODE", cls=EnvvarResolver,
+        envvar="GEL_SERVER_NET_WORKER_MODE", cls=EnvvarResolver,
         type=click.Choice(
             list(NetWorkerMode.__members__.values()), case_sensitive=True
         ),
@@ -1573,16 +1620,26 @@ def parse_args(**kwargs: Any):
     )
     kwargs['net_worker_mode'] = NetWorkerMode(kwargs['net_worker_mode'])
 
-    if 'EDGEDB_SERVER_CONFIG_cfg::listen_addresses' in os.environ:
-        abort(
-            "EDGEDB_SERVER_CONFIG_cfg::listen_addresses is disallowed; "
-            "use EDGEDB_SERVER_BIND_ADDRESS instead"
-        )
-    if 'EDGEDB_SERVER_CONFIG_cfg::listen_port' in os.environ:
-        abort(
-            "EDGEDB_SERVER_CONFIG_cfg::listen_port is disallowed; "
-            "use EDGEDB_SERVER_PORT instead"
-        )
+    for disallowed, replacement in (
+        (
+            'EDGEDB_SERVER_CONFIG_cfg::listen_addresses',
+            'GEL_SERVER_BIND_ADDRESS',
+        ),
+        (
+            'EDGEDB_SERVER_CONFIG_cfg::listen_port',
+            'GEL_SERVER_PORT',
+        ),
+        (
+            'GEL_SERVER_CONFIG_cfg::listen_addresses',
+            'GEL_SERVER_BIND_ADDRESS',
+        ),
+        (
+            'GEL_SERVER_CONFIG_cfg::listen_port',
+            'GEL_SERVER_PORT',
+        ),
+    ):
+        if disallowed in os.environ:
+            abort(f"{disallowed} is disallowed; use {replacement} instead")
 
     return ServerConfig(
         startup_script=startup_script,

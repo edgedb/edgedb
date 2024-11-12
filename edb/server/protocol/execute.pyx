@@ -358,6 +358,20 @@ async def execute(
             if config_ops:
                 await dbv.apply_config_ops(be_conn, config_ops)
 
+            if query_unit.user_schema and debug.flags.delta_validate_reflection:
+                global_schema = (
+                    query_unit.global_schema or dbv.get_global_schema_pickle())
+                new_user_schema = await dbv.tenant._debug_introspect(
+                    be_conn, global_schema)
+                compiler_pool = dbv.server.get_compiler_pool()
+                await compiler_pool.validate_schema_equivalence(
+                    query_unit.user_schema,
+                    new_user_schema,
+                    global_schema,
+                    dbv._last_comp_state,
+                )
+                query_unit.user_schema = new_user_schema
+
     except Exception as ex:
         # If we made schema changes, include the new schema in the
         # exception so that it can be used when interpreting.
@@ -420,6 +434,7 @@ async def execute_script(
         bint parse
 
     user_schema = extensions = ext_config_settings = cached_reflection = None
+    feature_used_metrics = None
     global_schema = roles = None
     unit_group = compiled.query_unit_group
 
@@ -496,6 +511,7 @@ async def execute_script(
                     extensions = query_unit.extensions
                     ext_config_settings = query_unit.ext_config_settings
                     cached_reflection = query_unit.cached_reflection
+                    feature_used_metrics = query_unit.feature_used_metrics
 
                 if query_unit.global_schema:
                     global_schema = query_unit.global_schema
@@ -569,6 +585,22 @@ async def execute_script(
         raise
 
     else:
+        updated_user_schema = False
+        if user_schema and debug.flags.delta_validate_reflection:
+            cur_global_schema = (
+                global_schema or dbv.get_global_schema_pickle())
+            new_user_schema = await dbv.tenant._debug_introspect(
+                conn, cur_global_schema)
+            compiler_pool = dbv.server.get_compiler_pool()
+            await compiler_pool.validate_schema_equivalence(
+                user_schema,
+                new_user_schema,
+                cur_global_schema,
+                dbv._last_comp_state,
+            )
+            user_schema = new_user_schema
+            updated_user_schema = True
+
         if not in_tx:
             side_effects = dbv.commit_implicit_tx(
                 user_schema,
@@ -577,12 +609,16 @@ async def execute_script(
                 global_schema,
                 roles,
                 cached_reflection,
+                feature_used_metrics,
             )
             if side_effects:
                 await process_side_effects(dbv, side_effects, conn)
             state = dbv.serialize_state()
             if state is not orig_state:
                 conn.last_state = state
+        elif updated_user_schema:
+            dbv._in_tx_user_schema_pickle = user_schema
+
         if unit_group.state_serializer is not None:
             dbv.set_state_serializer(unit_group.state_serializer)
 
@@ -597,7 +633,7 @@ async def execute_system_config(
     conn: pgcon.PGConnection,
     dbv: dbview.DatabaseConnectionView,
     query_unit: compiler.QueryUnit,
-    state: bytes,
+    state: bytes | None,
 ):
     if query_unit.is_system_config:
         dbv.server.before_alter_system_config()
@@ -859,10 +895,11 @@ cdef _check_for_ise(exc):
         exc = exc.exceptions[0]
 
     if not isinstance(exc, errors.EdgeDBError):
+        # TODO(rename): change URL once we can
         nexc = errors.InternalServerError(
             f'{type(exc).__name__}: {exc}',
             hint=(
-                f'This is most likely a bug in EdgeDB. '
+                f'This is most likely a bug in Gel. '
                 f'Please consider opening an issue ticket '
                 f'at https://github.com/edgedb/edgedb/issues/new'
                 f'?template=bug_report.md'

@@ -1240,7 +1240,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         dbv: ConnectionView,
         stmt_name: str,
         local_stmts: set[str],
-        actions: list[PGMessage],
+        actions
     ) -> PGMessage:
         """Make sure given *stmt_name* is known by Postgres
 

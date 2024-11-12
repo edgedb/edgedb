@@ -104,8 +104,9 @@ def excepthook(exctype, exc, tb):
         markup.dump(exc, file=sys.stderr)
 
         if _is_internal_error(exc):
+            # TODO(rename): change URL once we can
             print(
-                f'This is most likely a bug in EdgeDB. '
+                f'This is most likely a bug in Gel. '
                 f'Please consider opening an issue ticket '
                 f'at https://github.com/edgedb/edgedb/issues/new'
                 f'?template=bug_report.md'

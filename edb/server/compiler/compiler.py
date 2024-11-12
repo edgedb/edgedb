@@ -816,6 +816,9 @@ class Compiler:
             ext_config_settings=ext_config_settings,
             protocol_version=defines.CURRENT_PROTOCOL,
             state_serializer=state_serializer,
+            feature_used_metrics=ddl.produce_feature_used_metrics(
+                self.state, user_schema
+            ),
         )
 
     def make_state_serializer(
@@ -998,23 +1001,6 @@ class Compiler:
                 delta_ext_ai.get_ext_ai_pre_restore_script(schema))
             units += compile(ctx=ctx, source=ddl_source).units
 
-        if allow_dml_in_functions:
-            # Check if any functions actually contained DML.
-            for func in schema.get_objects(
-                type=s_func.Function,
-                exclude_stdlib=True,
-            ):
-                if (
-                    func.get_volatility(schema) == qltypes.Volatility.Modifying
-                    and not func.get_is_inlined(schema)
-                ):
-                    break
-            else:
-                ddl_source = edgeql.Source.from_string(
-                    'CONFIGURE CURRENT DATABASE RESET allow_dml_in_functions;',
-                )
-                units += compile(ctx=ctx, source=ddl_source).units
-
         restore_blocks = []
         tables = []
         repopulate_units = []
@@ -1185,6 +1171,30 @@ class Compiler:
     ) -> bytes:
         return explain.analyze_explain_output(
             query_asts_pickled, data, self.state.std_schema)
+
+    def validate_schema_equivalence(
+        self,
+        schema_a: bytes,
+        schema_b: bytes,
+        global_schema: bytes,
+        conn_state_pickle: Any,
+    ) -> None:
+        if conn_state_pickle:
+            conn_state = pickle.loads(conn_state_pickle)
+            if (
+                conn_state
+                and (
+                    conn_state.current_tx().get_migration_state()
+                    or conn_state.current_tx().get_migration_rewrite_state()
+                )
+            ):
+                return
+        ddl.validate_schema_equivalence(
+            self.state,
+            pickle.loads(schema_a),
+            pickle.loads(schema_b),
+            pickle.loads(global_schema),
+        )
 
 
 def compile_schema_storage_in_delta(
@@ -1971,6 +1981,11 @@ def _compile_ql_transaction(
         global_schema=final_global_schema,
         sp_name=sp_name,
         sp_id=sp_id,
+        feature_used_metrics=(
+            ddl.produce_feature_used_metrics(
+                ctx.compiler_state, final_user_schema
+            ) if final_user_schema else None
+        ),
     )
 
 
@@ -2503,6 +2518,7 @@ def _try_compile(
                     unit.extensions, unit.ext_config_settings = (
                         _extract_extensions(ctx, comp.user_schema)
                     )
+                unit.feature_used_metrics = comp.feature_used_metrics
                 if comp.cached_reflection is not None:
                     unit.cached_reflection = \
                         pickle.dumps(comp.cached_reflection, -1)
@@ -2531,6 +2547,7 @@ def _try_compile(
                     unit.extensions, unit.ext_config_settings = (
                         _extract_extensions(ctx, comp.user_schema)
                     )
+                unit.feature_used_metrics = comp.feature_used_metrics
                 if comp.cached_reflection is not None:
                     unit.cached_reflection = \
                         pickle.dumps(comp.cached_reflection, -1)

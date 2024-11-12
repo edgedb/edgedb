@@ -24,7 +24,7 @@ from edb.server.protocol import execute
 from edb.server.http import HttpClient
 
 from . import github, google, azure, apple, discord, slack
-from . import config, errors, util, data, base, http_client as _http_client
+from . import config, errors, util, data, base
 
 
 class Client:
@@ -40,8 +40,8 @@ class Client:
     ):
         self.db = db
 
-        http_factory = lambda *args, **kwargs: _http_client.AuthHttpClient(
-            *args, url_munger=url_munger, http_client=http_client, **kwargs  # type: ignore
+        http_factory = lambda *args, **kwargs: http_client.with_context(
+            *args, url_munger=url_munger, **kwargs
         )
 
         provider_config = self._get_provider_config(provider_name)
@@ -104,16 +104,18 @@ class Client:
 
     async def handle_callback(
         self, code: str, redirect_uri: str
-    ) -> tuple[data.Identity, bool, str | None, str | None]:
+    ) -> tuple[data.Identity, bool, str | None, str | None, str | None]:
         response = await self.provider.exchange_code(code, redirect_uri)
         user_info = await self.provider.fetch_user_info(response)
         auth_token = response.access_token
         refresh_token = response.refresh_token
+        source_id_token = user_info.source_id_token
 
         return (
             *(await self._handle_identity(user_info)),
             auth_token,
             refresh_token,
+            source_id_token,
         )
 
     async def _handle_identity(

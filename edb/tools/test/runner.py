@@ -590,10 +590,13 @@ class MultiLineRenderer(BaseRenderer):
             # Prevent the rendered output from "jumping" up/down when we
             # render 2 lines worth of running tests just after we rendered
             # 3 lines.
-            for _ in range(self.max_label_lines_rendered[label] - tests_lines):
+            lkey = label.split(':')[0]
+            # ^- We can't just use `label`, as we append extra information
+            # to the "Running: (..)" label, so strip that
+            for _ in range(self.max_label_lines_rendered[lkey] - tests_lines):
                 lines.append(' ' * cols)
-            self.max_label_lines_rendered[label] = max(
-                self.max_label_lines_rendered[label],
+            self.max_label_lines_rendered[lkey] = max(
+                self.max_label_lines_rendered[lkey],
                 tests_lines
             )
 
@@ -884,6 +887,8 @@ class ParallelTextTestRunner:
             if (
                 not os.environ.get("EDGEDB_SERVER_TLS_CERT_FILE")
                 and not os.environ.get("EDGEDB_SERVER_TLS_KEY_FILE")
+                and not os.environ.get("GEL_SERVER_TLS_CERT_FILE")
+                and not os.environ.get("GEL_SERVER_TLS_KEY_FILE")
             ):
                 if self.verbosity >= 1:
                     self._echo(
@@ -894,10 +899,13 @@ class ParallelTextTestRunner:
                 key_file = pathlib.Path(tempdir.name) / "tlskey.pem"
                 tb.generate_tls_cert(cert_file, key_file, ["localhost"])
 
-                os.environ["EDGEDB_SERVER_TLS_CERT_FILE"] = str(cert_file)
-                os.environ["EDGEDB_SERVER_TLS_KEY_FILE"] = str(key_file)
+                os.environ["GEL_SERVER_TLS_CERT_FILE"] = str(cert_file)
+                os.environ["GEL_SERVER_TLS_KEY_FILE"] = str(key_file)
 
-            if not os.environ.get("EDGEDB_SERVER_JWS_KEY_FILE"):
+            if (
+                not os.environ.get("EDGEDB_SERVER_JWS_KEY_FILE")
+                and not os.environ.get("GEL_SERVER_JWS_KEY_FILE")
+            ):
                 jwk_file = pathlib.Path(tempdir.name) / "jwk.pem"
                 if self.verbosity >= 1:
                     self._echo(
@@ -906,7 +914,7 @@ class ParallelTextTestRunner:
                     )
                 tb.generate_jwk(jwk_file)
 
-                os.environ["EDGEDB_SERVER_JWS_KEY_FILE"] = str(jwk_file)
+                os.environ["GEL_SERVER_JWS_KEY_FILE"] = str(jwk_file)
 
         try:
             if setup:
@@ -919,7 +927,7 @@ class ParallelTextTestRunner:
 
                 if self.verbosity > 1:
                     self._echo(
-                        '\n -> Bootstrapping EdgeDB instance...',
+                        '\n -> Bootstrapping Gel instance...',
                         fg='white',
                         nl=False,
                     )

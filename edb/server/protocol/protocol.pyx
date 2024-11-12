@@ -252,6 +252,11 @@ cdef class HttpProtocol:
                 self.current_request.params = {}
             param = name[len(b'x-edgedb-'):]
             self.current_request.params[param] = value
+        elif name.startswith(b'x-gel-'):
+            if self.current_request.params is None:
+                self.current_request.params = {}
+            param = name[len(b'x-gel-'):]
+            self.current_request.params[param] = value
         elif name.startswith(b'x-forwarded-'):
             if self.current_request.forwarded is None:
                 self.current_request.forwarded = {}
@@ -561,7 +566,9 @@ cdef class HttpProtocol:
                     request, response,
                     dbname=dbname,
                     allow_methods=['POST'],
-                    allow_headers=['Authorization', 'X-EdgeDB-User'],
+                    allow_headers=[
+                        'Authorization', 'X-EdgeDB-User', 'X-Gel-User'
+                    ],
                 ):
                     return
 
@@ -630,9 +637,12 @@ cdef class HttpProtocol:
                     request, response,
                     dbname=dbname,
                     allow_methods=['GET', 'POST'],
-                    allow_headers=['Authorization', 'X-EdgeDB-User'],
+                    allow_headers=[
+                        'Authorization', 'X-EdgeDB-User', 'X-Gel-User'
+                    ],
                     expose_headers=(
-                        ['EdgeDB-Protocol-Version'] if extname == 'notebook'
+                        ['EdgeDB-Protocol-Version', 'Gel-Protocol-Version']
+                        if extname == 'notebook'
                         else ['WWW-Authenticate'] if extname != 'auth'
                         else None
                     ),

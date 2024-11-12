@@ -126,6 +126,7 @@ cdef class Database:
         object backend_ids,
         object extensions,
         object ext_config_settings,
+        object feature_used_metrics,
     ):
         self.name = name
 
@@ -159,8 +160,12 @@ cdef class Database:
             self.user_config_spec = config.FlatSpec(*ext_config_settings)
         self.reflection_cache = reflection_cache
         self.backend_ids = backend_ids
-        self.extensions = extensions
+        self.extensions = set()
+        self._set_extensions(extensions)
         self._observe_auth_ext_config()
+
+        self._feature_used_metrics = {}
+        self._set_feature_used_metrics(feature_used_metrics)
 
         self._cache_worker_task = self._cache_queue = None
         self._cache_notify_task = self._cache_notify_queue = None
@@ -186,7 +191,8 @@ cdef class Database:
         if self._cache_notify_task:
             self._cache_notify_task.cancel()
             self._cache_notify_task = None
-        self.extensions = set()
+        self._set_extensions(set())
+        self._set_feature_used_metrics({})
         self.start_stop_extensions()
 
     async def monitor(self, worker, name):
@@ -301,12 +307,47 @@ cdef class Database:
             max_batch_size=100,
         )
 
+    cdef _set_extensions(self, extensions):
+        # Update metrics about extension use
+        tname = self.tenant.get_instance_name()
+        for ext in self.extensions:
+            if ext not in extensions:
+                metrics.extension_used.dec(1, tname, ext)
+
+        for ext in extensions:
+            if ext not in self.extensions:
+                metrics.extension_used.inc(1, tname, ext)
+
+        self.extensions = extensions
+
+    cdef _set_feature_used_metrics(self, feature_used_metrics):
+        # Update metrics about feature use
+        #
+        # We store the old feature use metrics so that we can
+        # incrementally update them after DDL without needing to look
+        # at the other database branches
+        if feature_used_metrics is None:
+            return
+
+        tname = self.tenant.get_instance_name()
+        keys = self._feature_used_metrics.keys() | feature_used_metrics.keys()
+        for key in keys:
+            metrics.feature_used.inc(
+                feature_used_metrics.get(key, 0.0)
+                - self._feature_used_metrics.get(key, 0.0),
+                tname,
+                key,
+            )
+
+        self._feature_used_metrics = feature_used_metrics
+
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema_pickle,
         schema_version,
         extensions,
         ext_config_settings,
+        feature_used_metrics,
         reflection_cache=None,
         backend_ids=None,
         db_config=None,
@@ -319,8 +360,10 @@ cdef class Database:
         self.dbver = next_dbver()
 
         self.user_schema_pickle = new_schema_pickle
-        self.extensions = extensions
+        self._set_extensions(extensions)
         self.user_config_spec = config.FlatSpec(*ext_config_settings)
+
+        self._set_feature_used_metrics(feature_used_metrics)
 
         if backend_ids is not None:
             self.backend_ids = backend_ids
@@ -972,9 +1015,10 @@ cdef class DatabaseConnectionView:
                     query_unit.user_schema_version,
                     query_unit.extensions,
                     query_unit.ext_config_settings,
+                    query_unit.feature_used_metrics,
                     pickle.loads(query_unit.cached_reflection)
                         if query_unit.cached_reflection is not None
-                        else None
+                        else None,
                 )
                 side_effects |= SideEffects.SchemaChanges
             if query_unit.system_config:
@@ -1014,9 +1058,10 @@ cdef class DatabaseConnectionView:
                     query_unit.user_schema_version,
                     query_unit.extensions,
                     query_unit.ext_config_settings,
+                    query_unit.feature_used_metrics,  # XXX? does this get set?
                     pickle.loads(query_unit.cached_reflection)
                         if query_unit.cached_reflection is not None
-                        else None
+                        else None,
                 )
                 side_effects |= SideEffects.SchemaChanges
             if self._in_tx_with_sysconfig:
@@ -1047,6 +1092,7 @@ cdef class DatabaseConnectionView:
         global_schema,
         roles,
         cached_reflection,
+        feature_used_metrics,
     ):
         assert self._in_tx
         side_effects = 0
@@ -1063,6 +1109,7 @@ cdef class DatabaseConnectionView:
                 self._in_tx_user_schema_version,
                 extensions,
                 ext_config_settings,
+                feature_used_metrics,
                 pickle.loads(cached_reflection)
                     if cached_reflection is not None
                     else None
@@ -1537,6 +1584,7 @@ cdef class DatabaseIndex:
         extensions,
         ext_config_settings,
         early=False,
+        feature_used_metrics=None,
     ):
         cdef Database db
         db = self._dbs.get(dbname)
@@ -1546,6 +1594,7 @@ cdef class DatabaseIndex:
                 schema_version,
                 extensions,
                 ext_config_settings,
+                feature_used_metrics,
                 reflection_cache,
                 backend_ids,
                 db_config,
@@ -1562,6 +1611,7 @@ cdef class DatabaseIndex:
                 backend_ids=backend_ids,
                 extensions=extensions,
                 ext_config_settings=ext_config_settings,
+                feature_used_metrics=feature_used_metrics,
             )
             self._dbs[dbname] = db
             if not early:

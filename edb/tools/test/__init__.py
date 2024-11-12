@@ -138,7 +138,7 @@ def test(
     result_log: str,
     include_unsuccessful: bool,
 ):
-    """Run EdgeDB test suite.
+    """Run Gel test suite.
 
     Discovers and runs tests in the specified files or directories.
     If no files or directories are specified, current directory is assumed.

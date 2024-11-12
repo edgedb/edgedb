@@ -194,8 +194,71 @@ auth_providers = registry.new_labeled_gauge(
     labels=('tenant', 'branch'),
 )
 
+extension_used = registry.new_labeled_gauge(
+    'extension_used_branch_count_current',
+    'How many branches an extension is used by.',
+    labels=('tenant', 'extension'),
+)
+
+feature_used = registry.new_labeled_gauge(
+    'feature_used_branch_count_current',
+    'How many branches a schema feature is used by.',
+    labels=('tenant', 'feature'),
+)
+
 auth_successful_logins = registry.new_labeled_counter(
     "auth_successful_logins_total",
     "Number of successful logins in the Auth extension.",
+    labels=("tenant",),
+)
+
+mt_tenants_total = registry.new_gauge(
+    'mt_tenants_current',
+    'Total number of currently-registered tenants.',
+)
+
+mt_config_reloads = registry.new_counter(
+    'mt_config_reloads_total',
+    'Total number of the main multi-tenant config file reloads.',
+)
+
+mt_config_reload_errors = registry.new_counter(
+    'mt_config_reload_errors_total',
+    'Total number of the main multi-tenant config file reload errors.',
+)
+
+mt_tenant_add_total = registry.new_labeled_counter(
+    'mt_tenant_add_total',
+    'Total number of new tenants the server attempted to add.',
+    labels=("tenant",),
+)
+
+mt_tenant_add_errors = registry.new_labeled_counter(
+    'mt_tenant_add_errors_total',
+    'Total number of tenants the server failed to add.',
+    labels=("tenant",),
+)
+
+mt_tenant_remove_total = registry.new_labeled_counter(
+    'mt_tenant_remove_total',
+    'Total number of tenants the server attempted to remove.',
+    labels=("tenant",),
+)
+
+mt_tenant_remove_errors = registry.new_labeled_counter(
+    'mt_tenant_remove_errors_total',
+    'Total number of tenants the server failed to remove.',
+    labels=("tenant",),
+)
+
+mt_tenant_reload_total = registry.new_labeled_counter(
+    'mt_tenant_reload_total',
+    'Total number of tenants the server attempted to reload.',
+    labels=("tenant",),
+)
+
+mt_tenant_reload_errors = registry.new_labeled_counter(
+    'mt_tenant_reload_errors_total',
+    'Total number of tenants the server failed to reload.',
     labels=("tenant",),
 )

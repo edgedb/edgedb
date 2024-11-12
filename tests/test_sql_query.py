@@ -791,6 +791,86 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         self.assertEqual(res, 'UPDATE 1')
         await tran.rollback()
 
+    async def test_sql_query_43(self):
+        # USING factoring
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id) AS (SELECT 1 UNION SELECT 2),
+                b(id) AS (SELECT 1 UNION SELECT 3)
+            SELECT a.id, b.id, id
+            FROM a LEFT JOIN b USING (id);
+            '''
+        )
+        self.assertEqual(res, [[1, 1, 1], [2, None, 2]])
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id, sub_id) AS (SELECT 1, 'a' UNION SELECT 2, 'b'),
+                b(id, sub_id) AS (SELECT 1, 'a' UNION SELECT 3, 'c')
+            SELECT a.id, a.sub_id, b.id, b.sub_id, id, sub_id
+            FROM a JOIN b USING (id, sub_id);
+            '''
+        )
+        self.assertEqual(res, [[1, 'a', 1, 'a', 1, 'a']])
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id) AS (SELECT 1 UNION SELECT 2),
+                b(id) AS (SELECT 1 UNION SELECT 3)
+            SELECT a.id, b.id, id
+            FROM a INNER JOIN b USING (id);
+            '''
+        )
+        self.assertEqual(res, [[1, 1, 1]])
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id) AS (SELECT 1 UNION SELECT 2),
+                b(id) AS (SELECT 1 UNION SELECT 3)
+            SELECT a.id, b.id, id
+            FROM a RIGHT JOIN b USING (id);
+            '''
+        )
+        self.assertEqual(res, [[1, 1, 1], [None, 3, 3]])
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id) AS (SELECT 1 UNION SELECT 2),
+                b(id) AS (SELECT 1 UNION SELECT 3)
+            SELECT a.id, b.id, id
+            FROM a RIGHT OUTER JOIN b USING (id);
+            '''
+        )
+        self.assertEqual(res, [[1, 1, 1], [None, 3, 3]])
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id) AS (SELECT 1 UNION SELECT 2),
+                b(id) AS (SELECT 1 UNION SELECT 3)
+            SELECT a.id, b.id, id
+            FROM a FULL JOIN b USING (id);
+            '''
+        )
+        self.assertEqual(res, [[1, 1, 1], [2, None, 2], [None, 3, 3]])
+
+    async def test_sql_query_44(self):
+        # range function that is an "sql value function", whatever that is
+
+        # to be exact: User is *parsed* as function call CURRENT_USER
+        # we'd ideally want a message that hints that it should use quotes
+
+        with self.assertRaisesRegex(
+            asyncpg.InvalidColumnReferenceError, 'cannot find column `name`'
+        ):
+            await self.squery_values('SELECT name FROM User')
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
@@ -1310,7 +1390,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
     async def test_sql_query_version(self):
         version = await self.scon.fetchrow("select version()")
         self.assertTrue(version["version"].startswith("PostgreSQL "))
-        self.assertIn("EdgeDB", version["version"])
+        self.assertIn("Gel", version["version"])
 
     async def test_sql_transaction_01(self):
         await self.scon.execute(

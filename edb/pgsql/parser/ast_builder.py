@@ -905,7 +905,7 @@ def _build_range_function(n: Node, c: Context) -> pgast.RangeFunction:
         with_ordinality=_bool_or_false(n, "ordinality"),
         is_rowsfrom=_bool_or_false(n, "is_rowsfrom"),
         functions=[
-            _build_func_call(fn, c)
+            _build_base_expr(fn, c)
             for fn in n["functions"][0]["List"]["items"]
             if len(fn) > 0
         ],

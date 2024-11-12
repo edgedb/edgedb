@@ -13,7 +13,8 @@ all: workflows/nightly.yml \
 	workflows/tests-ha.yml \
 	workflows/tests-pg-versions.yml \
 	workflows/tests-patches.yml \
-	workflows/tests-inplace.yml
+	workflows/tests-inplace.yml \
+	workflows/tests-reflection.yml \
 
 workflows/%.yml: workflows.src/%.tpl.yml workflows.src/%.targets.yml workflows.src/build.inc.yml workflows.src/ls-build.inc.yml
 	$(ROOT)/workflows.src/render.py $* $*.targets.yml
@@ -37,4 +38,7 @@ workflows.src/tests-patches.tpl.yml: workflows.src/tests.inc.yml
 	touch $(ROOT)/workflows.src/tests-patches.tpl.yml
 
 workflows.src/tests-inplace.tpl.yml: workflows.src/tests.inc.yml
+	touch $(ROOT)/workflows.src/tests-inplace.tpl.yml
+
+workflows.src/tests-reflection.tpl.yml: workflows.src/tests.inc.yml
 	touch $(ROOT)/workflows.src/tests-inplace.tpl.yml
