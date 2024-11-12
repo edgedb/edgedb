@@ -154,9 +154,10 @@ class SMTP:
                             f"{self.client.hostname}:{self.client.port}"
                         )
 
-                        errors, response = await self.client.send_message(
-                            message
-                        )
+                        async with self.client:
+                            errors, response = await self.client.send_message(
+                                message
+                            )
                         if errors:
                             logger.error(
                                 f"SMTP server returned errors: {errors}"
