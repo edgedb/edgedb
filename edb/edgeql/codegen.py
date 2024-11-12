@@ -1250,6 +1250,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.commands:
             self._ddl_visit_body(node.commands)
 
+    def visit_AlterExtension(self, node: qlast.AlterExtension) -> None:
+        self._write_keywords('ALTER EXTENSION')
+        self.write(' ')
+        self.write(ident_to_str(node.name.name))
+        self._write_keywords(' TO VERSION ')
+        self.visit(node.to_version)
+
     def visit_DropExtension(
         self,
         node: qlast.DropExtension,

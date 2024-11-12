@@ -945,7 +945,6 @@ class ExtensionCommand(UnqualifiedObjectCommand):
     object_class: qltypes.SchemaObjectClass = (
         qltypes.SchemaObjectClass.EXTENSION
     )
-    version: typing.Optional[Constant] = None
 
 
 class CreateExtension(CreateObject, ExtensionCommand):
@@ -954,10 +953,15 @@ class CreateExtension(CreateObject, ExtensionCommand):
     object_class: qltypes.SchemaObjectClass = (
         qltypes.SchemaObjectClass.EXTENSION
     )
+    version: typing.Optional[Constant] = None
+
+
+class AlterExtension(DropObject, ExtensionCommand):
+    to_version: Constant
 
 
 class DropExtension(DropObject, ExtensionCommand):
-    pass
+    version: typing.Optional[Constant] = None
 
 
 class FutureCommand(UnqualifiedObjectCommand):

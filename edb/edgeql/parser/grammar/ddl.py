@@ -1057,6 +1057,10 @@ class ExtensionStmt(Nonterm):
         pass
 
     @parsing.inline(0)
+    def reduce_AlterExtensionStmt(self, *kids):
+        pass
+
+    @parsing.inline(0)
     def reduce_DropExtensionStmt(self, *kids):
         pass
 
@@ -1082,6 +1086,29 @@ class CreateExtensionStmt(Nonterm):
             name=kids[2].val,
             version=kids[3].val,
             commands=kids[4].val,
+        )
+
+#
+# ALTER EXTENSION
+#
+
+
+commands_block(
+    'AlterExtension',
+    SetFieldStmt,
+)
+
+
+class AlterExtensionStmt(Nonterm):
+
+    def reduce_AlterExtensionStmt(self, *kids):
+        r"""%reduce ALTER EXTENSION ShortNodeName
+                    TO ExtensionVersion
+        """
+        _, _, name, _, ver = kids
+        self.val = qlast.AlterExtension(
+            name=name.val,
+            to_version=ver.val,
         )
 
 

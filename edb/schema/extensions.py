@@ -26,6 +26,7 @@ import uuid
 from edb import errors
 
 from edb.common import verutils
+from edb.common import struct
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -259,6 +260,41 @@ def get_package(
     pkgs.sort(key=lambda pkg: pkg.get_version(schema), reverse=True)
 
     return pkgs[0]
+
+
+def get_package_migration(
+    name: sn.Name,
+    from_version: verutils.Version,
+    to_version: verutils.Version,
+    schema: s_schema.Schema,
+) -> ExtensionPackageMigration:
+    # TODO: We need to figure out migration chains
+    #
+    # That will have some fiddliness, though, with when SQL extension
+    # upgrades and SQL scripts run?
+    filters = [
+        lambda schema, mig: (
+            mig.get_shortname(schema) == name
+            and mig.get_from_version(schema) == from_version
+            and mig.get_to_version(schema) == to_version
+        )
+    ]
+
+    migs = list(schema.get_objects(
+        type=ExtensionPackageMigration,
+        extra_filters=filters,
+    ))
+
+    if not migs:
+        dname = str(name)
+        raise errors.SchemaError(
+            f'cannot create migrate extension {dname!r} from '
+            f'{from_version} to {to_version}'
+        )
+
+    assert len(migs) == 1
+
+    return migs[0]
 
 
 # XXX: Trying to CREATE/DROP these from within a transaction managed
@@ -638,6 +674,84 @@ class CreateExtension(
                 value=str(pkg.get_version(schema))
             )
         return node
+
+
+class AlterExtension(
+    ExtensionCommand,
+    sd.AlterObject[Extension],
+):
+    astnode = qlast.AlterExtension
+
+    to_version = struct.Field(verutils.Version, default=None)
+    migration = struct.Field(ExtensionPackageMigration, default=None)
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        with _extension_mode(context):
+            return super().apply(schema, context)
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext
+    ) -> AlterExtension:
+        assert isinstance(astnode, qlast.AlterExtension)
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, AlterExtension)
+
+        cmd.to_version = verutils.parse_version(astnode.to_version.value)
+
+        return cmd
+
+    def canonicalize_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().canonicalize_attributes(schema, context)
+        pkg: ExtensionPackage
+
+        if pkg_attr := self.get_attribute_value('package'):
+            pkg = pkg_attr.resolve(schema)
+        else:
+            assert self.to_version
+            pkg = get_package(self.classname, self.to_version, schema)
+
+        self.set_attribute_value('package', pkg)
+
+        # TODO: dependency verification and updating!!
+
+        return schema
+
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        from_version = self.scls.get_package(schema).get_version(schema)
+        schema = super()._alter_begin(schema, context)
+
+        if not context.canonical:
+            assert self.to_version
+            self.migration = get_package_migration(
+                self.classname, from_version, self.to_version, schema
+            )
+
+            script = self.migration.get_script(schema)
+            if script:
+                block, _ = qlparser.parse_extension_package_body_block(script)
+                for subastnode in block.commands:
+                    subcmd = sd.compile_ddl(
+                        schema, subastnode, context=context)
+                    if subcmd is not None:
+                        self.add(subcmd)
+
+        return schema
 
 
 class DeleteExtension(

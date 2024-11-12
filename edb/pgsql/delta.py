@@ -7408,6 +7408,40 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
         return schema
 
 
+class AlterExtension(ExtensionCommand, adapts=s_exts.AlterExtension):
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)
+
+        # TODO: UPDATE the sql extension? Or should we do that in the
+        # script?
+        if (
+            self.migration
+            and (script := self.migration.get_sql_early_script(schema))
+        ):
+            self.pgops.add(dbops.Query(script))
+
+        return schema
+
+    def _alter_finalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_finalize(schema, context)
+
+        if (
+            self.migration
+            and (script := self.migration.get_sql_late_script(schema))
+        ):
+            self.pgops.add(dbops.Query(script))
+
+        return schema
+
+
 class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
     def apply(
         self,
