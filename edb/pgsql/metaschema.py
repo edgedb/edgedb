@@ -1547,7 +1547,7 @@ class RaiseNoticeFunction(trampoline.VersionedFunction):
 class IndirectReturnFunction(trampoline.VersionedFunction):
     text = """
     SELECT
-        edgedb.notice(
+        edgedb_VER.notice(
             NULL::text,
             msg => 'edb:notice:indirect_return',
             detail => "value"
