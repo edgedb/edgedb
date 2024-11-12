@@ -6364,7 +6364,10 @@ def _generate_sql_information_schema(
             pi.indisclustered,
             pi.indisvalid,
             pi.indcheckxmin,
-            FALSE AS indisready, -- prevent pg_dump from recreating indexes
+            CASE
+                WHEN COALESCE(is_id.t, FALSE) THEN TRUE
+                ELSE FALSE -- override so pg_dump won't try to recreate them
+            END AS indisready,
             pi.indislive,
             pi.indisreplident,
             CASE
@@ -6762,8 +6765,9 @@ def _generate_sql_information_schema(
         FROM pg_constraint pc
         JOIN edgedbsql_VER.pg_class_tables pct ON pct.oid = pc.conrelid
         JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pct.reltype
+        JOIN pg_attribute pa ON (pa.attname = 'id' AND pa.attrelid = pct.oid)
         WHERE contype = 'u' -- our ids and all links will have unique constraint
-          AND 1 = ANY(conkey)
+          AND attnum = ANY(conkey)
 
         UNION ALL
 
@@ -7377,12 +7381,14 @@ def _generate_sql_information_schema(
                         FROM edgedbsql_VER.pg_attribute
                         WHERE attrelid = conrelid AND attnum = ANY(conkey)
                         LIMIT 1
-                    ) || '")'
-                    || ' REFERENCES "' || pc.relname || '"(id)'
+                    ) || '")' || ' REFERENCES "'
+                    || pn.nspname || '"."' || pc.relname || '"(id)'
                     ELSE ''
                     END
                 FROM edgedbsql_VER.pg_constraint con
                 LEFT JOIN edgedbsql_VER.pg_class_tables pc ON pc.oid = confrelid
+                LEFT JOIN edgedbsql_VER.pg_namespace pn
+                  ON pc.relnamespace = pn.oid
                 WHERE con.oid = conid
             """
         ),
