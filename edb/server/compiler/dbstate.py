@@ -60,7 +60,6 @@ from . import sertypes
 
 
 class TxAction(enum.IntEnum):
-
     START = 1
     COMMIT = 2
     ROLLBACK = 3
@@ -71,7 +70,6 @@ class TxAction(enum.IntEnum):
 
 
 class MigrationAction(enum.IntEnum):
-
     START = 1
     POPULATE = 2
     DESCRIBE = 3
@@ -80,10 +78,11 @@ class MigrationAction(enum.IntEnum):
     REJECT_PROPOSED = 6
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class BaseQuery:
-
-    sql: Tuple[bytes, ...]
+    sql: bytes
+    is_transactional: bool = True
+    has_dml: bool = False
     cache_sql: Optional[Tuple[bytes, bytes]] = dataclasses.field(
         kw_only=True, default=None
     )  # (persist, evict)
@@ -94,22 +93,14 @@ class BaseQuery:
         kw_only=True, default=()
     )
 
-    @property
-    def is_transactional(self) -> bool:
-        return True
 
-
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class NullQuery(BaseQuery):
-
-    sql: Tuple[bytes, ...] = tuple()
-    is_transactional: bool = True
-    has_dml: bool = False
+    sql: bytes = b""
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class Query(BaseQuery):
-
     sql_hash: bytes
 
     cardinality: enums.Cardinality
@@ -122,27 +113,21 @@ class Query(BaseQuery):
 
     globals: Optional[list[tuple[str, bool]]] = None
 
-    is_transactional: bool = True
-    has_dml: bool = False
     cacheable: bool = True
     is_explain: bool = False
     query_asts: Any = None
-    append_rollback: bool = False
+    run_and_rollback: bool = False
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class SimpleQuery(BaseQuery):
-
-    sql: Tuple[bytes, ...]
-    is_transactional: bool = True
-    has_dml: bool = False
     # XXX: Temporary hack, since SimpleQuery will die
     in_type_args: Optional[List[Param]] = None
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class SessionStateQuery(BaseQuery):
-
+    sql: bytes = b""
     config_scope: Optional[qltypes.ConfigScope] = None
     is_backend_setting: bool = False
     requires_restart: bool = False
@@ -156,9 +141,8 @@ class SessionStateQuery(BaseQuery):
     in_type_args: Optional[List[Param]] = None
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class DDLQuery(BaseQuery):
-
     user_schema: Optional[s_schema.FlatSchema]
     feature_used_metrics: Optional[dict[str, float]]
     global_schema: Optional[s_schema.FlatSchema] = None
@@ -169,18 +153,17 @@ class DDLQuery(BaseQuery):
     drop_db_reset_connections: bool = False
     create_db_template: Optional[str] = None
     create_db_mode: Optional[qlast.BranchType] = None
+    db_op_trailer: tuple[bytes, ...] = ()
     ddl_stmt_id: Optional[str] = None
     config_ops: List[config.Operation] = dataclasses.field(default_factory=list)
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class TxControlQuery(BaseQuery):
-
     action: TxAction
     cacheable: bool
 
     modaliases: Optional[immutables.Map[Optional[str], str]]
-    is_transactional: bool = True
 
     user_schema: Optional[s_schema.Schema] = None
     global_schema: Optional[s_schema.Schema] = None
@@ -191,25 +174,22 @@ class TxControlQuery(BaseQuery):
     sp_id: Optional[int] = None
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class MigrationControlQuery(BaseQuery):
-
     action: MigrationAction
     tx_action: Optional[TxAction]
     cacheable: bool
 
     modaliases: Optional[immutables.Map[Optional[str], str]]
-    is_transactional: bool = True
 
     user_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None
     ddl_stmt_id: Optional[str] = None
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class MaintenanceQuery(BaseQuery):
-
-    is_transactional: bool = True
+    pass
 
 
 @dataclasses.dataclass(frozen=True)
@@ -224,10 +204,9 @@ class Param:
 #############################
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(kw_only=True)
 class QueryUnit:
-
-    sql: Tuple[bytes, ...]
+    sql: bytes
 
     # Status-line for the compiled command; returned to front-end
     # in a CommandComplete protocol message if the command is
@@ -244,9 +223,9 @@ class QueryUnit:
 
     # Set only for units that contain queries that can be cached
     # as prepared statements in Postgres.
-    sql_hash: bytes = b''
+    sql_hash: bytes = b""
 
-    # True if all statments in *sql* can be executed inside a transaction.
+    # True if all statements in *sql* can be executed inside a transaction.
     # If False, they will be executed separately.
     is_transactional: bool = True
 
@@ -297,6 +276,10 @@ class QueryUnit:
     # close all inactive unused pooled connections to the template db.
     create_db_template: Optional[str] = None
     create_db_mode: Optional[str] = None
+
+    # If a branch command needs extra SQL commands to be performed,
+    # those would end up here.
+    db_op_trailer: tuple[bytes, ...] = ()
 
     # If non-None, the DDL statement will emit data packets marked
     # with the indicated ID.
@@ -357,7 +340,8 @@ class QueryUnit:
 
     is_explain: bool = False
     query_asts: Any = None
-    append_rollback: bool = False
+    run_and_rollback: bool = False
+    append_tx_op: bool = False
 
     @property
     def has_ddl(self) -> bool:
@@ -390,13 +374,12 @@ class QueryUnit:
     def maybe_use_func_cache(self) -> None:
         if self.cache_func_call is not None:
             sql, sql_hash = self.cache_func_call
-            self.sql = (sql,)
+            self.sql = sql
             self.sql_hash = sql_hash
 
 
 @dataclasses.dataclass
 class QueryUnitGroup:
-
     # All capabilities used by any query units in this group
     capabilities: enums.Capability = enums.Capability(0)
 
@@ -568,29 +551,29 @@ class SQLQueryUnit:
 
 
 class CommandCompleteTag:
-    '''Dictates the tag of CommandComplete message that concludes this query.'''
+    """Dictates the tag of CommandComplete message that concludes this query."""
 
 
 @dataclasses.dataclass(kw_only=True)
 class TagPlain(CommandCompleteTag):
-    '''Set the tag verbatim'''
+    """Set the tag verbatim"""
 
     tag: bytes
 
 
 @dataclasses.dataclass(kw_only=True)
 class TagCountMessages(CommandCompleteTag):
-    '''Count DataRow messages in the response and set the tag to
-    f'{prefix} {count_of_messages}'.'''
+    """Count DataRow messages in the response and set the tag to
+    f'{prefix} {count_of_messages}'."""
 
     prefix: str
 
 
 @dataclasses.dataclass(kw_only=True)
 class TagUnpackRow(CommandCompleteTag):
-    '''Intercept a single DataRow message with a single column which represents
+    """Intercept a single DataRow message with a single column which represents
     the number of modified rows.
-    Sets the CommandComplete tag to f'{prefix} {modified_rows}'.'''
+    Sets the CommandComplete tag to f'{prefix} {modified_rows}'."""
 
     prefix: str
 
@@ -634,13 +617,15 @@ class ParsedDatabase:
 SQLSetting = tuple[str | int | float, ...]
 SQLSettings = immutables.Map[Optional[str], Optional[SQLSetting]]
 DEFAULT_SQL_SETTINGS: SQLSettings = immutables.Map()
-DEFAULT_SQL_FE_SETTINGS: SQLSettings = immutables.Map({
-    "search_path": ("public",),
-    "server_version": cast(SQLSetting, (defines.PGEXT_POSTGRES_VERSION,)),
-    "server_version_num": cast(
-        SQLSetting, (defines.PGEXT_POSTGRES_VERSION_NUM,)
-    ),
-})
+DEFAULT_SQL_FE_SETTINGS: SQLSettings = immutables.Map(
+    {
+        "search_path": ("public",),
+        "server_version": cast(SQLSetting, (defines.PGEXT_POSTGRES_VERSION,)),
+        "server_version_num": cast(
+            SQLSetting, (defines.PGEXT_POSTGRES_VERSION_NUM,)
+        ),
+    }
+)
 
 
 @dataclasses.dataclass
@@ -680,11 +665,16 @@ class SQLTransactionState:
             self.in_tx_local_settings = None
             self.savepoints.clear()
         elif query_unit.tx_action == TxAction.DECLARE_SAVEPOINT:
-            self.savepoints.append((
-                query_unit.sp_name,
-                self.in_tx_settings,
-                self.in_tx_local_settings,
-            ))  # type: ignore
+            assert query_unit.sp_name is not None
+            assert self.in_tx_settings is not None
+            assert self.in_tx_local_settings is not None
+            self.savepoints.append(
+                (
+                    query_unit.sp_name,
+                    self.in_tx_settings,
+                    self.in_tx_local_settings,
+                )
+            )
         elif query_unit.tx_action == TxAction.ROLLBACK_TO_SAVEPOINT:
             while self.savepoints:
                 sp_name, settings, local_settings = self.savepoints[-1]
@@ -735,7 +725,6 @@ class SQLTransactionState:
 
 
 class ProposedMigrationStep(NamedTuple):
-
     statements: Tuple[str, ...]
     confidence: float
     prompt: str
@@ -748,17 +737,16 @@ class ProposedMigrationStep(NamedTuple):
 
     def to_json(self) -> Dict[str, Any]:
         return {
-            'statements': [{'text': stmt} for stmt in self.statements],
-            'confidence': self.confidence,
-            'prompt': self.prompt,
-            'prompt_id': self.prompt_id,
-            'data_safe': self.data_safe,
-            'required_user_input': list(self.required_user_input),
+            "statements": [{"text": stmt} for stmt in self.statements],
+            "confidence": self.confidence,
+            "prompt": self.prompt,
+            "prompt_id": self.prompt_id,
+            "data_safe": self.data_safe,
+            "required_user_input": list(self.required_user_input),
         }
 
 
 class MigrationState(NamedTuple):
-
     parent_migration: Optional[s_migrations.Migration]
     initial_schema: s_schema.Schema
     initial_savepoint: Optional[str]
@@ -769,14 +757,12 @@ class MigrationState(NamedTuple):
 
 
 class MigrationRewriteState(NamedTuple):
-
     initial_savepoint: Optional[str]
     target_schema: s_schema.Schema
     accepted_migrations: Tuple[qlast.CreateMigration, ...]
 
 
 class TransactionState(NamedTuple):
-
     id: int
     name: Optional[str]
     local_user_schema: s_schema.FlatSchema | None
@@ -799,7 +785,6 @@ class TransactionState(NamedTuple):
 
 
 class Transaction:
-
     _savepoints: Dict[int, TransactionState]
     _constate: CompilerConnectionState
 
@@ -816,7 +801,6 @@ class Transaction:
         cached_reflection: immutables.Map[str, Tuple[str, ...]],
         implicit: bool = True,
     ) -> None:
-
         assert not isinstance(user_schema, s_schema.ChainedSchema)
 
         self._constate = constate
@@ -857,12 +841,12 @@ class Transaction:
         if self._implicit:
             self._implicit = False
         else:
-            raise errors.TransactionError('already in explicit transaction')
+            raise errors.TransactionError("already in explicit transaction")
 
     def declare_savepoint(self, name: str) -> int:
         if self.is_implicit():
             raise errors.TransactionError(
-                'savepoints can only be used in transaction blocks'
+                "savepoints can only be used in transaction blocks"
             )
 
         return self._declare_savepoint(name)
@@ -882,7 +866,7 @@ class Transaction:
     def rollback_to_savepoint(self, name: str) -> TransactionState:
         if self.is_implicit():
             raise errors.TransactionError(
-                'savepoints can only be used in transaction blocks'
+                "savepoints can only be used in transaction blocks"
             )
 
         return self._rollback_to_savepoint(name)
@@ -899,7 +883,7 @@ class Transaction:
 
             sp_ids_to_erase.append(sp.id)
         else:
-            raise errors.TransactionError(f'there is no {name!r} savepoint')
+            raise errors.TransactionError(f"there is no {name!r} savepoint")
 
         for sp_id in sp_ids_to_erase:
             self._savepoints.pop(sp_id)
@@ -909,7 +893,7 @@ class Transaction:
     def release_savepoint(self, name: str) -> None:
         if self.is_implicit():
             raise errors.TransactionError(
-                'savepoints can only be used in transaction blocks'
+                "savepoints can only be used in transaction blocks"
             )
 
         self._release_savepoint(name)
@@ -925,7 +909,7 @@ class Transaction:
             if sp.name == name:
                 break
         else:
-            raise errors.TransactionError(f'there is no {name!r} savepoint')
+            raise errors.TransactionError(f"there is no {name!r} savepoint")
 
         for sp_id in sp_ids_to_erase:
             self._savepoints.pop(sp_id)
@@ -1030,8 +1014,7 @@ CStateStateType = Tuple[Dict[int, TransactionState], Transaction, int]
 
 
 class CompilerConnectionState:
-
-    __slots__ = ('_savepoints_log', '_current_tx', '_tx_count', '_user_schema')
+    __slots__ = ("_savepoints_log", "_current_tx", "_tx_count", "_user_schema")
 
     _savepoints_log: Dict[int, TransactionState]
     _user_schema: Optional[s_schema.FlatSchema]
@@ -1111,7 +1094,7 @@ class CompilerConnectionState:
         """Synchronize the compiler state with the current DB state."""
 
         if not self.can_sync_to_savepoint(spid):
-            raise RuntimeError(f'failed to lookup savepoint with id={spid}')
+            raise RuntimeError(f"failed to lookup savepoint with id={spid}")
 
         sp = self._savepoints_log[spid]
         self._current_tx = sp.tx
@@ -1137,7 +1120,7 @@ class CompilerConnectionState:
         if self._current_tx.is_implicit():
             self._current_tx.make_explicit()
         else:
-            raise errors.TransactionError('already in transaction')
+            raise errors.TransactionError("already in transaction")
 
     def rollback_tx(self) -> TransactionState:
         # Note that we might not be in a transaction as we allow
@@ -1159,7 +1142,7 @@ class CompilerConnectionState:
 
     def commit_tx(self) -> TransactionState:
         if self._current_tx.is_implicit():
-            raise errors.TransactionError('cannot commit: not in transaction')
+            raise errors.TransactionError("cannot commit: not in transaction")
 
         latest_state = self._current_tx._current
 
@@ -1184,5 +1167,5 @@ class CompilerConnectionState:
             return
 
         raise errors.InternalServerError(
-            f'failed to lookup transaction or savepoint with id={txid}'
+            f"failed to lookup transaction or savepoint with id={txid}"
         )  # pragma: no cover

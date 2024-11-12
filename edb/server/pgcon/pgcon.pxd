@@ -139,6 +139,8 @@ cdef class PGConnection:
 
         object last_state
 
+        str last_indirect_return
+
     cdef before_command(self)
 
     cdef write(self, buf)

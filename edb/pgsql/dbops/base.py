@@ -504,6 +504,35 @@ class Query(Command):
         return f'<Query {self.text!r}>'
 
 
+class PLQuery(Command):
+    def __init__(
+        self,
+        text: str,
+        *,
+        type: Optional[str | Tuple[str, str]] = None,
+        trampoline_fixup: bool = True,
+    ) -> None:
+        from ..import trampoline
+
+        super().__init__()
+        if trampoline_fixup:
+            text = trampoline.fixup_query(text)
+        self.text = text
+        self.type = type
+
+    def to_sql_expr(self) -> str:
+        if self.type:
+            return f'({self.text})::{qn(*self.type)}'
+        else:
+            return self.text
+
+    def code_with_block(self, block: PLBlock) -> str:
+        return self.text
+
+    def __repr__(self) -> str:
+        return f'<PLQuery {self.text!r}>'
+
+
 class DefaultMeta(type):
     def __bool__(cls):
         return False
