@@ -91,28 +91,105 @@ ALTER TYPE sys::Role {
 
 
 CREATE TYPE sys::QueryStats EXTENDING sys::ExternalObject {
-    CREATE LINK branch -> sys::Branch;
-    CREATE PROPERTY query -> std::str;
-    CREATE PROPERTY query_id -> std::int64;
-    CREATE PROPERTY query_type -> sys::QueryType;
+    CREATE LINK branch -> sys::Branch {
+        CREATE ANNOTATION std::description :=
+            "The branch this statistics entry was collected in.";
+    };
+    CREATE PROPERTY query -> std::str {
+        CREATE ANNOTATION std::description :=
+            "Text string of a representative query.";
+    };
+    CREATE PROPERTY query_id -> std::int64 {
+        CREATE ANNOTATION std::description :=
+            "Hash code to identify identical cached query entries.";
+    };
+    CREATE PROPERTY query_type -> sys::QueryType {
+        CREATE ANNOTATION std::description :=
+            "Type of the query.";
+    };
 
-    CREATE PROPERTY plans -> std::int64;
-    CREATE PROPERTY total_plan_time -> std::duration;
-    CREATE PROPERTY min_plan_time -> std::duration;
-    CREATE PROPERTY max_plan_time -> std::duration;
-    CREATE PROPERTY mean_plan_time -> std::duration;
-    CREATE PROPERTY stddev_plan_time -> std::duration;
+    CREATE PROPERTY plans -> std::int64 {
+        CREATE ANNOTATION std::description :=
+            "Number of times the query was planned in the backend.";
+    };
+    CREATE PROPERTY total_plan_time -> std::duration {
+        CREATE ANNOTATION std::description :=
+            "Total time spent planning the query in the backend.";
+    };
+    CREATE PROPERTY min_plan_time -> std::duration {
+        CREATE ANNOTATION std::description :=
+            "Minimum time spent planning the query in the backend. "
+            ++ "This field will be zero if the counter has been reset "
+            ++ "using the `sys::reset_query_stats` function "
+            ++ "with the `minmax_only` parameter set to `true` "
+            ++ "and never been planned since.";
+    };
+    CREATE PROPERTY max_plan_time -> std::duration {
+        CREATE ANNOTATION std::description :=
+            "Maximum time spent planning the query in the backend. "
+            ++ "This field will be zero if the counter has been reset "
+            ++ "using the `sys::reset_query_stats` function "
+            ++ "with the `minmax_only` parameter set to `true` "
+            ++ "and never been planned since.";
+    };
+    CREATE PROPERTY mean_plan_time -> std::duration {
+        CREATE ANNOTATION std::description :=
+            "Mean time spent planning the query in the backend.";
+    };
+    CREATE PROPERTY stddev_plan_time -> std::duration {
+        CREATE ANNOTATION std::description :=
+            "Population standard deviation of time spent "
+            ++ "planning the query in the backend.";
+    };
 
-    CREATE PROPERTY calls -> std::int64;
-    CREATE PROPERTY total_exec_time -> std::duration;
-    CREATE PROPERTY min_exec_time -> std::duration;
-    CREATE PROPERTY max_exec_time -> std::duration;
-    CREATE PROPERTY mean_exec_time -> std::duration;
-    CREATE PROPERTY stddev_exec_time -> std::duration;
+    CREATE PROPERTY calls -> std::int64 {
+        CREATE ANNOTATION std::description :=
+            "Number of times the query was executed.";
+    };
+    CREATE PROPERTY total_exec_time -> std::duration {
+        CREATE ANNOTATION std::description :=
+            "Total time spent executing the query in the backend.";
+    };
+    CREATE PROPERTY min_exec_time -> std::duration {
+        CREATE ANNOTATION std::description :=
+            "Minimum time spent executing the query in the backend, "
+            ++ "this field will be zero until this query is executed "
+            ++ "first time after reset performed by the "
+            ++ "`sys::reset_query_stats` function with the "
+            ++ "`minmax_only` parameter set to `true`";
+    };
+    CREATE PROPERTY max_exec_time -> std::duration {
+        CREATE ANNOTATION std::description :=
+            "Maximum time spent executing the query in the backend, "
+            ++ "this field will be zero until this query is executed "
+            ++ "first time after reset performed by the "
+            ++ "`sys::reset_query_stats` function with the "
+            ++ "`minmax_only` parameter set to `true`";
+    };
+    CREATE PROPERTY mean_exec_time -> std::duration {
+        CREATE ANNOTATION std::description :=
+            "Mean time spent executing the query in the backend.";
+    };
+    CREATE PROPERTY stddev_exec_time -> std::duration {
+        CREATE ANNOTATION std::description :=
+            "Population standard deviation of time spent "
+            ++ "executing the query in the backend.";
+    };
 
-    CREATE PROPERTY rows -> std::int64;
-    CREATE PROPERTY stats_since -> std::datetime;
-    CREATE PROPERTY minmax_stats_since -> std::datetime;
+    CREATE PROPERTY rows -> std::int64 {
+        CREATE ANNOTATION std::description :=
+            "Total number of rows retrieved or affected by the query.";
+    };
+    CREATE PROPERTY stats_since -> std::datetime {
+        CREATE ANNOTATION std::description :=
+            "Time at which statistics gathering started for this query.";
+    };
+    CREATE PROPERTY minmax_stats_since -> std::datetime {
+        CREATE ANNOTATION std::description :=
+            "Time at which min/max statistics gathering started "
+            ++ "for this query (fields `min_plan_time`, `max_plan_time`, "
+            ++ "`min_exec_time` and `max_exec_time`).";
+    };
 };
 
 
@@ -120,8 +197,21 @@ CREATE FUNCTION
 sys::reset_query_stats(
     named only branch_name: OPTIONAL std::str = {},
     named only query_id: OPTIONAL std::int64 = {},
-    named only minmax_only: OPTIONAL std::bool = {},
+    named only minmax_only: OPTIONAL std::bool = false,
 ) -> OPTIONAL std::datetime {
+    CREATE ANNOTATION std::description :=
+        'Discard query statistics gathered so far corresponding to the '
+        ++ 'specified `branch_name` and `query_id`. If either of the '
+        ++ 'parameters is not specified, the statistics that match with the '
+        ++ 'other parameter will be reset. If no parameter is specified, '
+        ++ 'it will discard all statistics. When `minmax_only` is `true`, '
+        ++ 'only the values of minimum and maximum planning and execution '
+        ++ 'time will be reset (i.e. `min_plan_time`, `max_plan_time`, '
+        ++ '`min_exec_time` and `max_exec_time` fields). The default value '
+        ++ 'for `minmax_only` parameter is `false`. This function returns '
+        ++ 'the time of a reset. This time is saved to `stats_reset` or '
+        ++ '`minmax_stats_since` field of `sys::QueryStats` if the '
+        ++ 'corresponding reset was actually performed.';
     SET volatility := 'Volatile';
     USING SQL FUNCTION 'edgedb.reset_query_stats';
 };

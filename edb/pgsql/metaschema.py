@@ -4873,13 +4873,15 @@ class ResetQueryStatsFunction(trampoline.VersionedFunction):
                             (d.description)->>'id' IS NOT NULL
                             AND (d.description)->>'tenant_id' = tenant_id
                     ),
-                    COALESCE(query_id, 0)
+                    COALESCE(query_id, 0),
+                    COALESCE(minmax_only, false)
                 );
             ELSE
                 RETURN edgedbext.edb_stat_statements_reset(
                     0,  -- userid
                     '{}',  -- database oid
-                    COALESCE(query_id, 0)
+                    COALESCE(query_id, 0),
+                    COALESCE(minmax_only, false)
                 );
             END IF;
         ELSE
@@ -4905,7 +4907,8 @@ class ResetQueryStatsFunction(trampoline.VersionedFunction):
             RETURN edgedbext.edb_stat_statements_reset(
                 0,  -- userid
                 ARRAY[db_oid],
-                COALESCE(query_id, 0)
+                COALESCE(query_id, 0),
+                COALESCE(minmax_only, false)
             );
         END IF;
 

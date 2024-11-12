@@ -155,7 +155,7 @@ class TestSQLSys(tb.SQLQueryTestCase, TestQueryStatsMixin):
 
     async def _bad_query_for_stats(self):
         with self.assertRaisesRegex(
-            asyncpg.InternalServerError, "cannot find column"
+            asyncpg.InvalidColumnReferenceError, "cannot find column"
         ):
             await self.squery_values(
                 f'select {self.stats_magic_word}_NoSuchType'
