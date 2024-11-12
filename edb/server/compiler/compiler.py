@@ -2664,7 +2664,6 @@ def _make_query_unit(
             unit.modaliases = comp.modaliases
 
         if comp.tx_action == dbstate.TxAction.START:
-            # units[0:0] = _make_tx_units(ctx, qlast.StartTransaction())
             if unit.tx_id is not None:
                 raise errors.InternalServerError(
                     'already in transaction')

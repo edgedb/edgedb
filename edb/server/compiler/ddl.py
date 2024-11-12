@@ -251,11 +251,11 @@ def _compile_and_apply_ddl_stmt(
             new_type_ids = [
                 f'{pg_common.quote_literal(tid)}::uuid' for tid in new_types
             ]
+            # Return newly-added type id mapping via the indirect
+            # return channel (see PGConnection.last_indirect_return)
             new_types_sql = textwrap.dedent(f"""\
-                PERFORM edgedb.notice(
-                    NULL::text,
-                    msg => 'edb:notice:indirect_return',
-                    detail => json_build_object(
+                PERFORM edgedb.indirect_return(
+                    json_build_object(
                         'ddl_stmt_id',
                         {pg_common.quote_literal(ddl_stmt_id)},
                         'new_types',

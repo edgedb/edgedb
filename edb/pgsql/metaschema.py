@@ -1541,6 +1541,39 @@ class RaiseNoticeFunction(trampoline.VersionedFunction):
         )
 
 
+# edgedb.indirect_return() to be used to return values from
+# anonymous code blocks or other contexts that have no return
+# data channel.
+class IndirectReturnFunction(trampoline.VersionedFunction):
+    text = """
+    SELECT
+        edgedb.notice(
+            NULL::text,
+            msg => 'edb:notice:indirect_return',
+            detail => "value"
+        )
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'indirect_return'),
+            args=[
+                ('value', ('text',)),
+            ],
+            returns=('text',),
+            # NOTE: The main reason why we don't want this function to be
+            # immutable is that immutable functions can be
+            # pre-evaluated by the query planner once if they have
+            # constant arguments. This means that using this function
+            # as the second argument in a COALESCE will raise a
+            # notice regardless of whether the first argument is
+            # NULL or not.
+            volatility='stable',
+            language='sql',
+            text=self.text,
+        )
+
+
 class RaiseExceptionFunction(trampoline.VersionedFunction):
     text = '''
     BEGIN
@@ -5025,6 +5058,7 @@ def get_bootstrap_commands(
         dbops.CreateFunction(GetDatabaseMetadataFunction()),
         dbops.CreateFunction(GetCurrentDatabaseFunction()),
         dbops.CreateFunction(RaiseNoticeFunction()),
+        dbops.CreateFunction(IndirectReturnFunction()),
         dbops.CreateFunction(RaiseExceptionFunction()),
         dbops.CreateFunction(RaiseExceptionOnNullFunction()),
         dbops.CreateFunction(RaiseExceptionOnNotNullFunction()),
