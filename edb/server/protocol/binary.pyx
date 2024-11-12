@@ -1582,7 +1582,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
                         if query_unit.sql:
                             if query_unit.ddl_stmt_id:
-                                ddl_ret = await pgcon.run_ddl(query_unit)
+                                await pgcon.parse_execute(query=query_unit)
+                                ddl_ret = pgcon.load_last_ddl_return(query_unit)
                                 if ddl_ret and ddl_ret['new_types']:
                                     new_types = ddl_ret['new_types']
                             else:

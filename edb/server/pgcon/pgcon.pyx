@@ -100,6 +100,7 @@ cdef dict POSTGRES_SHUTDOWN_ERR_CODES = {
 }
 
 cdef object EMPTY_SQL_STATE = b"{}"
+cdef WriteBuffer NO_ARGS = args_ser.combine_raw_args()
 
 cdef object logger = logging.getLogger('edb.server')
 
@@ -238,6 +239,8 @@ cdef class PGConnection:
 
         self.last_parse_prep_stmts = []
         self.debug = debug.flags.server_proto
+
+        self.last_indirect_return = None
 
         self.log_listeners = []
 
@@ -590,6 +593,8 @@ cdef class PGConnection:
             WriteBuffer bind_data
             bytes stmt_name
             ssize_t idx = start
+            bytes sql
+            tuple sqls
 
         out = WriteBuffer.new()
         parsed = set()
@@ -607,7 +612,6 @@ cdef class PGConnection:
                 )
             stmt_name = query_unit.sql_hash
             if stmt_name:
-                assert len(query_unit.sql) == 1
                 # The same EdgeQL query may show up twice in the same script.
                 # We just need to know and skip if we've already parsed the
                 # same query within current send batch, because self.prep_stmts
@@ -624,15 +628,16 @@ cdef class PGConnection:
         for query_unit, bind_data in zip(
             query_unit_group.units[start:end], bind_datas):
             stmt_name = query_unit.sql_hash
+            sql = query_unit.sql
             if stmt_name:
                 if parse_array[idx]:
                     buf = WriteBuffer.new_message(b'P')
                     buf.write_bytestring(stmt_name)
-                    buf.write_bytestring(query_unit.sql[0])
+                    buf.write_bytestring(sql)
                     buf.write_int16(0)
                     out.write_buffer(buf.end_message())
                     metrics.query_size.observe(
-                        len(query_unit.sql[0]),
+                        len(sql),
                         self.get_tenant_label(),
                         'compiled',
                     )
@@ -649,26 +654,25 @@ cdef class PGConnection:
                 out.write_buffer(buf.end_message())
 
             else:
-                for sql in query_unit.sql:
-                    buf = WriteBuffer.new_message(b'P')
-                    buf.write_bytestring(b'')  # statement name
-                    buf.write_bytestring(sql)
-                    buf.write_int16(0)
-                    out.write_buffer(buf.end_message())
-                    metrics.query_size.observe(
-                        len(sql), self.get_tenant_label(), 'compiled'
-                    )
+                buf = WriteBuffer.new_message(b'P')
+                buf.write_bytestring(b'')  # statement name
+                buf.write_bytestring(sql)
+                buf.write_int16(0)
+                out.write_buffer(buf.end_message())
+                metrics.query_size.observe(
+                    len(sql), self.get_tenant_label(), 'compiled'
+                )
 
-                    buf = WriteBuffer.new_message(b'B')
-                    buf.write_bytestring(b'')  # portal name
-                    buf.write_bytestring(b'')  # statement name
-                    buf.write_buffer(bind_data)
-                    out.write_buffer(buf.end_message())
+                buf = WriteBuffer.new_message(b'B')
+                buf.write_bytestring(b'')  # portal name
+                buf.write_bytestring(b'')  # statement name
+                buf.write_buffer(bind_data)
+                out.write_buffer(buf.end_message())
 
-                    buf = WriteBuffer.new_message(b'E')
-                    buf.write_bytestring(b'')  # portal name
-                    buf.write_int32(0)  # limit: 0 - return all rows
-                    out.write_buffer(buf.end_message())
+                buf = WriteBuffer.new_message(b'E')
+                buf.write_bytestring(b'')  # portal name
+                buf.write_int32(0)  # limit: 0 - return all rows
+                out.write_buffer(buf.end_message())
 
             idx += 1
 
@@ -686,7 +690,7 @@ cdef class PGConnection:
         out = WriteBuffer.new()
         buf = WriteBuffer.new_message(b'P')
         buf.write_bytestring(b'')
-        buf.write_bytestring(b'???')
+        buf.write_bytestring(b'<INTERNAL ERROR IN GEL PGCON>')
         buf.write_int16(0)
 
         # Then do a sync to get everything executed and lined back up
@@ -796,7 +800,6 @@ cdef class PGConnection:
                 elif mtype == b'I':  ## result
                     # EmptyQueryResponse
                     self.buffer.discard_message()
-                    return result
 
                 else:
                     self.fallthrough()
@@ -819,6 +822,10 @@ cdef class PGConnection:
             WriteBuffer out
             WriteBuffer buf
             bytes stmt_name
+            bytes sql
+            tuple sqls
+            bytes prologue_sql
+            bytes epilogue_sql
 
             int32_t dat_len
 
@@ -833,14 +840,6 @@ cdef class PGConnection:
             uint64_t msgs_executed = 0
             uint64_t i
 
-        if use_pending_func_cache and query.cache_func_call:
-            sql, stmt_name = query.cache_func_call
-            sqls = (sql,)
-        else:
-            sqls = query.sql
-            stmt_name = query.sql_hash
-        msgs_num = <uint64_t>(len(sqls))
-
         out = WriteBuffer.new()
 
         if state is not None:
@@ -848,7 +847,7 @@ cdef class PGConnection:
             if (
                 query.tx_id
                 or not query.is_transactional
-                or query.append_rollback
+                or query.run_and_rollback
                 or tx_isolation is not None
             ):
                 # This query has START TRANSACTION or non-transactional command
@@ -860,22 +859,22 @@ cdef class PGConnection:
                 state_sync = 1
                 self.write_sync(out)
 
-        if query.append_rollback or tx_isolation is not None:
+        if query.run_and_rollback or tx_isolation is not None:
             if self.in_tx():
                 sp_name = f'_edb_{time.monotonic_ns()}'
-                sql = f'SAVEPOINT {sp_name}'.encode('utf-8')
+                prologue_sql = f'SAVEPOINT {sp_name}'.encode('utf-8')
             else:
                 sp_name = None
-                sql = b'START TRANSACTION'
+                prologue_sql = b'START TRANSACTION'
                 if tx_isolation is not None:
-                    sql += (
+                    prologue_sql += (
                         f' ISOLATION LEVEL {tx_isolation._value_}'
                         .encode('utf-8')
                     )
 
             buf = WriteBuffer.new_message(b'P')
             buf.write_bytestring(b'')
-            buf.write_bytestring(sql)
+            buf.write_bytestring(prologue_sql)
             buf.write_int16(0)
             out.write_buffer(buf.end_message())
 
@@ -895,9 +894,17 @@ cdef class PGConnection:
             # Insert a SYNC as a boundary of the parsing logic later
             self.write_sync(out)
 
+        if use_pending_func_cache and query.cache_func_call:
+            sql, stmt_name = query.cache_func_call
+            sqls = (sql,)
+        else:
+            sqls = (query.sql,) + query.db_op_trailer
+            stmt_name = query.sql_hash
+
+        msgs_num = <uint64_t>(len(sqls))
+
         if use_prep_stmt:
-            parse = self.before_prepare(
-                stmt_name, dbver, out)
+            parse = self.before_prepare(stmt_name, dbver, out)
         else:
             stmt_name = b''
 
@@ -962,14 +969,43 @@ cdef class PGConnection:
             buf.write_int32(0)  # limit: 0 - return all rows
             out.write_buffer(buf.end_message())
 
-        if query.append_rollback or tx_isolation is not None:
-            if query.append_rollback:
+        if query.run_and_rollback or tx_isolation is not None:
+            if query.run_and_rollback:
                 if sp_name:
                     sql = f'ROLLBACK TO SAVEPOINT {sp_name}'.encode('utf-8')
                 else:
                     sql = b'ROLLBACK'
             else:
                 sql = b'COMMIT'
+
+            buf = WriteBuffer.new_message(b'P')
+            buf.write_bytestring(b'')
+            buf.write_bytestring(sql)
+            buf.write_int16(0)
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'B')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_bytestring(b'')  # statement name
+            buf.write_int16(0)  # number of format codes
+            buf.write_int16(0)  # number of parameters
+            buf.write_int16(0)  # number of result columns
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'E')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_int32(0)  # limit: 0 - return all rows
+            out.write_buffer(buf.end_message())
+        elif query.append_tx_op:
+            if query.tx_commit:
+                sql = b'COMMIT'
+            elif query.tx_rollback:
+                sql = b'ROLLBACK'
+            else:
+                raise errors.InternalServerError(
+                    "QueryUnit.append_tx_op is set but none of the "
+                    "Query.tx_<foo> properties are"
+                )
 
             buf = WriteBuffer.new_message(b'P')
             buf.write_bytestring(b'')
@@ -999,7 +1035,7 @@ cdef class PGConnection:
             if state is not None:
                 await self.wait_for_state_resp(state, state_sync)
 
-            if query.append_rollback or tx_isolation is not None:
+            if query.run_and_rollback or tx_isolation is not None:
                 await self.wait_for_sync()
 
             buf = None
@@ -1098,7 +1134,7 @@ cdef class PGConnection:
         self,
         *,
         query,
-        WriteBuffer bind_data,
+        WriteBuffer bind_data = NO_ARGS,
         frontend.AbstractFrontendConnection fe_conn = None,
         bint use_prep_stmt = False,
         bytes state = None,
@@ -1127,29 +1163,21 @@ cdef class PGConnection:
 
     async def sql_fetch(
         self,
-        sql: bytes | tuple[bytes, ...],
+        sql: bytes,
         *,
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
         state: Optional[bytes] = None,
     ) -> list[tuple[bytes, ...]]:
-        cdef tuple sql_tuple
-
-        if not isinstance(sql, tuple):
-            sql_tuple = (sql,)
-        else:
-            sql_tuple = sql
-
         if use_prep_stmt:
             sql_digest = hashlib.sha1()
-            for stmt in sql_tuple:
-                sql_digest.update(stmt)
+            sql_digest.update(sql)
             sql_hash = sql_digest.hexdigest().encode('latin1')
         else:
             sql_hash = None
 
         query = compiler.QueryUnit(
-            sql=sql_tuple,
+            sql=sql,
             sql_hash=sql_hash,
             status=b"",
         )
@@ -2067,41 +2095,23 @@ cdef class PGConnection:
             msg_buf.write_bytes(data)
             buf.write_buffer(msg_buf.end_message())
 
-    async def run_ddl(
-        self,
-        object query_unit,
-        bytes state=None
-    ):
-        data = await self.sql_fetch(query_unit.sql, state=state)
-        if query_unit.ddl_stmt_id is None:
-            return
-        else:
-            return self.load_ddl_return(query_unit, data)
-
-    def load_ddl_return(self, object query_unit, data):
+    def load_last_ddl_return(self, object query_unit):
         if query_unit.ddl_stmt_id:
+            data = self.last_indirect_return
             if data:
-                ret = json.loads(data[0][0])
+                ret = json.loads(data)
                 if ret['ddl_stmt_id'] != query_unit.ddl_stmt_id:
                     raise RuntimeError(
-                        'unrecognized data packet after a DDL command: '
-                        'data_stmt_id do not match'
+                        'unrecognized data notice after a DDL command: '
+                        'data_stmt_id do not match: expected '
+                        f'{query_unit.ddl_stmt_id!r}, got '
+                        f'{ret["ddl_stmt_id"]!r}'
                     )
                 return ret
             else:
                 raise RuntimeError(
-                    'missing the required data packet after a DDL command'
+                    'missing the required data notice after a DDL command'
                 )
-
-    async def handle_ddl_in_script(
-        self, object query_unit, bint parse, int dbver
-    ):
-        data = None
-        for sql in query_unit.sql:
-            data = await self.wait_for_command(
-                query_unit, parse, dbver, ignore_data=bool(data)
-            ) or data
-        return self.load_ddl_return(query_unit, data)
 
     async def _dump(self, block, output_queue, fragment_suggested_size):
         cdef:
@@ -2527,6 +2537,7 @@ cdef class PGConnection:
                 'previous one')
 
         self.idle = False
+        self.last_indirect_return = None
 
     async def after_command(self):
         if self.idle:
@@ -2675,14 +2686,18 @@ cdef class PGConnection:
 
         elif mtype == b'N':
             # NoticeResponse
-            if self.log_listeners:
-                _, fields = self.parse_error_message()
-                severity = fields.get('V')
-                message = fields.get('M')
+            _, fields = self.parse_error_message()
+            severity = fields.get('V')
+            message = fields.get('M')
+            detail = fields.get('D')
+            if (
+                severity == "NOTICE"
+                and message.startswith("edb:notice:indirect_return")
+            ):
+                self.last_indirect_return = detail
+            elif self.log_listeners:
                 for listener in self.log_listeners:
                     self.loop.call_soon(listener, severity, message)
-            else:
-                self.buffer.discard_message()
             return True
 
         return False

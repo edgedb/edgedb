@@ -674,6 +674,11 @@ class DDLCommand(Command, DDLOperation):
     __abstract_node__ = True
 
 
+class NonTransactionalDDLCommand(DDLCommand):
+    __abstract_node__ = True
+    __rust_ignore__ = True
+
+
 class AlterAddInherit(DDLOperation):
     position: typing.Optional[Position] = None
     bases: typing.List[TypeName]
@@ -868,7 +873,7 @@ class BranchType(s_enum.StrEnum):
     TEMPLATE = 'TEMPLATE'
 
 
-class DatabaseCommand(ExternalObjectCommand):
+class DatabaseCommand(ExternalObjectCommand, NonTransactionalDDLCommand):
 
     __abstract_node__ = True
     __rust_ignore__ = True

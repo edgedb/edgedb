@@ -53,7 +53,7 @@ class PGConnection(asyncio.Protocol):
     async def sql_execute(self, sql: bytes | tuple[bytes, ...]) -> None: ...
     async def sql_fetch(
         self,
-        sql: bytes | tuple[bytes, ...],
+        sql: bytes,
         *,
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,

@@ -105,13 +105,13 @@ class PGConnection(Protocol):
 
     async def sql_execute(
         self,
-        sql: bytes | tuple[bytes, ...],
+        sql: bytes,
     ) -> None:
         ...
 
     async def sql_fetch(
         self,
-        sql: bytes | tuple[bytes, ...],
+        sql: bytes,
         *,
         args: tuple[bytes, ...] | list[bytes] = (),
     ) -> list[tuple[bytes, ...]]:
@@ -1493,6 +1493,83 @@ class GetCurrentDatabaseFunction(trampoline.VersionedFunction):
             returns=('text',),
             language='sql',
             volatility='stable',
+            text=self.text,
+        )
+
+
+class RaiseNoticeFunction(trampoline.VersionedFunction):
+    text = '''
+    BEGIN
+        RAISE NOTICE USING
+            MESSAGE = "msg",
+            DETAIL = COALESCE("detail", ''),
+            HINT = COALESCE("hint", ''),
+            COLUMN = COALESCE("column", ''),
+            CONSTRAINT = COALESCE("constraint", ''),
+            DATATYPE = COALESCE("datatype", ''),
+            TABLE = COALESCE("table", ''),
+            SCHEMA = COALESCE("schema", '');
+        RETURN "rtype";
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'notice'),
+            args=[
+                ('rtype', ('anyelement',)),
+                ('msg', ('text',), "''"),
+                ('detail', ('text',), "''"),
+                ('hint', ('text',), "''"),
+                ('column', ('text',), "''"),
+                ('constraint', ('text',), "''"),
+                ('datatype', ('text',), "''"),
+                ('table', ('text',), "''"),
+                ('schema', ('text',), "''"),
+            ],
+            returns=('anyelement',),
+            # NOTE: The main reason why we don't want this function to be
+            # immutable is that immutable functions can be
+            # pre-evaluated by the query planner once if they have
+            # constant arguments. This means that using this function
+            # as the second argument in a COALESCE will raise a
+            # notice regardless of whether the first argument is
+            # NULL or not.
+            volatility='stable',
+            language='plpgsql',
+            text=self.text,
+        )
+
+
+# edgedb.indirect_return() to be used to return values from
+# anonymous code blocks or other contexts that have no return
+# data channel.
+class IndirectReturnFunction(trampoline.VersionedFunction):
+    text = """
+    SELECT
+        edgedb_VER.notice(
+            NULL::text,
+            msg => 'edb:notice:indirect_return',
+            detail => "value"
+        )
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'indirect_return'),
+            args=[
+                ('value', ('text',)),
+            ],
+            returns=('text',),
+            # NOTE: The main reason why we don't want this function to be
+            # immutable is that immutable functions can be
+            # pre-evaluated by the query planner once if they have
+            # constant arguments. This means that using this function
+            # as the second argument in a COALESCE will raise a
+            # notice regardless of whether the first argument is
+            # NULL or not.
+            volatility='stable',
+            language='sql',
             text=self.text,
         )
 
@@ -4980,6 +5057,8 @@ def get_bootstrap_commands(
         dbops.CreateFunction(GetSharedObjectMetadata()),
         dbops.CreateFunction(GetDatabaseMetadataFunction()),
         dbops.CreateFunction(GetCurrentDatabaseFunction()),
+        dbops.CreateFunction(RaiseNoticeFunction()),
+        dbops.CreateFunction(IndirectReturnFunction()),
         dbops.CreateFunction(RaiseExceptionFunction()),
         dbops.CreateFunction(RaiseExceptionOnNullFunction()),
         dbops.CreateFunction(RaiseExceptionOnNotNullFunction()),
