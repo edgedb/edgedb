@@ -456,6 +456,14 @@ func_calls_remapping: Dict[Tuple[str, ...], Tuple[str, ...]] = {
         common.versioned_schema('edgedbsql'),
         '_format_type',
     ),
+    ('pg_catalog', 'pg_get_constraintdef'): (
+        common.versioned_schema('edgedbsql'),
+        'pg_get_constraintdef',
+    ),
+    ('pg_get_constraintdef',): (
+        common.versioned_schema('edgedbsql'),
+        'pg_get_constraintdef',
+    ),
 }
 
 
