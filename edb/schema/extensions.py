@@ -230,11 +230,11 @@ def get_package(
             pkg.get_shortname(schema) == name
         )
     ]
+    # Version specs are always implicitly >=.
     if version is not None:
         filters.append(
             lambda schema, pkg: (
                 pkg.get_version(schema) >= version
-                and pkg.get_version(schema).major == version.major
             )
         )
 
@@ -258,9 +258,13 @@ def get_package(
                 f' {str(version)!r} does not exist'
             )
 
-    pkgs.sort(key=lambda pkg: pkg.get_version(schema), reverse=True)
-
-    return pkgs[0]
+    pkgs.sort(key=lambda pkg: pkg.get_version(schema))
+    # If the exact version exists, then use it. Otherwise, take the
+    # newest version.
+    if pkgs[0].get_version(schema) == version:
+        return pkgs[0]
+    else:
+        return pkgs[-1]
 
 
 def get_package_migrations(
@@ -606,8 +610,9 @@ class CreateExtension(
             if module:
                 module_name = sn.UnqualName(module)
                 if module_name.get_root_module_name() != s_schema.EXT_MODULE:
+                    builtin = 'built-in ' if package.get_builtin(schema) else ''
                     raise errors.SchemaError(
-                        f'built-in extension {self.classname} has invalid '
+                        f'{builtin}extension {self.classname} has invalid '
                         f'module "{module}": '
                         f'extension modules must begin with "ext::"'
                     )
@@ -653,11 +658,12 @@ class CreateExtension(
 
         deps = []
         for dep_name in pkg.get_dependencies(schema):
-            if '==' not in dep_name:
+            if '>=' not in dep_name:
+                builtin = 'built-in ' if pkg.get_builtin(schema) else ''
                 raise errors.SchemaError(
-                    f'built-in extension {self.classname} missing '
+                    f'{builtin}extension {self.classname} missing '
                     f'version for {dep_name}')
-            dep_name, dep_version_s = dep_name.split('==')
+            dep_name, dep_version_s = dep_name.split('>=')
             dep = schema.get_global(Extension, dep_name, default=None)
             if not dep:
                 raise errors.SchemaError(
@@ -667,7 +673,7 @@ class CreateExtension(
                 )
             dep_version = verutils.parse_version(dep_version_s)
             real_version = dep.get_package(schema).get_version(schema)
-            if dep_version != real_version:
+            if dep_version > real_version:
                 raise errors.SchemaError(
                     f'cannot create extension {self.get_displayname()!r} :'
                     f'it depends on extension {dep_name}, but the wrong '

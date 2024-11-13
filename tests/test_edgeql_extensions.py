@@ -1095,7 +1095,7 @@ class TestDDLExtensions(tb.DDLTestCase):
             };
             create extension package bar VERSION '1.0' {
               set ext_module := "ext::bar";
-              set dependencies := ["foo==1.0"];
+              set dependencies := ["foo>=1.0"];
               create module ext::bar;
               create function ext::bar::fubar() -> str using (
                 ext::foo::test() ++ "bar"
@@ -1103,7 +1103,7 @@ class TestDDLExtensions(tb.DDLTestCase):
             };
             create extension package bar VERSION '2.0' {
               set ext_module := "ext::bar";
-              set dependencies := ["foo==2.0"];
+              set dependencies := ["foo>=2.0"];
               create module ext::bar;
               create function ext::bar::fubar() -> str using (
                 ext::foo::test() ++ "bar"
