@@ -1118,6 +1118,7 @@ def _read_openai_limits(
 
 
 async def _start_chat(
+    *,
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
@@ -1135,18 +1136,44 @@ async def _start_chat(
     logit_bias: Optional[dict[int, int]],
     logprobs: Optional[bool],
     user: Optional[str],
-    tools: Optional[list[dict[str, Any]]]
+    tools: Optional[list[dict[str, Any]]],
 ) -> None:
     if provider.api_style == "OpenAI":
         await _start_openai_chat(
-            protocol, request, response, provider, http_client, model_name,
-            messages, stream, temperature, top_p, max_tokens, seed,
-            safe_prompt, logit_bias, logprobs, user, tools
-  )
+            protocol=protocol,
+            request=request,
+            response=response,
+            provider=provider,
+            http_client=http_client,
+            model_name=model_name,
+            messages=messages,
+            stream=stream,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+            seed=seed,
+            safe_prompt=safe_prompt,
+            logit_bias=logit_bias,
+            logprobs=logprobs,
+            user=user,
+            tools=tools,
+        )
     elif provider.api_style == "Anthropic":
         await _start_anthropic_chat(
-            protocol, request, response, provider, http_client, model_name,
-            messages, stream, temperature, top_p, top_k, tools, max_tokens)
+            protocol=protocol,
+            request=request,
+            response=response,
+            provider=provider,
+            http_client=http_client,
+            model_name=model_name,
+            messages=messages,
+            stream=stream,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            tools=tools,
+            max_tokens=max_tokens,
+        )
     else:
         raise RuntimeError(
             f"unsupported model provider API style: {provider.api_style}, "
@@ -1187,6 +1214,7 @@ async def aconnect_sse(
 
 
 async def _start_openai_like_chat(
+    *,
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
@@ -1202,27 +1230,37 @@ async def _start_openai_like_chat(
     logit_bias: Optional[dict[int, int]],
     logprobs: Optional[bool],
     user: Optional[str],
-    tools: Optional[list[dict[str, Any]]]
+    tools: Optional[list[dict[str, Any]]],
 ) -> None:
     isOpenAI = "openai" in str(getattr(client, "base_url", ""))
-    params = {
+    params: dict[str, Any] = {
         "model": model_name,
         "messages": messages,
-        **({"temperature": temperature} if temperature is not None else {}),
-        **({"top_p": top_p} if top_p is not None else {}),
-        **({("max_completion_tokens" if isOpenAI else "max_tokens"):
-            max_tokens} if max_tokens is not None else {}),
-        **({"seed" if isOpenAI else "random_seed": seed}
-           if seed is not None else {}),
-        **({"safe_prompt": safe_prompt}
-           if not isOpenAI and safe_prompt is not None else {}),
-        **({"logit_bias": logit_bias}
-           if isOpenAI and logit_bias is not None else {}),
-        **({"logprobs": logprobs}
-           if isOpenAI and logprobs is not None else {}),
-        **({"user": user} if isOpenAI and user is not None else {}),
-        **({"tools": tools} if tools is not None else {}),
     }
+    if temperature is not None:
+        params["temperature"] = temperature
+    if top_p is not None:
+        params["top_p"] = top_p
+    if tools is not None:
+        params["tools"] = tools
+    if isOpenAI and logit_bias is not None:
+        params["logit_bias"] = logit_bias
+    if isOpenAI and logprobs is not None:
+        params["logprobs"] = logprobs
+    if isOpenAI and user is not None:
+        params["user"] = user
+    if not isOpenAI and safe_prompt is not None:
+        params["safe_prompt"] = safe_prompt
+    if max_tokens is not None:
+        if isOpenAI:
+            params["max_completion_tokens"] = max_tokens
+        else:
+            params["max_tokens"] = max_tokens
+    if seed is not None:
+        if isOpenAI:
+            params["seed"] = seed
+        else:
+            params["random_seed"] = seed
 
     if stream:
         async with aconnect_sse(
@@ -1446,6 +1484,7 @@ async def _start_openai_like_chat(
 
 
 async def _start_openai_chat(
+    *,
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
@@ -1462,7 +1501,7 @@ async def _start_openai_chat(
     logit_bias: Optional[dict[int, int]],
     logprobs: Optional[bool],
     user: Optional[str],
-    tools: Optional[list[dict[str, Any]]]
+    tools: Optional[list[dict[str, Any]]],
 ) -> None:
     headers = {
         "Authorization": f"Bearer {provider.secret}",
@@ -1477,22 +1516,22 @@ async def _start_openai_chat(
     )
 
     await _start_openai_like_chat(
-        protocol,
-        request,
-        response,
-        client,
-        model_name,
-        messages,
-        stream,
-        temperature,
-        top_p,
-        max_tokens,
-        seed,
-        safe_prompt,
-        logit_bias,
-        logprobs,
-        user,
-        tools
+        protocol=protocol,
+        request=request,
+        response=response,
+        client=client,
+        model_name=model_name,
+        messages=messages,
+        stream=stream,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        safe_prompt=safe_prompt,
+        logit_bias=logit_bias,
+        logprobs=logprobs,
+        user=user,
+        tools=tools,
     )
 
 
@@ -1500,6 +1539,7 @@ async def _start_openai_chat(
 # tool_call(tool_use) is part of the assistant chunk, and
 # tool_result is part of the user chunk.
 async def _start_anthropic_chat(
+    *,
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
@@ -1909,8 +1949,13 @@ async def _handle_rag_request(
             if custom_prompt:
                 if not isinstance(custom_prompt, list):
                     raise TypeError(
-                        "prompt.custom must be a list"
-                        "objects"
+                        "prompt.custom must be a list, where each element is \
+                            one of the following types: \
+                        - EdgeDBSystemMessage: { role, content } \
+                        - EdgeDBUserMessage: { role, content } \
+                        - EdgeDBAssistantMessage: \
+                            { role, content, optional tool_calls }\
+                        - EdgeDBToolMessage: { role, content, tool_call_id }"
                     )
                 for entry in custom_prompt:
                     if (
@@ -1922,7 +1967,6 @@ async def _handle_rag_request(
                     ):
                         raise TypeError(
                             "prompt.custom must contain role and content fields"
-                            "objects"
                         )
                     custom_prompt_messages.append(entry)
 
@@ -2029,24 +2073,24 @@ async def _handle_rag_request(
     messages = prompt_messages + custom_prompt_messages
 
     await _start_chat(
-        protocol,
-        request,
-        response,
-        provider,
-        http_client,
-        model,
-        messages,
-        stream,
-        body.get("temperature"),
-        body.get("top_p"),
-        body.get("max_tokens"),
-        body.get("seed"),
-        body.get("safe_prompt"),
-        body.get("top_k"),
-        body.get("logit_bias"),
-        body.get("logprobs"),
-        body.get("user"),
-        body.get("tools")
+        protocol=protocol,
+        request=request,
+        response=response,
+        provider=provider,
+        http_client=http_client,
+        model_name=model,
+        messages=messages,
+        stream=stream,
+        temperature=body.get("temperature"),
+        top_p=body.get("top_p"),
+        max_tokens=body.get("max_tokens"),
+        seed=body.get("seed"),
+        safe_prompt=body.get("safe_prompt"),
+        top_k=body.get("top_k"),
+        logit_bias=body.get("logit_bias"),
+        logprobs=body.get("logprobs"),
+        user=body.get("user"),
+        tools=body.get("tools"),
     )
 
 
