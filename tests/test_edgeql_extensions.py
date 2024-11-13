@@ -30,7 +30,7 @@ class TestDDLExtensions(tb.DDLTestCase):
 
     async def _extension_test_01(self):
         await self.con.execute('''
-            create extension ltree
+            create extension ltree version '1.0'
         ''')
 
         await self.assert_query_result(
@@ -90,6 +90,16 @@ class TestDDLExtensions(tb.DDLTestCase):
         )
 
         await self.con.execute('''
+            alter extension ltree to version '2.0';
+        ''')
+
+        await self.assert_query_result(
+            '''
+                select ext::ltree::hash(<ext::ltree::ltree>'foo.bar');
+            ''',
+            [-2100566927],
+        )
+        await self.con.execute('''
             drop type Foo;
             drop extension ltree;
         ''')
@@ -99,7 +109,7 @@ class TestDDLExtensions(tb.DDLTestCase):
         await self.con.execute('''
         create extension package ltree VERSION '1.0' {
           set ext_module := "ext::ltree";
-          set sql_extensions := ["ltree >=1.0,<10.0"];
+          set sql_extensions := ["ltree >=1.2,<1.3"];
 
           set sql_setup_script := $$
             CREATE FUNCTION edgedb.asdf(val edgedb.ltree) RETURNS int4
@@ -155,6 +165,76 @@ class TestDDLExtensions(tb.DDLTestCase):
             using sql function 'edgedb.asdf';
           };
         };
+
+        create extension package ltree VERSION '2.0' {
+          set ext_module := "ext::ltree";
+          set sql_extensions := ["ltree >=1.3,<10.0"];
+
+          set sql_setup_script := $$
+            CREATE FUNCTION edgedb.asdf(val edgedb.ltree) RETURNS int4
+             LANGUAGE sql
+             STRICT
+             IMMUTABLE
+            AS $function$
+            SELECT edgedb.nlevel(val) + 1
+            $function$;
+          $$;
+
+          set sql_teardown_script := $$
+            DROP FUNCTION edgedb.asdf(edgedb.ltree);
+          $$;
+
+          create module ext::ltree;
+          create scalar type ext::ltree::ltree extending anyscalar {
+            set sql_type := "ltree";
+          };
+          create cast from ext::ltree::ltree to std::str {
+            SET volatility := 'Immutable';
+            USING SQL CAST;
+          };
+          create cast from std::str to ext::ltree::ltree {
+            SET volatility := 'Immutable';
+            USING SQL CAST;
+          };
+
+          # Use a non-trivial json representation just to show that we can.
+          create cast from ext::ltree::ltree to std::json {
+            SET volatility := 'Immutable';
+            USING SQL $$
+              select to_jsonb(string_to_array("val"::text, '.'));
+            $$
+          };
+          create cast from std::json to ext::ltree::ltree {
+            SET volatility := 'Immutable';
+            USING SQL $$
+              select string_agg(edgedb.raise_on_null(
+                edgedbstd."std|cast@std|json@std|str_f"(z.z),
+                'invalid_parameter_value', 'invalid null value in cast'),
+              '.')::ltree
+              from unnest(
+                edgedbstd."std|cast@std|json@array<std||json>_f"("val"))
+                as z(z);
+            $$
+          };
+          create function ext::ltree::nlevel(
+                v: ext::ltree::ltree) -> std::int32 {
+            using sql function 'edgedb.nlevel';
+          };
+          create function ext::ltree::asdf(v: ext::ltree::ltree) -> std::int32 {
+            using sql function 'edgedb.asdf';
+          };
+          create function ext::ltree::hash(v: ext::ltree::ltree) -> std::int32 {
+            using sql function 'edgedb.hash_ltree';
+          };
+        };
+
+        create extension package ltree migration from version '1.0'
+             to version '2.0' {
+          create function ext::ltree::hash(v: ext::ltree::ltree) -> std::int32 {
+            using sql function 'edgedb.hash_ltree';
+          };
+        };
+
         ''')
         try:
             async for tx in self._run_and_rollback_retrying():
@@ -162,7 +242,10 @@ class TestDDLExtensions(tb.DDLTestCase):
                     await self._extension_test_01()
         finally:
             await self.con.execute('''
-                drop extension package ltree VERSION '1.0'
+                drop extension package ltree VERSION '1.0';
+                drop extension package ltree VERSION '2.0';
+                drop extension package ltree migration from
+                  VERSION '1.0' TO VERSION '2.0';
             ''')
 
     async def _extension_test_02a(self):

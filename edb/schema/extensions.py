@@ -276,8 +276,6 @@ def get_package_migrations(
     filters = [
         lambda schema, mig: (
             mig.get_shortname(schema) == name
-            # and mig.get_from_version(schema) == from_version
-            # and mig.get_to_version(schema) == to_version
         )
     ]
 
