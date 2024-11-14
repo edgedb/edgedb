@@ -271,8 +271,10 @@ def compile_output(
 
 
 def compile_volatile_bindings(
-        stmt: irast.Stmt, *,
-        ctx: context.CompilerContextLevel) -> None:
+    stmt: irast.Stmt,
+    *,
+    ctx: context.CompilerContextLevel
+) -> None:
     for binding, volatility in (stmt.bindings or ()):
         # If something we are WITH binding contains DML, we want to
         # compile it *now*, in the context of its initial appearance
@@ -287,65 +289,74 @@ def compile_volatile_bindings(
         # dml, we similarly want to compile it *now*. Unlike with DML, we need
         # to manually construct the CTE here.
         elif volatility.is_volatile() and irutils.contains_dml(stmt):
-            materialized_set = None
-            if (
-                stmt.materialized_sets
-                and binding.typeref.id in stmt.materialized_sets
-            ):
-                materialized_set = stmt.materialized_sets[binding.typeref.id]
-            assert materialized_set is not None
+            _compile_volatile_binding_for_dml(stmt, binding, ctx=ctx)
 
-            last_iterator = ctx.enclosing_cte_iterator
 
-            with (
-                context.output_format(ctx, context.OutputFormat.NATIVE),
-                ctx.newrel() as matctx
-            ):
-                matctx.materializing |= {stmt}
-                matctx.expr_exposed = True
+def _compile_volatile_binding_for_dml(
+    stmt: irast.Stmt,
+    binding: irast.Set,
+    *,
+    ctx: context.CompilerContextLevel
+) -> None:
+    materialized_set = None
+    if (
+        stmt.materialized_sets
+        and binding.typeref.id in stmt.materialized_sets
+    ):
+        materialized_set = stmt.materialized_sets[binding.typeref.id]
+    assert materialized_set is not None
 
-                dml.merge_iterator(last_iterator, matctx.rel, ctx=matctx)
-                setup_iterator_volatility(last_iterator, ctx=matctx)
+    last_iterator = ctx.enclosing_cte_iterator
 
-                _compile_materialized_expr(
-                    matctx.rel, materialized_set, ctx=matctx
-                )
+    with (
+        context.output_format(ctx, context.OutputFormat.NATIVE),
+        ctx.newrel() as matctx
+    ):
+        matctx.materializing |= {stmt}
+        matctx.expr_exposed = True
 
-                # Add iterator identity
-                bind_pathid = (
-                    irast.PathId.new_dummy(ctx.env.aliases.get('bind_path'))
-                )
-                with matctx.subrel() as bind_pathid_ctx:
-                    relctx.create_iterator_identity_for_path(
-                        bind_pathid, bind_pathid_ctx.rel, ctx=bind_pathid_ctx
-                    )
-                bind_id_rvar = relctx.rvar_for_rel(
-                    bind_pathid_ctx.rel, lateral=True, ctx=matctx
-                )
-                relctx.include_rvar(
-                    matctx.rel, bind_id_rvar, path_id=bind_pathid, ctx=matctx
-                )
+        dml.merge_iterator(last_iterator, matctx.rel, ctx=matctx)
+        setup_iterator_volatility(last_iterator, ctx=matctx)
 
-            bind_cte = pgast.CommonTableExpr(
-                name=ctx.env.aliases.get('bind'),
-                query=matctx.rel,
-                materialized=False,
+        _compile_materialized_expr(
+            matctx.rel, materialized_set, ctx=matctx
+        )
+
+        # Add iterator identity
+        bind_pathid = (
+            irast.PathId.new_dummy(ctx.env.aliases.get('bind_path'))
+        )
+        with matctx.subrel() as bind_pathid_ctx:
+            relctx.create_iterator_identity_for_path(
+                bind_pathid, bind_pathid_ctx.rel, ctx=bind_pathid_ctx
             )
+        bind_id_rvar = relctx.rvar_for_rel(
+            bind_pathid_ctx.rel, lateral=True, ctx=matctx
+        )
+        relctx.include_rvar(
+            matctx.rel, bind_id_rvar, path_id=bind_pathid, ctx=matctx
+        )
 
-            bind_iterator = pgast.IteratorCTE(
-                path_id=bind_pathid,
-                cte=bind_cte,
-                parent=last_iterator,
-                iterator_bond=True,
-            )
-            ctx.toplevel_stmt.append_cte(bind_cte)
+    bind_cte = pgast.CommonTableExpr(
+        name=ctx.env.aliases.get('bind'),
+        query=matctx.rel,
+        materialized=False,
+    )
 
-            # Merge the new iterator
-            ctx.path_scope = ctx.path_scope.new_child()
-            dml.merge_iterator(bind_iterator, ctx.rel, ctx=ctx)
-            setup_iterator_volatility(bind_iterator, ctx=ctx)
+    bind_iterator = pgast.IteratorCTE(
+        path_id=bind_pathid,
+        cte=bind_cte,
+        parent=last_iterator,
+        iterator_bond=True,
+    )
+    ctx.toplevel_stmt.append_cte(bind_cte)
 
-            ctx.enclosing_cte_iterator = bind_iterator
+    # Merge the new iterator
+    ctx.path_scope = ctx.path_scope.new_child()
+    dml.merge_iterator(bind_iterator, ctx.rel, ctx=ctx)
+    setup_iterator_volatility(bind_iterator, ctx=ctx)
+
+    ctx.enclosing_cte_iterator = bind_iterator
 
 
 def compile_filter_clause(
