@@ -1442,7 +1442,7 @@ cdef class DatabaseConnectionView:
                 edb_type_expr = self._db.backend_id_to_name.get(toid)
                 if edb_type_expr is None:
                     raise errors.UnsupportedFeatureError(
-                        f"unsupported SQL type in column \"{col}\""
+                        f"unsupported SQL type in column \"{col}\" "
                         f"with type OID {toid}"
                     )
 

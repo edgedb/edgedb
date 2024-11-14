@@ -63,7 +63,7 @@ def main(*, stdout: bool):
         f'\n\n\n'
         f'from __future__ import annotations'
         f'\n'
-        f'from typing import *  # NoQA'
+        f'from typing import Type'
         f'\n\n\n'
         f'import uuid'
         f'\n\n'
