@@ -406,6 +406,12 @@ class TestServerAuth(tb.ConnectedTestCase):
             ''')
             await conn.aclose()
 
+            with self.assertRaisesRegex(
+                edgedb.AuthenticationError,
+                'authentication failed: no authorization data provided',
+            ):
+                await sd.connect()
+
             # bad secret keys
             with self.assertRaisesRegex(
                 edgedb.AuthenticationError,
