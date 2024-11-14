@@ -2828,7 +2828,7 @@ def process_set_as_enumerate(
             for _, f_arg in arg_subj.args.items()
         )
     ):
-        # Enumeration of a non-aggregate SET-returning function
+        # Enumeration of a non-aggregate function
         rvars = process_set_as_func_enumerate(ir_set, ctx=ctx)
     else:
         rvars = process_set_as_simple_enumerate(ir_set, ctx=ctx)
