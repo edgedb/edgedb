@@ -475,6 +475,11 @@ class VerboseRenderer(BaseRenderer):
         else:
             return f'{test_title}: {self.fullnames[marker]}'
 
+    def report_start(self, test, *, currently_running):
+        test_title = self.format_test(test)
+        click.echo(f'{test_title}: STARTED',
+                   file=self.stream)
+
     def report(self, test, marker, description=None, *, currently_running):
         style = self.styles_map[marker.value]
         click.echo(style(self._render_test(test, marker, description)),
