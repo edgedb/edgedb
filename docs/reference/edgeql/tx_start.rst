@@ -61,7 +61,6 @@ Parameters
 The :eql:synopsis:`<transaction-mode>` can be one of the following:
 
 :eql:synopsis:`isolation serializable`
-
     All statements in the current transaction can only see data 
     changes that were committed before the first query or data 
     modification statement was executed within this transaction. 
