@@ -918,6 +918,30 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         # duplicate rel var names can yield duplicate column names
         self.assert_shape(res, 4, ['a', 'ya', 'ya'])
 
+    async def test_sql_query_49(self):
+        res = await self.scon.fetch(
+            '''
+            WITH
+              x(a) AS (VALUES (2))
+            SELECT 1 as xa, * FROM x, x
+            '''
+        )
+
+        # duplicate rel var names can yield duplicate column names
+        self.assert_shape(res, 1, ['xa', 'a', 'xa'])
+
+    async def test_sql_query_50(self):
+        res = await self.scon.fetch(
+            '''
+            WITH
+              x(a) AS (VALUES (2))
+            SELECT 1 as a, * FROM x
+            '''
+        )
+
+        # duplicate rel var names can yield duplicate column names
+        self.assert_shape(res, 1, ['a', 'xa'])
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
