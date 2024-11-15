@@ -160,7 +160,7 @@ class Extension(
 
     package = so.SchemaField(
         ExtensionPackage,
-        compcoef=0.0,
+        compcoef=0.9,
     )
 
     dependencies = so.SchemaField(
@@ -741,6 +741,35 @@ class AlterExtension(
         cmd.to_version = verutils.parse_version(astnode.to_version.value)
 
         return cmd
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        # HACK: AlterObject insists on filtering out any ALTERs
+        # without subcommands, but we don't have any, so skip
+        # AlterObject.
+        return super(sd.AlterObject, self)._get_ast(
+            schema, context, parent_node=parent_node
+        )
+
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        if op.property == 'package':
+            assert isinstance(node, qlast.AlterExtension)
+            node.to_version = qlast.Constant.string(
+                str(self.scls.get_package(schema).get_version(schema))
+            )
+        else:
+            super()._apply_field_ast(schema, context, node, op)
 
     def canonicalize_attributes(
         self,

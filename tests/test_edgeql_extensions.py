@@ -89,9 +89,16 @@ class TestDDLExtensions(tb.DDLTestCase):
             json_only=True,
         )
 
-        await self.con.execute('''
-            alter extension ltree to version '2.0';
-        ''')
+        await self.con.execute("""
+            START MIGRATION TO {
+                using extension ltree version '2.0';
+                module default {
+                    type Foo { property x -> ext::ltree::ltree };
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
 
         await self.assert_query_result(
             '''
