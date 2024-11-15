@@ -1,8 +1,12 @@
 #![allow(non_snake_case)]
 
+// temporary
+#![allow(dead_code)]
+
 use crate::ast;
 use crate::reductions;
-use crate::parser::{CSTNode, Production};
+use crate::parser::{CSTNode, Production, Terminal};
+use crate::tokenizer;
 
 fn unpack_prod<'a>(node: &'a CSTNode<'a>) -> &'a Production<'a> {
     match node {
@@ -176,13 +180,13 @@ mod SimpleSelect {
 
     /// %reduce SELECT OptionallyAliasedExpr OptFilterClause OptSortClause OptSelectLimit
     fn reduce_Select(node: &CSTNode) -> ast::SelectQuery {
-        let [_SELECT, OptionallyAliasedExpr, OptFilterClause, OptSortClause, OptSelectLimit] =
+        let [_select, optionally_aliased_expr, opt_filter_clause, opt_sort_clause, opt_select_limit] =
             unpack_args(node);
 
-        let result = (None, expr_todo()); // OptionallyAliasedExpr::reduce(OptionallyAliasedExpr);
-        let r#where = None; // OptFilterClause::reduce(OptFilterClause);
-        let orderby = OptSortClause::reduce(OptSortClause);
-        let (offset, limit) = (None, None); // OptSelectLimit::reduce(OptSelectLimit);
+        let result = OptionallyAliasedExpr::reduce(optionally_aliased_expr);
+        let r#where = OptFilterClause::reduce(opt_filter_clause);
+        let orderby = OptSortClause::reduce(opt_sort_clause);
+        let (offset, limit) = OptSelectLimit::reduce(opt_select_limit);
 
         if offset.is_some() || limit.is_some() {
             let subj = ast::SelectQuery {
@@ -317,5 +321,218 @@ mod ExprStmt {
         let [ExprStmtCore] = unpack_args(node);
         let query = ExprStmtCore::reduce(ExprStmtCore);
         ast::Expr::Query(query)
+    }
+}
+
+mod OptionallyAliasedExpr {
+    use super::*;
+
+    pub fn reduce(node: &CSTNode) -> (Option<String>, Box<ast::Expr>) {
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::OptionallyAliasedExpr(reductions::OptionallyAliasedExpr::AliasedExpr) => reduce_AliasedExpr(node),
+            reductions::Reduction::OptionallyAliasedExpr(reductions::OptionallyAliasedExpr::Expr) => reduce_Expr(node),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn reduce_AliasedExpr(node: &CSTNode) -> (Option<String>, Box<ast::Expr>)  {
+        let [aliased_expr] = unpack_args(node);
+        let aliased_expr_ast = AliasedExpr::reduce(aliased_expr);
+        (Some(aliased_expr_ast.alias), aliased_expr_ast.expr)
+    }
+
+    pub fn reduce_Expr(node: &CSTNode) -> (Option<String>, Box<ast::Expr>)  {
+        (None, Expr::reduce(node))
+    }
+}
+
+mod AliasedExpr {
+    use super::*;
+
+    pub fn reduce(node: &CSTNode) -> ast::AliasedExpr {
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::AliasedExpr(_) => reduce_AliasedExpr(node),
+            _ => unreachable!(),
+        }
+    }
+
+    /// %reduce Identifier ASSIGN Expr
+    fn reduce_AliasedExpr(node: &CSTNode) -> ast::AliasedExpr {
+        let [identifier, _assign, expr] = unpack_args(node);
+
+        ast::AliasedExpr {
+            alias: Identifier::reduce(identifier),
+            expr: Expr::reduce(expr)
+        }
+    }
+}
+
+mod Identifier {
+    use super::*;
+
+    pub fn reduce(node: &CSTNode) -> String {
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::Identifier(reductions::Identifier::IDENT) => reduce_IDENT(node),
+            reductions::Reduction::Identifier(reductions::Identifier::UnreservedKeyword) => reduce_UnreservedKeyword(node),
+            _ => unreachable!(),
+        }
+    }
+
+    fn reduce_IDENT(node: &CSTNode) -> String {
+        let [ident] = unpack_args(node);
+
+        match ident {
+            CSTNode::Terminal(term @ Terminal{kind: tokenizer::Kind::Ident, ..}) => term.text.to_string(),
+            _ => unreachable!(),
+        }
+    }
+
+
+    /// @parsing.inline(0)
+    fn reduce_UnreservedKeyword(node: &CSTNode) -> String {
+        UnreservedKeyword::reduce(node)
+    }
+}
+
+mod UnreservedKeyword {
+    use super::*;
+
+    pub fn reduce(node: &CSTNode) -> String {
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::UnreservedKeyword(_) => reduce_UnreservedKeyword(node),
+            _ => unreachable!(),
+        }
+    }
+
+    fn reduce_UnreservedKeyword(node: &CSTNode) -> String {
+        let [kw] = unpack_args(node);
+
+        match kw {
+            CSTNode::Terminal(term @ Terminal{kind: tokenizer::Kind::Keyword(_), ..}) => term.text.to_string(),
+            _ => unreachable!(),
+        }
+    }
+}
+
+mod OptFilterClause {
+    use super::*;
+
+    pub fn reduce(node: &CSTNode) -> Option<Box<ast::Expr>> {
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::OptFilterClause(reductions::OptFilterClause::FilterClause) => reduce_FilterClause(node),
+            reductions::Reduction::OptFilterClause(reductions::OptFilterClause::epsilon) => reduce_empty(node),
+            _ => unreachable!(),
+        }
+    }
+
+    /// @parsing.inline(0)
+    fn reduce_FilterClause(node: &CSTNode) -> Option<Box<ast::Expr>> {
+        let [filter_clause] = unpack_args(node);
+        Some(FilterClause::reduce(filter_clause))
+    }
+
+    fn reduce_empty(node: &CSTNode) -> Option<Box<ast::Expr>> {
+        None
+    }
+}
+
+mod FilterClause {
+    use super::*;
+
+    pub fn reduce(node: &CSTNode) -> Box<ast::Expr> {
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::FilterClause(_) => reduce_FILTER_Expr(node),
+            _ => unreachable!(),
+        }
+    }
+
+    /// @parsing.inline(1)
+    fn reduce_FILTER_Expr(node: &CSTNode) -> Box<ast::Expr> {
+        let [_filter, expr] = unpack_args(node);
+        Expr::reduce(expr)
+    }
+}
+
+mod OptSelectLimit {
+    use super::*;
+
+    pub fn reduce(node: &CSTNode) -> (Option<Box<ast::Expr>>, Option<Box<ast::Expr>>) {
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::OptSelectLimit(reductions::OptSelectLimit::SelectLimit) => reduce_SelectLimit(node),
+            reductions::Reduction::OptSelectLimit(reductions::OptSelectLimit::epsilon) => reduce_empty(node),
+            _ => unreachable!(),
+        }
+    }
+
+    /// @parsing.inline(0)
+    fn reduce_SelectLimit(node: &CSTNode) -> (Option<Box<ast::Expr>>, Option<Box<ast::Expr>>) {
+        let [select_limit] = unpack_args(node);
+        SelectLimit::reduce(select_limit)
+    }
+
+    fn reduce_empty(_node: &CSTNode) -> (Option<Box<ast::Expr>>, Option<Box<ast::Expr>>) {
+        (None, None)
+    }
+}
+
+mod SelectLimit {
+    use super::*;
+
+    pub fn reduce(node: &CSTNode) -> (Option<Box<ast::Expr>>, Option<Box<ast::Expr>>) {
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::SelectLimit(reductions::SelectLimit::OffsetClause_LimitClause) => reduce_OffsetClause_LimitClause(node),
+            reductions::Reduction::SelectLimit(reductions::SelectLimit::OffsetClause) => reduce_OffsetClause(node),
+            reductions::Reduction::SelectLimit(reductions::SelectLimit::LimitClause) => reduce_LimitClause(node),
+            _ => unreachable!(),
+        }
+    }
+
+    fn reduce_OffsetClause_LimitClause(node: &CSTNode) -> (Option<Box<ast::Expr>>, Option<Box<ast::Expr>>) {
+        let [offset_clause, limit_clause] = unpack_args(node);
+        (Some(OffsetClause::reduce(offset_clause)), Some(LimitClause::reduce(limit_clause)))
+    }
+
+    fn reduce_OffsetClause(node: &CSTNode) -> (Option<Box<ast::Expr>>, Option<Box<ast::Expr>>) {
+        let [offset_clause] = unpack_args(node);
+        (Some(OffsetClause::reduce(offset_clause)), None)
+    }
+
+    fn reduce_LimitClause(node: &CSTNode) -> (Option<Box<ast::Expr>>, Option<Box<ast::Expr>>) {
+        let [limit_clause] = unpack_args(node);
+        (None, Some(LimitClause::reduce(limit_clause)))
+    }
+}
+
+mod OffsetClause {
+    use super::*;
+
+    pub fn reduce(node: &CSTNode) -> Box<ast::Expr> {
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::OffsetClause(_) => reduce_OFFSET_Expr(node),
+            _ => unreachable!(),
+        }
+    }
+
+    /// @parsing.inline(1)
+    fn reduce_OFFSET_Expr(node: &CSTNode) -> Box<ast::Expr> {
+        let [_offset, expr] = unpack_args(node);
+        Expr::reduce(expr)
+    }
+}
+
+mod LimitClause {
+    use super::*;
+
+    pub fn reduce(node: &CSTNode) -> Box<ast::Expr> {
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::LimitClause(_) => reduce_LIMIT_Expr(node),
+            _ => unreachable!(),
+        }
+    }
+
+    /// @parsing.inline(1)
+    fn reduce_LIMIT_Expr(node: &CSTNode) -> Box<ast::Expr> {
+        let [_offset, expr] = unpack_args(node);
+        Expr::reduce(expr)
     }
 }
