@@ -220,11 +220,7 @@ def _uncompile_dml_stmt(stmt: pgast.DMLQuery, *, ctx: Context):
     - ptr-s are (usually) pointers on the subject.
     """
 
-    raise errors.QueryError(
-        f'{stmt.__class__.__name__} are not supported',
-        span=stmt.span,
-        pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
-    )
+    raise dispatch._raise_unsupported(stmt)
 
 
 def _uncompile_dml_subject(
