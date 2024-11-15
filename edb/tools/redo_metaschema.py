@@ -18,6 +18,7 @@
 
 from edb.tools.edb import edbcommands
 
+
 @edbcommands.command("redo-metaschema-sql")
 def run():
     """
