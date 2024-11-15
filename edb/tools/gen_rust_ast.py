@@ -6,10 +6,12 @@ from itertools import chain
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
+from edb.edgeql import parser
 from edb.common.ast import base as ast
 from edb.common import enum as s_enum
 from edb.common import typing_inspect
 from edb.tools.edb import edbcommands
+import edb._edgeql_parser as rust_parser
 
 
 @dataclasses.dataclass()
@@ -35,6 +37,11 @@ ast_classes: typing.Dict[str, ASTClass] = {}
 
 @edbcommands.command("gen-rust-ast")
 def main() -> None:
+    gen_rust_ast()
+    gen_rust_reductions()
+
+
+def gen_rust_ast() -> None:
     f = open('edb/edgeql-parser/src/ast.rs', 'w')
 
     f.write(
@@ -86,6 +93,39 @@ def main() -> None:
             continue
 
         f.write(codegen_enum(name, typ))
+
+
+def gen_rust_reductions() -> None:
+    f = open('edb/edgeql-parser/src/reductions.rs', 'w')
+
+    f.write(
+        textwrap.dedent(
+            '''\
+            // DO NOT EDIT. This file was generated with:
+            //
+            // $ edb gen-rust-ast
+
+            //! Reductions for productions in EdgeQL
+            #![allow(non_camel_case_types)]
+            '''
+        )
+    )
+
+    parser.preload_spec()
+    productions = rust_parser.get_productions()
+
+    prod_to_reductions = collections.defaultdict(list)
+    for prod, reduction_method in productions:
+        if reduction_method.__doc__ is not None:
+            reduction_name = get_reduction_name(reduction_method.__doc__)
+            prod_to_reductions[prod.__name__].append(reduction_name)
+
+    f.write(codegen_reduction_enum(prod_to_reductions))
+
+    for prod in sorted(prod_to_reductions.keys()):
+        f.write(codegen_production_reductions_enum(prod, prod_to_reductions[prod]))
+
+    f.write(codegen_reduction_from_id_func(productions))
 
 
 def codegen_struct(cls: ASTClass) -> str:
@@ -243,3 +283,70 @@ def translate_type(
         return typ.__name__
 
     return typ.__name__
+
+
+def codegen_reduction_enum(
+    prod_to_reductions: typing.Dict[str, typing.List[str]],
+) -> str:
+    members = ''
+    for production in sorted(prod_to_reductions.keys()):
+        members += f'    {production}({production}),\n'
+
+    return (
+        '\n#[derive(Debug, Clone)]\n'
+        + f'pub enum Reduction {"{"}\n'
+        + members
+        + '}\n'
+    )
+
+
+def codegen_production_reductions_enum(
+    prod_name: str,
+    reductions: typing.List[str],
+) -> str:
+    members = ''
+    for reduction in reductions:
+        members += f'    {reduction},\n'
+
+    return (
+        '\n#[derive(Debug, Clone)]\n'
+        + f'pub enum {prod_name} {"{"}\n'
+        + members
+        + '}\n'
+    )
+
+
+def codegen_reduction_from_id_func(
+    productions: typing.List[
+        typing.Tuple[typing.Type, typing.Callable]
+    ],
+) -> str:
+    matches = ''
+    for id, (prod, reduction_method) in enumerate(productions):
+        matches += f'        {id} => '
+
+        if reduction_method.__doc__ is not None:
+            prod_name = prod.__name__
+            reduction_name = get_reduction_name(reduction_method.__doc__)
+
+            reduction_member = f'{prod_name}::{reduction_name}'
+            matches += f'Reduction::{prod_name}({reduction_member}),\n'
+        else:
+            matches += 'unreachable!(),\n'
+
+    return (
+        '\npub fn reduction_from_id(id: usize) -> Reduction {\n'
+        + '    match id {\n'
+        + matches
+        + '        _ => unreachable!(),\n'
+        + '    }\n'
+        + '}\n'
+    )
+
+
+def get_reduction_name(docstring: str) -> str:
+    prepared_name = docstring.replace(r'%reduce', '')
+    prepared_name = prepared_name.replace('<e>', 'epsilon')
+    prepared_name = prepared_name.replace('[', '').replace(']', '')
+    prepared_name = prepared_name.replace('\\', '')
+    return '_'.join(prepared_name.split())

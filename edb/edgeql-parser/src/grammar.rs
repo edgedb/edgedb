@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 
 use crate::ast;
+use crate::reductions;
 use crate::parser::{CSTNode, Production};
 
 fn unpack_prod<'a>(node: &'a CSTNode<'a>) -> &'a Production<'a> {
@@ -12,6 +13,11 @@ fn unpack_prod<'a>(node: &'a CSTNode<'a>) -> &'a Production<'a> {
 
 fn unpack_args<'a, const A: usize>(node: &'a CSTNode<'a>) -> &'a [CSTNode<'a>; A] {
     unpack_prod(node).args.try_into().unwrap()
+}
+
+fn unpack_prod_reduction<'a>(node: &'a CSTNode<'a>) -> reductions::Reduction {
+    let id = unpack_prod(node).id;
+    reductions::reduction_from_id(id)
 }
 
 fn expr_todo() -> Box<ast::Expr> {
@@ -34,10 +40,10 @@ mod OptDirection {
     use super::*;
 
     pub fn reduce(node: &CSTNode) -> Option<ast::SortOrder> {
-        match unpack_prod(node).id {
-            1447 => reduce_ASC(node),
-            1448 => reduce_DESC(node),
-            1449 => reduce_empty(node),
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::OptDirection(reductions::OptDirection::ASC) => reduce_ASC(node),
+            reductions::Reduction::OptDirection(reductions::OptDirection::DESC) => reduce_DESC(node),
+            reductions::Reduction::OptDirection(reductions::OptDirection::epsilon) => reduce_empty(node),
             _ => unreachable!(),
         }
     }
@@ -59,10 +65,10 @@ mod OptNonesOrder {
     use super::*;
 
     pub fn reduce(node: &CSTNode) -> Option<ast::NonesOrder> {
-        match unpack_prod(node).id {
-            1483 => reduce_EMPTY_FIRST(node),
-            1484 => reduce_EMPTY_LAST(node),
-            1485 => reduce_empty(node),
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::OptNonesOrder(reductions::OptNonesOrder::EMPTY_FIRST) => reduce_EMPTY_FIRST(node),
+            reductions::Reduction::OptNonesOrder(reductions::OptNonesOrder::EMPTY_LAST) => reduce_EMPTY_LAST(node),
+            reductions::Reduction::OptNonesOrder(reductions::OptNonesOrder::epsilon) => reduce_empty(node),
             _ => unreachable!(),
         }
     }
@@ -102,9 +108,9 @@ mod OrderbyList {
     use super::*;
 
     pub fn reduce(node: &CSTNode) -> Vec<ast::SortExpr> {
-        match unpack_prod(node).id {
-            1533 => reduce_OrderbyExpr(node),
-            1534 => reduce_OrderbyList_THEN_OrderbyExpr(node),
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::OrderbyList(reductions::OrderbyList::OrderbyExpr) => reduce_OrderbyExpr(node),
+            reductions::Reduction::OrderbyList(reductions::OrderbyList::OrderbyList_THEN_OrderbyExpr) => reduce_OrderbyList_THEN_OrderbyExpr(node),
             _ => unreachable!(),
         }
     }
@@ -140,9 +146,9 @@ mod OptSortClause {
     use super::*;
 
     pub fn reduce(node: &CSTNode) -> Vec<ast::SortExpr> {
-        match unpack_prod(node).id {
-            1507 => reduce_SortClause(node),
-            1508 => reduce_empty(node),
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::OptSortClause(reductions::OptSortClause::SortClause) => reduce_SortClause(node),
+            reductions::Reduction::OptSortClause(reductions::OptSortClause::epsilon) => reduce_empty(node),
             _ => unreachable!(),
         }
     }
@@ -162,8 +168,8 @@ mod SimpleSelect {
     use super::*;
 
     pub fn reduce(node: &CSTNode) -> ast::SelectQuery {
-        match unpack_prod(node).id {
-            1784 => reduce_Select(node),
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::SimpleSelect(_) => reduce_Select(node),
             _ => unreachable!(),
         }
     }
@@ -223,14 +229,14 @@ mod ExprStmtCore {
     use super::*;
 
     pub fn reduce(node: &CSTNode) -> ast::Query {
-        match unpack_prod(node).id {
-            1187 => reduce_InternalGroup(node),
-            1188 => reduce_SimpleDelete(node),
-            1189 => reduce_SimpleFor(node),
-            1190 => reduce_SimpleGroup(node),
-            1191 => reduce_SimpleInsert(node),
-            1192 => reduce_SimpleSelect(node),
-            1193 => reduce_SimpleUpdate(node)
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::ExprStmtCore(reductions::ExprStmtCore::InternalGroup) => reduce_InternalGroup(node),
+            reductions::Reduction::ExprStmtCore(reductions::ExprStmtCore::SimpleDelete) => reduce_SimpleDelete(node),
+            reductions::Reduction::ExprStmtCore(reductions::ExprStmtCore::SimpleFor) => reduce_SimpleFor(node),
+            reductions::Reduction::ExprStmtCore(reductions::ExprStmtCore::SimpleGroup) => reduce_SimpleGroup(node),
+            reductions::Reduction::ExprStmtCore(reductions::ExprStmtCore::SimpleInsert) => reduce_SimpleInsert(node),
+            reductions::Reduction::ExprStmtCore(reductions::ExprStmtCore::SimpleSelect) => reduce_SimpleSelect(node),
+            reductions::Reduction::ExprStmtCore(reductions::ExprStmtCore::SimpleUpdate) => reduce_SimpleUpdate(node),
             _ => unreachable!(),
         }
     }
@@ -279,9 +285,9 @@ mod ExprStmt {
     use super::*;
 
     pub fn reduce(node: &CSTNode) -> ast::Expr {
-        match unpack_prod(node).id {
-            1185 => reduce_ExprStmtCore(node),
-            1186 => reduce_WithBlock_ExprStmtCore(node),
+        match unpack_prod_reduction(node) {
+            reductions::Reduction::ExprStmt(reductions::ExprStmt::ExprStmtCore) => reduce_ExprStmtCore(node),
+            reductions::Reduction::ExprStmt(reductions::ExprStmt::WithBlock_ExprStmtCore) => reduce_WithBlock_ExprStmtCore(node),
             _ => unreachable!(),
         }
     }

@@ -308,6 +308,7 @@ pub struct Splat {
 pub struct Path {
     pub steps: Vec<PathSteps>,
     pub partial: bool,
+    pub allow_factoring: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -422,6 +423,7 @@ pub struct ShapeElement {
 pub struct Shape {
     pub expr: Option<Box<Expr>>,
     pub elements: Vec<ShapeElement>,
+    pub allow_factoring: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -536,6 +538,7 @@ pub struct UpdateQuery {
     pub shape: Vec<ShapeElement>,
     pub subject: Box<Expr>,
     pub r#where: Option<Box<Expr>>,
+    pub sql_mode_link_only: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -760,6 +763,7 @@ pub enum CreateObject {
     CreateAlias(CreateAlias),
     CreateGlobal(CreateGlobal),
     CreateConcreteConstraint(CreateConcreteConstraint),
+    CreateIndexMatch(CreateIndexMatch),
     CreateConcreteIndex(CreateConcreteIndex),
     CreateAnnotationValue(CreateAnnotationValue),
     CreateAccessPolicy(CreateAccessPolicy),
@@ -768,7 +772,6 @@ pub enum CreateObject {
     CreateFunction(CreateFunction),
     CreateOperator(CreateOperator),
     CreateCast(CreateCast),
-    CreateIndexMatch(CreateIndexMatch),
 }
 
 #[derive(Debug, Clone)]
@@ -821,6 +824,7 @@ pub enum DropObject {
     DropConstraint(DropConstraint),
     DropConcreteConstraint(DropConcreteConstraint),
     DropIndex(DropIndex),
+    DropIndexMatch(DropIndexMatch),
     DropConcreteIndex(DropConcreteIndex),
     DropAnnotationValue(DropAnnotationValue),
     DropAccessPolicy(DropAccessPolicy),
@@ -829,7 +833,6 @@ pub enum DropObject {
     DropFunction(DropFunction),
     DropOperator(DropOperator),
     DropCast(DropCast),
-    DropIndexMatch(DropIndexMatch),
 }
 
 #[derive(Debug, Clone)]
@@ -886,6 +889,7 @@ pub struct CreateMigration {
     pub body: NestedQLBlock,
     pub parent: Option<ObjectRef>,
     pub metadata_only: bool,
+    pub target_sdl: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -1683,6 +1687,27 @@ pub struct DropIndex {
 }
 
 #[derive(Debug, Clone)]
+pub struct CreateIndexMatch {
+    pub commands: Vec<DDLOperation>,
+    pub aliases: Option<Vec<Alias>>,
+    pub name: ObjectRef,
+    pub object_class: SchemaObjectClass,
+    pub valid_type: TypeName,
+    pub r#abstract: bool,
+    pub sdl_alter_if_exists: bool,
+    pub create_if_not_exists: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct DropIndexMatch {
+    pub commands: Vec<DDLOperation>,
+    pub aliases: Option<Vec<Alias>>,
+    pub name: ObjectRef,
+    pub object_class: SchemaObjectClass,
+    pub valid_type: TypeName,
+}
+
+#[derive(Debug, Clone)]
 pub enum ConcreteIndexCommand {
     CreateConcreteIndex(CreateConcreteIndex),
     AlterConcreteIndex(AlterConcreteIndex),
@@ -2157,6 +2182,7 @@ pub enum BranchType {
     EMPTY,
     SCHEMA,
     DATA,
+    TEMPLATE,
 }
 
 #[derive(Debug, Clone)]
@@ -2308,6 +2334,7 @@ pub enum SchemaObjectClass {
     FUNCTION,
     GLOBAL,
     INDEX,
+    INDEX_MATCH,
     LINK,
     MIGRATION,
     MODULE,
