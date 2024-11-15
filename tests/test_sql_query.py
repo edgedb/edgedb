@@ -1059,8 +1059,10 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 WHERE attrelid = pcon.confrelid
                   AND attnum = ANY(pcon.confkey)
             ) paf ON TRUE
-            WHERE pc.relname IN ('Book.chapters', 'Movie', 'Movie.actors')
-            ORDER BY pc.relname, pcon.contype DESC, pa.key
+            WHERE pc.relname IN (
+                'Book.chapters', 'Movie', 'Movie.director', 'Movie.actors'
+            )
+            ORDER BY pc.relname ASC, pcon.contype DESC, pa.key
             '''
         )
 
@@ -1074,6 +1076,9 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ['Movie.actors', b'p', 'source,target', None, None],
                 ['Movie.actors', b'f', 'source', 'Movie', 'id'],
                 ['Movie.actors', b'f', 'target', 'Person', 'id'],
+                ['Movie.director', b'p', 'source,target', None, None],
+                ['Movie.director', b'f', 'source', 'Movie', 'id'],
+                ['Movie.director', b'f', 'target', 'Person', 'id'],
             ],
         )
 

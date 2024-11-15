@@ -6897,7 +6897,10 @@ def _generate_sql_information_schema(
 
         UNION ALL
 
-        -- foreign keys for multi link & property tables: source & target
+        -- foreign keys for:
+        -- - multi link tables (source & target),
+        -- - multi property tables (source),
+        -- - single link with link properties (source & target),
         -- these constraints do not actually exist, so we emulate it entierly
         SELECT
             edgedbsql_VER.uuid_to_oid(sp.id) AS oid,
@@ -6933,6 +6936,16 @@ def _generate_sql_information_schema(
             pc.cmax,
             pc.ctid
         FROM edgedb_VER."_SchemaPointer" sp
+
+        -- find links with link properties
+        LEFT JOIN LATERAL (
+            SELECT sl.id
+            FROM edgedb_VER."_SchemaLink" sl
+            LEFT JOIN edgedb_VER."_SchemaProperty" AS slp ON slp.source = sl.id
+            GROUP BY sl.id
+            HAVING COUNT(*) > 2
+        ) link_props ON link_props.id = sp.id
+
         JOIN pg_class pc ON pc.relname = sp.id::TEXT
         JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pc.reltype
 
@@ -6945,9 +6958,9 @@ def _generate_sql_information_schema(
         JOIN pg_class pcf ON pcf.reltype = vtf.pg_type_id
 
         WHERE
-            sp.cardinality = 'Many'
-            AND sp.expr IS NULL -- non-computable
-            AND TRUE
+            sp.cardinality = 'Many' OR link_props.id IS NOT NULL
+            AND sp.computable IS NOT TRUE
+            AND sp.internal IS NOT TRUE
         """
         ),
         trampoline.VersionedView(
