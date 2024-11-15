@@ -278,18 +278,26 @@ def compile_volatile_bindings(
     for binding, volatility in (stmt.bindings or ()):
         # If something we are WITH binding contains DML, we want to
         # compile it *now*, in the context of its initial appearance
-        # and not where the variable is used. This will populate
-        # dml_stmts with the CTEs, which will be picked up when the
-        # variable is referenced.
-        if irutils.contains_dml(binding):
+        # and not where the variable is used.
+        #
+        # Similarly, if something we are WITH binding is volatile and the stmt
+        # contains dml, we similarly want to compile it *now*.
+
+        # If the binding is a with binding for a DML stmt, manually construct
+        # the CTEs.
+        #
+        # Note: This condition is checked first, because if the binding
+        # *references* DML then contains_dml is true. If the binding is compiled
+        # normally, since the referenced DML was already compiled, the rvar will
+        # be retrieved, and no CTEs will be set up.
+        if volatility.is_volatile() and irutils.contains_dml(stmt):
+            _compile_volatile_binding_for_dml(stmt, binding, ctx=ctx)
+
+        # For typical DML, just compile it. This will populate dml_stmts with
+        # the CTEs, which will be picked up when the variable is referenced.
+        elif irutils.contains_dml(binding):
             with ctx.substmt() as bctx:
                 dispatch.compile(binding, ctx=bctx)
-
-        # If something we are WITH binding is volatile and the stmt contains
-        # dml, we similarly want to compile it *now*. Unlike with DML, we need
-        # to manually construct the CTE here.
-        elif volatility.is_volatile() and irutils.contains_dml(stmt):
-            _compile_volatile_binding_for_dml(stmt, binding, ctx=ctx)
 
 
 def _compile_volatile_binding_for_dml(
