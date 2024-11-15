@@ -225,8 +225,8 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 'genre_id',
                 'release_year',
                 'title',
-                'gid',
-                'g__type__',
+                'g_id',
+                'g___type__',
                 'name',
             ],
         )
@@ -892,7 +892,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         # `a` would be duplicated,
         # so second and third instance are prefixed with rel var name
-        self.assert_shape(res, 1, ['a', 'ya', 'ua'])
+        self.assert_shape(res, 1, ['a', 'y_a', 'u_a'])
 
     async def test_sql_query_47(self):
         res = await self.scon.fetch(
@@ -903,7 +903,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             SELECT x.*, u.* FROM x, y as u
             '''
         )
-        self.assert_shape(res, 2, ['a', 'ua'])
+        self.assert_shape(res, 2, ['a', 'u_a'])
 
     async def test_sql_query_48(self):
         res = await self.scon.fetch(
@@ -916,19 +916,19 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         )
 
         # duplicate rel var names can yield duplicate column names
-        self.assert_shape(res, 4, ['a', 'ya', 'ya'])
+        self.assert_shape(res, 4, ['a', 'y_a', 'y_a'])
 
     async def test_sql_query_49(self):
         res = await self.scon.fetch(
             '''
             WITH
               x(a) AS (VALUES (2))
-            SELECT 1 as xa, * FROM x, x
+            SELECT 1 as x_a, * FROM x, x
             '''
         )
 
         # duplicate rel var names can yield duplicate column names
-        self.assert_shape(res, 1, ['xa', 'a', 'xa'])
+        self.assert_shape(res, 1, ['x_a', 'a', 'x_a'])
 
     async def test_sql_query_50(self):
         res = await self.scon.fetch(
@@ -940,7 +940,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         )
 
         # duplicate rel var names can yield duplicate column names
-        self.assert_shape(res, 1, ['a', 'xa'])
+        self.assert_shape(res, 1, ['a', 'x_a'])
 
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname

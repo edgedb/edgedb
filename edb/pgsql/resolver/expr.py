@@ -109,7 +109,9 @@ def _resolve_ResTarget(
             nam: str = column.name
             if nam in existing_names:
                 # prefix with table name
-                nam = (table.alias or table.name or '') + nam
+                rel_var_name = table.alias or table.name
+                if rel_var_name:
+                    nam = rel_var_name + '_' + nam
             existing_names.add(nam)
 
             res.append(
