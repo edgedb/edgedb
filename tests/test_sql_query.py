@@ -871,6 +871,14 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         ):
             await self.squery_values('SELECT name FROM User')
 
+    async def test_sql_query_45(self):
+        with self.assertRaisesRegex(
+            asyncpg.InvalidColumnReferenceError,
+            'duplicate column name: `a`',
+            position="16",
+        ):
+            await self.squery_values('SELECT 1 AS a, 2 AS a')
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(

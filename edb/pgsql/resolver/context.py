@@ -52,6 +52,8 @@ class Options:
     # apply access policies to select & dml statements
     apply_access_policies: bool
 
+    for_edgedb_protocol: bool
+
 
 @dataclass(kw_only=True)
 class Scope:

@@ -314,6 +314,7 @@ def resolve_query(
         search_path=search_path,
         allow_user_specified_id=allow_user_specified_id,
         apply_access_policies=apply_access_policies,
+        for_edgedb_protocol=True,
     )
     resolved = pg_resolver.resolve(stmt, schema, options)
     source = pg_codegen.generate(resolved.ast, with_translation_data=True)
