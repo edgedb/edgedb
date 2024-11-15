@@ -1128,3 +1128,91 @@ class TestDDLExtensions(tb.DDLTestCase):
                 drop extension package bar VERSION '2.0';
                 drop extension package foo VERSION '2.0';
             ''')
+
+    async def _extension_test_07(self):
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                using extension asdf version "1.0";
+                module default {
+                    function lol() -> int64 using (ext::asdf::getver())
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.assert_query_result(
+            'select lol()',
+            [1],
+        )
+
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                using extension asdf version "3.0";
+                module default {
+                    function lol() -> int64 using (ext::asdf::getver())
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.assert_query_result(
+            'select lol()',
+            [3],
+        )
+        await self.assert_query_result(
+            'select ext::asdf::getsver()',
+            ['3'],
+        )
+
+    async def test_edgeql_extensions_07(self):
+        # Make an extension with chained upgrades
+        await self.con.execute('''
+            create extension package asdf version '1.0' {
+                set ext_module := "ext::asdf";
+                create module ext::asdf;
+                create function ext::asdf::getver() -> int64 using (1);
+            };
+            create extension package asdf version '2.0' {
+                set ext_module := "ext::asdf";
+                create module ext::asdf;
+                create function ext::asdf::getver() -> int64 using (2);
+                create function ext::asdf::getsver() -> str using (
+                   <str>ext::asdf::getver());
+            };
+            create extension package asdf version '3.0' {
+                set ext_module := "ext::asdf";
+                create module ext::asdf;
+                create function ext::asdf::getver() -> int64 using (3);
+                create function ext::asdf::getsver() -> str using (
+                    <str>ext::asdf::getver());
+            };
+
+            create extension package asdf migration
+                from version '1.0' to version '2.0' {
+                alter function ext::asdf::getver() using (2);
+                create function ext::asdf::getsver() -> str using (
+                    <str>ext::asdf::getver());
+            };
+            create extension package asdf migration
+                from version '2.0' to version '3.0' {
+                alter function ext::asdf::getver() using (3);
+            };
+        ''')
+        try:
+            async for tx in self._run_and_rollback_retrying():
+                async with tx:
+                    await self._extension_test_07()
+        finally:
+            await self.con.execute('''
+                drop extension package asdf version '1.0';
+                drop extension package asdf version '2.0';
+
+                drop extension package asdf migration
+                from version '1.0' to version '2.0';
+
+                drop extension package asdf version '3.0';
+                drop extension package asdf migration
+                from version '2.0' to version '3.0';
+            ''')
