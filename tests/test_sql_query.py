@@ -26,6 +26,8 @@ import uuid
 from edb.tools import test
 from edb.testbase import server as tb
 
+import edgedb
+
 try:
     import asyncpg
     from asyncpg import serverversion
@@ -2017,3 +2019,100 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         self.assertEqual(len(res), 0)
 
         await tran.rollback()
+
+    async def test_native_sql_query_00(self):
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                    1 AS a,
+                    'two' AS b,
+                    to_json('three') AS c,
+                    timestamp '2000-12-16 12:21:13' AS d,
+                    timestamp with time zone '2000-12-16 12:21:13' AS e,
+                    date '0001-01-01 AD' AS f,
+                    interval '2000 years' AS g,
+                    ARRAY[1, 2, 3] AS h,
+                    FALSE AS i
+            """,
+            [{
+                "a": 1,
+                "b": "two",
+                "c": '"three"',
+                "d": "2000-12-16T12:21:13",
+                "e": "2000-12-16T12:21:13+00:00",
+                "f": "0001-01-01",
+                "g": edgedb.RelativeDuration(months=2000 * 12),
+                "h": [1, 2, 3],
+                "i": False,
+            }]
+        )
+
+    async def test_native_sql_query_01(self):
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                    "Movie".title,
+                    "Genre".name AS genre
+                FROM
+                    "Movie",
+                    "Genre"
+                WHERE
+                    "Movie".genre_id = "Genre".id
+                    AND "Genre".name = 'Drama'
+                ORDER BY
+                    title
+            """,
+            [{
+                "title": "Forrest Gump",
+                "genre": "Drama",
+            }, {
+                "title": "Saving Private Ryan",
+                "genre": "Drama",
+            }]
+        )
+
+    async def test_native_sql_query_02(self):
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                    "Movie".title,
+                    "Genre".name AS genre
+                FROM
+                    "Movie",
+                    "Genre"
+                WHERE
+                    "Movie".genre_id = "Genre".id
+                    AND "Genre".name = $1::text
+                    AND length("Movie".title) > $2::int
+                ORDER BY
+                    title
+            """,
+            [{
+                "title": "Saving Private Ryan",
+                "genre": "Drama",
+            }],
+            variables={
+                "0": "Drama",
+                "1": 14,
+            },
+        )
+
+    async def test_native_sql_query_03(self):
+        # No output at all
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                WHERE NULL
+            """,
+            [],
+        )
+
+        # Empty tuples
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                FROM "Movie"
+                LIMIT 1
+            """,
+            [{}],
+        )

@@ -27,6 +27,7 @@ from typing import (
     Type,
     Union,
     Iterable,
+    Literal,
     Sequence,
     Dict,
     List,
@@ -1112,40 +1113,51 @@ class ConnectedTestCase(ClusterTestCase):
             message=message, rel_tol=rel_tol, abs_tol=abs_tol,
         )
 
-    async def assert_query_result(self, query,
-                                  exp_result_json,
-                                  exp_result_binary=...,
-                                  *,
-                                  always_typenames=False,
-                                  msg=None, sort=None, implicit_limit=0,
-                                  variables=None, json_only=False,
-                                  rel_tol=None, abs_tol=None):
+    async def assert_query_result(
+        self,
+        query,
+        exp_result_json,
+        exp_result_binary=...,
+        *,
+        always_typenames=False,
+        msg=None,
+        sort=None,
+        implicit_limit=0,
+        variables=None,
+        json_only=False,
+        binary_only=False,
+        rel_tol=None,
+        abs_tol=None,
+        language: Literal["sql", "edgeql"] = "edgeql",
+    ):
         fetch_args = variables if isinstance(variables, tuple) else ()
         fetch_kw = variables if isinstance(variables, dict) else {}
-        try:
-            tx = self.con.transaction()
-            await tx.start()
-            try:
-                res = await self.con._fetchall_json(
-                    query,
-                    *fetch_args,
-                    __limit__=implicit_limit,
-                    **fetch_kw)
-            finally:
-                await tx.rollback()
 
-            res = json.loads(res)
-            if sort is not None:
-                assert_data_shape.sort_results(res, sort)
-            assert_data_shape.assert_data_shape(
-                res, exp_result_json, self.fail,
-                message=msg, rel_tol=rel_tol, abs_tol=abs_tol,
-            )
-        except Exception:
-            self.add_fail_notes(serialization='json')
-            if msg:
-                self.add_fail_notes(msg=msg)
-            raise
+        if not binary_only and language != "sql":
+            try:
+                tx = self.con.transaction()
+                await tx.start()
+                try:
+                    res = await self.con._fetchall_json(
+                        query,
+                        *fetch_args,
+                        __limit__=implicit_limit,
+                        **fetch_kw)
+                finally:
+                    await tx.rollback()
+
+                res = json.loads(res)
+                if sort is not None:
+                    assert_data_shape.sort_results(res, sort)
+                assert_data_shape.assert_data_shape(
+                    res, exp_result_json, self.fail,
+                    message=msg, rel_tol=rel_tol, abs_tol=abs_tol,
+                )
+            except Exception:
+                self.add_fail_notes(serialization='json')
+                if msg:
+                    self.add_fail_notes(msg=msg)
+                raise
 
         if json_only:
             return
@@ -1164,14 +1176,22 @@ class ConnectedTestCase(ClusterTestCase):
                 __typenames__=typenames,
                 __typeids__=typeids,
                 __limit__=implicit_limit,
+                __language__=(
+                    tconn.InputLanguage.SQL if language == "sql"
+                    else tconn.InputLanguage.EDGEQL
+                ),
                 **fetch_kw
             )
             res = serutils.serialize(res)
             if sort is not None:
                 assert_data_shape.sort_results(res, sort)
             assert_data_shape.assert_data_shape(
-                res, exp_result_binary, self.fail,
-                message=msg, rel_tol=rel_tol, abs_tol=abs_tol,
+                res,
+                exp_result_binary,
+                self.fail,
+                message=msg,
+                rel_tol=rel_tol,
+                abs_tol=abs_tol,
             )
         except Exception:
             self.add_fail_notes(
@@ -1181,6 +1201,28 @@ class ConnectedTestCase(ClusterTestCase):
             if msg:
                 self.add_fail_notes(msg=msg)
             raise
+
+    async def assert_sql_query_result(
+        self,
+        query,
+        exp_result,
+        *,
+        msg=None,
+        sort=None,
+        variables=None,
+        rel_tol=None,
+        abs_tol=None,
+    ):
+        await self.assert_query_result(
+            query,
+            exp_result,
+            msg=msg,
+            sort=sort,
+            variables=variables,
+            rel_tol=rel_tol,
+            abs_tol=abs_tol,
+            language="sql",
+        )
 
     async def assert_index_use(self, query, *args, index_type):
         def look(obj):
