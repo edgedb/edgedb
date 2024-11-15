@@ -69,7 +69,6 @@ from . import astutils
 from . import context
 from . import dispatch
 from . import eta_expand
-from . import inference
 from . import pathctx
 from . import schemactx
 from . import setgen
@@ -1945,27 +1944,6 @@ def _normalize_view_ptr_expr(
         ctx.env.schema = ptrcls.set_target(ctx.env.schema, ptr_target)
 
     assert ptrcls is not None
-
-    if materialized and is_mutation and any(
-        x.is_binding == irast.BindingKind.With
-        and x.expr
-        # If it is a computed pointer, look just at the definition.
-        # TODO: It is a weird artifact of how our shapes are defined
-        # that if a shape element is defined to be some WITH-bound variable,
-        # that set can is both a is_binding and an irast.Pointer. It seems like
-        # the is_binding part should be nested inside it.
-        and (y := x.expr.expr if isinstance(x.expr, irast.Pointer) else x.expr)
-        and inference.infer_volatility(
-            y, ctx.env, exclude_dml=True).is_volatile()
-
-        for reason in materialized
-        if isinstance(reason, irast.MaterializeVisible)
-        for _, x in reason.sets
-    ):
-        raise errors.QueryError(
-            f'cannot refer to volatile WITH bindings from DML',
-            span=compexpr.span if compexpr else None,
-        )
 
     if materialized and not is_mutation and ctx.qlstmt:
         assert ptrcls not in ctx.env.materialized_sets

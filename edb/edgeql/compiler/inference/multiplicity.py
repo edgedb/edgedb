@@ -588,7 +588,7 @@ def _infer_stmt_multiplicity(
 ) -> inf_ctx.MultiplicityInfo:
     # WITH block bindings need to be validated; they don't have to
     # have multiplicity UNIQUE, but their sub-expressions must be valid.
-    for part in (ir.bindings or []):
+    for part, _ in (ir.bindings or []):
         infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
 
     subj = ir.subject if isinstance(ir, irast.MutatingStmt) else ir.result
@@ -688,7 +688,7 @@ def __infer_insert_stmt(
 ) -> inf_ctx.MultiplicityInfo:
     # WITH block bindings need to be validated, they don't have to
     # have multiplicity UNIQUE, but their sub-expressions must be valid.
-    for part in (ir.bindings or []):
+    for part, _ in (ir.bindings or []):
         infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
 
     # INSERT will always return a proper set, but we still want to

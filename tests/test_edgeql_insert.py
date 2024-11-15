@@ -5822,33 +5822,1054 @@ class TestInsert(tb.QueryTestCase):
 
     @tb.needs_factoring_weakly
     async def test_edgeql_insert_volatile_01(self):
-        # Ideally we'll support these versions eventually
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError,
-                "cannot refer to volatile WITH bindings from DML"):
-            await self.con.execute('''
-                WITH name := <str>random(),
-                INSERT Person { name := name, tag := name };
-            ''')
-
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError,
-                "cannot refer to volatile WITH bindings from DML"):
-            await self.con.execute('''
-                WITH name := <str>random(),
-                SELECT (INSERT Person { name := name, tag := name });
-            ''')
-
         await self.con.execute('''
-            FOR name in {<str>random()}
+            WITH name := <str>random(),
+            INSERT Person { name := name, tag := name };
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_02(self):
+        await self.con.execute('''
+            WITH
+                x := <str>random(),
+                name := x ++ "!",
+            INSERT Person { name := name, tag := name };
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_03(self):
+        await self.con.execute('''
+            WITH
+                x := "!",
+                name := x ++ <str>random(),
+            INSERT Person { name := name, tag := name };
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_04(self):
+        await self.con.execute('''
+            WITH
+                x := <str>random(),
+                name := x ++ <str>random(),
+            INSERT Person { name := name, tag := name };
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_05(self):
+        await self.con.execute('''
+            WITH name := <str>random(),
+            SELECT (INSERT Person { name := name, tag := name });
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_06(self):
+        await self.con.execute('''
+            WITH
+                x := <str>random(),
+                name := x ++ "!",
+            SELECT (INSERT Person { name := name, tag := name });
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_07(self):
+        await self.con.execute('''
+            WITH
+                x := "!",
+                name := x ++ <str>random(),
+            SELECT (INSERT Person { name := name, tag := name });
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_08(self):
+        await self.con.execute('''
+            WITH
+                x := <str>random(),
+                name := x ++ <str>random(),
+            SELECT (INSERT Person { name := name, tag := name });
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_09(self):
+        await self.con.execute('''
+            WITH x := <str>random()
+            SELECT (
+                WITH name := x ++ "!"
+                INSERT Person { name := name, tag := name }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_10(self):
+        await self.con.execute('''
+            WITH x := "!"
+            SELECT (
+                WITH name := x ++ <str>random()
+                INSERT Person { name := name, tag := name }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_11(self):
+        await self.con.execute('''
+            WITH x := <str>random()
+            SELECT (
+                WITH name := x ++ <str>random()
+                INSERT Person { name := name, tag := name }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_12(self):
+        await self.con.execute('''
+            WITH
+                x := <str>random(),
+                y := x ++ <str>random(),
+            SELECT (
+                WITH name := y ++ <str>random()
+                INSERT Person { name := name, tag := name }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_13(self):
+        await self.con.execute('''
+            WITH
+                x := (
+                    WITH name := <str>random(),
+                    INSERT Person { name := name, tag := name }
+                )
+            SELECT (
+                INSERT Person { name := x.name ++ "!", tag := x.tag }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_14(self):
+        await self.con.execute('''
+            WITH
+                x := "!",
+                y := (
+                    WITH name := <str>random(),
+                    INSERT Person { name := name, tag := name, tag2 := name }
+                ),
+            SELECT (
+                INSERT Person {
+                    name := x ++ y.name,
+                    tag := x ++ y.tag,
+                    tag2 := y.tag2,
+                }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_15(self):
+        await self.con.execute('''
+            WITH
+                x := <str>random(),
+                y := (
+                    WITH name := "!",
+                    INSERT Person { name := name, tag := name, tag2 := name }
+                ),
+            SELECT (
+                INSERT Person {
+                    name := x ++ y.name,
+                    tag := x ++ y.tag,
+                    tag2 := y.tag2,
+                }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_16(self):
+        await self.con.execute('''
+            WITH
+                x := <str>random(),
+                y := (
+                    WITH name := <str>random(),
+                    INSERT Person { name := name, tag := name, tag2 := name }
+                ),
+            SELECT (
+                INSERT Person {
+                    name := x ++ y.name,
+                    tag := x ++ y.tag,
+                    tag2 := y.tag2,
+                }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_17(self):
+        await self.con.execute('''
+            WITH
+                x := "!",
+                y := (
+                    WITH name := x ++ <str>random(),
+                    INSERT Person { name := name, tag := name, tag2 := x }
+                ),
+            SELECT (
+                INSERT Person {
+                    name := y.name ++ "!",
+                    tag := y.tag ++ "!",
+                    tag2 := y.tag2,
+                }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_18(self):
+        await self.con.execute('''
+            WITH
+                x := <str>random(),
+                y := (
+                    WITH name := x ++ "!",
+                    INSERT Person { name := name, tag := name, tag2 := x }
+                ),
+            SELECT (
+                INSERT Person {
+                    name := y.name ++ "!",
+                    tag := y.tag ++ "!",
+                    tag2 := y.tag2,
+                }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_19(self):
+        await self.con.execute('''
+            WITH
+                x := <str>random(),
+                y := (
+                    WITH name := x ++ <str>random(),
+                    INSERT Person { name := name, tag := name, tag2 := x }
+                ),
+            SELECT (
+                INSERT Person {
+                    name := y.name ++ "!",
+                    tag := y.tag ++ "!",
+                    tag2 := y.tag2,
+                }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_20(self):
+        await self.con.execute('''
+            WITH
+                x := (
+                    WITH name := "!",
+                    INSERT Person { name := name, tag := name, tag2 := name }
+                ),
+                y := <str>random(),
+            SELECT (
+                INSERT Person {
+                    name := x.name ++ y,
+                    tag := x.tag ++ y,
+                    tag2 := x.tag2,
+                }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_21(self):
+        await self.con.execute('''
+            WITH
+                x := (
+                    WITH name := <str>random(),
+                    INSERT Person { name := name, tag := name, tag2 := name }
+                ),
+                y := "!",
+            SELECT (
+                INSERT Person {
+                    name := x.name ++ y,
+                    tag := x.tag ++ y,
+                    tag2 := x.tag2,
+                }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_22(self):
+        await self.con.execute('''
+            WITH
+                x := (
+                    WITH name := <str>random(),
+                    INSERT Person { name := name, tag := name, tag2 := name }
+                ),
+                y := <str>random(),
+            SELECT (
+                INSERT Person {
+                    name := x.name ++ y,
+                    tag := x.tag ++ y,
+                    tag2 := x.tag2,
+                }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_23(self):
+        await self.con.execute('''
+            WITH
+                x := (
+                    WITH name := "!",
+                    INSERT Person { name := name, tag := name, tag2 := name }
+                ),
+                y := x.name ++ <str>random(),
+            SELECT (
+                INSERT Person {
+                    name := y,
+                    tag := y,
+                    tag2 := x.tag2,
+                }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_24(self):
+        await self.con.execute('''
+            WITH
+                x := (
+                    WITH name := <str>random(),
+                    INSERT Person { name := name, tag := name, tag2 := name }
+                ),
+                y := x.name ++ "!",
+            SELECT (
+                INSERT Person {
+                    name := y,
+                    tag := y,
+                    tag2 := x.tag2,
+                }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_25(self):
+        await self.con.execute('''
+            WITH
+                x := (
+                    WITH name := <str>random(),
+                    INSERT Person { name := name, tag := name, tag2 := name }
+                ),
+                y := x.name ++ <str>random(),
+            SELECT (
+                INSERT Person {
+                    name := y,
+                    tag := y,
+                    tag2 := x.tag2,
+                }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_26(self):
+        await self.con.execute('''
+            WITH
+                x := (
+                    WITH name := <str>random(),
+                    INSERT Person {
+                        name := name,
+                        tag := name,
+                        tag2 := name,
+                    }
+                ),
+                y := (
+                    WITH r := <str>random(),
+                    INSERT Person {
+                        name := x.name ++ r,
+                        tag := x.tag ++ r,
+                        tag2 := x.tag,
+                    }
+                ),
+            SELECT (
+                WITH r := <str>random(),
+                INSERT Person {
+                    name := y.name ++ r,
+                    tag := y.name ++ r,
+                    tag2 := y.tag ++ r,
+                }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [3],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [3],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [2],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_27(self):
+        await self.con.execute('''
+            WITH x := "!"
+            INSERT Person {
+                name := x,
+                tag := x,
+                note := (
+                    WITH y := <str>random()
+                    insert Note { name := y, note := y }
+                )
+            };
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+        await self.assert_query_result(
+            'SELECT all(Note.name = Person.note)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_28(self):
+        await self.con.execute('''
+            WITH x := <str>random(),
+            INSERT Person {
+                name := x,
+                tag := x,
+                note := (
+                    WITH y := <str>random()
+                    insert Note { name := y, note := y }
+                )
+            };
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+        await self.assert_query_result(
+            'SELECT all(Note.name = Person.note)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_29(self):
+        await self.con.execute('''
+            WITH x := "!",
+            INSERT Person {
+                name := x,
+                tag := x,
+                note := (
+                    WITH y := x ++ <str>random()
+                    insert Note { name := y, note := y }
+                )
+            };
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+        await self.assert_query_result(
+            'SELECT all(Note.name = Person.note)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_30(self):
+        await self.con.execute('''
+            WITH x := <str>random(),
+            INSERT Person {
+                name := x,
+                tag := x,
+                note := (
+                    WITH y := x ++ "!"
+                    insert Note { name := y, note := y }
+                )
+            };
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+        await self.assert_query_result(
+            'SELECT all(Note.name = Person.note)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_31(self):
+        await self.con.execute('''
+            WITH x := <str>random(),
+            INSERT Person {
+                name := x,
+                tag := x,
+                note := (
+                    WITH y := x ++ <str>random()
+                    insert Note { name := y, note := y }
+                )
+            };
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True],
+        )
+        await self.assert_query_result(
+            'SELECT all(Note.name = Person.note)',
+            [True],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_32(self):
+        await self.con.execute('''
+            FOR name in {<str>random(), <str>random()}
             UNION (INSERT Person { name := name, tag := name });
         ''')
 
         await self.assert_query_result(
-            r'''
-                SELECT all(Person.name = Person.tag)
-            ''',
-            [True]
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_33(self):
+        await self.con.execute('''
+            WITH x := "!"
+            FOR y in {<str>random(), <str>random()}
+            UNION (
+                WITH name := x ++ y
+                INSERT Person { name := name, tag := name, tag2 := x }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_34(self):
+        await self.con.execute('''
+            WITH x := <str>random()
+            FOR y in {"A", "B"}
+            UNION (
+                WITH name := x ++ y
+                INSERT Person { name := name, tag := name, tag2 := x }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_35(self):
+        await self.con.execute('''
+            WITH x := <str>random()
+            FOR y in {<str>random(), <str>random()}
+            UNION (
+                WITH name := x ++ y
+                INSERT Person { name := name, tag := name, tag2 := x }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_36(self):
+        await self.con.execute('''
+            WITH x := "!"
+            FOR name in {x ++ <str>random(), x ++ <str>random()}
+            UNION (
+                INSERT Person { name := name, tag := name, tag2 := x }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_37(self):
+        await self.con.execute('''
+            WITH x := <str>random()
+            FOR name in {x ++ "A", x ++ "B"}
+            UNION (
+                INSERT Person { name := name, tag := name, tag2 := x }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_38(self):
+        await self.con.execute('''
+            WITH x := <str>random()
+            FOR name in {x ++ <str>random(), x ++ <str>random()}
+            UNION (
+                INSERT Person { name := name, tag := name, tag2 := x }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_39(self):
+        await self.con.execute('''
+            FOR x in {"A", "B"}
+            UNION (
+                WITH name := x ++ <str>random()
+                INSERT Person { name := name, tag := name, tag2 := x }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [2],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_40(self):
+        await self.con.execute('''
+            FOR x in {<str>random(), <str>random()}
+            UNION (
+                WITH name := x ++ "!"
+                INSERT Person { name := name, tag := name, tag2 := x }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [2],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_41(self):
+        await self.con.execute('''
+            FOR x in {<str>random(), <str>random()}
+            UNION (
+                WITH name := x ++ <str>random()
+                INSERT Person { name := name, tag := name, tag2 := x }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [2],
+        )
+
+    @tb.needs_factoring_weakly
+    async def test_edgeql_insert_volatile_42(self):
+        await self.con.execute('''
+            WITH
+                x := (
+                    WITH name := <str>random(),
+                    INSERT Person {
+                        name := name,
+                        tag := name,
+                        tag2 := name,
+                    }
+                )
+            FOR y in {<str>random(), <str>random()}
+            UNION (
+                WITH name := x.name ++ y
+                INSERT Person { name := name, tag := name, tag2 := x.tag2 }
+            );
+        ''')
+
+        await self.assert_query_result(
+            'SELECT all(Person.name = Person.tag)',
+            [True, True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag))',
+            [2],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.tag2))',
+            [1],
         )
 
     async def test_edgeql_insert_multi_exclusive_01(self):
