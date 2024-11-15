@@ -62,6 +62,7 @@ def compile_sql(
     current_user: str,
     allow_user_specified_id: Optional[bool],
     apply_access_policies_sql: Optional[bool],
+    disambiguate_column_names: bool,
 ) -> List[dbstate.SQLQueryUnit]:
     opts = ResolverOptionsPartial(
         query_str=query_str,
@@ -69,6 +70,7 @@ def compile_sql(
         current_user=current_user,
         allow_user_specified_id=allow_user_specified_id,
         apply_access_policies_sql=apply_access_policies_sql,
+        disambiguate_column_names=disambiguate_column_names,
     )
 
     stmts = pg_parser.parse(query_str, propagate_spans=True)
@@ -274,6 +276,7 @@ class ResolverOptionsPartial:
     query_str: str
     allow_user_specified_id: Optional[bool]
     apply_access_policies_sql: Optional[bool]
+    disambiguate_column_names: bool
 
 
 def resolve_query(
@@ -314,7 +317,7 @@ def resolve_query(
         search_path=search_path,
         allow_user_specified_id=allow_user_specified_id,
         apply_access_policies=apply_access_policies,
-        for_edgedb_protocol=True,
+        disambiguate_column_names=opts.disambiguate_column_names,
     )
     resolved = pg_resolver.resolve(stmt, schema, options)
     source = pg_codegen.generate(resolved.ast, with_translation_data=True)

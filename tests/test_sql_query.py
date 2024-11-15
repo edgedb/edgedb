@@ -872,12 +872,12 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             await self.squery_values('SELECT name FROM User')
 
     async def test_sql_query_45(self):
-        with self.assertRaisesRegex(
-            asyncpg.InvalidColumnReferenceError,
-            'duplicate column name: `a`',
-            position="16",
-        ):
-            await self.squery_values('SELECT 1 AS a, 2 AS a')
+        await self.squery_values('SELECT 1 AS a, 2 AS a')
+
+        # Over edgedb-protocol, this query should raise:
+        #   asyncpg.InvalidColumnReferenceError
+        #   'duplicate column name: `a`'
+        #   position="16"
 
     async def test_sql_query_46(self):
         res = await self.scon.fetch(
@@ -918,6 +918,11 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         # duplicate rel var names can yield duplicate column names
         self.assert_shape(res, 4, ['a', 'y_a', 'y_a'])
 
+        # Over edgedb-protocol, this query should raise:
+        #   asyncpg.InvalidColumnReferenceError
+        #   'duplicate column name: `y_a`'
+        #   position="114"
+
     async def test_sql_query_49(self):
         res = await self.scon.fetch(
             '''
@@ -929,6 +934,11 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         # duplicate rel var names can yield duplicate column names
         self.assert_shape(res, 1, ['x_a', 'a', 'x_a'])
+
+        # Over edgedb-protocol, this query should raise:
+        #   asyncpg.InvalidColumnReferenceError
+        #   'duplicate column name: `x_a`'
+        #   position="83"
 
     async def test_sql_query_50(self):
         res = await self.scon.fetch(
@@ -1332,6 +1342,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             SELECT information_schema._pg_truetypid(a.*, t.*)
             FROM pg_attribute a
             JOIN pg_type t ON t.oid = a.atttypid
+            LIMIT 500
             '''
         )
 

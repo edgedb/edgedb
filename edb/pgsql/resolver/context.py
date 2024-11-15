@@ -52,7 +52,8 @@ class Options:
     # apply access policies to select & dml statements
     apply_access_policies: bool
 
-    for_edgedb_protocol: bool
+    # makes sure that output does not contain duplicated column names
+    disambiguate_column_names: bool
 
 
 @dataclass(kw_only=True)

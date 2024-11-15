@@ -112,6 +112,13 @@ def _resolve_ResTarget(
                 rel_var_name = table.alias or table.name
                 if rel_var_name:
                     nam = rel_var_name + '_' + nam
+            if nam in existing_names:
+                if ctx.options.disambiguate_column_names:
+                    raise errors.QueryError(
+                        f'duplicate column name: `{nam}`',
+                        span=res_target.span,
+                        pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
+                    )
             existing_names.add(nam)
 
             res.append(
@@ -145,7 +152,7 @@ def _resolve_ResTarget(
 
         if res_target.name:
             # explicit duplicate name: error out
-            if ctx.options.for_edgedb_protocol:
+            if ctx.options.disambiguate_column_names:
                 raise errors.QueryError(
                     f'duplicate column name: `{alias}`',
                     span=res_target.span,
