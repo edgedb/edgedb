@@ -19,7 +19,7 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import Optional, Sequence, Tuple, List, cast, Set
+from typing import Optional, Tuple, List, cast, Set
 import uuid
 
 from edb import errors
@@ -133,8 +133,6 @@ def resolve_SelectStmt(
         targets, columns = expr.resolve_ResTarget(
             t, existing_names=names, ctx=ctx
         )
-        if ctx.options.for_edgedb_protocol:
-            _validate_duplicate_column_names(table, columns, t.span)
 
         target_list.extend(targets)
         table.columns.extend(columns)
@@ -605,20 +603,3 @@ def _compile_read_of_obj_table(
         )
     )
     return pgast.Relation(name=cte_name)
-
-
-def _validate_duplicate_column_names(
-    table: context.Table,
-    columns: Sequence[context.Column],
-    span: pgast.Span | None,
-):
-    for column in columns:
-        duplicate = any(column.name == c.name for c in table.columns)
-        if not duplicate:
-            continue
-
-        raise errors.QueryError(
-            f'duplicate column name: `{column.name}`',
-            span=span,
-            pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
-        )
