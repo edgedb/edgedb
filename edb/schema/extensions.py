@@ -543,8 +543,41 @@ class ExtensionCommand(
     sd.ObjectCommand[Extension],
     context_class=ExtensionCommandContext,
 ):
+    def _get_dependencies(
+        self,
+        pkg: ExtensionPackage,
+        schema: s_schema.Schema,
+    ) -> list[Extension]:
+        deps = []
+        for dep_name in pkg.get_dependencies(schema):
+            if '>=' not in dep_name:
+                builtin = 'built-in ' if pkg.get_builtin(schema) else ''
+                raise errors.SchemaError(
+                    f'{builtin}extension {self.classname} missing '
+                    f'version for {dep_name}')
+            dep_name, dep_version_s = dep_name.split('>=')
+            dep = schema.get_global(Extension, dep_name, default=None)
+            if not dep:
+                raise errors.SchemaError(
+                    f'cannot create extension {self.get_displayname()!r} '
+                    f'version {str(pkg.get_version(schema))!r}: '
+                    f'it depends on extension {dep_name} which has not been'
+                    f' created'
+                )
+            dep_version = verutils.parse_version(dep_version_s)
+            real_version = dep.get_package(schema).get_version(schema)
+            if dep_version > real_version:
+                raise errors.SchemaError(
+                    f'cannot create extension {self.get_displayname()!r} '
+                    f'version {str(pkg.get_version(schema))!r}: '
+                    f'it depends on extension {dep_name}, but the wrong '
+                    f'version is installed: {real_version} is present but '
+                    f'{dep_version} is required'
+                )
 
-    pass
+            deps.append(dep)
+
+        return deps
 
 
 @contextlib.contextmanager
@@ -656,33 +689,7 @@ class CreateExtension(
 
         self.set_attribute_value('package', pkg)
 
-        deps = []
-        for dep_name in pkg.get_dependencies(schema):
-            if '>=' not in dep_name:
-                builtin = 'built-in ' if pkg.get_builtin(schema) else ''
-                raise errors.SchemaError(
-                    f'{builtin}extension {self.classname} missing '
-                    f'version for {dep_name}')
-            dep_name, dep_version_s = dep_name.split('>=')
-            dep = schema.get_global(Extension, dep_name, default=None)
-            if not dep:
-                raise errors.SchemaError(
-                    f'cannot create extension {self.get_displayname()!r}:'
-                    f' it depends on extension {dep_name} which has not been'
-                    f' created'
-                )
-            dep_version = verutils.parse_version(dep_version_s)
-            real_version = dep.get_package(schema).get_version(schema)
-            if dep_version > real_version:
-                raise errors.SchemaError(
-                    f'cannot create extension {self.get_displayname()!r} :'
-                    f'it depends on extension {dep_name}, but the wrong '
-                    f'version is installed: {real_version} is present but '
-                    f'{dep_version} is required'
-                )
-
-            deps.append(dep)
-
+        deps = self._get_dependencies(pkg, schema)
         self.set_attribute_value('dependencies', deps)
 
         return schema
@@ -765,8 +772,9 @@ class AlterExtension(
     ) -> None:
         if op.property == 'package':
             assert isinstance(node, qlast.AlterExtension)
+            package = op.new_value.resolve(schema)
             node.to_version = qlast.Constant.string(
-                str(self.scls.get_package(schema).get_version(schema))
+                str(package.get_version(schema))
             )
         else:
             super()._apply_field_ast(schema, context, node, op)
@@ -787,7 +795,8 @@ class AlterExtension(
 
         self.set_attribute_value('package', pkg)
 
-        # TODO: dependency verification and updating!!
+        deps = self._get_dependencies(pkg, schema)
+        self.set_attribute_value('dependencies', deps)
 
         return schema
 
