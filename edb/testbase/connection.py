@@ -57,6 +57,9 @@ def raise_first_warning(warnings, res):
     raise warnings[0]
 
 
+InputLanguage = protocol.InputLanguage
+
+
 class BaseTransaction(abc.ABC):
 
     ID_COUNTER = 0
@@ -419,6 +422,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         self,
         query: str,
         *args,
+        __language__: protocol.InputLanguage = protocol.InputLanguage.EDGEQL,
         __limit__: int = 0,
         __typeids__: bool = False,
         __typenames__: bool = False,
@@ -436,7 +440,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
                 implicit_limit=__limit__,
                 inline_typeids=__typeids__,
                 inline_typenames=__typenames__,
-                input_language=protocol.InputLanguage.EDGEQL,
+                input_language=__language__,
                 output_format=protocol.OutputFormat.BINARY,
                 allow_capabilities=__allow_capabilities__,
             )
