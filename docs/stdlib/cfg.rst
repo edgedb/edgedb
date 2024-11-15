@@ -439,7 +439,7 @@ Client connections
     - EdgeDB binary protocol
   * - ``cfg::ConnectionTransport.TCP_PG``
     - Postgres protocol for the
-      :ref:`SQL query mode <ref_sql_support>`
+      :ref:`SQL query mode <ref_sql_adapter>`
   * - ``cfg::ConnectionTransport.HTTP``
     - EdgeDB binary protocol
       :ref:`tunneled over HTTP <ref_http_tunnelling>`
