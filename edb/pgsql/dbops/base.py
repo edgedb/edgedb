@@ -504,6 +504,10 @@ class Query(Command):
         return f'<Query {self.text!r}>'
 
 
+class PLQuery(Query):
+    pass
+
+
 class DefaultMeta(type):
     def __bool__(cls):
         return False

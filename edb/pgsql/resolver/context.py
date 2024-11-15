@@ -52,6 +52,9 @@ class Options:
     # apply access policies to select & dml statements
     apply_access_policies: bool
 
+    # whether to generate an EdgeQL-compatible single-column output variant.
+    include_edgeql_io_format_alternative: Optional[bool]
+
 
 @dataclass(kw_only=True)
 class Scope:

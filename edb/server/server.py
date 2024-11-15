@@ -1433,7 +1433,7 @@ class Server(BaseServer):
                     db_config = self._parse_db_config(config_json, user_schema)
                     try:
                         logger.info("repairing database '%s'", dbname)
-                        sql += bootstrap.prepare_repair_patch(
+                        rep_sql = bootstrap.prepare_repair_patch(
                             self._std_schema,
                             self._refl_schema,
                             user_schema,
@@ -1442,6 +1442,7 @@ class Server(BaseServer):
                             self._tenant.get_backend_runtime_params(),
                             db_config,
                         )
+                        sql += (rep_sql,)
                     except errors.EdgeDBError as e:
                         if isinstance(e, errors.InternalServerError):
                             raise
@@ -1454,7 +1455,7 @@ class Server(BaseServer):
                         ) from e
 
                 if sql:
-                    await conn.sql_fetch(sql)
+                    await conn.sql_execute(sql)
                 logger.info(
                     "finished applying patch %d to database '%s'", num, dbname)
 

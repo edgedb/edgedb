@@ -107,13 +107,13 @@ class PGConnection(Protocol):
 
     async def sql_execute(
         self,
-        sql: bytes | tuple[bytes, ...],
+        sql: bytes,
     ) -> None:
         ...
 
     async def sql_fetch(
         self,
-        sql: bytes | tuple[bytes, ...],
+        sql: bytes,
         *,
         args: tuple[bytes, ...] | list[bytes] = (),
     ) -> list[tuple[bytes, ...]]:
@@ -1495,6 +1495,83 @@ class GetCurrentDatabaseFunction(trampoline.VersionedFunction):
             returns=('text',),
             language='sql',
             volatility='stable',
+            text=self.text,
+        )
+
+
+class RaiseNoticeFunction(trampoline.VersionedFunction):
+    text = '''
+    BEGIN
+        RAISE NOTICE USING
+            MESSAGE = "msg",
+            DETAIL = COALESCE("detail", ''),
+            HINT = COALESCE("hint", ''),
+            COLUMN = COALESCE("column", ''),
+            CONSTRAINT = COALESCE("constraint", ''),
+            DATATYPE = COALESCE("datatype", ''),
+            TABLE = COALESCE("table", ''),
+            SCHEMA = COALESCE("schema", '');
+        RETURN "rtype";
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'notice'),
+            args=[
+                ('rtype', ('anyelement',)),
+                ('msg', ('text',), "''"),
+                ('detail', ('text',), "''"),
+                ('hint', ('text',), "''"),
+                ('column', ('text',), "''"),
+                ('constraint', ('text',), "''"),
+                ('datatype', ('text',), "''"),
+                ('table', ('text',), "''"),
+                ('schema', ('text',), "''"),
+            ],
+            returns=('anyelement',),
+            # NOTE: The main reason why we don't want this function to be
+            # immutable is that immutable functions can be
+            # pre-evaluated by the query planner once if they have
+            # constant arguments. This means that using this function
+            # as the second argument in a COALESCE will raise a
+            # notice regardless of whether the first argument is
+            # NULL or not.
+            volatility='stable',
+            language='plpgsql',
+            text=self.text,
+        )
+
+
+# edgedb.indirect_return() to be used to return values from
+# anonymous code blocks or other contexts that have no return
+# data channel.
+class IndirectReturnFunction(trampoline.VersionedFunction):
+    text = """
+    SELECT
+        edgedb_VER.notice(
+            NULL::text,
+            msg => 'edb:notice:indirect_return',
+            detail => "value"
+        )
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'indirect_return'),
+            args=[
+                ('value', ('text',)),
+            ],
+            returns=('text',),
+            # NOTE: The main reason why we don't want this function to be
+            # immutable is that immutable functions can be
+            # pre-evaluated by the query planner once if they have
+            # constant arguments. This means that using this function
+            # as the second argument in a COALESCE will raise a
+            # notice regardless of whether the first argument is
+            # NULL or not.
+            volatility='stable',
+            language='sql',
             text=self.text,
         )
 
@@ -5088,6 +5165,8 @@ def get_bootstrap_commands(
         dbops.CreateFunction(GetSharedObjectMetadata()),
         dbops.CreateFunction(GetDatabaseMetadataFunction()),
         dbops.CreateFunction(GetCurrentDatabaseFunction()),
+        dbops.CreateFunction(RaiseNoticeFunction()),
+        dbops.CreateFunction(IndirectReturnFunction()),
         dbops.CreateFunction(RaiseExceptionFunction()),
         dbops.CreateFunction(RaiseExceptionOnNullFunction()),
         dbops.CreateFunction(RaiseExceptionOnNotNullFunction()),
@@ -6480,20 +6559,6 @@ def _generate_sql_information_schema(
                 )
             ),
         ),
-        # TODO: Should we try to filter here, and fix up some stuff
-        # elsewhere, instead of overriding pg_get_constraintdef?
-        trampoline.VersionedView(
-            name=("edgedbsql", "pg_constraint"),
-            query="""
-        SELECT
-            pc.*,
-            pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
-        FROM pg_constraint pc
-        JOIN pg_namespace pn ON pc.connamespace = pn.oid
-        WHERE NOT (pn.nspname = 'edgedbpub' AND pc.conbin IS NOT NULL)
-        """
-        ),
-
         # pg_class that contains classes only for tables
         # This is needed so we can use it to filter pg_index to indexes only on
         # visible tables.
@@ -6575,10 +6640,16 @@ def _generate_sql_information_schema(
             pi.indisclustered,
             pi.indisvalid,
             pi.indcheckxmin,
-            pi.indisready,
+            CASE
+                WHEN COALESCE(is_id.t, FALSE) THEN TRUE
+                ELSE FALSE -- override so pg_dump won't try to recreate them
+            END AS indisready,
             pi.indislive,
             pi.indisreplident,
-            pi.indkey,
+            CASE
+                WHEN COALESCE(is_id.t, FALSE) THEN ARRAY[1]::int2vector -- id: 1
+                ELSE pi.indkey
+            END AS indkey,
             pi.indcollation,
             pi.indclass,
             pi.indoption,
@@ -6936,6 +7007,88 @@ def _generate_sql_information_schema(
         """,
         ),
         trampoline.VersionedView(
+            name=("edgedbsql", "pg_constraint"),
+            query=r"""
+        -- primary keys
+        SELECT
+          pc.oid,
+          vt.table_name || '_pk' AS conname,
+          pc.connamespace,
+          'p'::"char" AS contype,
+          pc.condeferrable,
+          pc.condeferred,
+          pc.convalidated,
+          pc.conrelid,
+          pc.contypid,
+          pc.conindid,
+          pc.conparentid,
+          pc.confrelid,
+          pc.confupdtype,
+          pc.confdeltype,
+          pc.confmatchtype,
+          pc.conislocal,
+          pc.coninhcount,
+          pc.connoinherit,
+          pc.conkey,
+          pc.confkey,
+          pc.conpfeqop,
+          pc.conppeqop,
+          pc.conffeqop,
+          pc.confdelsetcols,
+          pc.conexclop,
+          pc.conbin,
+          pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
+        FROM pg_constraint pc
+        JOIN edgedbsql_VER.pg_class_tables pct ON pct.oid = pc.conrelid
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pct.reltype
+        JOIN pg_attribute pa ON (pa.attname = 'id' AND pa.attrelid = pct.oid)
+        WHERE contype = 'u' -- our ids and all links will have unique constraint
+          AND attnum = ANY(conkey)
+
+        UNION ALL
+
+        -- foreign keys
+        SELECT
+          edgedbsql_VER.uuid_to_oid(sl.id) as oid,
+          vt.table_name || '_fk_' || sl.name AS conname,
+          edgedbsql_VER.uuid_to_oid(vt.module_id) AS connamespace,
+          'f'::"char" AS contype,
+          FALSE AS condeferrable,
+          FALSE AS condeferred,
+          TRUE AS convalidated,
+          pc.oid AS conrelid,
+          0::oid AS contypid,
+          0::oid AS conindid, -- let's hope this is not needed
+          0::oid AS conparentid,
+          pc_target.oid AS confrelid,
+          'a'::"char" AS confupdtype,
+          'a'::"char" AS confdeltype,
+          's'::"char" AS confmatchtype,
+          TRUE AS conislocal,
+          0::int2 AS coninhcount,
+          TRUE AS connoinherit,
+          ARRAY[pa.attnum]::int2[] AS conkey,
+          ARRAY[1]::int2[] AS confkey, -- id will always have attnum 1
+          ARRAY[2972]::oid[] AS conpfeqop, -- 2972 is eq comparison for uuids
+          ARRAY[2972]::oid[] AS conppeqop, -- 2972 is eq comparison for uuids
+          ARRAY[2972]::oid[] AS conffeqop, -- 2972 is eq comparison for uuids
+          NULL::int2[] AS confdelsetcols,
+          NULL::oid[] AS conexclop,
+          NULL::pg_node_tree AS conbin,
+          pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
+        FROM edgedbsql_VER.virtual_tables vt
+        JOIN pg_class pc ON pc.reltype = vt.pg_type_id
+        JOIN edgedb_VER."_SchemaLink" sl
+          ON sl.source = vt.id -- AND COALESCE(sl.cardinality = 'One', TRUE)
+        JOIN edgedbsql_VER.virtual_tables vt_target
+          ON sl.target = vt_target.id
+        JOIN pg_class pc_target ON pc_target.reltype = vt_target.pg_type_id
+        JOIN edgedbsql_VER.pg_attribute pa
+          ON pa.attrelid = pc.oid
+         AND pa.attname = sl.name || '_id'
+        """
+        ),
+        trampoline.VersionedView(
             name=("edgedbsql", "pg_statistic"),
             query="""
         SELECT
@@ -7111,6 +7264,18 @@ def _generate_sql_information_schema(
         WHERE c.relkind = 'v'::"char"
         """,
         ),
+        # Omit all descriptions (comments), becase all non-system comments
+        # are our internal implementation details.
+        trampoline.VersionedView(
+            name=("edgedbsql", "pg_description"),
+            query="""
+        SELECT
+            *,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_description
+        WHERE FALSE
+        """,
+        ),
     ]
 
     # We expose most of the views as empty tables, just to prevent errors when
@@ -7159,6 +7324,7 @@ def _generate_sql_information_schema(
         'pg_subscription',
         'pg_tables',
         'pg_views',
+        'pg_description',
     }
 
     PG_TABLES_WITH_SYSTEM_COLS = {
@@ -7179,7 +7345,6 @@ def _generate_sql_information_schema(
         'pg_db_role_setting',
         'pg_default_acl',
         'pg_depend',
-        'pg_description',
         'pg_enum',
         'pg_event_trigger',
         'pg_extension',
@@ -7470,7 +7635,51 @@ def _generate_sql_information_schema(
 
                 WHERE t.oid = typeoid
             ''',
-        )
+        ),
+        trampoline.VersionedFunction(
+            name=("edgedbsql", "pg_get_constraintdef"),
+            args=[
+                ('conid', ('oid',)),
+            ],
+            returns=('text',),
+            volatility='stable',
+            text=r"""
+                SELECT CASE
+                    WHEN contype = 'p' THEN
+                    'PRIMARY KEY(' || (
+                        SELECT string_agg('"' || attname || '"', ', ')
+                        FROM edgedbsql_VER.pg_attribute
+                        WHERE attrelid = conrelid AND attnum = ANY(conkey)
+                    ) || ')'
+                    WHEN contype = 'f' THEN
+                    'FOREIGN KEY ("' || (
+                        SELECT attname
+                        FROM edgedbsql_VER.pg_attribute
+                        WHERE attrelid = conrelid AND attnum = ANY(conkey)
+                        LIMIT 1
+                    ) || '")' || ' REFERENCES "'
+                    || pn.nspname || '"."' || pc.relname || '"(id)'
+                    ELSE ''
+                    END
+                FROM edgedbsql_VER.pg_constraint con
+                LEFT JOIN edgedbsql_VER.pg_class_tables pc ON pc.oid = confrelid
+                LEFT JOIN edgedbsql_VER.pg_namespace pn
+                  ON pc.relnamespace = pn.oid
+                WHERE con.oid = conid
+            """
+        ),
+        trampoline.VersionedFunction(
+            name=("edgedbsql", "pg_get_constraintdef"),
+            args=[
+                ('conid', ('oid',)),
+                ('pretty', ('bool',)),
+            ],
+            returns=('text',),
+            volatility='stable',
+            text=r"""
+                SELECT pg_get_constraintdef(conid)
+            """
+        ),
     ]
 
     return (

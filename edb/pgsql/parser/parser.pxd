@@ -16,40 +16,26 @@
 # limitations under the License.
 #
 
-from __future__ import annotations
 
-from typing import (
-    List,
-)
+from libc.stdint cimport uint8_t
 
-import json
-
-from edb.pgsql import ast as pgast
-
-from . import ast_builder
-from . import parser
-from .parser import (
-    Source,
-    NormalizedSource,
-    deserialize,
+from edb.server.pgproto.pgproto cimport (
+    ReadBuffer,
+    WriteBuffer,
 )
 
 
-__all__ = (
-    "parse",
-    "Source",
-    "NormalizedSource",
-    "deserialize"
-)
+cdef class Source:
+    cdef:
+        str _text
+        bytes _serialized
+        bytes _cache_key
+
+    cdef WriteBuffer _serialize(self)
 
 
-def parse(
-    sql_query: str, propagate_spans: bool = False
-) -> List[pgast.Query | pgast.Statement]:
-    ast_json = parser.pg_parse(bytes(sql_query, encoding="UTF8"))
-
-    return ast_builder.build_stmts(
-        json.loads(ast_json),
-        sql_query,
-        propagate_spans,
-    )
+cdef class NormalizedSource(Source):
+    cdef:
+        str _orig_text
+        int _highest_extern_param_id
+        list _extracted_constants

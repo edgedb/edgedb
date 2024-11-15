@@ -374,7 +374,7 @@ def _describe_tuple(t: s_types.Tuple, *, ctx: Context) -> uuid.UUID:
         # .name
         buf.append(_name_packer(t.get_name(ctx.schema)))
         # .schema_defined
-        buf.append(_bool_packer(True))
+        buf.append(_bool_packer(t.get_is_persistent(ctx.schema)))
         # .ancestors
         buf.append(_type_ref_seq_packer([], ctx=ctx))
 
@@ -420,7 +420,7 @@ def _describe_array(t: s_types.Array, *, ctx: Context) -> uuid.UUID:
         # .name
         buf.append(_name_packer(t.get_name(ctx.schema)))
         # .schema_defined
-        buf.append(_bool_packer(True))
+        buf.append(_bool_packer(t.get_is_persistent(ctx.schema)))
         # .ancestors
         buf.append(_type_ref_seq_packer([], ctx=ctx))
 
@@ -459,7 +459,7 @@ def _describe_range(t: s_types.Range, *, ctx: Context) -> uuid.UUID:
         # .name
         buf.append(_name_packer(t.get_name(ctx.schema)))
         # .schema_defined
-        buf.append(_bool_packer(True))
+        buf.append(_bool_packer(t.get_is_persistent(ctx.schema)))
         # .ancestors
         buf.append(_type_ref_seq_packer([], ctx=ctx))
 
@@ -494,7 +494,7 @@ def _describe_multirange(t: s_types.MultiRange, *, ctx: Context) -> uuid.UUID:
         # .name
         buf.append(_name_packer(t.get_name(ctx.schema)))
         # .schema_defined
-        buf.append(_bool_packer(True))
+        buf.append(_bool_packer(t.get_is_persistent(ctx.schema)))
         # .ancestors
         buf.append(_type_ref_seq_packer([], ctx=ctx))
 

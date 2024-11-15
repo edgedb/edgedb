@@ -1209,7 +1209,7 @@ class Tenant(ha_base.ClusterProtocol):
             SELECT
                 json_object_agg(
                     "id"::text,
-                    "backend_id"
+                    json_build_array("backend_id", "name")
                 )::text
             FROM
                 edgedb_VER."_SchemaType"

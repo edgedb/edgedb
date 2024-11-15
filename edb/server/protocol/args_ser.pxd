@@ -26,6 +26,7 @@ cdef WriteBuffer recode_bind_args(
     dbview.CompiledQuery compiled,
     bytes bind_args,
     list positions = ?,
+    list data_types = ?,
 )
 
 

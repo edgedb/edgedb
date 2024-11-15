@@ -173,7 +173,7 @@ class PGConnectionProxy:
 
         return result
 
-    async def sql_execute(self, sql: bytes | tuple[bytes, ...]) -> None:
+    async def sql_execute(self, sql: bytes) -> None:
         async def _task() -> None:
             assert self._conn is not None
             await self._conn.sql_execute(sql)
@@ -181,7 +181,7 @@ class PGConnectionProxy:
 
     async def sql_fetch(
         self,
-        sql: bytes | tuple[bytes, ...],
+        sql: bytes,
         *,
         args: tuple[bytes, ...] | list[bytes] = (),
     ) -> list[tuple[bytes, ...]]:
@@ -634,8 +634,8 @@ def compile_single_query(
 ) -> str:
     ql_source = edgeql.Source.from_string(eql)
     units = edbcompiler.compile(ctx=compilerctx, source=ql_source).units
-    assert len(units) == 1 and len(units[0].sql) == 1
-    return units[0].sql[0].decode()
+    assert len(units) == 1
+    return units[0].sql.decode()
 
 
 def _get_all_subcommands(
@@ -687,7 +687,7 @@ def prepare_repair_patch(
     schema_class_layout: s_refl.SchemaClassLayout,
     backend_params: params.BackendRuntimeParams,
     config: Any,
-) -> tuple[bytes, ...]:
+) -> bytes:
     compiler = edbcompiler.new_compiler(
         std_schema=stdschema,
         reflection_schema=reflschema,
@@ -701,7 +701,7 @@ def prepare_repair_patch(
     )
     res = edbcompiler.repair_schema(compilerctx)
     if not res:
-        return ()
+        return b""
     sql, _, _ = res
 
     return sql
@@ -2111,10 +2111,10 @@ def compile_sys_queries(
         ),
         source=edgeql.Source.from_string(report_configs_query),
     ).units
-    assert len(units) == 1 and len(units[0].sql) == 1
+    assert len(units) == 1
 
     report_configs_typedesc_2_0 = units[0].out_type_id + units[0].out_type_data
-    queries['report_configs'] = units[0].sql[0].decode()
+    queries['report_configs'] = units[0].sql.decode()
 
     units = edbcompiler.compile(
         ctx=edbcompiler.new_compiler_context(
@@ -2128,7 +2128,7 @@ def compile_sys_queries(
         ),
         source=edgeql.Source.from_string(report_configs_query),
     ).units
-    assert len(units) == 1 and len(units[0].sql) == 1
+    assert len(units) == 1
     report_configs_typedesc_1_0 = units[0].out_type_id + units[0].out_type_data
 
     return (

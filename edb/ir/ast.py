@@ -1143,7 +1143,7 @@ class Stmt(Expr):
     result: Set = DUMMY_SET
     parent_stmt: typing.Optional[Stmt] = None
     iterator_stmt: typing.Optional[Set] = None
-    bindings: typing.Optional[typing.List[Set]] = None
+    bindings: typing.Optional[list[tuple[Set, qltypes.Volatility]]] = None
 
     @property
     def typeref(self) -> TypeRef:

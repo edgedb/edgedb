@@ -77,6 +77,12 @@ class Source:
     def extra_blobs(self) -> Sequence[bytes]:
         return ()
 
+    def extra_formatted_as_text(self) -> bool:
+        return False
+
+    def extra_type_oids(self) -> Sequence[int]:
+        return ()
+
     def serialize(self) -> bytes:
         return self._serialized
 

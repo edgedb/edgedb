@@ -851,6 +851,23 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ])
         )
 
+    async def test_edgeql_functions_enumerate_09(self):
+        await self.assert_query_result(
+            'SELECT enumerate(sum({1,2,3}))',
+            [[0, 6]]
+        )
+        await self.assert_query_result(
+            'SELECT enumerate(count(Issue))',
+            [[0, 4]]
+        )
+        await self.assert_query_result(
+            '''
+            WITH x := (SELECT enumerate(array_agg((select User)))),
+            SELECT (x.0, array_unpack(x.1).name)
+            ''',
+            [[0, 'Elvis'], [0, 'Yury']]
+        )
+
     async def test_edgeql_functions_array_get_01(self):
         await self.assert_query_result(
             r'''SELECT array_get([1, 2, 3], 2);''',

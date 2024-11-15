@@ -218,10 +218,15 @@ async fn request_sse(
                 return Err(format!("Failed to read response body: {e:?}"));
             }
         };
+
+        // Note that we use semaphores here in a strange way, but basically we
+        // want to have per-stream backpressure to avoid buffering messages
+        // indefinitely.
         let Ok(permit) = backpressure.acquire().await else {
             break;
         };
         permit.forget();
+
         if rpc_pipe
             .write(RustToPythonMessage::SSEEvent(id, chunk))
             .await
@@ -464,8 +469,14 @@ async fn execute(
             drop(permit);
         }
         RequestSse(id, url, method, body, headers) => {
-            // Ensure we send the end message whenever this block exits
-            defer!(_ = rpc_pipe.write(RustToPythonMessage::SSEEnd(id)));
+            // Ensure we send the end message whenever this block exits (though
+            // we need to spawn a task to do so)
+            defer!({
+                let rpc_pipe = rpc_pipe.clone();
+                tokio::task::spawn_local(async move {
+                    _ = rpc_pipe.write(RustToPythonMessage::SSEEnd(id)).await;
+                });
+            });
             let Ok(permit) = permit_manager.acquire().await else {
                 return;
             };
