@@ -6814,6 +6814,32 @@ class TestInsert(tb.QueryTestCase):
             [1],
         )
 
+    async def test_edgeql_insert_with_freeobject_01(self):
+        await self.con.execute('''
+            WITH free := { name := "asdf" },
+            SELECT (INSERT Person { name := free.name });
+        ''')
+
+        await self.assert_query_result(
+            'SELECT Person.name = "asdf"',
+            [True],
+        )
+
+    async def test_edgeql_insert_with_freeobject_02(self):
+        await self.con.execute('''
+            WITH free := { name := <str>random() },
+            SELECT (INSERT Person { name := free.name, tag := free.name });
+        ''')
+
+        await self.assert_query_result(
+            'WITH P := (Person {ok := .name = .tag}) SELECT all(P.ok)',
+            [True],
+        )
+        await self.assert_query_result(
+            'SELECT count(distinct(Person.name))',
+            [1],
+        )
+
     async def test_edgeql_insert_multi_exclusive_01(self):
         await self.con.execute('''
             INSERT Person { name := "asdf", multi_prop := "a" };
