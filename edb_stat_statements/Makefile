@@ -20,6 +20,8 @@ ifeq ($(shell test $(PG_MAJOR) -ge 18 && echo true), true)
 	REGRESS += extended
 endif
 
+all:
+
 expected/dml.out:
 	if [ $(PG_MAJOR) -ge 18 ]; then \
 		cp expected/dml.out.18 expected/dml.out; \

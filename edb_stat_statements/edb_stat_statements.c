@@ -76,7 +76,7 @@
 
 PG_MODULE_MAGIC;
 
-#define EDB_STMT_MAGIC_PREFIX "-- {\"query\""
+#define EDB_STMT_MAGIC_PREFIX "-- {"
 
 /* Location of permanent stats file (valid when database is shut down) */
 #define PGSS_DUMP_FILE	PGSTAT_STAT_PERMANENT_DIRECTORY "/edb_stat_statements.stat"
@@ -371,6 +371,8 @@ PG_FUNCTION_INFO_V1(edb_stat_statements_reset);
 PG_FUNCTION_INFO_V1(edb_stat_statements);
 PG_FUNCTION_INFO_V1(edb_stat_statements_info);
 
+const char *
+edbss_extract_info_line(const char *s, int* len);
 EdbStmtInfo *
 edbss_extract_stmt_info(const char* query_str, int query_len);
 static inline void
@@ -559,6 +561,23 @@ _PG_init(void)
 	ProcessUtility_hook = pgss_ProcessUtility;
 }
 
+const char *
+edbss_extract_info_line(const char *s, int *len) {
+	int prefix_len = strlen(EDB_STMT_MAGIC_PREFIX);
+	if (*len > prefix_len && strncmp(s, EDB_STMT_MAGIC_PREFIX, prefix_len) == 0) {
+		const char *rv = s + 3;  // skip "-- "
+		int remaining_len = *len - prefix_len;
+		int rv_len = 0;
+		while (rv_len < remaining_len && rv[rv_len] != '\n')
+			rv_len++;
+		if (rv_len > 0) {
+			*len = rv_len;
+			return rv;
+		}
+	}
+	return NULL;
+}
+
 /*
  * Extract EdgeDB query info from the JSON in the leading comment.
  * If success, returns a palloc-ed EdbStmtInfo which must be freed
@@ -566,39 +585,15 @@ _PG_init(void)
  */
 EdbStmtInfo *
 edbss_extract_stmt_info(const char* query_str, int query_len) {
-	int prefix_len = strlen(EDB_STMT_MAGIC_PREFIX);
-	const char *info_str = query_str;
-	int info_len = 0;
+	int info_len = query_len;
+	const char *info_str = edbss_extract_info_line(query_str, &info_len);
 
-	if (query_len <= prefix_len)
-		return NULL;
-
-	if (strncmp(info_str, EDB_STMT_MAGIC_PREFIX, prefix_len) == 0) {
-		const char *c;
-		info_str += 3;  // skip "-- "
-		c = info_str;
-		while (*c != '\n' && info_len + 3 < query_len) {
-			c++;
-			info_len++;
-		}
-	}
-
-	if (info_len > 0) {
+	if (info_str) {
 		EdbStmtInfo *info = (EdbStmtInfo *) palloc0(sizeof(EdbStmtInfo));
 		EdbStmtInfoSemState state = {
 				.info = info,
 				.state = EDB_STMT_INFO_PARSE_NOOP,
 		};
-		JsonLexContext *lex = makeJsonLexContextCstringLen(
-#if PG_VERSION_NUM >= 170000
-				NULL,
-				info_str,
-#else
-				(char *) info_str,  // not actually mutating
-#endif
-				info_len,
-				PG_UTF8,
-				true);
 		JsonSemAction sem = {
 				.semstate = (void *) &state,
 				.object_start = edbss_json_struct_start,
@@ -608,14 +603,31 @@ edbss_extract_stmt_info(const char* query_str, int query_len) {
 				.object_field_start = edbss_json_ofield_start,
 				.scalar = edbss_json_scalar,
 		};
-		JsonParseErrorType parse_rv = pg_parse_json(lex, &sem);
-		freeJsonLexContext(lex);
 
-		if (parse_rv == JSON_SUCCESS)
-			if ((state.found & EDB_STMT_INFO_PARSE_REQUIRED) == EDB_STMT_INFO_PARSE_REQUIRED)
-				if (info->query_id != UINT64CONST(0))
-					return info;
+		while (info_str) {
+			JsonLexContext *lex = makeJsonLexContextCstringLen(
+#if PG_VERSION_NUM >= 170000
+					NULL,
+					info_str,
+#else
+					(char *) info_str,  // not actually mutating
+#endif
+					info_len,
+					PG_UTF8,
+					true);
+			JsonParseErrorType parse_rv = pg_parse_json(lex, &sem);
+			freeJsonLexContext(lex);
 
+			if (parse_rv == JSON_SUCCESS)
+				if ((state.found & EDB_STMT_INFO_PARSE_REQUIRED) == EDB_STMT_INFO_PARSE_REQUIRED)
+					return info->query_id != UINT64CONST(0) ? info : NULL;
+
+			info_str += info_len + 1;
+			info_len = query_len - (int)(info_str - query_str);
+			info_str = edbss_extract_info_line(info_str, &info_len);
+			state.nested_level = 0;
+			state.state = EDB_STMT_INFO_PARSE_NOOP;
+		}
 		edbss_free_stmt_info(info);
 	}
 
@@ -671,6 +683,13 @@ static JsonParseErrorType
 edbss_json_scalar(void *semstate, char *token, JsonTokenType tokenType) {
 	EdbStmtInfoSemState *state = (EdbStmtInfoSemState *) semstate;
 	Assert(token != NULL);
+
+	if (state->found & state->state) {
+		pfree(token);
+		state->state = EDB_STMT_INFO_PARSE_NOOP;
+		return JSON_SUCCESS;
+	}
+
 	switch (state->state) {
 		case EDB_STMT_INFO_PARSE_QUERY:
 			if (tokenType == JSON_TOKEN_STRING) {
