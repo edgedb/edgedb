@@ -2432,6 +2432,7 @@ def compile_sql_as_unit_group(
         apply_access_policies_sql=apply_access_policies_sql,
         include_edgeql_io_format_alternative=True,
         allow_prepared_statements=False,
+        backend_runtime_params=ctx.backend_runtime_params,
     )
 
     qug = dbstate.QueryUnitGroup(
