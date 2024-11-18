@@ -136,9 +136,8 @@ typedef enum EdbStmtType {
 typedef enum EdbStmtInfoParseState {
 	EDB_STMT_INFO_PARSE_NOOP		= 0,
 	EDB_STMT_INFO_PARSE_QUERY		= 1 << 0,
-	EDB_STMT_INFO_PARSE_QUERY_ID	= 1 << 1,
-	EDB_STMT_INFO_PARSE_CACHE_KEY	= 1 << 2,
-	EDB_STMT_INFO_PARSE_TYPE		= 1 << 3,
+	EDB_STMT_INFO_PARSE_ID			= 1 << 1,
+	EDB_STMT_INFO_PARSE_TYPE		= 1 << 2,
 } EdbStmtInfoParseState;
 
 /*
@@ -147,8 +146,7 @@ typedef enum EdbStmtInfoParseState {
  */
 #define EDB_STMT_INFO_PARSE_REQUIRED \
 	(EDB_STMT_INFO_PARSE_QUERY \
-	 & EDB_STMT_INFO_PARSE_QUERY_ID \
-	 & EDB_STMT_INFO_PARSE_CACHE_KEY \
+	 & EDB_STMT_INFO_PARSE_ID \
 	 & EDB_STMT_INFO_PARSE_TYPE \
 	)
 
@@ -156,10 +154,12 @@ typedef enum EdbStmtInfoParseState {
  * The result of parsing the info JSON by edbss_extract_stmt_info().
  */
 typedef struct EdbStmtInfo {
+	union {
+		pg_uuid_t uuid;
+		uint64 query_id;
+	} id;
 	const char *query;
 	int query_len;
-	uint64 query_id;
-	pg_uuid_t *cache_key;
 	EdbStmtType stmt_type;
 } EdbStmtInfo;
 
@@ -286,7 +286,7 @@ typedef struct pgssEntry
 	TimestampTz minmax_stats_since; /* timestamp of last min/max values reset */
 	slock_t		mutex;			/* protects the counters only */
 
-	pg_uuid_t	cache_key;		/* Query cache key as UUID */
+	pg_uuid_t	id;				/* Full 16-bytes query ID as UUID */
 	EdbStmtType	stmt_type;		/* Type of the EdgeDB query */
 } pgssEntry;
 
@@ -415,7 +415,7 @@ static void pgss_store(const char *query, uint64 queryId,
 					   const struct JitInstrumentation *jitusage,
 					   JumbleState *jstate,
 					   bool edb_extracted,
-					   pg_uuid_t *cache_key,
+					   pg_uuid_t *id,
 					   EdbStmtType stmt_type,
 					   int parallel_workers_to_launch,
 					   int parallel_workers_launched);
@@ -424,7 +424,7 @@ static void edb_stat_statements_internal(FunctionCallInfo fcinfo,
 										 bool showtext);
 static Size pgss_memsize(void);
 static pgssEntry *entry_alloc(pgssHashKey *key, Size query_offset, int query_len,
-							  int encoding, bool sticky, pg_uuid_t *cache_key, EdbStmtType stmt_type);
+							  int encoding, bool sticky, pg_uuid_t *id, EdbStmtType stmt_type);
 static void entry_dealloc(void);
 static bool qtext_store(const char *query, int query_len,
 						Size *query_offset, int *gc_count);
@@ -620,7 +620,7 @@ edbss_extract_stmt_info(const char* query_str, int query_len) {
 
 			if (parse_rv == JSON_SUCCESS)
 				if ((state.found & EDB_STMT_INFO_PARSE_REQUIRED) == EDB_STMT_INFO_PARSE_REQUIRED)
-					return info->query_id != UINT64CONST(0) ? info : NULL;
+					return info->id.query_id != UINT64CONST(0) ? info : NULL;
 
 			info_str += info_len + 1;
 			info_len = query_len - (int)(info_str - query_str);
@@ -636,13 +636,12 @@ edbss_extract_stmt_info(const char* query_str, int query_len) {
 
 /*
  * Frees the given EdbStmtInfo struct as well as
- * its owning sub-fields (query and cache_key).
+ * its owning sub-fields (query).
  */
 static inline void
 edbss_free_stmt_info(EdbStmtInfo *info) {
 	Assert(info != NULL);
 	pfree((void *) info->query);
-	pfree(info->cache_key);
 	pfree(info);
 }
 
@@ -667,10 +666,8 @@ edbss_json_ofield_start(void *semstate, char *fname, bool isnull) {
 	if (state->nested_level == 1) {
 		if (strcmp(fname, "query") == 0) {
 			state->state = EDB_STMT_INFO_PARSE_QUERY;
-		} else if (strcmp(fname, "queryId") == 0) {
-			state->state = EDB_STMT_INFO_PARSE_QUERY_ID;
-		} else if (strcmp(fname, "cacheKey") == 0) {
-			state->state = EDB_STMT_INFO_PARSE_CACHE_KEY;
+		} else if (strcmp(fname, "id") == 0) {
+			state->state = EDB_STMT_INFO_PARSE_ID;
 		} else if (strcmp(fname, "type") == 0) {
 			state->state = EDB_STMT_INFO_PARSE_TYPE;
 		}
@@ -699,22 +696,12 @@ edbss_json_scalar(void *semstate, char *token, JsonTokenType tokenType) {
 			}
 			goto fail;
 
-		case EDB_STMT_INFO_PARSE_QUERY_ID:
-			if (tokenType == JSON_TOKEN_NUMBER) {
-				char *endptr;
-				uint64 query_id = strtoull(token, &endptr, 10);
-				if (*endptr == '\0' && query_id != UINT64_MAX) {
-					state->info->query_id = query_id;
-					pfree(token);
-					break;
-				}
-			}
-			goto fail;
-
-		case EDB_STMT_INFO_PARSE_CACHE_KEY:
+		case EDB_STMT_INFO_PARSE_ID:
 			if (tokenType == JSON_TOKEN_STRING) {
-				Datum cache_key = DirectFunctionCall1(uuid_in, CStringGetDatum(token));
-				state->info->cache_key = DatumGetUUIDP(cache_key);
+				Datum id_datum = DirectFunctionCall1(uuid_in, CStringGetDatum(token));
+				pg_uuid_t *id_ptr = DatumGetUUIDP(id_datum);
+				state->info->id.uuid = *id_ptr;
+				pfree(id_ptr);
 				pfree(token);
 				break;
 			}
@@ -927,7 +914,7 @@ pgss_shmem_startup(void)
 		entry->counters = temp.counters;
 		entry->stats_since = temp.stats_since;
 		entry->minmax_stats_since = temp.minmax_stats_since;
-		entry->cache_key = temp.cache_key;
+		entry->id = temp.id;
 		entry->stmt_type = temp.stmt_type;
 	}
 
@@ -1128,14 +1115,14 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 	query_len = query->stmt_len;
 	query_str = CleanQuerytext(pstate->p_sourcetext, &query_location, &query_len);
 	if ((info = edbss_extract_stmt_info(query_str, query_len)) != NULL) {
-		query->queryId = info->query_id;
+		query->queryId = info->id.query_id;
 
 		/* We immediately create a hash table entry for the query,
 		 * so that we don't need to parse the query info JSON later
 		 * again for the query with the same queryId.
 		 */
 		pgss_store(info->query,
-				   info->query_id,
+				   info->id.query_id,
 				   0,
 				   info->query_len,
 				   PGSS_INVALID,
@@ -1146,7 +1133,7 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 				   NULL,
 				   NULL,
 				   true,
-				   info->cache_key,
+				   &info->id.uuid,
 				   info->stmt_type,
 				   0,
 				   0);
@@ -1602,7 +1589,7 @@ pgss_store(const char *query, uint64 queryId,
 		   const struct JitInstrumentation *jitusage,
 		   JumbleState *jstate,
 		   bool edb_extracted,
-		   pg_uuid_t *cache_key,
+		   pg_uuid_t *id,
 		   EdbStmtType stmt_type,
 		   int parallel_workers_to_launch,
 		   int parallel_workers_launched)
@@ -1665,11 +1652,11 @@ pgss_store(const char *query, uint64 queryId,
 				/* We should just get the same queryId again
 				 * as we extracted before the reset in post_parse.
 				 */
-				if (info->query_id != queryId)
+				if (info->id.query_id != queryId)
 					goto done;
 				query = info->query;
 				query_len = info->query_len;
-				cache_key = info->cache_key;
+				id = &info->id.uuid;
 				stmt_type = info->stmt_type;
 			} else if (!edbss_track_unrecognized) {
 				/* skip unrecognized statements unless we're told not to */
@@ -1727,7 +1714,7 @@ pgss_store(const char *query, uint64 queryId,
 
 		/* OK to create a new hashtable entry */
 		entry = entry_alloc(&key, query_offset, query_len, encoding,
-							sticky, cache_key, stmt_type);
+							sticky, id, stmt_type);
 
 		/* If needed, perform garbage collection while exclusive lock held */
 		if (do_gc)
@@ -2080,10 +2067,10 @@ edb_stat_statements_internal(FunctionCallInfo fcinfo,
 				nulls[i++] = true;
 		}
 
-		if (memcmp(&entry->cache_key, &zero_uuid, sizeof(zero_uuid)) == 0)
+		if (memcmp(&entry->id, &zero_uuid, sizeof(zero_uuid)) == 0)
 			nulls[i++] = true;
 		else
-			values[i++] = UUIDPGetDatum(&entry->cache_key);
+			values[i++] = UUIDPGetDatum(&entry->id);
 
 		if (entry->stmt_type == 0)
 			nulls[i++] = true;
@@ -2248,7 +2235,7 @@ pgss_memsize(void)
  */
 static pgssEntry *
 entry_alloc(pgssHashKey *key, Size query_offset, int query_len, int encoding,
-			bool sticky, pg_uuid_t *cache_key, EdbStmtType stmt_type)
+			bool sticky, pg_uuid_t *id, EdbStmtType stmt_type)
 {
 	pgssEntry  *entry;
 	bool		found;
@@ -2277,8 +2264,8 @@ entry_alloc(pgssHashKey *key, Size query_offset, int query_len, int encoding,
 		entry->encoding = encoding;
 		entry->stats_since = GetCurrentTimestamp();
 		entry->minmax_stats_since = entry->stats_since;
-		if (cache_key != NULL)
-			entry->cache_key = *cache_key;
+		if (id != NULL)
+			entry->id = *id;
 		entry->stmt_type = stmt_type;
 	}
 

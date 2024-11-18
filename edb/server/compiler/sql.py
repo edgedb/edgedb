@@ -306,8 +306,7 @@ def compile_sql(
             sql_debug_obj = {
                 'query': orig_text,
                 'type': defines.QueryType.SQL,
-                'queryId': cache_key.int >> 64,
-                'cacheKey': str(cache_key),
+                'id': str(cache_key),
             }
             prefix = ''.join([
                 '-- ',

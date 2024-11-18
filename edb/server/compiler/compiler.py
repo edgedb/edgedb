@@ -1602,8 +1602,7 @@ def _compile_ql_query(
                 json.dumps(sql_info).encode(defines.EDGEDB_ENCODING)
             )
             cache_key = uuidgen.from_bytes(key_hash.digest())
-        sql_info['queryId'] = cache_key.int >> 64
-        sql_info['cacheKey'] = str(cache_key)
+        sql_info['id'] = str(cache_key)
 
     base_schema = (
         ctx.compiler_state.std_schema
