@@ -40,7 +40,6 @@ class RustPipeProtocol(Protocol):
 
 class RustAsyncChannel:
     _buffered_reader: io.BufferedReader
-    _buffer: bytes
     _skip_reads: int
     _closed: asyncio.Event
 
@@ -50,11 +49,12 @@ class RustAsyncChannel:
         callback: Callable[[Tuple[Any, ...]], None],
     ) -> None:
         fd = pipe._fd
-        self._buffered_reader = io.BufferedReader(io.FileIO(fd))
+        self._buffered_reader = io.BufferedReader(
+            io.FileIO(fd), buffer_size=MAX_BATCH_SIZE
+        )
         self._fd = fd
         self._pipe = pipe
         self._callback = callback
-        self._buffer = bytearray(MAX_BATCH_SIZE)
         self._skip_reads = 0
         self._closed = asyncio.Event()
 
@@ -82,15 +82,15 @@ class RustAsyncChannel:
             self._callback(msg)
 
     def _channel_read(self) -> None:
-        n = self._buffered_reader.readinto1(self._buffer)
-        if n <= 0:
-            return
-        if self._skip_reads > n:
-            self._skip_reads = 0
-            return
-        n -= self._skip_reads
-        self._skip_reads = 0
         try:
+            n = len(self._buffered_reader.read1(MAX_BATCH_SIZE))
+            if n == 0:
+                return
+            if self._skip_reads > n:
+                self._skip_reads -= n
+                return
+            n -= self._skip_reads
+            self._skip_reads = 0
             for _ in range(n):
                 msg = self._pipe._read()
                 if msg is None:
@@ -98,5 +98,7 @@ class RustAsyncChannel:
                     return
                 self._callback(msg)
         except Exception:
-            logger.error(f"Error reading from Rust async channel", exc_info=True)
+            logger.error(
+                f"Error reading from Rust async channel", exc_info=True
+            )
             self.close()
