@@ -1040,6 +1040,50 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             ],
         )
 
+    async def test_sql_query_introspection_05(self):
+        # test pg_constraint
+
+        res = await self.squery_values(
+            '''
+            SELECT pc.relname, pcon.contype, pa.key, pcf.relname, paf.key
+            FROM pg_constraint pcon
+            JOIN pg_class pc ON pc.oid = pcon.conrelid
+            LEFT JOIN pg_class pcf ON pcf.oid = pcon.confrelid
+            LEFT JOIN LATERAL (
+                SELECT string_agg(attname, ',') as key
+                FROM pg_attribute
+                WHERE attrelid = pcon.conrelid
+                  AND attnum = ANY(pcon.conkey)
+            ) pa ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT string_agg(attname, ',') as key
+                FROM pg_attribute
+                WHERE attrelid = pcon.confrelid
+                  AND attnum = ANY(pcon.confkey)
+            ) paf ON TRUE
+            WHERE pc.relname IN (
+                'Book.chapters', 'Movie', 'Movie.director', 'Movie.actors'
+            )
+            ORDER BY pc.relname ASC, pcon.contype DESC, pa.key
+            '''
+        )
+
+        self.assertEqual(
+            res,
+            [
+                ['Book.chapters', b'f', 'source', 'Book', 'id'],
+                ['Movie', b'p', 'id', None, None],
+                ['Movie', b'f', 'director_id', 'Person', 'id'],
+                ['Movie', b'f', 'genre_id', 'Genre', 'id'],
+                ['Movie.actors', b'p', 'source,target', None, None],
+                ['Movie.actors', b'f', 'source', 'Movie', 'id'],
+                ['Movie.actors', b'f', 'target', 'Person', 'id'],
+                ['Movie.director', b'p', 'source,target', None, None],
+                ['Movie.director', b'f', 'source', 'Movie', 'id'],
+                ['Movie.director', b'f', 'target', 'Person', 'id'],
+            ],
+        )
+
     async def test_sql_query_schemas_01(self):
         await self.scon.fetch('SELECT id FROM "inventory"."Item";')
         await self.scon.fetch('SELECT id FROM "public"."Person";')
