@@ -101,7 +101,7 @@ class HttpClient:
             raise Exception("HttpClient was closed")
         if self._task is None:
             self._client = Http(self._limit)
-            self._task = self._loop.create_task(self._boot(self._loop))
+            self._task = self._loop.create_task(self._boot(self._client))
 
     def _ensure_client(self):
         if self._client is None:
@@ -293,11 +293,11 @@ class HttpClient:
         finally:
             del self._requests[id]
 
-    async def _boot(self, loop: asyncio.AbstractEventLoop) -> None:
+    async def _boot(self, client) -> None:
         logger.info(f"HTTP client initialized, user_agent={self._user_agent}")
         try:
             channel = rust_async_channel.RustAsyncChannel(
-                self._client, self._process_message
+                client, self._process_message
             )
             try:
                 await channel.run()
@@ -307,7 +307,7 @@ class HttpClient:
             logger.error(f"Error in HTTP client: {e}", exc_info=True)
             raise
 
-    def _process_message(self, msg):
+    def _process_message(self, msg: Tuple[Any, ...]) -> None:
         try:
             msg_type, id, data = msg
             if msg_type == 0:  # Error

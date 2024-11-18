@@ -38,14 +38,16 @@ class RustPipeProtocol(Protocol):
     _fd: int
 
 
-class RustAsyncChannel[T: RustPipeProtocol]:
+class RustAsyncChannel:
     _buffered_reader: io.BufferedReader
     _buffer: bytes
     _skip_reads: int
     _closed: asyncio.Event
 
     def __init__(
-        self, pipe: T, callback: Callable[[], Tuple[Any, ...]]
+        self,
+        pipe: RustPipeProtocol,
+        callback: Callable[[Tuple[Any, ...]], None],
     ) -> None:
         fd = pipe._fd
         self._buffered_reader = io.BufferedReader(io.FileIO(fd))
