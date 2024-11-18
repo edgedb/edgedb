@@ -30,35 +30,50 @@ MAX_BATCH_SIZE = 16
 
 
 class RustPipeProtocol(Protocol):
-    def _read(self) -> Tuple[Any, ...]:
-        ...
+    def _read(self) -> Tuple[Any, ...]: ...
 
-    def _try_read(self) -> Optional[Tuple[Any, ...]]:
-        ...
+    def _try_read(self) -> Optional[Tuple[Any, ...]]: ...
+
+    def _close_pipe(self) -> None: ...
+
+    _fd: int
 
 
 class RustAsyncChannel[T: RustPipeProtocol]:
     _buffered_reader: io.BufferedReader
-    _buffer: bytes 
+    _buffer: bytes
     _skip_reads: int
     _closed: asyncio.Event
 
-    def __init__(self, fd: int, pipe: T, callback: Callable[[], Tuple[Any, ...]]) -> None:
-        self._buffered_reader = io.BufferedReader(fd)
+    def __init__(
+        self, pipe: T, callback: Callable[[], Tuple[Any, ...]]
+    ) -> None:
+        fd = pipe._fd
+        self._buffered_reader = io.BufferedReader(io.FileIO(fd))
         self._fd = fd
         self._pipe = pipe
         self._callback = callback
-        self._buffer = bytes(MAX_BATCH_SIZE)
+        self._buffer = bytearray(MAX_BATCH_SIZE)
         self._skip_reads = 0
+        self._closed = asyncio.Event()
+
+    def __del__(self):
+        if not self._closed.is_set():
+            logger.error(f"RustAsyncChannel {id(self)} was not closed")
 
     async def run(self):
-        asyncio.add_reader(self._fd, self._channel_read)
-        await self._closed.wait()
+        loop = asyncio.get_running_loop()
+        loop.add_reader(self._fd, self._channel_read)
+        try:
+            await self._closed.wait()
+        finally:
+            loop.remove_reader(self._fd)
 
     def close(self):
         if not self._closed.is_set():
+            self._pipe._close_pipe()
+            self._buffered_reader.close()
             self._closed.set()
-            asyncio.remove_reader(self._fd)
 
     def read_hint(self):
         while msg := self._pipe._try_read():

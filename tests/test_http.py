@@ -264,7 +264,6 @@ class HttpSSETest(tb.BaseHttpTest):
 
         assert is_closed
 
-    @unittest.skip("Hangs on CI")
     async def test_sse_with_mock_server_close(self):
         """Try to close the server-side stream and see if the client detects
         an end for the iterator. Note that this is technically not correct SSE:

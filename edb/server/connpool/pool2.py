@@ -25,6 +25,7 @@ import pickle
 
 from . import config
 from .config import logger
+from edb.server import rust_async_channel
 
 guard = edb.server._conn_pool.LoggingGuard()
 
@@ -101,7 +102,6 @@ class Pool(typing.Generic[C]):
     _errors: dict[int, BaseException]
     _conns_held: dict[C, int]
     _loop: asyncio.AbstractEventLoop
-    _skip_reads: int
     _counts: typing.Any
     _stats_collector: typing.Optional[StatsCollector]
 
@@ -130,10 +130,12 @@ class Pool(typing.Generic[C]):
         self._errors = {}
         self._conns_held = {}
         self._prunes = {}
-        self._skip_reads = 0
+        self._channel = None
 
         self._loop = asyncio.get_running_loop()
-        self._task = self._loop.create_task(self._boot(self._loop))
+        self._channel = rust_async_channel.RustAsyncChannel(self._pool, self._process_message)
+
+        self._task = self._loop.create_task(self._boot())
 
         self._failed_connects = 0
         self._failed_disconnects = 0
@@ -170,34 +172,15 @@ class Pool(typing.Generic[C]):
             self._pool = None
             logger.info("Closed connection pool")
 
-    async def _boot(self, loop: asyncio.AbstractEventLoop) -> None:
+    async def _boot(self) -> None:
         logger.info("Python-side connection pool booted")
-        reader = asyncio.StreamReader(loop=loop)
-        reader_protocol = asyncio.StreamReaderProtocol(reader)
-        fd = os.fdopen(self._pool._fd, 'rb')
-        transport, _ = await loop.connect_read_pipe(lambda: reader_protocol, fd)
         try:
-            while len(await reader.read(1)) == 1:
-                if not self._pool or not self._task:
-                    break
-                if self._skip_reads > 0:
-                    self._skip_reads -= 1
-                    continue
-                msg = self._pool._read()
-                if not msg:
-                    break
-                self._process_message(msg)
-
+            await self._channel.run()
         finally:
-            transport.close()
+            self._channel.close()
 
-    # Allow readers to skip the self-pipe for performing reads which may reduce
-    # latency a small degree. We'll still need to eventually pick up a self-pipe
-    # read but we increment a counter to skip at that point.
     def _try_read(self) -> None:
-        while msg := self._pool._try_read():
-            self._skip_reads += 1
-            self._process_message(msg)
+        self._channel.read_hint()
 
     def _process_message(self, msg: typing.Any) -> None:
         # If we're closing, don't dispatch any operations
