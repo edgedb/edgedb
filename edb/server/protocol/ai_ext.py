@@ -1949,13 +1949,16 @@ async def _handle_rag_request(
             if custom_prompt:
                 if not isinstance(custom_prompt, list):
                     raise TypeError(
-                        "prompt.custom must be a list, where each element is \
-                            one of the following types: \
-                        - EdgeDBSystemMessage: { role, content } \
-                        - EdgeDBUserMessage: { role, content } \
-                        - EdgeDBAssistantMessage: \
-                            { role, content, optional tool_calls }\
-                        - EdgeDBToolMessage: { role, content, tool_call_id }"
+                        """prompt.custom must be a list, where each element is
+                            one of the following types:\n
+                        - system message: { role: 'system', content: str }\n
+                        - user message: { role: 'user', content:
+                            [{ type: 'text', text: str }] }\n
+                        - assistant message: { role: 'assistant', content: str,
+                            optional tool_calls: [{id: str, type: 'function',
+                            function: { name: str, arguments: str }}] }\n
+                        - tool message:
+                            { role: 'tool', content: str, tool_call_id: str }"""
                     )
                 for entry in custom_prompt:
                     if (
