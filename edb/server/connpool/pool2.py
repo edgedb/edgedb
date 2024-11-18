@@ -134,7 +134,6 @@ class Pool(typing.Generic[C]):
         self._errors = {}
         self._conns_held = {}
         self._prunes = {}
-        self._channel = None
 
         self._loop = asyncio.get_running_loop()
         self._channel = rust_async_channel.RustAsyncChannel(

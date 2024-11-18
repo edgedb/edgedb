@@ -97,6 +97,6 @@ class RustAsyncChannel:
                     self.close()
                     return
                 self._callback(msg)
-        except Exception as e:
-            logger.error(f"Error reading from Rust async channel: {e}")
+        except Exception:
+            logger.error(f"Error reading from Rust async channel", exc_info=True)
             self.close()

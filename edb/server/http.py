@@ -303,8 +303,8 @@ class HttpClient:
                 await channel.run()
             finally:
                 channel.close()
-        except Exception as e:
-            logger.error(f"Error in HTTP client: {e}", exc_info=True)
+        except Exception:
+            logger.error(f"Error in HTTP client", exc_info=True)
             raise
 
     def _process_message(self, msg: Tuple[Any, ...]) -> None:
