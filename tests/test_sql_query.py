@@ -877,7 +877,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             await self.squery_values('SELECT name FROM User')
 
     async def test_sql_query_45(self):
-        res = await self.squery_values('SELECT 1 AS a, 2 AS a')
+        res = await self.scon.fetch('SELECT 1 AS a, 2 AS a')
         self.assert_shape(res, 1, ['a', 'a'])
 
     async def test_sql_query_46(self):
