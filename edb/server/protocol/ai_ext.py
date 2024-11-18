@@ -917,7 +917,8 @@ def _batch_embeddings_inputs(
                     <= max_batch_tokens
                 ):
                     batch_input_indexes.append(
-                        unbatched_input_indexes[unbatched_index])
+                        unbatched_input_indexes[unbatched_index]
+                    )
                     batch_token_count += unbatched_token_count(unbatched_index)
                     unbatched_input_indexes.pop(unbatched_index)
                 else:
@@ -1233,6 +1234,7 @@ async def _start_openai_like_chat(
     tools: Optional[list[dict[str, Any]]],
 ) -> None:
     isOpenAI = "openai" in str(getattr(client, "base_url", ""))
+
     params: dict[str, Any] = {
         "model": model_name,
         "messages": messages,
@@ -1401,8 +1403,9 @@ async def _start_openai_like_chat(
                                 )
                                 protocol.write_raw(event)
                     elif finish_reason := data.get("finish_reason"):
-                        index = tool_index \
-                        if finish_reason == "tool_calls" else 0
+                        index = (
+                            tool_index if finish_reason == "tool_calls" else 0
+                        )
                         event = (
                             b'event: content_block_stop\n'
                             + b'data: {"type": "content_block_stop",'
@@ -1701,8 +1704,10 @@ async def _start_anthropic_chat(
                     # chunk ends, should be okay since we don't consume
                     # this event on the client side
                     data = sse.json()
-                    if data.get("content_block") and \
-                        data["content_block"].get("type") == "tool_use":
+                    if (
+                        "content_block" in data
+                        and data["content_block"].get("type") == "tool_use"
+                    ):
                         currentIndex = data["index"]
                         if currentIndex > 0:
                             tool_index = currentIndex
@@ -1780,8 +1785,11 @@ async def _start_anthropic_chat(
         response.content_type = b'application/json'
 
         result_data = result.json()
-        tool_calls = [item for item in result_data["content"]
-                      if item.get("type") == "tool_use"]
+        tool_calls = [
+            item
+            for item in result_data["content"]
+            if item.get("type") == "tool_use"
+        ]
         tool_calls_formatted = [
             {
                 "id": tool_call["id"],
@@ -1876,6 +1884,7 @@ async def _handle_rag_request(
         http_client = tenant.get_http_client(originator="ai/rag")
 
         body = json.loads(request.body)
+
         if not isinstance(body, dict):
             raise TypeError(
                 'the body of the request must be a JSON object')
@@ -1949,14 +1958,14 @@ async def _handle_rag_request(
             if custom_prompt:
                 if not isinstance(custom_prompt, list):
                     raise TypeError(
-                        """prompt.custom must be a list, where each element is
-                            one of the following types:\n
-                        - system message: { role: 'system', content: str }\n
+                        """prompt.custom must be a list, where each element
+                            is one of the following types:
+                        - system message: { role: 'system', content: str }
                         - user message: { role: 'user', content:
-                            [{ type: 'text', text: str }] }\n
+                            [{ type: 'text', text: str }] }
                         - assistant message: { role: 'assistant', content: str,
                             optional tool_calls: [{id: str, type: 'function',
-                            function: { name: str, arguments: str }}] }\n
+                            function: { name: str, arguments: str }}] }
                         - tool message:
                             { role: 'tool', content: str, tool_call_id: str }"""
                     )
@@ -1969,7 +1978,25 @@ async def _handle_rag_request(
                         or len(entry) > 3
                     ):
                         raise TypeError(
-                            "prompt.custom must contain role and content fields"
+                            """prompt.custom must be a list, where each element
+                                is one of the following types:
+                            - system message: {
+                                role: 'system', content: str }
+                            }
+                            - user message: {
+                                role: 'user',
+                                content: [{ type: 'text', text: str }]
+                            }
+                            - assistant message: {
+                                role: 'assistant', content: str,
+                                optional tool_calls: [{
+                                    id: str, type: 'function',
+                                    function: { name: str, arguments: str }
+                                }]
+                            }
+                            - tool message: {
+                                role: 'tool', content: str, tool_call_id: str
+                            }"""
                         )
                     custom_prompt_messages.append(entry)
 
