@@ -777,7 +777,10 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         # params out of order
 
         res = await self.squery_values(
-            'SELECT $2::int, $3::bool, $1::text', 'hello', 42, True,
+            'SELECT $2::int, $3::bool, $1::text',
+            'hello',
+            42,
+            True,
         )
         self.assertEqual(res, [[42, True, 'hello']])
 
@@ -874,12 +877,8 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             await self.squery_values('SELECT name FROM User')
 
     async def test_sql_query_45(self):
-        await self.squery_values('SELECT 1 AS a, 2 AS a')
-
-        # Over edgedb-protocol, this query should raise:
-        #   asyncpg.InvalidColumnReferenceError
-        #   'duplicate column name: `a`'
-        #   position="16"
+        res = await self.squery_values('SELECT 1 AS a, 2 AS a')
+        self.assert_shape(res, 1, ['a', 'a'])
 
     async def test_sql_query_46(self):
         res = await self.scon.fetch(
@@ -920,11 +919,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         # duplicate rel var names can yield duplicate column names
         self.assert_shape(res, 4, ['a', 'y_a', 'y_a'])
 
-        # Over edgedb-protocol, this query should raise:
-        #   asyncpg.InvalidColumnReferenceError
-        #   'duplicate column name: `y_a`'
-        #   position="114"
-
     async def test_sql_query_49(self):
         res = await self.scon.fetch(
             '''
@@ -936,11 +930,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         # duplicate rel var names can yield duplicate column names
         self.assert_shape(res, 1, ['x_a', 'a', 'x_a'])
-
-        # Over edgedb-protocol, this query should raise:
-        #   asyncpg.InvalidColumnReferenceError
-        #   'duplicate column name: `x_a`'
-        #   position="83"
 
     async def test_sql_query_50(self):
         res = await self.scon.fetch(
@@ -2160,17 +2149,19 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                     ARRAY[1, 2, 3] AS h,
                     FALSE AS i
             """,
-            [{
-                "a": 1,
-                "b": "two",
-                "c": '"three"',
-                "d": "2000-12-16T12:21:13",
-                "e": "2000-12-16T12:21:13+00:00",
-                "f": "0001-01-01",
-                "g": edgedb.RelativeDuration(months=2000 * 12),
-                "h": [1, 2, 3],
-                "i": False,
-            }]
+            [
+                {
+                    "a": 1,
+                    "b": "two",
+                    "c": '"three"',
+                    "d": "2000-12-16T12:21:13",
+                    "e": "2000-12-16T12:21:13+00:00",
+                    "f": "0001-01-01",
+                    "g": edgedb.RelativeDuration(months=2000 * 12),
+                    "h": [1, 2, 3],
+                    "i": False,
+                }
+            ],
         )
 
     async def test_native_sql_query_01(self):
@@ -2188,13 +2179,16 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ORDER BY
                     title
             """,
-            [{
-                "title": "Forrest Gump",
-                "genre": "Drama",
-            }, {
-                "title": "Saving Private Ryan",
-                "genre": "Drama",
-            }]
+            [
+                {
+                    "title": "Forrest Gump",
+                    "genre": "Drama",
+                },
+                {
+                    "title": "Saving Private Ryan",
+                    "genre": "Drama",
+                },
+            ],
         )
 
     async def test_native_sql_query_02(self):
@@ -2213,10 +2207,12 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ORDER BY
                     title
             """,
-            [{
-                "title": "Saving Private Ryan",
-                "genre": "Drama",
-            }],
+            [
+                {
+                    "title": "Saving Private Ryan",
+                    "genre": "Drama",
+                }
+            ],
             variables={
                 "0": "Drama",
                 "1": 14,
@@ -2241,4 +2237,78 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 LIMIT 1
             """,
             [{}],
+        )
+
+    async def test_native_sql_query_04(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            'duplicate column name: `a`',
+            _position=16,
+        ):
+            await self.assert_sql_query_result('SELECT 1 AS a, 2 AS a', [])
+
+    async def test_native_sql_query_05(self):
+        # `a` would be duplicated,
+        # so second and third instance are prefixed with rel var name
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(a) AS (VALUES (1::int)),
+              y(a) AS (VALUES (1::int + 1::int)),
+              z(a) AS (VALUES (1::int + 1::int + 1::int))
+            SELECT * FROM x, y JOIN z u ON TRUE::bool
+            ''',
+            [{'a': 1, 'y_a': 2, 'u_a': 3}],
+        )
+
+    async def test_native_sql_query_06(self):
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(a) AS (VALUES (1)),
+              y(a) AS (VALUES (2), (3))
+            SELECT x.*, u.* FROM x, y as u
+            ''',
+            [{'a': 1, 'u_a': 2}, {'a': 1, 'u_a': 3}],
+        )
+
+    async def test_native_sql_query_07(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            'duplicate column name: `y_a`',
+            # _position=114, TODO: spans are messed up somewhere
+        ):
+            await self.assert_sql_query_result(
+                '''
+                WITH
+                x(a) AS (VALUES (1)),
+                y(a) AS (VALUES (1 + 1), (1 + 1 + 1))
+                SELECT * FROM x, y, y
+                ''',
+                [],
+            )
+
+    async def test_native_sql_query_08(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            'duplicate column name: `x_a`',
+            # _position=83, TODO: spans are messed up somewhere
+        ):
+            await self.assert_sql_query_result(
+                '''
+                WITH
+                x(a) AS (VALUES (2))
+                SELECT 1 as x_a, * FROM x, x
+                ''',
+                [],
+            )
+
+    async def test_native_sql_query_09(self):
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(a) AS (VALUES (1 + 1))
+            SELECT 1 as a, * FROM x
+            ''',
+            [{'a': 1, 'x_a': 2}],
         )
