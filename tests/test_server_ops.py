@@ -684,6 +684,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
                 command_text='SELECT 1',
+                input_language=protocol.InputLanguage.EDGEQL,
                 output_format=protocol.OutputFormat.NONE,
                 expected_cardinality=protocol.Cardinality.MANY,
                 input_typedesc_id=b'\0' * 16,

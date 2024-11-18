@@ -413,21 +413,30 @@ def _compile_cli(build_base, build_temp):
     env = dict(os.environ)
     env['CARGO_TARGET_DIR'] = str(build_temp / 'rust' / 'cli')
     env['PSQL_DEFAULT_PATH'] = build_base / 'postgres' / 'install' / 'bin'
-    git_ref = env.get("EDGEDBCLI_GIT_REV") or EDGEDBCLI_COMMIT
-    git_rev = _get_git_rev(EDGEDBCLI_REPO, git_ref)
-
-    subprocess.run(
-        [
-            'cargo', 'install',
-            '--verbose', '--verbose',
+    path = env.get("EDGEDBCLI_PATH")
+    args = [
+        'cargo', 'install',
+        '--verbose', '--verbose',
+        '--bin', 'edgedb',
+        '--root', rust_root,
+        '--features=dev_mode',
+        '--locked',
+        '--debug',
+    ]
+    if path:
+        args.extend([
+            '--path', path,
+        ])
+    else:
+        git_ref = env.get("EDGEDBCLI_GIT_REV") or EDGEDBCLI_COMMIT
+        git_rev = _get_git_rev(EDGEDBCLI_REPO, git_ref)
+        args.extend([
             '--git', EDGEDBCLI_REPO,
             '--rev', git_rev,
-            '--bin', 'edgedb',
-            '--root', rust_root,
-            '--features=dev_mode',
-            '--locked',
-            '--debug',
-        ],
+        ])
+
+    subprocess.run(
+        args,
         env=env,
         check=True,
     )
@@ -682,8 +691,8 @@ class build_ext(setuptools_build_ext.build_ext):
     user_options = setuptools_build_ext.build_ext.user_options + [
         ('cython-annotate', None,
             'Produce a colorized HTML version of the Cython source.'),
-        ('cython-directives=', None,
-            'Cython compiler directives'),
+        ('cython-extra-directives=', None,
+            'Extra Cython compiler directives'),
     ]
 
     def initialize_options(self):
@@ -698,17 +707,17 @@ class build_ext(setuptools_build_ext.build_ext):
         if os.environ.get('EDGEDB_DEBUG'):
             self.cython_always = True
             self.cython_annotate = True
-            self.cython_directives = "linetrace=True"
+            self.cython_extra_directives = "linetrace=True"
             self.define = 'PG_DEBUG,CYTHON_TRACE,CYTHON_TRACE_NOGIL'
             self.debug = True
         else:
             self.cython_always = False
             self.cython_annotate = None
-            self.cython_directives = None
+            self.cython_extra_directives = None
             self.debug = False
         self.build_mode = os.environ.get('BUILD_EXT_MODE', 'both')
 
-    def finalize_options(self):
+    def finalize_options(self) -> None:
         # finalize_options() may be called multiple times on the
         # same command object, so make sure not to override previously
         # set options.
@@ -722,12 +731,12 @@ class build_ext(setuptools_build_ext.build_ext):
             super(build_ext, self).finalize_options()
             return
 
-        directives = {
+        directives: dict[str, str | bool] = {
             'language_level': '3'
         }
 
-        if self.cython_directives:
-            for directive in self.cython_directives.split(','):
+        if self.cython_extra_directives:
+            for directive in self.cython_extra_directives.split(','):
                 k, _, v = directive.partition('=')
                 if v.lower() == 'false':
                     v = False

@@ -540,7 +540,7 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.4.2"
-source = "git+https://github.com/edgedb/edgedb-rust#f9d784470af6e013051d1503882c1d88c51a5dcb"
+source = "git+https://github.com/edgedb/edgedb-rust#b38fb4af07ae0017329eb3cce30ca37fe12acd29"
 dependencies = [
  "bytes",
 ]
@@ -548,7 +548,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.6.1"
-source = "git+https://github.com/edgedb/edgedb-rust#f9d784470af6e013051d1503882c1d88c51a5dcb"
+source = "git+https://github.com/edgedb/edgedb-rust#b38fb4af07ae0017329eb3cce30ca37fe12acd29"
 dependencies = [
  "bigdecimal",
  "bitflags",
@@ -2234,6 +2234,7 @@ version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b835cb902660db3415a672d862905e791e54d306c6e8189168c7f3d9ae1c79d"
 dependencies = [
+ "backtrace",
  "snafu-derive",
 ]
 

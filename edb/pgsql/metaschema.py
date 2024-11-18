@@ -6682,12 +6682,9 @@ def _generate_sql_information_schema(
             pa.attrelid as pc_oid,
             pa.*,
             pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
-        FROM edgedb_VER."_SchemaPointer" sp
+        FROM edgedb_VER."_SchemaProperty" sp
         JOIN pg_class pc ON pc.relname = sp.id::TEXT
         JOIN pg_attribute pa ON pa.attrelid = pc.oid
-
-        -- needed for filtering out links
-        LEFT JOIN edgedb_VER."_SchemaLink" sl ON sl.id = sp.id
 
         -- positions for special pointers
         JOIN (
@@ -6696,8 +6693,7 @@ def _generate_sql_information_schema(
         ) spec(k, position) ON (spec.k = pa.attname)
 
         WHERE
-            sl.id IS NULL -- property (non-link)
-            AND sp.cardinality = 'Many' -- multi
+            sp.cardinality = 'Many' -- multi
             AND sp.expr IS NULL -- non-computed
 
         UNION ALL
@@ -6812,7 +6808,10 @@ def _generate_sql_information_schema(
         trampoline.VersionedView(
             name=("edgedbsql", "pg_constraint"),
             query=r"""
-        -- primary keys
+        -- primary keys for:
+        --  - objects tables (that contains id)
+        --  - link tables (that contains source and target)
+        -- there exists a unique constraint for each of these
         SELECT
           pc.oid,
           vt.table_name || '_pk' AS conname,
@@ -6825,32 +6824,38 @@ def _generate_sql_information_schema(
           pc.contypid,
           pc.conindid,
           pc.conparentid,
-          pc.confrelid,
-          pc.confupdtype,
-          pc.confdeltype,
-          pc.confmatchtype,
+          NULL::oid AS confrelid,
+          NULL::"char" AS confupdtype,
+          NULL::"char" AS confdeltype,
+          NULL::"char" AS confmatchtype,
           pc.conislocal,
           pc.coninhcount,
           pc.connoinherit,
-          pc.conkey,
-          pc.confkey,
-          pc.conpfeqop,
-          pc.conppeqop,
-          pc.conffeqop,
-          pc.confdelsetcols,
-          pc.conexclop,
+          CASE WHEN pa.attname = 'id'
+            THEN ARRAY[1]::int2[] -- id will always have attnum 1
+            ELSE ARRAY[1, 2]::int2[] -- source and target
+          END AS conkey,
+          NULL::int2[] AS confkey,
+          NULL::oid[] AS conpfeqop,
+          NULL::oid[] AS conppeqop,
+          NULL::oid[] AS conffeqop,
+          NULL::int2[] AS confdelsetcols,
+          NULL::oid[] AS conexclop,
           pc.conbin,
           pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
         FROM pg_constraint pc
         JOIN edgedbsql_VER.pg_class_tables pct ON pct.oid = pc.conrelid
         JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pct.reltype
-        JOIN pg_attribute pa ON (pa.attname = 'id' AND pa.attrelid = pct.oid)
+        JOIN pg_attribute pa
+          ON (pa.attrelid = pct.oid
+              AND pa.attnum = ANY(conkey)
+              AND pa.attname IN ('id', 'source')
+             )
         WHERE contype = 'u' -- our ids and all links will have unique constraint
-          AND attnum = ANY(conkey)
 
         UNION ALL
 
-        -- foreign keys
+        -- foreign keys for object tables
         SELECT
           edgedbsql_VER.uuid_to_oid(sl.id) as oid,
           vt.table_name || '_fk_' || sl.name AS conname,
@@ -6872,9 +6877,9 @@ def _generate_sql_information_schema(
           TRUE AS connoinherit,
           ARRAY[pa.attnum]::int2[] AS conkey,
           ARRAY[1]::int2[] AS confkey, -- id will always have attnum 1
-          ARRAY[2972]::oid[] AS conpfeqop, -- 2972 is eq comparison for uuids
-          ARRAY[2972]::oid[] AS conppeqop, -- 2972 is eq comparison for uuids
-          ARRAY[2972]::oid[] AS conffeqop, -- 2972 is eq comparison for uuids
+          ARRAY['uuid_eq'::regproc]::oid[] AS conpfeqop,
+          ARRAY['uuid_eq'::regproc]::oid[] AS conppeqop,
+          ARRAY['uuid_eq'::regproc]::oid[] AS conffeqop,
           NULL::int2[] AS confdelsetcols,
           NULL::oid[] AS conexclop,
           NULL::pg_node_tree AS conbin,
@@ -6889,6 +6894,73 @@ def _generate_sql_information_schema(
         JOIN edgedbsql_VER.pg_attribute pa
           ON pa.attrelid = pc.oid
          AND pa.attname = sl.name || '_id'
+
+        UNION ALL
+
+        -- foreign keys for:
+        -- - multi link tables (source & target),
+        -- - multi property tables (source),
+        -- - single link with link properties (source & target),
+        -- these constraints do not actually exist, so we emulate it entierly
+        SELECT
+            edgedbsql_VER.uuid_to_oid(sp.id) AS oid,
+            vt.table_name || '_fk_' || spec.name AS conname,
+            edgedbsql_VER.uuid_to_oid(vt.module_id) AS connamespace,
+            'f'::"char" AS contype,
+            FALSE AS condeferrable,
+            FALSE AS condeferred,
+            TRUE AS convalidated,
+            pc.oid AS conrelid,
+            pc.reltype AS contypid,
+            0::oid AS conindid, -- TODO
+            0::oid AS conparentid,
+            pcf.oid AS confrelid,
+            'r'::"char" AS confupdtype,
+            'r'::"char" AS confdeltype,
+            's'::"char" AS confmatchtype,
+            TRUE AS conislocal,
+            0::int2 AS coninhcount,
+            TRUE AS connoinherit,
+            ARRAY[spec.attnum]::int2[] AS conkey,
+            ARRAY[1]::int2[] AS confkey,     -- id will have attnum 1
+            ARRAY['uuid_eq'::regproc]::oid[] AS conpfeqop,
+            ARRAY['uuid_eq'::regproc]::oid[] AS conppeqop,
+            ARRAY['uuid_eq'::regproc]::oid[] AS conffeqop,
+            NULL::int2[] AS confdelsetcols,
+            NULL::oid[] AS conexclop,
+            pc.relpartbound AS conbin,
+            pc.tableoid,
+            pc.xmin,
+            pc.cmin,
+            pc.xmax,
+            pc.cmax,
+            pc.ctid
+        FROM edgedb_VER."_SchemaPointer" sp
+
+        -- find links with link properties
+        LEFT JOIN LATERAL (
+            SELECT sl.id
+            FROM edgedb_VER."_SchemaLink" sl
+            LEFT JOIN edgedb_VER."_SchemaProperty" AS slp ON slp.source = sl.id
+            GROUP BY sl.id
+            HAVING COUNT(*) > 2
+        ) link_props ON link_props.id = sp.id
+
+        JOIN pg_class pc ON pc.relname = sp.id::TEXT
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pc.reltype
+
+        -- duplicate each row for source and target
+        JOIN LATERAL (VALUES
+            ('source', 1::int2, sp.source),
+            ('target', 2::int2, sp.target)
+        ) spec(name, attnum, foreign_id) ON TRUE
+        JOIN edgedbsql_VER.virtual_tables vtf ON vtf.id = spec.foreign_id
+        JOIN pg_class pcf ON pcf.reltype = vtf.pg_type_id
+
+        WHERE
+            sp.cardinality = 'Many' OR link_props.id IS NOT NULL
+            AND sp.computable IS NOT TRUE
+            AND sp.internal IS NOT TRUE
         """
         ),
         trampoline.VersionedView(

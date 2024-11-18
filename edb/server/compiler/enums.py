@@ -85,6 +85,11 @@ class InputFormat(strenum.StrEnum):
     JSON = 'JSON'
 
 
+class InputLanguage(strenum.StrEnum):
+    EDGEQL = 'EDGEQL'
+    SQL = 'SQL'
+
+
 def cardinality_from_ir_value(card: ir.Cardinality) -> Cardinality:
     if card is ir.Cardinality.AT_MOST_ONE:
         return Cardinality.AT_MOST_ONE

@@ -453,6 +453,10 @@ cdef class PGConnection:
         outbuf.write_bytes(_SYNC_MESSAGE)
         self.waiting_for_sync += 1
 
+    cdef send_sync(self):
+        self.write(_SYNC_MESSAGE)
+        self.waiting_for_sync += 1
+
     def _build_apply_state_req(self, bytes serstate, WriteBuffer out):
         cdef:
             WriteBuffer buf
@@ -807,6 +811,152 @@ cdef class PGConnection:
             finally:
                 self.buffer.finish_message()
 
+    async def _describe(
+        self,
+        query: bytes,
+        param_type_oids: Optional[list[int]],
+    ):
+        cdef:
+            WriteBuffer out
+
+        out = WriteBuffer.new()
+
+        buf = WriteBuffer.new_message(b"P")  # Parse
+        buf.write_bytestring(b"")
+        buf.write_bytestring(query)
+        if param_type_oids:
+            buf.write_int16(len(param_type_oids))
+            for oid in param_type_oids:
+                buf.write_int32(<int32_t>oid)
+        else:
+            buf.write_int16(0)
+        out.write_buffer(buf.end_message())
+
+        buf = WriteBuffer.new_message(b"D")  # Describe
+        buf.write_byte(b"S")
+        buf.write_bytestring(b"")
+        out.write_buffer(buf.end_message())
+
+        out.write_bytes(FLUSH_MESSAGE)
+
+        self.write(out)
+
+        param_desc = None
+        result_desc = None
+
+        try:
+            buf = None
+            while True:
+                if not self.buffer.take_message():
+                    await self.wait_for_message()
+                mtype = self.buffer.get_message_type()
+
+                try:
+                    if mtype == b'1':
+                        # ParseComplete
+                        self.buffer.discard_message()
+
+                    elif mtype == b't':
+                        # ParameterDescription
+                        param_desc = self._decode_param_desc(self.buffer)
+
+                    elif mtype == b'T':
+                        # RowDescription
+                        result_desc = self._decode_row_desc(self.buffer)
+                        break
+
+                    elif mtype == b'n':
+                        # NoData
+                        self.buffer.discard_message()
+                        param_desc = []
+                        result_desc = []
+                        break
+
+                    elif mtype == b'E':  ## result
+                        # ErrorResponse
+                        er_cls, er_fields = self.parse_error_message()
+                        raise er_cls(fields=er_fields)
+
+                    else:
+                        self.fallthrough()
+
+                finally:
+                    self.buffer.finish_message()
+        except Exception:
+            self.send_sync()
+            await self.wait_for_sync()
+            raise
+
+        if param_desc is None:
+            raise RuntimeError(
+                "did not receive ParameterDescription from backend "
+                "in response to Describe"
+            )
+
+        if result_desc is None:
+            raise RuntimeError(
+                "did not receive RowDescription from backend "
+                "in response to Describe"
+            )
+
+        return param_desc, result_desc
+
+    def _decode_param_desc(self, buf: ReadBuffer):
+        cdef:
+            int16_t nparams
+            uint32_t p_oid
+            list result = []
+
+        nparams = buf.read_int16()
+
+        for _ in range(nparams):
+            p_oid = <uint32_t>buf.read_int32()
+            result.append(p_oid)
+
+        return result
+
+    def _decode_row_desc(self, buf: ReadBuffer):
+        cdef:
+            int16_t nfields
+
+            bytes f_name
+            uint32_t f_table_oid
+            int16_t f_column_num
+            uint32_t f_dt_oid
+            int16_t f_dt_size
+            int32_t f_dt_mod
+            int16_t f_format
+
+            list result
+
+        nfields = buf.read_int16()
+
+        result = []
+        for _ in range(nfields):
+            f_name = buf.read_null_str()
+            f_table_oid = <uint32_t>buf.read_int32()
+            f_column_num = buf.read_int16()
+            f_dt_oid = <uint32_t>buf.read_int32()
+            f_dt_size = buf.read_int16()
+            f_dt_mod = buf.read_int32()
+            f_format = buf.read_int16()
+
+            result.append((f_name.decode("utf-8"), f_dt_oid))
+
+        return result
+
+    async def sql_describe(
+        self,
+        query: bytes,
+        param_type_oids: Optional[list[int]] = None,
+    ) -> tuple[list[int], list[tuple[str, int]]]:
+        self.before_command()
+        started_at = time.monotonic()
+        try:
+            return await self._describe(query, param_type_oids)
+        finally:
+            await self.after_command()
+
     async def _parse_execute(
         self,
         query,
@@ -817,6 +967,7 @@ cdef class PGConnection:
         int dbver,
         bint use_pending_func_cache,
         tx_isolation,
+        list param_data_types,
     ):
         cdef:
             WriteBuffer out
@@ -938,7 +1089,12 @@ cdef class PGConnection:
                 buf = WriteBuffer.new_message(b'P')
                 buf.write_bytestring(stmt_name)
                 buf.write_bytestring(sqls[0])
-                buf.write_int16(0)
+                if param_data_types:
+                    buf.write_int16(len(param_data_types))
+                    for oid in param_data_types:
+                        buf.write_int32(<int32_t>oid)
+                else:
+                    buf.write_int16(0)
                 out.write_buffer(buf.end_message())
                 metrics.query_size.observe(
                     len(sqls[0]), self.get_tenant_label(), 'compiled'
@@ -1135,6 +1291,7 @@ cdef class PGConnection:
         *,
         query,
         WriteBuffer bind_data = NO_ARGS,
+        list param_data_types = None,
         frontend.AbstractFrontendConnection fe_conn = None,
         bint use_prep_stmt = False,
         bytes state = None,
@@ -1154,6 +1311,7 @@ cdef class PGConnection:
                 dbver,
                 use_pending_func_cache,
                 tx_isolation,
+                param_data_types,
             )
         finally:
             metrics.backend_query_duration.observe(

@@ -285,6 +285,17 @@ def monitor_thread(queue, result):
         method(*args, **kwargs)
 
 
+def status_thread_func(
+    result: ParallelTextTestResult,
+    stop_event: threading.Event,
+) -> None:
+    while True:
+        result.report_still_running()
+        time.sleep(1)
+        if stop_event.is_set():
+            break
+
+
 class ParallelTestSuite(unittest.TestSuite):
     def __init__(
         self, tests, server_conn, num_workers, backend_dsn, init_worker
@@ -310,9 +321,21 @@ class ParallelTestSuite(unittest.TestSuite):
             worker_param_queue.put((self.server_conn, self.backend_dsn))
 
         result_thread = threading.Thread(
-            name='test-monitor', target=monitor_thread,
-            args=(result_queue, result), daemon=True)
+            name='test-monitor',
+            target=monitor_thread,
+            args=(result_queue, result),
+            daemon=True,
+        )
         result_thread.start()
+
+        status_thread_stop_event = threading.Event()
+        status_thread = threading.Thread(
+            name='test-status',
+            target=status_thread_func,
+            args=(result, status_thread_stop_event),
+            daemon=True,
+        )
+        status_thread.start()
 
         initargs = (
             status_queue, worker_param_queue, result_queue, self.init_worker
@@ -357,12 +380,13 @@ class ParallelTestSuite(unittest.TestSuite):
         # Post the terminal message to the queue so that
         # test-monitor can stop.
         result_queue.put((None, None, None))
+        status_thread_stop_event.set()
 
-        # Give the test-monitor thread some time to
-        # process the queue messages.  If something
-        # goes wrong, the thread will be forcibly
+        # Give the test-monitor and test-status threads some time to process the
+        # queue messages.  If something goes wrong, the thread will be forcibly
         # joined by a timeout.
         result_thread.join(timeout=3)
+        status_thread.join(timeout=3)
 
         return result
 
@@ -450,6 +474,9 @@ class BaseRenderer:
     def report_start(self, test, *, currently_running):
         return
 
+    def report_still_running(self, still_running: dict[str, float]):
+        return
+
 
 class SimpleRenderer(BaseRenderer):
     def report(self, test, marker, description=None, *, currently_running):
@@ -479,6 +506,10 @@ class VerboseRenderer(BaseRenderer):
         style = self.styles_map[marker.value]
         click.echo(style(self._render_test(test, marker, description)),
                    file=self.stream)
+
+    def report_still_running(self, still_running: dict[str, float]) -> None:
+        items = [f"{t} for {d:.02f}s" for t, d in still_running.items()]
+        click.echo(f"still running:\n  {'\n   '.join(items)}")
 
 
 class MultiLineRenderer(BaseRenderer):
@@ -520,6 +551,10 @@ class MultiLineRenderer(BaseRenderer):
 
     def report_start(self, test, *, currently_running):
         self._render(currently_running)
+
+    def report_still_running(self, still_running: dict[str, float]):
+        # Still-running tests are already reported in normal repert
+        return
 
     def _render_modname(self, name):
         return name.replace('.', '/') + '.py'
@@ -727,6 +762,16 @@ class ParallelTextTestResult(unittest.result.TestResult):
             currently_running=list(self.currently_running),
         )
 
+    def report_still_running(self):
+        now = time.monotonic()
+        still_running = {}
+        for test, start in self.currently_running.items():
+            running_for = now - start
+            if running_for > 5.0:
+                still_running[test] = running_for
+        if still_running:
+            self.ren.report_still_running(still_running)
+
     def record_test_stats(self, test, stats):
         self.test_stats.append((test, stats))
 
@@ -745,7 +790,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
 
     def startTest(self, test):
         super().startTest(test)
-        self.currently_running[test] = True
+        self.currently_running[test] = time.monotonic()
         self.ren.report_start(
             test, currently_running=list(self.currently_running))
 

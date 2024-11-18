@@ -298,7 +298,7 @@ Server configuration
 
 ``EDGEDB_SERVER_SECURITY``
     - ``strict == default``
-    - ``insecure_dev_mode`` — disable password-based authentication and allow
+    - ``insecure_dev_mode`` — disable password-based authentication and allow
       unencrypted HTTP traffic
 
 ``EDGEDB_DOCKER_APPLY_MIGRATIONS`` (Docker only)
