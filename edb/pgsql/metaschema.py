@@ -4914,8 +4914,14 @@ class ResetQueryStatsFunction(trampoline.VersionedFunction):
         tenant_id TEXT;
         other_tenant_exists BOOLEAN;
         db_oid OID;
+        queryid bigint;
     BEGIN
         tenant_id := edgedb_VER.get_backend_tenant_id();
+        IF id IS NULL THEN
+            queryid := 0;
+        ELSE
+            queryid := edgedbext.edb_stat_queryid(id);
+        END IF;
 
         SELECT EXISTS (
             SELECT 1
@@ -4950,14 +4956,14 @@ class ResetQueryStatsFunction(trampoline.VersionedFunction):
                             (d.description)->>'id' IS NOT NULL
                             AND (d.description)->>'tenant_id' = tenant_id
                     ),
-                    COALESCE(query_id, 0),
+                    queryid,
                     COALESCE(minmax_only, false)
                 );
             ELSE
                 RETURN edgedbext.edb_stat_statements_reset(
                     0,  -- userid
                     '{}',  -- database oid
-                    COALESCE(query_id, 0),
+                    queryid,
                     COALESCE(minmax_only, false)
                 );
             END IF;
@@ -4984,7 +4990,7 @@ class ResetQueryStatsFunction(trampoline.VersionedFunction):
             RETURN edgedbext.edb_stat_statements_reset(
                 0,  -- userid
                 ARRAY[db_oid],
-                COALESCE(query_id, 0),
+                queryid,
                 COALESCE(minmax_only, false)
             );
         END IF;
@@ -5004,8 +5010,8 @@ class ResetQueryStatsFunction(trampoline.VersionedFunction):
             name=('edgedb', 'reset_query_stats'),
             args=[
                 ('branch_name', ('text',)),
+                ('id', ('uuid',)),
                 ('minmax_only', ('bool',)),
-                ('query_id', ('bigint',)),
             ],
             returns=('edgedbt', 'timestamptz_t'),
             volatility='volatile',
@@ -5988,8 +5994,8 @@ def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
         return f"({val} * interval '1ms')::edgedbt.duration_t"
 
     query_stats_fields = {
-        'id': "s.cache_key",
-        'name': "s.cache_key::text",
+        'id': "s.id",
+        'name': "s.id::text",
         'name__internal': "s.queryid::text",
         'builtin': "false",
         'internal': "false",
@@ -5997,7 +6003,6 @@ def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
 
         'branch': "((d.description)->>'id')::uuid",
         'query': "s.query",
-        'query_id': "s.queryid",
         'query_type': f"(t.mapping->>s.stmt_type::text)::{query_type_domain}",
 
         'plans': 's.plans',
@@ -6034,7 +6039,7 @@ def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
                 SELECT {ql(json.dumps(type_mapping))}::jsonb AS mapping
             ) AS t
         WHERE
-            s.cache_key IS NOT NULL
+            s.id IS NOT NULL
             AND (d.description)->>'id' IS NOT NULL
             AND (d.description)->>'tenant_id'
                 = edgedb_VER.get_backend_tenant_id()

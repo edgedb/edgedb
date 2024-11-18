@@ -11,13 +11,18 @@ RETURNS timestamp with time zone
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT PARALLEL SAFE;
 
+CREATE FUNCTION edb_stat_queryid(IN id uuid)
+RETURNS bigint
+AS 'MODULE_PATHNAME'
+LANGUAGE C STRICT PARALLEL SAFE;
+
 CREATE FUNCTION edb_stat_statements(IN showtext boolean,
     OUT userid oid,
     OUT dbid oid,
     OUT toplevel bool,
     OUT queryid bigint,
     OUT query text,
-    OUT cache_key uuid,
+    OUT id uuid,
     OUT stmt_type int2,
     OUT plans int8,
     OUT total_plan_time float8,

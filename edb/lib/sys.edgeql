@@ -99,10 +99,6 @@ CREATE TYPE sys::QueryStats EXTENDING sys::ExternalObject {
         CREATE ANNOTATION std::description :=
             "Text string of a representative query.";
     };
-    CREATE PROPERTY query_id -> std::int64 {
-        CREATE ANNOTATION std::description :=
-            "Hash code to identify identical cached query entries.";
-    };
     CREATE PROPERTY query_type -> sys::QueryType {
         CREATE ANNOTATION std::description :=
             "Type of the query.";
@@ -196,12 +192,12 @@ CREATE TYPE sys::QueryStats EXTENDING sys::ExternalObject {
 CREATE FUNCTION
 sys::reset_query_stats(
     named only branch_name: OPTIONAL std::str = {},
-    named only query_id: OPTIONAL std::int64 = {},
+    named only id: OPTIONAL std::uuid = {},
     named only minmax_only: OPTIONAL std::bool = false,
 ) -> OPTIONAL std::datetime {
     CREATE ANNOTATION std::description :=
         'Discard query statistics gathered so far corresponding to the '
-        ++ 'specified `branch_name` and `query_id`. If either of the '
+        ++ 'specified `branch_name` and `id`. If either of the '
         ++ 'parameters is not specified, the statistics that match with the '
         ++ 'other parameter will be reset. If no parameter is specified, '
         ++ 'it will discard all statistics. When `minmax_only` is `true`, '

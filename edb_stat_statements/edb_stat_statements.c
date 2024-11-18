@@ -370,6 +370,7 @@ static bool edbss_track_unrecognized = false;	/* whether to track unrecognized s
 PG_FUNCTION_INFO_V1(edb_stat_statements_reset);
 PG_FUNCTION_INFO_V1(edb_stat_statements);
 PG_FUNCTION_INFO_V1(edb_stat_statements_info);
+PG_FUNCTION_INFO_V1(edb_stat_queryid);
 
 const char *
 edbss_extract_info_line(const char *s, int* len);
@@ -2200,6 +2201,19 @@ edb_stat_statements_info(PG_FUNCTION_ARGS)
 	values[1] = TimestampTzGetDatum(stats.stats_reset);
 
 	PG_RETURN_DATUM(HeapTupleGetDatum(heap_form_tuple(tupdesc, values, nulls)));
+}
+
+/*
+ * Convert uuid to bigint as queryid.
+ */
+Datum
+edb_stat_queryid(PG_FUNCTION_ARGS) {
+	union {
+		pg_uuid_t uuid;
+		uint64 id;
+	} id;
+	id.uuid = *PG_GETARG_UUID_P(0);
+	return UInt64GetDatum(id.id);
 }
 
 /*
