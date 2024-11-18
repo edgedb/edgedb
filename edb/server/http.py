@@ -31,6 +31,7 @@ from typing import (
 import asyncio
 import dataclasses
 import logging
+import io
 import os
 import json as json_lib
 import urllib.parse
@@ -38,6 +39,7 @@ import time
 from http import HTTPStatus as HTTPStatus
 
 from edb.server._http import Http
+from . import rust_async_channel
 
 logger = logging.getLogger("edb.server")
 HeaderType = Optional[Union[list[tuple[str, str]], dict[str, str]]]
@@ -297,24 +299,11 @@ class HttpClient:
 
     async def _boot(self, loop: asyncio.AbstractEventLoop, fd: int) -> None:
         logger.info(f"HTTP client initialized, user_agent={self._user_agent}")
-        reader = asyncio.StreamReader(loop=loop)
-        reader_protocol = asyncio.StreamReaderProtocol(reader)
-        transport, _ = await loop.connect_read_pipe(
-            lambda: reader_protocol, os.fdopen(fd, 'rb')
-        )
+        channel = rust_async_channel.RustAsyncChannel(fd, self._client._pipe, self._process_message)
         try:
-            while len(await reader.read(1)) == 1:
-                if not self._client or not self._task:
-                    break
-                if self._skip_reads > 0:
-                    self._skip_reads -= 1
-                    continue
-                msg = self._client._read()
-                if not msg:
-                    break
-                self._process_message(msg)
+            await channel.run()
         finally:
-            transport.close()
+            channel.close()
 
     def _process_message(self, msg):
         try:
@@ -468,6 +457,7 @@ class ResponseSSE:
     _stream: asyncio.Queue = dataclasses.field(repr=False)
     _cancel: Callable[[], None] = dataclasses.field(repr=False)
     _ack: Callable[[], None] = dataclasses.field(repr=False)
+    _closed: bool = False
     is_streaming: bool = True
 
     @classmethod
@@ -489,10 +479,13 @@ class ResponseSSE:
         id: Optional[str] = None
 
     def close(self):
-        self._cancel()
+        if not self._closed:
+            self._closed = True
+            self._cancel()
 
     def __del__(self):
-        self.close()
+        if not self._closed:
+            logger.error(f"ResponseSSE {id(self)} was not closed")
 
     def __aiter__(self):
         return self
