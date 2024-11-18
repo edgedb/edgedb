@@ -51,6 +51,9 @@ async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
     )
     http_client._update_limit(http_max_connections)
     try:
+        # TODO: I think this TaskGroup approach might not be the right
+        # approach here. It is fragile to failures and means that slow
+        # queries can cause things to wait on them.
         async with (asyncio.TaskGroup() as g,):
             for db in list(tenant.iter_dbs()):
                 if db.name == defines.EDGEDB_SYSTEM_DB:
@@ -60,32 +63,47 @@ async def _http_task(tenant: edbtenant.Tenant, http_client) -> None:
                     # Don't run the net_worker if the database is not
                     # connectable, e.g. being dropped
                     continue
-                json_bytes = await execute.parse_execute_json(
-                    db,
-                    """
-                    with
-                        PENDING_REQUESTS := (
-                            select std::net::http::ScheduledRequest
-                            filter .state = std::net::RequestState.Pending
-                        ),
-                        UPDATED := (
-                            update PENDING_REQUESTS
-                            set {
-                                state := std::net::RequestState.InProgress,
-                                updated_at := datetime_of_statement(),
-                            }
-                        ),
-                    select UPDATED {
-                        id,
-                        method,
-                        url,
-                        body,
-                        headers,
-                    }
-                    """,
-                    cached_globally=True,
-                    tx_isolation=defines.TxIsolationLevel.RepeatableRead,
-                )
+                try:
+                    json_bytes = await execute.parse_execute_json(
+                        db,
+                        """
+                        with
+                            PENDING_REQUESTS := (
+                                select std::net::http::ScheduledRequest
+                                filter .state = std::net::RequestState.Pending
+                            ),
+                            UPDATED := (
+                                update PENDING_REQUESTS
+                                set {
+                                    state := std::net::RequestState.InProgress,
+                                    updated_at := datetime_of_statement(),
+                                }
+                            ),
+                        select UPDATED {
+                            id,
+                            method,
+                            url,
+                            body,
+                            headers,
+                        }
+                        """,
+                        cached_globally=True,
+                        tx_isolation=defines.TxIsolationLevel.RepeatableRead,
+                    )
+                except Exception as ex:
+                    # If the query fails (because the database branch
+                    # has been racily deleted, maybe), ignore an keep
+                    # going. We don't want the failure to bubble up
+                    # and cause tasks in the task group to die.
+                    logger.debug(
+                        "HTTP net_worker query failed "
+                        "(instance: %s, branch: %s)",
+                        tenant.get_instance_name(),
+                        db,
+                        exc_info=ex,
+                    )
+                    continue
+
                 pending_requests: list[dict] = json.loads(json_bytes)
                 for pending_request in pending_requests:
                     request = ScheduledRequest(**pending_request)
