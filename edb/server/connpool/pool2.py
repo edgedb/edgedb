@@ -20,7 +20,6 @@ import asyncio
 import time
 import typing
 import dataclasses
-import os
 import pickle
 
 from . import config
@@ -133,7 +132,10 @@ class Pool(typing.Generic[C]):
         self._channel = None
 
         self._loop = asyncio.get_running_loop()
-        self._channel = rust_async_channel.RustAsyncChannel(self._pool, self._process_message)
+        self._channel = rust_async_channel.RustAsyncChannel(
+            self._pool,
+            self._process_message,
+        )
 
         self._task = self._loop.create_task(self._boot())
 

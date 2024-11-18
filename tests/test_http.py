@@ -19,7 +19,6 @@
 import asyncio
 import json
 import random
-import unittest
 
 from edb.server import http
 from edb.testbase import http as tb

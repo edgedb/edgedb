@@ -17,14 +17,13 @@
 #
 
 import asyncio
-import os
 import io
 import logging
 
-logger = logging.getLogger("edb.server")
 
 from typing import Protocol, Optional, Tuple, Any, Callable
 
+logger = logging.getLogger("edb.server")
 
 MAX_BATCH_SIZE = 16
 
