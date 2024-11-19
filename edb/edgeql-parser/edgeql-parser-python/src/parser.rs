@@ -24,11 +24,7 @@ pub fn parse(
     let context = parser::Context::new(spec);
     let (cst, errors) = parser::parse(&tokens, &context);
 
-    let errors = errors
-        .into_iter()
-        .map(|e| parser_error_into_tuple(py, e))
-        .collect::<Result<Vec<_>, _>>()?;
-    let errors = PyList::new(py, &errors)?;
+    let errors = PyList::new(py, errors.iter().map(|e| parser_error_into_tuple(e)))?;
 
     let res = ParserResult {
         out: cst.as_ref().map(ParserCSTNode).into_pyobject(py)?.unbind(),

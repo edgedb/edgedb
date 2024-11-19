@@ -10,16 +10,16 @@ use crate::errors::{parser_error_into_tuple, ParserResult};
 pub fn tokenize(py: Python, s: &Bound<PyString>) -> PyResult<ParserResult> {
     let data = s.to_string();
 
-    let mut token_stream = Tokenizer::new(&data[..]).validated_values().with_eof();
+    let token_stream = Tokenizer::new(&data[..]).validated_values().with_eof();
 
-    let mut tokens: Vec<_> = Vec::new();
-    let mut errors: Vec<_> = Vec::new();
+    let mut tokens = vec![];
+    let mut errors = vec![];
 
-    for res in &mut token_stream {
+    for res in token_stream.into_iter() {
         match res {
             Ok(token) => tokens.push(token),
             Err(e) => {
-                errors.push(parser_error_into_tuple(py, e)?);
+                errors.push(parser_error_into_tuple(&e).into_pyobject(py)?);
 
                 // TODO: fix tokenizer to skip bad tokens and continue
                 break;
@@ -27,14 +27,13 @@ pub fn tokenize(py: Python, s: &Bound<PyString>) -> PyResult<ParserResult> {
         }
     }
 
-    let tokens = tokens_to_py(py, tokens)?;
+    let out = tokens_to_py(py, tokens)?
+        .into_pyobject(py)?
+        .unbind()
+        .into_any();
+    let errors = PyList::new(py, errors)?.unbind().into_any();
 
-    let errors = errors.as_slice().into_pyobject(py)?.unbind().into_any();
-
-    Ok(ParserResult {
-        out: tokens.into_pyobject(py)?.unbind().into_any(),
-        errors,
-    })
+    Ok(ParserResult { out, errors })
 }
 
 // An opaque wrapper around [edgeql_parser::tokenizer::Token].
@@ -59,15 +58,13 @@ impl OpaqueToken {
 }
 
 pub fn tokens_to_py(py: Python<'_>, rust_tokens: Vec<Token>) -> PyResult<Py<PyList>> {
-    let mut buf = Vec::with_capacity(rust_tokens.len());
-    for tok in rust_tokens {
-        let py_tok = OpaqueToken {
+    Ok(PyList::new(
+        py,
+        rust_tokens.into_iter().map(|tok| OpaqueToken {
             inner: tok.cloned(),
-        };
-
-        buf.push(py_tok.into_pyobject(py)?);
-    }
-    Ok(PyList::new(py, &buf[..])?.unbind())
+        }),
+    )?
+    .unbind())
 }
 
 /// To support pickle serialization of OpaqueTokens, we need to provide a
