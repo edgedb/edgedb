@@ -1,40 +1,35 @@
-use pyo3::{
-    prelude::*,
-    types::{PyList, PyString},
-};
+use pyo3::{prelude::*, types::PyFrozenSet};
 
 use edgeql_parser::keywords;
 
 pub struct AllKeywords {
-    pub current: PyObject,
-    pub future: PyObject,
-    pub unreserved: PyObject,
-    pub partial: PyObject,
+    pub current: Py<PyFrozenSet>,
+    pub future: Py<PyFrozenSet>,
+    pub unreserved: Py<PyFrozenSet>,
+    pub partial: Py<PyFrozenSet>,
 }
 
 pub fn get_keywords(py: Python) -> PyResult<AllKeywords> {
     let intern = py.import("sys")?.getattr("intern")?;
-    let frozen = py.import("builtins")?.getattr("frozenset")?;
 
-    let current = prepare_keywords(py, keywords::CURRENT_RESERVED_KEYWORDS.iter(), &intern)?;
-    let unreserved = prepare_keywords(py, keywords::UNRESERVED_KEYWORDS.iter(), &intern)?;
-    let future = prepare_keywords(py, keywords::FUTURE_RESERVED_KEYWORDS.iter(), &intern)?;
-    let partial = prepare_keywords(py, keywords::PARTIAL_RESERVED_KEYWORDS.iter(), &intern)?;
     Ok(AllKeywords {
-        current: frozen.call((PyList::new(py, &current)?,), None)?.into(),
-        unreserved: frozen.call((PyList::new(py, &unreserved)?,), None)?.into(),
-        future: frozen.call((PyList::new(py, &future)?,), None)?.into(),
-        partial: frozen.call((PyList::new(py, &partial)?,), None)?.into(),
+        current: prepare_keywords(py, &keywords::CURRENT_RESERVED_KEYWORDS, &intern)?,
+        unreserved: prepare_keywords(py, &keywords::UNRESERVED_KEYWORDS, &intern)?,
+        future: prepare_keywords(py, &keywords::FUTURE_RESERVED_KEYWORDS, &intern)?,
+        partial: prepare_keywords(py, &keywords::PARTIAL_RESERVED_KEYWORDS, &intern)?,
     })
 }
 
-fn prepare_keywords<'py, I: Iterator<Item = &'py &'static str>>(
+fn prepare_keywords<'a, 'py, I: IntoIterator<Item = &'a &'static str>>(
     py: Python<'py>,
     keyword_set: I,
     intern: &Bound<'py, PyAny>,
-) -> Result<Vec<Bound<'py, PyAny>>, PyErr> {
-    keyword_set
-        .cloned()
-        .map(|s: &str| intern.call((PyString::new(py, s),), None))
-        .collect()
+) -> PyResult<Py<PyFrozenSet>> {
+    PyFrozenSet::new(
+        py,
+        keyword_set
+            .into_iter()
+            .map(|s| intern.call((&s,), None).unwrap()),
+    )
+    .map(|o| o.unbind())
 }
