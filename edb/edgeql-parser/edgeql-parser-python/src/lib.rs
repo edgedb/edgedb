@@ -44,7 +44,7 @@ fn _edgeql_parser(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
 
     m.add_function(wrap_pyfunction!(unpack::unpack, m)?)?;
 
-    tokenizer::fini_module(py, m);
+    tokenizer::fini_module(m);
 
     Ok(())
 }

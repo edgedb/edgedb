@@ -33,12 +33,13 @@ impl ParserResult {
     }
 }
 
-pub fn parser_error_into_tuple(py: Python, error: Error) -> PyObject {
-    (
+pub fn parser_error_into_tuple(py: Python, error: Error) -> PyResult<PyObject> {
+    Ok((
         error.message,
         (error.span.start, error.span.end),
         error.hint,
         error.details,
     )
-        .into_py(py)
+        .into_pyobject(py)?
+        .into())
 }

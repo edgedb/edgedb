@@ -35,24 +35,21 @@ enum RustToPythonMessage {
     SSEEnd(PythonConnId),
     Error(PythonConnId, String),
 }
-
-impl ToPyObject for RustToPythonMessage {
-    fn to_object(&self, py: Python<'_>) -> PyObject {
+impl RustToPythonMessage {
+    fn to_object(&self, py: Python<'_>) -> PyResult<PyObject> {
         use RustToPythonMessage::*;
         match self {
-            Error(conn, error) => (0, *conn, error).to_object(py),
-            Response(conn, (status, body, headers)) => (
-                1,
-                conn,
-                (*status, PyByteArray::new_bound(py, &body), headers),
-            )
-                .to_object(py),
-            SSEStart(conn, (status, headers)) => (2, conn, (status, headers)).to_object(py),
-            SSEEvent(conn, message) => {
-                (3, conn, (&message.id, &message.data, &message.event)).to_object(py)
+            Error(conn, error) => (0, conn, error).into_pyobject(py),
+            Response(conn, (status, body, headers)) => {
+                (1, conn, (status, PyByteArray::new(py, body), headers)).into_pyobject(py)
             }
-            SSEEnd(conn) => (4, conn, ()).to_object(py),
+            SSEStart(conn, (status, headers)) => (2, conn, (status, headers)).into_pyobject(py),
+            SSEEvent(conn, message) => {
+                (3, conn, (&message.id, &message.data, &message.event)).into_pyobject(py)
+            }
+            SSEEnd(conn) => (4, conn).into_pyobject(py),
         }
+        .map(|e| e.unbind().into_any())
     }
 }
 
@@ -102,7 +99,7 @@ impl RpcPipe {
 #[pyclass]
 struct Http {
     python_to_rust: tokio::sync::mpsc::UnboundedSender<PythonToRustMessage>,
-    rust_to_python: std::sync::mpsc::Receiver<RustToPythonMessage>,
+    rust_to_python: Mutex<std::sync::mpsc::Receiver<RustToPythonMessage>>,
     notify_fd: u64,
 }
 
@@ -556,7 +553,7 @@ impl Http {
         let notify_fd = rxfd.recv().unwrap();
         Http {
             python_to_rust: txpr,
-            rust_to_python: rxrp,
+            rust_to_python: Mutex::new(rxrp),
             notify_fd,
         }
     }
@@ -612,16 +609,26 @@ impl Http {
             .map_err(|_| internal_error("In shutdown"))
     }
 
-    fn _read(&self, py: Python<'_>) -> Py<PyAny> {
-        let Ok(msg) = self.rust_to_python.recv() else {
-            return py.None();
+    fn _read(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let Ok(msg) = self
+            .rust_to_python
+            .try_lock()
+            .expect("Unsafe thread access")
+            .recv()
+        else {
+            return Ok(py.None());
         };
         msg.to_object(py)
     }
 
-    fn _try_read(&self, py: Python<'_>) -> Py<PyAny> {
-        let Ok(msg) = self.rust_to_python.try_recv() else {
-            return py.None();
+    fn _try_read(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let Ok(msg) = self
+            .rust_to_python
+            .try_lock()
+            .expect("Unsafe thread access")
+            .try_recv()
+        else {
+            return Ok(py.None());
         };
         msg.to_object(py)
     }
@@ -630,7 +637,7 @@ impl Http {
 #[pymodule]
 fn _http(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Http>()?;
-    m.add("InternalError", py.get_type_bound::<InternalError>())?;
+    m.add("InternalError", py.get_type::<InternalError>())?;
 
     Ok(())
 }

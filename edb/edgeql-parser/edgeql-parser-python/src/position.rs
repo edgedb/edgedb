@@ -25,7 +25,8 @@ impl SourcePoint {
             .into_iter()
             .map(|_position| SourcePoint { _position })
             .collect::<Vec<_>>()
-            .into_py(py))
+            .into_pyobject(py)?
+            .unbind())
     }
 
     #[getter]

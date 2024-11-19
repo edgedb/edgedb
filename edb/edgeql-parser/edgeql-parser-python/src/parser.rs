@@ -29,15 +29,15 @@ pub fn parse(
     let errors = errors
         .into_iter()
         .map(|e| parser_error_into_tuple(py, e))
-        .collect::<Vec<_>>();
-    let errors = PyList::new(py, &errors);
+        .collect::<Result<Vec<_>, _>>()?;
+    let errors = PyList::new(py, &errors)?;
 
     let res = ParserResult {
-        out: cst.into_py(py),
+        out: cst.into_pyobject(py)?.into(),
         errors: errors.into(),
     };
 
-    Ok((res, productions.to_object(py)))
+    Ok((res, productions.into_pyobject(py)?.to_owned().into()))
 }
 
 #[pyclass]
@@ -136,16 +136,16 @@ pub fn save_spec(spec_json: &Bound<PyString>, dst: &Bound<PyString>) -> PyResult
 
 fn load_productions(py: Python<'_>, spec: &parser::Spec) -> PyResult<PyObject> {
     let grammar_name = "edb.edgeql.parser.grammar.start";
-    let grammar_mod = py.import_bound(grammar_name)?;
+    let grammar_mod = py.import(grammar_name)?;
     let load_productions = py
-        .import_bound("edb.common.parsing")?
+        .import("edb.common.parsing")?
         .getattr("load_spec_productions")?;
 
-    let production_names: Vec<_> = spec
+    let production_names = spec
         .production_names
         .iter()
         .map(|(a, b)| PyTuple::new(py, [a, b]))
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     let productions = load_productions.call((production_names, grammar_mod), None)?;
     Ok(productions.into())
@@ -169,22 +169,24 @@ fn to_py_cst<'a>(cst: &'a parser::CSTNode<'a>, py: Python) -> PyResult<CSTNode> 
                 start: token.span.start,
                 end: token.span.end,
             }
-            .into_py(py),
+            .into_pyobject(py)?
+            .unbind()
+            .into_any(),
         },
         parser::CSTNode::Production(prod) => CSTNode {
             production: Production {
                 id: prod.id,
-                args: PyList::new(
-                    py,
-                    prod.args
-                        .iter()
-                        .map(|a| to_py_cst(a, py).map(|x| x.into_py(py)))
-                        .collect::<PyResult<Vec<_>>>()?
-                        .as_slice(),
-                )
-                .into(),
+                args: prod
+                    .args
+                    .iter()
+                    .map(|a| Ok(to_py_cst(a, py)?.into_pyobject(py)?))
+                    .collect::<PyResult<Vec<_>>>()?
+                    .into_pyobject(py)?
+                    .unbind(),
             }
-            .into_py(py),
+            .into_pyobject(py)?
+            .unbind()
+            .into_any(),
             terminal: py.None(),
         },
     })

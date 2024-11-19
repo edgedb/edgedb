@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::convert::{Infallible, TryFrom};
 
 use bigdecimal::Num;
 
@@ -8,7 +8,7 @@ use edgedb_protocol::model::{BigInt, Decimal};
 use edgeql_parser::tokenizer::Value;
 use pyo3::exceptions::{PyAssertionError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyFloat, PyList, PyLong, PyString};
+use pyo3::types::{PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
 
 use crate::errors::SyntaxError;
 use crate::normalize::{normalize as _normalize, Error, PackedEntry, Variable};
@@ -55,20 +55,24 @@ pub struct Entry {
 
 impl Entry {
     pub fn new(py: Python, entry: crate::normalize::Entry) -> PyResult<Self> {
-        let blobs = serialize_all(py, &entry.variables).map_err(PyAssertionError::new_err)?;
+        let blobs = serialize_all(py, &entry.variables)?;
         let counts: Vec<_> = entry
             .variables
             .iter()
-            .map(|x| x.len().into_py(py))
-            .collect();
+            .map(|x| {
+                x.len()
+                    .into_pyobject(py)
+                    .map_err(|_: Infallible| unreachable!())
+            })
+            .collect::<PyResult<Vec<_>>>()?;
 
         Ok(Entry {
             key: PyBytes::new(py, &entry.hash[..]).into(),
-            tokens: tokens_to_py(py, entry.tokens.clone())?,
+            tokens: tokens_to_py(py, entry.tokens.clone())?.into_any(),
             extra_blobs: blobs.into(),
             extra_named: entry.named_args,
             first_extra: entry.first_arg,
-            extra_counts: PyList::new(py, &counts[..]).into(),
+            extra_counts: PyList::new(py, &counts[..])?.into(),
             entry_pack: entry.into(),
         })
     }
@@ -80,7 +84,7 @@ impl Entry {
         let vars = PyDict::new(py);
         let first = match self.first_extra {
             Some(first) => first,
-            None => return Ok(vars.to_object(py)),
+            None => return Ok(vars.unbind().into_any()),
         };
         for (idx, var) in self.entry_pack.variables.iter().flatten().enumerate() {
             let s = if self.extra_named {
@@ -88,10 +92,10 @@ impl Entry {
             } else {
                 (first + idx).to_string()
             };
-            vars.set_item(s.into_py(py), value_to_py_object(py, &var.value)?)?;
+            vars.set_item(s.into_pyobject(py)?, value_to_py_object(py, &var.value)?)?;
         }
 
-        Ok(vars.to_object(py))
+        Ok(vars.unbind().into_any())
     }
 
     fn pack(&self, py: Python) -> PyResult<PyObject> {
@@ -167,24 +171,21 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
 pub fn serialize_all<'a>(
     py: Python<'a>,
     variables: &[Vec<Variable>],
-) -> Result<Bound<'a, PyList>, String> {
+) -> PyResult<Bound<'a, PyList>> {
     let mut buf = Vec::with_capacity(variables.len());
     for vars in variables {
-        let bytes = serialize_extra(vars)?;
+        let bytes = serialize_extra(vars).map_err(|e| PyAssertionError::new_err(e))?;
         buf.push(PyBytes::new(py, &bytes));
     }
-    Ok(PyList::new(py, &buf))
+    PyList::new(py, &buf)
 }
 
 pub fn value_to_py_object(py: Python, val: &Value) -> PyResult<PyObject> {
     Ok(match val {
-        Value::Int(v) => v.into_py(py),
-        Value::String(v) => v.into_py(py),
-        Value::Float(v) => v.into_py(py),
-        Value::BigInt(v) => py
-            .get_type::<PyLong>()
-            .call((v, 16.into_py(py)), None)?
-            .into(),
+        Value::Int(v) => v.into_pyobject(py)?.to_owned().into(),
+        Value::String(v) => v.into_pyobject(py)?.to_owned().into(),
+        Value::Float(v) => v.into_pyobject(py)?.to_owned().into(),
+        Value::BigInt(v) => py.get_type::<PyInt>().call((v, 16), None)?.into(),
         Value::Decimal(v) => py
             .get_type::<PyFloat>()
             .call((v.to_string(),), None)?

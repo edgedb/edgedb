@@ -14,6 +14,7 @@ use std::{
     os::fd::IntoRawFd,
     pin::Pin,
     rc::Rc,
+    sync::Mutex,
     thread,
     time::{Duration, Instant},
 };
@@ -37,21 +38,22 @@ enum RustToPythonMessage {
     Metrics(Vec<u8>),
 }
 
-impl ToPyObject for RustToPythonMessage {
-    fn to_object(&self, py: Python<'_>) -> PyObject {
+impl RustToPythonMessage {
+    fn to_object(&self, py: Python<'_>) -> PyResult<PyObject> {
         use RustToPythonMessage::*;
         match self {
-            Acquired(a, b) => (0, a, b.0).to_object(py),
-            PerformConnect(conn, s) => (1, conn.0, s).to_object(py),
-            PerformDisconnect(conn) => (2, conn.0).to_object(py),
-            PerformReconnect(conn, s) => (3, conn.0, s).to_object(py),
-            Pruned(conn) => (4, conn).to_object(py),
-            Failed(conn, error) => (5, conn, error.0).to_object(py),
+            Acquired(a, b) => (0, a, b.0).into_pyobject(py),
+            PerformConnect(conn, s) => (1, conn.0, s).into_pyobject(py),
+            PerformDisconnect(conn) => (2, conn.0).into_pyobject(py),
+            PerformReconnect(conn, s) => (3, conn.0, s).into_pyobject(py),
+            Pruned(conn) => (4, conn).into_pyobject(py),
+            Failed(conn, error) => (5, conn, error.0).into_pyobject(py),
             Metrics(metrics) => {
                 // This is not really fast but it should not be happening very often
-                (6, PyByteArray::new_bound(py, &metrics)).to_object(py)
+                (6, PyByteArray::new(py, &metrics)).into_pyobject(py)
             }
         }
+        .map(|e| e.unbind().into_any())
     }
 }
 
@@ -175,7 +177,7 @@ impl Connector for Rc<RpcPipe> {
 #[pyclass]
 struct ConnPool {
     python_to_rust: tokio::sync::mpsc::UnboundedSender<PythonToRustMessage>,
-    rust_to_python: std::sync::mpsc::Receiver<RustToPythonMessage>,
+    rust_to_python: Mutex<std::sync::mpsc::Receiver<RustToPythonMessage>>,
     notify_fd: u64,
 }
 
@@ -328,7 +330,7 @@ impl ConnPool {
         let notify_fd = rxfd.recv().unwrap();
         ConnPool {
             python_to_rust: txpr,
-            rust_to_python: rxrp,
+            rust_to_python: Mutex::new(rxrp),
             notify_fd,
         }
     }
@@ -374,16 +376,26 @@ impl ConnPool {
             .map_err(|_| internal_error("In shutdown"))
     }
 
-    fn _read(&self, py: Python<'_>) -> Py<PyAny> {
-        let Ok(msg) = self.rust_to_python.recv() else {
-            return py.None();
+    fn _read(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let Ok(msg) = self
+            .rust_to_python
+            .try_lock()
+            .expect("Unsafe thread access")
+            .try_recv()
+        else {
+            return Ok(py.None());
         };
         msg.to_object(py)
     }
 
-    fn _try_read(&self, py: Python<'_>) -> Py<PyAny> {
-        let Ok(msg) = self.rust_to_python.try_recv() else {
-            return py.None();
+    fn _try_read(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let Ok(msg) = self
+            .rust_to_python
+            .try_lock()
+            .expect("Unsafe thread access")
+            .try_recv()
+        else {
+            return Ok(py.None());
         };
         msg.to_object(py)
     }
@@ -400,13 +412,13 @@ struct LoggingGuard {
 impl LoggingGuard {
     #[new]
     fn init_logging(py: Python) -> PyResult<LoggingGuard> {
-        let logging = py.import_bound("logging")?;
+        let logging = py.import("logging")?;
         let logger = logging.getattr("getLogger")?.call(("edb.server",), None)?;
         let level = logger
             .getattr("getEffectiveLevel")?
             .call((), None)?
             .extract::<i32>()?;
-        let logger = logger.to_object(py);
+        let logger = logger.into_pyobject(py)?;
 
         struct PythonSubscriber {
             logger: Py<PyAny>,
@@ -484,7 +496,7 @@ impl LoggingGuard {
 fn _conn_pool(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<ConnPool>()?;
     m.add_class::<LoggingGuard>()?;
-    m.add("InternalError", py.get_type_bound::<InternalError>())?;
+    m.add("InternalError", py.get_type::<InternalError>())?;
 
     // Add each metric variant as a constant
     for variant in MetricVariant::iter() {

@@ -19,7 +19,7 @@ pub fn tokenize(py: Python, s: &Bound<PyString>) -> PyResult<ParserResult> {
         match res {
             Ok(token) => tokens.push(token),
             Err(e) => {
-                errors.push(parser_error_into_tuple(py, e));
+                errors.push(parser_error_into_tuple(py, e)?);
 
                 // TODO: fix tokenizer to skip bad tokens and continue
                 break;
@@ -29,10 +29,10 @@ pub fn tokenize(py: Python, s: &Bound<PyString>) -> PyResult<ParserResult> {
 
     let tokens = tokens_to_py(py, tokens)?;
 
-    let errors = PyList::new(py, errors.as_slice()).into_py(py);
+    let errors = errors.as_slice().into_pyobject(py)?.unbind().into_any();
 
     Ok(ParserResult {
-        out: tokens.into_py(py),
+        out: tokens.into_pyobject(py)?.unbind().into_any(),
         errors,
     })
 }
@@ -54,20 +54,20 @@ impl OpaqueToken {
             .map_err(|e| PyValueError::new_err(format!("Failed to reduce: {e}")))?;
 
         let tok = get_unpickle_token_fn(py);
-        Ok((tok, (PyBytes::new(py, &data).to_object(py),)))
+        Ok((tok, (PyBytes::new(py, &data).unbind().into_any(),)))
     }
 }
 
-pub fn tokens_to_py(py: Python<'_>, rust_tokens: Vec<Token>) -> PyResult<PyObject> {
+pub fn tokens_to_py(py: Python<'_>, rust_tokens: Vec<Token>) -> PyResult<Py<PyList>> {
     let mut buf = Vec::with_capacity(rust_tokens.len());
     for tok in rust_tokens {
         let py_tok = OpaqueToken {
             inner: tok.cloned(),
         };
 
-        buf.push(py_tok.into_py(py));
+        buf.push(py_tok.into_pyobject(py)?);
     }
-    Ok(PyList::new(py, &buf[..]).into_py(py))
+    Ok(PyList::new(py, &buf[..])?.unbind())
 }
 
 /// To support pickle serialization of OpaqueTokens, we need to provide a
@@ -79,10 +79,10 @@ pub fn tokens_to_py(py: Python<'_>, rust_tokens: Vec<Token>) -> PyResult<PyObjec
 /// A bit hackly, but it works.
 static FN_UNPICKLE_TOKEN: OnceCell<PyObject> = OnceCell::new();
 
-pub fn fini_module(py: Python, m: &Bound<PyModule>) {
+pub fn fini_module(m: &Bound<PyModule>) {
     let _unpickle_token = m.getattr("unpickle_token").unwrap();
     FN_UNPICKLE_TOKEN
-        .set(_unpickle_token.to_object(py))
+        .set(_unpickle_token.unbind())
         .expect("module is already initialized");
 }
 

@@ -51,7 +51,7 @@ impl<T: IntoPython> IntoPython for Vec<T> {
         for x in self {
             elements.push(x.into_python(py, None)?);
         }
-        Ok(PyList::new(py, elements.as_slice()).into_object())
+        Ok(PyList::new(py, elements.as_slice())?.into_object())
     }
 }
 
