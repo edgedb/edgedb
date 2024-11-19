@@ -14,7 +14,7 @@ pub fn parse(
     py: Python,
     start_token_name: &Bound<PyString>,
     tokens: PyObject,
-) -> PyResult<(ParserResult, PyObject)> {
+) -> PyResult<(ParserResult, &'static Py<PyAny>)> {
     let start_token_name = start_token_name.to_string();
 
     let (spec, productions) = get_spec()?;
@@ -37,7 +37,7 @@ pub fn parse(
         errors: errors.into(),
     };
 
-    Ok((res, productions.into_pyobject(py)?.to_owned().into()))
+    Ok((res, productions))
 }
 
 #[pyclass]

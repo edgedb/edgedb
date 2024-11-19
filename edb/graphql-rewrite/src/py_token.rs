@@ -2,8 +2,9 @@ use edb_graphql_parser::common::{unquote_block_string, unquote_string};
 use edb_graphql_parser::position::Pos;
 use edb_graphql_parser::tokenizer::Token;
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyTuple};
+use pyo3::types::{PyInt, PyList, PyString, PyTuple};
 use std::borrow::Cow;
+use std::convert::Infallible;
 
 use crate::py_exception::LexingError;
 use crate::rewrite::Error;
@@ -73,12 +74,12 @@ impl PyToken {
     }
 }
 
-pub fn convert_tokens(
-    py: Python,
+pub fn convert_tokens<'py>(
+    py: Python<'py>,
     tokens: &[PyToken],
     end_pos: &Pos,
     kinds: PyObject,
-) -> PyResult<PyObject> {
+) -> PyResult<impl IntoPyObject<'py>> {
     use PyTokenKind as K;
 
     let sof = kinds.getattr(py, "SOF")?;
@@ -117,12 +118,13 @@ pub fn convert_tokens(
 
     let mut elems: Vec<PyObject> = Vec::with_capacity(tokens.len());
 
+    let zero = 0u32.into_pyobject(py).unwrap();
     let start_of_file = [
         sof.clone_ref(py),
-        0u32.into_pyobject(py)?.to_owned().into(),
-        0u32.into_pyobject(py)?.to_owned().into(),
-        0u32.into_pyobject(py)?.to_owned().into(),
-        0u32.into_pyobject(py)?.to_owned().into(),
+        zero.clone().into(),
+        zero.clone().into(),
+        zero.clone().into(),
+        zero.clone().into(),
         py.None(),
     ];
     elems.push(PyTuple::new(py, &start_of_file)?.into());
@@ -144,18 +146,9 @@ pub fn convert_tokens(
             K::BraceL => (brace_l.clone_ref(py), brace_l_v.to_owned().into()),
             K::Pipe => (pipe.clone_ref(py), pipe_v.to_owned().into()),
             K::BraceR => (brace_r.clone_ref(py), brace_r_v.to_owned().into()),
-            K::Name => (
-                name.clone_ref(py),
-                token.value.clone().into_pyobject(py)?.to_owned().into(),
-            ),
-            K::Int => (
-                int.clone_ref(py),
-                token.value.clone().into_pyobject(py)?.to_owned().into(),
-            ),
-            K::Float => (
-                float.clone_ref(py),
-                token.value.clone().into_pyobject(py)?.to_owned().into(),
-            ),
+            K::Name => (name.clone_ref(py), PyString::new(py, &token.value).into()),
+            K::Int => (int.clone_ref(py), PyString::new(py, &token.value).into()),
+            K::Float => (float.clone_ref(py), PyString::new(py, &token.value).into()),
             K::String => {
                 // graphql-core 3 receives unescaped strings from the lexer
                 let v = unquote_string(&token.value)
@@ -202,18 +195,16 @@ pub fn convert_tokens(
         elems.push(PyTuple::new(py, &token_tuple)?.into());
     }
     elems.push(
-        PyTuple::new(
-            py,
-            &[
-                eof.clone_ref(py),
-                end_pos.character.into_pyobject(py)?.to_owned().into(),
-                end_pos.line.into_pyobject(py)?.to_owned().into(),
-                end_pos.column.into_pyobject(py)?.to_owned().into(),
-                end_pos.character.into_pyobject(py)?.to_owned().into(),
-                py.None(),
-            ],
-        )?
-        .into(),
+        (
+            eof,
+            end_pos.character,
+            end_pos.line,
+            end_pos.column,
+            end_pos.character,
+            py.None(),
+        )
+            .into_pyobject(py)?
+            .into(),
     );
-    Ok(PyList::new(py, &elems[..])?.into())
+    PyList::new(py, elems)
 }

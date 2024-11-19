@@ -182,14 +182,15 @@ pub fn serialize_all<'a>(
 
 pub fn value_to_py_object(py: Python, val: &Value) -> PyResult<PyObject> {
     Ok(match val {
-        Value::Int(v) => v.into_pyobject(py)?.to_owned().into(),
-        Value::String(v) => v.into_pyobject(py)?.to_owned().into(),
-        Value::Float(v) => v.into_pyobject(py)?.to_owned().into(),
+        Value::Int(v) => v.into_pyobject(py)?.into_any(),
+        Value::String(v) => v.into_pyobject(py)?.into_any(),
+        Value::Float(v) => v.into_pyobject(py)?.into_any(),
         Value::BigInt(v) => py.get_type::<PyInt>().call((v, 16), None)?.into(),
         Value::Decimal(v) => py
             .get_type::<PyFloat>()
             .call((v.to_string(),), None)?
-            .into(),
-        Value::Bytes(v) => PyBytes::new(py, v).into(),
-    })
+            .into_any(),
+        Value::Bytes(v) => PyBytes::new(py, v).into_any(),
+    }
+    .unbind())
 }

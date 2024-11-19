@@ -22,7 +22,7 @@ pub struct Entry {
 
 #[pymethods]
 impl Entry {
-    fn tokens(&self, py: Python, kinds: PyObject) -> PyResult<PyObject> {
+    fn tokens<'py>(&self, py: Python<'py>, kinds: PyObject) -> PyResult<impl IntoPyObject<'py>> {
         py_token::convert_tokens(py, &self._tokens, &self._end_pos, kinds)
     }
 }
@@ -73,16 +73,16 @@ pub fn convert_entry(py: Python<'_>, entry: rewrite::Entry) -> PyResult<Entry> {
 
 fn value_to_py(py: Python, value: &Value, decimal_cls: &Bound<PyAny>) -> PyResult<PyObject> {
     let v = match value {
-        Value::Str(ref v) => PyString::new(py, v).into(),
-        Value::Int32(v) => v.into_pyobject(py)?.to_owned().into(),
-        Value::Int64(v) => v.into_pyobject(py)?.to_owned().into(),
+        Value::Str(ref v) => PyString::new(py, v).into_any(),
+        Value::Int32(v) => v.into_pyobject(py)?.into_any(),
+        Value::Int64(v) => v.into_pyobject(py)?.into_any(),
         Value::Decimal(v) => decimal_cls
             .call(PyTuple::new(py, &[v.into_pyobject(py)?])?, None)?
-            .into(),
+            .into_any(),
         Value::BigInt(ref v) => PyType::new::<PyInt>(py)
             .call(PyTuple::new(py, &[v.into_pyobject(py)?])?, None)?
-            .into(),
-        Value::Boolean(b) => b.into_pyobject(py)?.to_owned().into(),
+            .into_any(),
+        Value::Boolean(b) => b.into_pyobject(py)?.to_owned().into_any(),
     };
-    Ok(v)
+    Ok(v.unbind().into_any())
 }
