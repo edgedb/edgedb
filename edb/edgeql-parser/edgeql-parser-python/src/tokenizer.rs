@@ -27,11 +27,8 @@ pub fn tokenize(py: Python, s: &Bound<PyString>) -> PyResult<ParserResult> {
         }
     }
 
-    let out = tokens_to_py(py, tokens)?
-        .into_pyobject(py)?
-        .unbind()
-        .into_any();
-    let errors = PyList::new(py, errors)?.unbind().into_any();
+    let out = tokens_to_py(py, tokens)?.into_pyobject(py)?.into();
+    let errors = PyList::new(py, errors)?.into();
 
     Ok(ParserResult { out, errors })
 }
@@ -53,7 +50,7 @@ impl OpaqueToken {
             .map_err(|e| PyValueError::new_err(format!("Failed to reduce: {e}")))?;
 
         let tok = get_unpickle_token_fn(py);
-        Ok((tok, (PyBytes::new(py, &data).unbind().into_any(),)))
+        Ok((tok, (PyBytes::new(py, &data).into(),)))
     }
 }
 

@@ -76,7 +76,7 @@ impl Entry {
         let vars = PyDict::new(py);
         let first = match self.first_extra {
             Some(first) => first,
-            None => return Ok(vars.unbind().into_any()),
+            None => return Ok(vars.into()),
         };
         for (idx, var) in self.entry_pack.variables.iter().flatten().enumerate() {
             let s = if self.extra_named {
@@ -87,7 +87,7 @@ impl Entry {
             vars.set_item(s, TokenizerValue(&var.value))?;
         }
 
-        Ok(vars.unbind().into_any())
+        Ok(vars.into())
     }
 
     fn pack(&self, py: Python) -> PyResult<PyObject> {

@@ -53,7 +53,7 @@ pub fn convert_entry(py: Python<'_>, entry: rewrite::Entry) -> PyResult<Entry> {
     Ok(Entry {
         key: PyString::new(py, &entry.key).into(),
         key_vars: key_vars.into(),
-        variables: vars.into_pyobject(py)?.unbind().into_any(),
+        variables: vars.into_pyobject(py)?.into(),
         substitutions: substitutions.into(),
         _tokens: entry.tokens,
         _end_pos: entry.end_pos,
@@ -65,13 +65,11 @@ fn value_to_py(py: Python, value: &Value, decimal_cls: &Bound<PyAny>) -> PyResul
         Value::Str(ref v) => PyString::new(py, v).into_any(),
         Value::Int32(v) => v.into_pyobject(py)?.into_any(),
         Value::Int64(v) => v.into_pyobject(py)?.into_any(),
-        Value::Decimal(v) => decimal_cls
-            .call(PyTuple::new(py, &[v.into_pyobject(py)?])?, None)?
-            .into_any(),
+        Value::Decimal(v) => decimal_cls.call((v.as_str(),), None)?.into_any(),
         Value::BigInt(ref v) => PyType::new::<PyInt>(py)
-            .call(PyTuple::new(py, &[v.into_pyobject(py)?])?, None)?
+            .call((v.as_str(),), None)?
             .into_any(),
         Value::Boolean(b) => b.into_pyobject(py)?.to_owned().into_any(),
     };
-    Ok(v.unbind().into_any())
+    Ok(v.into())
 }

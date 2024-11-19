@@ -53,7 +53,7 @@ impl RustToPythonMessage {
                 (6, PyByteArray::new(py, &metrics)).into_pyobject(py)
             }
         }
-        .map(|e| e.unbind().into_any())
+        .map(|e| e.into())
     }
 }
 

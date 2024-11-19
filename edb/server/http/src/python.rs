@@ -50,7 +50,7 @@ impl RustToPythonMessage {
             }
             SSEEnd(conn) => (4, conn).into_pyobject(py),
         }
-        .map(|e| e.unbind().into_any())
+        .map(|e| e.into())
     }
 }
 
