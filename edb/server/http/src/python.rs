@@ -39,6 +39,7 @@ enum RustToPythonMessage {
 impl ToPyObject for RustToPythonMessage {
     fn to_object(&self, py: Python<'_>) -> PyObject {
         use RustToPythonMessage::*;
+        trace!("Read: {self:?}");
         match self {
             Error(conn, error) => (0, *conn, error).to_object(py),
             Response(conn, (status, body, headers)) => (
@@ -86,6 +87,7 @@ impl std::fmt::Debug for RpcPipe {
 
 impl RpcPipe {
     async fn write(&self, msg: RustToPythonMessage) -> Result<(), String> {
+        trace!("Rust -> Python: {msg:?}");
         self.rust_to_python.send(msg).map_err(|_| "Shutdown")?;
         // If we're shutting down, this may fail (but that's OK)
         poll_fn(|cx| {
@@ -196,6 +198,7 @@ async fn request_sse(
             ))
             .await;
 
+        trace!("Exiting SSE due to non-SSE response");
         ScopeGuard::into_inner(guard);
         return Ok(());
     }
@@ -236,6 +239,7 @@ async fn request_sse(
         }
     }
 
+    trace!("Exiting SSE");
     ScopeGuard::into_inner(guard);
     Ok(())
 }
@@ -516,6 +520,15 @@ async fn execute(
     }
 }
 
+impl Http {
+    fn send(&self, msg: PythonToRustMessage) -> PyResult<()> {
+        trace!("Python -> Rust: {msg:?}");
+        self.python_to_rust
+            .send(msg)
+            .map_err(|_| internal_error("In shutdown"))
+    }
+}
+
 #[pymethods]
 impl Http {
     /// Create the HTTP pool and automatically boot a tokio runtime on a
@@ -574,9 +587,7 @@ impl Http {
         body: Vec<u8>,
         headers: Vec<(String, String)>,
     ) -> PyResult<()> {
-        self.python_to_rust
-            .send(PythonToRustMessage::Request(id, url, method, body, headers))
-            .map_err(|_| internal_error("In shutdown"))
+        self.send(PythonToRustMessage::Request(id, url, method, body, headers))
     }
 
     fn _request_sse(
@@ -587,29 +598,21 @@ impl Http {
         body: Vec<u8>,
         headers: Vec<(String, String)>,
     ) -> PyResult<()> {
-        self.python_to_rust
-            .send(PythonToRustMessage::RequestSse(
-                id, url, method, body, headers,
-            ))
-            .map_err(|_| internal_error("In shutdown"))
+        self.send(PythonToRustMessage::RequestSse(
+            id, url, method, body, headers,
+        ))
     }
 
     fn _close(&self, id: PythonConnId) -> PyResult<()> {
-        self.python_to_rust
-            .send(PythonToRustMessage::Close(id))
-            .map_err(|_| internal_error("In shutdown"))
+        self.send(PythonToRustMessage::Close(id))
     }
 
     fn _ack_sse(&self, id: PythonConnId) -> PyResult<()> {
-        self.python_to_rust
-            .send(PythonToRustMessage::Ack(id))
-            .map_err(|_| internal_error("In shutdown"))
+        self.send(PythonToRustMessage::Ack(id))
     }
 
     fn _update_limit(&self, limit: usize) -> PyResult<()> {
-        self.python_to_rust
-            .send(PythonToRustMessage::UpdateLimit(limit))
-            .map_err(|_| internal_error("In shutdown"))
+        self.send(PythonToRustMessage::UpdateLimit(limit))
     }
 
     fn _read(&self, py: Python<'_>) -> Py<PyAny> {
@@ -627,6 +630,7 @@ impl Http {
     }
 
     fn _close_pipe(&mut self) {
+        trace!("Closing pipe");
         // Replace the channel with a dummy, closed one which will also
         // signal the other side to exit.
         (_, self.rust_to_python) = std::sync::mpsc::channel();

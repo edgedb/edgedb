@@ -26,6 +26,7 @@ from typing import (
     Union,
     Self,
     Callable,
+    List,
 )
 
 import asyncio
@@ -80,18 +81,21 @@ class HttpClient:
         self._stat_callback = stat_callback
 
     def __del__(self) -> None:
-        if self._task is not None:
+        if not self.closed():
             logger.error(f"HttpClient {id(self)} was not closed")
 
     def close(self) -> None:
-        if self._task is not None:
+        if not self.closed():
             self._task.cancel()
             self._task = None
             self._loop = None
             self._client = None
 
+    def closed(self) -> bool:
+        return self._task is None and self._loop is None
+
     def _ensure_task(self):
-        if self._loop is None:
+        if self.closed():
             raise Exception("HttpClient was closed")
         if self._task is None:
             self._client = Http(self._limit)
@@ -192,7 +196,9 @@ class HttpClient:
                 status_code, body, headers = resp
                 self._stat_callback(
                     HttpStat(
-                        response_time_ms=int((time.monotonic() - start_time) * 1000),
+                        response_time_ms=int(
+                            (time.monotonic() - start_time) * 1000
+                        ),
                         error_code=status_code,
                         response_body_size=len(body),
                         response_content_type=dict(headers_list).get(
@@ -261,7 +267,9 @@ class HttpClient:
                     status_code, body, headers = resp
                 self._stat_callback(
                     HttpStat(
-                        response_time_ms=int((time.monotonic() - start_time) * 1000),
+                        response_time_ms=int(
+                            (time.monotonic() - start_time) * 1000
+                        ),
                         error_code=status_code,
                         response_body_size=len(body),
                         response_content_type=dict(headers_list).get(
@@ -332,7 +340,7 @@ class HttpClient:
         return self
 
     async def __aexit__(self, *args) -> None:  # type: ignore
-        pass
+        self.close()
 
 
 class HttpClientContext(HttpClient):
@@ -453,7 +461,7 @@ class ResponseSSE:
     _stream: asyncio.Queue = dataclasses.field(repr=False)
     _cancel: Callable[[], None] = dataclasses.field(repr=False)
     _ack: Callable[[], None] = dataclasses.field(repr=False)
-    _closed: bool = False
+    _closed: List[bool] = dataclasses.field(default_factory=lambda: [False])
     is_streaming: bool = True
 
     @classmethod
@@ -475,25 +483,27 @@ class ResponseSSE:
         id: Optional[str] = None
 
     def close(self):
-        if not self._closed:
-            self._closed = True
+        if not self.closed():
+            self._closed[0] = True
             self._cancel()
 
+    def closed(self) -> bool:
+        return self._closed[0]
+
     def __del__(self):
-        if not self._closed:
+        if not self.closed():
             logger.error(f"ResponseSSE {id(self)} was not closed")
 
     def __aiter__(self):
         return self
 
     async def __anext__(self):
-        if self._closed:
+        if self.closed():
             raise StopAsyncIteration
         next = await self._stream.get()
         try:
             if next is None:
-                self._closed = True
-                self._cancel()
+                self.close()
                 raise StopAsyncIteration
             id, data, event = next
             return self.SSEEvent(event, data, id)
