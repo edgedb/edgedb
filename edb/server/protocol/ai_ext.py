@@ -1219,6 +1219,7 @@ async def _start_openai_like_chat(
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
+    provider_name: str,
     client: http.HttpClient,
     model_name: str,
     messages: list[dict[str, Any]],
@@ -1233,7 +1234,7 @@ async def _start_openai_like_chat(
     user: Optional[str],
     tools: Optional[list[dict[str, Any]]],
 ) -> None:
-    isOpenAI = "openai" in str(getattr(client, "base_url", ""))
+    isOpenAI = provider_name == "builtin::openai"
 
     params: dict[str, Any] = {
         "model": model_name,
@@ -1522,6 +1523,7 @@ async def _start_openai_chat(
         protocol=protocol,
         request=request,
         response=response,
+        provider_name=provider.name,
         client=client,
         model_name=model_name,
         messages=messages,
@@ -1958,48 +1960,122 @@ async def _handle_rag_request(
             if custom_prompt:
                 if not isinstance(custom_prompt, list):
                     raise TypeError(
-                        """prompt.custom must be a list, where each element
-                            is one of the following types:
-                        - system message: { role: 'system', content: str }
-                        - user message: { role: 'user', content:
-                            [{ type: 'text', text: str }] }
-                        - assistant message: { role: 'assistant', content: str,
-                            optional tool_calls: [{id: str, type: 'function',
-                            function: { name: str, arguments: str }}] }
-                        - tool message:
-                            { role: 'tool', content: str, tool_call_id: str }"""
+                        (
+                            "prompt.custom must be a list, where each element "
+                            "is one of the following types:\n"
+                            "{ role: 'system', content: str },\n"
+                            "{ role: 'user', content: [{ type: 'text', "
+                            "text: str }] },\n"
+                            "{ role: 'assistant', content: str, "
+                            "optional tool_calls: [{id: str, type: 'function',"
+                            " function: { name: str, arguments: str }}] },\n"
+                            "{ role: 'tool', content: str, tool_call_id: str }"
+                        )
                     )
                 for entry in custom_prompt:
-                    if (
-                        not isinstance(entry, dict)
-                        or not entry.get("role")
-                        # content can be empty string too
-                        or "content" not in entry
-                        or len(entry) > 3
-                    ):
+                    if not isinstance(entry, dict) or not entry.get("role"):
                         raise TypeError(
-                            """prompt.custom must be a list, where each element
-                                is one of the following types:
-                            - system message: {
-                                role: 'system', content: str }
-                            }
-                            - user message: {
-                                role: 'user',
-                                content: [{ type: 'text', text: str }]
-                            }
-                            - assistant message: {
-                                role: 'assistant', content: str,
-                                optional tool_calls: [{
-                                    id: str, type: 'function',
-                                    function: { name: str, arguments: str }
-                                }]
-                            }
-                            - tool message: {
-                                role: 'tool', content: str, tool_call_id: str
-                            }"""
+                            (
+                                "each prompt.custom entry must be a "
+                                "dictionary of one of the following types:\n"
+                                "{ role: 'system', content: str },\n"
+                                "{ role: 'user', content: [{ type: 'text', "
+                                "text: str }] },\n"
+                                "{ role: 'assistant', content: str, "
+                                "optional tool_calls: [{id: str, "
+                                "type: 'function', function: { "
+                                "name: str, arguments: str }}] },\n"
+                                "{ role: 'tool', content: str, "
+                                "tool_call_id: str }"
+                            )
+                        )
+
+                    entry_role = entry.get('role')
+                    if entry_role == 'system':
+                        if not isinstance(entry.get("content"), str):
+                            raise TypeError(
+                                "System message content has to be string."
+                            )
+                    elif entry_role == 'user':
+                        if not isinstance(entry.get("content"), list):
+                            raise TypeError(
+                                (
+                                    "User message content has to be a list of "
+                                    "{ type: 'text', text: str }"
+                                )
+                            )
+                        for content_entry in entry["content"]:
+                            if content_entry.get(
+                                "type"
+                            ) != "text" or not isinstance(
+                                content_entry.get("text"), str
+                            ):
+                                raise TypeError(
+                                    (
+                                        "Element of user message content has to"
+                                        "be of type { type: 'text', text: str }"
+                                    )
+                                )
+                    elif entry_role == 'assistant':
+                        if not isinstance(entry.get("content"), str):
+                            raise TypeError(
+                                "Assistant message content has to be string"
+                            )
+
+                        tool_calls = entry.get("tool_calls")
+                        if tool_calls:
+                            if not isinstance(tool_calls, list):
+                                raise TypeError(
+                                    (
+                                        "Assistant tool calls must be"
+                                        "a list of:\n"
+                                        "{id: str, type: 'function', function:"
+                                        " {name: str, arguments: str }}"
+                                    )
+                                )
+
+                            for call in tool_calls:
+                                if (
+                                    not isinstance(call, dict)
+                                    or not isinstance(call.get("id"), str)
+                                    or call.get("type") != "function"
+                                    or not isinstance(
+                                        call.get("function"), dict
+                                    )
+                                    or not isinstance(
+                                        call["function"].get("name"), str
+                                    )
+                                    or not isinstance(
+                                        call["function"].get("arguments"),
+                                        str,
+                                    )
+                                ):
+                                    raise TypeError(
+                                        (
+                                            "A tool call must be of type:\n"
+                                            "{id: str, type: 'function', "
+                                            "function: { name: str, "
+                                            "arguments: str }}"
+                                        )
+                                    )
+
+                    elif entry_role == 'tool':
+                        if not isinstance(entry.get("content"), str):
+                            raise TypeError(
+                                "Tool message content has to be string."
+                            )
+                        if not isinstance(entry.get("tool_call_id"), str):
+                            raise TypeError(
+                                "Tool message tool_call_id has to be string."
+                            )
+                    else:
+                        raise TypeError(
+                            (
+                                "Message role must match one of these: "
+                                "system, user, assistant, tool."
+                            )
                         )
                     custom_prompt_messages.append(entry)
-
     except Exception as ex:
         raise BadRequestError(ex.args[0])
 
