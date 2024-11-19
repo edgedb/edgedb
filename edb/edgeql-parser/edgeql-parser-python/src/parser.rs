@@ -31,11 +31,7 @@ pub fn parse(
     let errors = PyList::new(py, &errors)?;
 
     let res = ParserResult {
-        out: if let Some(cst) = cst {
-            ParserCSTNode(&cst).into_pyobject(py)?.unbind().into_any()
-        } else {
-            py.None()
-        },
+        out: cst.as_ref().map(ParserCSTNode).into_pyobject(py)?.unbind(),
         errors: errors.into(),
     };
 
