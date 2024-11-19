@@ -86,8 +86,9 @@ class HttpClient:
 
     def close(self) -> None:
         if not self.closed():
-            self._task.cancel()
-            self._task = None
+            if self._task is not None:
+                self._task.cancel()
+                self._task = None
             self._loop = None
             self._client = None
 

@@ -386,13 +386,26 @@ struct HttpTask {
 async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
     let rpc_pipe = Rc::new(rpc_pipe);
 
+    const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+    const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
+    const STANDARD_READ_TIMEOUT: Duration = Duration::from_secs(10);
+    const STANDARD_TOTAL_TIMEOUT: Duration = Duration::from_secs(120);
+    const SSE_READ_TIMEOUT: Duration = Duration::from_secs(60 * 60); // 1 hour
+
     // Set some reasonable defaults for timeouts
     let client = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(30))
-        .timeout(Duration::from_secs(120))
-        .read_timeout(Duration::from_secs(10))
-        .pool_idle_timeout(Duration::from_secs(30));
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(STANDARD_TOTAL_TIMEOUT)
+        .read_timeout(STANDARD_READ_TIMEOUT)
+        .pool_idle_timeout(POOL_IDLE_TIMEOUT);
     let client = client.build().unwrap();
+
+    // SSE requests should have a very long read timeout and no general timeout
+    let client_sse = reqwest::Client::builder()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .read_timeout(SSE_READ_TIMEOUT)
+        .pool_idle_timeout(POOL_IDLE_TIMEOUT);
+    let client_sse = client_sse.build().unwrap();
 
     let permit_manager = Rc::new(PermitManager::new(capacity));
     let tasks = Arc::new(Mutex::new(HashMap::<PythonConnId, HttpTask>::new()));
@@ -404,6 +417,7 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
             break;
         };
         let client = client.clone();
+        let client_sse = client_sse.clone();
         trace!("Received RPC: {rpc:?}");
         let rpc_pipe = rpc_pipe.clone();
         // Allocate a task ID and backpressure object if we're initiating a
@@ -422,6 +436,7 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
             rpc,
             permit_manager.clone(),
             client,
+            client_sse,
             rpc_pipe,
         ));
         if let (Some(id), Some(backpressure)) = (id, backpressure) {
@@ -440,6 +455,7 @@ async fn execute(
     rpc: PythonToRustMessage,
     permit_manager: Rc<PermitManager>,
     client: reqwest::Client,
+    client_sse: reqwest::Client,
     rpc_pipe: Rc<RpcPipe>,
 ) {
     // If a request task was booted by this request, remove it from the list of
@@ -477,15 +493,14 @@ async fn execute(
             // we need to spawn a task to do so)
             defer!({
                 let rpc_pipe = rpc_pipe.clone();
-                tokio::task::spawn_local(async move {
-                    _ = rpc_pipe.write(RustToPythonMessage::SSEEnd(id)).await;
-                });
+                let future = async move { rpc_pipe.write(RustToPythonMessage::SSEEnd(id)).await };
+                tokio::task::spawn_local(future);
             });
             let Ok(permit) = permit_manager.acquire().await else {
                 return;
             };
             match request_sse(
-                client,
+                client_sse,
                 id,
                 backpressure.unwrap(),
                 url,

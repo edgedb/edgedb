@@ -200,7 +200,7 @@ class HttpSSETest(tb.BaseHttpTest):
             await server.wait_closed()
 
     @async_timeout(timeout=5)
-    async def test_sse_with_mock_server(self):
+    async def test_sse_with_mock_server_client_close(self):
         """Since the regular mock server doesn't support SSE, we need to test
         with a real socket. We handle just enough HTTP to get the job done."""
 
@@ -249,22 +249,26 @@ class HttpSSETest(tb.BaseHttpTest):
 
         async def client_task():
             async with http.HttpClient(100) as client:
-                response = await client.stream_sse(url, method="GET")
-                assert response.status_code == 200
-                assert response.headers['Content-Type'] == 'text/event-stream'
-                assert isinstance(response, http.ResponseSSE)
+                async with await client.stream_sse(
+                    url, method="GET"
+                ) as response:
+                    assert response.status_code == 200
+                    assert (
+                        response.headers['Content-Type'] == 'text/event-stream'
+                    )
+                    assert isinstance(response, http.ResponseSSE)
 
-                events = []
-                async for event in response:
-                    self.assertEqual(event.event, 'message')
-                    events.append(event)
-                    if len(events) == 3:
-                        break
+                    events = []
+                    async for event in response:
+                        self.assertEqual(event.event, 'message')
+                        events.append(event)
+                        if len(events) == 3:
+                            break
 
-                assert len(events) == 3
-                assert events[0].data == 'Event 1'
-                assert events[1].data == 'Event 2'
-                assert events[2].data == 'Event 3'
+                    assert len(events) == 3
+                    assert events[0].data == 'Event 1'
+                    assert events[1].data == 'Event 2'
+                    assert events[2].data == 'Event 3'
 
         async with server:
             client_future = asyncio.create_task(client_task())
@@ -320,22 +324,24 @@ class HttpSSETest(tb.BaseHttpTest):
 
         async def client_task():
             async with http.HttpClient(100) as client:
-                response = await client.stream_sse(
+                async with await client.stream_sse(
                     url, method="GET", headers={"Connection": "close"}
-                )
-                assert response.status_code == 200
-                assert response.headers['Content-Type'] == 'text/event-stream'
-                assert isinstance(response, http.ResponseSSE)
+                ) as response:
+                    assert response.status_code == 200
+                    assert (
+                        response.headers['Content-Type'] == 'text/event-stream'
+                    )
+                    assert isinstance(response, http.ResponseSSE)
 
-                events = []
-                async for event in response:
-                    self.assertEqual(event.event, 'message')
-                    events.append(event)
+                    events = []
+                    async for event in response:
+                        self.assertEqual(event.event, 'message')
+                        events.append(event)
 
-                assert len(events) == 3
-                assert events[0].data == 'Event 1'
-                assert events[1].data == 'Event 2'
-                assert events[2].data == 'Event 3'
+                    assert len(events) == 3
+                    assert events[0].data == 'Event 1'
+                    assert events[1].data == 'Event 2'
+                    assert events[2].data == 'Event 3'
 
         client_future = asyncio.create_task(client_task())
         async with server:
