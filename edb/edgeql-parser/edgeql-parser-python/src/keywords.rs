@@ -21,16 +21,10 @@ pub fn get_keywords(py: Python) -> PyResult<AllKeywords> {
     let future = prepare_keywords(py, keywords::FUTURE_RESERVED_KEYWORDS.iter(), &intern)?;
     let partial = prepare_keywords(py, keywords::PARTIAL_RESERVED_KEYWORDS.iter(), &intern)?;
     Ok(AllKeywords {
-        current: frozen
-            .call((PyList::new_bound(py, &current),), None)?
-            .into(),
-        unreserved: frozen
-            .call((PyList::new_bound(py, &unreserved),), None)?
-            .into(),
-        future: frozen.call((PyList::new_bound(py, &future),), None)?.into(),
-        partial: frozen
-            .call((PyList::new_bound(py, &partial),), None)?
-            .into(),
+        current: frozen.call((PyList::new(py, &current),), None)?.into(),
+        unreserved: frozen.call((PyList::new(py, &unreserved),), None)?.into(),
+        future: frozen.call((PyList::new(py, &future),), None)?.into(),
+        partial: frozen.call((PyList::new(py, &partial),), None)?.into(),
     })
 }
 
@@ -41,6 +35,6 @@ fn prepare_keywords<'py, I: Iterator<Item = &'py &'static str>>(
 ) -> Result<Vec<Bound<'py, PyAny>>, PyErr> {
     keyword_set
         .cloned()
-        .map(|s: &str| intern.call((PyString::new_bound(py, s),), None))
+        .map(|s: &str| intern.call((PyString::new(py, s),), None))
         .collect()
 }

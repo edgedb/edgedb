@@ -29,7 +29,7 @@ pub fn tokenize(py: Python, s: &Bound<PyString>) -> PyResult<ParserResult> {
 
     let tokens = tokens_to_py(py, tokens)?;
 
-    let errors = PyList::new_bound(py, errors.as_slice()).into_py(py);
+    let errors = PyList::new(py, errors.as_slice()).into_py(py);
 
     Ok(ParserResult {
         out: tokens.into_py(py),
@@ -54,7 +54,7 @@ impl OpaqueToken {
             .map_err(|e| PyValueError::new_err(format!("Failed to reduce: {e}")))?;
 
         let tok = get_unpickle_token_fn(py);
-        Ok((tok, (PyBytes::new_bound(py, &data).to_object(py),)))
+        Ok((tok, (PyBytes::new(py, &data).to_object(py),)))
     }
 }
 
@@ -67,7 +67,7 @@ pub fn tokens_to_py(py: Python<'_>, rust_tokens: Vec<Token>) -> PyResult<PyObjec
 
         buf.push(py_tok.into_py(py));
     }
-    Ok(PyList::new_bound(py, &buf[..]).into_py(py))
+    Ok(PyList::new(py, &buf[..]).into_py(py))
 }
 
 /// To support pickle serialization of OpaqueTokens, we need to provide a

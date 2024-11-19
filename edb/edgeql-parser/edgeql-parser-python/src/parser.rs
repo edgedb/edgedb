@@ -30,7 +30,7 @@ pub fn parse(
         .into_iter()
         .map(|e| parser_error_into_tuple(py, e))
         .collect::<Vec<_>>();
-    let errors = PyList::new_bound(py, &errors);
+    let errors = PyList::new(py, &errors);
 
     let res = ParserResult {
         out: cst.into_py(py),
@@ -144,7 +144,7 @@ fn load_productions(py: Python<'_>, spec: &parser::Spec) -> PyResult<PyObject> {
     let production_names: Vec<_> = spec
         .production_names
         .iter()
-        .map(|(a, b)| PyTuple::new_bound(py, [a, b]))
+        .map(|(a, b)| PyTuple::new(py, [a, b]))
         .collect();
 
     let productions = load_productions.call((production_names, grammar_mod), None)?;
@@ -174,7 +174,7 @@ fn to_py_cst<'a>(cst: &'a parser::CSTNode<'a>, py: Python) -> PyResult<CSTNode> 
         parser::CSTNode::Production(prod) => CSTNode {
             production: Production {
                 id: prod.id,
-                args: PyList::new_bound(
+                args: PyList::new(
                     py,
                     prod.args
                         .iter()

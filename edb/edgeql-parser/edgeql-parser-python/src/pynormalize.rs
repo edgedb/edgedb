@@ -63,12 +63,12 @@ impl Entry {
             .collect();
 
         Ok(Entry {
-            key: PyBytes::new_bound(py, &entry.hash[..]).into(),
+            key: PyBytes::new(py, &entry.hash[..]).into(),
             tokens: tokens_to_py(py, entry.tokens.clone())?,
             extra_blobs: blobs.into(),
             extra_named: entry.named_args,
             first_extra: entry.first_arg,
-            extra_counts: PyList::new_bound(py, &counts[..]).into(),
+            extra_counts: PyList::new(py, &counts[..]).into(),
             entry_pack: entry.into(),
         })
     }
@@ -77,7 +77,7 @@ impl Entry {
 #[pymethods]
 impl Entry {
     fn get_variables(&self, py: Python) -> PyResult<PyObject> {
-        let vars = PyDict::new_bound(py);
+        let vars = PyDict::new(py);
         let first = match self.first_extra {
             Some(first) => first,
             None => return Ok(vars.to_object(py)),
@@ -98,7 +98,7 @@ impl Entry {
         let mut buf = vec![1u8]; // type and version
         bincode::serialize_into(&mut buf, &self.entry_pack)
             .map_err(|e| PyValueError::new_err(format!("Failed to pack: {e}")))?;
-        Ok(PyBytes::new_bound(py, buf.as_slice()).into())
+        Ok(PyBytes::new(py, buf.as_slice()).into())
     }
 }
 
@@ -171,9 +171,9 @@ pub fn serialize_all<'a>(
     let mut buf = Vec::with_capacity(variables.len());
     for vars in variables {
         let bytes = serialize_extra(vars)?;
-        buf.push(PyBytes::new_bound(py, &bytes));
+        buf.push(PyBytes::new(py, &bytes));
     }
-    Ok(PyList::new_bound(py, &buf))
+    Ok(PyList::new(py, &buf))
 }
 
 pub fn value_to_py_object(py: Python, val: &Value) -> PyResult<PyObject> {
@@ -182,13 +182,13 @@ pub fn value_to_py_object(py: Python, val: &Value) -> PyResult<PyObject> {
         Value::String(v) => v.into_py(py),
         Value::Float(v) => v.into_py(py),
         Value::BigInt(v) => py
-            .get_type_bound::<PyLong>()
+            .get_type::<PyLong>()
             .call((v, 16.into_py(py)), None)?
             .into(),
         Value::Decimal(v) => py
-            .get_type_bound::<PyFloat>()
+            .get_type::<PyFloat>()
             .call((v.to_string(),), None)?
             .into(),
-        Value::Bytes(v) => PyBytes::new_bound(py, v).into(),
+        Value::Bytes(v) => PyBytes::new(py, v).into(),
     })
 }

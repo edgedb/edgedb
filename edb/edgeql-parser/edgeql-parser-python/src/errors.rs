@@ -29,7 +29,7 @@ impl ParserResult {
         let mut buf = vec![0u8]; // type and version
         bincode::serialize_into(&mut buf, &rv)
             .map_err(|e| PyValueError::new_err(format!("Failed to pack: {e}")))?;
-        Ok(PyBytes::new_bound(py, buf.as_slice()).into())
+        Ok(PyBytes::new(py, buf.as_slice()).into())
     }
 }
 

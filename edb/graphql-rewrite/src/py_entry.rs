@@ -31,8 +31,8 @@ pub fn convert_entry(py: Python<'_>, entry: rewrite::Entry) -> PyResult<Entry> {
     // import decimal
     let decimal_cls = PyModule::import_bound(py, "decimal")?.getattr("Decimal")?;
 
-    let vars = PyDict::new_bound(py);
-    let substitutions = PyDict::new_bound(py);
+    let vars = PyDict::new(py);
+    let substitutions = PyDict::new(py);
     for (idx, var) in entry.variables.iter().enumerate() {
         let s = format!("_edb_arg__{}", idx).to_object(py);
 
@@ -50,7 +50,7 @@ pub fn convert_entry(py: Python<'_>, entry: rewrite::Entry) -> PyResult<Entry> {
     for (name, var) in &entry.defaults {
         vars.set_item(name.into_py(py), value_to_py(py, &var.value, &decimal_cls)?)?
     }
-    let key_vars = PyList::new_bound(
+    let key_vars = PyList::new(
         py,
         entry
             .key_vars
@@ -59,7 +59,7 @@ pub fn convert_entry(py: Python<'_>, entry: rewrite::Entry) -> PyResult<Entry> {
             .collect::<Vec<_>>(),
     );
     Ok(Entry {
-        key: PyString::new_bound(py, &entry.key).into(),
+        key: PyString::new(py, &entry.key).into(),
         key_vars: key_vars.into(),
         variables: vars.into_py(py),
         substitutions: substitutions.into(),
@@ -70,14 +70,14 @@ pub fn convert_entry(py: Python<'_>, entry: rewrite::Entry) -> PyResult<Entry> {
 
 fn value_to_py(py: Python, value: &Value, decimal_cls: &Bound<PyAny>) -> PyResult<PyObject> {
     let v = match value {
-        Value::Str(ref v) => PyString::new_bound(py, v).into(),
+        Value::Str(ref v) => PyString::new(py, v).into(),
         Value::Int32(v) => v.into_py(py),
         Value::Int64(v) => v.into_py(py),
         Value::Decimal(v) => decimal_cls
-            .call(PyTuple::new_bound(py, &[v.into_py(py)]), None)?
+            .call(PyTuple::new(py, &[v.into_py(py)]), None)?
             .into(),
         Value::BigInt(ref v) => PyType::new_bound::<PyLong>(py)
-            .call(PyTuple::new_bound(py, &[v.into_py(py)]), None)?
+            .call(PyTuple::new(py, &[v.into_py(py)]), None)?
             .into(),
         Value::Boolean(b) => b.into_py(py),
     };
