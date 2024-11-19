@@ -276,34 +276,37 @@ class HttpSSETest(tb.BaseHttpTest):
         ):
             nonlocal is_closed
 
-            await reader.readline()
+            try:
+                await reader.readline()
 
-            headers = (
-                b"HTTP/1.1 200 OK\r\n"
-                b"Content-Type: text/event-stream\r\n"
-                b"Cache-Control: no-cache\r\n"
-                b"Connection: keep-alive\r\n\r\n"
-            )
-            writer.write(headers)
-            await writer.drain()
-
-            for i in range(3):
-                writer.write(b": test comment that should be ignored\n\n")
-                await writer.drain()
-
-                writer.write(
-                    f"event: message\ndata: Event {i + 1}\n\n".encode()
+                headers = (
+                    b"HTTP/1.1 200 OK\r\n"
+                    b"Content-Type: text/event-stream\r\n"
+                    b"Cache-Control: no-cache\r\n"
+                    b"Connection: keep-alive\r\n\r\n"
                 )
+                writer.write(headers)
                 await writer.drain()
-                await asyncio.sleep(0.1)
 
-            await writer.drain()
-            writer.close()
-            await writer.wait_closed()
+                for i in range(3):
+                    writer.write(b": test comment that should be ignored\n\n")
+                    await writer.drain()
 
-            is_closed = True
+                    writer.write(
+                        f"event: message\ndata: Event {i + 1}\n\n".encode()
+                    )
+                    await writer.drain()
+                    await asyncio.sleep(0.1)
 
-        server = await asyncio.start_server(mock_sse_server, '127.0.0.1', 0)
+                await writer.drain()
+                writer.close()
+                await writer.wait_closed()
+            finally:
+                is_closed = True
+
+        server = await asyncio.start_server(
+            asyncio.wait_for(mock_sse_server, timeout=30), '127.0.0.1', 0
+        )
         addr = server.sockets[0].getsockname()
         url = f'http://{addr[0]}:{addr[1]}/sse'
 
