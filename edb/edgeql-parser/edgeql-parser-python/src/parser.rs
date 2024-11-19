@@ -168,7 +168,7 @@ impl<'a, 'py> IntoPyObject<'py> for ParserCSTNode<'a> {
                     Terminal {
                         text: token.text.clone(),
                         value: (token.value.as_ref())
-                            .map(|v| TokenizerValue(&v))
+                            .map(TokenizerValue)
                             .into_pyobject(py)?
                             .unbind(),
                         start: token.span.start,
