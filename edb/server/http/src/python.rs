@@ -180,9 +180,13 @@ async fn request_sse(
     let guard = guard((), |_| trace!("Exiting SSE due to cancellation"));
     let response = request(client, url, method, body, headers).await?;
 
-    if response.headers().get("content-type")
-        != Some(&HeaderValue::from_static("text/event-stream"))
-    {
+    let content_type = response.headers().get("content-type");
+    let is_event_stream = content_type
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.starts_with("text/event-stream"))
+        .unwrap_or(false);
+
+    if !is_event_stream {
         let headers = process_headers(response.headers());
         let status = response.status();
         let body = match response.bytes().await {

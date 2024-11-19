@@ -483,6 +483,9 @@ class ResponseSSE:
         data: str
         id: Optional[str] = None
 
+        def json(self):
+            return json_lib.loads(self.data)
+
     def close(self):
         if not self.closed():
             self._closed[0] = True
