@@ -327,8 +327,7 @@ class HttpSSETest(tb.BaseHttpTest):
                 assert events[1].data == 'Event 2'
                 assert events[2].data == 'Event 3'
 
-        async with server:
-            client_future = asyncio.create_task(client_task())
-            await asyncio.wait_for(client_future, timeout=5.0)
-
+        client_future = asyncio.create_task(client_task())
+        await asyncio.wait_for(client_future, timeout=5.0)
+        await asyncio.wait_for(server.wait_closed(), timeout=5.0)
         assert is_closed
