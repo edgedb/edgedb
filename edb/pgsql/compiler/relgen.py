@@ -976,7 +976,7 @@ def process_set_as_path_type_intersection(
 
     assert not rptr.expr, 'type intersection pointer with expr??'
 
-    if ir_set.typeref.union is not None and len(ir_set.typeref.union) == 0:
+    if irtyputils.is_empty_typeref(ir_set.typeref):
         # If the typeref was a type expression which resolves to no actual
         # types, just return an empty set.
         empty_ir = irast.Set(
@@ -1147,6 +1147,29 @@ def process_set_as_path(
         # instead of semi-joining.
         not relctx.find_rvar(stmt, path_id=ir_source.path_id, ctx=ctx)
     )
+
+    if irtyputils.is_empty_typeref(ir_source.typeref):
+        # If the source is an empty type intersection, just produce an empty set
+
+        if is_primitive_ref:
+            aspects = [pgce.PathAspect.VALUE]
+        else:
+            aspects = [pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE]
+
+        empty_ir = irast.Set(
+            path_id=ir_set.path_id,
+            typeref=ir_set.typeref,
+            expr=irast.EmptySet(typeref=ir_set.typeref),
+        )
+        empty_rvar = SetRVar(
+            relctx.new_empty_rvar(
+                cast('irast.SetE[irast.EmptySet]', empty_ir),
+                ctx=ctx
+            ),
+            path_id=ir_set.path_id,
+            aspects=aspects,
+        )
+        return SetRVars(main=empty_rvar, new=[empty_rvar])
 
     main_rvar = None
     source_rptr = (
