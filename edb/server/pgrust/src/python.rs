@@ -21,8 +21,8 @@ use pyo3::{
     types::{PyAnyMethods, PyByteArray, PyBytes, PyMemoryView, PyModule, PyModuleMethods},
     Bound, PyAny, PyResult, Python,
 };
-use std::path::Path;
-use std::{collections::HashMap, convert::Infallible};
+use std::collections::HashMap;
+use std::{borrow::Cow, path::Path};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[pyclass(eq, eq_int)]
@@ -249,12 +249,8 @@ impl PyConnectionParams {
         repr
     }
 
-    pub fn __getitem__(&self, py: Python, name: &str) -> PyResult<Py<PyAny>> {
-        self.inner
-            .get_by_name(name)
-            .into_pyobject(py)
-            .map(|e| e.unbind().into_any())
-            .map_err(|_: Infallible| unreachable!())
+    pub fn __getitem__(&self, name: &str) -> Option<Cow<'_, str>> {
+        self.inner.get_by_name(name)
     }
 
     pub fn __setitem__(&mut self, name: &str, value: &str) -> PyResult<()> {

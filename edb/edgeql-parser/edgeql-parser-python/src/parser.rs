@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyList, PyString};
 
 use crate::errors::{parser_error_into_tuple, ParserResult};
-use crate::pynormalize::value_to_py_object;
+use crate::pynormalize::TokenizerValue;
 use crate::tokenizer::OpaqueToken;
 
 #[pyfunction]
@@ -24,8 +24,6 @@ pub fn parse(
     let context = parser::Context::new(spec);
     let (cst, errors) = parser::parse(&tokens, &context);
 
-    let cst = cst.map(|c| to_py_cst(&c, py)).transpose()?;
-
     let errors = errors
         .into_iter()
         .map(|e| parser_error_into_tuple(py, e))
@@ -33,7 +31,11 @@ pub fn parse(
     let errors = PyList::new(py, &errors)?;
 
     let res = ParserResult {
-        out: cst.into_pyobject(py)?.into(),
+        out: if let Some(cst) = cst {
+            ParserCSTNode(&cst).into_pyobject(py)?.unbind().into_any()
+        } else {
+            py.None()
+        },
         errors: errors.into(),
     };
 
@@ -43,9 +45,9 @@ pub fn parse(
 #[pyclass]
 pub struct CSTNode {
     #[pyo3(get)]
-    production: PyObject,
+    production: Option<Py<Production>>,
     #[pyo3(get)]
-    terminal: PyObject,
+    terminal: Option<Py<Terminal>>,
 }
 
 #[pyclass]
@@ -145,43 +147,46 @@ fn load_productions(py: Python<'_>, spec: &parser::Spec) -> PyResult<PyObject> {
     Ok(productions.into())
 }
 
-fn to_py_cst<'a>(cst: &'a parser::CSTNode<'a>, py: Python) -> PyResult<CSTNode> {
-    Ok(match cst {
-        parser::CSTNode::Empty => CSTNode {
-            production: py.None(),
-            terminal: py.None(),
-        },
-        parser::CSTNode::Terminal(token) => CSTNode {
-            production: py.None(),
-            terminal: Terminal {
-                text: token.text.clone(),
-                value: if let Some(val) = &token.value {
-                    value_to_py_object(py, val)?
-                } else {
-                    py.None()
-                },
-                start: token.span.start,
-                end: token.span.end,
-            }
-            .into_pyobject(py)?
-            .unbind()
-            .into_any(),
-        },
-        parser::CSTNode::Production(prod) => CSTNode {
-            production: Production {
-                id: prod.id,
-                args: prod
-                    .args
-                    .iter()
-                    .map(|a| Ok(to_py_cst(a, py)?.into_pyobject(py)?))
-                    .collect::<PyResult<Vec<_>>>()?
-                    .into_pyobject(py)?
-                    .unbind(),
-            }
-            .into_pyobject(py)?
-            .unbind()
-            .into_any(),
-            terminal: py.None(),
-        },
-    })
+/// Newtype required to define a trait for a foreign type.
+struct ParserCSTNode<'a>(&'a parser::CSTNode<'a>);
+
+impl<'a, 'py> IntoPyObject<'py> for ParserCSTNode<'a> {
+    type Target = CSTNode;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> PyResult<Self::Output> {
+        let res = match self.0 {
+            parser::CSTNode::Empty => CSTNode {
+                production: None,
+                terminal: None,
+            },
+            parser::CSTNode::Terminal(token) => CSTNode {
+                production: None,
+                terminal: Some(Py::new(
+                    py,
+                    Terminal {
+                        text: token.text.clone(),
+                        value: (token.value.as_ref())
+                            .map(|v| TokenizerValue(&v))
+                            .into_pyobject(py)?
+                            .unbind(),
+                        start: token.span.start,
+                        end: token.span.end,
+                    },
+                )?),
+            },
+            parser::CSTNode::Production(prod) => CSTNode {
+                production: Some(Py::new(
+                    py,
+                    Production {
+                        id: prod.id,
+                        args: PyList::new(py, prod.args.iter().map(ParserCSTNode))?.into(),
+                    },
+                )?),
+                terminal: None,
+            },
+        };
+        Ok(Py::new(py, res)?.bind(py).clone())
+    }
 }
