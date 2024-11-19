@@ -313,7 +313,7 @@ macro_rules! protocol_builder {
                             let Ok(val) = $crate::protocol::FieldAccess::<$type>::extract(buf.split_at(offset).1) else {
                                 return false;
                             };
-                            if val != $value as usize as _ { return false; }
+                            if val as usize != $value as usize { return false; }
                         )?
                         offset += std::mem::size_of::<$type>();
                     )*
