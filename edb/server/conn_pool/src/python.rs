@@ -418,7 +418,6 @@ impl LoggingGuard {
             .getattr("getEffectiveLevel")?
             .call((), None)?
             .extract::<i32>()?;
-        let logger = logger.into_pyobject(py)?.unbind();
 
         struct PythonSubscriber {
             logger: Py<PyAny>,
@@ -481,7 +480,9 @@ impl LoggingGuard {
             tracing_subscriber::filter::LevelFilter::OFF
         };
 
-        let subscriber = PythonSubscriber { logger };
+        let subscriber = PythonSubscriber {
+            logger: logger.into(),
+        };
         let guard = tracing_subscriber::registry()
             .with(level)
             .with(subscriber)
