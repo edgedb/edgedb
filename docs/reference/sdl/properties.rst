@@ -270,6 +270,8 @@ The valid SDL sub-declarations are listed below:
     The default value is used in an ``insert`` statement if an explicit
     value for this property is not specified.
 
+    The expression must be :ref:`Stable <ref_reference_volatility>`.
+
 :eql:synopsis:`readonly := {true | false}`
     If ``true``, the property is considered *read-only*.
     Modifications of this property are prohibited once an object is

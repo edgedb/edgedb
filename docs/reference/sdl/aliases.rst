@@ -47,7 +47,8 @@ This declaration defines a new alias with the following options:
     The name (optionally module-qualified) of an alias to be created.
 
 :eql:synopsis:`<alias-expr>`
-    The aliased expression.  Can be any valid EdgeQL expression.
+    The aliased expression.  Must be a :ref:`Stable <ref_reference_volatility>`
+    EdgeQL expression.
 
 The valid SDL sub-declarations are listed below:
 
