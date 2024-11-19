@@ -83,12 +83,6 @@ class HttpClient:
         if self._task is not None:
             logger.error(f"HttpClient {id(self)} was not closed")
 
-    def __enter__(self) -> HttpClient:
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.close()
-
     def close(self) -> None:
         if self._task is not None:
             self._task.cancel()
@@ -190,7 +184,7 @@ class HttpClient:
         id = self._next_id
         self._next_id += 1
         self._requests[id] = asyncio.Future()
-        start_time = time.time()
+        start_time = time.monotonic()
         try:
             self._ensure_client()._request(id, path, method, data, headers_list)
             resp = await self._requests[id]
@@ -198,7 +192,7 @@ class HttpClient:
                 status_code, body, headers = resp
                 self._stat_callback(
                     HttpStat(
-                        response_time_ms=int((time.time() - start_time) * 1000),
+                        response_time_ms=int((time.monotonic() - start_time) * 1000),
                         error_code=status_code,
                         response_body_size=len(body),
                         response_content_type=dict(headers_list).get(
@@ -253,7 +247,7 @@ class HttpClient:
         id = self._next_id
         self._next_id += 1
         self._requests[id] = asyncio.Future()
-        start_time = time.time()
+        start_time = time.monotonic()
         try:
             self._ensure_client()._request_sse(
                 id, path, method, data, headers_list
@@ -267,7 +261,7 @@ class HttpClient:
                     status_code, body, headers = resp
                 self._stat_callback(
                     HttpStat(
-                        response_time_ms=int((time.time() - start_time) * 1000),
+                        response_time_ms=int((time.monotonic() - start_time) * 1000),
                         error_code=status_code,
                         response_body_size=len(body),
                         response_content_type=dict(headers_list).get(
@@ -493,9 +487,13 @@ class ResponseSSE:
         return self
 
     async def __anext__(self):
+        if self._closed:
+            raise StopAsyncIteration
         next = await self._stream.get()
         try:
             if next is None:
+                self._closed = True
+                self._cancel()
                 raise StopAsyncIteration
             id, data, event = next
             return self.SSEEvent(event, data, id)
