@@ -418,7 +418,7 @@ impl LoggingGuard {
             .getattr("getEffectiveLevel")?
             .call((), None)?
             .extract::<i32>()?;
-        let logger = logger.into_pyobject(py)?;
+        let logger = logger.into_pyobject(py)?.unbind();
 
         struct PythonSubscriber {
             logger: Py<PyAny>,
