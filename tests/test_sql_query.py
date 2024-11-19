@@ -2321,7 +2321,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
               x(b, c) AS (VALUES (2, 3))
             SELECT 1 as a, * FROM x
             ''',
-            [{'a': 1, 'b': 2, 'c': 3}], # values are swapped around
+            [{'a': 1, 'b': 2, 'c': 3}],  # values are swapped around
         )
 
     @test.xerror('bug: probably something with constant extraction')
