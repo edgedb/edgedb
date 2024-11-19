@@ -1978,8 +1978,11 @@ def _resolve_returning_rows(
         )
         returning_table = context.Table()
 
+        names: Set[str] = set()
         for t in returning_list:
-            targets, columns = pg_res_expr.resolve_ResTarget(t, ctx=sctx)
+            targets, columns = pg_res_expr.resolve_ResTarget(
+                t, existing_names=names, ctx=sctx
+            )
             returning_query.target_list.extend(targets)
             returning_table.columns.extend(columns)
     return returning_query, returning_table

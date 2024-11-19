@@ -65,6 +65,7 @@ def compile_sql(
     apply_access_policies_sql: Optional[bool],
     include_edgeql_io_format_alternative: bool = False,
     allow_prepared_statements: bool = True,
+    disambiguate_column_names: bool,
 ) -> List[dbstate.SQLQueryUnit]:
     opts = ResolverOptionsPartial(
         query_str=query_str,
@@ -73,7 +74,9 @@ def compile_sql(
         allow_user_specified_id=allow_user_specified_id,
         apply_access_policies_sql=apply_access_policies_sql,
         include_edgeql_io_format_alternative=(
-            include_edgeql_io_format_alternative),
+            include_edgeql_io_format_alternative
+        ),
+        disambiguate_column_names=disambiguate_column_names,
     )
 
     stmts = pg_parser.parse(query_str, propagate_spans=True)
@@ -151,7 +154,8 @@ def compile_sql(
         elif isinstance(stmt, (pgast.BeginStmt, pgast.StartStmt)):
             unit.tx_action = dbstate.TxAction.START
             unit.command_complete_tag = dbstate.TagPlain(
-                tag=b"START TRANSACTION")
+                tag=b"START TRANSACTION"
+            )
         elif isinstance(stmt, pgast.CommitStmt):
             unit.tx_action = dbstate.TxAction.COMMIT
             unit.tx_chain = stmt.chain or False
@@ -276,7 +280,8 @@ def compile_sql(
             if edgeql_fmt_src is not None:
                 unit.eql_format_query = edgeql_fmt_src.text
                 unit.eql_format_translation_data = (
-                    edgeql_fmt_src.translation_data)
+                    edgeql_fmt_src.translation_data
+                )
             unit.command_complete_tag = stmt_resolved.command_complete_tag
             unit.params = stmt_resolved.params
             if isinstance(stmt, pgast.DMLQuery) and not stmt.returning_list:
@@ -320,6 +325,7 @@ class ResolverOptionsPartial:
     allow_user_specified_id: Optional[bool]
     apply_access_policies_sql: Optional[bool]
     include_edgeql_io_format_alternative: Optional[bool]
+    disambiguate_column_names: bool
 
 
 def resolve_query(
@@ -365,7 +371,9 @@ def resolve_query(
         allow_user_specified_id=allow_user_specified_id,
         apply_access_policies=apply_access_policies,
         include_edgeql_io_format_alternative=(
-            opts.include_edgeql_io_format_alternative),
+            opts.include_edgeql_io_format_alternative
+        ),
+        disambiguate_column_names=opts.disambiguate_column_names,
     )
     resolved = pg_resolver.resolve(stmt, schema, options)
     source = pg_codegen.generate(resolved.ast, with_translation_data=True)
