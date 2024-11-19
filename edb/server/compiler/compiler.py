@@ -566,6 +566,7 @@ class Compiler:
             current_user=current_user,
             allow_user_specified_id=allow_user_specified_id,
             apply_access_policies_sql=apply_access_policies_sql,
+            disambiguate_column_names=False,
             backend_runtime_params=self.state.backend_runtime_params,
         )
 
@@ -2431,6 +2432,7 @@ def compile_sql_as_unit_group(
         apply_access_policies_sql=apply_access_policies_sql,
         include_edgeql_io_format_alternative=True,
         allow_prepared_statements=False,
+        disambiguate_column_names=True,
         backend_runtime_params=ctx.backend_runtime_params,
     )
 

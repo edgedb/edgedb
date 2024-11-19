@@ -75,7 +75,20 @@ def infer_alias(res_target: pgast.ResTarget) -> Optional[str]:
 def resolve_ResTarget(
     res_target: pgast.ResTarget,
     *,
-    existing_names: Optional[Set[str]] = None,
+    existing_names: Set[str],
+    ctx: Context,
+) -> Tuple[Sequence[pgast.ResTarget], Sequence[context.Column]]:
+    targets, columns = _resolve_ResTarget(
+        res_target, existing_names=existing_names, ctx=ctx
+    )
+
+    return (targets, columns)
+
+
+def _resolve_ResTarget(
+    res_target: pgast.ResTarget,
+    *,
+    existing_names: Set[str],
     ctx: Context,
 ) -> Tuple[Sequence[pgast.ResTarget], Sequence[context.Column]]:
     alias = infer_alias(res_target)
@@ -87,11 +100,38 @@ def resolve_ResTarget(
         res = []
         columns = []
         for table, column in col_res:
-            columns.append(column)
+            val = resolve_column_kind(table, column.kind, ctx=ctx)
+
+            # make sure name is not duplicated
+            # this behavior is technically different then Postgres, but EdgeDB
+            # protocol does not support duplicate names. And we doubt that
+            # anyone is depending on original behavior.
+            nam: str = column.name
+            if nam in existing_names:
+                # prefix with table name
+                rel_var_name = table.alias or table.name
+                if rel_var_name:
+                    nam = rel_var_name + '_' + nam
+            if nam in existing_names:
+                if ctx.options.disambiguate_column_names:
+                    raise errors.QueryError(
+                        f'duplicate column name: `{nam}`',
+                        span=res_target.span,
+                        pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
+                    )
+            existing_names.add(nam)
+
             res.append(
                 pgast.ResTarget(
-                    val=resolve_column_kind(table, column.kind, ctx=ctx),
-                    name=column.name,
+                    name=nam,
+                    val=val,
+                )
+            )
+            columns.append(
+                context.Column(
+                    name=nam,
+                    hidden=column.hidden,
+                    kind=column.kind,
                 )
             )
         return (res, columns)
@@ -107,14 +147,29 @@ def resolve_ResTarget(
     ):
         alias = static.name_in_pg_catalog(res_target.val.name)
 
-    if not res_target.name and existing_names and alias in existing_names:
-        # when a name already exists, don't infer the same name
-        # this behavior is technically different than Postgres, but it is also
-        # not documented and users should not be relying on it.
-        # It does help us in some cases (passing `SELECT a.id, b.id` into DML).
-        alias = None
+    if alias in existing_names:
+        # duplicate name
+
+        if res_target.name:
+            # explicit duplicate name: error out
+            if ctx.options.disambiguate_column_names:
+                raise errors.QueryError(
+                    f'duplicate column name: `{alias}`',
+                    span=res_target.span,
+                    pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
+                )
+        else:
+            # inferred duplicate name: use generated alias instead
+
+            # this behavior is technically different than Postgres, but it is
+            # also not documented and users should not be relying on it.
+            # It does help us in some cases
+            # (passing `SELECT a.id, b.id` into DML).
+            alias = None
 
     name: str = alias or ctx.alias_generator.get('col')
+    existing_names.add(name)
+
     col = context.Column(
         name=name, kind=context.ColumnByName(reference_as=name)
     )
@@ -261,7 +316,8 @@ def _lookup_column(
 
     if not matched_columns:
         raise errors.QueryError(
-            f'cannot find column `{col_name}`', span=column_ref.span,
+            f'cannot find column `{col_name}`',
+            span=column_ref.span,
             pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
         )
 

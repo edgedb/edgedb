@@ -55,6 +55,9 @@ class Options:
     # whether to generate an EdgeQL-compatible single-column output variant.
     include_edgeql_io_format_alternative: Optional[bool]
 
+    # makes sure that output does not contain duplicated column names
+    disambiguate_column_names: bool
+
 
 @dataclass(kw_only=True)
 class Scope:
