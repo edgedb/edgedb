@@ -37,6 +37,7 @@ BaseRelation_T = typing.TypeVar('BaseRelation_T', bound=pgast.BaseRelation)
 def _resolve(
     expr: pgast.Base, *, ctx: context.ResolverContextLevel
 ) -> pgast.Base:
+    expr.dump()
     _raise_unsupported(expr)
 
 

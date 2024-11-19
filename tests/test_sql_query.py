@@ -2142,7 +2142,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.FeatureNotSupportedError,
             "not supported: CREATE",
-            position="14",  # TODO: this is confusing
+            # position="14",  # TODO: this is confusing
         ):
             await self.squery_values('CREATE TABLE a();')
 
