@@ -2,9 +2,8 @@ use edb_graphql_parser::common::{unquote_block_string, unquote_string};
 use edb_graphql_parser::position::Pos;
 use edb_graphql_parser::tokenizer::Token;
 use pyo3::prelude::*;
-use pyo3::types::{PyInt, PyList, PyString, PyTuple};
+use pyo3::types::{PyList, PyString, PyTuple};
 use std::borrow::Cow;
-use std::convert::Infallible;
 
 use crate::py_exception::LexingError;
 use crate::rewrite::Error;
@@ -164,35 +163,18 @@ pub fn convert_tokens<'py>(
                 (block_string.clone_ref(py), v.to_owned().into())
             }
         };
-        let token_tuple = [
+        let token_tuple = (
             kind,
+            token.position.map(|x| x.character),
             token
                 .position
-                .map(|x| x.character)
-                .into_pyobject(py)?
-                .to_owned()
-                .into(),
-            token
-                .position
-                .map(|x| x.character + token.value.chars().count())
-                .into_pyobject(py)?
-                .to_owned()
-                .into(),
-            token
-                .position
-                .map(|x| x.line)
-                .into_pyobject(py)?
-                .to_owned()
-                .into(),
-            token
-                .position
-                .map(|x| x.column)
-                .into_pyobject(py)?
-                .to_owned()
-                .into(),
+                .map(|x| x.character + token.value.chars().count()),
+            token.position.map(|x| x.line),
+            token.position.map(|x| x.column),
             value,
-        ];
-        elems.push(PyTuple::new(py, &token_tuple)?.into());
+        )
+            .into_pyobject(py)?;
+        elems.push(token_tuple.into());
     }
     elems.push(
         (

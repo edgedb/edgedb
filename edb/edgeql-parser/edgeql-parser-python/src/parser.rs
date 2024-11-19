@@ -3,7 +3,7 @@ use once_cell::sync::OnceCell;
 use edgeql_parser::parser;
 use pyo3::exceptions::{PyAssertionError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyString, PyTuple};
+use pyo3::types::{PyList, PyString};
 
 use crate::errors::{parser_error_into_tuple, ParserResult};
 use crate::pynormalize::value_to_py_object;
@@ -141,13 +141,7 @@ fn load_productions(py: Python<'_>, spec: &parser::Spec) -> PyResult<PyObject> {
         .import("edb.common.parsing")?
         .getattr("load_spec_productions")?;
 
-    let production_names = spec
-        .production_names
-        .iter()
-        .map(|(a, b)| PyTuple::new(py, [a, b]))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let productions = load_productions.call((production_names, grammar_mod), None)?;
+    let productions = load_productions.call((&spec.production_names, grammar_mod), None)?;
     Ok(productions.into())
 }
 

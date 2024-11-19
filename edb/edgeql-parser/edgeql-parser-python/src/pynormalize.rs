@@ -92,7 +92,7 @@ impl Entry {
             } else {
                 (first + idx).to_string()
             };
-            vars.set_item(s.into_pyobject(py)?, value_to_py_object(py, &var.value)?)?;
+            vars.set_item(s, value_to_py_object(py, &var.value)?)?;
         }
 
         Ok(vars.unbind().into_any())

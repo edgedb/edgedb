@@ -37,7 +37,6 @@ pub fn convert_entry(py: Python<'_>, entry: rewrite::Entry) -> PyResult<Entry> {
         let s = format!("_edb_arg__{}", idx).into_pyobject(py)?;
 
         vars.set_item(&s, value_to_py(py, &var.value, &decimal_cls)?)?;
-
         substitutions.set_item(
             s,
             (
@@ -48,19 +47,9 @@ pub fn convert_entry(py: Python<'_>, entry: rewrite::Entry) -> PyResult<Entry> {
         )?;
     }
     for (name, var) in &entry.defaults {
-        vars.set_item(
-            name.into_pyobject(py)?,
-            value_to_py(py, &var.value, &decimal_cls)?,
-        )?
+        vars.set_item(name, value_to_py(py, &var.value, &decimal_cls)?)?
     }
-    let key_vars = PyList::new(
-        py,
-        entry
-            .key_vars
-            .iter()
-            .map(|v| v.into_pyobject(py))
-            .collect::<Result<Vec<_>, _>>(),
-    )?;
+    let key_vars = PyList::new(py, entry.key_vars)?;
     Ok(Entry {
         key: PyString::new(py, &entry.key).into(),
         key_vars: key_vars.into(),
