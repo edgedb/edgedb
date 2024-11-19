@@ -209,7 +209,7 @@ def __infer_set(
             vol,
         ])
 
-    if ir.is_binding:
+    if ir.is_binding and ir.is_binding != irast.BindingKind.Schema:
         vol = IMMUTABLE
 
     return vol
