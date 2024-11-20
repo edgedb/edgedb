@@ -2312,3 +2312,44 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             ''',
             [{'a': 1, 'x_a': 2}],
         )
+
+    @test.xfail('bug: probably something with constant extraction')
+    async def test_native_sql_query_10(self):
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(b, c) AS (VALUES (2, 3))
+            SELECT 1 as a, * FROM x
+            ''',
+            [{'a': 1, 'b': 2, 'c': 3}],  # values are swapped around
+        )
+
+    @test.xerror('bug: probably something with constant extraction')
+    async def test_native_sql_query_11(self):
+        # JOIN ... ON TRUE fails, saying it expects bool, but it got an int
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(a) AS (VALUES (1)),
+              y(b) AS (VALUES (2)),
+              z(c) AS (VALUES (3))
+            SELECT * FROM x, y JOIN z ON TRUE
+            ''',
+            [{'a': 1, 'b': 2, 'c': 3}],
+        )
+
+    async def test_native_sql_query_12(self):
+        await self.assert_sql_query_result(
+            '''
+            WITH
+                x(a) AS (VALUES (1), (5)),
+                y(b) AS (VALUES (2), (3))
+            SELECT * FROM x, y
+            ''',
+            [
+                {'a': 1, 'b': 2},
+                {'a': 1, 'b': 3},
+                {'a': 5, 'b': 2},
+                {'a': 5, 'b': 3},
+            ],
+        )
