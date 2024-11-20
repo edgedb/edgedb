@@ -1588,6 +1588,7 @@ def _compile_ql_query(
     if (
         not ctx.bootstrap_mode
         and ctx.backend_runtime_params.has_stat_statements
+        and not ctx.schema_reflection_mode
     ):
         spec = ctx.compiler_state.config_spec
         cconfig = config.to_json_obj(
