@@ -387,6 +387,12 @@ impl ConnPool {
         };
         msg.to_object(py)
     }
+
+    fn _close_pipe(&mut self) {
+        // Replace the channel with a dummy, closed one which will also
+        // signal the other side to exit.
+        (_, self.rust_to_python) = std::sync::mpsc::channel();
+    }
 }
 
 /// Ensure that logging does not outlive the Python runtime.

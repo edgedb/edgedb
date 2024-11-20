@@ -26,18 +26,19 @@ from typing import (
     Union,
     Self,
     Callable,
+    List,
 )
 
 import asyncio
 import dataclasses
 import logging
-import os
 import json as json_lib
 import urllib.parse
 import time
 from http import HTTPStatus as HTTPStatus
 
 from edb.server._http import Http
+from . import rust_async_channel
 
 logger = logging.getLogger("edb.server")
 HeaderType = Optional[Union[list[tuple[str, str]], dict[str, str]]]
@@ -80,29 +81,26 @@ class HttpClient:
         self._stat_callback = stat_callback
 
     def __del__(self) -> None:
-        self.close()
-
-    def __enter__(self) -> HttpClient:
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.close()
+        if not self.closed():
+            logger.error(f"HttpClient {id(self)} was not closed")
 
     def close(self) -> None:
-        if self._task is not None:
-            self._task.cancel()
-            self._task = None
+        if not self.closed():
+            if self._task is not None:
+                self._task.cancel()
+                self._task = None
             self._loop = None
             self._client = None
 
+    def closed(self) -> bool:
+        return self._task is None and self._loop is None
+
     def _ensure_task(self):
-        if self._loop is None:
+        if self.closed():
             raise Exception("HttpClient was closed")
         if self._task is None:
             self._client = Http(self._limit)
-            self._task = self._loop.create_task(
-                self._boot(self._loop, self._client._fd)
-            )
+            self._task = self._loop.create_task(self._boot(self._client))
 
     def _ensure_client(self):
         if self._client is None:
@@ -129,7 +127,6 @@ class HttpClient:
             return [(k, v) for k, v in headers.items()]
         if isinstance(headers, list):
             return headers
-        print(headers)
         raise ValueError(f"Invalid headers type: {type(headers)}")
 
     def _process_content(
@@ -192,7 +189,7 @@ class HttpClient:
         id = self._next_id
         self._next_id += 1
         self._requests[id] = asyncio.Future()
-        start_time = time.time()
+        start_time = time.monotonic()
         try:
             self._ensure_client()._request(id, path, method, data, headers_list)
             resp = await self._requests[id]
@@ -200,7 +197,9 @@ class HttpClient:
                 status_code, body, headers = resp
                 self._stat_callback(
                     HttpStat(
-                        response_time_ms=int((time.time() - start_time) * 1000),
+                        response_time_ms=int(
+                            (time.monotonic() - start_time) * 1000
+                        ),
                         error_code=status_code,
                         response_body_size=len(body),
                         response_content_type=dict(headers_list).get(
@@ -255,7 +254,7 @@ class HttpClient:
         id = self._next_id
         self._next_id += 1
         self._requests[id] = asyncio.Future()
-        start_time = time.time()
+        start_time = time.monotonic()
         try:
             self._ensure_client()._request_sse(
                 id, path, method, data, headers_list
@@ -269,7 +268,9 @@ class HttpClient:
                     status_code, body, headers = resp
                 self._stat_callback(
                     HttpStat(
-                        response_time_ms=int((time.time() - start_time) * 1000),
+                        response_time_ms=int(
+                            (time.monotonic() - start_time) * 1000
+                        ),
                         error_code=status_code,
                         response_body_size=len(body),
                         response_content_type=dict(headers_list).get(
@@ -295,28 +296,21 @@ class HttpClient:
         finally:
             del self._requests[id]
 
-    async def _boot(self, loop: asyncio.AbstractEventLoop, fd: int) -> None:
+    async def _boot(self, client) -> None:
         logger.info(f"HTTP client initialized, user_agent={self._user_agent}")
-        reader = asyncio.StreamReader(loop=loop)
-        reader_protocol = asyncio.StreamReaderProtocol(reader)
-        transport, _ = await loop.connect_read_pipe(
-            lambda: reader_protocol, os.fdopen(fd, 'rb')
-        )
         try:
-            while len(await reader.read(1)) == 1:
-                if not self._client or not self._task:
-                    break
-                if self._skip_reads > 0:
-                    self._skip_reads -= 1
-                    continue
-                msg = self._client._read()
-                if not msg:
-                    break
-                self._process_message(msg)
-        finally:
-            transport.close()
+            channel = rust_async_channel.RustAsyncChannel(
+                client, self._process_message
+            )
+            try:
+                await channel.run()
+            finally:
+                channel.close()
+        except Exception:
+            logger.error(f"Error in HTTP client", exc_info=True)
+            raise
 
-    def _process_message(self, msg):
+    def _process_message(self, msg: Tuple[Any, ...]) -> None:
         try:
             msg_type, id, data = msg
             if msg_type == 0:  # Error
@@ -347,7 +341,7 @@ class HttpClient:
         return self
 
     async def __aexit__(self, *args) -> None:  # type: ignore
-        pass
+        self.close()
 
 
 class HttpClientContext(HttpClient):
@@ -468,6 +462,7 @@ class ResponseSSE:
     _stream: asyncio.Queue = dataclasses.field(repr=False)
     _cancel: Callable[[], None] = dataclasses.field(repr=False)
     _ack: Callable[[], None] = dataclasses.field(repr=False)
+    _closed: List[bool] = dataclasses.field(default_factory=lambda: [False])
     is_streaming: bool = True
 
     @classmethod
@@ -488,19 +483,31 @@ class ResponseSSE:
         data: str
         id: Optional[str] = None
 
+        def json(self):
+            return json_lib.loads(self.data)
+
     def close(self):
-        self._cancel()
+        if not self.closed():
+            self._closed[0] = True
+            self._cancel()
+
+    def closed(self) -> bool:
+        return self._closed[0]
 
     def __del__(self):
-        self.close()
+        if not self.closed():
+            logger.error(f"ResponseSSE {id(self)} was not closed")
 
     def __aiter__(self):
         return self
 
     async def __anext__(self):
+        if self.closed():
+            raise StopAsyncIteration
         next = await self._stream.get()
         try:
             if next is None:
+                self.close()
                 raise StopAsyncIteration
             id, data, event = next
             return self.SSEEvent(event, data, id)
