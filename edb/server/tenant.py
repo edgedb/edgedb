@@ -1393,6 +1393,15 @@ class Tenant(ha_base.ClusterProtocol):
             assert database is not None
             return database
 
+    def resolve_user_name(self, user: str) -> str:
+        if (
+            user == defines.EDGEDB_OLD_SUPERUSER
+            and user not in self.get_roles()
+        ):
+            return defines.EDGEDB_SUPERUSER
+        else:
+            return user
+
     async def get_auth_methods(
         self,
         user: str,

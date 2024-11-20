@@ -459,7 +459,7 @@ class TestServerAuth(tb.ConnectedTestCase):
 
             good_keys = [
                 [],
-                [("roles", ["edgedb"])],
+                [("roles", ["admin"])],
                 [("databases", ["main"])],
                 [("instances", ["localtest"])],
             ]
@@ -479,7 +479,7 @@ class TestServerAuth(tb.ConnectedTestCase):
             bad_keys = {
                 (("roles", ("bad-role",)),):
                     'secret key does not authorize access '
-                    + 'in role "edgedb"',
+                    + 'in role "admin"',
                 (("databases", ("bad-database",)),):
                     'secret key does not authorize access '
                     + 'to database "main"',
