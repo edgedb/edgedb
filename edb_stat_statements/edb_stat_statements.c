@@ -587,9 +587,36 @@ edbss_extract_info_line(const char *s, int *len) {
 }
 
 /*
- * Extract EdgeDB query info from the JSON in the leading comment.
+ * Extract EdgeDB query info from the JSON in the leading comments.
  * If success, returns a palloc-ed EdbStmtInfo which must be freed
  * after usage with edbss_free_stmt_info().
+ *
+ * The query info JSON comments must be at the beginning of the
+ * query_str. Each line must start with `-- {` and end with `\n`,
+ * with a single valid JSON string. The JSON string itself must
+ * not contain any `\n`, or it'll be treated as a bad JSON.
+ *
+ * This function scans over all such lines and records known
+ * values progressively. Malformed JSONs may be partially read,
+ * this function won't bail just because of that; it'll continue
+ * with the next line.  If the same key exists more than once,
+ * only the first occurrence is effective, later ones are ignored.
+ * This function returns successfully as soon as all required
+ * fields (EDB_STMT_INFO_PARSE_REQUIRED) are found AND the current
+ * JSON is in good form, ignoring remaining lines. For example:
+ *
+ *   -- {"a": 1}
+ *   -- {"a": 11, "d": 4, "nested": {"b": 22}}
+ *   -- {"b": 2, "unknown": "skipped",
+ *   -- {"c": 3}
+ *   -- {"e": 5}
+ *   SELECT ....
+ *
+ * If the required fields are {a, b, c}, while {d, e} are known
+ * but not required, the extracted info will be:
+ *
+ *   {"a": 1, "b": 2, "c": 3, "d": 4}
+ *
  */
 EdbStmtInfo *
 edbss_extract_stmt_info(const char* query_str, int query_len) {
