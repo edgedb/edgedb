@@ -1942,6 +1942,7 @@ async def _handle_rag_request(
         custom_prompt_messages: list[dict[str, Any]] = []
 
         prompt = body.get("prompt")
+
         if prompt is None:
             prompt_name = "builtin::rag-default"
         else:
@@ -2176,7 +2177,11 @@ async def _handle_rag_request(
 
         prompt_messages.append(dict(role=role, content=content))
 
-    messages = prompt_messages + custom_prompt_messages
+    messages = (
+        prompt_messages
+        + custom_prompt_messages
+        + [{"role": "user", "content": [{"type": "text", "text": query}]}]
+    )
 
     await _start_chat(
         protocol=protocol,

@@ -590,13 +590,6 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
                      knowledge, answer the user query."
                 ),
             }),
-            (insert ext::ai::ChatPromptMessage {
-                participant_role := ext::ai::ChatParticipantRole.User,
-                content := (
-                    "Query: {query}\n\
-                     Answer: "
-                ),
-            })
         }
     };
 
