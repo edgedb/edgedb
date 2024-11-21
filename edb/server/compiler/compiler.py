@@ -2582,7 +2582,6 @@ def _try_compile_ast(
         if text.startswith(sentinel):
             time.sleep(float(text[len(sentinel):text.index("\n")]))
 
-    default_cardinality = enums.Cardinality.NO_RESULT
     statements_len = len(statements)
 
     if not len(statements):  # pragma: no cover
