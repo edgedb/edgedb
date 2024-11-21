@@ -48,7 +48,7 @@ impl RustToPythonMessage {
             SSEEvent(conn, message) => {
                 (3, conn, (&message.id, &message.data, &message.event)).into_pyobject(py)
             }
-            SSEEnd(conn) => (4, conn).into_pyobject(py),
+            SSEEnd(conn) => (4, conn, ()).into_pyobject(py),
         }
         .map(|e| e.into())
     }
