@@ -352,11 +352,26 @@ class HttpClientContext(HttpClient):
         headers: HeaderType = None,
         base_url: str | None = None,
     ):
-        self._task = None
         self.url_munger = url_munger
         self.http_client = http_client
         self.base_url = base_url
         self.headers = super()._process_headers(headers)
+
+    # HttpClientContext does not need to be closed
+    def __del__(self):
+        pass
+
+    def closed(self):
+        return super().closed()
+
+    def close(self):
+        pass
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *args) -> None:  # type: ignore
+        pass
 
     def _process_headers(self, headers):
         headers = super()._process_headers(headers)
@@ -388,12 +403,6 @@ class HttpClientContext(HttpClient):
         return await self.http_client.stream_sse(
             path, method=method, headers=headers, data=data, json=json
         )
-
-    async def __aenter__(self) -> Self:
-        return self
-
-    async def __aexit__(self, *args) -> None:  # type: ignore
-        pass
 
 
 class CaseInsensitiveDict(dict):
