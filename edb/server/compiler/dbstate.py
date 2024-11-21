@@ -516,6 +516,7 @@ class SQLQueryUnit:
     query: str = dataclasses.field(repr=False)
     """Translated query text."""
 
+    prefix_len: int = 0
     translation_data: Optional[pgcodegen.TranslationData] = None
     """Translation source map."""
 

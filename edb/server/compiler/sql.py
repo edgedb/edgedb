@@ -24,14 +24,18 @@ import dataclasses
 import functools
 import hashlib
 import immutables
+import json
 
 from edb import errors
+from edb.common import uuidgen
+from edb.server import defines
 
 from edb.schema import schema as s_schema
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common as pg_common
 from edb.pgsql import codegen as pg_codegen
+from edb.pgsql import params as pg_params
 from edb.pgsql import parser as pg_parser
 
 from . import dbstate
@@ -66,6 +70,8 @@ def compile_sql(
     include_edgeql_io_format_alternative: bool = False,
     allow_prepared_statements: bool = True,
     disambiguate_column_names: bool,
+    backend_runtime_params: pg_params.BackendRuntimeParams,
+    protocol_version: defines.ProtocolVersion,
 ) -> List[dbstate.SQLQueryUnit]:
     opts = ResolverOptionsPartial(
         query_str=query_str,
@@ -84,6 +90,7 @@ def compile_sql(
     for stmt in stmts:
         orig_text = pg_codegen.generate_source(stmt)
         fe_settings = tx_state.current_fe_settings()
+        track_stats = False
 
         unit = dbstate.SQLQueryUnit(
             orig_query=orig_text,
@@ -223,6 +230,7 @@ def compile_sql(
                 translation_data=stmt_source.translation_data,
             )
             unit.command_complete_tag = dbstate.TagPlain(tag=b"PREPARE")
+            track_stats = True
 
         elif isinstance(stmt, pgast.ExecuteStmt):
             if not allow_prepared_statements:
@@ -245,6 +253,8 @@ def compile_sql(
                 be_stmt_name=mangled_name.encode("utf-8"),
             )
             unit.cardinality = enums.Cardinality.MANY
+            track_stats = True
+
         elif isinstance(stmt, pgast.DeallocateStmt):
             if not allow_prepared_statements:
                 raise errors.UnsupportedFeatureError(
@@ -288,11 +298,56 @@ def compile_sql(
                 unit.cardinality = enums.Cardinality.NO_RESULT
             else:
                 unit.cardinality = enums.Cardinality.MANY
+            track_stats = True
         else:
             from edb.pgsql import resolver as pg_resolver
             pg_resolver.dispatch._raise_unsupported(stmt)
 
         unit.stmt_name = compute_stmt_name(unit.query, tx_state).encode("utf-8")
+
+        if track_stats and backend_runtime_params.has_stat_statements:
+            cconfig: dict[str, dbstate.SQLSetting] = {
+                k: v for k, v in fe_settings.items()
+                if k is not None and v is not None and k in FE_SETTINGS_MUTABLE
+            }
+            cconfig.pop('server_version', None)
+            cconfig.pop('server_version_num', None)
+            if allow_user_specified_id is not None:
+                cconfig.setdefault(
+                    'allow_user_specified_id',
+                    ('true' if allow_user_specified_id else 'false',),
+                )
+            if apply_access_policies_sql is not None:
+                cconfig.setdefault(
+                    'apply_access_policies_sql',
+                    ('true' if apply_access_policies_sql else 'false',),
+                )
+            search_path = parse_search_path(cconfig.pop("search_path", ("",)))
+            cconfig = dict(sorted((k, v) for k, v in cconfig.items()))
+            extras = {
+                'cc': cconfig,  # compilation_config
+                'pv': protocol_version,  # protocol_version
+                'dn': ', '.join(search_path),  # default_namespace
+            }
+            sql_info = {
+                'query': orig_text,
+                'type': defines.QueryType.SQL,
+                'extras': json.dumps(extras),
+            }
+            id_hash = hashlib.blake2b(digest_size=16)
+            id_hash.update(
+                json.dumps(sql_info).encode(defines.EDGEDB_ENCODING)
+            )
+            sql_info['id'] = str(uuidgen.from_bytes(id_hash.digest()))
+            prefix = ''.join([
+                '-- ',
+                json.dumps(sql_info),
+                '\n',
+            ])
+            unit.prefix_len = len(prefix)
+            unit.query = prefix + unit.query
+            if unit.eql_format_query is not None:
+                unit.eql_format_query = prefix + unit.eql_format_query
 
         if isinstance(stmt, pgast.DMLQuery):
             unit.capabilities |= enums.Capability.MODIFICATIONS

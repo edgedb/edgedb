@@ -40,6 +40,8 @@ class BackendCapabilities(enum.IntFlag):
     CREATE_ROLE = 1 << 3
     #: Whether CREATE DATABASE is allowed
     CREATE_DATABASE = 1 << 4
+    #: Whether extension "edb_stat_statements" is available
+    STAT_STATEMENTS = 1 << 5
 
 
 ALL_BACKEND_CAPABILITIES = (
@@ -48,6 +50,7 @@ ALL_BACKEND_CAPABILITIES = (
     | BackendCapabilities.C_UTF8_LOCALE
     | BackendCapabilities.CREATE_ROLE
     | BackendCapabilities.CREATE_DATABASE
+    | BackendCapabilities.STAT_STATEMENTS
 )
 
 
@@ -109,6 +112,13 @@ class BackendRuntimeParams(NamedTuple):
         return bool(
             self.instance_params.capabilities
             & BackendCapabilities.CREATE_DATABASE
+        )
+
+    @property
+    def has_stat_statements(self) -> bool:
+        return self.has_superuser_access and bool(
+            self.instance_params.capabilities
+            & BackendCapabilities.STAT_STATEMENTS
         )
 
 

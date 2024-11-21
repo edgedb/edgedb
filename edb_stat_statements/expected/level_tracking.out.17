@@ -1,0 +1,363 @@
+--
+-- Statement level tracking
+--
+SET edb_stat_statements.track_utility = TRUE;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
+ t 
+---
+ t
+(1 row)
+
+-- DO block - top-level tracking.
+CREATE TABLE stats_track_tab (x int);
+SET edb_stat_statements.track = 'top';
+DELETE FROM stats_track_tab;
+DO $$
+BEGIN
+  DELETE FROM stats_track_tab;
+END;
+$$ LANGUAGE plpgsql;
+SELECT toplevel, calls, query FROM edb_stat_statements
+  WHERE query LIKE '%DELETE%' ORDER BY query COLLATE "C", toplevel;
+ toplevel | calls |             query              
+----------+-------+--------------------------------
+ t        |     1 | DELETE FROM stats_track_tab
+ t        |     1 | DO $$                         +
+          |       | BEGIN                         +
+          |       |   DELETE FROM stats_track_tab;+
+          |       | END;                          +
+          |       | $$ LANGUAGE plpgsql
+(2 rows)
+
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
+ t 
+---
+ t
+(1 row)
+
+-- DO block - all-level tracking.
+SET edb_stat_statements.track = 'all';
+DELETE FROM stats_track_tab;
+DO $$
+BEGIN
+  DELETE FROM stats_track_tab;
+END; $$;
+DO LANGUAGE plpgsql $$
+BEGIN
+  -- this is a SELECT
+  PERFORM 'hello world'::TEXT;
+END; $$;
+SELECT toplevel, calls, query FROM edb_stat_statements
+  ORDER BY query COLLATE "C", toplevel;
+ toplevel | calls |                        query                        
+----------+-------+-----------------------------------------------------
+ f        |     1 | DELETE FROM stats_track_tab
+ t        |     1 | DELETE FROM stats_track_tab
+ t        |     1 | DO $$                                              +
+          |       | BEGIN                                              +
+          |       |   DELETE FROM stats_track_tab;                     +
+          |       | END; $$
+ t        |     1 | DO LANGUAGE plpgsql $$                             +
+          |       | BEGIN                                              +
+          |       |   -- this is a SELECT                              +
+          |       |   PERFORM 'hello world'::TEXT;                     +
+          |       | END; $$
+ f        |     1 | SELECT $1::TEXT
+ t        |     1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
+ t        |     1 | SET edb_stat_statements.track = 'all'
+(7 rows)
+
+-- Procedure with multiple utility statements.
+CREATE OR REPLACE PROCEDURE proc_with_utility_stmt()
+LANGUAGE SQL
+AS $$
+  SHOW edb_stat_statements.track;
+  show edb_stat_statements.track;
+  SHOW edb_stat_statements.track_utility;
+$$;
+SET edb_stat_statements.track_utility = TRUE;
+-- all-level tracking.
+SET edb_stat_statements.track = 'all';
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
+ t 
+---
+ t
+(1 row)
+
+CALL proc_with_utility_stmt();
+SELECT toplevel, calls, query FROM edb_stat_statements
+  ORDER BY query COLLATE "C", toplevel;
+ toplevel | calls |                        query                        
+----------+-------+-----------------------------------------------------
+ t        |     1 | CALL proc_with_utility_stmt()
+ t        |     1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
+ f        |     2 | SHOW edb_stat_statements.track
+ f        |     1 | SHOW edb_stat_statements.track_utility
+(4 rows)
+
+-- top-level tracking.
+SET edb_stat_statements.track = 'top';
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
+ t 
+---
+ t
+(1 row)
+
+CALL proc_with_utility_stmt();
+SELECT toplevel, calls, query FROM edb_stat_statements
+  ORDER BY query COLLATE "C", toplevel;
+ toplevel | calls |                        query                        
+----------+-------+-----------------------------------------------------
+ t        |     1 | CALL proc_with_utility_stmt()
+ t        |     1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
+(2 rows)
+
+-- DO block - top-level tracking without utility.
+SET edb_stat_statements.track = 'top';
+SET edb_stat_statements.track_utility = FALSE;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
+ t 
+---
+ t
+(1 row)
+
+DELETE FROM stats_track_tab;
+DO $$
+BEGIN
+  DELETE FROM stats_track_tab;
+END; $$;
+DO LANGUAGE plpgsql $$
+BEGIN
+  -- this is a SELECT
+  PERFORM 'hello world'::TEXT;
+END; $$;
+SELECT toplevel, calls, query FROM edb_stat_statements
+  ORDER BY query COLLATE "C", toplevel;
+ toplevel | calls |                        query                        
+----------+-------+-----------------------------------------------------
+ t        |     1 | DELETE FROM stats_track_tab
+ t        |     1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
+(2 rows)
+
+-- DO block - all-level tracking without utility.
+SET edb_stat_statements.track = 'all';
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
+ t 
+---
+ t
+(1 row)
+
+DELETE FROM stats_track_tab;
+DO $$
+BEGIN
+  DELETE FROM stats_track_tab;
+END; $$;
+DO LANGUAGE plpgsql $$
+BEGIN
+  -- this is a SELECT
+  PERFORM 'hello world'::TEXT;
+END; $$;
+SELECT toplevel, calls, query FROM edb_stat_statements
+  ORDER BY query COLLATE "C", toplevel;
+ toplevel | calls |                        query                        
+----------+-------+-----------------------------------------------------
+ f        |     1 | DELETE FROM stats_track_tab
+ t        |     1 | DELETE FROM stats_track_tab
+ f        |     1 | SELECT $1::TEXT
+ t        |     1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
+(4 rows)
+
+-- PL/pgSQL function - top-level tracking.
+SET edb_stat_statements.track = 'top';
+SET edb_stat_statements.track_utility = FALSE;
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
+ t 
+---
+ t
+(1 row)
+
+CREATE FUNCTION PLUS_TWO(i INTEGER) RETURNS INTEGER AS $$
+DECLARE
+  r INTEGER;
+BEGIN
+  SELECT (i + 1 + 1.0)::INTEGER INTO r;
+  RETURN r;
+END; $$ LANGUAGE plpgsql;
+SELECT PLUS_TWO(3);
+ plus_two 
+----------
+        5
+(1 row)
+
+SELECT PLUS_TWO(7);
+ plus_two 
+----------
+        9
+(1 row)
+
+-- SQL function --- use LIMIT to keep it from being inlined
+CREATE FUNCTION PLUS_ONE(i INTEGER) RETURNS INTEGER AS
+$$ SELECT (i + 1.0)::INTEGER LIMIT 1 $$ LANGUAGE SQL;
+SELECT PLUS_ONE(8);
+ plus_one 
+----------
+        9
+(1 row)
+
+SELECT PLUS_ONE(10);
+ plus_one 
+----------
+       11
+(1 row)
+
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+ calls | rows |                        query                        
+-------+------+-----------------------------------------------------
+     2 |    2 | SELECT PLUS_ONE($1)
+     2 |    2 | SELECT PLUS_TWO($1)
+     1 |    1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
+(3 rows)
+
+-- immutable SQL function --- can be executed at plan time
+CREATE FUNCTION PLUS_THREE(i INTEGER) RETURNS INTEGER AS
+$$ SELECT i + 3 LIMIT 1 $$ IMMUTABLE LANGUAGE SQL;
+SELECT PLUS_THREE(8);
+ plus_three 
+------------
+         11
+(1 row)
+
+SELECT PLUS_THREE(10);
+ plus_three 
+------------
+         13
+(1 row)
+
+SELECT toplevel, calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+ toplevel | calls | rows |                                     query                                     
+----------+-------+------+-------------------------------------------------------------------------------
+ t        |     2 |    2 | SELECT PLUS_ONE($1)
+ t        |     2 |    2 | SELECT PLUS_THREE($1)
+ t        |     2 |    2 | SELECT PLUS_TWO($1)
+ t        |     1 |    3 | SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C"
+ t        |     1 |    1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
+(5 rows)
+
+-- PL/pgSQL function - all-level tracking.
+SET edb_stat_statements.track = 'all';
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
+ t 
+---
+ t
+(1 row)
+
+-- we drop and recreate the functions to avoid any caching funnies
+DROP FUNCTION PLUS_ONE(INTEGER);
+DROP FUNCTION PLUS_TWO(INTEGER);
+DROP FUNCTION PLUS_THREE(INTEGER);
+-- PL/pgSQL function
+CREATE FUNCTION PLUS_TWO(i INTEGER) RETURNS INTEGER AS $$
+DECLARE
+  r INTEGER;
+BEGIN
+  SELECT (i + 1 + 1.0)::INTEGER INTO r;
+  RETURN r;
+END; $$ LANGUAGE plpgsql;
+SELECT PLUS_TWO(-1);
+ plus_two 
+----------
+        1
+(1 row)
+
+SELECT PLUS_TWO(2);
+ plus_two 
+----------
+        4
+(1 row)
+
+-- SQL function --- use LIMIT to keep it from being inlined
+CREATE FUNCTION PLUS_ONE(i INTEGER) RETURNS INTEGER AS
+$$ SELECT (i + 1.0)::INTEGER LIMIT 1 $$ LANGUAGE SQL;
+SELECT PLUS_ONE(3);
+ plus_one 
+----------
+        4
+(1 row)
+
+SELECT PLUS_ONE(1);
+ plus_one 
+----------
+        2
+(1 row)
+
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+ calls | rows |                        query                        
+-------+------+-----------------------------------------------------
+     2 |    2 | SELECT (i + $2 + $3)::INTEGER
+     2 |    2 | SELECT (i + $2)::INTEGER LIMIT $3
+     2 |    2 | SELECT PLUS_ONE($1)
+     2 |    2 | SELECT PLUS_TWO($1)
+     1 |    1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
+(5 rows)
+
+-- immutable SQL function --- can be executed at plan time
+CREATE FUNCTION PLUS_THREE(i INTEGER) RETURNS INTEGER AS
+$$ SELECT i + 3 LIMIT 1 $$ IMMUTABLE LANGUAGE SQL;
+SELECT PLUS_THREE(8);
+ plus_three 
+------------
+         11
+(1 row)
+
+SELECT PLUS_THREE(10);
+ plus_three 
+------------
+         13
+(1 row)
+
+SELECT toplevel, calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+ toplevel | calls | rows |                                     query                                     
+----------+-------+------+-------------------------------------------------------------------------------
+ f        |     2 |    2 | SELECT (i + $2 + $3)::INTEGER
+ f        |     2 |    2 | SELECT (i + $2)::INTEGER LIMIT $3
+ t        |     2 |    2 | SELECT PLUS_ONE($1)
+ t        |     2 |    2 | SELECT PLUS_THREE($1)
+ t        |     2 |    2 | SELECT PLUS_TWO($1)
+ t        |     1 |    5 | SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C"
+ t        |     1 |    1 | SELECT edb_stat_statements_reset() IS NOT NULL AS t
+ f        |     2 |    2 | SELECT i + $2 LIMIT $3
+(8 rows)
+
+--
+-- edb_stat_statements.track = none
+--
+SET edb_stat_statements.track = 'none';
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
+ t 
+---
+ t
+(1 row)
+
+SELECT 1 AS "one";
+ one 
+-----
+   1
+(1 row)
+
+SELECT 1 + 1 AS "two";
+ two 
+-----
+   2
+(1 row)
+
+SELECT calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
+ calls | rows | query 
+-------+------+-------
+(0 rows)
+
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
+ t 
+---
+ t
+(1 row)
+

@@ -60,6 +60,7 @@ from edb.common import verutils
 from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 
@@ -566,6 +567,8 @@ class Compiler:
             allow_user_specified_id=allow_user_specified_id,
             apply_access_policies_sql=apply_access_policies_sql,
             disambiguate_column_names=False,
+            backend_runtime_params=self.state.backend_runtime_params,
+            protocol_version=(-3, 0),  # emulated PG binary protocol version
         )
 
     def compile_serialized_request(
@@ -1641,6 +1644,52 @@ def _compile_ql_query(
     is_explain = explain_data is not None
     current_tx = ctx.state.current_tx()
 
+    sql_info: Dict[str, Any] = {}
+    if (
+        not ctx.bootstrap_mode
+        and ctx.backend_runtime_params.has_stat_statements
+        and not ctx.schema_reflection_mode
+    ):
+        spec = ctx.compiler_state.config_spec
+        cconfig = config.to_json_obj(
+            spec,
+            {
+                **current_tx.get_system_config(),
+                **current_tx.get_database_config(),
+                **current_tx.get_session_config(),
+            },
+            setting_filter=lambda v: v.name in spec
+                                     and spec[v.name].affects_compilation,
+            include_source=False,
+        )
+        extras: Dict[str, Any] = {
+            'cc': dict(sorted(cconfig.items())),  # compilation_config
+            'pv': ctx.protocol_version,  # protocol_version
+            'of': ctx.output_format,  # output_format
+            'e1': ctx.expected_cardinality_one,  # expect_one
+            'il': ctx.implicit_limit,  # implicit_limit
+            'ii': ctx.inline_typeids,  # inline_typeids
+            'in': ctx.inline_typenames,  # inline_typenames
+            'io': ctx.inline_objectids,  # inline_objectids
+        }
+        modaliases = dict(current_tx.get_modaliases())
+        # dn: default_namespace
+        extras['dn'] = modaliases.pop(None, defines.DEFAULT_MODULE_ALIAS)
+        if modaliases:
+            # na: namespace_aliases
+            extras['na'] = dict(sorted(modaliases.items()))
+
+        sql_info.update({
+            'query': qlcodegen.generate_source(ql),
+            'type': defines.QueryType.EdgeQL,
+            'extras': json.dumps(extras),
+        })
+        id_hash = hashlib.blake2b(digest_size=16)
+        id_hash.update(
+            json.dumps(sql_info).encode(defines.EDGEDB_ENCODING)
+        )
+        sql_info['id'] = str(uuidgen.from_bytes(id_hash.digest()))
+
     base_schema = (
         ctx.compiler_state.std_schema
         if not _get_config_val(ctx, '__internal_query_reflschema')
@@ -1706,12 +1755,11 @@ def _compile_ql_query(
 
     # If requested, embed the EdgeQL text in the SQL.
     if debug.flags.edgeql_text_in_sql and source:
-        sql_debug_obj = dict(edgeql=source.text())
-        sql_debug_prefix = '-- ' + json.dumps(sql_debug_obj) + '\n'
-        sql_text = sql_debug_prefix + sql_text
-        if func_call_sql is not None:
-            func_call_sql = sql_debug_prefix + func_call_sql
-    sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
+        sql_info['edgeql'] = source.text()
+    if sql_info:
+        sql_info_prefix = '-- ' + json.dumps(sql_info) + '\n'
+    else:
+        sql_info_prefix = ''
 
     globals = None
     if ir.globals:
@@ -1743,21 +1791,23 @@ def _compile_ql_query(
     )
 
     sql_hash = _hash_sql(
-        sql_bytes,
+        sql_text.encode(defines.EDGEDB_ENCODING),
         mode=str(ctx.output_format).encode(),
         intype=in_type_id.bytes,
         outtype=out_type_id.bytes)
 
     cache_func_call = None
     if func_call_sql is not None:
-        func_call_sql_bytes = func_call_sql.encode(defines.EDGEDB_ENCODING)
         func_call_sql_hash = _hash_sql(
-            func_call_sql_bytes,
+            func_call_sql.encode(defines.EDGEDB_ENCODING),
             mode=str(ctx.output_format).encode(),
             intype=in_type_id.bytes,
             outtype=out_type_id.bytes,
         )
-        cache_func_call = (func_call_sql_bytes, func_call_sql_hash)
+        cache_func_call = (
+            (sql_info_prefix + func_call_sql).encode(defines.EDGEDB_ENCODING),
+            func_call_sql_hash,
+        )
 
     if is_explain:
         if isinstance(ir.schema, s_schema.ChainedSchema):
@@ -1772,7 +1822,7 @@ def _compile_ql_query(
         query_asts = None
 
     return dbstate.Query(
-        sql=sql_bytes,
+        sql=(sql_info_prefix + sql_text).encode(defines.EDGEDB_ENCODING),
         sql_hash=sql_hash,
         cache_sql=cache_sql,
         cache_func_call=cache_func_call,
@@ -2468,6 +2518,8 @@ def compile_sql_as_unit_group(
         include_edgeql_io_format_alternative=True,
         allow_prepared_statements=False,
         disambiguate_column_names=True,
+        backend_runtime_params=ctx.backend_runtime_params,
+        protocol_version=ctx.protocol_version,
     )
 
     qug = dbstate.QueryUnitGroup(

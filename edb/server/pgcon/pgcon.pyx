@@ -2174,13 +2174,19 @@ cdef class PGConnection:
             while True:
                 field_type = self.buffer.read_byte()
                 if field_type == b'P':  # Position
-                    qu = (action.query_unit.translation_data
-                          if action.query_unit else None)
+                    if action.query_unit is None:
+                        translation_data = None
+                        offset = 0
+                    else:
+                        qu = action.query_unit
+                        translation_data = qu.translation_data
+                        offset = -qu.prefix_len
                     self._write_error_position(
                         msg_buf,
                         action.args[0],
                         self.buffer.read_null_str(),
-                        qu
+                        translation_data,
+                        offset,
                     )
                     continue
                 else:
@@ -2226,6 +2232,7 @@ cdef class PGConnection:
                         else:
                             offset = 0
                             translation_data = qu.translation_data
+                        offset -= qu.prefix_len
                     else:
                         query_text = b""
                         translation_data = None
