@@ -108,9 +108,12 @@ The following options are available:
     denoting a non-abstract scalar or a container type.
 
 :eql:synopsis:`<name> := <expression>`
-    Defines a *computed* global variable. The provided expression can be any
-    valid EdgeQL expression, including one referring to other global
-    variables. The type of a *computed* global variable is not limited to
+    Defines a *computed* global variable.
+    
+    The provided expression must be a :ref:`Stable <ref_reference_volatility>`
+    EdgeQL expression. It can refer to other global variables.
+
+    The type of a *computed* global variable is not limited to
     scalar and container types, but also includes object types. So it is
     possible to use that to define a global object variable based on an
     another global scalar variable.

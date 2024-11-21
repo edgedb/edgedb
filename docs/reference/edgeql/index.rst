@@ -88,6 +88,7 @@ Introspection command:
     casts
     functions
     cardinality
+    volatility
 
     select
     insert
