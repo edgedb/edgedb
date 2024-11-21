@@ -31,6 +31,7 @@ import hashlib
 
 from typing import Any, Optional, cast
 from jwcrypto import jwt, jwk
+from email.message import EmailMessage
 
 from edgedb import QueryAssertionError
 from edb.testbase import http as tb
@@ -248,6 +249,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     SETUP = [
         f"""
+        CONFIGURE CURRENT DATABASE INSERT cfg::SMTPProviderConfig {{
+            name := "email_hosting_is_easy",
+            sender := "{SENDER}",
+        }};
+
+        CONFIGURE CURRENT DATABASE SET
+        cfg::current_email_provider_name := "email_hosting_is_easy";
+
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::auth_signing_key := '{SIGNING_KEY}';
 
@@ -271,9 +280,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
           redirect_to := 'https://example.com/app',
           redirect_to_on_signup := 'https://example.com/signup/app',
         }};
-
-        CONFIGURE CURRENT DATABASE SET
-        ext::auth::SMTPConfig::sender := '{SENDER}';
 
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::allowed_redirect_urls := {{
@@ -3203,10 +3209,18 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], form_data["email"])
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
-                r'<p style="word-break: break-all">([^<]+)', html_email
+                r'<p style="word-break: break-all">([^<]+)',
+                html_email,
             )
             assert match is not None
             verify_url = urllib.parse.urlparse(match.group(1))
@@ -3382,8 +3396,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )
@@ -3679,8 +3696,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )
@@ -3866,8 +3886,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )
@@ -4353,8 +4376,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )

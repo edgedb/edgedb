@@ -138,6 +138,8 @@ class Tenant(ha_base.ClusterProtocol):
 
     _http_client: HttpClient | None
 
+    _sidechannel_email_configs: list[Any]
+
     def __init__(
         self,
         cluster: pgcluster.BaseCluster,
@@ -161,6 +163,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._accept_new_tasks = False
         self._file_watch_finalizers = []
         self._introspection_locks = weakref.WeakValueDictionary()
+        self._sidechannel_email_configs = []
 
         self._extensions_dirs = extensions_dir
 
@@ -245,6 +248,9 @@ class Tenant(ha_base.ClusterProtocol):
     def set_server(self, server: edbserver.BaseServer) -> None:
         self._server = server
         self.__loop = server.get_loop()
+
+    def set_sidechannel_configs(self, configs: list[Any]) -> None:
+        self._sidechannel_email_configs = configs
 
     def get_http_client(self, *, originator: str) -> HttpClient:
         if self._http_client is None:

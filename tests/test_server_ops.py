@@ -1646,9 +1646,6 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 insert ext::auth::EmailPasswordProviderConfig {{
                     require_verification := false,
                 }};
-
-                configure current database set
-                ext::auth::SMTPConfig::sender := 'noreply@example.com';
             ''')
         finally:
             await conn.aclose()
