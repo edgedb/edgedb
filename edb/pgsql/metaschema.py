@@ -6645,7 +6645,7 @@ def _generate_sql_information_schema(
         ),
         trampoline.VersionedView(
             name=("edgedbsql", "pg_index"),
-            query="""
+            query=f"""
         SELECT
             pi.indexrelid,
             pi.indrelid,
@@ -6655,7 +6655,7 @@ def _generate_sql_information_schema(
                 WHEN COALESCE(is_id.t, FALSE) THEN TRUE
                 ELSE pi.indisprimary
             END AS indisunique,
-            pi.indnullsnotdistinct,
+            {'pi.indnullsnotdistinct,' if backend_version.major >= 15 else ''}
             CASE
                 WHEN COALESCE(is_id.t, FALSE) THEN TRUE
                 ELSE pi.indisprimary
