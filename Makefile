@@ -15,6 +15,15 @@ cython: build-reqs
 	BUILD_EXT_MODE=py-only python setup.py build_ext --inplace
 
 
+cython-debug: build-reqs
+	find edb -name '*.pyx' | xargs touch
+	BUILD_EXT_MODE=py-only EDGEDB_DEBUG=true python setup.py build_ext --inplace
+
+
+cython-debug-fast: build-reqs
+	BUILD_EXT_MODE=py-only EDGEDB_DEBUG=true python setup.py build_ext --inplace
+
+
 # Just rebuild actually changed cython. This *should* work, since
 # that is how build systems are supposed to be, but it sometimes
 # fails in annoying ways.

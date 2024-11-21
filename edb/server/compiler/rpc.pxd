@@ -18,10 +18,33 @@
 
 cimport cython
 
-cdef char serialize_output_format(val)
-cdef deserialize_output_format(char mode)
-cdef char serialize_input_language(val)
-cdef deserialize_input_language(char mode)
+from edb.server.pgproto.pgproto cimport WriteBuffer, ReadBuffer
+
+from . import enums, sertypes
+
+cdef object OUT_FMT_BINARY
+cdef object OUT_FMT_JSON
+cdef object OUT_FMT_JSON_ELEMENTS
+cdef object OUT_FMT_NONE
+
+cdef object IN_FMT_JSON
+cdef object IN_FMT_BINARY
+
+cdef object IN_LANG_EDGEQL
+cdef object IN_LANG_SQL
+
+cdef char MASK_JSON_PARAMETERS
+cdef char MASK_EXPECT_ONE
+cdef char MASK_INLINE_TYPEIDS
+cdef char MASK_INLINE_TYPENAMES
+cdef char MASK_INLINE_OBJECTIDS
+
+
+cdef char serialize_output_format(val: enums.OutputFormat)
+cdef object deserialize_output_format(int mode)
+cdef char serialize_input_language(val: enums.InputLanguage)
+cdef object deserialize_input_language(int mode)
+
 
 @cython.final
 cdef class CompilationRequest:
@@ -29,7 +52,7 @@ cdef class CompilationRequest:
         object serializer
 
         readonly object source
-        readonly object protocol_version
+        readonly tuple protocol_version
         readonly object input_language
         readonly object output_format
         readonly object input_format
@@ -51,3 +74,29 @@ cdef class CompilationRequest:
         object cache_key
 
     cdef _serialize(self)
+
+
+@cython.locals(
+    buf=ReadBuffer,
+)
+cpdef CompilationRequest _deserialize_comp_req(
+    bytes data,
+    str query_text,
+    compilation_config_serializer: sertypes.CompilationConfigSerializer,
+)
+
+
+cdef CompilationRequest _deserialize_comp_req_v1(
+    ReadBuffer buf,
+    str query_text,
+    compilation_config_serializer: sertypes.CompilationConfigSerializer,
+)
+
+
+@cython.locals(
+    out=WriteBuffer,
+    flags=char,
+)
+cdef bytes _serialize_comp_req(
+    CompilationRequest req,
+)

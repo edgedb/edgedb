@@ -16,6 +16,9 @@
 # limitations under the License.
 #
 
+
+from __future__ import annotations
+
 from typing import (
     Mapping,
 )
@@ -23,7 +26,6 @@ from typing import (
 import hashlib
 import uuid
 
-cimport cython
 import immutables
 
 from edb import edgeql, errors
@@ -31,30 +33,30 @@ from edb.common import uuidgen
 from edb.edgeql import qltypes
 from edb.edgeql import tokenizer
 from edb.server import config, defines
-from edb.server.pgproto.pgproto cimport WriteBuffer, ReadBuffer
+from edb.server.pgproto.pgproto import WriteBuffer, ReadBuffer
 from edb.pgsql import parser as pgparser
 
 from . import enums, sertypes
 
-cdef object OUT_FMT_BINARY = enums.OutputFormat.BINARY
-cdef object OUT_FMT_JSON = enums.OutputFormat.JSON
-cdef object OUT_FMT_JSON_ELEMENTS = enums.OutputFormat.JSON_ELEMENTS
-cdef object OUT_FMT_NONE = enums.OutputFormat.NONE
+OUT_FMT_BINARY = enums.OutputFormat.BINARY
+OUT_FMT_JSON = enums.OutputFormat.JSON
+OUT_FMT_JSON_ELEMENTS = enums.OutputFormat.JSON_ELEMENTS
+OUT_FMT_NONE = enums.OutputFormat.NONE
 
-cdef object IN_FMT_BINARY = enums.InputFormat.BINARY
-cdef object IN_FMT_JSON = enums.InputFormat.JSON
+IN_FMT_BINARY = enums.InputFormat.BINARY
+IN_FMT_JSON = enums.InputFormat.JSON
 
-cdef object IN_LANG_EDGEQL = enums.InputLanguage.EDGEQL
-cdef object IN_LANG_SQL = enums.InputLanguage.SQL
+IN_LANG_EDGEQL = enums.InputLanguage.EDGEQL
+IN_LANG_SQL = enums.InputLanguage.SQL
 
-cdef char MASK_JSON_PARAMETERS  = 1 << 0
-cdef char MASK_EXPECT_ONE       = 1 << 1
-cdef char MASK_INLINE_TYPEIDS   = 1 << 2
-cdef char MASK_INLINE_TYPENAMES = 1 << 3
-cdef char MASK_INLINE_OBJECTIDS = 1 << 4
+MASK_JSON_PARAMETERS  = 1 << 0
+MASK_EXPECT_ONE       = 1 << 1
+MASK_INLINE_TYPEIDS   = 1 << 2
+MASK_INLINE_TYPENAMES = 1 << 3
+MASK_INLINE_OBJECTIDS = 1 << 4
 
 
-cdef char serialize_output_format(val):
+def serialize_output_format(val: enums.OutputFormat) -> int:
     if val is OUT_FMT_BINARY:
         return b'b'
     elif val is OUT_FMT_JSON:
@@ -67,7 +69,7 @@ cdef char serialize_output_format(val):
         raise AssertionError("unreachable")
 
 
-cdef deserialize_output_format(char mode):
+def deserialize_output_format(mode: int) -> enums.OutputFormat:
     if mode == b'b':
         return OUT_FMT_BINARY
     elif mode == b'j':
@@ -81,7 +83,7 @@ cdef deserialize_output_format(char mode):
             f'unknown output format {mode.to_bytes(1, "big")!r}')
 
 
-cdef char serialize_input_language(val):
+def serialize_input_language(val: enums.InputLanguage) -> int:
     if val is IN_LANG_EDGEQL:
         return b'E'
     elif val is IN_LANG_SQL:
@@ -90,7 +92,7 @@ cdef char serialize_input_language(val):
         raise AssertionError("unreachable")
 
 
-cdef deserialize_input_language(char lang):
+def deserialize_input_language(lang: int) -> enums.InputLanguage:
     if lang == b'E':
         return IN_LANG_EDGEQL
     elif lang == b'S':
@@ -100,9 +102,8 @@ cdef deserialize_input_language(char lang):
             f'unknown input language {lang.to_bytes(1, "big")!r}')
 
 
-@cython.final
-cdef class CompilationRequest:
-    def __cinit__(
+class CompilationRequest:
+    def __init__(
         self,
         *,
         source: edgeql.Source,
@@ -112,11 +113,11 @@ cdef class CompilationRequest:
         input_language: enums.InputLanguage = enums.InputLanguage.EDGEQL,
         output_format: enums.OutputFormat = OUT_FMT_BINARY,
         input_format: enums.InputFormat = IN_FMT_BINARY,
-        expect_one: bint = False,
+        expect_one: bool = False,
         implicit_limit: int = 0,
-        inline_typeids: bint = False,
-        inline_typenames: bint = False,
-        inline_objectids: bint = True,
+        inline_typeids: bool = False,
+        inline_typenames: bool = False,
+        inline_objectids: bool = True,
         modaliases: Mapping[str | None, str] | None = None,
         session_config: Mapping[str, config.SettingValue] | None = None,
         database_config: Mapping[str, config.SettingValue] | None = None,
@@ -147,8 +148,6 @@ cdef class CompilationRequest:
         self.cache_key = None
 
     def __copy__(self):
-        cdef CompilationRequest rv
-
         rv = CompilationRequest(
             source=self.source,
             protocol_version=self.protocol_version,
@@ -223,16 +222,14 @@ cdef class CompilationRequest:
             self._serialize()
         return self.cache_key
 
-    cdef _serialize(self):
-        cdef WriteBuffer buf
-
+    def _serialize(self) -> None:
         hash_obj, buf = _serialize_comp_req(self)
         cache_key = hash_obj.digest()
         buf.write_bytes(cache_key)
         self.cache_key = uuidgen.from_bytes(cache_key)
         self.serialized_cache = bytes(buf)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.get_cache_key())
 
     def __eq__(self, other: CompilationRequest) -> bool:
@@ -252,14 +249,12 @@ cdef class CompilationRequest:
         )
 
 
-cdef CompilationRequest _deserialize_comp_req(
+def _deserialize_comp_req(
     data: bytes,
     query_text: str,
     compilation_config_serializer: sertypes.CompilationConfigSerializer,
-):
-    cdef:
-        ReadBuffer buf = ReadBuffer.new_message_parser(data)
-        CompilationRequest req
+) -> CompilationRequest:
+    buf = ReadBuffer.new_message_parser(data)
 
     if data[0] == 1:
         req = _deserialize_comp_req_v1(
@@ -276,11 +271,11 @@ cdef CompilationRequest _deserialize_comp_req(
     return req
 
 
-cdef _deserialize_comp_req_v1(
+def _deserialize_comp_req_v1(
     buf: ReadBuffer,
     query_text: str,
     compilation_config_serializer: sertypes.CompilationConfigSerializer,
-):
+) -> CompilationRequest:
     # Format:
     #
     # * 1 byte of version (0)
@@ -309,8 +304,6 @@ cdef _deserialize_comp_req_v1(
     # * 1 byte input language (the same as in the binary protocol)
     # * role_name as a UTF-8 encoded string
     # * branch_name as a UTF-8 encoded string
-
-    cdef char flags
 
     assert buf.read_byte() == 1  # version
 
@@ -406,22 +399,23 @@ cdef _deserialize_comp_req_v1(
     return req
 
 
-cdef _serialize_comp_req(req: CompilationRequest):
+def _serialize_comp_req(req: CompilationRequest) -> bytes:
     # Please see _deserialize_comp_req_v1 for the format doc
 
-    cdef:
-        char version = 1, flags
-        WriteBuffer out = WriteBuffer.new()
+    out = WriteBuffer.new()
+    out.write_byte(1)
 
-    out.write_byte(version)
-
-    flags = (
-        (MASK_JSON_PARAMETERS if req.input_format is IN_FMT_JSON else 0) |
-        (MASK_EXPECT_ONE if req.expect_one else 0) |
-        (MASK_INLINE_TYPEIDS if req.inline_typeids else 0) |
-        (MASK_INLINE_TYPENAMES if req.inline_typenames else 0) |
-        (MASK_INLINE_OBJECTIDS if req.inline_objectids else 0)
-    )
+    flags = 0
+    if req.input_format is IN_FMT_JSON:
+        flags |= MASK_JSON_PARAMETERS
+    if req.expect_one:
+        flags |= MASK_EXPECT_ONE
+    if req.inline_typeids:
+        flags |= MASK_INLINE_TYPEIDS
+    if req.inline_typenames:
+        flags |= MASK_INLINE_TYPENAMES
+    if req.inline_objectids:
+        flags |= MASK_INLINE_OBJECTIDS
     out.write_byte(flags)
 
     out.write_int16(req.protocol_version[0])

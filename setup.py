@@ -1239,7 +1239,7 @@ setuptools.setup(
 
         setuptools_extension.Extension(
             "edb.server.compiler.rpc",
-            ["edb/server/compiler/rpc.pyx"],
+            ["edb/server/compiler/rpc.py"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS,
             include_dirs=EXT_INC_DIRS,
