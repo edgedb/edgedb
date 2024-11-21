@@ -289,9 +289,8 @@ def compile_sql(
             else:
                 unit.cardinality = enums.Cardinality.MANY
         else:
-            raise errors.UnsupportedFeatureError(
-                f"SQL {stmt.__class__.__name__} is not supported"
-            )
+            from edb.pgsql import resolver as pg_resolver
+            pg_resolver.dispatch._raise_unsupported(stmt)
 
         unit.stmt_name = compute_stmt_name(unit.query, tx_state).encode("utf-8")
 

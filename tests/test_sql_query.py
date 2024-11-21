@@ -2135,6 +2135,30 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         await tran.rollback()
 
+    async def test_sql_query_unsupported_01(self):
+        # test error messages of unsupported queries
+
+        # we build AST for this not, but throw in resolver
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "not supported: CREATE",
+            # position="14",  # TODO: this is confusing
+        ):
+            await self.squery_values('CREATE TABLE a();')
+
+        # we don't even have AST node for this
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "not supported: ALTER TABLE",
+        ):
+            await self.squery_values('ALTER TABLE a ADD COLUMN b INT;')
+
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "not supported: REINDEX",
+        ):
+            await self.squery_values('REINDEX TABLE a;')
+
     async def test_native_sql_query_00(self):
         await self.assert_sql_query_result(
             """
