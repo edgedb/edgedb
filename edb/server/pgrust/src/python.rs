@@ -18,11 +18,11 @@ use pyo3::{
     exceptions::{PyException, PyRuntimeError},
     prelude::*,
     pymodule,
-    types::{PyAnyMethods, PyByteArray, PyBytes, PyMemoryView, PyModule, PyModuleMethods, PyNone},
+    types::{PyAnyMethods, PyByteArray, PyBytes, PyMemoryView, PyModule, PyModuleMethods},
     Bound, PyAny, PyResult, Python,
 };
 use std::collections::HashMap;
-use std::path::Path;
+use std::{borrow::Cow, path::Path};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[pyclass(eq, eq_int)]
@@ -116,7 +116,7 @@ impl PyConnectionParams {
                             ResolvedTarget::SocketAddr(addr) => {
                                 resolved_hosts.push((
                                     if addr.ip().is_ipv4() { "v4" } else { "v6" },
-                                    addr.ip().to_string().into_py(py),
+                                    addr.ip().to_string().into_pyobject(py)?.into(),
                                     hostname.clone(),
                                     addr.port(),
                                 ));
@@ -126,7 +126,7 @@ impl PyConnectionParams {
                                 if let Some(path) = path.as_pathname() {
                                     resolved_hosts.push((
                                         "unix",
-                                        path.to_string_lossy().into_py(py),
+                                        path.to_string_lossy().into_pyobject(py)?.into(),
                                         hostname.clone(),
                                         port,
                                     ));
@@ -141,7 +141,7 @@ impl PyConnectionParams {
                                         name.insert(0, 0);
                                         resolved_hosts.push((
                                             "unix",
-                                            PyBytes::new_bound(py, &name).as_any().clone().unbind(),
+                                            PyBytes::new(py, &name).as_any().clone().unbind(),
                                             hostname.clone(),
                                             port,
                                         ));
@@ -200,7 +200,7 @@ impl PyConnectionParams {
     }
 
     pub fn resolve(&self, py: Python, username: String, home_dir: String) -> PyResult<Self> {
-        let os = py.import_bound("os")?;
+        let os = py.import("os")?;
         let environ = os.getattr("environ")?;
 
         let mut params = self.inner.clone();
@@ -215,7 +215,7 @@ impl PyConnectionParams {
             &params.database,
             &params.user,
         )? {
-            let warnings = py.import_bound("warnings")?;
+            let warnings = py.import("warnings")?;
             warnings.call_method1("warn", (warning.to_string(),))?;
         }
 
@@ -249,8 +249,8 @@ impl PyConnectionParams {
         repr
     }
 
-    pub fn __getitem__(&self, py: Python, name: &str) -> Py<PyAny> {
-        self.inner.get_by_name(name).to_object(py)
+    pub fn __getitem__(&self, name: &str) -> Option<Cow<'_, str>> {
+        self.inner.get_by_name(name)
     }
 
     pub fn __setitem__(&mut self, name: &str, value: &str) -> PyResult<()> {
@@ -286,7 +286,7 @@ impl PyConnectionState {
         username: String,
         home_dir: String,
     ) -> PyResult<Self> {
-        let os = py.import_bound("os")?;
+        let os = py.import("os")?;
         let environ = os.getattr("environ")?;
 
         let mut params = dsn.inner.clone();
@@ -301,7 +301,7 @@ impl PyConnectionState {
             &params.database,
             &params.user,
         )? {
-            let warnings = py.import_bound("warnings")?;
+            let warnings = py.import("warnings")?;
             warnings.call_method1("warn", (warning.to_string(),))?;
         }
 
@@ -325,15 +325,15 @@ impl PyConnectionState {
             inner: ConnectionState::new(credentials, ssl_mode),
             parsed_dsn: Py::new(py, PyConnectionParams { inner: params })?,
             update: PyConnectionStateUpdate {
-                py_update: PyNone::get_bound(py).to_object(py),
+                py_update: py.None(),
             },
             message_buffer: Default::default(),
         })
     }
 
     #[setter]
-    fn update(&mut self, py: Python, update: &Bound<PyAny>) {
-        self.update.py_update = update.to_object(py);
+    fn update(&mut self, update: &Bound<PyAny>) {
+        self.update.py_update = update.clone().unbind();
     }
 
     fn is_ready(&self) -> bool {
@@ -351,7 +351,7 @@ impl PyConnectionState {
     }
 
     fn drive_message(&mut self, py: Python, data: &Bound<PyMemoryView>) -> PyResult<()> {
-        let buffer = PyBuffer::<u8>::get_bound(data)?;
+        let buffer = PyBuffer::<u8>::get(data)?;
         if self.inner.read_ssl_response() {
             // SSL responses are always one character
             let response = [buffer.as_slice(py).unwrap().get(0).unwrap().get()];
@@ -408,7 +408,7 @@ impl ConnectionStateSend for PyConnectionStateUpdate {
         message: crate::protocol::definition::InitialBuilder,
     ) -> Result<(), std::io::Error> {
         Python::with_gil(|py| {
-            let bytes = PyByteArray::new_bound(py, &message.to_vec());
+            let bytes = PyByteArray::new(py, &message.to_vec());
             if let Err(e) = self.py_update.call_method1(py, "send", (bytes,)) {
                 eprintln!("Error in send_initial: {:?}", e);
                 e.print(py);
@@ -422,7 +422,7 @@ impl ConnectionStateSend for PyConnectionStateUpdate {
         message: crate::protocol::definition::FrontendBuilder,
     ) -> Result<(), std::io::Error> {
         Python::with_gil(|py| {
-            let bytes = PyBytes::new_bound(py, &message.to_vec());
+            let bytes = PyBytes::new(py, &message.to_vec());
             if let Err(e) = self.py_update.call_method1(py, "send", (bytes,)) {
                 eprintln!("Error in send: {:?}", e);
                 e.print(py);
