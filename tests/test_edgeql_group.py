@@ -1499,14 +1499,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ["element", "element", "element", "element"],
         )
 
-    @test.xerror("""
-        Issue #5796
-
-        Materialized set not finalized.
-    """)
     async def test_edgeql_group_issue_5796(self):
-        # Fails on assert mat_set.materialized .
-        # Depends on double select and deck in shape
         await self.assert_query_result(
             r'''
             with
@@ -1528,7 +1521,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]),
         )
 
-    @test.xerror("Issue #6059")
     async def test_edgeql_group_issue_6059(self):
         await self.assert_query_result(
             r'''
@@ -1547,7 +1539,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [{"keyCard": {}}] * 4,
         )
 
-    @test.xerror("Issue #6060")
     async def test_edgeql_group_issue_6060(self):
         await self.assert_query_result(
             r'''
@@ -1609,13 +1600,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 ) by .key
             ''')
 
-    @test.xerror("""
-        Issue #6019
-
-        Grouping on key should probably be rejected.
-        (And if not, it should not ISE!)
-    """)
     async def test_edgeql_group_issue_6019_b(self):
+        # This didn't work because group created free objects which were then
+        # materialized as volatile. `group (group X by .x) by .key` has a
+        # different cause.
         await self.assert_query_result(
             '''
             with

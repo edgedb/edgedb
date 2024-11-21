@@ -133,6 +133,7 @@ def resolve_SelectStmt(
         targets, columns = expr.resolve_ResTarget(
             t, existing_names=names, ctx=ctx
         )
+
         target_list.extend(targets)
         table.columns.extend(columns)
         names.update(c.name for c in columns)

@@ -312,7 +312,9 @@ def eval_FuncCall(
                     return value
 
         raise errors.QueryError(
-            "function set_config is not supported", span=expr.span
+            "function set_config is not supported",
+            span=expr.span,
+            pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
         )
 
     if fn_name == 'current_setting':
@@ -329,6 +331,7 @@ def eval_FuncCall(
         raise errors.QueryError(
             f"function pg_catalog.{fn_name} is not supported",
             span=expr.span,
+            pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
         )
 
     if fn_name == "pg_get_serial_sequence":

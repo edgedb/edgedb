@@ -102,6 +102,71 @@ CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
     };
 };
 
+CREATE SCALAR TYPE cfg::SMTPSecurity EXTENDING enum<
+    PlainText,
+    TLS,
+    STARTTLS,
+    STARTTLSOrPlainText,
+>;
+
+CREATE ABSTRACT TYPE cfg::EmailProviderConfig EXTENDING cfg::ConfigObject {
+    CREATE REQUIRED PROPERTY name -> std::str {
+        CREATE CONSTRAINT std::exclusive;
+        CREATE ANNOTATION std::description :=
+            "The name of the email provider.";
+    };
+};
+
+CREATE TYPE cfg::SMTPProviderConfig EXTENDING cfg::EmailProviderConfig {
+    CREATE PROPERTY sender -> std::str {
+        CREATE ANNOTATION std::description :=
+            "\"From\" address of system emails sent for e.g. \
+            password reset, etc.";
+    };
+    CREATE PROPERTY host -> std::str {
+        CREATE ANNOTATION std::description :=
+            "Host of SMTP server to use for sending emails. \
+            If not set, \"localhost\" will be used.";
+    };
+    CREATE PROPERTY port -> std::int32 {
+        CREATE ANNOTATION std::description :=
+            "Port of SMTP server to use for sending emails. \
+            If not set, common defaults will be used depending on security: \
+            465 for TLS, 587 for STARTTLS, 25 otherwise.";
+    };
+    CREATE PROPERTY username -> std::str {
+        CREATE ANNOTATION std::description :=
+            "Username to login as after connected to SMTP server.";
+    };
+    CREATE PROPERTY password -> std::str {
+        SET secret := true;
+        CREATE ANNOTATION std::description :=
+            "Password for login after connected to SMTP server.";
+    };
+    CREATE REQUIRED PROPERTY security -> cfg::SMTPSecurity {
+        SET default := cfg::SMTPSecurity.STARTTLSOrPlainText;
+        CREATE ANNOTATION std::description :=
+            "Security mode of the connection to SMTP server. \
+            By default, initiate a STARTTLS upgrade if supported by the \
+            server, or fallback to PlainText.";
+    };
+    CREATE REQUIRED PROPERTY validate_certs -> std::bool {
+        SET default := true;
+        CREATE ANNOTATION std::description :=
+            "Determines if SMTP server certificates are validated.";
+    };
+    CREATE REQUIRED PROPERTY timeout_per_email -> std::duration {
+        SET default := <std::duration>'60 seconds';
+        CREATE ANNOTATION std::description :=
+            "Maximum time to send an email, including retry attempts.";
+    };
+    CREATE REQUIRED PROPERTY timeout_per_attempt -> std::duration {
+        SET default := <std::duration>'15 seconds';
+        CREATE ANNOTATION std::description :=
+            "Maximum time for each SMTP request.";
+    };
+};
+
 CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject;
 
 CREATE ABSTRACT TYPE cfg::ExtensionConfig EXTENDING cfg::ConfigObject {
@@ -156,6 +221,16 @@ ALTER TYPE cfg::AbstractConfig {
 
     CREATE MULTI LINK auth -> cfg::Auth {
         CREATE ANNOTATION cfg::system := 'true';
+    };
+
+    CREATE MULTI LINK email_providers -> cfg::EmailProviderConfig {
+        CREATE ANNOTATION std::description :=
+            'The list of email providers that can be used to send emails.';
+    };
+
+    CREATE PROPERTY current_email_provider_name -> std::str {
+        CREATE ANNOTATION std::description :=
+            'The name of the current email provider.';
     };
 
     CREATE PROPERTY allow_dml_in_functions -> std::bool {

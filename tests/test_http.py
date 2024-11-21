@@ -22,6 +22,7 @@ import random
 
 from edb.server import http
 from edb.testbase import http as tb
+from edb.tools.test import async_timeout
 
 
 class HttpTest(tb.BaseHttpTest):
@@ -37,8 +38,9 @@ class HttpTest(tb.BaseHttpTest):
         self.mock_server = None
         super().tearDown()
 
+    @async_timeout(timeout=5)
     async def test_get(self):
-        with http.HttpClient(100) as client:
+        async with http.HttpClient(100) as client:
             example_request = (
                 'GET',
                 self.base_url,
@@ -61,8 +63,9 @@ class HttpTest(tb.BaseHttpTest):
             self.assertEqual(result.status_code, 200)
             self.assertEqual(result.json(), {"message": "Hello, world!"})
 
+    @async_timeout(timeout=5)
     async def test_post(self):
-        with http.HttpClient(100) as client:
+        async with http.HttpClient(100) as client:
             example_request = (
                 'POST',
                 self.base_url,
@@ -85,8 +88,9 @@ class HttpTest(tb.BaseHttpTest):
                 result.json(), {"message": f"Hello, world! {random_data}"}
             )
 
+    @async_timeout(timeout=5)
     async def test_post_with_headers(self):
-        with http.HttpClient(100) as client:
+        async with http.HttpClient(100) as client:
             example_request = (
                 'POST',
                 self.base_url,
@@ -112,19 +116,23 @@ class HttpTest(tb.BaseHttpTest):
             )
             self.assertEqual(result.headers["X-Test"], "test!")
 
+    @async_timeout(timeout=5)
     async def test_bad_url(self):
-        with http.HttpClient(100) as client:
+        async with http.HttpClient(100) as client:
             with self.assertRaisesRegex(Exception, "Scheme"):
                 await client.get("httpx://uh-oh")
 
+    @async_timeout(timeout=5)
     async def test_immediate_connection_drop(self):
         """Test handling of a connection that is dropped immediately by the
         server"""
 
         async def mock_drop_server(
-            _reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+            reader: asyncio.StreamReader, writer: asyncio.StreamWriter
         ):
-            # Close connection immediately without sending any response
+            # Close connection immediately after reading a byte without sending
+            # any response
+            await reader.read(1)
             writer.close()
             await writer.wait_closed()
 
@@ -133,42 +141,18 @@ class HttpTest(tb.BaseHttpTest):
         url = f'http://{addr[0]}:{addr[1]}/drop'
 
         try:
-            with http.HttpClient(100) as client:
+            async with http.HttpClient(100) as client:
                 with self.assertRaisesRegex(
-                    Exception, "Connection reset by peer"
+                    Exception, "Connection reset by peer|IncompleteMessage"
                 ):
                     await client.get(url)
         finally:
             server.close()
             await server.wait_closed()
 
-    async def test_immediate_connection_drop_streaming(self):
-        """Test handling of a connection that is dropped immediately by the
-        server"""
-
-        async def mock_drop_server(
-            _reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-        ):
-            # Close connection immediately without sending any response
-            writer.close()
-            await writer.wait_closed()
-
-        server = await asyncio.start_server(mock_drop_server, '127.0.0.1', 0)
-        addr = server.sockets[0].getsockname()
-        url = f'http://{addr[0]}:{addr[1]}/drop'
-
-        try:
-            with http.HttpClient(100) as client:
-                with self.assertRaisesRegex(
-                    Exception, "Connection reset by peer"
-                ):
-                    await client.stream_sse(url)
-        finally:
-            server.close()
-            await server.wait_closed()
-
+    @async_timeout(timeout=5)
     async def test_streaming_get_with_no_sse(self):
-        with http.HttpClient(100) as client:
+        async with http.HttpClient(100) as client:
             example_request = (
                 'GET',
                 self.base_url,
@@ -185,7 +169,38 @@ class HttpTest(tb.BaseHttpTest):
             self.assertEqual(result.status_code, 200)
             self.assertEqual(result.json(), "ok")
 
-    async def test_sse_with_mock_server(self):
+
+class HttpSSETest(tb.BaseHttpTest):
+    @async_timeout(timeout=5)
+    async def test_immediate_connection_drop_streaming(self):
+        """Test handling of a connection that is dropped immediately by the
+        server"""
+
+        async def mock_drop_server(
+            reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        ):
+            # Close connection immediately after reading a byte without sending
+            # any response
+            await reader.read(1)
+            writer.close()
+            await writer.wait_closed()
+
+        server = await asyncio.start_server(mock_drop_server, '127.0.0.1', 0)
+        addr = server.sockets[0].getsockname()
+        url = f'http://{addr[0]}:{addr[1]}/drop'
+
+        try:
+            async with http.HttpClient(100) as client:
+                with self.assertRaisesRegex(
+                    Exception, "Connection reset by peer|IncompleteMessage"
+                ):
+                    await client.stream_sse(url)
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    @async_timeout(timeout=5)
+    async def test_sse_with_mock_server_client_close(self):
         """Since the regular mock server doesn't support SSE, we need to test
         with a real socket. We handle just enough HTTP to get the job done."""
 
@@ -233,26 +248,103 @@ class HttpTest(tb.BaseHttpTest):
         url = f'http://{addr[0]}:{addr[1]}/sse'
 
         async def client_task():
-            with http.HttpClient(100) as client:
-                response = await client.stream_sse(url, method="GET")
-                assert response.status_code == 200
-                assert response.headers['Content-Type'] == 'text/event-stream'
-                assert isinstance(response, http.ResponseSSE)
+            async with http.HttpClient(100) as client:
+                async with await client.stream_sse(
+                    url, method="GET"
+                ) as response:
+                    assert response.status_code == 200
+                    assert (
+                        response.headers['Content-Type'] == 'text/event-stream'
+                    )
+                    assert isinstance(response, http.ResponseSSE)
 
-                events = []
-                async for event in response:
-                    self.assertEqual(event.event, 'message')
-                    events.append(event)
-                    if len(events) == 3:
-                        break
+                    events = []
+                    async for event in response:
+                        self.assertEqual(event.event, 'message')
+                        events.append(event)
+                        if len(events) == 3:
+                            break
 
-                assert len(events) == 3
-                assert events[0].data == 'Event 1'
-                assert events[1].data == 'Event 2'
-                assert events[2].data == 'Event 3'
+                    assert len(events) == 3
+                    assert events[0].data == 'Event 1'
+                    assert events[1].data == 'Event 2'
+                    assert events[2].data == 'Event 3'
 
         async with server:
             client_future = asyncio.create_task(client_task())
             await asyncio.wait_for(client_future, timeout=5.0)
 
+        assert is_closed
+
+    @async_timeout(timeout=5)
+    async def test_sse_with_mock_server_close(self):
+        """Try to close the server-side stream and see if the client detects
+        an end for the iterator. Note that this is technically not correct SSE:
+        the client should actually try to reconnect after the specified retry
+        interval, _but_ we don't handle retries yet."""
+
+        is_closed = False
+
+        async def mock_sse_server(
+            reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        ):
+            nonlocal is_closed
+
+            # Read until empty line
+            while True:
+                line = await reader.readline()
+                if line == b'\r\n':
+                    break
+
+            headers = (
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: text/event-stream\r\n"
+                b"Cache-Control: no-cache\r\n\r\n"
+            )
+            writer.write(headers)
+            await writer.drain()
+
+            for i in range(3):
+                writer.write(b": test comment that should be ignored\n\n")
+                await writer.drain()
+
+                writer.write(
+                    f"event: message\ndata: Event {i + 1}\n\n".encode()
+                )
+                await writer.drain()
+                await asyncio.sleep(0.1)
+
+            await writer.drain()
+            writer.close()
+            is_closed = True
+
+        server = await asyncio.start_server(mock_sse_server, '127.0.0.1', 0)
+        addr = server.sockets[0].getsockname()
+        url = f'http://{addr[0]}:{addr[1]}/sse'
+
+        async def client_task():
+            async with http.HttpClient(100) as client:
+                async with await client.stream_sse(
+                    url, method="GET", headers={"Connection": "close"}
+                ) as response:
+                    assert response.status_code == 200
+                    assert (
+                        response.headers['Content-Type'] == 'text/event-stream'
+                    )
+                    assert isinstance(response, http.ResponseSSE)
+
+                    events = []
+                    async for event in response:
+                        self.assertEqual(event.event, 'message')
+                        events.append(event)
+
+                    assert len(events) == 3
+                    assert events[0].data == 'Event 1'
+                    assert events[1].data == 'Event 2'
+                    assert events[2].data == 'Event 3'
+
+        client_future = asyncio.create_task(client_task())
+        async with server:
+            client_future = asyncio.create_task(client_task())
+            await asyncio.wait_for(client_future, timeout=5.0)
         assert is_closed

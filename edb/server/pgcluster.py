@@ -79,6 +79,10 @@ get_role_backend_name = pgcommon.get_role_backend_name
 
 EDGEDB_SERVER_SETTINGS = {
     'client_encoding': 'utf-8',
+    # DO NOT raise client_min_messages above NOTICE level
+    # because server indirect block return machinery relies
+    # on NoticeResponse as the data channel.
+    'client_min_messages': 'NOTICE',
     'search_path': 'edgedb',
     'timezone': 'UTC',
     'intervalstyle': 'iso_8601',
@@ -568,7 +572,7 @@ class Cluster(BaseCluster):
         else:
             log_level_map = {
                 'd': 'INFO',
-                'i': 'NOTICE',
+                'i': 'WARNING',  # NOTICE in Postgres is quite noisy
                 'w': 'WARNING',
                 'e': 'ERROR',
                 's': 'PANIC',

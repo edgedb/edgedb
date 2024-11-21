@@ -533,6 +533,14 @@ class Type(
 
         return None
 
+    def _is_deletable(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
+        # this type was already deleted by some other op
+        # (probably alias types cleanup)
+        return schema.get_by_id(self.id, default=None) is not None
+
 
 class QualifiedType(so.QualifiedObject, Type):
     pass
@@ -988,7 +996,14 @@ class Collection(Type, s_abc.Collection):
         assert isinstance(delta, sd.DeleteObject)
         if not isinstance(self, CollectionExprAlias):
             delta.if_exists = True
-            delta.if_unused = True
+            if not (
+                isinstance(self, Array)
+                and self.get_element_type(schema).is_scalar()
+            ):
+                # Arrays of scalars are special, because we create them
+                # implicitly and overload reference checks to never
+                # delete them unless the scalar is also deleted.
+                delta.if_unused = True
         return delta
 
     @classmethod
@@ -1140,9 +1155,7 @@ class Collection(Type, s_abc.Collection):
         self: CollectionTypeT,
         schema: s_schema.Schema,
     ) -> Optional[sd.DeleteObject[CollectionTypeT]]:
-        if not schema.get_by_id(self.id, default=None):
-            # this type was already deleted by some other op
-            # (probably alias types cleanup)
+        if not self._is_deletable(schema):
             return None
 
         return self.init_delta_command(
@@ -1202,9 +1215,7 @@ class CollectionExprAlias(QualifiedType, Collection):
         self: CollectionExprAliasT,
         schema: s_schema.Schema,
     ) -> Optional[sd.DeleteObject[CollectionExprAliasT]]:
-        if not schema.get_by_id(self.id, default=None):
-            # this type was already deleted by some other op
-            # (probably alias types cleanup)
+        if not self._is_deletable(schema):
             return None
 
         cmd = self.init_delta_command(schema, sd.DeleteObject, if_exists=True)
@@ -3365,7 +3376,21 @@ class DeleteTupleExprAlias(DeleteCollectionExprAlias[TupleExprAlias]):
 
 
 class DeleteArray(DeleteCollectionType[Array]):
-    pass
+    # Prevent array types from getting deleted unless the element
+    # type is being deleted too.
+    def _has_outside_references(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> bool:
+        if super()._has_outside_references(schema, context):
+            return True
+
+        el_type = self.scls.get_element_type(schema)
+        if el_type.is_scalar() and not context.is_deleting(el_type):
+            return True
+
+        return False
 
 
 class DeleteArrayExprAlias(DeleteCollectionExprAlias[ArrayExprAlias]):

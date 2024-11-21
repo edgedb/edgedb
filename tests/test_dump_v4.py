@@ -131,6 +131,39 @@ class DumpTestCaseMixin:
                 }]
             )
 
+        # We didn't specify include_secrets in the dumps we made for
+        # 4.0, but the way that smtp config was done then, it got
+        # dumped anyway. (The secret wasn't specified.)
+        has_smtp = (
+            include_secrets
+            or self._testMethodName == 'test_dumpv4_restore_compatibility_4_0'
+        )
+
+        # N.B: This is not what it looked like in the original
+        # dumps. We patched it up during restore starting with 6.0.
+        if has_smtp:
+            await self.assert_query_result(
+                '''
+                select cfg::Config {
+                    email_providers[is cfg::SMTPProviderConfig]: {
+                        name, sender
+                    },
+                    current_email_provider_name,
+                };
+                ''',
+                [
+                    {
+                        "email_providers": [
+                            {
+                                "name": "_default",
+                                "sender": "noreply@example.com",
+                            }
+                        ],
+                        "current_email_provider_name": "_default"
+                    }
+                ],
+            )
+
 
 class TestDumpV4(tb.StableDumpTestCase, DumpTestCaseMixin):
     EXTENSIONS = ["pgvector", "_conf", "pgcrypto", "auth"]

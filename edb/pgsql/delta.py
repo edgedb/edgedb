@@ -2953,7 +2953,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         return schema
 
 
-def drop_dependant_func_cache(pg_type: Tuple[str, ...]) -> dbops.Query:
+def drop_dependant_func_cache(pg_type: Tuple[str, ...]) -> dbops.PLQuery:
     if len(pg_type) == 1:
         types_cte = f'''
                     SELECT
@@ -2980,7 +2980,6 @@ def drop_dependant_func_cache(pg_type: Tuple[str, ...]) -> dbops.Query:
                         )\
         '''
     drop_func_cache_sql = textwrap.dedent(f'''
-        DO $$
         DECLARE
             qc RECORD;
         BEGIN
@@ -3014,9 +3013,9 @@ def drop_dependant_func_cache(pg_type: Tuple[str, ...]) -> dbops.Query:
             LOOP
                 PERFORM edgedb_VER."_evict_query_cache"(qc.key);
             END LOOP;
-        END $$;
+        END;
     ''')
-    return dbops.Query(drop_func_cache_sql)
+    return dbops.PLQuery(drop_func_cache_sql)
 
 
 class DeleteScalarType(ScalarTypeMetaCommand,

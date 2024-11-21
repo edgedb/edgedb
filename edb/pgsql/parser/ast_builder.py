@@ -36,7 +36,7 @@ from edb.common.parsing import Span
 
 from edb.pgsql import ast as pgast
 from edb.edgeql import ast as qlast
-from edb.pgsql.parser.exceptions import PSqlUnsupportedError
+from edb.pgsql.parser.exceptions import PSqlUnsupportedError, get_node_name
 
 
 @dataclasses.dataclass(kw_only=True)
@@ -147,7 +147,9 @@ def _enum(
         if outer_fallback:
             return None  # type: ignore
 
-        raise PSqlUnsupportedError(node, ", ".join(node.keys()))
+        raise PSqlUnsupportedError(
+            node, ", ".join(get_node_name(k) for k in node.keys())
+        )
     finally:
         ctx.has_fallback = outer_fallback
 
@@ -919,7 +921,7 @@ def _build_range_function(n: Node, c: Context) -> pgast.RangeFunction:
         with_ordinality=_bool_or_false(n, "ordinality"),
         is_rowsfrom=_bool_or_false(n, "is_rowsfrom"),
         functions=[
-            _build_func_call(fn, c)
+            _build_base_expr(fn, c)
             for fn in n["functions"][0]["List"]["items"]
             if len(fn) > 0
         ],

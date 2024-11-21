@@ -40,7 +40,8 @@ from edb.common import debug, lru, uuidgen, asyncutil
 from edb import edgeql
 from edb.edgeql import qltypes
 from edb.schema import schema as s_schema
-from edb.server import compiler, defines, config, metrics
+from edb.schema import name as s_name
+from edb.server import compiler, defines, config, metrics, pgcon
 from edb.server.compiler import dbstate, enums, sertypes
 from edb.server.protocol import execute
 from edb.pgsql import dbops
@@ -96,6 +97,8 @@ cdef class CompiledQuery:
         first_extra: Optional[int]=None,
         extra_counts=(),
         extra_blobs=(),
+        extra_formatted_as_text: bool = False,
+        extra_type_oids: Sequence[int] = (),
         request=None,
         recompiled_cache=None,
         use_pending_func_cache=False,
@@ -104,6 +107,8 @@ cdef class CompiledQuery:
         self.first_extra = first_extra
         self.extra_counts = extra_counts
         self.extra_blobs = extra_blobs
+        self.extra_formatted_as_text = extra_formatted_as_text
+        self.extra_type_oids = tuple(extra_type_oids)
         self.request = request
         self.recompiled_cache = recompiled_cache
         self.use_pending_func_cache = use_pending_func_cache
@@ -160,6 +165,12 @@ cdef class Database:
             self.user_config_spec = config.FlatSpec(*ext_config_settings)
         self.reflection_cache = reflection_cache
         self.backend_ids = backend_ids
+        if backend_ids is not None:
+            self.backend_id_to_name = {
+                v[0]: v[1] for k, v in backend_ids.items()
+            }
+        else:
+            self.backend_id_to_name = {}
         self.extensions = set()
         self._set_extensions(extensions)
         self._observe_auth_ext_config()
@@ -367,6 +378,9 @@ cdef class Database:
 
         if backend_ids is not None:
             self.backend_ids = backend_ids
+            self.backend_id_to_name = {
+                v[0]: v[1] for k, v in backend_ids.items()
+            }
         if reflection_cache is not None:
             self.reflection_cache = reflection_cache
         if db_config is not None:
@@ -402,6 +416,9 @@ cdef class Database:
 
     cdef _update_backend_ids(self, new_types):
         self.backend_ids.update(new_types)
+        self.backend_id_to_name.update({
+            v[0]: v[1] for k, v in new_types.items()
+        })
 
     cdef _invalidate_caches(self):
         self._sql_to_compiled.clear()
@@ -727,15 +744,18 @@ cdef class DatabaseConnectionView:
 
         if self._in_tx:
             try:
-                return int(self._in_tx_new_types[type_id])
+                tinfo = self._in_tx_new_types[type_id]
             except KeyError:
                 pass
+            else:
+                return int(tinfo[0])
 
-        tid = self._db.backend_ids.get(type_id)
-        if tid is None:
+        tinfo = self._db.backend_ids.get(type_id)
+        if tinfo is None:
             raise RuntimeError(
                 f'cannot resolve backend OID for type {type_id}')
-        return tid
+
+        return int(tinfo[0])
 
     cdef bytes serialize_state(self):
         cdef list state
@@ -1220,9 +1240,10 @@ cdef class DatabaseConnectionView:
     async def parse(
         self,
         query_req: rpc.CompilationRequest,
-        cached_globally=False,
-        bint use_metrics=True,
-        uint64_t allow_capabilities = <uint64_t>compiler.Capability.ALL,
+        cached_globally: bint = False,
+        use_metrics: bint = True,
+        allow_capabilities: uint64_t = <uint64_t>compiler.Capability.ALL,
+        pgcon: pgcon.PGConnection | None = None,
     ) -> CompiledQuery:
         query_unit_group = None
         if self._query_cache_enabled:
@@ -1307,6 +1328,18 @@ cdef class DatabaseConnectionView:
             )
             self._check_in_tx_error(query_unit_group)
 
+            if query_req.input_language is enums.InputLanguage.SQL:
+                if pgcon is None:
+                    raise errors.InternalServerError(
+                        "a valid backend connection is required to fully "
+                        "compile a query in SQL mode",
+                    )
+                await self._amend_typedesc_in_sql(
+                    query_req,
+                    query_unit_group,
+                    pgcon,
+                )
+
             if self._query_cache_enabled and query_unit_group.cacheable:
                 if cached_globally:
                     self.server.system_compile_cache[query_req] = (
@@ -1366,9 +1399,111 @@ cdef class DatabaseConnectionView:
             first_extra=source.first_extra(),
             extra_counts=source.extra_counts(),
             extra_blobs=source.extra_blobs(),
+            extra_formatted_as_text=source.extra_formatted_as_text(),
+            extra_type_oids=source.extra_type_oids(),
             request=query_req,
             recompiled_cache=recompiled_cache,
         )
+
+    async def _amend_typedesc_in_sql(
+        self,
+        query_req: rpc.CompilationRequest,
+        qug: dbstate.QueryUnitGroup,
+        pgcon: pgcon.PGConnection,
+    ) -> None:
+        # The SQL QueryUnitGroup as initially returned from the compiler
+        # is missing the input/output type descriptors because we currently
+        # don't run static SQL type inference.  To mend that we ask Postgres
+        # to infer the the result types (as an OID tuple) and then use
+        # our OID -> scalar type mapping to construct an EdgeQL free shape with
+        # corresponding properties which we then send to the compiler to
+        # compute the type descriptors.
+        to_describe = []
+
+        desc_map = {}
+        source = query_req.source
+        first_extra = source.first_extra()
+        if first_extra is not None:
+            all_type_oids = [0] * first_extra + source.extra_type_oids()
+        else:
+            all_type_oids = []
+
+        for i, query_unit in enumerate(qug):
+            if query_unit.cardinality is enums.Cardinality.NO_RESULT:
+                continue
+
+            intro_sql = query_unit.introspection_sql
+            if intro_sql is None:
+                intro_sql = query_unit.sql[0]
+            param_desc, result_desc = await pgcon.sql_describe(
+                intro_sql, all_type_oids)
+            result_types = []
+            for col, toid in result_desc:
+                edb_type_expr = self._db.backend_id_to_name.get(toid)
+                if edb_type_expr is None:
+                    raise errors.UnsupportedFeatureError(
+                        f"unsupported SQL type in column \"{col}\" "
+                        f"with type OID {toid}"
+                    )
+
+                result_types.append(
+                    f"{edgeql.quote_ident(col)} := <{edb_type_expr}>{{}}"
+                )
+            if first_extra is not None:
+                param_desc = param_desc[:first_extra]
+            params = []
+            for pi, toid in enumerate(param_desc):
+                edb_type_expr = self._db.backend_id_to_name.get(toid)
+                if edb_type_expr is None:
+                    raise errors.UnsupportedFeatureError(
+                        f"unsupported type in SQL parameter ${pi} "
+                        f"with type OID {toid}"
+                    )
+
+                params.append(
+                    f"_p{pi} := <{edb_type_expr}>${pi}"
+                )
+
+            intro_qry = ""
+            if params:
+                intro_qry += "with _p := {" + ", ".join(params) + "} "
+
+            if result_types:
+                intro_qry += "select {" + ", ".join(result_types) + "}"
+            else:
+                # No direct syntactic way of constructing an empty shape,
+                # so we have to do it this way.
+                intro_qry += "select {foo := 1}{}"
+            to_describe.append(intro_qry)
+
+            desc_map[len(to_describe) - 1] = i
+
+        if to_describe:
+            desc_req = rpc.CompilationRequest(
+                source=edgeql.Source.from_string(";\n".join(to_describe)),
+                protocol_version=query_req.protocol_version,
+                schema_version=query_req.schema_version,
+                compilation_config_serializer=query_req.serializer,
+            )
+
+            desc_qug = await self._compile(desc_req)
+
+            for i, desc_qu in enumerate(desc_qug):
+                qu_i = desc_map[i]
+                qug[qu_i].out_type_data = desc_qu.out_type_data
+                qug[qu_i].out_type_id = desc_qu.out_type_id
+                qug[qu_i].in_type_data = desc_qu.in_type_data
+                qug[qu_i].in_type_id = desc_qu.in_type_id
+                qug[qu_i].in_type_args = desc_qu.in_type_args
+                qug[qu_i].in_type_args_real_count = (
+                    desc_qu.in_type_args_real_count)
+
+            qug.out_type_data = desc_qug.out_type_data
+            qug.out_type_id = desc_qug.out_type_id
+            qug.in_type_data = desc_qug.in_type_data
+            qug.in_type_id = desc_qug.in_type_id
+            qug.in_type_args = desc_qug.in_type_args
+            qug.in_type_args_real_count = desc_qug.in_type_args_real_count
 
     cdef inline _check_in_tx_error(self, query_unit_group):
         if self.in_tx_error():
@@ -1404,6 +1539,8 @@ cdef class DatabaseConnectionView:
             first_extra=source.first_extra(),
             extra_counts=source.extra_counts(),
             extra_blobs=source.extra_blobs(),
+            extra_formatted_as_text=source.extra_formatted_as_text(),
+            extra_type_oids=source.extra_type_oids(),
             use_pending_func_cache=use_pending_func_cache,
         )
 

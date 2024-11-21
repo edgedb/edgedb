@@ -298,19 +298,21 @@ def _resolve_RangeFunction(
 ) -> Tuple[pgast.BaseRangeVar, context.Table]:
     with ctx.lateral() if range_var.lateral else ctx.child() as subctx:
 
-        functions = []
+        functions: List[pgast.BaseExpr] = []
         col_names = []
         for function in range_var.functions:
-
-            name = function.name[len(function.name) - 1]
-            if name in range_functions.COLUMNS:
-                col_names.extend(range_functions.COLUMNS[name])
-            elif name == 'unnest':
-                col_names.extend('unnest' for _ in function.args)
-            else:
-                col_names.append(name)
-
-            functions.append(dispatch.resolve(function, ctx=subctx))
+            match function:
+                case pgast.FuncCall():
+                    name = function.name[len(function.name) - 1]
+                    if name in range_functions.COLUMNS:
+                        col_names.extend(range_functions.COLUMNS[name])
+                    elif name == 'unnest':
+                        col_names.extend('unnest' for _ in function.args)
+                    else:
+                        col_names.append(name)
+                    functions.append(dispatch.resolve(function, ctx=subctx))
+                case _:
+                    functions.append(dispatch.resolve(function, ctx=subctx))
 
         inferred_columns = [
             context.Column(

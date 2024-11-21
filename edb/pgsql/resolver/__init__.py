@@ -18,6 +18,8 @@
 
 from __future__ import annotations
 from typing import Optional, List
+
+import copy
 import dataclasses
 
 from edb.common import debug
@@ -41,6 +43,10 @@ class ResolvedSQL:
     # AST representing the query that can be sent to PostgreSQL
     ast: pgast.Base
 
+    # Optionally, AST representing the query returning data in EdgeQL
+    # format (i.e. single-column output).
+    edgeql_output_format_ast: Optional[pgast.Base]
+
     # Special behavior for "tag" of "CommandComplete" message of this query.
     command_complete_tag: Optional[dbstate.CommandCompleteTag]
 
@@ -56,6 +62,7 @@ def resolve(
 
     if debug.flags.sql_input:
         debug.header('SQL Input')
+
         debug_sql_text = pgcodegen.generate_source(
             query, reordered=True, pretty=True
         )
@@ -108,8 +115,25 @@ def resolve(
         )
         debug.dump_code(debug_sql_text, lexer='sql')
 
+    if options.include_edgeql_io_format_alternative:
+        edgeql_output_format_ast = copy.copy(resolved)
+        if isinstance(edgeql_output_format_ast, pgast.SelectStmt):
+            edgeql_output_format_ast.target_list = [
+                pgast.ResTarget(
+                    val=pgast.RowExpr(
+                        args=[
+                            rt.val
+                            for rt in edgeql_output_format_ast.target_list
+                        ]
+                    )
+                )
+            ]
+    else:
+        edgeql_output_format_ast = None
+
     return ResolvedSQL(
         ast=resolved,
+        edgeql_output_format_ast=edgeql_output_format_ast,
         command_complete_tag=command_complete_tag,
         params=ctx.query_params,
     )

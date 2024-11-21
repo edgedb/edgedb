@@ -2823,9 +2823,12 @@ def process_set_as_enumerate(
                 or arg_expr.limit
                 or arg_expr.offset
             )
+        ) and not any(
+            f_arg.param_typemod == qltypes.TypeModifier.SetOfType
+            for _, f_arg in arg_subj.args.items()
         )
     ):
-        # Enumeration of a SET-returning function
+        # Enumeration of a non-aggregate function
         rvars = process_set_as_func_enumerate(ir_set, ctx=ctx)
     else:
         rvars = process_set_as_simple_enumerate(ir_set, ctx=ctx)

@@ -57,6 +57,9 @@ def raise_first_warning(warnings, res):
     raise warnings[0]
 
 
+InputLanguage = protocol.InputLanguage
+
+
 class BaseTransaction(abc.ABC):
 
     ID_COUNTER = 0
@@ -419,6 +422,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         self,
         query: str,
         *args,
+        __language__: protocol.InputLanguage = protocol.InputLanguage.EDGEQL,
         __limit__: int = 0,
         __typeids__: bool = False,
         __typenames__: bool = False,
@@ -436,6 +440,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
                 implicit_limit=__limit__,
                 inline_typeids=__typeids__,
                 inline_typenames=__typenames__,
+                input_language=__language__,
                 output_format=protocol.OutputFormat.BINARY,
                 allow_capabilities=__allow_capabilities__,
             )
@@ -457,6 +462,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
                 qc=self._query_cache.query_cache,
                 implicit_limit=__limit__,
                 inline_typenames=False,
+                input_language=protocol.InputLanguage.EDGEQL,
                 output_format=protocol.OutputFormat.JSON,
             )
         )
@@ -469,6 +475,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
                 kwargs=kwargs,
                 reg=self._query_cache.codecs_registry,
                 qc=self._query_cache.query_cache,
+                input_language=protocol.InputLanguage.EDGEQL,
                 output_format=protocol.OutputFormat.JSON_ELEMENTS,
                 allow_capabilities=edgedb_enums.Capability.EXECUTE,  # type: ignore
             )
@@ -499,6 +506,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
     async def connect(self, single_attempt=False):
         self._params, client_config = con_utils.parse_connect_arguments(
             **self._connect_args,
+            tls_server_name=None,
             command_timeout=None,
             server_settings=None,
         )

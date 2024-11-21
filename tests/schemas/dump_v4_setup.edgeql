@@ -55,8 +55,22 @@ ext::auth::AuthConfig::auth_signing_key := 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 CONFIGURE CURRENT DATABASE SET
 ext::auth::AuthConfig::token_time_to_live := <duration>'24 hours';
 
+# N.B: This CONFIGURE command was the original one, but then we
+# removed that flag.  We kept it working in dumps, though, so old
+# dumps still work and behave as if they had the next two statements
+# instead.
+#
+# CONFIGURE CURRENT DATABASE SET
+# ext::auth::SMTPConfig::sender := 'noreply@example.com';
+
+CONFIGURE CURRENT DATABASE INSERT cfg::SMTPProviderConfig {
+    name := "_default",
+    sender := 'noreply@example.com',
+};
+
 CONFIGURE CURRENT DATABASE SET
-ext::auth::SMTPConfig::sender := 'noreply@example.com';
+cfg::current_email_provider_name := "_default";
+
 
 CONFIGURE CURRENT DATABASE SET
 ext::auth::AuthConfig::allowed_redirect_urls := {
