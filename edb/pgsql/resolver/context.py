@@ -108,6 +108,11 @@ class Table:
     # than columns of input rel vars (tables).
     precedence: int = 0
 
+    # True when this relation is compiled to a direct reference to the
+    # underlying table, without any views or CTEs.
+    # Is the condition for usage of locking clauses.
+    is_direct_relation: bool = False
+
     def __str__(self) -> str:
         columns = ', '.join(str(c) for c in self.columns)
         alias = f'{self.alias} = ' if self.alias else ''

@@ -913,10 +913,10 @@ class SortBy(ImmutableBase):
 
 
 class LockClauseStrength(enum.StrEnum):
-    FORKEYSHARE = "KEY SHARE"
-    FORSHARE = "SHARE"
-    FORNOKEYUPDATE = "NO KEY SHARE"
-    FORUPDATE = "UPDATE"
+    UPDATE = "UPDATE"
+    NO_KEY_UPDATE = "NO KEY UPDATE"
+    SHARE = "SHARE"
+    KEY_SHARE = "KEY SHARE"
 
 
 class LockWaitPolicy(enum.StrEnum):

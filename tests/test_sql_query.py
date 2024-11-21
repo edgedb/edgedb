@@ -943,6 +943,14 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         # duplicate rel var names can yield duplicate column names
         self.assert_shape(res, 1, ['a', 'x_a'])
 
+    async def test_sql_query_51(self):
+        res = await self.scon.fetch(
+            '''
+            TABLE "Movie"
+            '''
+        )
+        self.assert_shape(res, 2, 6)
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
@@ -2142,7 +2150,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.FeatureNotSupportedError,
             "not supported: CREATE",
-            # position="14",  # TODO: this is confusing
+            position="14",  # TODO: this is confusing
         ):
             await self.squery_values('CREATE TABLE a();')
 
@@ -2158,6 +2166,97 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             "not supported: REINDEX",
         ):
             await self.squery_values('REINDEX TABLE a;')
+
+    async def test_sql_query_locking_00(self):
+        # Movie is allowed because it has no sub-types and access policies are
+        # not enabled.
+        await self.squery_values(
+            '''
+            SELECT id FROM "Movie" LIMIT 1 FOR UPDATE;
+            '''
+        )
+
+        await self.squery_values(
+            '''
+            SELECT id FROM "Movie" LIMIT 1 FOR NO KEY UPDATE NOWAIT;
+            '''
+        )
+        await self.squery_values(
+            '''
+            SELECT id FROM "Movie" LIMIT 1 FOR KEY SHARE SKIP LOCKED;
+            '''
+        )
+
+    async def test_sql_query_locking_01(self):
+        # fail because sub-types
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "locking clause not supported",
+        ):
+            await self.squery_values(
+                '''
+                SELECT id FROM "Content" LIMIT 1 FOR UPDATE;
+                '''
+            )
+
+        # fail because access policies
+        tran = self.scon.transaction()
+        await tran.start()
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "locking clause not supported",
+        ):
+            await self.scon.execute(
+                'SET LOCAL apply_access_policies_sql TO TRUE'
+            )
+            await self.squery_values(
+                '''
+                SELECT id FROM "Movie" LIMIT 1 FOR UPDATE;
+                '''
+            )
+        await tran.rollback()
+
+    async def test_sql_query_locking_02(self):
+        # we are locking just Movie
+        await self.squery_values(
+            '''
+            SELECT * FROM "Movie", "Content" LIMIT 1 FOR UPDATE OF "Movie";
+            '''
+        )
+
+        # we are locking just Movie
+        await self.squery_values(
+            '''
+            SELECT * FROM "Movie" m, "Content" LIMIT 1 FOR UPDATE OF m;
+            '''
+        )
+
+        # we are locking just Content
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "locking clause not supported",
+        ):
+            await self.squery_values(
+                '''
+                SELECT * FROM "Movie", "Content" c LIMIT 1 FOR UPDATE OF c;
+                '''
+            )
+
+    async def test_sql_query_locking_03(self):
+        # allowed, but this won't lock anything
+        await self.squery_values(
+            '''
+            SELECT * FROM (VALUES (1)) t FOR UPDATE;
+            '''
+        )
+
+        # allowed, will not lock Content
+        await self.squery_values(
+            '''
+            WITH c AS (SELECT * FROM "Content")
+            SELECT * FROM "Movie" FOR UPDATE;
+            '''
+        )
 
     async def test_native_sql_query_00(self):
         await self.assert_sql_query_result(

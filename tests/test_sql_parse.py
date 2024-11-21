@@ -1283,3 +1283,45 @@ class TestSQLParse(tb.BaseDocTest):
         """
         COPY country TO PROGRAM 'gzip > /usr1/proj/bray/sql/country_data.gz'
         """
+
+    def test_sql_parse_table(self):
+        """
+        TABLE hello_world
+% OK %
+        SELECT * FROM hello_world
+        """
+
+    def test_sql_parse_select_locking_00(self):
+        """
+        SELECT id FROM a FOR UPDATE
+        """
+
+    def test_sql_parse_select_locking_01(self):
+        """
+        SELECT id FROM a FOR NO KEY UPDATE
+        """
+
+    def test_sql_parse_select_locking_02(self):
+        """
+        SELECT id FROM a FOR SHARE
+        """
+
+    def test_sql_parse_select_locking_03(self):
+        """
+        SELECT id FROM a FOR KEY SHARE
+        """
+
+    def test_sql_parse_select_locking_04(self):
+        """
+        SELECT id FROM a FOR UPDATE NOWAIT
+        """
+
+    def test_sql_parse_select_locking_05(self):
+        """
+        SELECT id FROM a FOR UPDATE SKIP LOCKED
+        """
+
+    def test_sql_parse_select_locking_06(self):
+        """
+        SELECT id FROM a FOR UPDATE OF b
+        """

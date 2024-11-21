@@ -24,7 +24,6 @@ from typing import Optional, Tuple, Iterator, Sequence, Dict, List, cast, Set
 import uuid
 
 from edb import errors
-from edb.common.typeutils import not_none
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common
@@ -509,24 +508,31 @@ def resolve_LockingClause(
     *,
     ctx: Context,
 ) -> pgast.LockingClause:
-    lrels = expr.locked_rels
-    if lrels is not None:
-        resolved_lrels = []
-        for rvar in lrels:
-            ltable = _lookup_table(not_none(rvar.relation.name), ctx=ctx)
-            resolved_lrels.append(
-                pgast.RelRangeVar(
-                    relation=pgast.Relation(
-                        name=ltable.reference_as,
-                    )
-                )
-            )
+
+    tables: List[context.Table] = []
+    if expr.locked_rels is not None:
+        for rvar in expr.locked_rels:
+            assert rvar.relation.name
+            table = _lookup_table(rvar.relation.name, ctx=ctx)
+            tables.append(table)
     else:
-        resolved_lrels = None
+        tables.extend(ctx.scope.tables)
+
+    # validate that the locking clause can be used on these tables
+    for table in tables:
+        if table.schema_id and not table.is_direct_relation:
+            raise errors.QueryError(
+                f'locking clause not supported: `{table.name or table.alias}` '
+                'must not have child types or access policies',
+                pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
+            )
 
     return pgast.LockingClause(
         strength=expr.strength,
-        locked_rels=resolved_lrels,
+        locked_rels=[
+            pgast.RelRangeVar(relation=pgast.Relation(name=table.reference_as))
+            for table in tables
+        ],
         wait_policy=expr.wait_policy,
     )
 
