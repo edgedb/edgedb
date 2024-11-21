@@ -13,9 +13,6 @@ volatility:
 * ``Immutable``: The expression cannot modify the database and is
     guaranteed to have the same value *in all statements*.
 
-    Pointers maybe be treated as immutable for the purposes of some
-    restrictions. See below for details.
-
 * ``Stable``: The expression cannot modify the database and is
     guaranteed to have the same value *within a single statement*.
 
@@ -98,11 +95,11 @@ Some example operator and function calls:
 
     1 + 1:                    Immutable
     1 + global one:           Stable
-    global one + random():    Unstable
+    global one + random():    Volatile
     (insert One).val:         Modifying
     plus_primitive(1):        Immutable
     plus_stable(1):           Stable
-    plus_random(global one):  Unstable
+    plus_random(global one):  Volatile
     plus_insert(random()):    Immutable
 
 
