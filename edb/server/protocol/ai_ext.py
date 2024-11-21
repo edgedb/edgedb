@@ -2177,11 +2177,9 @@ async def _handle_rag_request(
 
         prompt_messages.append(dict(role=role, content=content))
 
-    messages = (
-        prompt_messages
-        + custom_prompt_messages
-        + [{"role": "user", "content": [{"type": "text", "text": query}]}]
-    )
+    # don't add here at the end the user query msg because Mistral and
+    # Anthropic doesn't work if the user message shows after the tools
+    messages = prompt_messages + custom_prompt_messages
 
     await _start_chat(
         protocol=protocol,
