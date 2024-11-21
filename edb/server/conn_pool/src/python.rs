@@ -403,7 +403,7 @@ impl ConnPool {
     fn _close_pipe(&mut self) {
         // Replace the channel with a dummy, closed one which will also
         // signal the other side to exit.
-        (_, self.rust_to_python) = std::sync::mpsc::channel();
+        self.rust_to_python = Mutex::new(std::sync::mpsc::channel().1);
     }
 }
 

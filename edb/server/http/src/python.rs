@@ -1,7 +1,7 @@
 use eventsource_stream::Eventsource;
 use futures::{future::poll_fn, TryStreamExt};
 use pyo3::{exceptions::PyException, prelude::*, types::PyByteArray};
-use reqwest::{header::HeaderValue, Method};
+use reqwest::Method;
 use scopeguard::{defer, guard, ScopeGuard};
 use std::{
     cell::RefCell,
@@ -659,7 +659,7 @@ impl Http {
         trace!("Closing pipe");
         // Replace the channel with a dummy, closed one which will also
         // signal the other side to exit.
-        (_, self.rust_to_python) = std::sync::mpsc::channel();
+        self.rust_to_python = Mutex::new(std::sync::mpsc::channel().1);
     }
 }
 
