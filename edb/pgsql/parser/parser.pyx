@@ -269,7 +269,9 @@ cdef class NormalizedSource(Source):
         serialized: Optional[bytes] = None,
     ) -> None:
         super().__init__(text=normalized.text, serialized=serialized)
-        self._extracted_constants = normalized.extracted_constants
+        self._extracted_constants = list(
+            sorted(normalized.extracted_constants, key=lambda i: i[0]),
+        )
         self._highest_extern_param_id = normalized.highest_extern_param_id
         self._orig_text = orig_text
 
