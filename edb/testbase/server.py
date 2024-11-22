@@ -1548,7 +1548,7 @@ class SQLQueryTestCase(BaseQueryTestCase):
     @classmethod
     def setUpClass(cls):
         try:
-            import asyncpg
+            import asyncpg  # noqa: F401
         except ImportError:
             raise unittest.SkipTest('SQL tests skipped: asyncpg not installed')
 
