@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyInt, PyList, PyString, PyTuple, PyType};
+use pyo3::types::{PyDict, PyInt, PyList, PyString, PyType};
 
 use edb_graphql_parser::position::Pos;
 

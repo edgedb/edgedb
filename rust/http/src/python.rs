@@ -1,6 +1,7 @@
 use eventsource_stream::Eventsource;
 use futures::{future::poll_fn, TryStreamExt};
 use pyo3::{exceptions::PyException, prelude::*, types::PyByteArray};
+use pyo3_util::logging::{get_python_logger_level, initialize_logging_in_thread};
 use reqwest::Method;
 use scopeguard::{defer, guard, ScopeGuard};
 use std::{
@@ -163,6 +164,7 @@ async fn request_bytes(
     Ok((status, body, headers))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn request_sse(
     client: reqwest::Client,
     id: PythonConnId,
@@ -317,6 +319,7 @@ impl PermitManager {
         self.assert_valid();
     }
 
+    #[allow(clippy::comparison_chain)]
     fn update_limit(&self, new_limit: usize) {
         let mut counts = self.counts.lock().unwrap();
         let old_capacity = counts.capacity;
@@ -431,7 +434,7 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
             _ => (None, None),
         };
         let task = tokio::task::spawn_local(execute(
-            id.clone(),
+            id,
             backpressure.clone(),
             tasks.clone(),
             rpc,
@@ -449,6 +452,7 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn execute(
     id: Option<u64>,
     backpressure: Option<Arc<Semaphore>>,
@@ -550,7 +554,9 @@ impl Http {
     /// Create the HTTP pool and automatically boot a tokio runtime on a
     /// new thread. When this class is GC'd, the thread will be torn down.
     #[new]
-    fn new(max_capacity: usize) -> Self {
+    fn new(py: Python, max_capacity: usize) -> PyResult<Self> {
+        let level = get_python_logger_level(py, "edgedb.server.http")?;
+
         info!("Http::new(max_capacity={max_capacity})");
         let (txrp, rxrp) = std::sync::mpsc::channel();
         let (txpr, rxpr) = tokio::sync::mpsc::unbounded_channel();
@@ -559,6 +565,7 @@ impl Http {
         thread::Builder::new()
             .name("edgedb-http".to_string())
             .spawn(move || {
+                initialize_logging_in_thread("edgedb.server.http", level);
                 defer!(info!("Rust-side Http thread exiting"));
                 info!("Rust-side Http thread booted");
                 let rt = tokio::runtime::Builder::new_current_thread()
@@ -583,11 +590,11 @@ impl Http {
             .expect("Failed to create HTTP thread");
 
         let notify_fd = rxfd.recv().unwrap();
-        Http {
+        Ok(Http {
             python_to_rust: txpr,
             rust_to_python: Mutex::new(rxrp),
             notify_fd,
-        }
+        })
     }
 
     #[getter]
@@ -664,7 +671,7 @@ impl Http {
 }
 
 #[pymodule]
-fn _http(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
+pub fn _http(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Http>()?;
     m.add("InternalError", py.get_type::<InternalError>())?;
 

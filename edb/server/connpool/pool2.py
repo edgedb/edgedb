@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import edb.server._conn_pool
+import edb.server._rust_native._conn_pool as _rust
 import asyncio
 import time
 import typing
@@ -25,8 +25,6 @@ import pickle
 from . import config
 from .config import logger
 from edb.server import rust_async_channel
-
-guard = edb.server._conn_pool.LoggingGuard()
 
 # Connections must be hashable because we use them to reverse-lookup
 # an internal ID.
@@ -86,7 +84,7 @@ class StatsCollector(typing.Protocol):
 
 
 class Pool(typing.Generic[C]):
-    _pool: edb.server._conn_pool.ConnPool
+    _pool: _rust.ConnPool
     _next_conn_id: int
     _failed_connects: int
     _failed_disconnects: int
@@ -118,12 +116,11 @@ class Pool(typing.Generic[C]):
         logger = config.logger
 
         logger.info(
-            f'Creating a connection pool with \
-                    max_capacity={max_capacity}'
+            f'Creating a connection pool with max_capacity={max_capacity}'
         )
         self._connect = connect
         self._disconnect = disconnect
-        self._pool = edb.server._conn_pool.ConnPool(
+        self._pool = _rust.ConnPool(
             max_capacity, min_idle_time_before_gc, config.STATS_COLLECT_INTERVAL
         )
         self._max_capacity = max_capacity
@@ -360,11 +357,11 @@ class Pool(typing.Generic[C]):
                 v = stats['value']
                 block_snapshot = BlockSnapshot(
                     dbname=dbname,
-                    nconns=v[edb.server._conn_pool.METRIC_ACTIVE],
-                    nwaiters_avg=v[edb.server._conn_pool.METRIC_WAITING],
-                    npending=v[edb.server._conn_pool.METRIC_CONNECTING]
-                    + v[edb.server._conn_pool.METRIC_RECONNECTING],
-                    nwaiters=v[edb.server._conn_pool.METRIC_WAITING],
+                    nconns=v[_rust.METRIC_ACTIVE],
+                    nwaiters_avg=v[_rust.METRIC_WAITING],
+                    npending=v[_rust.METRIC_CONNECTING]
+                    + v[_rust.METRIC_RECONNECTING],
+                    nwaiters=v[_rust.METRIC_WAITING],
                     quota=stats['target'],
                 )
                 blocks.append(block_snapshot)
