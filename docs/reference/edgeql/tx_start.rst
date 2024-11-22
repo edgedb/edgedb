@@ -61,14 +61,13 @@ Parameters
 The :eql:synopsis:`<transaction-mode>` can be one of the following:
 
 :eql:synopsis:`isolation serializable`
-    All statements of the current transaction can only see data
-    changes committed before the first query or data-modification
-    statement was executed in this transaction.  If a pattern
-    of reads and writes among concurrent serializable
-    transactions would create a situation which could not have
-    occurred for any serial (one-at-a-time) execution of those
-    transactions, one of them will be rolled back with a
-    serialization_failure error.
+    All statements in the current transaction can only see data 
+    changes that were committed before the first query or data 
+    modification statement was executed within this transaction. 
+    If a pattern of reads and writes among concurrent serializable
+    transactions creates a situation that could not have occurred 
+    in any serial (one-at-a-time) execution of those transactions, 
+    one of them will be rolled back with a serialization_failure error.
 
 :eql:synopsis:`read write`
     Sets the transaction access mode to read/write.

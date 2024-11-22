@@ -916,7 +916,9 @@ def _batch_embeddings_inputs(
                     batch_token_count + unbatched_token_count(unbatched_index)
                     <= max_batch_tokens
                 ):
-                    batch_input_indexes.append(unbatched_input_indexes[unbatched_index])
+                    batch_input_indexes.append(
+                        unbatched_input_indexes[unbatched_index]
+                    )
                     batch_token_count += unbatched_token_count(unbatched_index)
                     unbatched_input_indexes.pop(unbatched_index)
                 else:
@@ -1117,6 +1119,7 @@ def _read_openai_limits(
 
 
 async def _start_chat(
+    *,
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
@@ -1125,15 +1128,53 @@ async def _start_chat(
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
+    temperature: Optional[float],
+    top_p: Optional[float],
+    max_tokens: Optional[int],
+    seed: Optional[int],
+    safe_prompt: Optional[bool],
+    top_k: Optional[int],
+    logit_bias: Optional[dict[int, int]],
+    logprobs: Optional[bool],
+    user: Optional[str],
+    tools: Optional[list[dict[str, Any]]],
 ) -> None:
     if provider.api_style == "OpenAI":
         await _start_openai_chat(
-            protocol, request, response,
-            provider, http_client, model_name, messages, stream)
+            protocol=protocol,
+            request=request,
+            response=response,
+            provider=provider,
+            http_client=http_client,
+            model_name=model_name,
+            messages=messages,
+            stream=stream,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+            seed=seed,
+            safe_prompt=safe_prompt,
+            logit_bias=logit_bias,
+            logprobs=logprobs,
+            user=user,
+            tools=tools,
+        )
     elif provider.api_style == "Anthropic":
         await _start_anthropic_chat(
-            protocol, request, response,
-            provider, http_client, model_name, messages, stream)
+            protocol=protocol,
+            request=request,
+            response=response,
+            provider=provider,
+            http_client=http_client,
+            model_name=model_name,
+            messages=messages,
+            stream=stream,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            tools=tools,
+            max_tokens=max_tokens,
+        )
     else:
         raise RuntimeError(
             f"unsupported model provider API style: {provider.api_style}, "
@@ -1174,25 +1215,71 @@ async def aconnect_sse(
 
 
 async def _start_openai_like_chat(
+    *,
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
+    provider_name: str,
     client: http.HttpClient,
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
+    temperature: Optional[float],
+    top_p: Optional[float],
+    max_tokens: Optional[int],
+    seed: Optional[int],
+    safe_prompt: Optional[bool],
+    logit_bias: Optional[dict[int, int]],
+    logprobs: Optional[bool],
+    user: Optional[str],
+    tools: Optional[list[dict[str, Any]]],
 ) -> None:
+    isOpenAI = provider_name == "builtin::openai"
+
+    params: dict[str, Any] = {
+        "model": model_name,
+        "messages": messages,
+    }
+    if temperature is not None:
+        params["temperature"] = temperature
+    if top_p is not None:
+        params["top_p"] = top_p
+    if tools is not None:
+        params["tools"] = tools
+    if isOpenAI and logit_bias is not None:
+        params["logit_bias"] = logit_bias
+    if isOpenAI and logprobs is not None:
+        params["logprobs"] = logprobs
+    if isOpenAI and user is not None:
+        params["user"] = user
+    if not isOpenAI and safe_prompt is not None:
+        params["safe_prompt"] = safe_prompt
+    if max_tokens is not None:
+        if isOpenAI:
+            params["max_completion_tokens"] = max_tokens
+        else:
+            params["max_tokens"] = max_tokens
+    if seed is not None:
+        if isOpenAI:
+            params["seed"] = seed
+        else:
+            params["random_seed"] = seed
+
     if stream:
         async with aconnect_sse(
             client,
             method="POST",
             url="/chat/completions",
             json={
-                "model": model_name,
-                "messages": messages,
+                **params,
                 "stream": True,
             }
         ) as event_source:
+            # we need tool_index and finish_reason to correctly
+            # send 'content_block_stop' chunk for tool call messages
+            tool_index = 0
+            finish_reason = "unknown"
+
             async for sse in event_source:
                 if not response.sent:
                     response.status = http.HTTPStatus.OK
@@ -1205,18 +1292,28 @@ async def _start_openai_like_chat(
                     continue
 
                 if sse.data == "[DONE]":
+                    # mistral doesn't send finish_reason for tool calls
+                    if finish_reason == "unknown":
+                        event = (
+                            b'event: content_block_stop\n'
+                            + b'data: {"type": "content_block_stop",'
+                            + b'"index": ' + str(tool_index).encode() + b'}\n\n'
+                        )
+                        protocol.write_raw(event)
                     event = (
                         b'event: message_stop\n'
                         + b'data: {"type": "message_stop"}\n\n'
                     )
                     protocol.write_raw(event)
-                    continue
+                    break
 
                 message = sse.json()
                 if message.get("object") == "chat.completion.chunk":
                     data = message.get("choices")[0]
                     delta = data.get("delta")
                     role = delta.get("role")
+                    tool_calls = delta.get("tool_calls")
+
                     if role:
                         event_data = json.dumps({
                             "type": "message_start",
@@ -1224,26 +1321,96 @@ async def _start_openai_like_chat(
                                 "id": message["id"],
                                 "role": role,
                                 "model": message["model"],
-                            }
+                                "usage": message.get("usage")
+                            },
                         }).encode("utf-8")
                         event = (
                             b'event: message_start\n'
                             + b'data: ' + event_data + b'\n\n'
                         )
                         protocol.write_raw(event)
+                        # if there's only one openai tool call it shows up here
+                        if tool_calls:
+                            for tool_call in tool_calls:
+                                tool_index = tool_call["index"]
+                                event_data = json.dumps({
+                                    "type": "content_block_start",
+                                    "index": tool_call["index"],
+                                    "content_block": {
+                                        "id": tool_call["id"],
+                                        "type": "tool_use",
+                                        "name": tool_call["function"]["name"],
+                                        "args":
+                                        tool_call["function"]["arguments"],
+                                    },
+                                }).encode("utf-8")
 
-                        event = (
-                            b'event: content_block_start\n'
-                            + b'data: {"type": "content_block_start",'
-                            + b'"index":0,'
-                            + b'"content_block":{"type":"text","text":""}}\n\n'
-                        )
-                        protocol.write_raw(event)
+                                event = (
+                                    b'event: content_block_start\n'
+                                    + b'data:' + event_data + b'\n\n'
+                                )
+                                protocol.write_raw(event)
+                    # if there are few openai tool calls, they show up here
+                    # mistral tool calls always show up here
+                    elif tool_calls:
+                        # OpenAI provides index, Mistral doesn't
+                        for index, tool_call in enumerate(tool_calls):
+                            currentIndex = tool_call.get("index") or index
+                            if tool_call.get("type") == "function" or \
+                            "id" in tool_call:
+                                if currentIndex > 0:
+                                    tool_index = currentIndex
+                                    # send the stop chunk for the previous tool
+                                    event = (
+                                        b'event: content_block_stop\n'
+                                        + b'data: { \
+                                        "type": "content_block_stop",'
+                                        + b'"index": '
+                                        + str(currentIndex - 1).encode()
+                                        + b'}\n\n'
+                                    )
+                                    protocol.write_raw(event)
+
+                                event_data = json.dumps({
+                                    "type": "content_block_start",
+                                    "index": currentIndex,
+                                    "content_block": {
+                                        "id": tool_call.get("id"),
+                                        "type": "tool_use",
+                                        "name": tool_call["function"]["name"],
+                                        "args":
+                                        tool_call["function"]["arguments"],
+                                    },
+                                }).encode("utf-8")
+
+                                event = (
+                                    b'event: content_block_start\n'
+                                    + b'data:' + event_data + b'\n\n'
+                                )
+                                protocol.write_raw(event)
+                            else:
+                                event_data = json.dumps({
+                                        "type": "content_block_delta",
+                                        "index": currentIndex,
+                                        "delta": {
+                                            "type": "tool_call_delta",
+                                            "args":
+                                             tool_call["function"]["arguments"],
+                                        },
+                                    }).encode("utf-8")
+                                event = (
+                                    b'event: content_block_delta\n'
+                                    + b'data:' + event_data + b'\n\n'
+                                )
+                                protocol.write_raw(event)
                     elif finish_reason := data.get("finish_reason"):
+                        index = (
+                            tool_index if finish_reason == "tool_calls" else 0
+                        )
                         event = (
                             b'event: content_block_stop\n'
                             + b'data: {"type": "content_block_stop",'
-                            + b'"index":0}\n\n'
+                            + b'"index": ' + str(index).encode() + b'}\n\n'
                         )
                         protocol.write_raw(event)
 
@@ -1251,7 +1418,8 @@ async def _start_openai_like_chat(
                             "type": "message_delta",
                             "delta": {
                                 "stop_reason": finish_reason,
-                            }
+                            },
+                            "usage": message.get("usage")
                         }).encode("utf-8")
                         event = (
                             b'event: message_delta\n'
@@ -1261,14 +1429,18 @@ async def _start_openai_like_chat(
 
                     else:
                         event_data = json.dumps({
-                            "type": "text_delta",
-                            "text": delta.get("content"),
+                            "type": "content_block_delta",
+                            "index": 0,
+                             "delta": {
+                                "type": "text_delta",
+                                "text": delta.get("content"),
+                            },
+                            "logprobs": data.get("logprobs"),
                         }).encode("utf-8")
+
                         event = (
                             b'event: content_block_delta\n'
-                            + b'data: {"type": "content_block_delta",'
-                            + b'"index":0,'
-                            + b'"delta":' + event_data + b'}\n\n'
+                            + b'data:' + event_data + b'\n\n'
                         )
                         protocol.write_raw(event)
 
@@ -1277,8 +1449,7 @@ async def _start_openai_like_chat(
         result = await client.post(
             "/chat/completions",
             json={
-                "model": model_name,
-                "messages": messages,
+                **params
             }
         )
 
@@ -1289,14 +1460,35 @@ async def _start_openai_like_chat(
             )
 
         response.status = http.HTTPStatus.OK
-        response_text = result.json()["choices"][0]["message"]["content"]
+
+        result_data = result.json()
+        choice = result_data["choices"][0]
+        tool_calls = choice["message"].get("tool_calls")
+        tool_calls_formatted = [
+            {
+                "id": tool_call["id"],
+                "type": tool_call["type"],
+                "name": tool_call["function"]["name"],
+                "args": json.loads(tool_call["function"]["arguments"]),
+            }
+            for tool_call in tool_calls or []
+        ]
+
+        body = {
+            "id": result_data["id"],
+            "model": result_data["model"],
+            "text": choice["message"]["content"],
+            "finish_reason": choice.get("finish_reason"),
+            "usage": result_data.get("usage"),
+            "logprobs": choice.get("logprobs"),
+            "tool_calls": tool_calls_formatted,
+        }
         response.content_type = b'application/json'
-        response.body = json.dumps({
-            "response": response_text,
-        }).encode("utf-8")
+        response.body = json.dumps(body).encode("utf-8")
 
 
 async def _start_openai_chat(
+    *,
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
@@ -1305,6 +1497,15 @@ async def _start_openai_chat(
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
+    temperature: Optional[float],
+    top_p: Optional[float],
+    max_tokens: Optional[int],
+    seed: Optional[int],
+    safe_prompt: Optional[bool],
+    logit_bias: Optional[dict[int, int]],
+    logprobs: Optional[bool],
+    user: Optional[str],
+    tools: Optional[list[dict[str, Any]]],
 ) -> None:
     headers = {
         "Authorization": f"Bearer {provider.secret}",
@@ -1319,17 +1520,31 @@ async def _start_openai_chat(
     )
 
     await _start_openai_like_chat(
-        protocol,
-        request,
-        response,
-        client,
-        model_name,
-        messages,
-        stream,
+        protocol=protocol,
+        request=request,
+        response=response,
+        provider_name=provider.name,
+        client=client,
+        model_name=model_name,
+        messages=messages,
+        stream=stream,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        safe_prompt=safe_prompt,
+        logit_bias=logit_bias,
+        logprobs=logprobs,
+        user=user,
+        tools=tools,
     )
 
 
+# Anthropic differs from OpenAI and Mistral as there's no tool chunk:
+# tool_call(tool_use) is part of the assistant chunk, and
+# tool_result is part of the user chunk.
 async def _start_anthropic_chat(
+    *,
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
@@ -1338,6 +1553,11 @@ async def _start_anthropic_chat(
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
+    temperature: Optional[float],
+    top_p: Optional[float],
+    top_k: Optional[int],
+    tools: Optional[list[dict[str, Any]]],
+    max_tokens: Optional[int],
 ) -> None:
     headers = {
         "x-api-key": f"{provider.secret}",
@@ -1358,13 +1578,86 @@ async def _start_anthropic_chat(
 
     anthropic_messages = []
     system_prompt_parts = []
+
     for message in messages:
         if message["role"] == "system":
             system_prompt_parts.append(message["content"])
+
+        elif message["role"] == "assistant" and "tool_calls" in message:
+            # Anthropic fails when an assistant chunk has multiple tool calls
+            # and is followed by several tool_result chunks (or a user chunk
+            # with multiple tool_results). Each assistant chunk should have
+            # only 1 tool_use, followed by 1 tool_result chunk.
+            for tool_call in message["tool_calls"]:
+                msg = {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "id": tool_call["id"],
+                            "type": "tool_use",
+                            "name": tool_call["function"]["name"],
+                            "input": json.loads(
+                                tool_call["function"]["arguments"]),
+                        }
+                    ],
+                }
+                anthropic_messages.append(msg)
+        # Check if message is a tool result
+        elif message["role"] == "tool":
+            tool_result = {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": message["tool_call_id"],
+                        "content": message["content"]
+                    }
+                ],
+            }
+            anthropic_messages.append(tool_result)
         else:
             anthropic_messages.append(message)
 
     system_prompt = "\n".join(system_prompt_parts)
+
+    # Each tool_use chunk must be followed by a matching tool_result chunk
+    reordered_messages = []
+
+    # Separate tool_result messages by tool_use_id for faster access
+    tool_result_map = {
+        item["content"][0]["tool_use_id"]: item
+        for item in anthropic_messages
+        if item["role"] == "user" and isinstance(item["content"][0], dict)
+          and item["content"][0]["type"] == "tool_result"
+    }
+
+    for message in anthropic_messages:
+        if message["role"] == "assistant":
+            reordered_messages.append(message)
+            if isinstance(message["content"], list):
+                for item in message["content"]:
+                    if item["type"] == "tool_use":
+                        # find the matching user tool_result message
+                        tool_use_id = item["id"]
+                        if tool_use_id in tool_result_map:
+                            reordered_messages.append(
+                                tool_result_map[tool_use_id])
+        # append user message that is not tool_result
+        elif not (message["role"] == "user"
+                  and isinstance(message["content"][0], dict)
+                  and message["content"][0]["type"] == "tool_result"):
+            reordered_messages.append(message)
+
+    params = {
+        "model": model_name,
+        "messages": reordered_messages,
+        "system": system_prompt,
+        **({"temperature": temperature} if temperature is not None else {}),
+        **({"top_p": top_p} if top_p is not None else {}),
+        **{"max_tokens": max_tokens if max_tokens is not None else 4096},
+        **({"top_k": top_k} if top_k is not None else {}),
+        **({"tools": tools} if tools is not None else {}),
+    }
 
     if stream:
         async with aconnect_sse(
@@ -1372,13 +1665,11 @@ async def _start_anthropic_chat(
             method="POST",
             url="/messages",
             json={
-                "model": model_name,
-                "messages": anthropic_messages,
+                **params,
                 "stream": True,
-                "system": system_prompt,
-                "max_tokens": 4096,
             }
         ) as event_source:
+            tool_index = 0
             async for sse in event_source:
                 if not response.sent:
                     response.status = http.HTTPStatus.OK
@@ -1390,8 +1681,12 @@ async def _start_anthropic_chat(
                 if sse.event == "message_start":
                     message = sse.json()["message"]
                     for k in tuple(message):
-                        if k not in {"id", "type", "role", "model"}:
+                        if k not in {"id", "type", "role", "model", "usage"}:
                             del message[k]
+                    message["usage"] = {
+                        "prompt_tokens": message["usage"]["input_tokens"],
+                        "completion_tokens": message["usage"]["output_tokens"]
+                    }
                     message_data = json.dumps(message).encode("utf-8")
                     event = (
                         b'event: message_start\n'
@@ -1401,23 +1696,70 @@ async def _start_anthropic_chat(
                     protocol.write_raw(event)
 
                 elif sse.event == "content_block_start":
+                    sse_data = json.loads(sse.data)
                     protocol.write_raw(
                         b'event: content_block_start\n'
-                        + b'data: ' + sse.data.encode("utf-8") + b'\n\n'
+                        + b'data: ' + json.dumps(sse_data).encode("utf-8")
+                        + b'\n\n'
                     )
+                    # we don't send content_block_stop event when text
+                    # chunk ends, should be okay since we don't consume
+                    # this event on the client side
+                    data = sse.json()
+                    if (
+                        "content_block" in data
+                        and data["content_block"].get("type") == "tool_use"
+                    ):
+                        currentIndex = data["index"]
+                        if currentIndex > 0:
+                            tool_index = currentIndex
+                            event_data = json.dumps({
+                                "type": "content_block_stop",
+                                "index": currentIndex - 1})
+                            protocol.write_raw(
+                                b'event: content_block_stop\n'
+                                + b'data: ' + event_data.encode("utf-8")
+                                + b'\n\n'
+                            )
                 elif sse.event == "content_block_delta":
-                    protocol.write_raw(
-                        b'event: content_block_start\n'
-                        + b'data: ' + sse.data.encode("utf-8") + b'\n\n'
-                    )
-                elif sse.event == "message_delta":
-                    delta = sse.json()["delta"]
-                    delta_data = json.dumps(delta).encode("utf-8")
+                    message = sse.json()
+                    # it is always dict irl but test is failing
+                    delta = message.get("delta")
+                    if delta and delta.get("type") == "input_json_delta":
+                        delta["type"] = "tool_call_delta"
+
+                    if delta and "partial_json" in delta:
+                        delta["args"] = delta.pop("partial_json")
+
+                    event_data = json.dumps(message)
                     event = (
-                        b'event: message_delta\n'
-                        + b'data: {"type": "message_delta",'
-                        + b"delta:" + delta_data + b'}\n\n'
+                        b'event: content_block_delta\n'
+                        + b'data: ' + event_data.encode("utf-8") + b'\n\n'
                     )
+                    protocol.write_raw(event)
+                elif sse.event == "message_delta":
+                    message = sse.json()
+                    if message["delta"]["stop_reason"] == "tool_use":
+                        event = (
+                            b'event: content_block_stop\n'
+                            + b'data: {"type": "content_block_stop",'
+                            + b'"index": '
+                            + str(tool_index).encode("utf-8")
+                            + b'}\n\n'
+                        )
+                        protocol.write_raw(event)
+
+                    event_data = json.dumps({
+                            "type": "message_delta",
+                            "delta": message["delta"],
+                            "usage": {"completion_tokens":
+                                      message["usage"]["output_tokens"]}
+                    })
+                    event = (
+                            b'event: message_delta\n'
+                            + b'data: ' + event_data.encode("utf-8") + b'\n\n'
+                        )
+
                     protocol.write_raw(event)
                 elif sse.event == "message_stop":
                     event = (
@@ -1425,20 +1767,16 @@ async def _start_anthropic_chat(
                         + b'data: {"type": "message_stop"}\n\n'
                     )
                     protocol.write_raw(event)
-
+                    # needed because stream doesn't close itself
+                    protocol.close()
             protocol.close()
-
     else:
         result = await client.post(
             "/messages",
             json={
-                "model": model_name,
-                "messages": anthropic_messages,
-                "system": system_prompt,
-                "max_tokens": 4096,
+                **params
             }
         )
-
         if result.status_code >= 400:
             raise AIProviderError(
                 f"API call to generate chat completions failed with status "
@@ -1447,10 +1785,40 @@ async def _start_anthropic_chat(
 
         response.status = http.HTTPStatus.OK
         response.content_type = b'application/json'
-        response_text = result.json()["content"][0]["text"]
-        response.body = json.dumps({
-            "response": response_text,
-        }).encode("utf-8")
+
+        result_data = result.json()
+        tool_calls = [
+            item
+            for item in result_data["content"]
+            if item.get("type") == "tool_use"
+        ]
+        tool_calls_formatted = [
+            {
+                "id": tool_call["id"],
+                "type": "function",
+                "name": tool_call["name"],
+                "args": tool_call["input"],
+            }
+            for tool_call in tool_calls
+        ]
+
+        body = {
+            "id": result_data["id"],
+            "model": result_data["model"],
+            "text": next((item["text"]
+                          for item in result_data["content"]
+                          if item.get("type") == "text"), ""),
+            "finish_reason": result_data["stop_reason"],
+             "usage": {
+                "prompt_tokens": result_data["usage"]["input_tokens"],
+                "completion_tokens": result_data["usage"]["output_tokens"]
+            },
+            "tool_calls": tool_calls_formatted,
+        }
+
+        response.body = json.dumps(
+            body
+        ).encode("utf-8")
 
 
 #
@@ -1518,6 +1886,7 @@ async def _handle_rag_request(
         http_client = tenant.get_http_client(originator="ai/rag")
 
         body = json.loads(request.body)
+
         if not isinstance(body, dict):
             raise TypeError(
                 'the body of the request must be a JSON object')
@@ -1565,7 +1934,7 @@ async def _handle_rag_request(
             ctx_max_obj_count = 5
         elif not isinstance(ctx_max_obj_count, int) or ctx_max_obj_count <= 0:
             raise TypeError(
-                '"context.max_object_count" must be an postitive integer')
+                '"context.max_object_count" must be a positive integer')
 
         prompt_id = None
         prompt_name = None
@@ -1573,6 +1942,7 @@ async def _handle_rag_request(
         custom_prompt_messages: list[dict[str, Any]] = []
 
         prompt = body.get("prompt")
+
         if prompt is None:
             prompt_name = "builtin::rag-default"
         else:
@@ -1591,22 +1961,122 @@ async def _handle_rag_request(
             if custom_prompt:
                 if not isinstance(custom_prompt, list):
                     raise TypeError(
-                        "prompt.custom must be a list of {role, content} "
-                        "objects"
+                        (
+                            "prompt.custom must be a list, where each element "
+                            "is one of the following types:\n"
+                            "{ role: 'system', content: str },\n"
+                            "{ role: 'user', content: [{ type: 'text', "
+                            "text: str }] },\n"
+                            "{ role: 'assistant', content: str, "
+                            "optional tool_calls: [{id: str, type: 'function',"
+                            " function: { name: str, arguments: str }}] },\n"
+                            "{ role: 'tool', content: str, tool_call_id: str }"
+                        )
                     )
                 for entry in custom_prompt:
-                    if (
-                        not isinstance(entry, dict)
-                        or not entry.get("role")
-                        or not entry.get("content")
-                        or len(entry) > 2
-                    ):
+                    if not isinstance(entry, dict) or not entry.get("role"):
                         raise TypeError(
-                            "prompt.custom must be a list of {role, content} "
-                            "objects"
+                            (
+                                "each prompt.custom entry must be a "
+                                "dictionary of one of the following types:\n"
+                                "{ role: 'system', content: str },\n"
+                                "{ role: 'user', content: [{ type: 'text', "
+                                "text: str }] },\n"
+                                "{ role: 'assistant', content: str, "
+                                "optional tool_calls: [{id: str, "
+                                "type: 'function', function: { "
+                                "name: str, arguments: str }}] },\n"
+                                "{ role: 'tool', content: str, "
+                                "tool_call_id: str }"
+                            )
+                        )
+
+                    entry_role = entry.get('role')
+                    if entry_role == 'system':
+                        if not isinstance(entry.get("content"), str):
+                            raise TypeError(
+                                "System message content has to be string."
+                            )
+                    elif entry_role == 'user':
+                        if not isinstance(entry.get("content"), list):
+                            raise TypeError(
+                                (
+                                    "User message content has to be a list of "
+                                    "{ type: 'text', text: str }"
+                                )
+                            )
+                        for content_entry in entry["content"]:
+                            if content_entry.get(
+                                "type"
+                            ) != "text" or not isinstance(
+                                content_entry.get("text"), str
+                            ):
+                                raise TypeError(
+                                    (
+                                        "Element of user message content has to"
+                                        "be of type { type: 'text', text: str }"
+                                    )
+                                )
+                    elif entry_role == 'assistant':
+                        if not isinstance(entry.get("content"), str):
+                            raise TypeError(
+                                "Assistant message content has to be string"
+                            )
+
+                        tool_calls = entry.get("tool_calls")
+                        if tool_calls:
+                            if not isinstance(tool_calls, list):
+                                raise TypeError(
+                                    (
+                                        "Assistant tool calls must be"
+                                        "a list of:\n"
+                                        "{id: str, type: 'function', function:"
+                                        " {name: str, arguments: str }}"
+                                    )
+                                )
+
+                            for call in tool_calls:
+                                if (
+                                    not isinstance(call, dict)
+                                    or not isinstance(call.get("id"), str)
+                                    or call.get("type") != "function"
+                                    or not isinstance(
+                                        call.get("function"), dict
+                                    )
+                                    or not isinstance(
+                                        call["function"].get("name"), str
+                                    )
+                                    or not isinstance(
+                                        call["function"].get("arguments"),
+                                        str,
+                                    )
+                                ):
+                                    raise TypeError(
+                                        (
+                                            "A tool call must be of type:\n"
+                                            "{id: str, type: 'function', "
+                                            "function: { name: str, "
+                                            "arguments: str }}"
+                                        )
+                                    )
+
+                    elif entry_role == 'tool':
+                        if not isinstance(entry.get("content"), str):
+                            raise TypeError(
+                                "Tool message content has to be string."
+                            )
+                        if not isinstance(entry.get("tool_call_id"), str):
+                            raise TypeError(
+                                "Tool message tool_call_id has to be string."
+                            )
+                    else:
+                        raise TypeError(
+                            (
+                                "Message role must match one of these: "
+                                "system, user, assistant, tool."
+                            )
                         )
                     custom_prompt_messages.append(entry)
-
     except Exception as ex:
         raise BadRequestError(ex.args[0])
 
@@ -1638,7 +2108,6 @@ async def _handle_rag_request(
         LIMIT
             <int64>$limit
     """
-
     if ctx_variables is None:
         ctx_variables = {}
 
@@ -1708,17 +2177,29 @@ async def _handle_rag_request(
 
         prompt_messages.append(dict(role=role, content=content))
 
+    # don't add here at the end the user query msg because Mistral and
+    # Anthropic doesn't work if the user message shows after the tools
     messages = prompt_messages + custom_prompt_messages
 
     await _start_chat(
-        protocol,
-        request,
-        response,
-        provider,
-        http_client,
-        model,
-        messages,
-        stream,
+        protocol=protocol,
+        request=request,
+        response=response,
+        provider=provider,
+        http_client=http_client,
+        model_name=model,
+        messages=messages,
+        stream=stream,
+        temperature=body.get("temperature"),
+        top_p=body.get("top_p"),
+        max_tokens=body.get("max_tokens"),
+        seed=body.get("seed"),
+        safe_prompt=body.get("safe_prompt"),
+        top_k=body.get("top_k"),
+        logit_bias=body.get("logit_bias"),
+        logprobs=body.get("logprobs"),
+        user=body.get("user"),
+        tools=body.get("tools"),
     )
 
 
