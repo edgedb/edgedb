@@ -64,6 +64,6 @@ installcheck: \
 	expected/utility.out \
 	expected/wal.out
 
-PG_CONFIG = pg_config
+PG_CONFIG ?= pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
