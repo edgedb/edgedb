@@ -22,6 +22,7 @@ import os.path
 from typing import Optional
 import unittest
 import uuid
+import asyncio
 
 from edb.tools import test
 from edb.testbase import server as tb
@@ -2289,6 +2290,77 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             SELECT * FROM "Movie" FOR UPDATE;
             '''
         )
+
+    @test.skip(
+        'blocking the connection causes other tests which trigger a '
+        'PostgreSQL error to encounter a InternalServerError and close '
+        'the connection'
+    )
+    async def test_sql_query_locking_04(self):
+        # test that we really obtain a lock
+
+        # we will obtain a lock on the main connection
+        # and then check that another connection is blocked
+        con_other = await self.create_sql_connection()
+
+        tran = self.scon.transaction()
+        await tran.start()
+
+        # obtain a lock
+        await self.scon.execute(
+            '''
+            SELECT * FROM "Movie" WHERE title = 'Forrest Gump'
+            FOR UPDATE;
+            '''
+        )
+
+        async def assert_not_blocked(coroutine: asyncio.Future):
+            await asyncio.wait_for(coroutine, 0.25)
+
+        async def assert_blocked(coroutine: asyncio.Future):
+            task = asyncio.create_task(coroutine)
+            done, pending = await asyncio.wait((task,), timeout=0.25)
+            if len(done) != 0:
+                self.fail("expected this action to block, but it completed")
+            task = (next(iter(pending)),)
+            return task
+
+        # querying is allowed
+        await assert_not_blocked(
+            con_other.execute(
+                '''
+                SELECT title FROM "Movie" WHERE title = 'Forrest Gump';
+                '''
+            )
+        )
+
+        # another FOR UPDATE is now blocked
+        (task,) = await assert_blocked(
+            con_other.execute(
+                '''
+                SELECT * FROM "Movie" WHERE title = 'Forrest Gump'
+                FOR UPDATE;
+                '''
+            )
+        )
+
+        # release the lock
+        await tran.rollback()
+
+        # now we can finish the second SELECT FOR UPDATE
+        await task
+
+        # and subsequent FOR UPDATE are not blocked
+        await assert_not_blocked(
+            con_other.execute(
+                '''
+                SELECT * FROM "Movie" WHERE title = 'Forrest Gump'
+                FOR UPDATE;
+                '''
+            )
+        )
+
+        await con_other.close()
 
     async def test_native_sql_query_00(self):
         await self.assert_sql_query_result(
