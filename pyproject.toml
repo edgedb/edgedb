@@ -241,29 +241,30 @@ ignore_errors = true
 # CACHE-TAG: 2
 
 [tool.ruff]
-lint.select = ["E", "F", "W", "B"]
-lint.ignore = [
-    "F541",  # f-string without any placeholders
-    "B904",  # Within an except clause, raise exceptions with raise ... from err
-             # or raise ... from None to distinguish them from errors in
-             # exception handling
-    "E731",  # Do not assign a lambda expression, use a def
-    "E741",  # Ambiguous variable name: l or i or I
-    "E252",  # Missing whitespace around parameter equals
-
-             # TODO: enable this
-    "B905",  # zip() without an explicit strict= parameter
-
-             # TODO: enable this (this was tried before - it is non-trivial)
-    "B019",  # Use of functools.lru_cache or functools.cache on methods can lead
-             # to memory leaks
-]
 line-length = 80
 indent-width = 4
 exclude = ["postgres", ".github"]
-lint.flake8-bugbear.extend-immutable-calls = [
-    "immutables.Map"
+
+[tool.ruff.lint]
+preview = true
+select = ["E", "F", "W", "B"]
+ignore = [
+    "F541", # f-string without any placeholders
+    "B904", # Within an except clause, raise exceptions with raise ... from err
+    # or raise ... from None to distinguish them from errors in
+    # exception handling
+    "E731", # Do not assign a lambda expression, use a def
+    "E741", # Ambiguous variable name: l or i or I
+    "E252", # Missing whitespace around parameter equals
+
+    # TODO: enable this
+    "B905", # zip() without an explicit strict= parameter
+
+    # TODO: enable this (this was tried before - it is non-trivial)
+    "B019", # Use of functools.lru_cache or functools.cache on methods can lead
+    # to memory leaks
 ]
+flake8-bugbear.extend-immutable-calls = ["immutables.Map"]
 
 [tool.pyright]
 # Pyright has no idea about metaclass-generated getters for schema fields.

@@ -64,7 +64,7 @@ class TestCodeQuality(unittest.TestCase):
         for subdir in ['edb', 'tests']:  # ignore any top-level test files
             try:
                 subprocess.run(
-                    ['ruff', 'check', '--preview', '.'],
+                    ['ruff', 'check', '.'],
                     check=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
