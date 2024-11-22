@@ -1104,6 +1104,13 @@ class Router:
             data.get("redirect_to")
         )
 
+        allowed_link_url = self._maybe_make_allowed_url(data.get("link_url"))
+        link_url = (
+            allowed_link_url.url
+            if allowed_link_url
+            else f"{self.base_path}/magic-link/authenticate"
+        )
+
         magic_link_client = magic_link.Client(
             db=self.db,
             issuer=self.base_path,
@@ -1149,6 +1156,7 @@ class Router:
                     identity_id=email_factor.identity.id,
                     email_factor_id=email_factor.id,
                     magic_link_token=magic_link_token,
+                    magic_link_url=link_url,
                 )
             )
             logger.info(
@@ -1157,7 +1165,7 @@ class Router:
             )
             await magic_link_client.send_magic_link(
                 email=email,
-                link_url=f"{self.base_path}/magic-link/authenticate",
+                link_url=link_url,
                 redirect_on_failure=allowed_redirect_on_failure.url,
                 token=magic_link_token,
             )
@@ -1239,6 +1247,15 @@ class Router:
                 data.get("redirect_to")
             )
 
+            allowed_link_url = self._maybe_make_allowed_url(
+                data.get("link_url")
+            )
+            link_url = (
+                allowed_link_url.url
+                if allowed_link_url
+                else f"{self.base_path}/magic-link/authenticate"
+            )
+
             magic_link_client = magic_link.Client(
                 db=self.db,
                 issuer=self.base_path,
@@ -1268,12 +1285,13 @@ class Router:
                         identity_id=identity_id,
                         email_factor_id=email_factor.id,
                         magic_link_token=magic_link_token,
+                        magic_link_url=link_url,
                     )
                 )
                 await magic_link_client.send_magic_link(
                     email=email,
                     token=magic_link_token,
-                    link_url=f"{self.base_path}/magic-link/authenticate",
+                    link_url=link_url,
                     redirect_on_failure=redirect_on_failure,
                 )
                 logger.info(
