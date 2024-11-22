@@ -951,6 +951,29 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         )
         self.assert_shape(res, 2, 6)
 
+    async def test_sql_query_52(self):
+        async def count_table(only: str, table_name: str) -> int:
+            res = await self.squery_values(
+                f'SELECT COUNT(*) FROM {only} "default::links"."{table_name}"'
+            )
+            return res[0][0]
+
+        # link tables must include elements of link's children
+        self.assertEqual(await count_table("", "C.a"), 2)
+        self.assertEqual(await count_table("ONLY", "C.a"), 2)
+        self.assertEqual(await count_table("", "B.a"), 2)
+        self.assertEqual(await count_table("ONLY", "B.a"), 0)
+        # same for property tables
+        self.assertEqual(await count_table("", "C.prop"), 1)
+        self.assertEqual(await count_table("ONLY", "C.prop"), 1)
+        self.assertEqual(await count_table("", "B.prop"), 1)
+        self.assertEqual(await count_table("ONLY", "B.prop"), 0)
+        # same for multi property tables
+        self.assertEqual(await count_table("", "C.vals"), 4)
+        self.assertEqual(await count_table("ONLY", "C.vals"), 4)
+        self.assertEqual(await count_table("", "B.vals"), 4)
+        self.assertEqual(await count_table("ONLY", "B.vals"), 0)
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
@@ -975,6 +998,15 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ['public', 'Person'],
                 ['public', 'novel'],
                 ['public', 'novel.chapters'],
+                ['public::links', 'A'],
+                ['public::links', 'B'],
+                ['public::links', 'B.a'],
+                ['public::links', 'B.prop'],
+                ['public::links', 'B.vals'],
+                ['public::links', 'C'],
+                ['public::links', 'C.a'],
+                ['public::links', 'C.prop'],
+                ['public::links', 'C.vals'],
                 ['public::nested', 'Hello'],
                 ['public::nested::deep', 'Rolling'],
             ],
