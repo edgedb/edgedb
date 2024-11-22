@@ -666,8 +666,9 @@ def render_password_reset_email(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = "#007bff",
+    brand_color: Optional[str] = render.DEFAULT_BRAND_COLOR,
 ) -> multipart.MIMEMultipart:
+    brand_color = brand_color or render.DEFAULT_BRAND_COLOR
     msg = multipart.MIMEMultipart()
     msg["From"] = from_addr
     msg["To"] = to_addr
@@ -809,14 +810,14 @@ email address:
                 <tr>
                   <td
                     align="center"
-                    bgcolor="{brand_color}"
+                    bgcolor="#{brand_color}"
                     role="presentation"
                     style="
                       border: none;
                       border-radius: 4px;
                       cursor: auto;
                       mso-padding-alt: 10px 25px;
-                      background: {brand_color};
+                      background: #{brand_color};
                     "
                     valign="middle"
                   >
@@ -824,7 +825,7 @@ email address:
                       href="{reset_url}"
                       style="
                         display: inline-block;
-                        background: {brand_color};
+                        background: #{brand_color};
                         color: #ffffff;
                         font-family: open Sans Helvetica, Arial, sans-serif;
                         font-size: 18px;
@@ -921,8 +922,9 @@ def render_verification_email(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = "#007bff",
+    brand_color: Optional[str] = render.DEFAULT_BRAND_COLOR,
 ) -> multipart.MIMEMultipart:
+    brand_color = brand_color or render.DEFAULT_BRAND_COLOR
     msg = multipart.MIMEMultipart()
     msg["From"] = from_addr
     msg["To"] = to_addr
@@ -1009,14 +1011,14 @@ email address:
       <tr>
         <td
           align="center"
-          bgcolor="{brand_color}"
+          bgcolor="#{brand_color}"
           role="presentation"
           style="
             border: none;
             border-radius: 4px;
             cursor: auto;
             mso-padding-alt: 10px 25px;
-            background: {brand_color};
+            background: #{brand_color};
           "
           valign="middle"
         >
@@ -1024,7 +1026,7 @@ email address:
             href="{verify_url}"
             style="
               display: inline-block;
-              background: {brand_color};
+              background: #{brand_color};
               color: #ffffff;
               font-family:
                 open Sans Helvetica,
@@ -1097,8 +1099,9 @@ def render_magic_link_email(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = "#007bff",
+    brand_color: Optional[str] = render.DEFAULT_BRAND_COLOR,
 ) -> multipart.MIMEMultipart:
+    brand_color = brand_color or render.DEFAULT_BRAND_COLOR
     msg = multipart.MIMEMultipart()
     msg["From"] = from_addr
     msg["To"] = to_addr
@@ -1150,14 +1153,14 @@ your account:
       <tr>
         <td
           align="center"
-          bgcolor="{brand_color}"
+          bgcolor="#{brand_color}"
           role="presentation"
           style="
             border: none;
             border-radius: 4px;
             cursor: auto;
             mso-padding-alt: 10px 25px;
-            background: {brand_color};
+            background: #{brand_color};
           "
           valign="middle"
         >
@@ -1165,7 +1168,7 @@ your account:
             href="{link}"
             style="
               display: inline-block;
-              background: {brand_color};
+              background: #{brand_color};
               color: #ffffff;
               font-family: open Sans Helvetica, Arial, sans-serif;
               font-size: 18px;
