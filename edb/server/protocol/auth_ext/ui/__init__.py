@@ -704,9 +704,9 @@ def render_password_reset_email(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = "007bff",
+    brand_color: Optional[str] = render.DEFAULT_BRAND_COLOR,
 ) -> email.message.EmailMessage:
-    brand_color = brand_color if brand_color is not None else "007bff"
+    brand_color = brand_color or render.DEFAULT_BRAND_COLOR
     msg = email.message.EmailMessage()
     msg["To"] = to_addr
     msg["Subject"] = "Reset password"
@@ -950,9 +950,9 @@ def render_verification_email(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = "007bff",
+    brand_color: Optional[str] = render.DEFAULT_BRAND_COLOR,
 ) -> email.message.EmailMessage:
-    brand_color = brand_color if brand_color is not None else "007bff"
+    brand_color = brand_color or render.DEFAULT_BRAND_COLOR
     msg = email.message.EmailMessage()
     msg["To"] = to_addr
     msg["Subject"] = (
@@ -1114,9 +1114,9 @@ def render_magic_link_email(
     app_name: Optional[str] = None,
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = "007bff",
+    brand_color: Optional[str] = render.DEFAULT_BRAND_COLOR,
 ) -> email.message.EmailMessage:
-    brand_color = brand_color if brand_color is not None else "007bff"
+    brand_color = brand_color or render.DEFAULT_BRAND_COLOR
     msg = email.message.EmailMessage()
     msg["To"] = to_addr
     msg["Subject"] = "Sign in link"
