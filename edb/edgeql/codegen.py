@@ -1133,7 +1133,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit_list(node.bases)
 
     def visit_CreateDatabase(self, node: qlast.CreateDatabase) -> None:
-        if node.flavor == 'BRANCH':
+        if node.flavor == qltypes.SchemaObjectClass.BRANCH:
             if node.branch_type == qlast.BranchType.EMPTY:
                 self._visit_CreateObject(node, 'EMPTY BRANCH')
             else:
@@ -1144,7 +1144,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self.visit(node.template)
                 self._visit_CreateObject(
                     node, f'{node.branch_type} BRANCH', after_name=after_name)
-        elif node.flavor == 'DATABASE':
+        elif node.flavor == qltypes.SchemaObjectClass.DATABASE:
             self._visit_CreateObject(node, 'DATABASE')
         else:
             raise EdgeQLSourceGeneratorError(

@@ -871,7 +871,7 @@ class BranchType(s_enum.StrEnum):
 class DatabaseCommand(ExternalObjectCommand, NonTransactionalDDLCommand):
 
     __abstract_node__ = True
-    flavor: str = 'BRANCH'
+    flavor: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.BRANCH
 
 
 class CreateDatabase(CreateObject, DatabaseCommand):

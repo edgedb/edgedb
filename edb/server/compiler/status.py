@@ -50,8 +50,10 @@ def _ddl_drop(ql: qlast.DropObject) -> bytes:
 def get_schema_class(ql: qlast.ObjectDDL) -> qltypes.SchemaObjectClass:
     osc = qltypes.SchemaObjectClass
     match ql:
-        case qlast.DatabaseCommand():
+        case qlast.DatabaseCommand(flavor='BRANCH'):
             return osc.BRANCH
+        case qlast.DatabaseCommand(flavor='DATABASE'):
+            return osc.DATABASE
         case qlast.FutureCommand():
             return osc.FUTURE
         case qlast.ModuleCommand():
