@@ -386,10 +386,6 @@ def _has_access_policies(
 
 
 def _has_sub_types(obj: s_sources.Source | s_properties.Property, ctx: Context):
-    if isinstance(obj, s_pointers.Pointer):
-        return False
-    assert isinstance(obj, s_objtypes.ObjectType)
-
     return len(obj.children(ctx.schema)) > 0
 
 
