@@ -436,11 +436,24 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
     };
 
     # Anthropic models
+    # Anthropic most intelligent model
     create abstract type ext::ai::AnthropicClaude_3_5_SonnetModel
         extending ext::ai::TextGenerationModel
     {
         alter annotation
-            ext::ai::model_name := "claude-3-5-sonnet-20240620";
+            ext::ai::model_name := "claude-3-5-sonnet-latest";
+        alter annotation
+            ext::ai::model_provider := "builtin::anthropic";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "200000";
+    };
+
+   # Anthropic fastest model
+    create abstract type ext::ai::AnthropicClaude_3_5_HaikuModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "claude-3-5-haiku-latest";
         alter annotation
             ext::ai::model_provider := "builtin::anthropic";
         alter annotation
@@ -473,7 +486,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         extending ext::ai::TextGenerationModel
     {
         alter annotation
-            ext::ai::model_name := "claude-3-opus-20240229";
+            ext::ai::model_name := "claude-3-opus-latest";
         alter annotation
             ext::ai::model_provider := "builtin::anthropic";
         alter annotation
