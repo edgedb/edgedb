@@ -499,6 +499,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_name = provider_config.name
             client_id = provider_config.client_id
             redirect_to = f"{self.http_addr}/some/path"
+            callback_url = f"{self.http_addr}/some/callback/url"
             challenge = (
                 base64.urlsafe_b64encode(
                     hashlib.sha256(
@@ -512,6 +513,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_name,
                 "redirect_to": redirect_to,
                 "challenge": challenge,
+                "callback_url": callback_url,
             }
 
             _, headers, status = self.http_con_request(
@@ -540,7 +542,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(claims.get("redirect_to"), redirect_to)
 
             self.assertEqual(
-                qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
+                qs.get("redirect_uri"), [callback_url]
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
