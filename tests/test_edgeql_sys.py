@@ -17,7 +17,6 @@
 #
 
 
-import asyncpg
 import edgedb
 
 from edb.pgsql import common
@@ -154,6 +153,8 @@ class TestSQLSys(tb.SQLQueryTestCase, TestQueryStatsMixin):
         )
 
     async def _bad_query_for_stats(self):
+        import asyncpg
+
         with self.assertRaisesRegex(
             asyncpg.InvalidColumnReferenceError, "cannot find column"
         ):
