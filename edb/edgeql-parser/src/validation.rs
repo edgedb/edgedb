@@ -167,7 +167,7 @@ pub fn parse_value(token: &Token) -> Result<Option<Value>, String> {
                         return Err("number is out of range for std::float64".to_string());
                     }
                     if num == 0.0 {
-                        let mend = text.find(|c| c == 'e' || c == 'E').unwrap_or(text.len());
+                        let mend = text.find(['e', 'E']).unwrap_or(text.len());
                         let mantissa = &text[..mend];
                         if mantissa.chars().any(|c| c != '0' && c != '.') {
                             return Err("number is out of range for std::float64".to_string());

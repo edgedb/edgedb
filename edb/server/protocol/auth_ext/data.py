@@ -51,6 +51,7 @@ class UserInfo:
     phone_number_verified: Optional[bool] = None
     address: Optional[dict[str, str]] = None
     updated_at: Optional[float] = None
+    source_id_token: Optional[str] = None
 
     def __str__(self) -> str:
         return self.sub

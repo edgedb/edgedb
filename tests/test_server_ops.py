@@ -42,6 +42,8 @@ import uuid
 import edgedb
 from edgedb import errors
 
+import edb
+from edb import buildmeta
 from edb import protocol
 from edb.common import devmode
 from edb.protocol import protocol as edb_protocol  # type: ignore
@@ -684,6 +686,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
                 command_text='SELECT 1',
+                input_language=protocol.InputLanguage.EDGEQL,
                 output_format=protocol.OutputFormat.NONE,
                 expected_cardinality=protocol.Cardinality.MANY,
                 input_typedesc_id=b'\0' * 16,
@@ -1645,9 +1648,6 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 insert ext::auth::EmailPasswordProviderConfig {{
                     require_verification := false,
                 }};
-
-                configure current database set
-                ext::auth::SMTPConfig::sender := 'noreply@example.com';
             ''')
         finally:
             await conn.aclose()
@@ -1700,3 +1700,39 @@ class MultiTenantArgs(NamedTuple):
         json.dump(self.conf, self.conf_file.file)
         self.conf_file.file.flush()
         self.srv.proc.send_signal(signal.SIGHUP)
+
+
+class TestPGExtensions(tb.TestCase):
+    async def test_edb_stat_statements(self):
+        ext_home = (
+            pathlib.Path(edb.__file__).parent.parent / 'edb_stat_statements'
+        ).resolve()
+        if not ext_home.exists():
+            raise unittest.SkipTest("no source of edb_stat_statements")
+        with tempfile.TemporaryDirectory() as td:
+            cluster = await pgcluster.get_local_pg_cluster(td, log_level='s')
+            cluster.update_connection_params(
+                user='postgres',
+                database='template1',
+            )
+            self.assertTrue(await cluster.ensure_initialized())
+            await cluster.start(server_settings={
+                'edb_stat_statements.track_planning': 'false',
+                'edb_stat_statements.track_unrecognized': 'true',
+                'max_prepared_transactions': '5',
+            })
+            try:
+                pg_config = buildmeta.get_pg_config_path()
+                env = os.environ.copy()
+                params = cluster.get_pgaddr()
+                env['PGHOST'] = params.host
+                env['PGPORT'] = params.port
+                env['PGUSER'] = params.user
+                env['PGDATABASE'] = params.database
+                subprocess.check_output([
+                    'make',
+                    f'PG_CONFIG={pg_config}',
+                    'installcheck',
+                ], cwd=str(ext_home), env=env)
+            finally:
+                await cluster.stop()

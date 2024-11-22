@@ -8,7 +8,7 @@ use edgedb_protocol::model::{BigInt, Decimal};
 use edgeql_parser::tokenizer::Value;
 use pyo3::exceptions::{PyAssertionError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyFloat, PyList, PyLong, PyString};
+use pyo3::types::{PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
 
 use crate::errors::SyntaxError;
 use crate::normalize::{normalize as _normalize, Error, PackedEntry, Variable};
@@ -55,20 +55,16 @@ pub struct Entry {
 
 impl Entry {
     pub fn new(py: Python, entry: crate::normalize::Entry) -> PyResult<Self> {
-        let blobs = serialize_all(py, &entry.variables).map_err(PyAssertionError::new_err)?;
-        let counts: Vec<_> = entry
-            .variables
-            .iter()
-            .map(|x| x.len().into_py(py))
-            .collect();
+        let blobs = serialize_all(py, &entry.variables)?;
+        let counts = entry.variables.iter().map(|x| x.len());
 
         Ok(Entry {
-            key: PyBytes::new_bound(py, &entry.hash[..]).into(),
-            tokens: tokens_to_py(py, entry.tokens.clone())?,
+            key: PyBytes::new(py, &entry.hash[..]).into(),
+            tokens: tokens_to_py(py, entry.tokens.clone())?.into_any(),
             extra_blobs: blobs.into(),
             extra_named: entry.named_args,
             first_extra: entry.first_arg,
-            extra_counts: PyList::new_bound(py, &counts[..]).into(),
+            extra_counts: PyList::new(py, counts)?.into(),
             entry_pack: entry.into(),
         })
     }
@@ -77,10 +73,10 @@ impl Entry {
 #[pymethods]
 impl Entry {
     fn get_variables(&self, py: Python) -> PyResult<PyObject> {
-        let vars = PyDict::new_bound(py);
+        let vars = PyDict::new(py);
         let first = match self.first_extra {
             Some(first) => first,
-            None => return Ok(vars.to_object(py)),
+            None => return Ok(vars.into()),
         };
         for (idx, var) in self.entry_pack.variables.iter().flatten().enumerate() {
             let s = if self.extra_named {
@@ -88,17 +84,17 @@ impl Entry {
             } else {
                 (first + idx).to_string()
             };
-            vars.set_item(s.into_py(py), value_to_py_object(py, &var.value)?)?;
+            vars.set_item(s, TokenizerValue(&var.value))?;
         }
 
-        Ok(vars.to_object(py))
+        Ok(vars.into())
     }
 
     fn pack(&self, py: Python) -> PyResult<PyObject> {
         let mut buf = vec![1u8]; // type and version
         bincode::serialize_into(&mut buf, &self.entry_pack)
             .map_err(|e| PyValueError::new_err(format!("Failed to pack: {e}")))?;
-        Ok(PyBytes::new_bound(py, buf.as_slice()).into())
+        Ok(PyBytes::new(py, buf.as_slice()).into())
     }
 }
 
@@ -167,28 +163,35 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
 pub fn serialize_all<'a>(
     py: Python<'a>,
     variables: &[Vec<Variable>],
-) -> Result<Bound<'a, PyList>, String> {
+) -> PyResult<Bound<'a, PyList>> {
     let mut buf = Vec::with_capacity(variables.len());
     for vars in variables {
-        let bytes = serialize_extra(vars)?;
-        buf.push(PyBytes::new_bound(py, &bytes));
+        let bytes = serialize_extra(vars).map_err(PyAssertionError::new_err)?;
+        buf.push(PyBytes::new(py, &bytes));
     }
-    Ok(PyList::new_bound(py, &buf))
+    PyList::new(py, &buf)
 }
 
-pub fn value_to_py_object(py: Python, val: &Value) -> PyResult<PyObject> {
-    Ok(match val {
-        Value::Int(v) => v.into_py(py),
-        Value::String(v) => v.into_py(py),
-        Value::Float(v) => v.into_py(py),
-        Value::BigInt(v) => py
-            .get_type_bound::<PyLong>()
-            .call((v, 16.into_py(py)), None)?
-            .into(),
-        Value::Decimal(v) => py
-            .get_type_bound::<PyFloat>()
-            .call((v.to_string(),), None)?
-            .into(),
-        Value::Bytes(v) => PyBytes::new_bound(py, v).into(),
-    })
+/// Newtype required to define a trait for a foreign type.
+pub struct TokenizerValue<'a>(pub &'a Value);
+
+impl<'py> IntoPyObject<'py> for TokenizerValue<'py> {
+    type Target = PyAny;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> PyResult<Self::Output> {
+        let res = match self.0 {
+            Value::Int(v) => v.into_pyobject(py)?.into_any(),
+            Value::String(v) => v.into_pyobject(py)?.into_any(),
+            Value::Float(v) => v.into_pyobject(py)?.into_any(),
+            Value::BigInt(v) => py.get_type::<PyInt>().call((v, 16), None)?,
+            Value::Decimal(v) => py
+                .get_type::<PyFloat>()
+                .call((v.to_string(),), None)?
+                .into_any(),
+            Value::Bytes(v) => PyBytes::new(py, v).into_any(),
+        };
+        Ok(res)
+    }
 }

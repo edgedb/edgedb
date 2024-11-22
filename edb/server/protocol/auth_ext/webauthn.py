@@ -75,7 +75,8 @@ class Client(local.Client):
         )
 
     def _get_app_name(self) -> Optional[str]:
-        return util.maybe_get_config(self.db, "ext::auth::AuthConfig::app_name")
+        app_config = util.get_app_details_config(self.db)
+        return app_config.app_name
 
     async def create_registration_options_for_email(
         self, email: str,

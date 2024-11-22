@@ -42,8 +42,9 @@ class Event(abc.ABC):
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
-            f"event_id={self.event_id!r}, "
-            f"timestamp={self.timestamp!r})"
+            f"timestamp={self.timestamp!r}, "
+            f"event_id={self.event_id!r}"
+            ")"
         )
 
 
@@ -64,6 +65,15 @@ class IdentityCreated(Event, HasIdentity):
         init=False,
     )
 
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"timestamp={self.timestamp}, "
+            f"event_id={self.event_id}, "
+            f"identity_id={self.identity_id}"
+            ")"
+        )
+
 
 @dataclasses.dataclass
 class IdentityAuthenticated(Event, HasIdentity):
@@ -72,6 +82,15 @@ class IdentityAuthenticated(Event, HasIdentity):
         init=False,
     )
 
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"timestamp={self.timestamp}, "
+            f"event_id={self.event_id}, "
+            f"identity_id={self.identity_id}"
+            ")"
+        )
+
 
 @dataclasses.dataclass
 class EmailFactorCreated(Event, HasIdentity, HasEmailFactor):
@@ -79,6 +98,16 @@ class EmailFactorCreated(Event, HasIdentity, HasEmailFactor):
         default="EmailFactorCreated",
         init=False,
     )
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"timestamp={self.timestamp}, "
+            f"event_id={self.event_id}, "
+            f"identity_id={self.identity_id}, "
+            f"email_factor_id={self.email_factor_id}"
+            ")"
+        )
 
 
 @dataclasses.dataclass
@@ -91,6 +120,16 @@ class EmailVerificationRequested(Event, HasIdentity, HasEmailFactor):
     )
     verification_token: str
 
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"timestamp={self.timestamp}, "
+            f"event_id={self.event_id}, "
+            f"identity_id={self.identity_id}, "
+            f"email_factor_id={self.email_factor_id}"
+            ")"
+        )
+
 
 @dataclasses.dataclass
 class EmailVerified(Event, HasIdentity, HasEmailFactor):
@@ -98,6 +137,16 @@ class EmailVerified(Event, HasIdentity, HasEmailFactor):
         default="EmailVerified",
         init=False,
     )
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"timestamp={self.timestamp}, "
+            f"event_id={self.event_id}, "
+            f"identity_id={self.identity_id}, "
+            f"email_factor_id={self.email_factor_id}"
+            ")"
+        )
 
 
 @dataclasses.dataclass
@@ -108,6 +157,16 @@ class PasswordResetRequested(Event, HasIdentity, HasEmailFactor):
     )
     reset_token: str
 
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"timestamp={self.timestamp}, "
+            f"event_id={self.event_id}, "
+            f"identity_id={self.identity_id}, "
+            f"email_factor_id={self.email_factor_id}"
+            ")"
+        )
+
 
 @dataclasses.dataclass
 class MagicLinkRequested(Event, HasIdentity, HasEmailFactor):
@@ -116,6 +175,16 @@ class MagicLinkRequested(Event, HasIdentity, HasEmailFactor):
         init=False,
     )
     magic_link_token: str
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"timestamp={self.timestamp}, "
+            f"event_id={self.event_id}, "
+            f"identity_id={self.identity_id}, "
+            f"email_factor_id={self.email_factor_id}"
+            ")"
+        )
 
 
 class DateTimeEncoder(json.JSONEncoder):

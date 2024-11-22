@@ -40,6 +40,8 @@ cdef class CompiledQuery:
     cdef public object first_extra  # Optional[int]
     cdef public object extra_counts
     cdef public object extra_blobs
+    cdef public bint extra_formatted_as_text
+    cdef public object extra_type_oids
     cdef public object request
     cdef public object recompiled_cache
     cdef public bint use_pending_func_cache
@@ -90,6 +92,7 @@ cdef class Database:
         readonly bytes user_schema_pickle
         readonly object reflection_cache
         readonly object backend_ids
+        readonly object backend_id_to_name
         readonly object extensions
         readonly object _feature_used_metrics
 

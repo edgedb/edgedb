@@ -44,7 +44,7 @@ class ImmutableEncoder(json.JSONEncoder):
             return list(obj)
         if isinstance(obj, immutables.Map):
             return dict(obj.items())
-        if dataclasses.is_dataclass(obj):
+        if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
             return dataclasses.asdict(obj)
         if isinstance(obj, statypes.Duration):
             return obj.to_iso8601()

@@ -1972,6 +1972,7 @@ class TestSeparateCluster(tb.BaseHTTPTestCase):
                 messages.Execute(
                     annotations=[],
                     command_text=query,
+                    input_language=messages.InputLanguage.EDGEQL,
                     output_format=messages.OutputFormat.NONE,
                     expected_cardinality=messages.Cardinality.MANY,
                     allowed_capabilities=messages.Capability.ALL,

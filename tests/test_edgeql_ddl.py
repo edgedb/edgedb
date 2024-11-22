@@ -9412,6 +9412,13 @@ type default::Foo {
                         algo = ext::auth::JWTAlgo.RS256
                     );
                 };
+
+                create type ext::auth::Config extending std::BaseObject {
+                    create property supported_algos:
+                        array<ext::auth::JWTAlgo>;
+                    create multi property algo_config:
+                        tuple<algo: ext::auth::JWTAlgo, cfg: str>;
+                };
             }
         """)
 
@@ -10451,6 +10458,43 @@ type default::Foo {
             ''',
             [True]
         )
+
+    async def test_edgeql_ddl_alias_14(self):
+        # Issue  #8003
+        await self.con.execute(r"""
+            create global One := 1;
+            create alias MyAlias := global One;
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError, "index expressions must be immutable"
+        ):
+            await self.con.execute(
+                r"""
+                create type Foo { create index on (MyAlias) };
+                """
+            )
+
+    async def test_edgeql_ddl_alias_15(self):
+        # Issue  #8003
+        await self.con.execute(
+            r"""
+            create global One := 1;
+            create alias MyAlias := 1;
+            create type Foo { create index on (MyAlias) };
+            """
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "cannot alter alias 'default::MyAlias' because this affects "
+            "expression of index of object type 'default::Foo'"
+        ):
+            await self.con.execute(
+                r"""
+                alter alias MyAlias {using (global One)};
+                """
+            )
 
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
@@ -14823,7 +14867,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         """)
 
     async def test_edgeql_ddl_collection_cleanup_01(self):
-        count_query = "SELECT count(schema::Array);"
+        count_query = "SELECT count(schema::Tuple);"
         orig_count = await self.con.query_single(count_query)
 
         await self.con.execute(r"""
@@ -14832,9 +14876,9 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE SCALAR TYPE b extending str;
             CREATE SCALAR TYPE c extending str;
 
-            CREATE TYPE TestArrays {
-                CREATE PROPERTY x -> array<a>;
-                CREATE PROPERTY y -> array<b>;
+            CREATE TYPE TestTuples {
+                CREATE PROPERTY x -> tuple<a>;
+                CREATE PROPERTY y -> tuple<b>;
             };
         """)
 
@@ -14844,7 +14888,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         )
 
         await self.con.execute(r"""
-            ALTER TYPE TestArrays {
+            ALTER TYPE TestTuples {
                 DROP PROPERTY x;
             };
         """)
@@ -14855,10 +14899,10 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         )
 
         await self.con.execute(r"""
-            ALTER TYPE TestArrays {
+            ALTER TYPE TestTuples {
                 ALTER PROPERTY y {
-                    SET TYPE array<c> USING (
-                        <array<c>><array<str>>.y);
+                    SET TYPE tuple<c> USING (
+                        <tuple<c>><tuple<str>>.y);
                 }
             };
         """)
@@ -14869,13 +14913,13 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         )
 
         await self.con.execute(r"""
-            DROP TYPE TestArrays;
+            DROP TYPE TestTuples;
         """)
 
         self.assertEqual(await self.con.query_single(count_query), orig_count)
 
     async def test_edgeql_ddl_collection_cleanup_01b(self):
-        count_query = "SELECT count(schema::Array);"
+        count_query = "SELECT count(schema::Tuple);"
         orig_count = await self.con.query_single(count_query)
 
         await self.con.execute(r"""
@@ -14884,10 +14928,10 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE SCALAR TYPE b extending str;
             CREATE SCALAR TYPE c extending str;
 
-            CREATE TYPE TestArrays {
-                CREATE PROPERTY x -> array<a>;
-                CREATE PROPERTY y -> array<b>;
-                CREATE PROPERTY z -> array<b>;
+            CREATE TYPE TestTuples {
+                CREATE PROPERTY x -> tuple<a>;
+                CREATE PROPERTY y -> tuple<b>;
+                CREATE PROPERTY z -> tuple<b>;
             };
         """)
 
@@ -14897,7 +14941,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         )
 
         await self.con.execute(r"""
-            ALTER TYPE TestArrays {
+            ALTER TYPE TestTuples {
                 DROP PROPERTY x;
             };
         """)
@@ -14908,10 +14952,10 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         )
 
         await self.con.execute(r"""
-            ALTER TYPE TestArrays {
+            ALTER TYPE TestTuples {
                 ALTER PROPERTY y {
-                    SET TYPE array<c> USING (
-                        <array<c>><array<str>>.y);
+                    SET TYPE tuple<c> USING (
+                        <tuple<c>><tuple<str>>.y);
                 }
             };
         """)
@@ -14922,7 +14966,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
         )
 
         await self.con.execute(r"""
-            DROP TYPE TestArrays;
+            DROP TYPE TestTuples;
         """)
 
         self.assertEqual(await self.con.query_single(count_query), orig_count)
@@ -14944,14 +14988,17 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         self.assertEqual(
             await self.con.query_single(count_query),
-            orig_count + 2,
+            orig_count + 3 + 2,
         )
 
         await self.con.execute(r"""
             DROP TYPE TestArrays;
         """)
 
-        self.assertEqual(await self.con.query_single(count_query), orig_count)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 3,
+        )
 
     async def test_edgeql_ddl_collection_cleanup_03(self):
         count_query = "SELECT count(schema::CollectionType);"
@@ -14972,7 +15019,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         self.assertEqual(
             await self.con.query_single(count_query),
-            orig_count + 4,
+            orig_count + 3 + 2,
         )
 
         await self.con.execute(r"""
@@ -14980,9 +15027,14 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
                 x: array<a>, z: tuple<b, c>, y: array<tuple<b, c>>);
         """)
 
-        self.assertEqual(await self.con.query_single(count_query), orig_count)
         self.assertEqual(
-            await self.con.query_single(elem_count_query), orig_elem_count)
+            await self.con.query_single(count_query),
+            orig_count + 3,
+        )
+        self.assertEqual(
+            await self.con.query_single(elem_count_query),
+            orig_elem_count,
+        )
 
     async def test_edgeql_ddl_collection_cleanup_04(self):
         count_query = "SELECT count(schema::CollectionType);"
@@ -15005,7 +15057,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         self.assertEqual(
             await self.con.query_single(count_query),
-            orig_count + 1,
+            orig_count + 3 + 1,
         )
 
         await self.con.execute(r"""
@@ -15014,7 +15066,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         self.assertEqual(
             await self.con.query_single(count_query),
-            orig_count + 1,
+            orig_count + 3 + 1,
         )
 
         await self.con.execute(r"""
@@ -15023,7 +15075,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         self.assertEqual(
             await self.con.query_single(count_query),
-            orig_count + 2,
+            orig_count + 3 + 2,
         )
 
         await self.con.execute(r"""
@@ -15032,7 +15084,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         self.assertEqual(
             await self.con.query_single(count_query),
-            orig_count + 2,
+            orig_count + 3 + 2,
         )
 
         await self.con.execute(r"""
@@ -15041,7 +15093,7 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         self.assertEqual(
             await self.con.query_single(count_query),
-            orig_count + 2,
+            orig_count + 3 + 2,
         )
 
         # Make a change that doesn't change the types
@@ -15051,14 +15103,17 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         self.assertEqual(
             await self.con.query_single(count_query),
-            orig_count + 2,
+            orig_count + 3 + 2,
         )
 
         await self.con.execute(r"""
             DROP ALIAS Bar;
         """)
 
-        self.assertEqual(await self.con.query_single(count_query), orig_count)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 3,
+        )
 
     async def test_edgeql_ddl_collection_cleanup_05(self):
         count_query = "SELECT count(schema::CollectionType);"
@@ -15074,7 +15129,9 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         self.assertEqual(
             await self.con.query_single(count_query),
-            orig_count + 2,  # one for tuple<str, str>, one for TupleExprAlias
+            orig_count + 2 + 2,  # one for tuple<str, str>
+                                 # one for TupleExprAlias,
+                                 # two for implicit array<a> and array<b>
         )
 
         await self.con.execute(r"""
@@ -15083,14 +15140,17 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 
         self.assertEqual(
             await self.con.query_single(count_query),
-            orig_count + 2,
+            orig_count + 2 + 2,
         )
 
         await self.con.execute(r"""
             DROP ALIAS Bar;
         """)
 
-        self.assertEqual(await self.con.query_single(count_query), orig_count)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 2,
+        )
 
     async def test_edgeql_ddl_drop_field_01(self):
         await self.con.execute(r"""

@@ -38,6 +38,7 @@ Linux or macOS.  Windows is not currently supported.
 * Libuuid dev package;
 * Node.js 14 or later;
 * Yarn 1
+* Protobuf & C bindings for Protobuf
 
 .. zlib, readline and libuuid are required to build postgres. Should be removed
    when custom postgres build is no longer needed.
@@ -93,6 +94,8 @@ be built with the following ``shell.nix`` file.
            openssl
            pkg-config
            icu
+           protobuf
+           protobufc
        ];
        LD_LIBRARY_PATH = lib.makeLibraryPath [ pkgs.stdenv.cc.cc ];
        LIBCLANG_PATH = "${llvmPackages.libclang.lib}/lib";

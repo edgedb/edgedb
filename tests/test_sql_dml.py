@@ -1069,7 +1069,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         # delete where current of
         with self.assertRaisesRegex(
             asyncpg.FeatureNotSupportedError,
-            'unsupported SQL feature `CurrentOfExpr`',
+            'not supported: CURRENT OF',
         ):
             await self.scon.execute(
                 '''
@@ -1480,7 +1480,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         # update where current of
         with self.assertRaisesRegex(
             asyncpg.FeatureNotSupportedError,
-            'unsupported SQL feature `CurrentOfExpr`',
+            'not supported: CURRENT OF',
         ):
             await self.scon.execute(
                 '''

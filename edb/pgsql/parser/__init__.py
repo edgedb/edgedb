@@ -16,19 +16,40 @@
 # limitations under the License.
 #
 
-from typing import List
+from __future__ import annotations
+
+from typing import (
+    List,
+)
 
 import json
 
 from edb.pgsql import ast as pgast
 
-from .parser import pg_parse
-from .ast_builder import build_stmts
+from . import ast_builder
+from . import parser
+from .parser import (
+    Source,
+    NormalizedSource,
+    deserialize,
+)
+
+
+__all__ = (
+    "parse",
+    "Source",
+    "NormalizedSource",
+    "deserialize"
+)
 
 
 def parse(
     sql_query: str, propagate_spans: bool = False
 ) -> List[pgast.Query | pgast.Statement]:
-    ast_json = pg_parse(bytes(sql_query, encoding="UTF8"))
+    ast_json = parser.pg_parse(bytes(sql_query, encoding="UTF8"))
 
-    return build_stmts(json.loads(ast_json), sql_query, propagate_spans)
+    return ast_builder.build_stmts(
+        json.loads(ast_json),
+        sql_query,
+        propagate_spans,
+    )

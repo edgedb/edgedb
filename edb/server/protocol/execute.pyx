@@ -94,19 +94,14 @@ cdef class ExecutionGroup:
             if state is not None:
                 await be_conn.wait_for_state_resp(state, state_sync=0)
             for i, unit in enumerate(self.group):
-                if unit.output_format == FMT_NONE and unit.ddl_stmt_id is None:
-                    for sql in unit.sql:
-                        await be_conn.wait_for_command(
-                            unit, parse_array[i], dbver, ignore_data=True
-                        )
-                        rv = None
-                else:
-                    for sql in unit.sql:
-                        rv = await be_conn.wait_for_command(
-                            unit, parse_array[i], dbver,
-                            ignore_data=False,
-                            fe_conn=fe_conn,
-                        )
+                ignore_data = unit.output_format == FMT_NONE
+                rv = await be_conn.wait_for_command(
+                    unit,
+                    parse_array[i],
+                    dbver,
+                    ignore_data=ignore_data,
+                    fe_conn=None if ignore_data else fe_conn,
+                )
         return rv
 
 
@@ -135,13 +130,11 @@ cpdef ExecutionGroup build_cache_persistence_units(
         assert serialized_result is not None
 
         if evict:
-            group.append(compiler.QueryUnit(sql=(evict,), status=b''))
+            group.append(compiler.QueryUnit(sql=evict, status=b''))
         if persist:
-            group.append(compiler.QueryUnit(sql=(persist,), status=b''))
+            group.append(compiler.QueryUnit(sql=persist, status=b''))
         group.append(
-            compiler.QueryUnit(
-                sql=(insert_sql,), sql_hash=sql_hash, status=b'',
-            ),
+            compiler.QueryUnit(sql=insert_sql, sql_hash=sql_hash, status=b''),
             args_ser.combine_raw_args((
                 query_unit.cache_key.bytes,
                 query_unit.user_schema_version.bytes,
@@ -276,12 +269,15 @@ async def execute(
 
             if query_unit.sql:
                 if query_unit.user_schema:
-                    ddl_ret = await be_conn.run_ddl(query_unit, state)
-                    if ddl_ret and ddl_ret['new_types']:
-                        new_types = ddl_ret['new_types']
+                    await be_conn.parse_execute(query=query_unit, state=state)
+                    if query_unit.ddl_stmt_id is not None:
+                        ddl_ret = be_conn.load_last_ddl_return(query_unit)
+                        if ddl_ret and ddl_ret['new_types']:
+                            new_types = ddl_ret['new_types']
                 else:
+                    data_types = []
                     bound_args_buf = args_ser.recode_bind_args(
-                        dbv, compiled, bind_args)
+                        dbv, compiled, bind_args, None, data_types)
 
                     assert not (query_unit.database_config
                                 and query_unit.needs_readback), (
@@ -294,6 +290,7 @@ async def execute(
                         query=query_unit,
                         fe_conn=fe_conn if not read_data else None,
                         bind_data=bound_args_buf,
+                        param_data_types=data_types,
                         use_prep_stmt=use_prep_stmt,
                         state=state,
                         dbver=dbv.dbver,
@@ -357,6 +354,20 @@ async def execute(
 
             if config_ops:
                 await dbv.apply_config_ops(be_conn, config_ops)
+
+            if query_unit.user_schema and debug.flags.delta_validate_reflection:
+                global_schema = (
+                    query_unit.global_schema or dbv.get_global_schema_pickle())
+                new_user_schema = await dbv.tenant._debug_introspect(
+                    be_conn, global_schema)
+                compiler_pool = dbv.server.get_compiler_pool()
+                await compiler_pool.validate_schema_equivalence(
+                    query_unit.user_schema,
+                    new_user_schema,
+                    global_schema,
+                    dbv._last_comp_state,
+                )
+                query_unit.user_schema = new_user_schema
 
     except Exception as ex:
         # If we made schema changes, include the new schema in the
@@ -505,35 +516,29 @@ async def execute_script(
 
                 if query_unit.sql:
                     parse = parse_array[idx]
+                    fe_output = query_unit.output_format != FMT_NONE
+                    ignore_data = (
+                        not fe_output
+                        and not query_unit.needs_readback
+                    )
+                    data = await conn.wait_for_command(
+                        query_unit,
+                        parse,
+                        dbver,
+                        ignore_data=ignore_data,
+                        fe_conn=fe_conn if fe_output else None,
+                    )
+
                     if query_unit.ddl_stmt_id:
-                        ddl_ret = await conn.handle_ddl_in_script(
-                            query_unit, parse, dbver
-                        )
+                        ddl_ret = conn.load_last_ddl_return(query_unit)
                         if ddl_ret and ddl_ret['new_types']:
                             new_types = ddl_ret['new_types']
-                    elif query_unit.needs_readback:
-                        config_data = []
-                        for sql in query_unit.sql:
-                            config_data = await conn.wait_for_command(
-                                query_unit, parse, dbver, ignore_data=False
-                            )
-                        if config_data:
-                            config_ops = [
-                                config.Operation.from_json(r[0][1:])
-                                for r in config_data
-                            ]
-                    elif query_unit.output_format == FMT_NONE:
-                        for sql in query_unit.sql:
-                            await conn.wait_for_command(
-                                query_unit, parse, dbver, ignore_data=True
-                            )
-                    else:
-                        for sql in query_unit.sql:
-                            data = await conn.wait_for_command(
-                                query_unit, parse, dbver,
-                                ignore_data=False,
-                                fe_conn=fe_conn,
-                            )
+
+                    if query_unit.needs_readback and data:
+                        config_ops = [
+                            config.Operation.from_json(r[0][1:])
+                            for r in data
+                        ]
 
                 if config_ops:
                     await dbv.apply_config_ops(conn, config_ops)
@@ -571,6 +576,22 @@ async def execute_script(
         raise
 
     else:
+        updated_user_schema = False
+        if user_schema and debug.flags.delta_validate_reflection:
+            cur_global_schema = (
+                global_schema or dbv.get_global_schema_pickle())
+            new_user_schema = await dbv.tenant._debug_introspect(
+                conn, cur_global_schema)
+            compiler_pool = dbv.server.get_compiler_pool()
+            await compiler_pool.validate_schema_equivalence(
+                user_schema,
+                new_user_schema,
+                cur_global_schema,
+                dbv._last_comp_state,
+            )
+            user_schema = new_user_schema
+            updated_user_schema = True
+
         if not in_tx:
             side_effects = dbv.commit_implicit_tx(
                 user_schema,
@@ -586,6 +607,9 @@ async def execute_script(
             state = dbv.serialize_state()
             if state is not orig_state:
                 conn.last_state = state
+        elif updated_user_schema:
+            dbv._in_tx_user_schema_pickle = user_schema
+
         if unit_group.state_serializer is not None:
             dbv.set_state_serializer(unit_group.state_serializer)
 
@@ -600,7 +624,7 @@ async def execute_system_config(
     conn: pgcon.PGConnection,
     dbv: dbview.DatabaseConnectionView,
     query_unit: compiler.QueryUnit,
-    state: bytes,
+    state: bytes | None,
 ):
     if query_unit.is_system_config:
         dbv.server.before_alter_system_config()
@@ -609,12 +633,7 @@ async def execute_system_config(
     await conn.sql_fetch(b'select 1', state=state)
 
     if query_unit.sql:
-        if len(query_unit.sql) > 1:
-            raise errors.InternalServerError(
-                "unexpected multiple SQL statements in CONFIGURE INSTANCE "
-                "compilation product"
-            )
-        data = await conn.sql_fetch_col(query_unit.sql[0])
+        data = await conn.sql_fetch_col(query_unit.sql)
     else:
         data = None
 

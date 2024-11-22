@@ -60,6 +60,7 @@ from edb.common import verutils
 from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 
@@ -118,7 +119,7 @@ class CompilerDatabaseState:
     cached_reflection: immutables.Map[str, Tuple[str, ...]]
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class CompileContext:
 
     compiler_state: CompilerState
@@ -145,6 +146,8 @@ class CompileContext:
     log_ddl_as_migrations: bool = True
     dump_restore_mode: bool = False
     notebook: bool = False
+    branch_name: Optional[str] = None
+    role_name: Optional[str] = None
     cache_key: Optional[uuid.UUID] = None
 
     def get_cache_mode(self) -> config.QueryCacheMode:
@@ -429,7 +432,7 @@ class Compiler:
             sql = b'ROLLBACK;'
             unit = dbstate.QueryUnit(
                 status=b'ROLLBACK',
-                sql=(sql,),
+                sql=sql,
                 tx_rollback=True,
                 cacheable=False)
 
@@ -437,7 +440,7 @@ class Compiler:
             sql = f'ROLLBACK TO {pg_common.quote_ident(stmt.name)};'.encode()
             unit = dbstate.QueryUnit(
                 status=b'ROLLBACK TO SAVEPOINT',
-                sql=(sql,),
+                sql=sql,
                 tx_savepoint_rollback=True,
                 sp_name=stmt.name,
                 cacheable=False)
@@ -563,6 +566,9 @@ class Compiler:
             current_user=current_user,
             allow_user_specified_id=allow_user_specified_id,
             apply_access_policies_sql=apply_access_policies_sql,
+            disambiguate_column_names=False,
+            backend_runtime_params=self.state.backend_runtime_params,
+            protocol_version=(-3, 0),  # emulated PG binary protocol version
         )
 
     def compile_serialized_request(
@@ -583,7 +589,7 @@ class Compiler:
             self.state.compilation_config_serializer,
         )
 
-        units, cstate = self.compile(
+        return self.compile(
             user_schema=user_schema,
             global_schema=global_schema,
             reflection_cache=reflection_cache,
@@ -591,7 +597,6 @@ class Compiler:
             system_config=system_config,
             request=request,
         )
-        return units, cstate
 
     def compile(
         self,
@@ -641,10 +646,21 @@ class Compiler:
             json_parameters=request.input_format is enums.InputFormat.JSON,
             source=request.source,
             protocol_version=request.protocol_version,
+            role_name=request.role_name,
+            branch_name=request.branch_name,
             cache_key=request.get_cache_key(),
         )
 
-        unit_group = compile(ctx=ctx, source=request.source)
+        match request.input_language:
+            case enums.InputLanguage.EDGEQL:
+                unit_group = compile(ctx=ctx, source=request.source)
+            case enums.InputLanguage.SQL:
+                unit_group = compile_sql_as_unit_group(
+                    ctx=ctx, source=request.source)
+            case _:
+                raise NotImplementedError(
+                    f"unnsupported input language: {request.input_language}")
+
         tx_started = False
         for unit in unit_group:
             if unit.tx_id:
@@ -727,8 +743,17 @@ class Compiler:
             cache_key=request.get_cache_key(),
         )
 
-        units = compile(ctx=ctx, source=request.source)
-        return units, ctx.state
+        match request.input_language:
+            case enums.InputLanguage.EDGEQL:
+                unit_group = compile(ctx=ctx, source=request.source)
+            case enums.InputLanguage.SQL:
+                unit_group = compile_sql_as_unit_group(
+                    ctx=ctx, source=request.source)
+            case _:
+                raise NotImplementedError(
+                    f"unnsupported input language: {request.input_language}")
+
+        return unit_group, ctx.state
 
     def interpret_backend_error(
         self,
@@ -905,6 +930,62 @@ class Compiler:
             blocks=descriptors,
         )
 
+    def _reprocess_restore_config(
+        self,
+        stmts: list[qlast.Base],
+    ) -> list[qlast.Base]:
+        '''Do any rewrites to the restore script needed.
+
+        This is intended to patch over certain backwards incompatible
+        changes to config. We try not to do that too much, but when we
+        do, dumps still need to work.
+        '''
+
+        new_stmts = []
+        smtp_config = {}
+
+        for stmt in stmts:
+            # ext::auth::SMTPConfig got removed and moved into a cfg
+            # object, so intercept those and rewrite them.
+            if (
+                isinstance(stmt, qlast.ConfigSet)
+                and stmt.name.module == 'ext::auth::SMTPConfig'
+            ):
+                smtp_config[stmt.name.name] = stmt.expr
+            else:
+                new_stmts.append(stmt)
+
+        if smtp_config:
+            # Do the rewrite of SMTPConfig
+            smtp_config['name'] = qlast.Constant.string('_default')
+
+            new_stmts.append(
+                qlast.ConfigInsert(
+                    scope=qltypes.ConfigScope.DATABASE,
+                    name=qlast.ObjectRef(
+                        module='cfg', name='SMTPProviderConfig'
+                    ),
+                    shape=[
+                        qlast.ShapeElement(
+                            expr=qlast.Path(steps=[qlast.Ptr(name=name)]),
+                            compexpr=expr,
+                        )
+                        for name, expr in smtp_config.items()
+                    ],
+                )
+            )
+            new_stmts.append(
+                qlast.ConfigSet(
+                    scope=qltypes.ConfigScope.DATABASE,
+                    name=qlast.ObjectRef(
+                        name='current_email_provider_name'
+                    ),
+                    expr=qlast.Constant.string('_default'),
+                )
+            )
+
+        return new_stmts
+
     def describe_database_restore(
         self,
         user_schema_pickle: bytes,
@@ -984,7 +1065,11 @@ class Compiler:
 
         # The state serializer generated below is somehow inappropriate,
         # so it's simply ignored here and the I/O process will do it on its own
-        units = compile(ctx=ctx, source=ddl_source).units
+        statements = edgeql.parse_block(ddl_source)
+        statements = self._reprocess_restore_config(statements)
+        units = _try_compile_ast(
+            ctx=ctx, source=ddl_source, statements=statements
+        ).units
 
         _check_force_database_error(ctx, scope='restore')
 
@@ -1170,6 +1255,30 @@ class Compiler:
         return explain.analyze_explain_output(
             query_asts_pickled, data, self.state.std_schema)
 
+    def validate_schema_equivalence(
+        self,
+        schema_a: bytes,
+        schema_b: bytes,
+        global_schema: bytes,
+        conn_state_pickle: Any,
+    ) -> None:
+        if conn_state_pickle:
+            conn_state = pickle.loads(conn_state_pickle)
+            if (
+                conn_state
+                and (
+                    conn_state.current_tx().get_migration_state()
+                    or conn_state.current_tx().get_migration_rewrite_state()
+                )
+            ):
+                return
+        ddl.validate_schema_equivalence(
+            self.state,
+            pickle.loads(schema_a),
+            pickle.loads(schema_b),
+            pickle.loads(global_schema),
+        )
+
 
 def compile_schema_storage_in_delta(
     ctx: CompileContext,
@@ -1292,12 +1401,11 @@ def _compile_schema_storage_stmt(
 
         sql_stmts = []
         for u in unit_group:
-            for stmt in u.sql:
-                stmt = stmt.strip()
-                if not stmt.endswith(b';'):
-                    stmt += b';'
+            stmt = u.sql.strip()
+            if not stmt.endswith(b';'):
+                stmt += b';'
 
-                sql_stmts.append(stmt)
+            sql_stmts.append(stmt)
 
         if len(sql_stmts) > 1:
             raise errors.InternalServerError(
@@ -1332,12 +1440,11 @@ def _compile_ql_script(
 
     sql_stmts = []
     for u in unit_group:
-        for stmt in u.sql:
-            stmt = stmt.strip()
-            if not stmt.endswith(b';'):
-                stmt += b';'
+        stmt = u.sql.strip()
+        if not stmt.endswith(b';'):
+            stmt += b';'
 
-            sql_stmts.append(stmt)
+        sql_stmts.append(stmt)
 
     return b'\n'.join(sql_stmts).decode()
 
@@ -1461,7 +1568,7 @@ def _compile_ql_explain(
             span=ql.span,
         )
 
-    assert len(query.sql) == 1, query.sql
+    assert query.sql
 
     out_type_data, out_type_id = sertypes.describe(
         schema,
@@ -1469,7 +1576,7 @@ def _compile_ql_explain(
         protocol_version=ctx.protocol_version,
     )
 
-    sql_bytes = exp_command.encode('utf-8') + query.sql[0]
+    sql_bytes = exp_command.encode('utf-8') + query.sql
     sql_hash = _hash_sql(
         sql_bytes,
         mode=str(ctx.output_format).encode(),
@@ -1479,9 +1586,9 @@ def _compile_ql_explain(
     return dataclasses.replace(
         query,
         is_explain=True,
-        append_rollback=args['execute'],
+        run_and_rollback=args['execute'],
         cacheable=False,
-        sql=(sql_bytes,),
+        sql=sql_bytes,
         sql_hash=sql_hash,
         cardinality=enums.Cardinality.ONE,
         out_type_data=out_type_data,
@@ -1507,7 +1614,7 @@ def _compile_ql_administer(
                 span=ql.expr.span,
             )
 
-        return dbstate.MaintenanceQuery(sql=(b'ANALYZE',))
+        return dbstate.MaintenanceQuery(sql=b'ANALYZE')
     elif ql.expr.func == 'schema_repair':
         return ddl.administer_repair_schema(ctx, ql)
     elif ql.expr.func == 'reindex':
@@ -1536,6 +1643,52 @@ def _compile_ql_query(
 
     is_explain = explain_data is not None
     current_tx = ctx.state.current_tx()
+
+    sql_info: Dict[str, Any] = {}
+    if (
+        not ctx.bootstrap_mode
+        and ctx.backend_runtime_params.has_stat_statements
+        and not ctx.schema_reflection_mode
+    ):
+        spec = ctx.compiler_state.config_spec
+        cconfig = config.to_json_obj(
+            spec,
+            {
+                **current_tx.get_system_config(),
+                **current_tx.get_database_config(),
+                **current_tx.get_session_config(),
+            },
+            setting_filter=lambda v: v.name in spec
+                                     and spec[v.name].affects_compilation,
+            include_source=False,
+        )
+        extras: Dict[str, Any] = {
+            'cc': dict(sorted(cconfig.items())),  # compilation_config
+            'pv': ctx.protocol_version,  # protocol_version
+            'of': ctx.output_format,  # output_format
+            'e1': ctx.expected_cardinality_one,  # expect_one
+            'il': ctx.implicit_limit,  # implicit_limit
+            'ii': ctx.inline_typeids,  # inline_typeids
+            'in': ctx.inline_typenames,  # inline_typenames
+            'io': ctx.inline_objectids,  # inline_objectids
+        }
+        modaliases = dict(current_tx.get_modaliases())
+        # dn: default_namespace
+        extras['dn'] = modaliases.pop(None, defines.DEFAULT_MODULE_ALIAS)
+        if modaliases:
+            # na: namespace_aliases
+            extras['na'] = dict(sorted(modaliases.items()))
+
+        sql_info.update({
+            'query': qlcodegen.generate_source(ql),
+            'type': defines.QueryType.EdgeQL,
+            'extras': json.dumps(extras),
+        })
+        id_hash = hashlib.blake2b(digest_size=16)
+        id_hash.update(
+            json.dumps(sql_info).encode(defines.EDGEDB_ENCODING)
+        )
+        sql_info['id'] = str(uuidgen.from_bytes(id_hash.digest()))
 
     base_schema = (
         ctx.compiler_state.std_schema
@@ -1602,12 +1755,11 @@ def _compile_ql_query(
 
     # If requested, embed the EdgeQL text in the SQL.
     if debug.flags.edgeql_text_in_sql and source:
-        sql_debug_obj = dict(edgeql=source.text())
-        sql_debug_prefix = '-- ' + json.dumps(sql_debug_obj) + '\n'
-        sql_text = sql_debug_prefix + sql_text
-        if func_call_sql is not None:
-            func_call_sql = sql_debug_prefix + func_call_sql
-    sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
+        sql_info['edgeql'] = source.text()
+    if sql_info:
+        sql_info_prefix = '-- ' + json.dumps(sql_info) + '\n'
+    else:
+        sql_info_prefix = ''
 
     globals = None
     if ir.globals:
@@ -1639,21 +1791,23 @@ def _compile_ql_query(
     )
 
     sql_hash = _hash_sql(
-        sql_bytes,
+        sql_text.encode(defines.EDGEDB_ENCODING),
         mode=str(ctx.output_format).encode(),
         intype=in_type_id.bytes,
         outtype=out_type_id.bytes)
 
     cache_func_call = None
     if func_call_sql is not None:
-        func_call_sql_bytes = func_call_sql.encode(defines.EDGEDB_ENCODING)
         func_call_sql_hash = _hash_sql(
-            func_call_sql_bytes,
+            func_call_sql.encode(defines.EDGEDB_ENCODING),
             mode=str(ctx.output_format).encode(),
             intype=in_type_id.bytes,
             outtype=out_type_id.bytes,
         )
-        cache_func_call = (func_call_sql_bytes, func_call_sql_hash)
+        cache_func_call = (
+            (sql_info_prefix + func_call_sql).encode(defines.EDGEDB_ENCODING),
+            func_call_sql_hash,
+        )
 
     if is_explain:
         if isinstance(ir.schema, s_schema.ChainedSchema):
@@ -1668,7 +1822,7 @@ def _compile_ql_query(
         query_asts = None
 
     return dbstate.Query(
-        sql=(sql_bytes,),
+        sql=(sql_info_prefix + sql_text).encode(defines.EDGEDB_ENCODING),
         sql_hash=sql_hash,
         cache_sql=cache_sql,
         cache_func_call=cache_func_call,
@@ -1861,7 +2015,7 @@ def _compile_ql_transaction(
         if ql.deferrable is not None:
             sqls += f' {ql.deferrable.value}'
         sqls += ';'
-        sql = (sqls.encode(),)
+        sql = sqls.encode()
 
         action = dbstate.TxAction.START
         cacheable = False
@@ -1877,7 +2031,7 @@ def _compile_ql_transaction(
         new_state = ctx.state.commit_tx()
         modaliases = new_state.modaliases
 
-        sql = (b'COMMIT',)
+        sql = b'COMMIT'
         cacheable = False
         action = dbstate.TxAction.COMMIT
 
@@ -1885,7 +2039,7 @@ def _compile_ql_transaction(
         new_state = ctx.state.rollback_tx()
         modaliases = new_state.modaliases
 
-        sql = (b'ROLLBACK',)
+        sql = b'ROLLBACK'
         cacheable = False
         action = dbstate.TxAction.ROLLBACK
 
@@ -1894,7 +2048,7 @@ def _compile_ql_transaction(
         sp_id = tx.declare_savepoint(ql.name)
 
         pgname = pg_common.quote_ident(ql.name)
-        sql = (f'SAVEPOINT {pgname}'.encode(),)
+        sql = f'SAVEPOINT {pgname}'.encode()
 
         cacheable = False
         action = dbstate.TxAction.DECLARE_SAVEPOINT
@@ -1904,7 +2058,7 @@ def _compile_ql_transaction(
     elif isinstance(ql, qlast.ReleaseSavepoint):
         ctx.state.current_tx().release_savepoint(ql.name)
         pgname = pg_common.quote_ident(ql.name)
-        sql = (f'RELEASE SAVEPOINT {pgname}'.encode(),)
+        sql = f'RELEASE SAVEPOINT {pgname}'.encode()
         action = dbstate.TxAction.RELEASE_SAVEPOINT
 
     elif isinstance(ql, qlast.RollbackToSavepoint):
@@ -1913,7 +2067,7 @@ def _compile_ql_transaction(
         modaliases = new_state.modaliases
 
         pgname = pg_common.quote_ident(ql.name)
-        sql = (f'ROLLBACK TO SAVEPOINT {pgname};'.encode(),)
+        sql = f'ROLLBACK TO SAVEPOINT {pgname};'.encode()
         cacheable = False
         action = dbstate.TxAction.ROLLBACK_TO_SAVEPOINT
         sp_name = ql.name
@@ -1972,9 +2126,7 @@ def _compile_ql_sess_state(
 
     ctx.state.current_tx().update_modaliases(aliases)
 
-    return dbstate.SessionStateQuery(
-        sql=(),
-    )
+    return dbstate.SessionStateQuery()
 
 
 def _get_config_spec(
@@ -2146,9 +2298,7 @@ def _compile_ql_config_op(
     if pretty:
         debug.dump_code(sql_text, lexer='sql')
 
-    sql: tuple[bytes, ...] = (
-        sql_text.encode(),
-    )
+    sql = sql_text.encode()
 
     in_type_args, in_type_data, in_type_id = describe_params(
         ctx, ir, sql_res.argmap, None
@@ -2325,6 +2475,132 @@ def compile(
             raise original_err
 
 
+def compile_sql_as_unit_group(
+    *,
+    ctx: CompileContext,
+    source: edgeql.Source,
+) -> dbstate.QueryUnitGroup:
+
+    setting = _get_config_val(ctx, 'allow_user_specified_id')
+    allow_user_specified_id = None
+    if setting:
+        allow_user_specified_id = sql.is_setting_truthy(setting)
+
+    apply_access_policies_sql = None
+    setting = _get_config_val(ctx, 'apply_access_policies_sql')
+    if setting:
+        apply_access_policies_sql = sql.is_setting_truthy(setting)
+
+    tx_state = ctx.state.current_tx()
+    schema = tx_state.get_schema(ctx.compiler_state.std_schema)
+
+    settings = dbstate.DEFAULT_SQL_FE_SETTINGS
+    sql_tx_state = dbstate.SQLTransactionState(
+        in_tx=not tx_state.is_implicit(),
+        settings=settings,
+        in_tx_settings=settings,
+        in_tx_local_settings=settings,
+        savepoints=[
+            (not_none(tx.name), settings, settings)
+            for tx in tx_state._savepoints.values()
+        ],
+    )
+
+    sql_units = sql.compile_sql(
+        source.text(),
+        schema=schema,
+        tx_state=sql_tx_state,
+        prepared_stmt_map={},
+        current_database=ctx.branch_name or "<unknown>",
+        current_user=ctx.role_name or "<unknown>",
+        allow_user_specified_id=allow_user_specified_id,
+        apply_access_policies_sql=apply_access_policies_sql,
+        include_edgeql_io_format_alternative=True,
+        allow_prepared_statements=False,
+        disambiguate_column_names=True,
+        backend_runtime_params=ctx.backend_runtime_params,
+        protocol_version=ctx.protocol_version,
+    )
+
+    qug = dbstate.QueryUnitGroup(
+        cardinality=sql_units[-1].cardinality,
+        cacheable=False,
+    )
+
+    for sql_unit in sql_units:
+        if sql_unit.eql_format_query is not None:
+            value_sql = sql_unit.eql_format_query.encode("utf-8")
+            intro_sql = sql_unit.query.encode("utf-8")
+        else:
+            value_sql = sql_unit.query.encode("utf-8")
+            intro_sql = None
+        if isinstance(sql_unit.command_complete_tag, dbstate.TagPlain):
+            status = sql_unit.command_complete_tag.tag
+        elif isinstance(
+            sql_unit.command_complete_tag,
+            (dbstate.TagCountMessages, dbstate.TagUnpackRow),
+        ):
+            status = sql_unit.command_complete_tag.prefix.encode("utf-8")
+        elif sql_unit.command_complete_tag is None:
+            status = b"SELECT"  # XXX
+        else:
+            raise AssertionError(
+                f"unexpected SQLQueryUnit.command_complete_tag type: "
+                f"{sql_unit.command_complete_tag}"
+            )
+        unit = dbstate.QueryUnit(
+            sql=value_sql,
+            introspection_sql=intro_sql,
+            status=status,
+            cardinality=sql_unit.cardinality,
+            capabilities=sql_unit.capabilities,
+            globals=[
+                (str(sp.global_name), False) for sp in sql_unit.params
+                if isinstance(sp, dbstate.SQLParamGlobal)
+            ] if sql_unit.params else [],
+            output_format=(
+                enums.OutputFormat.NONE
+                if sql_unit.cardinality is enums.Cardinality.NO_RESULT
+                else enums.OutputFormat.BINARY
+            ),
+        )
+        match sql_unit.tx_action:
+            case dbstate.TxAction.START:
+                ctx.state.start_tx()
+                tx_state = ctx.state.current_tx()
+                unit.tx_id = tx_state.id
+            case dbstate.TxAction.COMMIT:
+                ctx.state.commit_tx()
+                unit.tx_commit = True
+            case dbstate.TxAction.ROLLBACK:
+                ctx.state.rollback_tx()
+                unit.tx_rollback = True
+            case dbstate.TxAction.DECLARE_SAVEPOINT:
+                assert sql_unit.sp_name is not None
+                unit.tx_savepoint_declare = True
+                unit.sp_id = tx_state.declare_savepoint(sql_unit.sp_name)
+                unit.sp_name = sql_unit.sp_name
+            case dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
+                assert sql_unit.sp_name is not None
+                tx_state.rollback_to_savepoint(sql_unit.sp_name)
+                unit.tx_savepoint_rollback = True
+                unit.sp_name = sql_unit.sp_name
+            case dbstate.TxAction.RELEASE_SAVEPOINT:
+                assert sql_unit.sp_name is not None
+                tx_state.release_savepoint(sql_unit.sp_name)
+                unit.sp_name = sql_unit.sp_name
+            case None:
+                pass
+            case _:
+                raise AssertionError(
+                    f"unexpected SQLQueryUnit.tx_action: {sql_unit.tx_action}"
+                )
+
+        qug.append(unit)
+
+    return qug
+
+
 def _try_compile(
     *,
     ctx: CompileContext,
@@ -2339,8 +2615,25 @@ def _try_compile(
         if text.startswith(sentinel):
             time.sleep(float(text[len(sentinel):text.index("\n")]))
 
-    default_cardinality = enums.Cardinality.NO_RESULT
     statements = edgeql.parse_block(source)
+    return _try_compile_ast(statements=statements, source=source, ctx=ctx)
+
+
+def _try_compile_ast(
+    *,
+    ctx: CompileContext,
+    statements: list[qlast.Base],
+    source: edgeql.Source,
+) -> dbstate.QueryUnitGroup:
+    if _get_config_val(ctx, '__internal_testmode'):
+        # This is a bad but simple way to emulate a slow compilation for tests.
+        # Ideally, we should have a testmode function that is hooked to sleep
+        # as `simple_special_case`, or wait for a notification from the test.
+        sentinel = "# EDGEDB_TEST_COMPILER_SLEEP = "
+        text = source.text()
+        if text.startswith(sentinel):
+            time.sleep(float(text[len(sentinel):text.index("\n")]))
+
     statements_len = len(statements)
 
     if not len(statements):  # pragma: no cover
@@ -2375,15 +2668,6 @@ def _try_compile(
 
         _check_force_database_error(stmt_ctx, stmt)
 
-        # Initialize user_schema_version with the version this query is
-        # going to be compiled upon. This can be overwritten later by DDLs.
-        try:
-            schema_version = _get_schema_version(
-                stmt_ctx.state.current_tx().get_user_schema()
-            )
-        except errors.InvalidReferenceError:
-            schema_version = None
-
         comp, capabilities = _compile_dispatch_ql(
             stmt_ctx,
             stmt,
@@ -2392,233 +2676,20 @@ def _try_compile(
             in_script=is_script,
         )
 
-        unit = dbstate.QueryUnit(
-            sql=(),
-            status=status.get_status(stmt),
-            cardinality=default_cardinality,
+        unit, user_schema = _make_query_unit(
+            ctx=ctx,
+            stmt_ctx=stmt_ctx,
+            stmt=stmt,
+            is_script=is_script,
+            is_trailing_stmt=is_trailing_stmt,
+            comp=comp,
             capabilities=capabilities,
-            output_format=stmt_ctx.output_format,
-            cache_key=ctx.cache_key,
-            user_schema_version=schema_version,
-            warnings=comp.warnings,
         )
 
-        if not comp.is_transactional:
-            if is_script:
-                raise errors.QueryError(
-                    f'cannot execute {status.get_status(stmt).decode()} '
-                    f'with other commands in one block',
-                    span=stmt.span,
-                )
-
-            if not ctx.state.current_tx().is_implicit():
-                raise errors.QueryError(
-                    f'cannot execute {status.get_status(stmt).decode()} '
-                    f'in a transaction',
-                    span=stmt.span,
-                )
-
-            unit.is_transactional = False
-
-        if isinstance(comp, dbstate.Query):
-            unit.sql = comp.sql
-            unit.cache_sql = comp.cache_sql
-            unit.cache_func_call = comp.cache_func_call
-            unit.globals = comp.globals
-            unit.in_type_args = comp.in_type_args
-
-            unit.sql_hash = comp.sql_hash
-
-            unit.out_type_data = comp.out_type_data
-            unit.out_type_id = comp.out_type_id
-            unit.in_type_data = comp.in_type_data
-            unit.in_type_id = comp.in_type_id
-
-            unit.cacheable = comp.cacheable
-
-            if comp.is_explain:
-                unit.is_explain = True
-                unit.query_asts = comp.query_asts
-
-            if comp.append_rollback:
-                unit.append_rollback = True
-
-            if is_trailing_stmt:
-                unit.cardinality = comp.cardinality
-
-        elif isinstance(comp, dbstate.SimpleQuery):
-            unit.sql = comp.sql
-            unit.in_type_args = comp.in_type_args
-
-        elif isinstance(comp, dbstate.DDLQuery):
-            unit.sql = comp.sql
-            unit.create_db = comp.create_db
-            unit.drop_db = comp.drop_db
-            unit.drop_db_reset_connections = comp.drop_db_reset_connections
-            unit.create_db_template = comp.create_db_template
-            unit.create_db_mode = comp.create_db_mode
-            unit.ddl_stmt_id = comp.ddl_stmt_id
-            if not ctx.dump_restore_mode:
-                if comp.user_schema is not None:
-                    final_user_schema = comp.user_schema
-                    unit.user_schema = pickle.dumps(comp.user_schema, -1)
-                    unit.user_schema_version = (
-                        _get_schema_version(comp.user_schema)
-                    )
-                    unit.extensions, unit.ext_config_settings = (
-                        _extract_extensions(ctx, comp.user_schema)
-                    )
-                unit.feature_used_metrics = comp.feature_used_metrics
-                if comp.cached_reflection is not None:
-                    unit.cached_reflection = \
-                        pickle.dumps(comp.cached_reflection, -1)
-                if comp.global_schema is not None:
-                    unit.global_schema = pickle.dumps(comp.global_schema, -1)
-                    unit.roles = _extract_roles(comp.global_schema)
-
-            unit.config_ops.extend(comp.config_ops)
-
-        elif isinstance(comp, dbstate.TxControlQuery):
-            if is_script:
-                raise errors.QueryError(
-                    "Explicit transaction control commands cannot be executed "
-                    "in an implicit transaction block"
-                )
-            unit.sql = comp.sql
-            unit.cacheable = comp.cacheable
-
-            if not ctx.dump_restore_mode:
-                if comp.user_schema is not None:
-                    final_user_schema = comp.user_schema
-                    unit.user_schema = pickle.dumps(comp.user_schema, -1)
-                    unit.user_schema_version = (
-                        _get_schema_version(comp.user_schema)
-                    )
-                    unit.extensions, unit.ext_config_settings = (
-                        _extract_extensions(ctx, comp.user_schema)
-                    )
-                unit.feature_used_metrics = comp.feature_used_metrics
-                if comp.cached_reflection is not None:
-                    unit.cached_reflection = \
-                        pickle.dumps(comp.cached_reflection, -1)
-                if comp.global_schema is not None:
-                    unit.global_schema = pickle.dumps(comp.global_schema, -1)
-                    unit.roles = _extract_roles(comp.global_schema)
-
-            if comp.modaliases is not None:
-                unit.modaliases = comp.modaliases
-
-            if comp.action == dbstate.TxAction.START:
-                if unit.tx_id is not None:
-                    raise errors.InternalServerError(
-                        'already in transaction')
-                unit.tx_id = ctx.state.current_tx().id
-            elif comp.action == dbstate.TxAction.COMMIT:
-                unit.tx_commit = True
-            elif comp.action == dbstate.TxAction.ROLLBACK:
-                unit.tx_rollback = True
-            elif comp.action is dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
-                unit.tx_savepoint_rollback = True
-                unit.sp_name = comp.sp_name
-            elif comp.action is dbstate.TxAction.DECLARE_SAVEPOINT:
-                unit.tx_savepoint_declare = True
-                unit.sp_name = comp.sp_name
-                unit.sp_id = comp.sp_id
-
-        elif isinstance(comp, dbstate.MigrationControlQuery):
-            unit.sql = comp.sql
-            unit.cacheable = comp.cacheable
-
-            if not ctx.dump_restore_mode:
-                if comp.user_schema is not None:
-                    final_user_schema = comp.user_schema
-                    unit.user_schema = pickle.dumps(comp.user_schema, -1)
-                    unit.user_schema_version = (
-                        _get_schema_version(comp.user_schema)
-                    )
-                    unit.extensions, unit.ext_config_settings = (
-                        _extract_extensions(ctx, comp.user_schema)
-                    )
-                if comp.cached_reflection is not None:
-                    unit.cached_reflection = \
-                        pickle.dumps(comp.cached_reflection, -1)
-            unit.ddl_stmt_id = comp.ddl_stmt_id
-
-            if comp.modaliases is not None:
-                unit.modaliases = comp.modaliases
-
-            if comp.tx_action == dbstate.TxAction.START:
-                if unit.tx_id is not None:
-                    raise errors.InternalServerError(
-                        'already in transaction')
-                unit.tx_id = ctx.state.current_tx().id
-            elif comp.tx_action == dbstate.TxAction.COMMIT:
-                unit.tx_commit = True
-            elif comp.tx_action == dbstate.TxAction.ROLLBACK:
-                unit.tx_rollback = True
-            elif comp.action == dbstate.MigrationAction.ABORT:
-                unit.tx_abort_migration = True
-
-        elif isinstance(comp, dbstate.SessionStateQuery):
-            unit.sql = comp.sql
-            unit.globals = comp.globals
-
-            if comp.config_scope is qltypes.ConfigScope.INSTANCE:
-                if (not ctx.state.current_tx().is_implicit() or
-                        statements_len > 1):
-                    raise errors.QueryError(
-                        'CONFIGURE INSTANCE cannot be executed in a '
-                        'transaction block')
-
-                unit.system_config = True
-            elif comp.config_scope is qltypes.ConfigScope.GLOBAL:
-                unit.needs_readback = True
-
-            elif comp.config_scope is qltypes.ConfigScope.DATABASE:
-                unit.database_config = True
-                unit.needs_readback = True
-
-            if comp.is_backend_setting:
-                unit.backend_config = True
-            if comp.requires_restart:
-                unit.config_requires_restart = True
-            if comp.is_system_config:
-                unit.is_system_config = True
-
-            unit.modaliases = ctx.state.current_tx().get_modaliases()
-
-            if comp.config_op is not None:
-                unit.config_ops.append(comp.config_op)
-
-            if comp.in_type_args:
-                unit.in_type_args = comp.in_type_args
-            if comp.in_type_data:
-                unit.in_type_data = comp.in_type_data
-            if comp.in_type_id:
-                unit.in_type_id = comp.in_type_id
-
-            unit.has_set = True
-
-        elif isinstance(comp, dbstate.MaintenanceQuery):
-            unit.sql = comp.sql
-
-        elif isinstance(comp, dbstate.NullQuery):
-            pass
-
-        else:  # pragma: no cover
-            raise errors.InternalServerError('unknown compile state')
-
-        if unit.in_type_args:
-            unit.in_type_args_real_count = sum(
-                len(p.sub_params[0]) if p.sub_params else 1
-                for p in unit.in_type_args
-            )
-
-        if unit.warnings:
-            for warning in unit.warnings:
-                warning.__traceback__ = None
-
         rv.append(unit)
+
+        if user_schema is not None:
+            final_user_schema = user_schema
 
     if script_info:
         if ctx.state.current_tx().is_implicit():
@@ -2666,7 +2737,6 @@ def _try_compile(
                 f'QueryUnit {unit!r} is cacheable but has config/aliases')
 
         if not na_cardinality and (
-                len(unit.sql) > 1 or
                 unit.tx_commit or
                 unit.tx_rollback or
                 unit.tx_savepoint_rollback or
@@ -2689,6 +2759,260 @@ def _try_compile(
             f'which does not match the expected cardinality ONE')
 
     return rv
+
+
+def _make_query_unit(
+    *,
+    ctx: CompileContext,
+    stmt_ctx: CompileContext,
+    stmt: qlast.Base,
+    is_script: bool,
+    is_trailing_stmt: bool,
+    comp: dbstate.BaseQuery,
+    capabilities: enums.Capability,
+) -> tuple[dbstate.QueryUnit, Optional[s_schema.Schema]]:
+
+    # Initialize user_schema_version with the version this query is
+    # going to be compiled upon. This can be overwritten later by DDLs.
+    try:
+        schema_version = _get_schema_version(
+            stmt_ctx.state.current_tx().get_user_schema()
+        )
+    except errors.InvalidReferenceError:
+        schema_version = None
+
+    unit = dbstate.QueryUnit(
+        sql=b"",
+        status=status.get_status(stmt),
+        cardinality=enums.Cardinality.NO_RESULT,
+        capabilities=capabilities,
+        output_format=stmt_ctx.output_format,
+        cache_key=ctx.cache_key,
+        user_schema_version=schema_version,
+        warnings=comp.warnings,
+    )
+
+    if not comp.is_transactional:
+        if is_script:
+            raise errors.QueryError(
+                f'cannot execute {status.get_status(stmt).decode()} '
+                f'with other commands in one block',
+                span=stmt.span,
+            )
+
+        if not ctx.state.current_tx().is_implicit():
+            raise errors.QueryError(
+                f'cannot execute {status.get_status(stmt).decode()} '
+                f'in a transaction',
+                span=stmt.span,
+            )
+
+        unit.is_transactional = False
+
+    final_user_schema: Optional[s_schema.Schema] = None
+
+    if isinstance(comp, dbstate.Query):
+        unit.sql = comp.sql
+        unit.cache_sql = comp.cache_sql
+        unit.cache_func_call = comp.cache_func_call
+        unit.globals = comp.globals
+        unit.in_type_args = comp.in_type_args
+
+        unit.sql_hash = comp.sql_hash
+
+        unit.out_type_data = comp.out_type_data
+        unit.out_type_id = comp.out_type_id
+        unit.in_type_data = comp.in_type_data
+        unit.in_type_id = comp.in_type_id
+
+        unit.cacheable = comp.cacheable
+
+        if comp.is_explain:
+            unit.is_explain = True
+            unit.query_asts = comp.query_asts
+
+        if comp.run_and_rollback:
+            unit.run_and_rollback = True
+
+        if is_trailing_stmt:
+            unit.cardinality = comp.cardinality
+
+    elif isinstance(comp, dbstate.SimpleQuery):
+        unit.sql = comp.sql
+        unit.in_type_args = comp.in_type_args
+
+    elif isinstance(comp, dbstate.DDLQuery):
+        unit.sql = comp.sql
+        unit.db_op_trailer = comp.db_op_trailer
+        unit.create_db = comp.create_db
+        unit.drop_db = comp.drop_db
+        unit.drop_db_reset_connections = comp.drop_db_reset_connections
+        unit.create_db_template = comp.create_db_template
+        unit.create_db_mode = comp.create_db_mode
+        unit.ddl_stmt_id = comp.ddl_stmt_id
+        if not ctx.dump_restore_mode:
+            if comp.user_schema is not None:
+                final_user_schema = comp.user_schema
+                unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                unit.user_schema_version = (
+                    _get_schema_version(comp.user_schema)
+                )
+                unit.extensions, unit.ext_config_settings = (
+                    _extract_extensions(ctx, comp.user_schema)
+                )
+            unit.feature_used_metrics = comp.feature_used_metrics
+            if comp.cached_reflection is not None:
+                unit.cached_reflection = \
+                    pickle.dumps(comp.cached_reflection, -1)
+            if comp.global_schema is not None:
+                unit.global_schema = pickle.dumps(comp.global_schema, -1)
+                unit.roles = _extract_roles(comp.global_schema)
+
+        unit.config_ops.extend(comp.config_ops)
+
+    elif isinstance(comp, dbstate.TxControlQuery):
+        if is_script:
+            raise errors.QueryError(
+                "Explicit transaction control commands cannot be executed "
+                "in an implicit transaction block"
+            )
+        unit.sql = comp.sql
+        unit.cacheable = comp.cacheable
+
+        if not ctx.dump_restore_mode:
+            if comp.user_schema is not None:
+                final_user_schema = comp.user_schema
+                unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                unit.user_schema_version = (
+                    _get_schema_version(comp.user_schema)
+                )
+                unit.extensions, unit.ext_config_settings = (
+                    _extract_extensions(ctx, comp.user_schema)
+                )
+            unit.feature_used_metrics = comp.feature_used_metrics
+            if comp.cached_reflection is not None:
+                unit.cached_reflection = \
+                    pickle.dumps(comp.cached_reflection, -1)
+            if comp.global_schema is not None:
+                unit.global_schema = pickle.dumps(comp.global_schema, -1)
+                unit.roles = _extract_roles(comp.global_schema)
+
+        if comp.modaliases is not None:
+            unit.modaliases = comp.modaliases
+
+        if comp.action == dbstate.TxAction.START:
+            if unit.tx_id is not None:
+                raise errors.InternalServerError(
+                    'already in transaction')
+            unit.tx_id = ctx.state.current_tx().id
+        elif comp.action == dbstate.TxAction.COMMIT:
+            unit.tx_commit = True
+        elif comp.action == dbstate.TxAction.ROLLBACK:
+            unit.tx_rollback = True
+        elif comp.action is dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
+            unit.tx_savepoint_rollback = True
+            unit.sp_name = comp.sp_name
+        elif comp.action is dbstate.TxAction.DECLARE_SAVEPOINT:
+            unit.tx_savepoint_declare = True
+            unit.sp_name = comp.sp_name
+            unit.sp_id = comp.sp_id
+
+    elif isinstance(comp, dbstate.MigrationControlQuery):
+        unit.sql = comp.sql
+        unit.cacheable = comp.cacheable
+
+        if not ctx.dump_restore_mode:
+            if comp.user_schema is not None:
+                final_user_schema = comp.user_schema
+                unit.user_schema = pickle.dumps(comp.user_schema, -1)
+                unit.user_schema_version = (
+                    _get_schema_version(comp.user_schema)
+                )
+                unit.extensions, unit.ext_config_settings = (
+                    _extract_extensions(ctx, comp.user_schema)
+                )
+            if comp.cached_reflection is not None:
+                unit.cached_reflection = \
+                    pickle.dumps(comp.cached_reflection, -1)
+        unit.ddl_stmt_id = comp.ddl_stmt_id
+
+        if comp.modaliases is not None:
+            unit.modaliases = comp.modaliases
+
+        if comp.tx_action == dbstate.TxAction.START:
+            if unit.tx_id is not None:
+                raise errors.InternalServerError(
+                    'already in transaction')
+            unit.tx_id = ctx.state.current_tx().id
+        elif comp.tx_action == dbstate.TxAction.COMMIT:
+            unit.tx_commit = True
+            unit.append_tx_op = True
+        elif comp.tx_action == dbstate.TxAction.ROLLBACK:
+            unit.tx_rollback = True
+            unit.append_tx_op = True
+        elif comp.action == dbstate.MigrationAction.ABORT:
+            unit.tx_abort_migration = True
+
+    elif isinstance(comp, dbstate.SessionStateQuery):
+        unit.sql = comp.sql
+        unit.globals = comp.globals
+
+        if comp.config_scope is qltypes.ConfigScope.INSTANCE:
+            if not ctx.state.current_tx().is_implicit() or is_script:
+                raise errors.QueryError(
+                    'CONFIGURE INSTANCE cannot be executed in a '
+                    'transaction block')
+
+            unit.system_config = True
+        elif comp.config_scope is qltypes.ConfigScope.GLOBAL:
+            unit.needs_readback = True
+
+        elif comp.config_scope is qltypes.ConfigScope.DATABASE:
+            unit.database_config = True
+            unit.needs_readback = True
+
+        if comp.is_backend_setting:
+            unit.backend_config = True
+        if comp.requires_restart:
+            unit.config_requires_restart = True
+        if comp.is_system_config:
+            unit.is_system_config = True
+
+        unit.modaliases = ctx.state.current_tx().get_modaliases()
+
+        if comp.config_op is not None:
+            unit.config_ops.append(comp.config_op)
+
+        if comp.in_type_args:
+            unit.in_type_args = comp.in_type_args
+        if comp.in_type_data:
+            unit.in_type_data = comp.in_type_data
+        if comp.in_type_id:
+            unit.in_type_id = comp.in_type_id
+
+        unit.has_set = True
+        unit.output_format = enums.OutputFormat.NONE
+
+    elif isinstance(comp, dbstate.MaintenanceQuery):
+        unit.sql = comp.sql
+
+    elif isinstance(comp, dbstate.NullQuery):
+        pass
+
+    else:  # pragma: no cover
+        raise errors.InternalServerError('unknown compile state')
+
+    if unit.in_type_args:
+        unit.in_type_args_real_count = sum(
+            len(p.sub_params[0]) if p.sub_params else 1
+            for p in unit.in_type_args
+        )
+
+    if unit.warnings:
+        for warning in unit.warnings:
+            warning.__traceback__ = None
+
+    return unit, final_user_schema
 
 
 def _extract_params(

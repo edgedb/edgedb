@@ -1,6 +1,6 @@
 pub fn unquote_bytes(value: &str) -> Result<Vec<u8>, String> {
     let idx = value
-        .find(|c| c == '\'' || c == '"')
+        .find(['\'', '"'])
         .ok_or_else(|| "invalid bytes literal: missing quotes".to_string())?;
     let prefix = &value[..idx];
     match prefix {

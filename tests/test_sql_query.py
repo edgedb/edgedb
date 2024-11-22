@@ -26,6 +26,8 @@ import uuid
 from edb.tools import test
 from edb.testbase import server as tb
 
+import edgedb
+
 try:
     import asyncpg
     from asyncpg import serverversion
@@ -225,8 +227,8 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 'genre_id',
                 'release_year',
                 'title',
-                'id',
-                '__type__',
+                'g_id',
+                'g___type__',
                 'name',
             ],
         )
@@ -775,7 +777,10 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         # params out of order
 
         res = await self.squery_values(
-            'SELECT $2::int, $3::bool, $1::text', 'hello', 42, True,
+            'SELECT $2::int, $3::bool, $1::text',
+            'hello',
+            42,
+            True,
         )
         self.assertEqual(res, [[42, True, 'hello']])
 
@@ -859,6 +864,84 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             '''
         )
         self.assertEqual(res, [[1, 1, 1], [2, None, 2], [None, 3, 3]])
+
+    async def test_sql_query_44(self):
+        # range function that is an "sql value function", whatever that is
+
+        # to be exact: User is *parsed* as function call CURRENT_USER
+        # we'd ideally want a message that hints that it should use quotes
+
+        with self.assertRaisesRegex(
+            asyncpg.InvalidColumnReferenceError, 'cannot find column `name`'
+        ):
+            await self.squery_values('SELECT name FROM User')
+
+    async def test_sql_query_45(self):
+        res = await self.scon.fetch('SELECT 1 AS a, 2 AS a')
+        self.assert_shape(res, 1, ['a', 'a'])
+
+    async def test_sql_query_46(self):
+        res = await self.scon.fetch(
+            '''
+            WITH
+              x(a) AS (VALUES (1)),
+              y(a) AS (VALUES (2)),
+              z(a) AS (VALUES (3))
+            SELECT * FROM x, y JOIN z u on TRUE
+            '''
+        )
+
+        # `a` would be duplicated,
+        # so second and third instance are prefixed with rel var name
+        self.assert_shape(res, 1, ['a', 'y_a', 'u_a'])
+
+    async def test_sql_query_47(self):
+        res = await self.scon.fetch(
+            '''
+            WITH
+              x(a) AS (VALUES (1)),
+              y(a) AS (VALUES (2), (3))
+            SELECT x.*, u.* FROM x, y as u
+            '''
+        )
+        self.assert_shape(res, 2, ['a', 'u_a'])
+
+    async def test_sql_query_48(self):
+        res = await self.scon.fetch(
+            '''
+            WITH
+              x(a) AS (VALUES (1)),
+              y(a) AS (VALUES (2), (3))
+            SELECT * FROM x, y, y
+            '''
+        )
+
+        # duplicate rel var names can yield duplicate column names
+        self.assert_shape(res, 4, ['a', 'y_a', 'y_a'])
+
+    async def test_sql_query_49(self):
+        res = await self.scon.fetch(
+            '''
+            WITH
+              x(a) AS (VALUES (2))
+            SELECT 1 as x_a, * FROM x, x
+            '''
+        )
+
+        # duplicate rel var names can yield duplicate column names
+        self.assert_shape(res, 1, ['x_a', 'a', 'x_a'])
+
+    async def test_sql_query_50(self):
+        res = await self.scon.fetch(
+            '''
+            WITH
+              x(a) AS (VALUES (2))
+            SELECT 1 as a, * FROM x
+            '''
+        )
+
+        # duplicate rel var names can yield duplicate column names
+        self.assert_shape(res, 1, ['a', 'x_a'])
 
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
@@ -1024,6 +1107,50 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ['novel', 'genre_id', False],
                 ['novel', 'pages', True],
                 ['novel', 'title', True],
+            ],
+        )
+
+    async def test_sql_query_introspection_05(self):
+        # test pg_constraint
+
+        res = await self.squery_values(
+            '''
+            SELECT pc.relname, pcon.contype, pa.key, pcf.relname, paf.key
+            FROM pg_constraint pcon
+            JOIN pg_class pc ON pc.oid = pcon.conrelid
+            LEFT JOIN pg_class pcf ON pcf.oid = pcon.confrelid
+            LEFT JOIN LATERAL (
+                SELECT string_agg(attname, ',') as key
+                FROM pg_attribute
+                WHERE attrelid = pcon.conrelid
+                  AND attnum = ANY(pcon.conkey)
+            ) pa ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT string_agg(attname, ',') as key
+                FROM pg_attribute
+                WHERE attrelid = pcon.confrelid
+                  AND attnum = ANY(pcon.confkey)
+            ) paf ON TRUE
+            WHERE pc.relname IN (
+                'Book.chapters', 'Movie', 'Movie.director', 'Movie.actors'
+            )
+            ORDER BY pc.relname ASC, pcon.contype DESC, pa.key
+            '''
+        )
+
+        self.assertEqual(
+            res,
+            [
+                ['Book.chapters', b'f', 'source', 'Book', 'id'],
+                ['Movie', b'p', 'id', None, None],
+                ['Movie', b'f', 'director_id', 'Person', 'id'],
+                ['Movie', b'f', 'genre_id', 'Genre', 'id'],
+                ['Movie.actors', b'p', 'source,target', None, None],
+                ['Movie.actors', b'f', 'source', 'Movie', 'id'],
+                ['Movie.actors', b'f', 'target', 'Person', 'id'],
+                ['Movie.director', b'p', 'source,target', None, None],
+                ['Movie.director', b'f', 'source', 'Movie', 'id'],
+                ['Movie.director', b'f', 'target', 'Person', 'id'],
             ],
         )
 
@@ -1250,6 +1377,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             SELECT information_schema._pg_truetypid(a.*, t.*)
             FROM pg_attribute a
             JOIN pg_type t ON t.oid = a.atttypid
+            LIMIT 500
             '''
         )
 
@@ -2006,3 +2134,244 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         self.assertEqual(len(res), 0)
 
         await tran.rollback()
+
+    async def test_sql_query_unsupported_01(self):
+        # test error messages of unsupported queries
+
+        # we build AST for this not, but throw in resolver
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "not supported: CREATE",
+            # position="14",  # TODO: this is confusing
+        ):
+            await self.squery_values('CREATE TABLE a();')
+
+        # we don't even have AST node for this
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "not supported: ALTER TABLE",
+        ):
+            await self.squery_values('ALTER TABLE a ADD COLUMN b INT;')
+
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "not supported: REINDEX",
+        ):
+            await self.squery_values('REINDEX TABLE a;')
+
+    async def test_native_sql_query_00(self):
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                    1 AS a,
+                    'two' AS b,
+                    to_json('three') AS c,
+                    timestamp '2000-12-16 12:21:13' AS d,
+                    timestamp with time zone '2000-12-16 12:21:13' AS e,
+                    date '0001-01-01 AD' AS f,
+                    interval '2000 years' AS g,
+                    ARRAY[1, 2, 3] AS h,
+                    FALSE AS i
+            """,
+            [
+                {
+                    "a": 1,
+                    "b": "two",
+                    "c": '"three"',
+                    "d": "2000-12-16T12:21:13",
+                    "e": "2000-12-16T12:21:13+00:00",
+                    "f": "0001-01-01",
+                    "g": edgedb.RelativeDuration(months=2000 * 12),
+                    "h": [1, 2, 3],
+                    "i": False,
+                }
+            ],
+        )
+
+    async def test_native_sql_query_01(self):
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                    "Movie".title,
+                    "Genre".name AS genre
+                FROM
+                    "Movie",
+                    "Genre"
+                WHERE
+                    "Movie".genre_id = "Genre".id
+                    AND "Genre".name = 'Drama'
+                ORDER BY
+                    title
+            """,
+            [
+                {
+                    "title": "Forrest Gump",
+                    "genre": "Drama",
+                },
+                {
+                    "title": "Saving Private Ryan",
+                    "genre": "Drama",
+                },
+            ],
+        )
+
+    async def test_native_sql_query_02(self):
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                    "Movie".title,
+                    "Genre".name AS genre
+                FROM
+                    "Movie",
+                    "Genre"
+                WHERE
+                    "Movie".genre_id = "Genre".id
+                    AND "Genre".name = $1::text
+                    AND length("Movie".title) > $2::int
+                ORDER BY
+                    title
+            """,
+            [
+                {
+                    "title": "Saving Private Ryan",
+                    "genre": "Drama",
+                }
+            ],
+            variables={
+                "0": "Drama",
+                "1": 14,
+            },
+        )
+
+    async def test_native_sql_query_03(self):
+        # No output at all
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                WHERE NULL
+            """,
+            [],
+        )
+
+        # Empty tuples
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                FROM "Movie"
+                LIMIT 1
+            """,
+            [{}],
+        )
+
+    async def test_native_sql_query_04(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            'duplicate column name: `a`',
+            _position=16,
+        ):
+            await self.assert_sql_query_result('SELECT 1 AS a, 2 AS a', [])
+
+    async def test_native_sql_query_05(self):
+        # `a` would be duplicated,
+        # so second and third instance are prefixed with rel var name
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(a) AS (VALUES (1::int)),
+              y(a) AS (VALUES (1::int + 1::int)),
+              z(a) AS (VALUES (1::int + 1::int + 1::int))
+            SELECT * FROM x, y JOIN z u ON TRUE::bool
+            ''',
+            [{'a': 1, 'y_a': 2, 'u_a': 3}],
+        )
+
+    async def test_native_sql_query_06(self):
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(a) AS (VALUES (1)),
+              y(a) AS (VALUES (2), (3))
+            SELECT x.*, u.* FROM x, y as u
+            ''',
+            [{'a': 1, 'u_a': 2}, {'a': 1, 'u_a': 3}],
+        )
+
+    async def test_native_sql_query_07(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            'duplicate column name: `y_a`',
+            # _position=114, TODO: spans are messed up somewhere
+        ):
+            await self.assert_sql_query_result(
+                '''
+                WITH
+                x(a) AS (VALUES (1)),
+                y(a) AS (VALUES (1 + 1), (1 + 1 + 1))
+                SELECT * FROM x, y, y
+                ''',
+                [],
+            )
+
+    async def test_native_sql_query_08(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            'duplicate column name: `x_a`',
+            # _position=83, TODO: spans are messed up somewhere
+        ):
+            await self.assert_sql_query_result(
+                '''
+                WITH
+                x(a) AS (VALUES (2))
+                SELECT 1 as x_a, * FROM x, x
+                ''',
+                [],
+            )
+
+    async def test_native_sql_query_09(self):
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(a) AS (VALUES (1 + 1))
+            SELECT 1 as a, * FROM x
+            ''',
+            [{'a': 1, 'x_a': 2}],
+        )
+
+    async def test_native_sql_query_10(self):
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(b, c) AS (VALUES (2, 3))
+            SELECT 1 as a, * FROM x
+            ''',
+            [{'a': 1, 'b': 2, 'c': 3}],  # values are swapped around
+        )
+
+    async def test_native_sql_query_11(self):
+        # JOIN ... ON TRUE fails, saying it expects bool, but it got an int
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(a) AS (VALUES (1)),
+              y(b) AS (VALUES (2)),
+              z(c) AS (VALUES (3))
+            SELECT * FROM x, y JOIN z ON TRUE
+            ''',
+            [{'a': 1, 'b': 2, 'c': 3}],
+        )
+
+    async def test_native_sql_query_12(self):
+        await self.assert_sql_query_result(
+            '''
+            WITH
+                x(a) AS (VALUES (1), (5)),
+                y(b) AS (VALUES (2), (3))
+            SELECT * FROM x, y
+            ''',
+            [
+                {'a': 1, 'b': 2},
+                {'a': 1, 'b': 3},
+                {'a': 5, 'b': 2},
+                {'a': 5, 'b': 3},
+            ],
+        )

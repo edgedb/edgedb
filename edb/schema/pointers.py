@@ -857,7 +857,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
     def allow_ref_propagation(
         self,
         schema: s_schema.Schema,
-        constext: sd.CommandContext,
+        context: sd.CommandContext,
         refdict: so.RefDict,
     ) -> bool:
         object_type = self.get_source(schema)
@@ -3256,5 +3256,38 @@ def get_or_create_intersection_pointer(
         },
         transient=transient,
     )
+
+    # We want to transform all the computables in the list of the
+    # components to their respective owned computables. This is to
+    # ensure that mixing multiple inherited copies of the same
+    # computable is actually allowed.
+    comp_set = set()
+    for c in components:
+        if c.is_pure_computable(schema):
+            comp_set.add(_get_nearest_owned(schema, c))
+        else:
+            comp_set.add(c)
+    components = list(comp_set)
+
+    if (
+        any(p.is_pure_computable(schema) for p in components)
+        and len(components) > 1
+        and ptrname.name not in ('__tname__', '__tid__')
+    ):
+        p = components[0]
+        raise errors.SchemaError(
+            f'it is illegal to create a type intersection that causes '
+            f'a computed {p.get_verbosename(schema)} to mix '
+            f'with other versions of the same {p.get_verbosename(schema)}',
+        )
+
+    if len({p.get_cardinality(schema) for p in components}) > 1:
+        p = components[0]
+        raise errors.SchemaError(
+            f'it is illegal to create a type intersection that causes '
+            f'a {p.get_verbosename(schema)} to mix '
+            f'with other versions of {p.get_verbosename(schema)} '
+            f'which have a different cardinality',
+        )
 
     return schema, result

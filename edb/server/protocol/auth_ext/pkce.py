@@ -46,6 +46,7 @@ class PKCEChallenge:
     challenge: str
     auth_token: str | None
     refresh_token: str | None
+    id_token: str | None
     identity_id: str | None
 
 
@@ -95,6 +96,7 @@ async def add_provider_tokens(
     id: str,
     auth_token: str | None,
     refresh_token: str | None,
+    id_token: str | None,
 ) -> str:
     r = await execute.parse_execute_json(
         db,
@@ -104,12 +106,14 @@ async def add_provider_tokens(
         set {
             auth_token := <optional str>$auth_token,
             refresh_token := <optional str>$refresh_token,
+            id_token := <optional str>$id_token,
         }
         """,
         variables={
             "id": id,
             "auth_token": auth_token,
             "refresh_token": refresh_token,
+            "id_token": id_token,
         },
         cached_globally=True,
     )
@@ -129,6 +133,7 @@ async def get_by_id(db: edbtenant.dbview.Database, id: str) -> PKCEChallenge:
             challenge,
             auth_token,
             refresh_token,
+            id_token,
             identity_id := .identity.id
         }
         filter .id = <uuid>$id

@@ -134,6 +134,9 @@ class flags(metaclass=FlagsMeta):
     delta_execute_ddl = Flag(
         doc="Output just the DDL commands as executed during migration.")
 
+    delta_validate_reflection = Flag(
+        doc="Whether to do expensive validation of reflection correctness.")
+
     server = Flag(
         doc="Print server errors.")
 

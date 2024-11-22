@@ -63,6 +63,7 @@ cdef class Connection:
             messages.Execute(
                 annotations=[],
                 command_text=query,
+                input_language=messages.InputLanguage.EDGEQL,
                 output_format=messages.OutputFormat.NONE,
                 expected_cardinality=messages.Cardinality.MANY,
                 allowed_capabilities=messages.Capability.ALL,
@@ -173,6 +174,7 @@ async def new_connection(
         tls_ca=tls_ca,
         tls_ca_file=tls_ca_file,
         tls_security=tls_security,
+        tls_server_name=None,
         wait_until_available=timeout,
         credentials=credentials,
         credentials_file=credentials_file,

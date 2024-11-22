@@ -949,7 +949,7 @@ class RangeFunction(BaseRangeVar):
     with_ordinality: bool = False
     # ROWS FROM form
     is_rowsfrom: bool = False
-    functions: typing.List[FuncCall]
+    functions: typing.List[BaseExpr]
 
 
 class JoinClause(BaseRangeVar):

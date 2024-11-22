@@ -138,6 +138,8 @@ class Tenant(ha_base.ClusterProtocol):
 
     _http_client: HttpClient | None
 
+    _sidechannel_email_configs: list[Any]
+
     def __init__(
         self,
         cluster: pgcluster.BaseCluster,
@@ -161,6 +163,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._accept_new_tasks = False
         self._file_watch_finalizers = []
         self._introspection_locks = weakref.WeakValueDictionary()
+        self._sidechannel_email_configs = []
 
         self._extensions_dirs = extensions_dir
 
@@ -245,6 +248,9 @@ class Tenant(ha_base.ClusterProtocol):
     def set_server(self, server: edbserver.BaseServer) -> None:
         self._server = server
         self.__loop = server.get_loop()
+
+    def set_sidechannel_configs(self, configs: list[Any]) -> None:
+        self._sidechannel_email_configs = configs
 
     def get_http_client(self, *, originator: str) -> HttpClient:
         if self._http_client is None:
@@ -1101,6 +1107,21 @@ class Tenant(ha_base.ClusterProtocol):
 
         return extensions
 
+    async def _debug_introspect(
+        self,
+        conn: pgcon.PGConnection,
+        global_schema_pickle,
+    ) -> Any:
+        user_schema_json = (
+            await self._server.introspect_user_schema_json(conn)
+        )
+        db_config_json = await self._server.introspect_db_config(conn)
+
+        compiler_pool = self._server.get_compiler_pool()
+        return (await compiler_pool.parse_user_schema_db_config(
+            user_schema_json, db_config_json, global_schema_pickle,
+        )).user_schema_pickle
+
     async def introspect_db(
         self,
         dbname: str,
@@ -1194,7 +1215,7 @@ class Tenant(ha_base.ClusterProtocol):
             SELECT
                 json_object_agg(
                     "id"::text,
-                    "backend_id"
+                    json_build_array("backend_id", "name")
                 )::text
             FROM
                 edgedb_VER."_SchemaType"

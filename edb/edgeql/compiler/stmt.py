@@ -68,6 +68,7 @@ from . import clauses
 from . import context
 from . import config_desc
 from . import dispatch
+from . import inference
 from . import pathctx
 from . import policies
 from . import setgen
@@ -1309,7 +1310,7 @@ def process_with_block(
     *,
     ctx: context.ContextLevel,
     parent_ctx: context.ContextLevel,
-) -> List[irast.Set]:
+) -> list[tuple[irast.Set, qltypes.Volatility]]:
     if edgeql_tree.aliases is None:
         return []
 
@@ -1329,7 +1330,10 @@ def process_with_block(
                     binding_kind=irast.BindingKind.With,
                     ctx=scopectx,
                 )
-                results.append(binding)
+                volatility = inference.infer_volatility(
+                    binding, ctx.env, exclude_dml=True
+                )
+                results.append((binding, volatility))
 
                 if reason := setgen.should_materialize(binding, ctx=ctx):
                     had_materialized = True

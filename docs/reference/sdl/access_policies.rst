@@ -190,6 +190,8 @@ The access policy declaration options are as follows:
     depends on whether this policy flavor is :eql:synopsis:`allow` or
     :eql:synopsis:`deny`.
 
+    The expression must be :ref:`Stable <ref_reference_volatility>`.
+
     When omitted, it is assumed that this policy applies to all eligible
     objects of a given type.
 

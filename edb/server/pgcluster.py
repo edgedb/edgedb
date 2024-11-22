@@ -79,6 +79,10 @@ get_role_backend_name = pgcommon.get_role_backend_name
 
 EDGEDB_SERVER_SETTINGS = {
     'client_encoding': 'utf-8',
+    # DO NOT raise client_min_messages above NOTICE level
+    # because server indirect block return machinery relies
+    # on NoticeResponse as the data channel.
+    'client_min_messages': 'NOTICE',
     'search_path': 'edgedb',
     'timezone': 'UTC',
     'intervalstyle': 'iso_8601',
@@ -560,6 +564,12 @@ class Cluster(BaseCluster):
             # `max_connections` scenarios.
             'max_locks_per_transaction': 1024,
             'max_pred_locks_per_transaction': 1024,
+            "shared_preload_libraries": ",".join(
+                [
+                    "edb_stat_statements",
+                ]
+            ),
+            "edb_stat_statements.track_planning": "true",
         }
 
         if os.getenv('EDGEDB_DEBUG_PGSERVER'):
@@ -568,7 +578,7 @@ class Cluster(BaseCluster):
         else:
             log_level_map = {
                 'd': 'INFO',
-                'i': 'NOTICE',
+                'i': 'WARNING',  # NOTICE in Postgres is quite noisy
                 'w': 'WARNING',
                 'e': 'ERROR',
                 's': 'PANIC',
@@ -1163,6 +1173,13 @@ async def get_remote_pg_cluster(
             caps |= pgparams.BackendCapabilities.CREATE_ROLE
         if roles['rolcreatedb']:
             caps |= pgparams.BackendCapabilities.CREATE_DATABASE
+
+        stats_ver = await conn.sql_fetch_val(b"""
+            SELECT default_version FROM pg_available_extensions
+            WHERE name = 'edb_stat_statements';
+        """)
+        if stats_ver in (b"1.0",):
+            caps |= pgparams.BackendCapabilities.STAT_STATEMENTS
 
         return caps
 

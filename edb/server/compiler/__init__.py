@@ -27,7 +27,7 @@ from .compiler import compile, compile_schema_storage_in_delta
 from .compiler import maybe_force_database_error
 from .dbstate import QueryUnit, QueryUnitGroup
 from .enums import Capability, Cardinality
-from .enums import InputFormat, OutputFormat
+from .enums import InputFormat, OutputFormat, InputLanguage
 from .explain import analyze_explain_output
 from .ddl import repair_schema
 from .rpc import CompilationRequest
@@ -43,6 +43,7 @@ __all__ = (
     'QueryUnitGroup',
     'Capability',
     'InputFormat',
+    'InputLanguage',
     'OutputFormat',
     'analyze_explain_output',
     'compile_edgeql_script',

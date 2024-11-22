@@ -1,7 +1,7 @@
 use pyo3::{
     exceptions::{PyIndexError, PyRuntimeError},
     prelude::*,
-    types::PyBytes,
+    types::{PyBytes, PyList},
 };
 
 use edgeql_parser::position::InflatedPos;
@@ -14,18 +14,20 @@ pub struct SourcePoint {
 #[pymethods]
 impl SourcePoint {
     #[staticmethod]
-    fn from_offsets(py: Python, data: &Bound<PyBytes>, offsets: PyObject) -> PyResult<PyObject> {
+    fn from_offsets(py: Python, data: &Bound<PyBytes>, offsets: PyObject) -> PyResult<Py<PyList>> {
         let mut list: Vec<usize> = offsets.extract(py)?;
         let data: &[u8] = data.as_bytes();
         list.sort();
         let result = InflatedPos::from_offsets(data, &list)
             .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
-        Ok(result
-            .into_iter()
-            .map(|_position| SourcePoint { _position })
-            .collect::<Vec<_>>()
-            .into_py(py))
+        PyList::new(
+            py,
+            result
+                .into_iter()
+                .map(|_position| SourcePoint { _position }),
+        )
+        .map(|v| v.into())
     }
 
     #[getter]

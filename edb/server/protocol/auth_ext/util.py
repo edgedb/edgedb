@@ -22,6 +22,8 @@ from __future__ import annotations
 import base64
 import urllib.parse
 import datetime
+import html
+
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
 from cryptography.hazmat.backends import default_backend
@@ -101,6 +103,17 @@ def get_config_typename(config_value: edb_config.SettingValue) -> str:
     return config_value._tspec.name  # type: ignore
 
 
+def escape_and_truncate(input_str: str | None, max_len: int) -> str | None:
+    if input_str is None:
+        return None
+    trunc = (
+        f"{input_str[:max_len]}..."
+        if len(input_str) > max_len
+        else input_str
+    )
+    return html.escape(trunc)
+
+
 def get_app_details_config(db: Any) -> config.AppDetailsConfig:
     ui_config = cast(
         Optional[config.UIConfig],
@@ -108,21 +121,25 @@ def get_app_details_config(db: Any) -> config.AppDetailsConfig:
     )
 
     return config.AppDetailsConfig(
-        app_name=(
+        app_name=escape_and_truncate(
             maybe_get_config(db, "ext::auth::AuthConfig::app_name")
-            or (ui_config.app_name if ui_config else None)
+            or (ui_config.app_name if ui_config else None),
+            100,
         ),
-        logo_url=(
+        logo_url=escape_and_truncate(
             maybe_get_config(db, "ext::auth::AuthConfig::logo_url")
-            or (ui_config.logo_url if ui_config else None)
+            or (ui_config.logo_url if ui_config else None),
+            2000,
         ),
-        dark_logo_url=(
+        dark_logo_url=escape_and_truncate(
             maybe_get_config(db, "ext::auth::AuthConfig::dark_logo_url")
-            or (ui_config.dark_logo_url if ui_config else None)
+            or (ui_config.dark_logo_url if ui_config else None),
+            2000,
         ),
-        brand_color=(
+        brand_color=escape_and_truncate(
             maybe_get_config(db, "ext::auth::AuthConfig::brand_color")
-            or (ui_config.brand_color if ui_config else None)
+            or (ui_config.brand_color if ui_config else None),
+            8,
         ),
     )
 

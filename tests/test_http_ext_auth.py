@@ -31,6 +31,7 @@ import hashlib
 
 from typing import Any, Optional, cast
 from jwcrypto import jwt, jwk
+from email.message import EmailMessage
 
 from edgedb import QueryAssertionError
 from edb.testbase import http as tb
@@ -235,7 +236,7 @@ APPLE_SECRET = 'c' * 32
 DISCORD_SECRET = 'd' * 32
 SLACK_SECRET = 'd' * 32
 GENERIC_OIDC_SECRET = 'e' * 32
-APP_NAME = "Test App"
+APP_NAME = "Test App" * 13
 LOGO_URL = "http://example.com/logo.png"
 DARK_LOGO_URL = "http://example.com/darklogo.png"
 BRAND_COLOR = "f0f8ff"
@@ -248,6 +249,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     SETUP = [
         f"""
+        CONFIGURE CURRENT DATABASE INSERT cfg::SMTPProviderConfig {{
+            name := "email_hosting_is_easy",
+            sender := "{SENDER}",
+        }};
+
+        CONFIGURE CURRENT DATABASE SET
+        cfg::current_email_provider_name := "email_hosting_is_easy";
+
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::auth_signing_key := '{SIGNING_KEY}';
 
@@ -271,9 +280,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
           redirect_to := 'https://example.com/app',
           redirect_to_on_signup := 'https://example.com/signup/app',
         }};
-
-        CONFIGURE CURRENT DATABASE SET
-        ext::auth::SMTPConfig::sender := '{SENDER}';
 
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::allowed_redirect_urls := {{
@@ -3203,10 +3209,18 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], form_data["email"])
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
-                r'<p style="word-break: break-all">([^<]+)', html_email
+                r'<p style="word-break: break-all">([^<]+)',
+                html_email,
             )
             assert match is not None
             verify_url = urllib.parse.urlparse(match.group(1))
@@ -3382,8 +3396,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )
@@ -3474,6 +3491,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                             challenge := <str>$challenge,
                             auth_token := <str>$auth_token,
                             refresh_token := <str>$refresh_token,
+                            id_token := <str>$id_token,
                             identity := (
                                 insert ext::auth::Identity {
                                     issuer := "https://example.com",
@@ -3486,12 +3504,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         challenge,
                         auth_token,
                         refresh_token,
+                        id_token,
                         identity_id := .identity.id
                     }
                     """,
                     challenge=challenge.decode(),
                     auth_token="a_provider_token",
                     refresh_token="a_refresh_token",
+                    id_token="an_id_token",
                 )
 
                 # Correct code, random verifier
@@ -3530,6 +3550,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         "identity_id": str(pkce.identity_id),
                         "provider_token": "a_provider_token",
                         "provider_refresh_token": "a_refresh_token",
+                        "provider_id_token": "an_id_token",
                     },
                 )
                 async for tr in self.try_until_succeeds(
@@ -3675,8 +3696,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )
@@ -3862,8 +3886,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )
@@ -4031,7 +4058,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             body_str = body.decode()
 
-            self.assertIn(APP_NAME, body_str)
+            self.assertIn(f"{APP_NAME[:100]}...", body_str)
             self.assertIn(LOGO_URL, body_str)
             self.assertIn(BRAND_COLOR, body_str)
 
@@ -4065,7 +4092,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertIsInstance(body_json["rp"], dict)
             self.assertIn("name", body_json["rp"])
-            self.assertEqual(body_json["rp"]["name"], APP_NAME)
+            self.assertEqual(body_json["rp"]["name"], f"{APP_NAME[:100]}...")
             self.assertIn("id", body_json["rp"])
             self.assertEqual(body_json["rp"]["id"], "example.com")
 
@@ -4349,8 +4376,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )

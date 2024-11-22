@@ -39,7 +39,7 @@ cdef extract_token_from_auth_data(auth_data: bytes):
     return scheme.lower(), payload.strip()
 
 
-cdef auth_jwt(tenant, prefixed_token: str, user: str, dbname: str):
+cdef auth_jwt(tenant, prefixed_token: str | None, user: str, dbname: str):
     if not prefixed_token:
         raise errors.AuthenticationError(
             'authentication failed: no authorization data provided')

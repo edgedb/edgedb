@@ -488,6 +488,12 @@ class ClientMessage(Message, abstract=True):
 ###############################################################################
 
 
+class InputLanguage(enum.Enum):
+
+    EDGEQL = 0x45  # b'E'
+    SQL = 0x53  # b'S'
+
+
 class OutputFormat(enum.Enum):
 
     BINARY = 0x62
@@ -789,6 +795,7 @@ class Parse(ClientMessage):
     compilation_flags = EnumOf(UInt64, CompilationFlag,
                                'A bit mask of query options.')
     implicit_limit = UInt64('Implicit LIMIT clause on returned sets.')
+    input_language = EnumOf(UInt8, InputLanguage, 'Command source language.')
     output_format = EnumOf(UInt8, OutputFormat, 'Data output format.')
     expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality.')
@@ -807,6 +814,7 @@ class Execute(ClientMessage):
     compilation_flags = EnumOf(UInt64, CompilationFlag,
                                'A bit mask of query options.')
     implicit_limit = UInt64('Implicit LIMIT clause on returned sets.')
+    input_language = EnumOf(UInt8, InputLanguage, 'Command source language.')
     output_format = EnumOf(UInt8, OutputFormat, 'Data output format.')
     expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality.')

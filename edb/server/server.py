@@ -1274,6 +1274,7 @@ class Server(BaseServer):
         await self._load_instance_data()
         await self._maybe_patch()
         await self._tenant.init()
+        self._load_sidechannel_configs()
         await super().init()
 
     def get_default_tenant(self) -> edbtenant.Tenant:
@@ -1281,6 +1282,20 @@ class Server(BaseServer):
 
     def iter_tenants(self) -> Iterator[edbtenant.Tenant]:
         yield self._tenant
+
+    def _load_sidechannel_configs(self) -> None:
+        # TODO(fantix): Do something like this for multitenant
+        magic_smtp = os.getenv('EDGEDB_MAGIC_SMTP_CONFIG')
+        if magic_smtp:
+            email_type = self._config_settings['email_providers'].type
+            assert not isinstance(email_type, type)
+            configs = [
+                config.CompositeConfigType.from_json_value(
+                    entry, tspec=email_type, spec=self._config_settings
+                )
+                for entry in json.loads(magic_smtp)
+            ]
+            self._tenant.set_sidechannel_configs(configs)
 
     async def _get_patch_log(
         self, conn: pgcon.PGConnection, idx: int
@@ -1433,7 +1448,7 @@ class Server(BaseServer):
                     db_config = self._parse_db_config(config_json, user_schema)
                     try:
                         logger.info("repairing database '%s'", dbname)
-                        sql += bootstrap.prepare_repair_patch(
+                        rep_sql = bootstrap.prepare_repair_patch(
                             self._std_schema,
                             self._refl_schema,
                             user_schema,
@@ -1442,6 +1457,7 @@ class Server(BaseServer):
                             self._tenant.get_backend_runtime_params(),
                             db_config,
                         )
+                        sql += (rep_sql,)
                     except errors.EdgeDBError as e:
                         if isinstance(e, errors.InternalServerError):
                             raise
@@ -1454,7 +1470,7 @@ class Server(BaseServer):
                         ) from e
 
                 if sql:
-                    await conn.sql_fetch(sql)
+                    await conn.sql_execute(sql)
                 logger.info(
                     "finished applying patch %d to database '%s'", num, dbname)
 
