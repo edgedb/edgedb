@@ -2337,7 +2337,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             [{'a': 1, 'x_a': 2}],
         )
 
-    @test.xfail('bug: probably something with constant extraction')
     async def test_native_sql_query_10(self):
         await self.assert_sql_query_result(
             '''
@@ -2348,7 +2347,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             [{'a': 1, 'b': 2, 'c': 3}],  # values are swapped around
         )
 
-    @test.xerror('bug: probably something with constant extraction')
     async def test_native_sql_query_11(self):
         # JOIN ... ON TRUE fails, saying it expects bool, but it got an int
         await self.assert_sql_query_result(
