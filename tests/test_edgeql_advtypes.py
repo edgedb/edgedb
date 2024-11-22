@@ -19,6 +19,8 @@
 
 import os.path
 
+import edgedb
+
 from edb.testbase import server as tb
 
 
@@ -1649,4 +1651,121 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
                 {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 0.5},
                 {'tn': 'default::CBc', 'ba': None, 'bb': None, 'bc': 1.5},
             ],
+        )
+
+    async def test_edgeql_advtypes_intersection_pointers_01(self):
+        # Type intersections with incompatible pointers should produce errors.
+
+        type_roots = [
+            "SoloNonCompSingle",
+            "SoloNonCompMulti",
+            "SoloCompSingle",
+            "SoloCompMulti",
+            "DerivedNonCompSingle",
+            "DerivedNonCompMulti",
+            "DerivedCompSingle",
+            "DerivedCompMulti",
+        ]
+
+        for type_root_a in type_roots:
+            for type_root_b in type_roots:
+                for type_suffix, ptr_name in (
+                    ("Prop", "numbers"),
+                    ("Link", "siblings"),
+                ):
+                    if (
+                        # Either type has computed pointer
+                        (
+                            "NonComp" not in type_root_a
+                            or "NonComp" not in type_root_b
+                        )
+                        # but the pointer doesn't come from a common base
+                        and not (
+                            "Derived" in type_root_a
+                            and type_root_a == type_root_b
+                        )
+                    ):
+                        async with self.assertRaisesRegexTx(
+                            edgedb.SchemaError,
+                            r"it is illegal to create a type intersection "
+                            r"that causes a computed .* to mix "
+                            r"with other versions of the same .*"
+                        ):
+                            await self.con.execute(f"""
+                                select {type_root_a}{type_suffix}A {{
+                                    x := (
+                                        [is {type_root_b}{type_suffix}B]
+                                        .{ptr_name}
+                                    )
+                                }};
+                            """)
+
+                    elif (
+                        # differing pointer cardinalities
+                        ("Single" in type_root_a) != ("Single" in type_root_b)
+                    ):
+                        async with self.assertRaisesRegexTx(
+                            edgedb.SchemaError,
+                            r"it is illegal to create a type intersection "
+                            r"that causes a .* to mix "
+                            r"with other versions of .* "
+                            r"which have a different cardinality"
+                        ):
+                            await self.con.execute(f"""
+                                select {type_root_a}{type_suffix}A {{
+                                    x := (
+                                        [is {type_root_b}{type_suffix}B]
+                                        .{ptr_name}
+                                    )
+                                }};
+                            """)
+
+                    else:
+                        await self.con.execute(f"""
+                            select {type_root_a}{type_suffix}A {{
+                                x := (
+                                    [is {type_root_b}{type_suffix}B]
+                                    .{ptr_name}
+                                )
+                            }};
+                        """)
+
+    async def test_edgeql_advtypes_intersection_pointers_02(self):
+        # Intersection pointer should return nothing if they types are
+        # unrelated.
+
+        await self.con.execute("""
+            INSERT SoloOriginA { dest := (INSERT Destination{ name := "A" }) };
+            INSERT SoloOriginB { dest := (INSERT Destination{ name := "B" }) };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            SELECT SoloOriginA {
+                x := [is SoloOriginB].dest.name
+            }
+            """,
+            [{'x': None}],
+        )
+
+    async def test_edgeql_advtypes_intersection_pointers_03(self):
+        # Intersection pointer should return the correct values if the type
+        # intersection is not empty.
+
+        await self.con.execute("""
+            INSERT BaseOriginA { dest := (INSERT Destination{ name := "A" }) };
+            INSERT BaseOriginB { dest := (INSERT Destination{ name := "B" }) };
+            INSERT DerivedOriginC {
+                dest := (INSERT Destination{ name := "C" })
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            SELECT BaseOriginA {
+                x := [is BaseOriginB].dest.name
+            }
+            ORDER BY .x
+            """,
+            [{'x': None}, {'x': 'C'}],
         )

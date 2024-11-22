@@ -196,6 +196,10 @@ def is_persistent_tuple(typeref: irast.TypeRef) -> bool:
         return False
 
 
+def is_empty_typeref(typeref: irast.TypeRef) -> bool:
+    return typeref.union is not None and len(typeref.union) == 0
+
+
 def needs_custom_serialization(typeref: irast.TypeRef) -> bool:
     # True if any component needs custom serialization
     return contains_predicate(
