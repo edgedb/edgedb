@@ -130,6 +130,10 @@ CREATE TYPE sys::QueryStats EXTENDING sys::ExternalObject {
         CREATE ANNOTATION std::description :=
             "Type of the query.";
     };
+    CREATE PROPERTY tag -> std::str {
+        CREATE ANNOTATION std::description :=
+            "Tag annotation on the query.";
+    };
 
     CREATE PROPERTY compilation_config -> std::json;
     CREATE PROPERTY protocol_version -> tuple<major: std::int16,
