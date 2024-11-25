@@ -84,3 +84,9 @@ create index match for std::cal::local_date using std::pg::brin;
 create index match for std::cal::local_time using std::pg::brin;
 create index match for std::cal::relative_duration using std::pg::brin;
 create index match for std::cal::date_duration using std::pg::brin;
+
+create scalar type std::pg::json extending std::anyscalar;
+create scalar type std::pg::timestamptz extending std::anycontiguous;
+create scalar type std::pg::timestamp extending std::anycontiguous;
+create scalar type std::pg::date extending std::anydiscrete;
+create scalar type std::pg::interval extending std::anycontiguous;

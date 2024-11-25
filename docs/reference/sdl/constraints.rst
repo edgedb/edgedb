@@ -113,9 +113,14 @@ This declaration defines a new constraint with the following options:
 :eql:synopsis:`on ( <subject-expr> )`
     An optional expression defining the *subject* of the constraint.
     If not specified, the subject is the value of the schema item on
-    which the concrete constraint is defined.  The expression must
-    refer to the original subject of the constraint as
-    ``__subject__``.  Note also that ``<subject-expr>`` itself has to
+    which the concrete constraint is defined. 
+
+    The expression must refer to the original subject of the constraint as
+    ``__subject__``. The expression must be
+    :ref:`Immutable <ref_reference_volatility>`, but may refer to
+    ``__subject__`` and its properties and links.
+
+    Note also that ``<subject-expr>`` itself has to
     be parenthesized.
 
 :eql:synopsis:`except ( <exception-expr> )`

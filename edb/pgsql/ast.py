@@ -696,7 +696,7 @@ class SelectStmt(Query):
     # LIMIT expression
     limit_count: typing.Optional[BaseExpr] = None
     # FOR UPDATE clause
-    locking_clause: typing.Optional[list] = None
+    locking_clause: typing.Optional[list[LockingClause]] = None
 
     # Set operation type
     op: typing.Optional[str] = None
@@ -910,6 +910,32 @@ class SortBy(ImmutableBase):
     dir: typing.Optional[qlast.SortOrder] = None
     # NULLS FIRST/LAST
     nulls: typing.Optional[qlast.NonesOrder] = None
+
+
+class LockClauseStrength(enum.StrEnum):
+    UPDATE = "UPDATE"
+    NO_KEY_UPDATE = "NO KEY UPDATE"
+    SHARE = "SHARE"
+    KEY_SHARE = "KEY SHARE"
+
+
+class LockWaitPolicy(enum.StrEnum):
+    LockWaitBlock = ""
+    LockWaitSkip = "SKIP LOCKED"
+    LockWaitError = "NOWAIT"
+
+
+class LockingClause(ImmutableBase):
+    """Locking clause element (FOR ... )"""
+
+    strength: LockClauseStrength
+    "lock strength"
+
+    locked_rels: typing.Optional[list[RelRangeVar]] = None
+    "locked relations"
+
+    wait_policy: typing.Optional[LockWaitPolicy] = None
+    "lock wait policy"
 
 
 class WindowDef(ImmutableBase):

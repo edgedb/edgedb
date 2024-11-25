@@ -60,6 +60,7 @@ from edb.common import verutils
 from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 
@@ -118,7 +119,7 @@ class CompilerDatabaseState:
     cached_reflection: immutables.Map[str, Tuple[str, ...]]
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class CompileContext:
 
     compiler_state: CompilerState
@@ -145,6 +146,8 @@ class CompileContext:
     log_ddl_as_migrations: bool = True
     dump_restore_mode: bool = False
     notebook: bool = False
+    branch_name: Optional[str] = None
+    role_name: Optional[str] = None
     cache_key: Optional[uuid.UUID] = None
 
     def get_cache_mode(self) -> config.QueryCacheMode:
@@ -563,6 +566,9 @@ class Compiler:
             current_user=current_user,
             allow_user_specified_id=allow_user_specified_id,
             apply_access_policies_sql=apply_access_policies_sql,
+            disambiguate_column_names=False,
+            backend_runtime_params=self.state.backend_runtime_params,
+            protocol_version=(-3, 0),  # emulated PG binary protocol version
         )
 
     def compile_serialized_request(
@@ -583,7 +589,7 @@ class Compiler:
             self.state.compilation_config_serializer,
         )
 
-        units, cstate = self.compile(
+        return self.compile(
             user_schema=user_schema,
             global_schema=global_schema,
             reflection_cache=reflection_cache,
@@ -591,7 +597,6 @@ class Compiler:
             system_config=system_config,
             request=request,
         )
-        return units, cstate
 
     def compile(
         self,
@@ -641,10 +646,21 @@ class Compiler:
             json_parameters=request.input_format is enums.InputFormat.JSON,
             source=request.source,
             protocol_version=request.protocol_version,
+            role_name=request.role_name,
+            branch_name=request.branch_name,
             cache_key=request.get_cache_key(),
         )
 
-        unit_group = compile(ctx=ctx, source=request.source)
+        match request.input_language:
+            case enums.InputLanguage.EDGEQL:
+                unit_group = compile(ctx=ctx, source=request.source)
+            case enums.InputLanguage.SQL:
+                unit_group = compile_sql_as_unit_group(
+                    ctx=ctx, source=request.source)
+            case _:
+                raise NotImplementedError(
+                    f"unnsupported input language: {request.input_language}")
+
         tx_started = False
         for unit in unit_group:
             if unit.tx_id:
@@ -727,8 +743,17 @@ class Compiler:
             cache_key=request.get_cache_key(),
         )
 
-        units = compile(ctx=ctx, source=request.source)
-        return units, ctx.state
+        match request.input_language:
+            case enums.InputLanguage.EDGEQL:
+                unit_group = compile(ctx=ctx, source=request.source)
+            case enums.InputLanguage.SQL:
+                unit_group = compile_sql_as_unit_group(
+                    ctx=ctx, source=request.source)
+            case _:
+                raise NotImplementedError(
+                    f"unnsupported input language: {request.input_language}")
+
+        return unit_group, ctx.state
 
     def interpret_backend_error(
         self,
@@ -905,6 +930,62 @@ class Compiler:
             blocks=descriptors,
         )
 
+    def _reprocess_restore_config(
+        self,
+        stmts: list[qlast.Base],
+    ) -> list[qlast.Base]:
+        '''Do any rewrites to the restore script needed.
+
+        This is intended to patch over certain backwards incompatible
+        changes to config. We try not to do that too much, but when we
+        do, dumps still need to work.
+        '''
+
+        new_stmts = []
+        smtp_config = {}
+
+        for stmt in stmts:
+            # ext::auth::SMTPConfig got removed and moved into a cfg
+            # object, so intercept those and rewrite them.
+            if (
+                isinstance(stmt, qlast.ConfigSet)
+                and stmt.name.module == 'ext::auth::SMTPConfig'
+            ):
+                smtp_config[stmt.name.name] = stmt.expr
+            else:
+                new_stmts.append(stmt)
+
+        if smtp_config:
+            # Do the rewrite of SMTPConfig
+            smtp_config['name'] = qlast.Constant.string('_default')
+
+            new_stmts.append(
+                qlast.ConfigInsert(
+                    scope=qltypes.ConfigScope.DATABASE,
+                    name=qlast.ObjectRef(
+                        module='cfg', name='SMTPProviderConfig'
+                    ),
+                    shape=[
+                        qlast.ShapeElement(
+                            expr=qlast.Path(steps=[qlast.Ptr(name=name)]),
+                            compexpr=expr,
+                        )
+                        for name, expr in smtp_config.items()
+                    ],
+                )
+            )
+            new_stmts.append(
+                qlast.ConfigSet(
+                    scope=qltypes.ConfigScope.DATABASE,
+                    name=qlast.ObjectRef(
+                        name='current_email_provider_name'
+                    ),
+                    expr=qlast.Constant.string('_default'),
+                )
+            )
+
+        return new_stmts
+
     def describe_database_restore(
         self,
         user_schema_pickle: bytes,
@@ -984,7 +1065,11 @@ class Compiler:
 
         # The state serializer generated below is somehow inappropriate,
         # so it's simply ignored here and the I/O process will do it on its own
-        units = compile(ctx=ctx, source=ddl_source).units
+        statements = edgeql.parse_block(ddl_source)
+        statements = self._reprocess_restore_config(statements)
+        units = _try_compile_ast(
+            ctx=ctx, source=ddl_source, statements=statements
+        ).units
 
         _check_force_database_error(ctx, scope='restore')
 
@@ -1559,6 +1644,52 @@ def _compile_ql_query(
     is_explain = explain_data is not None
     current_tx = ctx.state.current_tx()
 
+    sql_info: Dict[str, Any] = {}
+    if (
+        not ctx.bootstrap_mode
+        and ctx.backend_runtime_params.has_stat_statements
+        and not ctx.schema_reflection_mode
+    ):
+        spec = ctx.compiler_state.config_spec
+        cconfig = config.to_json_obj(
+            spec,
+            {
+                **current_tx.get_system_config(),
+                **current_tx.get_database_config(),
+                **current_tx.get_session_config(),
+            },
+            setting_filter=lambda v: v.name in spec
+                                     and spec[v.name].affects_compilation,
+            include_source=False,
+        )
+        extras: Dict[str, Any] = {
+            'cc': dict(sorted(cconfig.items())),  # compilation_config
+            'pv': ctx.protocol_version,  # protocol_version
+            'of': ctx.output_format,  # output_format
+            'e1': ctx.expected_cardinality_one,  # expect_one
+            'il': ctx.implicit_limit,  # implicit_limit
+            'ii': ctx.inline_typeids,  # inline_typeids
+            'in': ctx.inline_typenames,  # inline_typenames
+            'io': ctx.inline_objectids,  # inline_objectids
+        }
+        modaliases = dict(current_tx.get_modaliases())
+        # dn: default_namespace
+        extras['dn'] = modaliases.pop(None, defines.DEFAULT_MODULE_ALIAS)
+        if modaliases:
+            # na: namespace_aliases
+            extras['na'] = dict(sorted(modaliases.items()))
+
+        sql_info.update({
+            'query': qlcodegen.generate_source(ql),
+            'type': defines.QueryType.EdgeQL,
+            'extras': json.dumps(extras),
+        })
+        id_hash = hashlib.blake2b(digest_size=16)
+        id_hash.update(
+            json.dumps(sql_info).encode(defines.EDGEDB_ENCODING)
+        )
+        sql_info['id'] = str(uuidgen.from_bytes(id_hash.digest()))
+
     base_schema = (
         ctx.compiler_state.std_schema
         if not _get_config_val(ctx, '__internal_query_reflschema')
@@ -1624,12 +1755,11 @@ def _compile_ql_query(
 
     # If requested, embed the EdgeQL text in the SQL.
     if debug.flags.edgeql_text_in_sql and source:
-        sql_debug_obj = dict(edgeql=source.text())
-        sql_debug_prefix = '-- ' + json.dumps(sql_debug_obj) + '\n'
-        sql_text = sql_debug_prefix + sql_text
-        if func_call_sql is not None:
-            func_call_sql = sql_debug_prefix + func_call_sql
-    sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
+        sql_info['edgeql'] = source.text()
+    if sql_info:
+        sql_info_prefix = '-- ' + json.dumps(sql_info) + '\n'
+    else:
+        sql_info_prefix = ''
 
     globals = None
     if ir.globals:
@@ -1661,21 +1791,23 @@ def _compile_ql_query(
     )
 
     sql_hash = _hash_sql(
-        sql_bytes,
+        sql_text.encode(defines.EDGEDB_ENCODING),
         mode=str(ctx.output_format).encode(),
         intype=in_type_id.bytes,
         outtype=out_type_id.bytes)
 
     cache_func_call = None
     if func_call_sql is not None:
-        func_call_sql_bytes = func_call_sql.encode(defines.EDGEDB_ENCODING)
         func_call_sql_hash = _hash_sql(
-            func_call_sql_bytes,
+            func_call_sql.encode(defines.EDGEDB_ENCODING),
             mode=str(ctx.output_format).encode(),
             intype=in_type_id.bytes,
             outtype=out_type_id.bytes,
         )
-        cache_func_call = (func_call_sql_bytes, func_call_sql_hash)
+        cache_func_call = (
+            (sql_info_prefix + func_call_sql).encode(defines.EDGEDB_ENCODING),
+            func_call_sql_hash,
+        )
 
     if is_explain:
         if isinstance(ir.schema, s_schema.ChainedSchema):
@@ -1690,7 +1822,7 @@ def _compile_ql_query(
         query_asts = None
 
     return dbstate.Query(
-        sql=sql_bytes,
+        sql=(sql_info_prefix + sql_text).encode(defines.EDGEDB_ENCODING),
         sql_hash=sql_hash,
         cache_sql=cache_sql,
         cache_func_call=cache_func_call,
@@ -2343,6 +2475,132 @@ def compile(
             raise original_err
 
 
+def compile_sql_as_unit_group(
+    *,
+    ctx: CompileContext,
+    source: edgeql.Source,
+) -> dbstate.QueryUnitGroup:
+
+    setting = _get_config_val(ctx, 'allow_user_specified_id')
+    allow_user_specified_id = None
+    if setting:
+        allow_user_specified_id = sql.is_setting_truthy(setting)
+
+    apply_access_policies_sql = None
+    setting = _get_config_val(ctx, 'apply_access_policies_sql')
+    if setting:
+        apply_access_policies_sql = sql.is_setting_truthy(setting)
+
+    tx_state = ctx.state.current_tx()
+    schema = tx_state.get_schema(ctx.compiler_state.std_schema)
+
+    settings = dbstate.DEFAULT_SQL_FE_SETTINGS
+    sql_tx_state = dbstate.SQLTransactionState(
+        in_tx=not tx_state.is_implicit(),
+        settings=settings,
+        in_tx_settings=settings,
+        in_tx_local_settings=settings,
+        savepoints=[
+            (not_none(tx.name), settings, settings)
+            for tx in tx_state._savepoints.values()
+        ],
+    )
+
+    sql_units = sql.compile_sql(
+        source.text(),
+        schema=schema,
+        tx_state=sql_tx_state,
+        prepared_stmt_map={},
+        current_database=ctx.branch_name or "<unknown>",
+        current_user=ctx.role_name or "<unknown>",
+        allow_user_specified_id=allow_user_specified_id,
+        apply_access_policies_sql=apply_access_policies_sql,
+        include_edgeql_io_format_alternative=True,
+        allow_prepared_statements=False,
+        disambiguate_column_names=True,
+        backend_runtime_params=ctx.backend_runtime_params,
+        protocol_version=ctx.protocol_version,
+    )
+
+    qug = dbstate.QueryUnitGroup(
+        cardinality=sql_units[-1].cardinality,
+        cacheable=False,
+    )
+
+    for sql_unit in sql_units:
+        if sql_unit.eql_format_query is not None:
+            value_sql = sql_unit.eql_format_query.encode("utf-8")
+            intro_sql = sql_unit.query.encode("utf-8")
+        else:
+            value_sql = sql_unit.query.encode("utf-8")
+            intro_sql = None
+        if isinstance(sql_unit.command_complete_tag, dbstate.TagPlain):
+            status = sql_unit.command_complete_tag.tag
+        elif isinstance(
+            sql_unit.command_complete_tag,
+            (dbstate.TagCountMessages, dbstate.TagUnpackRow),
+        ):
+            status = sql_unit.command_complete_tag.prefix.encode("utf-8")
+        elif sql_unit.command_complete_tag is None:
+            status = b"SELECT"  # XXX
+        else:
+            raise AssertionError(
+                f"unexpected SQLQueryUnit.command_complete_tag type: "
+                f"{sql_unit.command_complete_tag}"
+            )
+        unit = dbstate.QueryUnit(
+            sql=value_sql,
+            introspection_sql=intro_sql,
+            status=status,
+            cardinality=sql_unit.cardinality,
+            capabilities=sql_unit.capabilities,
+            globals=[
+                (str(sp.global_name), False) for sp in sql_unit.params
+                if isinstance(sp, dbstate.SQLParamGlobal)
+            ] if sql_unit.params else [],
+            output_format=(
+                enums.OutputFormat.NONE
+                if sql_unit.cardinality is enums.Cardinality.NO_RESULT
+                else enums.OutputFormat.BINARY
+            ),
+        )
+        match sql_unit.tx_action:
+            case dbstate.TxAction.START:
+                ctx.state.start_tx()
+                tx_state = ctx.state.current_tx()
+                unit.tx_id = tx_state.id
+            case dbstate.TxAction.COMMIT:
+                ctx.state.commit_tx()
+                unit.tx_commit = True
+            case dbstate.TxAction.ROLLBACK:
+                ctx.state.rollback_tx()
+                unit.tx_rollback = True
+            case dbstate.TxAction.DECLARE_SAVEPOINT:
+                assert sql_unit.sp_name is not None
+                unit.tx_savepoint_declare = True
+                unit.sp_id = tx_state.declare_savepoint(sql_unit.sp_name)
+                unit.sp_name = sql_unit.sp_name
+            case dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
+                assert sql_unit.sp_name is not None
+                tx_state.rollback_to_savepoint(sql_unit.sp_name)
+                unit.tx_savepoint_rollback = True
+                unit.sp_name = sql_unit.sp_name
+            case dbstate.TxAction.RELEASE_SAVEPOINT:
+                assert sql_unit.sp_name is not None
+                tx_state.release_savepoint(sql_unit.sp_name)
+                unit.sp_name = sql_unit.sp_name
+            case None:
+                pass
+            case _:
+                raise AssertionError(
+                    f"unexpected SQLQueryUnit.tx_action: {sql_unit.tx_action}"
+                )
+
+        qug.append(unit)
+
+    return qug
+
+
 def _try_compile(
     *,
     ctx: CompileContext,
@@ -2358,6 +2616,24 @@ def _try_compile(
             time.sleep(float(text[len(sentinel):text.index("\n")]))
 
     statements = edgeql.parse_block(source)
+    return _try_compile_ast(statements=statements, source=source, ctx=ctx)
+
+
+def _try_compile_ast(
+    *,
+    ctx: CompileContext,
+    statements: list[qlast.Base],
+    source: edgeql.Source,
+) -> dbstate.QueryUnitGroup:
+    if _get_config_val(ctx, '__internal_testmode'):
+        # This is a bad but simple way to emulate a slow compilation for tests.
+        # Ideally, we should have a testmode function that is hooked to sleep
+        # as `simple_special_case`, or wait for a notification from the test.
+        sentinel = "# EDGEDB_TEST_COMPILER_SLEEP = "
+        text = source.text()
+        if text.startswith(sentinel):
+            time.sleep(float(text[len(sentinel):text.index("\n")]))
+
     statements_len = len(statements)
 
     if not len(statements):  # pragma: no cover

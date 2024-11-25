@@ -102,6 +102,7 @@ cdef WriteBuffer recode_bind_args(
     bytes bind_args,
     # XXX do something better?!?
     list positions = None,
+    list data_types = None,
 ):
     cdef:
         FRBuffer in_buf
@@ -120,10 +121,6 @@ cdef WriteBuffer recode_bind_args(
         &in_buf,
         cpython.PyBytes_AS_STRING(bind_args),
         cpython.Py_SIZE(bind_args))
-
-    # all parameters are in binary
-    if live:
-        out_buf.write_int32(0x00010001)
 
     # number of elements in the tuple
     # for empty tuple it's okay to send zero-length arguments
@@ -155,10 +152,35 @@ cdef WriteBuffer recode_bind_args(
             f"argument count mismatch {recv_args} != {compiled.first_extra}"
         num_args += compiled.extra_counts[0]
 
-    num_args += _count_globals(qug)
+    num_globals = _count_globals(qug)
+    num_args += num_globals
 
     if live:
+        if not compiled.extra_formatted_as_text:
+            # all parameter values are in binary
+            out_buf.write_int32(0x00010001)
+        elif not recv_args and not num_globals:
+            # all parameter values are in text (i.e extracted SQL constants)
+            out_buf.write_int16(0x0000)
+        else:
+            # got a mix of binary and text, spell them out explicitly
+            out_buf.write_int16(<int16_t>num_args)
+            # explicit args are in binary
+            for _ in range(recv_args):
+                out_buf.write_int16(0x0001)
+            # and extracted SQL constants are in text
+            for _ in range(compiled.extra_counts[0]):
+                out_buf.write_int16(0x0000)
+            # and injected globals are binary again
+            for _ in range(num_globals):
+                out_buf.write_int16(0x0001)
+
         out_buf.write_int16(<int16_t>num_args)
+
+    if data_types is not None and compiled.extra_type_oids:
+        data_types.extend([0] * recv_args)
+        data_types.extend(compiled.extra_type_oids)
+        data_types.extend([0] * num_globals)
 
     if qug.in_type_args:
         for param in qug.in_type_args:

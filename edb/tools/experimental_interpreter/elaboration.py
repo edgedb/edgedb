@@ -675,7 +675,7 @@ def elab_Set(qle: qlast.Set):
 
 
 def elab_aliases(
-    aliases: Optional[Sequence[qlast.AliasedExpr | qlast.ModuleAliasDecl]],
+    aliases: Optional[Sequence[qlast.Alias]],
     tail_expr: Expr,
 ) -> Expr:
     if aliases is None:

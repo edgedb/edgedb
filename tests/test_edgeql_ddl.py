@@ -10459,6 +10459,43 @@ type default::Foo {
             [True]
         )
 
+    async def test_edgeql_ddl_alias_14(self):
+        # Issue  #8003
+        await self.con.execute(r"""
+            create global One := 1;
+            create alias MyAlias := global One;
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError, "index expressions must be immutable"
+        ):
+            await self.con.execute(
+                r"""
+                create type Foo { create index on (MyAlias) };
+                """
+            )
+
+    async def test_edgeql_ddl_alias_15(self):
+        # Issue  #8003
+        await self.con.execute(
+            r"""
+            create global One := 1;
+            create alias MyAlias := 1;
+            create type Foo { create index on (MyAlias) };
+            """
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "cannot alter alias 'default::MyAlias' because this affects "
+            "expression of index of object type 'default::Foo'"
+        ):
+            await self.con.execute(
+                r"""
+                alter alias MyAlias {using (global One)};
+                """
+            )
+
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE InhTest01 {

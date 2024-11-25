@@ -175,6 +175,7 @@ class MagicLinkRequested(Event, HasIdentity, HasEmailFactor):
         init=False,
     )
     magic_link_token: str
+    magic_link_url: str
 
     def __repr__(self) -> str:
         return (

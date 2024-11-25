@@ -529,7 +529,7 @@ def _fork_context(ctx: TracerContext) -> TracerContext:
 def alias_context(
     ctx: TracerContext,
     aliases: Optional[
-        Sequence[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]]],
+        Sequence[qlast.Alias]],
 ) -> Generator[TracerContext, None, None]:
     ctx = _fork_context(ctx)
 

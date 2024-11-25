@@ -20,6 +20,8 @@
 from __future__ import annotations
 from typing import TypeAlias
 
+import enum
+
 from edb import buildmeta
 
 from edb.common import enum as s_enum
@@ -81,7 +83,7 @@ SYSTEM_DB_RECONNECT_INTERVAL = 1
 ProtocolVersion: TypeAlias = tuple[int, int]
 
 MIN_PROTOCOL: ProtocolVersion = (1, 0)
-CURRENT_PROTOCOL: ProtocolVersion = (2, 0)
+CURRENT_PROTOCOL: ProtocolVersion = (3, 0)
 
 MIN_SUGGESTED_CLIENT_POOL_SIZE = 10
 MAX_SUGGESTED_CLIENT_POOL_SIZE = 100
@@ -100,3 +102,10 @@ MULTITENANT_TENANT_DESTROY_TIMEOUT = 30
 class TxIsolationLevel(s_enum.StrEnum):
     RepeatableRead = 'REPEATABLE READ'
     Serializable = 'SERIALIZABLE'
+
+
+# Mapping to the backend `edb_stat_statements.stmt_type` values,
+# as well as `sys::QueryType` in edb/lib/sys.edgeql
+class QueryType(enum.IntEnum):
+    EdgeQL = 1
+    SQL = 2

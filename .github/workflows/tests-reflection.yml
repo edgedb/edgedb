@@ -156,7 +156,7 @@ jobs:
         steps.postgres-cache.outputs.cache-hit != 'true'
       run: |
         sudo apt-get update
-        sudo apt-get install -y uuid-dev libreadline-dev bison flex
+        sudo apt-get install -y uuid-dev libreadline-dev bison flex libprotobuf-c-dev
 
     - name: Install Rust toolchain
       if: |
@@ -371,7 +371,7 @@ jobs:
       with:
         path: ~/.cache/uv
         key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
-
+    
     - name: Download requirements.txt
       uses: actions/cache@v4
       with:

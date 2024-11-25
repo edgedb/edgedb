@@ -68,6 +68,12 @@ base_type_name_map = {
         ('edgedbt', 'date_duration_t'),
 
     s_obj.get_known_type_id('cfg::memory'): ('edgedbt', 'memory_t'),
+
+    s_obj.get_known_type_id('std::pg::json'): ('json',),
+    s_obj.get_known_type_id('std::pg::timestamptz'): ('timestamptz',),
+    s_obj.get_known_type_id('std::pg::timestamp'): ('timestamp',),
+    s_obj.get_known_type_id('std::pg::date'): ('date',),
+    s_obj.get_known_type_id('std::pg::interval'): ('interval',),
 }
 
 type_to_range_name_map = {
@@ -85,6 +91,9 @@ type_to_range_name_map = {
     # custom range is a big hassle, and daterange already has the
     # correct canonicalization function
     ('edgedbt', 'date_t'): ('daterange',),
+    ('timestamptz',): ('tstzrange',),
+    ('timestamp',): ('tsrange',),
+    ('date',): ('daterange',),
 }
 
 # Construct a multirange map based on type_to_range_name_map by replacing
@@ -143,6 +152,8 @@ base_type_name_map_r = {
 
     'edgedbt.memory_t': sn.QualName('cfg', 'memory'),
     'memory_t': sn.QualName('cfg', 'memory'),
+
+    'json': sn.QualName('std::pg', 'json'),
 }
 
 pg_tsvector_typeref = irast.TypeRef(

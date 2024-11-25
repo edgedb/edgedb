@@ -816,9 +816,13 @@ def _declare_view_from_schema(
         view_ql = view_expr.parse()
         viewcls_name = viewcls.get_name(ctx.env.schema)
         assert isinstance(view_ql, qlast.Expr), 'expected qlast.Expr'
-        view_set = declare_view(view_ql, alias=viewcls_name,
-                                binding_kind=irast.BindingKind.With,
-                                fully_detached=True, ctx=subctx)
+        view_set = declare_view(
+            view_ql,
+            alias=viewcls_name,
+            binding_kind=irast.BindingKind.Schema,
+            fully_detached=True,
+            ctx=subctx,
+        )
         # The view path id _itself_ should not be in the nested namespace.
         view_set.path_id = view_set.path_id.replace_namespace(frozenset())
         view_set.is_schema_alias = True

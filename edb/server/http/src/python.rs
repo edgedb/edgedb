@@ -1,7 +1,7 @@
 use eventsource_stream::Eventsource;
 use futures::{future::poll_fn, TryStreamExt};
 use pyo3::{exceptions::PyException, prelude::*, types::PyByteArray};
-use reqwest::{header::HeaderValue, Method};
+use reqwest::Method;
 use scopeguard::{defer, guard, ScopeGuard};
 use std::{
     cell::RefCell,
@@ -35,24 +35,22 @@ enum RustToPythonMessage {
     SSEEnd(PythonConnId),
     Error(PythonConnId, String),
 }
-
-impl ToPyObject for RustToPythonMessage {
-    fn to_object(&self, py: Python<'_>) -> PyObject {
+impl RustToPythonMessage {
+    fn to_object(&self, py: Python<'_>) -> PyResult<PyObject> {
         use RustToPythonMessage::*;
+        trace!("Read: {self:?}");
         match self {
-            Error(conn, error) => (0, *conn, error).to_object(py),
-            Response(conn, (status, body, headers)) => (
-                1,
-                conn,
-                (*status, PyByteArray::new_bound(py, &body), headers),
-            )
-                .to_object(py),
-            SSEStart(conn, (status, headers)) => (2, conn, (status, headers)).to_object(py),
-            SSEEvent(conn, message) => {
-                (3, conn, (&message.id, &message.data, &message.event)).to_object(py)
+            Error(conn, error) => (0, conn, error).into_pyobject(py),
+            Response(conn, (status, body, headers)) => {
+                (1, conn, (status, PyByteArray::new(py, body), headers)).into_pyobject(py)
             }
-            SSEEnd(conn) => (4, conn, ()).to_object(py),
+            SSEStart(conn, (status, headers)) => (2, conn, (status, headers)).into_pyobject(py),
+            SSEEvent(conn, message) => {
+                (3, conn, (&message.id, &message.data, &message.event)).into_pyobject(py)
+            }
+            SSEEnd(conn) => (4, conn, ()).into_pyobject(py),
         }
+        .map(|e| e.into())
     }
 }
 
@@ -86,6 +84,7 @@ impl std::fmt::Debug for RpcPipe {
 
 impl RpcPipe {
     async fn write(&self, msg: RustToPythonMessage) -> Result<(), String> {
+        trace!("Rust -> Python: {msg:?}");
         self.rust_to_python.send(msg).map_err(|_| "Shutdown")?;
         // If we're shutting down, this may fail (but that's OK)
         poll_fn(|cx| {
@@ -102,7 +101,7 @@ impl RpcPipe {
 #[pyclass]
 struct Http {
     python_to_rust: tokio::sync::mpsc::UnboundedSender<PythonToRustMessage>,
-    rust_to_python: std::sync::mpsc::Receiver<RustToPythonMessage>,
+    rust_to_python: Mutex<std::sync::mpsc::Receiver<RustToPythonMessage>>,
     notify_fd: u64,
 }
 
@@ -178,9 +177,13 @@ async fn request_sse(
     let guard = guard((), |_| trace!("Exiting SSE due to cancellation"));
     let response = request(client, url, method, body, headers).await?;
 
-    if response.headers().get("content-type")
-        != Some(&HeaderValue::from_static("text/event-stream"))
-    {
+    let content_type = response.headers().get("content-type");
+    let is_event_stream = content_type
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.starts_with("text/event-stream"))
+        .unwrap_or(false);
+
+    if !is_event_stream {
         let headers = process_headers(response.headers());
         let status = response.status();
         let body = match response.bytes().await {
@@ -196,6 +199,7 @@ async fn request_sse(
             ))
             .await;
 
+        trace!("Exiting SSE due to non-SSE response");
         ScopeGuard::into_inner(guard);
         return Ok(());
     }
@@ -236,6 +240,7 @@ async fn request_sse(
         }
     }
 
+    trace!("Exiting SSE");
     ScopeGuard::into_inner(guard);
     Ok(())
 }
@@ -382,13 +387,26 @@ struct HttpTask {
 async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
     let rpc_pipe = Rc::new(rpc_pipe);
 
+    const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+    const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
+    const STANDARD_READ_TIMEOUT: Duration = Duration::from_secs(10);
+    const STANDARD_TOTAL_TIMEOUT: Duration = Duration::from_secs(120);
+    const SSE_READ_TIMEOUT: Duration = Duration::from_secs(60 * 60); // 1 hour
+
     // Set some reasonable defaults for timeouts
     let client = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(30))
-        .timeout(Duration::from_secs(120))
-        .read_timeout(Duration::from_secs(10))
-        .pool_idle_timeout(Duration::from_secs(30));
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(STANDARD_TOTAL_TIMEOUT)
+        .read_timeout(STANDARD_READ_TIMEOUT)
+        .pool_idle_timeout(POOL_IDLE_TIMEOUT);
     let client = client.build().unwrap();
+
+    // SSE requests should have a very long read timeout and no general timeout
+    let client_sse = reqwest::Client::builder()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .read_timeout(SSE_READ_TIMEOUT)
+        .pool_idle_timeout(POOL_IDLE_TIMEOUT);
+    let client_sse = client_sse.build().unwrap();
 
     let permit_manager = Rc::new(PermitManager::new(capacity));
     let tasks = Arc::new(Mutex::new(HashMap::<PythonConnId, HttpTask>::new()));
@@ -400,6 +418,7 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
             break;
         };
         let client = client.clone();
+        let client_sse = client_sse.clone();
         trace!("Received RPC: {rpc:?}");
         let rpc_pipe = rpc_pipe.clone();
         // Allocate a task ID and backpressure object if we're initiating a
@@ -418,6 +437,7 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
             rpc,
             permit_manager.clone(),
             client,
+            client_sse,
             rpc_pipe,
         ));
         if let (Some(id), Some(backpressure)) = (id, backpressure) {
@@ -436,6 +456,7 @@ async fn execute(
     rpc: PythonToRustMessage,
     permit_manager: Rc<PermitManager>,
     client: reqwest::Client,
+    client_sse: reqwest::Client,
     rpc_pipe: Rc<RpcPipe>,
 ) {
     // If a request task was booted by this request, remove it from the list of
@@ -473,15 +494,14 @@ async fn execute(
             // we need to spawn a task to do so)
             defer!({
                 let rpc_pipe = rpc_pipe.clone();
-                tokio::task::spawn_local(async move {
-                    _ = rpc_pipe.write(RustToPythonMessage::SSEEnd(id)).await;
-                });
+                let future = async move { rpc_pipe.write(RustToPythonMessage::SSEEnd(id)).await };
+                tokio::task::spawn_local(future);
             });
             let Ok(permit) = permit_manager.acquire().await else {
                 return;
             };
             match request_sse(
-                client,
+                client_sse,
                 id,
                 backpressure.unwrap(),
                 url,
@@ -513,6 +533,15 @@ async fn execute(
             };
             task.task.abort();
         }
+    }
+}
+
+impl Http {
+    fn send(&self, msg: PythonToRustMessage) -> PyResult<()> {
+        trace!("Python -> Rust: {msg:?}");
+        self.python_to_rust
+            .send(msg)
+            .map_err(|_| internal_error("In shutdown"))
     }
 }
 
@@ -556,7 +585,7 @@ impl Http {
         let notify_fd = rxfd.recv().unwrap();
         Http {
             python_to_rust: txpr,
-            rust_to_python: rxrp,
+            rust_to_python: Mutex::new(rxrp),
             notify_fd,
         }
     }
@@ -574,9 +603,7 @@ impl Http {
         body: Vec<u8>,
         headers: Vec<(String, String)>,
     ) -> PyResult<()> {
-        self.python_to_rust
-            .send(PythonToRustMessage::Request(id, url, method, body, headers))
-            .map_err(|_| internal_error("In shutdown"))
+        self.send(PythonToRustMessage::Request(id, url, method, body, headers))
     }
 
     fn _request_sse(
@@ -587,50 +614,59 @@ impl Http {
         body: Vec<u8>,
         headers: Vec<(String, String)>,
     ) -> PyResult<()> {
-        self.python_to_rust
-            .send(PythonToRustMessage::RequestSse(
-                id, url, method, body, headers,
-            ))
-            .map_err(|_| internal_error("In shutdown"))
+        self.send(PythonToRustMessage::RequestSse(
+            id, url, method, body, headers,
+        ))
     }
 
     fn _close(&self, id: PythonConnId) -> PyResult<()> {
-        self.python_to_rust
-            .send(PythonToRustMessage::Close(id))
-            .map_err(|_| internal_error("In shutdown"))
+        self.send(PythonToRustMessage::Close(id))
     }
 
     fn _ack_sse(&self, id: PythonConnId) -> PyResult<()> {
-        self.python_to_rust
-            .send(PythonToRustMessage::Ack(id))
-            .map_err(|_| internal_error("In shutdown"))
+        self.send(PythonToRustMessage::Ack(id))
     }
 
     fn _update_limit(&self, limit: usize) -> PyResult<()> {
-        self.python_to_rust
-            .send(PythonToRustMessage::UpdateLimit(limit))
-            .map_err(|_| internal_error("In shutdown"))
+        self.send(PythonToRustMessage::UpdateLimit(limit))
     }
 
-    fn _read(&self, py: Python<'_>) -> Py<PyAny> {
-        let Ok(msg) = self.rust_to_python.recv() else {
-            return py.None();
+    fn _read(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let Ok(msg) = self
+            .rust_to_python
+            .try_lock()
+            .expect("Unsafe thread access")
+            .recv()
+        else {
+            return Ok(py.None());
         };
         msg.to_object(py)
     }
 
-    fn _try_read(&self, py: Python<'_>) -> Py<PyAny> {
-        let Ok(msg) = self.rust_to_python.try_recv() else {
-            return py.None();
+    fn _try_read(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let Ok(msg) = self
+            .rust_to_python
+            .try_lock()
+            .expect("Unsafe thread access")
+            .try_recv()
+        else {
+            return Ok(py.None());
         };
         msg.to_object(py)
+    }
+
+    fn _close_pipe(&mut self) {
+        trace!("Closing pipe");
+        // Replace the channel with a dummy, closed one which will also
+        // signal the other side to exit.
+        self.rust_to_python = Mutex::new(std::sync::mpsc::channel().1);
     }
 }
 
 #[pymodule]
 fn _http(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Http>()?;
-    m.add("InternalError", py.get_type_bound::<InternalError>())?;
+    m.add("InternalError", py.get_type::<InternalError>())?;
 
     Ok(())
 }

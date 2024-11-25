@@ -28,6 +28,7 @@ from edb.server.compiler import sertypes, enums
 class CompilationRequest:
     source: edgeql.Source
     protocol_version: defines.ProtocolVersion
+    input_language: enums.InputLanguage
     output_format: enums.OutputFormat
     input_format: enums.InputFormat
     expect_one: bool
@@ -35,6 +36,8 @@ class CompilationRequest:
     inline_typeids: bool
     inline_typenames: bool
     inline_objectids: bool
+    role_name: str
+    branch_name: str
 
     modaliases: immutables.Map[str | None, str] | None
     session_config: immutables.Map[str, config.SettingValue] | None
@@ -46,6 +49,7 @@ class CompilationRequest:
         protocol_version: defines.ProtocolVersion,
         schema_version: uuid.UUID,
         compilation_config_serializer: sertypes.CompilationConfigSerializer,
+        input_language: enums.InputLanguage = enums.InputLanguage.EDGEQL,
         output_format: enums.OutputFormat = enums.OutputFormat.BINARY,
         input_format: enums.InputFormat = enums.InputFormat.BINARY,
         expect_one: bool = False,
@@ -57,6 +61,8 @@ class CompilationRequest:
         session_config: typing.Mapping[str, config.SettingValue] | None = None,
         database_config: typing.Mapping[str, config.SettingValue] | None = None,
         system_config: typing.Mapping[str, config.SettingValue] | None = None,
+        role_name: str = defines.EDGEDB_SUPERUSER,
+        branch_name: str = defines.EDGEDB_SUPERUSER_DB,
     ):
         ...
 

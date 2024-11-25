@@ -26,6 +26,10 @@ rust: build-reqs
 	BUILD_EXT_MODE=rust-only python setup.py build_ext --inplace
 
 
+cli: build-reqs
+	python setup.py build_cli
+
+
 docs: build-reqs
 	find docs -name '*.rst' | xargs touch
 	$(MAKE) -C docs html SPHINXOPTS=$(SPHINXOPTS) BUILDDIR="../build"
@@ -37,6 +41,10 @@ postgres: build-reqs
 
 parsers:
 	python setup.py build_parsers --inplace
+
+
+libpg-query:
+	python setup.py build_libpg_query
 
 
 ui: build-reqs

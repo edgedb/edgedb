@@ -37,6 +37,9 @@ known_oauth_provider_names = [
 ]
 
 
+DEFAULT_BRAND_COLOR = "1f8aed"
+
+
 def base_page(
     *,
     content: str,
@@ -44,7 +47,7 @@ def base_page(
     cleanup_search_params: list[str],
     logo_url: Optional[str] = None,
     dark_logo_url: Optional[str] = None,
-    brand_color: Optional[str] = None,
+    brand_color: Optional[str] = DEFAULT_BRAND_COLOR,
 ) -> bytes:
     logo = ''
     if logo_url:
@@ -73,7 +76,7 @@ def base_page(
         brand_color is None or
         util.hex_color_regexp.fullmatch(brand_color) is None
     ):
-        brand_color = '1f8aed'
+        brand_color = DEFAULT_BRAND_COLOR
 
     return f'''
 <!DOCTYPE html>

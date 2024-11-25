@@ -564,6 +564,12 @@ class Cluster(BaseCluster):
             # `max_connections` scenarios.
             'max_locks_per_transaction': 1024,
             'max_pred_locks_per_transaction': 1024,
+            "shared_preload_libraries": ",".join(
+                [
+                    "edb_stat_statements",
+                ]
+            ),
+            "edb_stat_statements.track_planning": "true",
         }
 
         if os.getenv('EDGEDB_DEBUG_PGSERVER'):
@@ -1167,6 +1173,13 @@ async def get_remote_pg_cluster(
             caps |= pgparams.BackendCapabilities.CREATE_ROLE
         if roles['rolcreatedb']:
             caps |= pgparams.BackendCapabilities.CREATE_DATABASE
+
+        stats_ver = await conn.sql_fetch_val(b"""
+            SELECT default_version FROM pg_available_extensions
+            WHERE name = 'edb_stat_statements';
+        """)
+        if stats_ver in (b"1.0",):
+            caps |= pgparams.BackendCapabilities.STAT_STATEMENTS
 
         return caps
 

@@ -98,3 +98,146 @@ type XBb {
 type XBc {
     required property bc -> float64;
 }
+
+# Objects which all have a `numbers` property and `siblings` link
+
+# non-computed single
+
+type SoloNonCompSinglePropA {
+    single property numbers -> int64;
+}
+type SoloNonCompSinglePropB {
+    single property numbers -> int64;
+}
+type SoloNonCompSingleLinkA {
+    single link siblings -> SoloNonCompSingleLinkA;
+}
+type SoloNonCompSingleLinkB {
+    single link siblings -> SoloNonCompSingleLinkB;
+}
+
+# non-computed multi
+
+type SoloNonCompMultiPropA {
+    multi property numbers -> int64;
+}
+type SoloNonCompMultiPropB {
+    multi property numbers -> int64;
+}
+type SoloNonCompMultiLinkA {
+    multi link siblings -> SoloNonCompMultiLinkA;
+}
+type SoloNonCompMultiLinkB {
+    multi link siblings -> SoloNonCompMultiLinkB;
+}
+
+# computed single
+
+type SoloCompSinglePropA {
+    single property numbers := 1;
+}
+type SoloCompSinglePropB {
+    single property numbers := 1;
+}
+type SoloCompSingleLinkA {
+    single link siblings := (select detached SoloCompSingleLinkA limit 1);
+}
+type SoloCompSingleLinkB {
+    single link siblings := (select detached SoloCompSingleLinkB limit 1);
+}
+
+# computed multi
+
+type SoloCompMultiPropA {
+    multi property numbers := {1, 2, 3};
+}
+type SoloCompMultiPropB {
+    multi property numbers := {1, 2, 3};
+}
+type SoloCompMultiLinkA {
+    multi link siblings := (select detached SoloCompMultiLinkA);
+}
+type SoloCompMultiLinkB {
+    multi link siblings := (select detached SoloCompMultiLinkB);
+}
+
+# non-computed single from base class
+
+abstract type BaseNonCompSingleProp {
+    single property numbers -> int64;
+}
+type DerivedNonCompSinglePropA extending BaseNonCompSingleProp;
+type DerivedNonCompSinglePropB extending BaseNonCompSingleProp;
+
+abstract type BaseNonCompSingleLink {
+    single link siblings -> BaseNonCompSingleLink;
+}
+type DerivedNonCompSingleLinkA extending BaseNonCompSingleLink;
+type DerivedNonCompSingleLinkB extending BaseNonCompSingleLink;
+
+# non-computed multi from base class
+
+abstract type BaseNonCompMultiProp {
+    multi property numbers -> int64;
+}
+type DerivedNonCompMultiPropA extending BaseNonCompMultiProp;
+type DerivedNonCompMultiPropB extending BaseNonCompMultiProp;
+
+abstract type BaseNonCompMultiLink {
+    multi link siblings -> BaseNonCompMultiLink;
+}
+type DerivedNonCompMultiLinkA extending BaseNonCompMultiLink;
+type DerivedNonCompMultiLinkB extending BaseNonCompMultiLink;
+
+# computed single from base class
+
+abstract type BaseCompSingleProp {
+    single property numbers := 1;
+}
+type DerivedCompSinglePropA extending BaseCompSingleProp;
+type DerivedCompSinglePropB extending BaseCompSingleProp;
+
+abstract type BaseCompSingleLink {
+    single link siblings := (select detached BaseCompSingleLink limit 1);
+}
+type DerivedCompSingleLinkA extending BaseCompSingleLink;
+type DerivedCompSingleLinkB extending BaseCompSingleLink;
+
+# computed multi from base class
+
+abstract type BaseCompMultiProp {
+    multi property numbers := {1, 2, 3};
+}
+type DerivedCompMultiPropA extending BaseCompMultiProp;
+type DerivedCompMultiPropB extending BaseCompMultiProp;
+
+abstract type BaseCompMultiLink {
+    multi link siblings := (select detached BaseCompMultiLink);
+}
+type DerivedCompMultiLinkA extending BaseCompMultiLink;
+type DerivedCompMultiLinkB extending BaseCompMultiLink;
+
+# Objects with links to a target type
+
+type Destination {
+    required property name -> str;
+}
+
+# independent types with compatible pointers
+
+type SoloOriginA {
+    single link dest -> Destination;
+}
+type SoloOriginB {
+    single link dest -> Destination;
+}
+
+# independent types with compatible pointers and common derived type
+
+type BaseOriginA {
+    single link dest -> Destination;
+}
+type BaseOriginB {
+    single link dest -> Destination;
+}
+type DerivedOriginC extending BaseOriginA, BaseOriginB;

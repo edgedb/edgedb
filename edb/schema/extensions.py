@@ -437,7 +437,10 @@ class ExtensionPackageMigrationCommand(
         astnode: qlast.NamedDDL,
         context: sd.CommandContext
     ) -> sn.UnqualName:
-        assert isinstance(astnode, qlast.ExtensionPackageMigrationCommand)
+        assert isinstance(astnode, (
+            qlast.CreateExtensionPackageMigration,
+            qlast.DropExtensionPackageMigration,
+        ))
         from_version = verutils.parse_version(astnode.from_version.value)
         to_version = verutils.parse_version(astnode.to_version.value)
         quals = ['pkg-migration', str(from_version), str(to_version)]

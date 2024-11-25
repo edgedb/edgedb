@@ -262,7 +262,7 @@ def _compile_and_apply_ddl_stmt(
                         (SELECT
                             json_object_agg(
                                 "id"::text,
-                                "backend_id"
+                                json_build_array("backend_id", "name")
                             )
                             FROM
                             edgedb_VER."_SchemaType"
@@ -1059,7 +1059,7 @@ def _commit_migration_rewrite(
     )
     for mig in migrations:
         cmds.append(
-            qlast.DropMigration(  # type: ignore
+            qlast.DropMigration(
                 name=qlast.ObjectRef(name=mig.get_name(schema).name)
             )
         )
@@ -1184,7 +1184,7 @@ def _reset_schema(
         schema.get_objects(type=s_migrations.Migration),
     )
     for mig in migrations:
-        drop_mig = qlast.DropMigration(  # type: ignore
+        drop_mig = qlast.DropMigration(
             name=qlast.ObjectRef(name=mig.get_name(schema).name),
         )
         _, mig_block = _compile_and_apply_ddl_stmt(ctx, drop_mig)

@@ -63,8 +63,12 @@ Description
 This declaration defines a new index with the following options:
 
 :sdl:synopsis:`on ( <index-expr> )`
-    The specific expression for which the index is made.  Note also
-    that ``<index-expr>`` itself has to be parenthesized.
+    The specific expression for which the index is made.
+
+    The expression must be :ref:`Immutable <ref_reference_volatility>` but may
+    refer to the indexed object's properties and links.
+
+    Note also that ``<index-expr>`` itself has to be parenthesized.
 
 :eql:synopsis:`except ( <exception-expr> )`
     An optional expression defining a condition to create exceptions

@@ -18,23 +18,28 @@
 
 
 from __future__ import annotations
-from typing import Tuple, Mapping, Sequence, List, TYPE_CHECKING, Optional
+from typing import Mapping, Sequence, List, TYPE_CHECKING, Optional
 
 import dataclasses
 import functools
 import hashlib
 import immutables
+import json
 
 from edb import errors
+from edb.common import uuidgen
+from edb.server import defines
 
 from edb.schema import schema as s_schema
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common as pg_common
 from edb.pgsql import codegen as pg_codegen
+from edb.pgsql import params as pg_params
 from edb.pgsql import parser as pg_parser
 
 from . import dbstate
+from . import enums
 
 if TYPE_CHECKING:
     from edb.pgsql import resolver as pg_resolver
@@ -62,6 +67,11 @@ def compile_sql(
     current_user: str,
     allow_user_specified_id: Optional[bool],
     apply_access_policies_sql: Optional[bool],
+    include_edgeql_io_format_alternative: bool = False,
+    allow_prepared_statements: bool = True,
+    disambiguate_column_names: bool,
+    backend_runtime_params: pg_params.BackendRuntimeParams,
+    protocol_version: defines.ProtocolVersion,
 ) -> List[dbstate.SQLQueryUnit]:
     opts = ResolverOptionsPartial(
         query_str=query_str,
@@ -69,6 +79,10 @@ def compile_sql(
         current_user=current_user,
         allow_user_specified_id=allow_user_specified_id,
         apply_access_policies_sql=apply_access_policies_sql,
+        include_edgeql_io_format_alternative=(
+            include_edgeql_io_format_alternative
+        ),
+        disambiguate_column_names=disambiguate_column_names,
     )
 
     stmts = pg_parser.parse(query_str, propagate_spans=True)
@@ -76,6 +90,7 @@ def compile_sql(
     for stmt in stmts:
         orig_text = pg_codegen.generate_source(stmt)
         fe_settings = tx_state.current_fe_settings()
+        track_stats = False
 
         unit = dbstate.SQLQueryUnit(
             orig_query=orig_text,
@@ -118,6 +133,8 @@ def compile_sql(
                 unit.set_vars = {stmt.name: value}
 
             unit.is_local = stmt.scope == pgast.OptionsScope.TRANSACTION
+            if not unit.is_local:
+                unit.capabilities |= enums.Capability.SESSION_CONFIG
 
         elif isinstance(stmt, pgast.VariableShowStmt):
             unit.get_var = stmt.name
@@ -143,33 +160,46 @@ def compile_sql(
 
         elif isinstance(stmt, (pgast.BeginStmt, pgast.StartStmt)):
             unit.tx_action = dbstate.TxAction.START
+            unit.command_complete_tag = dbstate.TagPlain(
+                tag=b"START TRANSACTION"
+            )
         elif isinstance(stmt, pgast.CommitStmt):
             unit.tx_action = dbstate.TxAction.COMMIT
             unit.tx_chain = stmt.chain or False
+            unit.command_complete_tag = dbstate.TagPlain(tag=b"COMMIT")
 
         elif isinstance(stmt, pgast.RollbackStmt):
             unit.tx_action = dbstate.TxAction.ROLLBACK
             unit.tx_chain = stmt.chain or False
+            unit.command_complete_tag = dbstate.TagPlain(tag=b"ROLLBACK")
 
         elif isinstance(stmt, pgast.SavepointStmt):
             unit.tx_action = dbstate.TxAction.DECLARE_SAVEPOINT
             unit.sp_name = stmt.savepoint_name
+            unit.command_complete_tag = dbstate.TagPlain(tag=b"SAVEPOINT")
 
         elif isinstance(stmt, pgast.ReleaseStmt):
             unit.tx_action = dbstate.TxAction.RELEASE_SAVEPOINT
             unit.sp_name = stmt.savepoint_name
+            unit.command_complete_tag = dbstate.TagPlain(tag=b"RELEASE")
 
         elif isinstance(stmt, pgast.RollbackToStmt):
             unit.tx_action = dbstate.TxAction.ROLLBACK_TO_SAVEPOINT
             unit.sp_name = stmt.savepoint_name
+            unit.command_complete_tag = dbstate.TagPlain(tag=b"ROLLBACK")
 
         elif isinstance(stmt, pgast.TwoPhaseTransactionStmt):
             raise NotImplementedError(
                 "two-phase transactions are not supported"
             )
         elif isinstance(stmt, pgast.PrepareStmt):
+            if not allow_prepared_statements:
+                raise errors.UnsupportedFeatureError(
+                    "SQL prepared statements are not supported"
+                )
+
             # Translate the underlying query.
-            stmt_resolved, stmt_source = resolve_query(
+            stmt_resolved, stmt_source, _ = resolve_query(
                 stmt.query, schema, tx_state, opts
             )
             if stmt.argtypes:
@@ -200,8 +230,14 @@ def compile_sql(
                 translation_data=stmt_source.translation_data,
             )
             unit.command_complete_tag = dbstate.TagPlain(tag=b"PREPARE")
+            track_stats = True
 
         elif isinstance(stmt, pgast.ExecuteStmt):
+            if not allow_prepared_statements:
+                raise errors.UnsupportedFeatureError(
+                    "SQL prepared statements are not supported"
+                )
+
             orig_name = stmt.name
             mangled_name = prepared_stmt_map.get(orig_name)
             if not mangled_name:
@@ -216,7 +252,14 @@ def compile_sql(
                 stmt_name=orig_name,
                 be_stmt_name=mangled_name.encode("utf-8"),
             )
+            unit.cardinality = enums.Cardinality.MANY
+            track_stats = True
+
         elif isinstance(stmt, pgast.DeallocateStmt):
+            if not allow_prepared_statements:
+                raise errors.UnsupportedFeatureError(
+                    "SQL prepared statements are not supported"
+                )
             orig_name = stmt.name
             mangled_name = prepared_stmt_map.get(orig_name)
             if not mangled_name:
@@ -238,18 +281,79 @@ def compile_sql(
                 raise NotImplementedError("exclusive lock is not supported")
             # just ignore
             unit.query = "DO $$ BEGIN END $$;"
-        else:
-            assert isinstance(stmt, (pgast.Query, pgast.CopyStmt))
-            stmt_resolved, stmt_source = resolve_query(
+        elif isinstance(stmt, (pgast.Query, pgast.CopyStmt)):
+            stmt_resolved, stmt_source, edgeql_fmt_src = resolve_query(
                 stmt, schema, tx_state, opts
             )
-
             unit.query = stmt_source.text
             unit.translation_data = stmt_source.translation_data
+            if edgeql_fmt_src is not None:
+                unit.eql_format_query = edgeql_fmt_src.text
+                unit.eql_format_translation_data = (
+                    edgeql_fmt_src.translation_data
+                )
             unit.command_complete_tag = stmt_resolved.command_complete_tag
             unit.params = stmt_resolved.params
+            if isinstance(stmt, pgast.DMLQuery) and not stmt.returning_list:
+                unit.cardinality = enums.Cardinality.NO_RESULT
+            else:
+                unit.cardinality = enums.Cardinality.MANY
+            track_stats = True
+        else:
+            from edb.pgsql import resolver as pg_resolver
+            pg_resolver.dispatch._raise_unsupported(stmt)
 
         unit.stmt_name = compute_stmt_name(unit.query, tx_state).encode("utf-8")
+
+        if track_stats and backend_runtime_params.has_stat_statements:
+            cconfig: dict[str, dbstate.SQLSetting] = {
+                k: v for k, v in fe_settings.items()
+                if k is not None and v is not None and k in FE_SETTINGS_MUTABLE
+            }
+            cconfig.pop('server_version', None)
+            cconfig.pop('server_version_num', None)
+            if allow_user_specified_id is not None:
+                cconfig.setdefault(
+                    'allow_user_specified_id',
+                    ('true' if allow_user_specified_id else 'false',),
+                )
+            if apply_access_policies_sql is not None:
+                cconfig.setdefault(
+                    'apply_access_policies_sql',
+                    ('true' if apply_access_policies_sql else 'false',),
+                )
+            search_path = parse_search_path(cconfig.pop("search_path", ("",)))
+            cconfig = dict(sorted((k, v) for k, v in cconfig.items()))
+            extras = {
+                'cc': cconfig,  # compilation_config
+                'pv': protocol_version,  # protocol_version
+                'dn': ', '.join(search_path),  # default_namespace
+            }
+            sql_info = {
+                'query': orig_text,
+                'type': defines.QueryType.SQL,
+                'extras': json.dumps(extras),
+            }
+            id_hash = hashlib.blake2b(digest_size=16)
+            id_hash.update(
+                json.dumps(sql_info).encode(defines.EDGEDB_ENCODING)
+            )
+            sql_info['id'] = str(uuidgen.from_bytes(id_hash.digest()))
+            prefix = ''.join([
+                '-- ',
+                json.dumps(sql_info),
+                '\n',
+            ])
+            unit.prefix_len = len(prefix)
+            unit.query = prefix + unit.query
+            if unit.eql_format_query is not None:
+                unit.eql_format_query = prefix + unit.eql_format_query
+
+        if isinstance(stmt, pgast.DMLQuery):
+            unit.capabilities |= enums.Capability.MODIFICATIONS
+
+        if unit.tx_action is not None:
+            unit.capabilities |= enums.Capability.TRANSACTION
 
         tx_state.apply(unit)
         sql_units.append(unit)
@@ -274,6 +378,8 @@ class ResolverOptionsPartial:
     query_str: str
     allow_user_specified_id: Optional[bool]
     apply_access_policies_sql: Optional[bool]
+    include_edgeql_io_format_alternative: Optional[bool]
+    disambiguate_column_names: bool
 
 
 def resolve_query(
@@ -281,7 +387,11 @@ def resolve_query(
     schema: s_schema.Schema,
     tx_state: dbstate.SQLTransactionState,
     opts: ResolverOptionsPartial,
-) -> Tuple[pg_resolver.ResolvedSQL, pg_codegen.SQLSource]:
+) -> tuple[
+    pg_resolver.ResolvedSQL,
+    pg_codegen.SQLSource,
+    Optional[pg_codegen.SQLSource],
+]:
     from edb.pgsql import resolver as pg_resolver
 
     search_path: Sequence[str] = ("public",)
@@ -314,10 +424,21 @@ def resolve_query(
         search_path=search_path,
         allow_user_specified_id=allow_user_specified_id,
         apply_access_policies=apply_access_policies,
+        include_edgeql_io_format_alternative=(
+            opts.include_edgeql_io_format_alternative
+        ),
+        disambiguate_column_names=opts.disambiguate_column_names,
     )
     resolved = pg_resolver.resolve(stmt, schema, options)
     source = pg_codegen.generate(resolved.ast, with_translation_data=True)
-    return resolved, source
+    if resolved.edgeql_output_format_ast is not None:
+        edgeql_format_source = pg_codegen.generate(
+            resolved.edgeql_output_format_ast,
+            with_translation_data=True,
+        )
+    else:
+        edgeql_format_source = None
+    return resolved, source, edgeql_format_source
 
 
 def lookup_bool_setting(

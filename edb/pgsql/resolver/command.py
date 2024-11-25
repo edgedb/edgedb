@@ -220,11 +220,7 @@ def _uncompile_dml_stmt(stmt: pgast.DMLQuery, *, ctx: Context):
     - ptr-s are (usually) pointers on the subject.
     """
 
-    raise errors.QueryError(
-        f'{stmt.__class__.__name__} are not supported',
-        span=stmt.span,
-        pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
-    )
+    raise dispatch._raise_unsupported(stmt)
 
 
 def _uncompile_dml_subject(
@@ -1564,7 +1560,7 @@ def _compile_uncompiled_dml(
         anchors.update(stmt.ql_anchors)
 
     # construct the main query
-    ql_aliases: List[qlast.AliasedExpr | qlast.ModuleAliasDecl] = []
+    ql_aliases: List[qlast.Alias] = []
     ql_stmt_shape: List[qlast.ShapeElement] = []
     ql_stmt_shape_names = []
     inserts_by_type: Dict[uuid.UUID, List[str]] = {}
@@ -1978,8 +1974,11 @@ def _resolve_returning_rows(
         )
         returning_table = context.Table()
 
+        names: Set[str] = set()
         for t in returning_list:
-            targets, columns = pg_res_expr.resolve_ResTarget(t, ctx=sctx)
+            targets, columns = pg_res_expr.resolve_ResTarget(
+                t, existing_names=names, ctx=sctx
+            )
             returning_query.target_list.extend(targets)
             returning_table.columns.extend(columns)
     return returning_query, returning_table

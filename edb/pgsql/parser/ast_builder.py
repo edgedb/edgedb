@@ -36,7 +36,7 @@ from edb.common.parsing import Span
 
 from edb.pgsql import ast as pgast
 from edb.edgeql import ast as qlast
-from edb.pgsql.parser.exceptions import PSqlUnsupportedError
+from edb.pgsql.parser.exceptions import PSqlUnsupportedError, get_node_name
 
 
 @dataclasses.dataclass(kw_only=True)
@@ -95,8 +95,15 @@ def _list(
     name: str,
     builder: Builder,
     mapper: Callable[[T], U] = _ident,
+    *,
+    unwrap: Optional[str] = None,
 ) -> List[U]:
-    return [mapper(builder(n, ctx)) for n in node.get(name, [])]
+    if unwrap is not None:
+        return [
+            mapper(builder(_unwrap(n, unwrap), ctx)) for n in node.get(name, [])
+        ]
+    else:
+        return [mapper(builder(n, ctx)) for n in node.get(name, [])]
 
 
 def _maybe_list(
@@ -105,8 +112,14 @@ def _maybe_list(
     name: str,
     builder: Builder,
     mapper: Callable[[T], U] = _ident,
+    *,
+    unwrap: Optional[str] = None,
 ) -> Optional[List[U]]:
-    return _list(node, ctx, name, builder, mapper) if name in node else None
+    return (
+        _list(node, ctx, name, builder, mapper, unwrap=unwrap)
+        if name in node
+        else None
+    )
 
 
 def _enum(
@@ -134,7 +147,9 @@ def _enum(
         if outer_fallback:
             return None  # type: ignore
 
-        raise PSqlUnsupportedError(node, ", ".join(node.keys()))
+        raise PSqlUnsupportedError(
+            node, ", ".join(get_node_name(k) for k in node.keys())
+        )
     finally:
         ctx.has_fallback = outer_fallback
 
@@ -271,7 +286,9 @@ def _build_select_stmt(n: Node, c: Context) -> pgast.SelectStmt:
         sort_clause=_maybe_list(n, c, "sortClause", _build_sort_by),
         limit_offset=_maybe(n, c, "limitOffset", _build_base_expr),
         limit_count=_maybe(n, c, "limitCount", _build_base_expr),
-        locking_clause=_maybe_list(n, c, "sortClause", _build_any),
+        locking_clause=_maybe_list(
+            n, c, "lockingClause", _build_locking_clause
+        ),
         op=op,
         all=n["all"] if "all" in n else False,
         larg=_maybe(n, c, "larg", _build_select_stmt),
@@ -877,9 +894,7 @@ def _build_const(n: Node, c: Context) -> pgast.BaseConstant:
         return pgast.NumericConstant(val=_unwrap_float(n), span=span)
 
     if "String" in n or "sval" in n:
-        return pgast.StringConstant(
-            val=_unwrap_string(n), span=span
-        )
+        return pgast.StringConstant(val=_unwrap_string(n), span=span)
     if "BitString" in n or "bsval" in n:
         n = _unwrap(n, 'BitString')
         n = _unwrap(n, 'str')
@@ -1157,6 +1172,37 @@ def _build_sort_by(n: Node, c: Context) -> pgast.SortBy:
         dir=_maybe(n, c, "sortby_dir", _build_sort_order),
         nulls=_maybe(n, c, "sortby_nulls", _build_nones_order),
         span=_build_span(n, c),
+    )
+
+
+def _build_locking_clause(n: Node, c: Context) -> pgast.LockingClause:
+    n = _unwrap(n, "LockingClause")
+
+    match n["strength"]:
+        case "LCS_FORUPDATE":
+            strength = pgast.LockClauseStrength.UPDATE
+        case "LCS_FORNOKEYUPDATE":
+            strength = pgast.LockClauseStrength.NO_KEY_UPDATE
+        case "LCS_FORSHARE":
+            strength = pgast.LockClauseStrength.SHARE
+        case "LCS_FORKEYSHARE":
+            strength = pgast.LockClauseStrength.KEY_SHARE
+        case lcs:
+            raise PSqlUnsupportedError(n, f"FOR lock strength: {lcs}")
+
+    if pol := n.get("waitPolicy"):
+        wait_policy = getattr(pgast.LockWaitPolicy, pol, None)
+        if wait_policy is None:
+            raise PSqlUnsupportedError(n, f"FOR wait policy: {pol}")
+    else:
+        wait_policy = None
+
+    return pgast.LockingClause(
+        strength=strength,
+        locked_rels=_maybe_list(
+            n, c, "lockedRels", _build_rel_range_var, unwrap="RangeVar"
+        ),
+        wait_policy=wait_policy,
     )
 
 

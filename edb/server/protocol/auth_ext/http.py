@@ -135,27 +135,27 @@ class Router:
 
         try:
             match args:
-                # API routes
+                # PKCE token exchange route
+                case ("token",):
+                    await self.handle_token(request, response)
+
+                # OAuth routes
                 case ("authorize",):
                     await self.handle_authorize(request, response)
                 case ("callback",):
                     await self.handle_callback(request, response)
-                case ("token",):
-                    await self.handle_token(request, response)
+
+                # Email/password routes
                 case ("register",):
                     await self.handle_register(request, response)
                 case ("authenticate",):
                     await self.handle_authenticate(request, response)
-                case ("verify",):
-                    await self.handle_verify(request, response)
-                case ("resend-verification-email",):
-                    await self.handle_resend_verification_email(
-                        request, response
-                    )
                 case ('send-reset-email',):
                     await self.handle_send_reset_email(request, response)
                 case ('reset-password',):
                     await self.handle_reset_password(request, response)
+
+                # Magic link routes
                 case ('magic-link', 'register'):
                     await self.handle_magic_link_register(request, response)
                 case ('magic-link', 'email'):
@@ -174,6 +174,14 @@ class Router:
                     await self.handle_webauthn_authenticate(request, response)
                 case ('webauthn', 'authenticate', 'options'):
                     await self.handle_webauthn_authenticate_options(
+                        request, response
+                    )
+
+                # Email verification routes
+                case ("verify",):
+                    await self.handle_verify(request, response)
+                case ("resend-verification-email",):
+                    await self.handle_resend_verification_email(
                         request, response
                     )
 
@@ -292,6 +300,9 @@ class Router:
         allowed_redirect_to_on_signup = self._maybe_make_allowed_url(
             _maybe_get_search_param(query, "redirect_to_on_signup")
         )
+        allowed_callback_url = self._maybe_make_allowed_url(
+            _maybe_get_search_param(query, "callback_url")
+        )
         challenge = _get_search_param(
             query, "challenge", fallback_keys=["code_challenge"]
         )
@@ -303,7 +314,11 @@ class Router:
         )
         await pkce.create(self.db, challenge)
         authorize_url = await oauth_client.get_authorize_url(
-            redirect_uri=self._get_callback_url(),
+            redirect_uri=(
+                allowed_callback_url.url
+                if allowed_callback_url
+                else self._get_callback_url()
+            ),
             state=self._make_state_claims(
                 provider_name,
                 allowed_redirect_to.url,
@@ -1089,6 +1104,13 @@ class Router:
             data.get("redirect_to")
         )
 
+        allowed_link_url = self._maybe_make_allowed_url(data.get("link_url"))
+        link_url = (
+            allowed_link_url.url
+            if allowed_link_url
+            else f"{self.base_path}/magic-link/authenticate"
+        )
+
         magic_link_client = magic_link.Client(
             db=self.db,
             issuer=self.base_path,
@@ -1134,6 +1156,7 @@ class Router:
                     identity_id=email_factor.identity.id,
                     email_factor_id=email_factor.id,
                     magic_link_token=magic_link_token,
+                    magic_link_url=link_url,
                 )
             )
             logger.info(
@@ -1142,7 +1165,7 @@ class Router:
             )
             await magic_link_client.send_magic_link(
                 email=email,
-                link_url=f"{self.base_path}/magic-link/authenticate",
+                link_url=link_url,
                 redirect_on_failure=allowed_redirect_on_failure.url,
                 token=magic_link_token,
             )
@@ -1224,6 +1247,15 @@ class Router:
                 data.get("redirect_to")
             )
 
+            allowed_link_url = self._maybe_make_allowed_url(
+                data.get("link_url")
+            )
+            link_url = (
+                allowed_link_url.url
+                if allowed_link_url
+                else f"{self.base_path}/magic-link/authenticate"
+            )
+
             magic_link_client = magic_link.Client(
                 db=self.db,
                 issuer=self.base_path,
@@ -1253,12 +1285,13 @@ class Router:
                         identity_id=identity_id,
                         email_factor_id=email_factor.id,
                         magic_link_token=magic_link_token,
+                        magic_link_url=link_url,
                     )
                 )
                 await magic_link_client.send_magic_link(
                     email=email,
                     token=magic_link_token,
-                    link_url=f"{self.base_path}/magic-link/authenticate",
+                    link_url=link_url,
                     redirect_on_failure=redirect_on_failure,
                 )
                 logger.info(

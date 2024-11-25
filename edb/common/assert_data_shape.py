@@ -20,13 +20,12 @@
 from __future__ import annotations
 
 
+import datetime
 import decimal
 import math
 import pprint
 import uuid
 import unittest
-
-from datetime import timedelta
 
 import edgedb
 
@@ -280,14 +279,14 @@ def assert_data_shape(
                     fail(
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
-            elif isinstance(shape, (str, int, bytes, timedelta,
+            elif isinstance(shape, (str, int, bytes, datetime.timedelta,
                                     decimal.Decimal)):
                 if data != shape:
                     fail(
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
             elif isinstance(shape, edgedb.RelativeDuration):
-                if data != timedelta(
+                if data != datetime.timedelta(
                     days=shape.months * 30 + shape.days,
                     microseconds=shape.microseconds,
                 ):
@@ -295,7 +294,7 @@ def assert_data_shape(
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
             elif isinstance(shape, edgedb.DateDuration):
-                if data != timedelta(
+                if data != datetime.timedelta(
                     days=shape.months * 30 + shape.days,
                 ):
                     fail(
@@ -352,7 +351,7 @@ def assert_data_shape(
                     fail(
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
-            elif isinstance(shape, (str, int, bytes, timedelta,
+            elif isinstance(shape, (str, int, bytes, datetime.timedelta,
                                     decimal.Decimal)):
                 if data != shape:
                     fail(

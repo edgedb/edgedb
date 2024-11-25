@@ -3,10 +3,10 @@ use once_cell::sync::OnceCell;
 use edgeql_parser::parser;
 use pyo3::exceptions::{PyAssertionError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyString, PyTuple};
+use pyo3::types::{PyList, PyString};
 
 use crate::errors::{parser_error_into_tuple, ParserResult};
-use crate::pynormalize::value_to_py_object;
+use crate::pynormalize::TokenizerValue;
 use crate::tokenizer::OpaqueToken;
 
 #[pyfunction]
@@ -14,7 +14,7 @@ pub fn parse(
     py: Python,
     start_token_name: &Bound<PyString>,
     tokens: PyObject,
-) -> PyResult<(ParserResult, PyObject)> {
+) -> PyResult<(ParserResult, &'static Py<PyAny>)> {
     let start_token_name = start_token_name.to_string();
 
     let (spec, productions) = get_spec()?;
@@ -24,28 +24,22 @@ pub fn parse(
     let context = parser::Context::new(spec);
     let (cst, errors) = parser::parse(&tokens, &context);
 
-    let cst = cst.map(|c| to_py_cst(&c, py)).transpose()?;
-
-    let errors = errors
-        .into_iter()
-        .map(|e| parser_error_into_tuple(py, e))
-        .collect::<Vec<_>>();
-    let errors = PyList::new_bound(py, &errors);
+    let errors = PyList::new(py, errors.iter().map(|e| parser_error_into_tuple(e)))?;
 
     let res = ParserResult {
-        out: cst.into_py(py),
+        out: cst.as_ref().map(ParserCSTNode).into_pyobject(py)?.unbind(),
         errors: errors.into(),
     };
 
-    Ok((res, productions.to_object(py)))
+    Ok((res, productions))
 }
 
 #[pyclass]
 pub struct CSTNode {
     #[pyo3(get)]
-    production: PyObject,
+    production: Option<Py<Production>>,
     #[pyo3(get)]
-    terminal: PyObject,
+    terminal: Option<Py<Terminal>>,
 }
 
 #[pyclass]
@@ -136,56 +130,55 @@ pub fn save_spec(spec_json: &Bound<PyString>, dst: &Bound<PyString>) -> PyResult
 
 fn load_productions(py: Python<'_>, spec: &parser::Spec) -> PyResult<PyObject> {
     let grammar_name = "edb.edgeql.parser.grammar.start";
-    let grammar_mod = py.import_bound(grammar_name)?;
+    let grammar_mod = py.import(grammar_name)?;
     let load_productions = py
-        .import_bound("edb.common.parsing")?
+        .import("edb.common.parsing")?
         .getattr("load_spec_productions")?;
 
-    let production_names: Vec<_> = spec
-        .production_names
-        .iter()
-        .map(|(a, b)| PyTuple::new_bound(py, [a, b]))
-        .collect();
-
-    let productions = load_productions.call((production_names, grammar_mod), None)?;
+    let productions = load_productions.call((&spec.production_names, grammar_mod), None)?;
     Ok(productions.into())
 }
 
-fn to_py_cst<'a>(cst: &'a parser::CSTNode<'a>, py: Python) -> PyResult<CSTNode> {
-    Ok(match cst {
-        parser::CSTNode::Empty => CSTNode {
-            production: py.None(),
-            terminal: py.None(),
-        },
-        parser::CSTNode::Terminal(token) => CSTNode {
-            production: py.None(),
-            terminal: Terminal {
-                text: token.text.clone(),
-                value: if let Some(val) = &token.value {
-                    value_to_py_object(py, val)?
-                } else {
-                    py.None()
-                },
-                start: token.span.start,
-                end: token.span.end,
-            }
-            .into_py(py),
-        },
-        parser::CSTNode::Production(prod) => CSTNode {
-            production: Production {
-                id: prod.id,
-                args: PyList::new_bound(
+/// Newtype required to define a trait for a foreign type.
+struct ParserCSTNode<'a>(&'a parser::CSTNode<'a>);
+
+impl<'a, 'py> IntoPyObject<'py> for ParserCSTNode<'a> {
+    type Target = CSTNode;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> PyResult<Self::Output> {
+        let res = match self.0 {
+            parser::CSTNode::Empty => CSTNode {
+                production: None,
+                terminal: None,
+            },
+            parser::CSTNode::Terminal(token) => CSTNode {
+                production: None,
+                terminal: Some(Py::new(
                     py,
-                    prod.args
-                        .iter()
-                        .map(|a| to_py_cst(a, py).map(|x| x.into_py(py)))
-                        .collect::<PyResult<Vec<_>>>()?
-                        .as_slice(),
-                )
-                .into(),
-            }
-            .into_py(py),
-            terminal: py.None(),
-        },
-    })
+                    Terminal {
+                        text: token.text.clone(),
+                        value: (token.value.as_ref())
+                            .map(TokenizerValue)
+                            .into_pyobject(py)?
+                            .unbind(),
+                        start: token.span.start,
+                        end: token.span.end,
+                    },
+                )?),
+            },
+            parser::CSTNode::Production(prod) => CSTNode {
+                production: Some(Py::new(
+                    py,
+                    Production {
+                        id: prod.id,
+                        args: PyList::new(py, prod.args.iter().map(ParserCSTNode))?.into(),
+                    },
+                )?),
+                terminal: None,
+            },
+        };
+        Ok(Py::new(py, res)?.bind(py).clone())
+    }
 }

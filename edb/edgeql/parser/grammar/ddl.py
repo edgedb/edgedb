@@ -733,7 +733,6 @@ class CreateDatabaseStmt(Nonterm):
             name=kids[2].val,
             commands=kids[3].val,
             branch_type=qlast.BranchType.EMPTY,
-            object_class=qltypes.SchemaObjectClass.DATABASE,
             flavor='DATABASE',
         )
 
@@ -750,7 +749,6 @@ class CreateDatabaseStmt(Nonterm):
             commands=kids[5].val,
             branch_type=qlast.BranchType.DATA,
             template=kids[4].val,
-            object_class=qltypes.SchemaObjectClass.DATABASE,
             flavor='DATABASE',
         )
 
@@ -762,7 +760,6 @@ class DropDatabaseStmt(Nonterm):
     def reduce_DROP_DATABASE_DatabaseName(self, *kids):
         self.val = qlast.DropDatabase(
             name=kids[2].val,
-            object_class=qltypes.SchemaObjectClass.DATABASE,
             flavor='DATABASE',
         )
 

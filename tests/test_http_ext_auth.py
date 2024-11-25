@@ -31,6 +31,7 @@ import hashlib
 
 from typing import Any, Optional, cast
 from jwcrypto import jwt, jwk
+from email.message import EmailMessage
 
 from edgedb import QueryAssertionError
 from edb.testbase import http as tb
@@ -248,6 +249,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     SETUP = [
         f"""
+        CONFIGURE CURRENT DATABASE INSERT cfg::SMTPProviderConfig {{
+            name := "email_hosting_is_easy",
+            sender := "{SENDER}",
+        }};
+
+        CONFIGURE CURRENT DATABASE SET
+        cfg::current_email_provider_name := "email_hosting_is_easy";
+
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::auth_signing_key := '{SIGNING_KEY}';
 
@@ -271,9 +280,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
           redirect_to := 'https://example.com/app',
           redirect_to_on_signup := 'https://example.com/signup/app',
         }};
-
-        CONFIGURE CURRENT DATABASE SET
-        ext::auth::SMTPConfig::sender := '{SENDER}';
 
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::allowed_redirect_urls := {{
@@ -493,6 +499,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_name = provider_config.name
             client_id = provider_config.client_id
             redirect_to = f"{self.http_addr}/some/path"
+            callback_url = f"{self.http_addr}/some/callback/url"
             challenge = (
                 base64.urlsafe_b64encode(
                     hashlib.sha256(
@@ -506,6 +513,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_name,
                 "redirect_to": redirect_to,
                 "challenge": challenge,
+                "callback_url": callback_url,
             }
 
             _, headers, status = self.http_con_request(
@@ -534,7 +542,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(claims.get("redirect_to"), redirect_to)
 
             self.assertEqual(
-                qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
+                qs.get("redirect_uri"), [callback_url]
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
@@ -3203,10 +3211,18 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], form_data["email"])
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
-                r'<p style="word-break: break-all">([^<]+)', html_email
+                r'<p style="word-break: break-all">([^<]+)',
+                html_email,
             )
             assert match is not None
             verify_url = urllib.parse.urlparse(match.group(1))
@@ -3382,8 +3398,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )
@@ -3679,8 +3698,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )
@@ -3866,8 +3888,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )
@@ -4314,13 +4339,167 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-    async def test_http_auth_ext_magic_link_01(self):
+    async def test_http_auth_ext_magic_link_with_link_url(self):
+        email = f"{uuid.uuid4()}@example.com"
+        challenge = "test_challenge"
+        callback_url = "https://example.com/app/auth/callback"
+        redirect_on_failure = "https://example.com/app/auth/magic-link-failure"
+        link_url = "https://example.com/app/magic-link/authenticate"
+
+        with self.http_con() as http_con:
+            # Register with link_url
+            _, _, status = self.http_con_request(
+                http_con,
+                method="POST",
+                path="magic-link/register",
+                body=json.dumps(
+                    {
+                        "provider": "builtin::local_magic_link",
+                        "email": email,
+                        "challenge": challenge,
+                        "callback_url": callback_url,
+                        "redirect_on_failure": redirect_on_failure,
+                        "link_url": link_url,
+                    }
+                ).encode(),
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+            )
+            self.assertEqual(status, 200)
+
+            # Get the token from email
+            file_name_hash = hashlib.sha256(
+                f"{SENDER}{email}".encode()
+            ).hexdigest()
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE",
+                f"/tmp/edb-test-email-{file_name_hash}.pickle",
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], SENDER)
+            self.assertEqual(email_args["recipients"], email)
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(
+                r'<p style="word-break: break-all">([^<]+)', html_email
+            )
+            assert match is not None
+            magic_link_url = urllib.parse.urlparse(match.group(1))
+            search_params = urllib.parse.parse_qs(magic_link_url.query)
+            token = search_params.get("token", [None])[0]
+            assert token is not None
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        magic_link_url.scheme,
+                        magic_link_url.netloc,
+                        magic_link_url.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                link_url,
+            )
+
+            _, headers, status = self.http_con_request(
+                http_con,
+                method="GET",
+                path=f"magic-link/authenticate?token={token}",
+            )
+
+            self.assertEqual(status, 302)
+            location = headers.get("location")
+            assert location is not None
+            parsed_location = urllib.parse.urlparse(location)
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        parsed_location.scheme,
+                        parsed_location.netloc,
+                        parsed_location.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                callback_url,
+            )
+
+            # Sign in with the registered email and link_url
+            _, _, status = self.http_con_request(
+                http_con,
+                method="POST",
+                path="magic-link/email",
+                body=json.dumps(
+                    {
+                        "provider": "builtin::local_magic_link",
+                        "email": email,
+                        "challenge": challenge,
+                        "callback_url": callback_url,
+                        "redirect_on_failure": redirect_on_failure,
+                        "link_url": link_url,
+                    }
+                ).encode(),
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+            )
+
+            # Get the token from email
+            file_name_hash = hashlib.sha256(
+                f"{SENDER}{email}".encode()
+            ).hexdigest()
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE",
+                f"/tmp/edb-test-email-{file_name_hash}.pickle",
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], SENDER)
+            self.assertEqual(email_args["recipients"], email)
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(
+                r'<p style="word-break: break-all">([^<]+)', html_email
+            )
+            assert match is not None
+            magic_link_url = urllib.parse.urlparse(match.group(1))
+            search_params = urllib.parse.parse_qs(magic_link_url.query)
+            token = search_params.get("token", [None])[0]
+            assert token is not None
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        magic_link_url.scheme,
+                        magic_link_url.netloc,
+                        magic_link_url.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                link_url,
+            )
+
+    async def test_http_auth_ext_magic_link_without_link_url(self):
         email = f"{uuid.uuid4()}@example.com"
         challenge = "test_challenge"
         callback_url = "https://example.com/app/auth/callback"
         redirect_on_failure = "https://example.com/app/auth/magic-link-failure"
 
         with self.http_con() as http_con:
+            # Register without link_url
             _, _, status = self.http_con_request(
                 http_con,
                 method="POST",
@@ -4353,16 +4532,32 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )
             assert match is not None
-            verify_url = urllib.parse.urlparse(match.group(1))
-            search_params = urllib.parse.parse_qs(verify_url.query)
+            magic_link_url = urllib.parse.urlparse(match.group(1))
+            search_params = urllib.parse.parse_qs(magic_link_url.query)
             token = search_params.get("token", [None])[0]
             assert token is not None
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        magic_link_url.scheme,
+                        magic_link_url.netloc,
+                        magic_link_url.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                f"{self.http_addr}/magic-link/authenticate",
+            )
 
             _, headers, status = self.http_con_request(
                 http_con,
@@ -4386,6 +4581,65 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     )
                 ),
                 callback_url,
+            )
+
+            # Sign in with the registered email without link_url
+            _, _, status = self.http_con_request(
+                http_con,
+                method="POST",
+                path="magic-link/email",
+                body=json.dumps(
+                    {
+                        "provider": "builtin::local_magic_link",
+                        "email": email,
+                        "challenge": challenge,
+                        "callback_url": callback_url,
+                        "redirect_on_failure": redirect_on_failure,
+                    }
+                ).encode(),
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+            )
+
+            # Get the token from email
+            file_name_hash = hashlib.sha256(
+                f"{SENDER}{email}".encode()
+            ).hexdigest()
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE",
+                f"/tmp/edb-test-email-{file_name_hash}.pickle",
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], SENDER)
+            self.assertEqual(email_args["recipients"], email)
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(
+                r'<p style="word-break: break-all">([^<]+)', html_email
+            )
+            assert match is not None
+            magic_link_url = urllib.parse.urlparse(match.group(1))
+            search_params = urllib.parse.parse_qs(magic_link_url.query)
+            token = search_params.get("token", [None])[0]
+            assert token is not None
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        magic_link_url.scheme,
+                        magic_link_url.netloc,
+                        magic_link_url.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                f"{self.http_addr}/magic-link/authenticate",
             )
 
     async def test_http_auth_ext_identity_delete_cascade_01(self):

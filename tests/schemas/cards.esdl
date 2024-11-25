@@ -159,3 +159,14 @@ alias UserAlias := (
 alias SpecialCardAlias := SpecialCard {
     el_cost := (.element, .cost)
 };
+
+alias AliasOne := 1;
+global GlobalOne := 1;
+
+global HighestCost := (
+    SELECT max(Card.cost)
+);
+
+global CardsWithText := (
+    SELECT Card FILTER exists(.text)
+);
