@@ -19,7 +19,7 @@
 import csv
 import io
 import os.path
-from typing import Optional
+from typing import Coroutine, Optional, Tuple
 import unittest
 import uuid
 import asyncio
@@ -2314,16 +2314,18 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             '''
         )
 
-        async def assert_not_blocked(coroutine: asyncio.Future):
+        async def assert_not_blocked(coroutine: Coroutine) -> None:
             await asyncio.wait_for(coroutine, 0.25)
 
-        async def assert_blocked(coroutine: asyncio.Future):
-            task = asyncio.create_task(coroutine)
+        async def assert_blocked(
+            coroutine: Coroutine
+        ) -> Tuple[asyncio.Task]:
+            task: asyncio.Task = asyncio.create_task(coroutine)
             done, pending = await asyncio.wait((task,), timeout=0.25)
             if len(done) != 0:
                 self.fail("expected this action to block, but it completed")
-            task = (next(iter(pending)),)
-            return task
+            task_t = (next(iter(pending)),)
+            return task_t
 
         # querying is allowed
         await assert_not_blocked(
