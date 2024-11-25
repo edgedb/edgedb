@@ -1548,11 +1548,18 @@ class SQLQueryTestCase(BaseQueryTestCase):
     @classmethod
     def setUpClass(cls):
         try:
-            import asyncpg
+            import asyncpg  # noqa: F401
         except ImportError:
             raise unittest.SkipTest('SQL tests skipped: asyncpg not installed')
 
         super().setUpClass()
+        cls.scon = cls.loop.run_until_complete(
+            cls.create_sql_connection()
+        )
+
+    @classmethod
+    def create_sql_connection(cls) -> asyncio.Future[asyncpg.Connection]:
+        import asyncpg
         conargs = cls.get_connect_args()
 
         tls_context = ssl.create_default_context(
@@ -1561,15 +1568,13 @@ class SQLQueryTestCase(BaseQueryTestCase):
         )
         tls_context.check_hostname = False
 
-        cls.scon = cls.loop.run_until_complete(
-            asyncpg.connect(
-                host=conargs['host'],
-                port=conargs['port'],
-                user=conargs['user'],
-                password=conargs['password'],
-                database=cls.con.dbname,
-                ssl=tls_context,
-            )
+        return asyncpg.connect(
+            host=conargs['host'],
+            port=conargs['port'],
+            user=conargs['user'],
+            password=conargs['password'],
+            database=cls.con.dbname,
+            ssl=tls_context,
         )
 
     @classmethod

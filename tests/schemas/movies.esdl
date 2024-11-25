@@ -84,3 +84,17 @@ type ContentSummary {
     access policy dml allow insert, update, delete
         using (global filter_title ?= 'summary');
 }
+
+module links {
+    type A;
+
+    type B {
+        multi link a: A;
+        link prop: A {
+            property lp: str;
+        };
+        multi property vals: str;
+    }
+
+    type C extending B;
+}

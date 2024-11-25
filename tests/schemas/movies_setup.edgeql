@@ -71,3 +71,9 @@ insert Content {
 set global filter_title := 'summary';
 insert ContentSummary;
 reset global filter_title;
+
+insert default::links::C {
+    a := {(insert default::links::A), (insert default::links::A)},
+    prop := (insert default::links::A),
+    vals := {"1", "2", "3", "4"},
+};

@@ -385,7 +385,7 @@ def _lookup_in_table(
             yield (table, column)
 
 
-def _lookup_table(tab_name: str, ctx: Context) -> context.Table:
+def _maybe_lookup_table(tab_name: str, ctx: Context) -> context.Table | None:
     matched_tables: List[context.Table] = []
     for t in ctx.scope.tables:
         t_name = t.alias or t.name
@@ -393,7 +393,7 @@ def _lookup_table(tab_name: str, ctx: Context) -> context.Table:
             matched_tables.append(t)
 
     if not matched_tables:
-        raise errors.QueryError(f'cannot find table `{tab_name}`')
+        return None
 
     # apply precedence
     if len(matched_tables) > 1:
@@ -406,6 +406,13 @@ def _lookup_table(tab_name: str, ctx: Context) -> context.Table:
         raise errors.QueryError(f'ambiguous table `{tab_name}`')
 
     table = matched_tables[0]
+    return table
+
+
+def _lookup_table(tab_name: str, ctx: Context) -> context.Table:
+    table = _maybe_lookup_table(tab_name, ctx=ctx)
+    if table is None:
+        raise errors.QueryError(f'cannot find table `{tab_name}`')
     return table
 
 
@@ -492,6 +499,41 @@ def resolve_SortBy(
         node=dispatch.resolve(expr.node, ctx=ctx),
         dir=expr.dir,
         nulls=expr.nulls,
+    )
+
+
+@dispatch._resolve.register
+def resolve_LockingClause(
+    expr: pgast.LockingClause,
+    *,
+    ctx: Context,
+) -> pgast.LockingClause:
+
+    tables: List[context.Table] = []
+    if expr.locked_rels is not None:
+        for rvar in expr.locked_rels:
+            assert rvar.relation.name
+            table = _lookup_table(rvar.relation.name, ctx=ctx)
+            tables.append(table)
+    else:
+        tables.extend(ctx.scope.tables)
+
+    # validate that the locking clause can be used on these tables
+    for table in tables:
+        if table.schema_id and not table.is_direct_relation:
+            raise errors.QueryError(
+                f'locking clause not supported: `{table.name or table.alias}` '
+                'must not have child types or access policies',
+                pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
+            )
+
+    return pgast.LockingClause(
+        strength=expr.strength,
+        locked_rels=[
+            pgast.RelRangeVar(relation=pgast.Relation(name=table.reference_as))
+            for table in tables
+        ],
+        wait_policy=expr.wait_policy,
     )
 
 

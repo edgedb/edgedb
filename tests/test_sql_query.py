@@ -19,9 +19,10 @@
 import csv
 import io
 import os.path
-from typing import Optional
+from typing import Coroutine, Optional, Tuple
 import unittest
 import uuid
+import asyncio
 
 from edb.tools import test
 from edb.testbase import server as tb
@@ -943,6 +944,37 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         # duplicate rel var names can yield duplicate column names
         self.assert_shape(res, 1, ['a', 'x_a'])
 
+    async def test_sql_query_51(self):
+        res = await self.scon.fetch(
+            '''
+            TABLE "Movie"
+            '''
+        )
+        self.assert_shape(res, 2, 6)
+
+    async def test_sql_query_52(self):
+        async def count_table(only: str, table_name: str) -> int:
+            res = await self.squery_values(
+                f'SELECT COUNT(*) FROM {only} "default::links"."{table_name}"'
+            )
+            return res[0][0]
+
+        # link tables must include elements of link's children
+        self.assertEqual(await count_table("", "C.a"), 2)
+        self.assertEqual(await count_table("ONLY", "C.a"), 2)
+        self.assertEqual(await count_table("", "B.a"), 2)
+        self.assertEqual(await count_table("ONLY", "B.a"), 0)
+        # same for property tables
+        self.assertEqual(await count_table("", "C.prop"), 1)
+        self.assertEqual(await count_table("ONLY", "C.prop"), 1)
+        self.assertEqual(await count_table("", "B.prop"), 1)
+        self.assertEqual(await count_table("ONLY", "B.prop"), 0)
+        # same for multi property tables
+        self.assertEqual(await count_table("", "C.vals"), 4)
+        self.assertEqual(await count_table("ONLY", "C.vals"), 4)
+        self.assertEqual(await count_table("", "B.vals"), 4)
+        self.assertEqual(await count_table("ONLY", "B.vals"), 0)
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
@@ -967,6 +999,15 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ['public', 'Person'],
                 ['public', 'novel'],
                 ['public', 'novel.chapters'],
+                ['public::links', 'A'],
+                ['public::links', 'B'],
+                ['public::links', 'B.a'],
+                ['public::links', 'B.prop'],
+                ['public::links', 'B.vals'],
+                ['public::links', 'C'],
+                ['public::links', 'C.a'],
+                ['public::links', 'C.prop'],
+                ['public::links', 'C.vals'],
                 ['public::nested', 'Hello'],
                 ['public::nested::deep', 'Rolling'],
             ],
@@ -2142,7 +2183,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.FeatureNotSupportedError,
             "not supported: CREATE",
-            # position="14",  # TODO: this is confusing
+            position="14",  # TODO: this is confusing
         ):
             await self.squery_values('CREATE TABLE a();')
 
@@ -2158,6 +2199,170 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             "not supported: REINDEX",
         ):
             await self.squery_values('REINDEX TABLE a;')
+
+    async def test_sql_query_locking_00(self):
+        # Movie is allowed because it has no sub-types and access policies are
+        # not enabled.
+        await self.squery_values(
+            '''
+            SELECT id FROM "Movie" LIMIT 1 FOR UPDATE;
+            '''
+        )
+
+        await self.squery_values(
+            '''
+            SELECT id FROM "Movie" LIMIT 1 FOR NO KEY UPDATE NOWAIT;
+            '''
+        )
+        await self.squery_values(
+            '''
+            SELECT id FROM "Movie" LIMIT 1 FOR KEY SHARE SKIP LOCKED;
+            '''
+        )
+
+    async def test_sql_query_locking_01(self):
+        # fail because sub-types
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "locking clause not supported",
+        ):
+            await self.squery_values(
+                '''
+                SELECT id FROM "Content" LIMIT 1 FOR UPDATE;
+                '''
+            )
+
+        # fail because access policies
+        tran = self.scon.transaction()
+        await tran.start()
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "locking clause not supported",
+        ):
+            await self.scon.execute(
+                'SET LOCAL apply_access_policies_sql TO TRUE'
+            )
+            await self.squery_values(
+                '''
+                SELECT id FROM "Movie" LIMIT 1 FOR UPDATE;
+                '''
+            )
+        await tran.rollback()
+
+    async def test_sql_query_locking_02(self):
+        # we are locking just Movie
+        await self.squery_values(
+            '''
+            SELECT * FROM "Movie", "Content" LIMIT 1 FOR UPDATE OF "Movie";
+            '''
+        )
+
+        # we are locking just Movie
+        await self.squery_values(
+            '''
+            SELECT * FROM "Movie" m, "Content" LIMIT 1 FOR UPDATE OF m;
+            '''
+        )
+
+        # we are locking just Content
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "locking clause not supported",
+        ):
+            await self.squery_values(
+                '''
+                SELECT * FROM "Movie", "Content" c LIMIT 1 FOR UPDATE OF c;
+                '''
+            )
+
+    async def test_sql_query_locking_03(self):
+        # allowed, but this won't lock anything
+        await self.squery_values(
+            '''
+            SELECT * FROM (VALUES (1)) t FOR UPDATE;
+            '''
+        )
+
+        # allowed, will not lock Content
+        await self.squery_values(
+            '''
+            WITH c AS (SELECT * FROM "Content")
+            SELECT * FROM "Movie" FOR UPDATE;
+            '''
+        )
+
+    @test.skip(
+        'blocking the connection causes other tests which trigger a '
+        'PostgreSQL error to encounter a InternalServerError and close '
+        'the connection'
+    )
+    async def test_sql_query_locking_04(self):
+        # test that we really obtain a lock
+
+        # we will obtain a lock on the main connection
+        # and then check that another connection is blocked
+        con_other = await self.create_sql_connection()
+
+        tran = self.scon.transaction()
+        await tran.start()
+
+        # obtain a lock
+        await self.scon.execute(
+            '''
+            SELECT * FROM "Movie" WHERE title = 'Forrest Gump'
+            FOR UPDATE;
+            '''
+        )
+
+        async def assert_not_blocked(coroutine: Coroutine) -> None:
+            await asyncio.wait_for(coroutine, 0.25)
+
+        async def assert_blocked(
+            coroutine: Coroutine
+        ) -> Tuple[asyncio.Task]:
+            task: asyncio.Task = asyncio.create_task(coroutine)
+            done, pending = await asyncio.wait((task,), timeout=0.25)
+            if len(done) != 0:
+                self.fail("expected this action to block, but it completed")
+            task_t = (next(iter(pending)),)
+            return task_t
+
+        # querying is allowed
+        await assert_not_blocked(
+            con_other.execute(
+                '''
+                SELECT title FROM "Movie" WHERE title = 'Forrest Gump';
+                '''
+            )
+        )
+
+        # another FOR UPDATE is now blocked
+        (task,) = await assert_blocked(
+            con_other.execute(
+                '''
+                SELECT * FROM "Movie" WHERE title = 'Forrest Gump'
+                FOR UPDATE;
+                '''
+            )
+        )
+
+        # release the lock
+        await tran.rollback()
+
+        # now we can finish the second SELECT FOR UPDATE
+        await task
+
+        # and subsequent FOR UPDATE are not blocked
+        await assert_not_blocked(
+            con_other.execute(
+                '''
+                SELECT * FROM "Movie" WHERE title = 'Forrest Gump'
+                FOR UPDATE;
+                '''
+            )
+        )
+
+        await con_other.close()
 
     async def test_native_sql_query_00(self):
         await self.assert_sql_query_result(
