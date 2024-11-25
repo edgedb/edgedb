@@ -519,10 +519,7 @@ class SelectQuery(Query):
 
 
 class GroupingIdentList(Base):
-    elements: typing.Tuple[
-        typing.Union[ObjectRef, Path, GroupingIdentList],
-        ...
-    ]
+    elements: typing.Tuple[typing.Union[GroupingAtom], ...]
 
 
 GroupingAtom = typing.Union[ObjectRef, Path, GroupingIdentList]
