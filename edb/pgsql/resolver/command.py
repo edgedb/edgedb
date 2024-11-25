@@ -1560,7 +1560,7 @@ def _compile_uncompiled_dml(
         anchors.update(stmt.ql_anchors)
 
     # construct the main query
-    ql_aliases: List[qlast.AliasedExpr | qlast.ModuleAliasDecl] = []
+    ql_aliases: List[qlast.Alias] = []
     ql_stmt_shape: List[qlast.ShapeElement] = []
     ql_stmt_shape_names = []
     inserts_by_type: Dict[uuid.UUID, List[str]] = {}

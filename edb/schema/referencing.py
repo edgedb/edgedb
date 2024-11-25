@@ -651,7 +651,7 @@ class CreateReferencedObject(
     ) -> qlast.ObjectDDL:
         nref = cls.get_inherited_ref_name(schema, context, parent, refname)
         astnode_cls = cls.referenced_astnode
-        astnode = astnode_cls(name=nref)  # type: ignore
+        astnode = astnode_cls(name=nref)
         assert isinstance(astnode, qlast.ObjectDDL)
         return astnode
 

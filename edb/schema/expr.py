@@ -604,10 +604,10 @@ def imprint_expr_context(
         # Leave constants alone.
         return qltree
 
-    if not isinstance(qltree, (qlast_.Query, qlast_.Command)):
-        assert isinstance(qltree, qlast_.Expr)
+    if isinstance(qltree, qlast_.Expr):
         qltree = qlast_.SelectQuery(result=qltree, implicit=True)
     else:
+        assert isinstance(qltree, (qlast_.Command, qlast_.DDLCommand))
         qltree = copy.copy(qltree)
         qltree.aliases = (
             list(qltree.aliases) if qltree.aliases is not None else None)
