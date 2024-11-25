@@ -637,6 +637,31 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.buffer.read_len_prefixed_bytes()
             num_fields -= 1
 
+    cdef dict parse_annotations(self):
+        cdef:
+            dict annos
+            uint16_t num_annos
+            str name, value
+
+        annos = {}
+        num_annos = <uint16_t>self.buffer.read_int16()
+        while num_annos:
+            name = self.buffer.read_len_prefixed_utf8()
+            value = self.buffer.read_len_prefixed_utf8()
+            annos[name] = value
+            num_annos -= 1
+        return annos
+
+    cdef inline ignore_annotations(self):
+        cdef:
+            uint16_t num_annos
+
+        num_annos = <uint16_t>self.buffer.read_int16()
+        while num_annos:
+            self.buffer.read_len_prefixed_bytes()
+            self.buffer.read_len_prefixed_bytes()
+            num_annos -= 1
+
     #############
 
     cdef WriteBuffer make_negotiate_protocol_version_msg(
@@ -883,7 +908,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self._last_anon_compiled = None
 
-        self.ignore_headers()
+        if self.protocol_version >= (3, 0):
+            self.ignore_annotations()
+        else:
+            self.ignore_headers()
 
         _dbview = self.get_dbview()
         if _dbview.get_state_serializer() is None:
@@ -913,7 +941,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             bytes args
             uint64_t allow_capabilities
 
-        self.ignore_headers()
+        if self.protocol_version >= (3, 0):
+            self.ignore_annotations()
+        else:
+            self.ignore_headers()
 
         _dbview = self.get_dbview()
         if _dbview.get_state_serializer() is None:

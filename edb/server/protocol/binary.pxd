@@ -97,6 +97,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     cdef inline reject_headers(self)
     cdef inline ignore_headers(self)
     cdef dict parse_headers(self)
+    cdef dict parse_annotations(self)
+    cdef inline ignore_annotations(self)
 
     cdef write_status(self, bytes name, bytes value)
     cdef write_edgedb_error(self, exc)
