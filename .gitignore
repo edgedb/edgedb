@@ -19,6 +19,7 @@
 /tmp
 __pycache__/
 .d8_history
+/.venv
 /.eggs
 /*.egg
 /*.egg-info
