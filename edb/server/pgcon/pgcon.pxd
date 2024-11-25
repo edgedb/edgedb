@@ -162,7 +162,8 @@ cdef class PGConnection:
     cdef send_query_unit_group(
         self, object query_unit_group, bint sync,
         object bind_datas, bytes state,
-        ssize_t start, ssize_t end, int dbver, object parse_array
+        ssize_t start, ssize_t end, int dbver, object parse_array,
+        object query_prefix,
     )
 
     cdef _rewrite_copy_data(

@@ -90,6 +90,7 @@ cdef class ExecutionGroup:
                 len(self.group),  # end
                 dbver,
                 parse_array,
+                None,  # query_prefix
             )
             if state is not None:
                 await be_conn.wait_for_state_resp(state, state_sync=0)
@@ -231,7 +232,6 @@ async def execute(
     cdef:
         bytes state = None, orig_state = None
         WriteBuffer bound_args_buf
-        ExecutionGroup group
 
     query_unit = compiled.query_unit_group[0]
 
@@ -296,6 +296,7 @@ async def execute(
                         dbver=dbv.dbver,
                         use_pending_func_cache=compiled.use_pending_func_cache,
                         tx_isolation=tx_isolation,
+                        query_prefix=compiled.make_query_prefix(),
                     )
 
                     if query_unit.needs_readback and data:
@@ -434,6 +435,7 @@ async def execute_script(
     feature_used_metrics = None
     global_schema = roles = None
     unit_group = compiled.query_unit_group
+    query_prefix = compiled.make_query_prefix()
 
     sync = False
     no_sync = False
@@ -491,6 +493,7 @@ async def execute_script(
                         sent,
                         dbver,
                         parse_array,
+                        query_prefix,
                     )
 
                 if idx == 0 and state is not None:
