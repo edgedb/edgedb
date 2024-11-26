@@ -346,7 +346,7 @@ static const struct config_enum_entry track_options[] =
 	{"None", PGSS_TRACK_NONE, false},
 	{"All", PGSS_TRACK_ALL, false},
 	{"Dev", PGSS_TRACK_DEV, false},
-	{"Nested", PGSS_TRACK_NESTED, false},
+	{"Dev-Nested", PGSS_TRACK_NESTED, false},
 	{NULL, 0, false}
 };
 
