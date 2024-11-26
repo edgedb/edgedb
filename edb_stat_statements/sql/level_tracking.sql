@@ -7,7 +7,7 @@ SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- DO block - top-level tracking.
 CREATE TABLE stats_track_tab (x int);
-SET edb_stat_statements.track = 'top';
+SET edb_stat_statements.track = 'dev';
 DELETE FROM stats_track_tab;
 DO $$
 BEGIN
@@ -19,7 +19,7 @@ SELECT toplevel, calls, query FROM edb_stat_statements
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- DO block - all-level tracking.
-SET edb_stat_statements.track = 'all';
+SET edb_stat_statements.track = 'dev-nested';
 DELETE FROM stats_track_tab;
 DO $$
 BEGIN
@@ -43,20 +43,20 @@ AS $$
 $$;
 SET edb_stat_statements.track_utility = TRUE;
 -- all-level tracking.
-SET edb_stat_statements.track = 'all';
+SET edb_stat_statements.track = 'dev-nested';
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 CALL proc_with_utility_stmt();
 SELECT toplevel, calls, query FROM edb_stat_statements
   ORDER BY query COLLATE "C", toplevel;
 -- top-level tracking.
-SET edb_stat_statements.track = 'top';
+SET edb_stat_statements.track = 'dev';
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 CALL proc_with_utility_stmt();
 SELECT toplevel, calls, query FROM edb_stat_statements
   ORDER BY query COLLATE "C", toplevel;
 
 -- DO block - top-level tracking without utility.
-SET edb_stat_statements.track = 'top';
+SET edb_stat_statements.track = 'dev';
 SET edb_stat_statements.track_utility = FALSE;
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 DELETE FROM stats_track_tab;
@@ -73,7 +73,7 @@ SELECT toplevel, calls, query FROM edb_stat_statements
   ORDER BY query COLLATE "C", toplevel;
 
 -- DO block - all-level tracking without utility.
-SET edb_stat_statements.track = 'all';
+SET edb_stat_statements.track = 'dev-nested';
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 DELETE FROM stats_track_tab;
 DO $$
@@ -89,7 +89,7 @@ SELECT toplevel, calls, query FROM edb_stat_statements
   ORDER BY query COLLATE "C", toplevel;
 
 -- PL/pgSQL function - top-level tracking.
-SET edb_stat_statements.track = 'top';
+SET edb_stat_statements.track = 'dev';
 SET edb_stat_statements.track_utility = FALSE;
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 CREATE FUNCTION PLUS_TWO(i INTEGER) RETURNS INTEGER AS $$
@@ -122,7 +122,7 @@ SELECT PLUS_THREE(10);
 SELECT toplevel, calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
 
 -- PL/pgSQL function - all-level tracking.
-SET edb_stat_statements.track = 'all';
+SET edb_stat_statements.track = 'dev-nested';
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- we drop and recreate the functions to avoid any caching funnies

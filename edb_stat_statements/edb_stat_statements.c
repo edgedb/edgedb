@@ -336,31 +336,35 @@ static HTAB *pgss_hash = NULL;
 typedef enum
 {
 	PGSS_TRACK_NONE,			/* track no statements */
-	PGSS_TRACK_TOP,				/* only top level statements */
-	PGSS_TRACK_ALL,				/* all statements, including nested ones */
+	PGSS_TRACK_ALL,				/* all recognized top-level statements */
+	PGSS_TRACK_DEV,				/* all top-level statements, including unrecognized ones */
+	PGSS_TRACK_NESTED,			/* all statements, including unrecognized and nested ones */
 }			PGSSTrackLevel;
 
 static const struct config_enum_entry track_options[] =
 {
-	{"none", PGSS_TRACK_NONE, false},
-	{"top", PGSS_TRACK_TOP, false},
-	{"all", PGSS_TRACK_ALL, false},
+	{"None", PGSS_TRACK_NONE, false},
+	{"All", PGSS_TRACK_ALL, false},
+	{"Dev", PGSS_TRACK_DEV, false},
+	{"Dev-Nested", PGSS_TRACK_NESTED, false},
 	{NULL, 0, false}
 };
 
 static int	pgss_max = 5000;	/* max # statements to track */
-static int	pgss_track = PGSS_TRACK_TOP;	/* tracking level */
+static int	pgss_track = PGSS_TRACK_ALL;	/* tracking level */
 static bool pgss_track_utility = true;	/* whether to track utility commands */
 static bool pgss_track_planning = false;	/* whether to track planning
 											 * duration */
 static bool pgss_save = true;	/* whether to save stats across shutdown */
-static bool edbss_track_unrecognized = false;	/* whether to track unrecognized statements as-is */
 
 
 #define pgss_enabled(level) \
 	(!IsParallelWorker() && \
-	(pgss_track == PGSS_TRACK_ALL || \
-	(pgss_track == PGSS_TRACK_TOP && (level) == 0)))
+	(pgss_track == PGSS_TRACK_NESTED || \
+	(pgss_track != PGSS_TRACK_NONE && (level) == 0)))
+
+#define edbss_track_unrecognized() \
+	(pgss_track == PGSS_TRACK_DEV || pgss_track == PGSS_TRACK_NESTED)
 
 #define record_gc_qtexts() \
 	do { \
@@ -492,7 +496,7 @@ _PG_init(void)
 							 "Selects which statements are tracked by edb_stat_statements.",
 							 NULL,
 							 &pgss_track,
-							 PGSS_TRACK_TOP,
+							 PGSS_TRACK_ALL,
 							 track_options,
 							 PGC_SUSET,
 							 0,
@@ -527,17 +531,6 @@ _PG_init(void)
 							 NULL,
 							 &pgss_save,
 							 true,
-							 PGC_SIGHUP,
-							 0,
-							 NULL,
-							 NULL,
-							 NULL);
-
-	DefineCustomBoolVariable("edb_stat_statements.track_unrecognized",
-							 "Selects whether unrecognized SQL statements are tracked as-is.",
-							 NULL,
-							 &edbss_track_unrecognized,
-							 false,
 							 PGC_SIGHUP,
 							 0,
 							 NULL,
@@ -1192,7 +1185,7 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 				   0,
 				   0);
 		edbss_free_stmt_info(info);
-	} else if (!edbss_track_unrecognized) {
+	} else if (!edbss_track_unrecognized()) {
 		query->queryId = UINT64CONST(0);
 	} else if (jstate && jstate->clocations_count > 0)
 		/*
@@ -1719,7 +1712,7 @@ pgss_store(const char *query, uint64 queryId,
 				id = &info->id.uuid;
 				stmt_type = info->stmt_type;
 				extras = info->extras;
-			} else if (!edbss_track_unrecognized) {
+			} else if (!edbss_track_unrecognized()) {
 				/* skip unrecognized statements unless we're told not to */
 				goto done;
 			} else {

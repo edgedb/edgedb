@@ -10,7 +10,7 @@ SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- DO block - top-level tracking.
 CREATE TABLE stats_track_tab (x int);
-SET edb_stat_statements.track = 'top';
+SET edb_stat_statements.track = 'dev';
 DELETE FROM stats_track_tab;
 DO $$
 BEGIN
@@ -36,7 +36,7 @@ SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 (1 row)
 
 -- DO block - all-level tracking.
-SET edb_stat_statements.track = 'all';
+SET edb_stat_statements.track = 'dev-nested';
 DELETE FROM stats_track_tab;
 DO $$
 BEGIN
@@ -77,7 +77,7 @@ AS $$
 $$;
 SET edb_stat_statements.track_utility = TRUE;
 -- all-level tracking.
-SET edb_stat_statements.track = 'all';
+SET edb_stat_statements.track = 'dev-nested';
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
@@ -96,7 +96,7 @@ SELECT toplevel, calls, query FROM edb_stat_statements
 (4 rows)
 
 -- top-level tracking.
-SET edb_stat_statements.track = 'top';
+SET edb_stat_statements.track = 'dev';
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
@@ -113,7 +113,7 @@ SELECT toplevel, calls, query FROM edb_stat_statements
 (2 rows)
 
 -- DO block - top-level tracking without utility.
-SET edb_stat_statements.track = 'top';
+SET edb_stat_statements.track = 'dev';
 SET edb_stat_statements.track_utility = FALSE;
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
@@ -140,7 +140,7 @@ SELECT toplevel, calls, query FROM edb_stat_statements
 (2 rows)
 
 -- DO block - all-level tracking without utility.
-SET edb_stat_statements.track = 'all';
+SET edb_stat_statements.track = 'dev-nested';
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---
@@ -168,7 +168,7 @@ SELECT toplevel, calls, query FROM edb_stat_statements
 (4 rows)
 
 -- PL/pgSQL function - top-level tracking.
-SET edb_stat_statements.track = 'top';
+SET edb_stat_statements.track = 'dev';
 SET edb_stat_statements.track_utility = FALSE;
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
@@ -244,7 +244,7 @@ SELECT toplevel, calls, rows, query FROM edb_stat_statements ORDER BY query COLL
 (5 rows)
 
 -- PL/pgSQL function - all-level tracking.
-SET edb_stat_statements.track = 'all';
+SET edb_stat_statements.track = 'dev-nested';
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
  t 
 ---

@@ -45,6 +45,7 @@ CREATE SCALAR TYPE cfg::ConnectionTransport EXTENDING enum<
     TCP, TCP_PG, HTTP, SIMPLE_HTTP, HTTP_METRICS, HTTP_HEALTH>;
 CREATE SCALAR TYPE cfg::QueryCacheMode EXTENDING enum<
     InMemory, RegInline, PgFunc, Default>;
+CREATE SCALAR TYPE cfg::QueryStatsOption EXTENDING enum<None, All>;
 
 CREATE ABSTRACT TYPE cfg::ConfigObject EXTENDING std::BaseObject;
 
@@ -386,6 +387,12 @@ ALTER TYPE cfg::AbstractConfig {
             connection could hold at the same time.';
         CREATE CONSTRAINT std::min_value(1);
         SET default := 100;
+    };
+
+    CREATE PROPERTY track_query_stats -> cfg::QueryStatsOption {
+        CREATE ANNOTATION cfg::backend_setting := '"edb_stat_statements.track"';
+        CREATE ANNOTATION std::description :=
+            'Select what queries are tracked in sys::QueryStats';
     };
 };
 
