@@ -3580,7 +3580,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 self.assertEqual(
                     event_data["identity_id"], str(pkce.identity_id)
                 )
-                signature = requests_for_webhook[0]["headers"][
+                signature = requests_for_webhook[0].headers[
                     "x-ext-auth-signature-sha256"
                 ]
 
@@ -3588,7 +3588,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     signature,
                     hmac.new(
                         signing_secret_key.encode(),
-                        requests_for_webhook[0]["body"].encode(),
+                        requests_for_webhook[0].body.encode(),
                         hashlib.sha256,
                     ).hexdigest(),
                 )
