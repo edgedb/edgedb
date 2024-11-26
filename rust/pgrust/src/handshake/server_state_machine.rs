@@ -130,7 +130,7 @@ where
 }
 
 #[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
+#[allow(clippy::large_enum_variant)] // Auth is much larger
 enum ServerStateImpl {
     /// Initial state, enum indicates whether SSL is required (or None if enabled)
     Initial(Option<ConnectionSslRequirement>),
