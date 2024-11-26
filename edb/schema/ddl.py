@@ -560,10 +560,13 @@ def apply_sdl(
 
         if pkg:
             for dep in pkg.get_dependencies(base_schema):
-                if '==' not in dep:
+                if '>=' not in dep:
+                    builtin = (
+                        'built-in ' if pkg.get_builtin(base_schema) else ''
+                    )
                     raise errors.SchemaError(
-                        f'built-in extension {name} missing version for {dep}')
-                dep, dep_version = dep.split('==')
+                        f'{builtin}extension {name} missing version for {dep}')
+                dep, dep_version = dep.split('>=')
 
                 process_ext(
                     qlast.CreateExtension(

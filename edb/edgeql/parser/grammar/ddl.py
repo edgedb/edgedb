@@ -914,6 +914,14 @@ class ExtensionPackageStmt(Nonterm):
     def reduce_DropExtensionPackageStmt(self, *kids):
         pass
 
+    @parsing.inline(0)
+    def reduce_CreateExtensionPackageMigrationStmt(self, *kids):
+        pass
+
+    @parsing.inline(0)
+    def reduce_DropExtensionPackageMigrationStmt(self, *kids):
+        pass
+
 
 #
 # CREATE EXTENSION PACKAGE
@@ -973,6 +981,68 @@ class DropExtensionPackageStmt(Nonterm):
 
 
 #
+# CREATE EXTENSION PACKAGE MIGRATION
+#
+
+class CreateExtensionPackageMigrationBodyBlock(NestedQLBlock):
+
+    @property
+    def allowed_fields(self) -> typing.FrozenSet[str]:
+        return frozenset(
+            {'early_sql_script', 'late_sql_script'}
+        )
+
+    @property
+    def result(self) -> typing.Any:
+        return ExtensionPackageBody
+
+
+nested_ql_block(
+    'CreateExtensionPackage',
+    production_tpl=CreateExtensionPackageBodyBlock,
+)
+
+
+class CreateExtensionPackageMigrationStmt(Nonterm):
+
+    def reduce_CreateExtensionPackageMigrationStmt(self, *kids):
+        r"""%reduce CREATE EXTENSIONPACKAGE ShortNodeName
+                    MIGRATION FROM
+                    ExtensionVersion TO
+                    ExtensionVersion
+                    OptCreateExtensionPackageCommandsBlock
+        """
+        _, _, name, _, _, from_version, _, to_version, block = kids
+        self.val = qlast.CreateExtensionPackageMigration(
+            name=name.val,
+            from_version=from_version.val,
+            to_version=to_version.val,
+            body=block.val.body,
+            commands=block.val.fields,
+        )
+
+
+#
+# DROP EXTENSION PACKAGE MIGRATION
+#
+class DropExtensionPackageMigrationStmt(Nonterm):
+
+    def reduce_DropExtensionPackageMigrationStmt(self, *kids):
+        r"""%reduce DROP EXTENSIONPACKAGE ShortNodeName
+                    MIGRATION FROM
+                    ExtensionVersion TO
+                    ExtensionVersion
+        """
+        _, _, name, _, _, from_version, _, to_version = kids
+
+        self.val = qlast.DropExtensionPackageMigration(
+            name=name.val,
+            from_version=from_version.val,
+            to_version=to_version.val,
+        )
+
+
+#
 # EXTENSIONS
 #
 
@@ -981,6 +1051,10 @@ class ExtensionStmt(Nonterm):
 
     @parsing.inline(0)
     def reduce_CreateExtensionStmt(self, *kids):
+        pass
+
+    @parsing.inline(0)
+    def reduce_AlterExtensionStmt(self, *kids):
         pass
 
     @parsing.inline(0)
@@ -1009,6 +1083,29 @@ class CreateExtensionStmt(Nonterm):
             name=kids[2].val,
             version=kids[3].val,
             commands=kids[4].val,
+        )
+
+#
+# ALTER EXTENSION
+#
+
+
+commands_block(
+    'AlterExtension',
+    SetFieldStmt,
+)
+
+
+class AlterExtensionStmt(Nonterm):
+
+    def reduce_AlterExtensionStmt(self, *kids):
+        r"""%reduce ALTER EXTENSION ShortNodeName
+                    TO ExtensionVersion
+        """
+        _, _, name, _, ver = kids
+        self.val = qlast.AlterExtension(
+            name=name.val,
+            to_version=ver.val,
         )
 
 

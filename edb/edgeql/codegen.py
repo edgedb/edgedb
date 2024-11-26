@@ -1199,6 +1199,41 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self._visit_DropObject(node, 'EXTENSION PACKAGE', after_name=after_name)
 
+    def visit_CreateExtensionPackageMigration(
+        self,
+        node: qlast.CreateExtensionPackageMigration,
+    ) -> None:
+        self._write_keywords('CREATE EXTENSION PACKAGE')
+        self.write(' ')
+        self.write(ident_to_str(node.name.name))
+        self._write_keywords(' MIGRATION FROM ')
+        self._write_keywords(' VERSION ')
+        self.visit(node.from_version)
+        self._write_keywords(' TO ')
+        self.visit(node.to_version)
+
+        if node.body.text:
+            self.write(' {')
+            self._block_ws(1)
+            self.write(self.indent_text(node.body.text))
+            self._block_ws(-1)
+            self.write('}')
+        elif node.body.commands:
+            self._ddl_visit_body(node.body.commands)
+
+    def visit_DropExtensionPackageMigration(
+        self,
+        node: qlast.DropExtensionPackageMigration,
+    ) -> None:
+        self._write_keywords('DROP EXTENSION PACKAGE')
+        self.write(' ')
+        self.write(ident_to_str(node.name.name))
+        self._write_keywords(' MIGRATION FROM ')
+        self._write_keywords(' VERSION ')
+        self.visit(node.from_version)
+        self._write_keywords(' TO ')
+        self.visit(node.to_version)
+
     def visit_CreateExtension(
         self,
         node: qlast.CreateExtension,
@@ -1214,6 +1249,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.version)
         if node.commands:
             self._ddl_visit_body(node.commands)
+
+    def visit_AlterExtension(self, node: qlast.AlterExtension) -> None:
+        self._write_keywords('ALTER EXTENSION')
+        self.write(' ')
+        self.write(ident_to_str(node.name.name))
+        self._write_keywords(' TO VERSION ')
+        self.visit(node.to_version)
 
     def visit_DropExtension(
         self,

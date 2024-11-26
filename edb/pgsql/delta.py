@@ -7189,28 +7189,118 @@ class DeleteExtensionPackage(
         return schema
 
 
+class CreateExtensionPackageMigration(
+    MetaCommand,
+    adapts=s_exts.CreateExtensionPackageMigration,
+):
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().apply(schema, context)
+
+        ext_id = str(self.scls.id)
+        name__internal = str(self.scls.get_name(schema))
+        name = self.scls.get_displayname(schema)
+        from_version = self.scls.get_from_version(schema)._asdict()
+        from_version['stage'] = from_version['stage'].name.lower()
+        to_version = self.scls.get_to_version(schema)._asdict()
+        to_version['stage'] = to_version['stage'].name.lower()
+
+        metadata = {
+            ext_id: {
+                'id': ext_id,
+                'name': name,
+                'name__internal': name__internal,
+                'script': self.scls.get_script(schema),
+                'from_version': from_version,
+                'to_version': to_version,
+                'builtin': self.scls.get_builtin(schema),
+                'internal': self.scls.get_internal(schema),
+                'sql_early_script': self.scls.get_sql_early_script(schema),
+                'sql_late_script': self.scls.get_sql_late_script(schema),
+            }
+        }
+
+        ctx_backend_params = context.backend_runtime_params
+        if ctx_backend_params is not None:
+            backend_params = cast(
+                params.BackendRuntimeParams, ctx_backend_params)
+        else:
+            backend_params = params.get_default_runtime_params()
+
+        if backend_params.has_create_database:
+            self.pgops.add(
+                dbops.UpdateMetadataSection(
+                    dbops.DatabaseWithTenant(name=edbdef.EDGEDB_TEMPLATE_DB),
+                    section='ExtensionPackageMigration',
+                    metadata=metadata
+                )
+            )
+        else:
+            self.pgops.add(
+                dbops.UpdateSingleDBMetadataSection(
+                    edbdef.EDGEDB_TEMPLATE_DB,
+                    section='ExtensionPackageMigration',
+                    metadata=metadata
+                )
+            )
+
+        return schema
+
+
+class DeleteExtensionPackageMigration(
+    MetaCommand,
+    adapts=s_exts.DeleteExtensionPackageMigration,
+):
+    # XXX: 100% duplication with DeleteExtensionPackage
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().apply(schema, context)
+
+        ctx_backend_params = context.backend_runtime_params
+        if ctx_backend_params is not None:
+            backend_params = cast(
+                params.BackendRuntimeParams, ctx_backend_params)
+        else:
+            backend_params = params.get_default_runtime_params()
+
+        ext_id = str(self.scls.id)
+        metadata = {
+            ext_id: None
+        }
+
+        if backend_params.has_create_database:
+            self.pgops.add(
+                dbops.UpdateMetadataSection(
+                    dbops.DatabaseWithTenant(name=edbdef.EDGEDB_TEMPLATE_DB),
+                    section='ExtensionPackageMigration',
+                    metadata=metadata
+                )
+            )
+        else:
+            self.pgops.add(
+                dbops.UpdateSingleDBMetadataSection(
+                    edbdef.EDGEDB_TEMPLATE_DB,
+                    section='ExtensionPackageMigration',
+                    metadata=metadata
+                )
+            )
+
+        return schema
+
+
 class ExtensionCommand(MetaCommand):
-    pass
+    def _compute_version(self, ext_spec: str) -> None:
+        '''Emits a Query to compute the version.
 
-
-def _parse_spec(spec: str) -> tuple[str, list[tuple[str, str]]]:
-    if ' ' not in spec:
-        return (spec, [])
-
-    ext, versions = spec.split(' ', 1)
-    clauses = versions.split(',')
-    pclauses = []
-    for clause in clauses:
-        for i in range(len(clause)):
-            if clause[i].isnumeric():
-                break
-        pclauses.append((clause[:i], clause[i:]))
-
-    return ext, pclauses
-
-
-class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
-    def _create_extension(self, ext_spec: str) -> None:
+        Dumps it in _dummy_text.
+        '''
         ext, vclauses = _parse_spec(ext_spec)
 
         # Dynamically select the highest version extension that matches
@@ -7255,6 +7345,10 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
         ''')
         self.pgops.add(dbops.Query(qry))
 
+    def _create_extension(self, ext_spec: str) -> None:
+        ext = _get_ext_name(ext_spec)
+        self._compute_version(ext_spec)
+
         # XXX: hardcode to put stuff into edgedb schema
         # so that operations can be easily accessed.
         # N.B: this won't work on heroku; is that fine?
@@ -7265,6 +7359,29 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
               'CREATE EXTENSION {ext} WITH SCHEMA {target_schema} VERSION '''
               || _dummy_text || ''''
         """)))
+
+
+def _get_ext_name(spec: str) -> str:
+    return spec.split(' ')[0]
+
+
+def _parse_spec(spec: str) -> tuple[str, list[tuple[str, str]]]:
+    if ' ' not in spec:
+        return (spec, [])
+
+    ext, versions = spec.split(' ', 1)
+    clauses = versions.split(',')
+    pclauses = []
+    for clause in clauses:
+        for i in range(len(clause)):
+            if clause[i].isnumeric():
+                break
+        pclauses.append((clause[:i], clause[i:]))
+
+    return ext, pclauses
+
+
+class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
 
     def _create_begin(
         self,
@@ -7302,6 +7419,79 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
         return schema
 
 
+class AlterExtension(ExtensionCommand, adapts=s_exts.AlterExtension):
+    def _upgrade_extension(self, ext_spec: str) -> None:
+        ext = _get_ext_name(ext_spec)
+        self._compute_version(ext_spec)
+
+        self.pgops.add(dbops.Query(textwrap.dedent(f"""\
+            EXECUTE
+              'ALTER EXTENSION {ext} UPDATE TO '''
+              || _dummy_text || ''''
+        """)))
+
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        old_package = self.scls.get_package(schema)
+        schema = super()._alter_begin(schema, context)
+        if not self.migration:
+            return schema
+
+        new_package = self.scls.get_package(schema)
+
+        old_exts = {
+            _get_ext_name(spec)
+            for spec in old_package.get_sql_extensions(schema)
+        }
+
+        new_exts = set()
+        # XXX: be smarter!
+        for ext_spec in new_package.get_sql_extensions(schema):
+            ext = _get_ext_name(ext_spec)
+            new_exts.add(ext)
+            if ext in old_exts:
+                self._upgrade_extension(ext_spec)
+            else:
+                self._create_extension(ext_spec)
+
+        # # XXX??? should do this after
+        # for ext in old_exts:
+        #     if ext not in new_exts:
+        #         self.pgops.add(
+        #             dbops.DropExtension(
+        #                 dbops.Extension(
+        #                     name=ext,
+        #                     schema=ext,
+        #                 ),
+        #             )
+        #         )
+
+        # TODO: UPDATE the sql extension? Or should we do that in the
+        # script?
+        if script := self.migration.get_sql_early_script(schema):
+            self.pgops.add(dbops.Query(script))
+
+        return schema
+
+    def _alter_finalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_finalize(schema, context)
+
+        if (
+            self.migration
+            and (script := self.migration.get_sql_late_script(schema))
+        ):
+            self.pgops.add(dbops.Query(script))
+
+        return schema
+
+
 class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
     def apply(
         self,
@@ -7322,7 +7512,7 @@ class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
             self.pgops.add(dbops.Query(script))
 
         for ext_spec in package.get_sql_extensions(schema):
-            ext, _ = _parse_spec(ext_spec)
+            ext = _get_ext_name(ext_spec)
 
             self.pgops.add(
                 dbops.DropExtension(

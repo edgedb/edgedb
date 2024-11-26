@@ -673,7 +673,6 @@ class DDLCommand(DDLOperation):
 
 class NonTransactionalDDLCommand(DDLCommand):
     __abstract_node__ = True
-    __rust_ignore__ = True
 
 
 class AlterAddInherit(DDLOperation):
@@ -900,20 +899,40 @@ class DropExtensionPackage(DropObject, ExtensionPackageCommand):
     pass
 
 
-class ExtensionCommand(UnqualifiedObjectCommand):
-
+class ExtensionPackageMigrationCommand(GlobalObjectCommand):
     __abstract_node__ = True
-    version: typing.Optional[Constant] = None
+
+
+class CreateExtensionPackageMigration(
+    CreateObject, ExtensionPackageMigrationCommand
+):
+    from_version: Constant
+    to_version: Constant
+    body: NestedQLBlock
+
+
+class DropExtensionPackageMigration(
+    DropObject, ExtensionPackageMigrationCommand
+):
+    from_version: Constant
+    to_version: Constant
+
+
+class ExtensionCommand(UnqualifiedObjectCommand):
+    __abstract_node__ = True
 
 
 class CreateExtension(CreateObject, ExtensionCommand):
-    # HACK: I think there is a bug in our plugin that made us not
-    # understand that this was overridden in ExtensionCommand.
-    pass
+    version: typing.Optional[Constant] = None
+
+
+class AlterExtension(DropObject, ExtensionCommand):
+    version: typing.Optional[Constant] = None
+    to_version: Constant
 
 
 class DropExtension(DropObject, ExtensionCommand):
-    pass
+    version: typing.Optional[Constant] = None
 
 
 class FutureCommand(UnqualifiedObjectCommand):
@@ -925,7 +944,7 @@ class CreateFuture(CreateObject, FutureCommand):
     pass
 
 
-class DropFuture(DropObject, ExtensionCommand):
+class DropFuture(DropObject, FutureCommand):
     pass
 
 

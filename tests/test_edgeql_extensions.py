@@ -30,7 +30,7 @@ class TestDDLExtensions(tb.DDLTestCase):
 
     async def _extension_test_01(self):
         await self.con.execute('''
-            create extension ltree
+            create extension ltree version '1.0'
         ''')
 
         await self.assert_query_result(
@@ -89,6 +89,23 @@ class TestDDLExtensions(tb.DDLTestCase):
             json_only=True,
         )
 
+        await self.con.execute("""
+            START MIGRATION TO {
+                using extension ltree version '2.0';
+                module default {
+                    type Foo { property x -> ext::ltree::ltree };
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.assert_query_result(
+            '''
+                select ext::ltree::hash(<ext::ltree::ltree>'foo.bar');
+            ''',
+            [-2100566927],
+        )
         await self.con.execute('''
             drop type Foo;
             drop extension ltree;
@@ -99,7 +116,7 @@ class TestDDLExtensions(tb.DDLTestCase):
         await self.con.execute('''
         create extension package ltree VERSION '1.0' {
           set ext_module := "ext::ltree";
-          set sql_extensions := ["ltree >=1.0,<10.0"];
+          set sql_extensions := ["ltree >=1.2,<1.3"];
 
           set sql_setup_script := $$
             CREATE FUNCTION edgedb.asdf(val edgedb.ltree) RETURNS int4
@@ -155,6 +172,76 @@ class TestDDLExtensions(tb.DDLTestCase):
             using sql function 'edgedb.asdf';
           };
         };
+
+        create extension package ltree VERSION '2.0' {
+          set ext_module := "ext::ltree";
+          set sql_extensions := ["ltree >=1.3,<10.0"];
+
+          set sql_setup_script := $$
+            CREATE FUNCTION edgedb.asdf(val edgedb.ltree) RETURNS int4
+             LANGUAGE sql
+             STRICT
+             IMMUTABLE
+            AS $function$
+            SELECT edgedb.nlevel(val) + 1
+            $function$;
+          $$;
+
+          set sql_teardown_script := $$
+            DROP FUNCTION edgedb.asdf(edgedb.ltree);
+          $$;
+
+          create module ext::ltree;
+          create scalar type ext::ltree::ltree extending anyscalar {
+            set sql_type := "ltree";
+          };
+          create cast from ext::ltree::ltree to std::str {
+            SET volatility := 'Immutable';
+            USING SQL CAST;
+          };
+          create cast from std::str to ext::ltree::ltree {
+            SET volatility := 'Immutable';
+            USING SQL CAST;
+          };
+
+          # Use a non-trivial json representation just to show that we can.
+          create cast from ext::ltree::ltree to std::json {
+            SET volatility := 'Immutable';
+            USING SQL $$
+              select to_jsonb(string_to_array("val"::text, '.'));
+            $$
+          };
+          create cast from std::json to ext::ltree::ltree {
+            SET volatility := 'Immutable';
+            USING SQL $$
+              select string_agg(edgedb.raise_on_null(
+                edgedbstd."std|cast@std|json@std|str_f"(z.z),
+                'invalid_parameter_value', 'invalid null value in cast'),
+              '.')::ltree
+              from unnest(
+                edgedbstd."std|cast@std|json@array<std||json>_f"("val"))
+                as z(z);
+            $$
+          };
+          create function ext::ltree::nlevel(
+                v: ext::ltree::ltree) -> std::int32 {
+            using sql function 'edgedb.nlevel';
+          };
+          create function ext::ltree::asdf(v: ext::ltree::ltree) -> std::int32 {
+            using sql function 'edgedb.asdf';
+          };
+          create function ext::ltree::hash(v: ext::ltree::ltree) -> std::int32 {
+            using sql function 'edgedb.hash_ltree';
+          };
+        };
+
+        create extension package ltree migration from version '1.0'
+             to version '2.0' {
+          create function ext::ltree::hash(v: ext::ltree::ltree) -> std::int32 {
+            using sql function 'edgedb.hash_ltree';
+          };
+        };
+
         ''')
         try:
             async for tx in self._run_and_rollback_retrying():
@@ -162,7 +249,10 @@ class TestDDLExtensions(tb.DDLTestCase):
                     await self._extension_test_01()
         finally:
             await self.con.execute('''
-                drop extension package ltree VERSION '1.0'
+                drop extension package ltree VERSION '1.0';
+                drop extension package ltree VERSION '2.0';
+                drop extension package ltree migration from
+                  VERSION '1.0' TO VERSION '2.0';
             ''')
 
     async def _extension_test_02a(self):
@@ -1012,7 +1102,7 @@ class TestDDLExtensions(tb.DDLTestCase):
             };
             create extension package bar VERSION '1.0' {
               set ext_module := "ext::bar";
-              set dependencies := ["foo==1.0"];
+              set dependencies := ["foo>=1.0"];
               create module ext::bar;
               create function ext::bar::fubar() -> str using (
                 ext::foo::test() ++ "bar"
@@ -1020,7 +1110,7 @@ class TestDDLExtensions(tb.DDLTestCase):
             };
             create extension package bar VERSION '2.0' {
               set ext_module := "ext::bar";
-              set dependencies := ["foo==2.0"];
+              set dependencies := ["foo>=2.0"];
               create module ext::bar;
               create function ext::bar::fubar() -> str using (
                 ext::foo::test() ++ "bar"
@@ -1037,4 +1127,178 @@ class TestDDLExtensions(tb.DDLTestCase):
                 drop extension package foo VERSION '1.0';
                 drop extension package bar VERSION '2.0';
                 drop extension package foo VERSION '2.0';
+            ''')
+
+    async def _extension_test_07(self):
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                using extension asdf version "1.0";
+                module default {
+                    function lol() -> int64 using (ext::asdf::getver())
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.assert_query_result(
+            'select lol()',
+            [1],
+        )
+
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                using extension asdf version "3.0";
+                module default {
+                    function lol() -> int64 using (ext::asdf::getver())
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.assert_query_result(
+            'select lol()',
+            [3],
+        )
+        await self.assert_query_result(
+            'select ext::asdf::getsver()',
+            ['3'],
+        )
+
+    async def test_edgeql_extensions_07(self):
+        # Make an extension with chained upgrades
+        await self.con.execute('''
+            create extension package asdf version '1.0' {
+                set ext_module := "ext::asdf";
+                create module ext::asdf;
+                create function ext::asdf::getver() -> int64 using (1);
+            };
+            create extension package asdf version '2.0' {
+                set ext_module := "ext::asdf";
+                create module ext::asdf;
+                create function ext::asdf::getver() -> int64 using (2);
+                create function ext::asdf::getsver() -> str using (
+                   <str>ext::asdf::getver());
+            };
+            create extension package asdf version '3.0' {
+                set ext_module := "ext::asdf";
+                create module ext::asdf;
+                create function ext::asdf::getver() -> int64 using (3);
+                create function ext::asdf::getsver() -> str using (
+                    <str>ext::asdf::getver());
+            };
+
+            create extension package asdf migration
+                from version '1.0' to version '2.0' {
+                alter function ext::asdf::getver() using (2);
+                create function ext::asdf::getsver() -> str using (
+                    <str>ext::asdf::getver());
+            };
+            create extension package asdf migration
+                from version '2.0' to version '3.0' {
+                alter function ext::asdf::getver() using (3);
+            };
+        ''')
+        try:
+            async for tx in self._run_and_rollback_retrying():
+                async with tx:
+                    await self._extension_test_07()
+        finally:
+            await self.con.execute('''
+                drop extension package asdf version '1.0';
+                drop extension package asdf version '2.0';
+
+                drop extension package asdf migration
+                from version '1.0' to version '2.0';
+
+                drop extension package asdf version '3.0';
+                drop extension package asdf migration
+                from version '2.0' to version '3.0';
+            ''')
+
+    async def _extension_test_08(self):
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                using extension bar version "1.0";
+                module default {
+                    function lol() -> str using (ext::bar::fubar())
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.assert_query_result(
+            'select lol()',
+            ['bar'],
+        )
+        # Direct upgrade command should fail.
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            "cannot create extension 'bar' version '2.0': "
+            "it depends on extension foo which has not been created",
+        ):
+            await self.con.execute(r"""
+                alter extension bar to version '2.0';
+            """)
+
+        # Migration should work, though, since it will create the dependency.
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                using extension bar version "2.0";
+                module default {
+                    function lol() -> str using (ext::bar::fubar())
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+        await self.assert_query_result(
+            'select lol()',
+            ['foobar'],
+        )
+
+    async def test_edgeql_extensions_08(self):
+        # Make an extension with dependencies
+        await self.con.execute('''
+            create extension package foo VERSION '2.0' {
+              set ext_module := "ext::foo";
+              create module ext::foo;
+              create function ext::foo::test() -> str using ("foo");
+            };
+            create extension package bar VERSION '1.0' {
+              set ext_module := "ext::bar";
+              create module ext::bar;
+              create function ext::bar::fubar() -> str using (
+                "bar"
+              );
+            };
+            create extension package bar VERSION '2.0' {
+              set ext_module := "ext::bar";
+              set dependencies := ["foo>=2.0"];
+              create module ext::bar;
+              create function ext::bar::fubar() -> str using (
+                ext::foo::test() ++ "bar"
+              );
+            };
+            create extension package bar migration
+                from version '1.0' to version '2.0' {
+              alter function ext::bar::fubar() using (
+                ext::foo::test() ++ "bar"
+              );
+            };
+
+        ''')
+        try:
+            async for tx in self._run_and_rollback_retrying():
+                async with tx:
+                    await self._extension_test_08()
+        finally:
+            await self.con.execute('''
+                drop extension package bar VERSION '1.0';
+                drop extension package bar VERSION '2.0';
+                drop extension package foo VERSION '2.0';
+                drop extension package bar migration
+                  from version '1.0' to version '2.0';
             ''')

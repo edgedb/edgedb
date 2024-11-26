@@ -86,6 +86,8 @@ def get_schema_class(ql: qlast.ObjectDDL) -> qltypes.SchemaObjectClass:
             return osc.MIGRATION
         case qlast.ExtensionPackageCommand():
             return osc.EXTENSION_PACKAGE
+        case qlast.ExtensionPackageMigrationCommand():
+            return osc.EXTENSION_PACKAGE_MIGRATION
         case qlast.ExtensionCommand():
             return osc.EXTENSION
         case qlast.ExtensionCommand():
