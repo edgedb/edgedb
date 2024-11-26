@@ -11,7 +11,10 @@ use crate::{
         },
         ConnectionSslRequirement,
     },
-    protocol::{postgres::{data::SSLResponse, meta, FrontendBuilder, InitialBuilder}, StructBuffer},
+    protocol::{
+        postgres::{data::SSLResponse, meta, FrontendBuilder, InitialBuilder},
+        StructBuffer,
+    },
 };
 use pyo3::{
     buffer::PyBuffer,
@@ -403,10 +406,7 @@ struct PyConnectionStateUpdate {
 }
 
 impl ConnectionStateSend for PyConnectionStateUpdate {
-    fn send_initial(
-        &mut self,
-        message: InitialBuilder,
-    ) -> Result<(), std::io::Error> {
+    fn send_initial(&mut self, message: InitialBuilder) -> Result<(), std::io::Error> {
         Python::with_gil(|py| {
             let bytes = PyByteArray::new(py, &message.to_vec());
             if let Err(e) = self.py_update.call_method1(py, "send", (bytes,)) {
@@ -417,10 +417,7 @@ impl ConnectionStateSend for PyConnectionStateUpdate {
         Ok(())
     }
 
-    fn send(
-        &mut self,
-        message: FrontendBuilder,
-    ) -> Result<(), std::io::Error> {
+    fn send(&mut self, message: FrontendBuilder) -> Result<(), std::io::Error> {
         Python::with_gil(|py| {
             let bytes = PyBytes::new(py, &message.to_vec());
             if let Err(e) = self.py_update.call_method1(py, "send", (bytes,)) {

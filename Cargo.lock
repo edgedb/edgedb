@@ -946,12 +946,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
 
 [[package]]
-name = "hex"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
-
-[[package]]
 name = "hex-literal"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1552,14 +1546,11 @@ dependencies = [
  "clap",
  "clap_derive",
  "constant_time_eq",
- "consume_on_drop",
  "derive_more",
  "futures",
- "hex",
  "hex-literal",
  "hexdump",
  "hmac",
- "itertools 0.13.0",
  "libc",
  "lru",
  "md5",
@@ -1573,14 +1564,10 @@ dependencies = [
  "rstest",
  "scopeguard",
  "serde",
- "serde-pickle",
  "serde_derive",
  "sha2",
- "smart-default",
  "socket2",
  "statrs",
- "stringprep",
- "strum",
  "tempfile",
  "test-log",
  "thiserror",
@@ -2332,17 +2319,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "stringprep"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b4df3d392d81bd458a8a621b8bffbd2302a12ffe288a9d931670948749463b1"
-dependencies = [
- "unicode-bidi",
- "unicode-normalization",
- "unicode-properties",
-]
-
-[[package]]
 name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2691,12 +2667,6 @@ checksum = "a56d1686db2308d901306f92a263857ef59ea39678a5458e7cb17f01415101f5"
 dependencies = [
  "tinyvec",
 ]
-
-[[package]]
-name = "unicode-properties"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52ea75f83c0137a9b98608359a5f1af8144876eb67bcb1ce837368e906a9f524"
 
 [[package]]
 name = "unicode-segmentation"
