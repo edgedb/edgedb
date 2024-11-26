@@ -1,15 +1,20 @@
-use super::{AuthType, ConnectionSslRequirement};
+use super::ConnectionSslRequirement;
 use crate::{
-    auth::{self, generate_salted_password, ClientEnvironment, ClientTransaction, Sha256Out},
+    auth::{
+        self, generate_salted_password, AuthType, ClientEnvironment, ClientTransaction, Sha256Out,
+    },
     connection::{invalid_state, ConnectionError, Credentials, SslError},
     errors::PgServerError,
     protocol::{
-        builder,
-        definition::{FrontendBuilder, InitialBuilder},
-        match_message, AuthenticationCleartextPassword, AuthenticationMD5Password,
-        AuthenticationMessage, AuthenticationOk, AuthenticationSASL, AuthenticationSASLContinue,
-        AuthenticationSASLFinal, BackendKeyData, ErrorResponse, Message, ParameterStatus,
-        ParseError, ReadyForQuery, SSLResponse,
+        match_message,
+        postgres::data::{
+            AuthenticationCleartextPassword, AuthenticationMD5Password, AuthenticationMessage,
+            AuthenticationOk, AuthenticationSASL, AuthenticationSASLContinue,
+            AuthenticationSASLFinal, BackendKeyData, ErrorResponse, Message, ParameterStatus,
+            ReadyForQuery, SSLResponse,
+        },
+        postgres::{builder, FrontendBuilder, InitialBuilder},
+        ParseError,
     },
 };
 use base64::Engine;
@@ -114,6 +119,7 @@ pub trait ConnectionStateUpdate: ConnectionStateSend {
 ///
 /// The state machine for a Postgres connection. The state machine is driven
 /// with calls to [`Self::drive`].
+#[derive(Debug)]
 pub struct ConnectionState(ConnectionStateImpl);
 
 impl ConnectionState {

@@ -11,7 +11,7 @@ use crate::{
         },
         ConnectionSslRequirement,
     },
-    protocol::{meta, SSLResponse, StructBuffer},
+    protocol::{postgres::{data::SSLResponse, meta, FrontendBuilder, InitialBuilder}, StructBuffer},
 };
 use pyo3::{
     buffer::PyBuffer,
@@ -90,7 +90,6 @@ impl PyConnectionParams {
     }
 
     #[getter]
-    #[allow(clippy::type_complexity)]
     pub fn host_candidates(
         &self,
         py: Python,
@@ -355,7 +354,7 @@ impl PyConnectionState {
         let buffer = PyBuffer::<u8>::get(data)?;
         if self.inner.read_ssl_response() {
             // SSL responses are always one character
-            let response = [buffer.as_slice(py).unwrap().first().unwrap().get()];
+            let response = [buffer.as_slice(py).unwrap().get(0).unwrap().get()];
             let response = SSLResponse::new(&response)?;
             self.inner
                 .drive(ConnectionDrive::SslResponse(response), &mut self.update)?;
@@ -406,7 +405,7 @@ struct PyConnectionStateUpdate {
 impl ConnectionStateSend for PyConnectionStateUpdate {
     fn send_initial(
         &mut self,
-        message: crate::protocol::definition::InitialBuilder,
+        message: InitialBuilder,
     ) -> Result<(), std::io::Error> {
         Python::with_gil(|py| {
             let bytes = PyByteArray::new(py, &message.to_vec());
@@ -420,7 +419,7 @@ impl ConnectionStateSend for PyConnectionStateUpdate {
 
     fn send(
         &mut self,
-        message: crate::protocol::definition::FrontendBuilder,
+        message: FrontendBuilder,
     ) -> Result<(), std::io::Error> {
         Python::with_gil(|py| {
             let bytes = PyBytes::new(py, &message.to_vec());
@@ -477,7 +476,7 @@ impl ConnectionStateUpdate for PyConnectionStateUpdate {
         });
     }
 
-    fn auth(&mut self, auth: crate::handshake::AuthType) {
+    fn auth(&mut self, auth: crate::auth::AuthType) {
         Python::with_gil(|py| {
             if let Err(e) = self.py_update.call_method1(py, "auth", (auth as u8,)) {
                 eprintln!("Error in auth: {:?}", e);

@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 
-use crate::{auth, errors::PgServerError, protocol::ParseError};
+use crate::{
+    auth,
+    errors::{edgedb::EdbError, PgServerError},
+    protocol::ParseError,
+};
 
 mod conn;
 pub mod dsn;
@@ -37,6 +41,10 @@ pub enum ConnectionError {
     /// Error returned by the server.
     #[error("Server error: {0}")]
     ServerError(#[from] PgServerError),
+
+    /// Error returned by the server.
+    #[error("Server error: {0}")]
+    EdbServerError(#[from] EdbError),
 
     /// The server sent something we didn't expect
     #[error("Unexpected server response: {0}")]

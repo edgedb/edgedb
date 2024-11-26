@@ -1,5 +1,5 @@
 macro_rules! message_group {
-    ($(#[$doc:meta])* $group:ident : $super:ident = [$($message:ty),*]) => {
+    ($(#[$doc:meta])* $group:ident : $super:ident = [$($message:ident),*]) => {
         paste::paste!(
         $(#[$doc])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -25,6 +25,14 @@ macro_rules! message_group {
                 match self {
                     $(
                         Self::$message(message) => message.to_vec(),
+                    )*
+                }
+            }
+
+            pub fn copy_to_buf(&self, writer: &mut $crate::protocol::writer::BufWriter) {
+                match self {
+                    $(
+                        Self::$message(message) => message.copy_to_buf(writer),
                     )*
                 }
             }
@@ -57,7 +65,7 @@ macro_rules! message_group {
         impl $group {
             pub fn identify(buf: &[u8]) -> Option<Self> {
                 $(
-                    if <$message as $crate::protocol::Enliven>::WithLifetime::is_buffer(buf) {
+                    if <meta::$message as $crate::protocol::Enliven>::WithLifetime::is_buffer(buf) {
                         return Some(Self::$message);
                     }
                 )*
@@ -74,7 +82,7 @@ pub(crate) use message_group;
 ///
 /// ```rust
 /// use pgrust::protocol::*;
-/// use pgrust::protocol::messages::*;
+/// use pgrust::protocol::postgres::data::*;
 ///
 /// let buf = [b'?', 0, 0, 0, 4];
 /// match_message!(Message::new(&buf), Backend {
@@ -90,7 +98,7 @@ pub(crate) use message_group;
 #[macro_export]
 macro_rules! __match_message {
     ($buf:expr, $messages:ty {
-        $(( $i1:path $(as $i2:ident )?) => $impl:block,)*
+        $(( $i1:path $(as $i2:ident )?) $(if $cond:expr)? => $impl:block,)*
         $unknown:ident => $unknown_impl:block $(,)?
     }) => {
         'block: {
@@ -98,7 +106,7 @@ macro_rules! __match_message {
             let res = match __message {
                 Ok(__message) => {
                     $(
-                        if <$i1>::is_buffer(&__message.as_ref()) {
+                        if $($cond &&)? <$i1>::is_buffer(&__message.as_ref()) {
                             match(<$i1>::new(&__message.as_ref())) {
                                 Ok(__tmp) => {
                                     $(let $i2 = __tmp;)?
@@ -130,7 +138,10 @@ pub use __match_message as match_message;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::{builder, Message, PasswordMessage};
+    use crate::protocol::postgres::{
+        builder,
+        data::{Message, PasswordMessage},
+    };
 
     #[test]
     fn test_match() {

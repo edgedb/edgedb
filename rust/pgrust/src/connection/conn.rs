@@ -8,8 +8,15 @@ use crate::{
     connection::ConnectionError,
     handshake::ConnectionSslRequirement,
     protocol::{
-        builder, match_message, meta, CommandComplete, DataRow, ErrorResponse, Message,
-        ReadyForQuery, RowDescription, StructBuffer,
+        match_message,
+        postgres::{
+            builder,
+            data::{
+                CommandComplete, DataRow, ErrorResponse, Message, ReadyForQuery, RowDescription,
+            },
+            meta,
+        },
+        StructBuffer,
     },
 };
 use futures::FutureExt;

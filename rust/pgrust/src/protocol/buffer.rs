@@ -142,12 +142,21 @@ impl<M: StructLength> StructBuffer<M> {
     pub fn into_inner(self) -> VecDeque<u8> {
         self.accum
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.accum.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.accum.len()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::StructBuffer;
-    use crate::protocol::{builder, meta, Encoded, Message, ParseError};
+    use crate::protocol::postgres::{builder, data::*, meta};
+    use crate::protocol::*;
 
     /// Create a test data buffer containing three messages
     fn test_data() -> (Vec<u8>, Vec<usize>) {
