@@ -19,7 +19,7 @@ SELECT toplevel, calls, query FROM edb_stat_statements
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- DO block - all-level tracking.
-SET edb_stat_statements.track = 'nested';
+SET edb_stat_statements.track = 'dev-nested';
 DELETE FROM stats_track_tab;
 DO $$
 BEGIN
@@ -43,7 +43,7 @@ AS $$
 $$;
 SET edb_stat_statements.track_utility = TRUE;
 -- all-level tracking.
-SET edb_stat_statements.track = 'nested';
+SET edb_stat_statements.track = 'dev-nested';
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 CALL proc_with_utility_stmt();
 SELECT toplevel, calls, query FROM edb_stat_statements
@@ -73,7 +73,7 @@ SELECT toplevel, calls, query FROM edb_stat_statements
   ORDER BY query COLLATE "C", toplevel;
 
 -- DO block - all-level tracking without utility.
-SET edb_stat_statements.track = 'nested';
+SET edb_stat_statements.track = 'dev-nested';
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 DELETE FROM stats_track_tab;
 DO $$
@@ -122,7 +122,7 @@ SELECT PLUS_THREE(10);
 SELECT toplevel, calls, rows, query FROM edb_stat_statements ORDER BY query COLLATE "C";
 
 -- PL/pgSQL function - all-level tracking.
-SET edb_stat_statements.track = 'nested';
+SET edb_stat_statements.track = 'dev-nested';
 SELECT edb_stat_statements_reset() IS NOT NULL AS t;
 
 -- we drop and recreate the functions to avoid any caching funnies
