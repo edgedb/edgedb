@@ -373,7 +373,7 @@ impl FieldAccess<UuidMeta> {
 
     #[inline(always)]
     pub fn copy_to_buf_ref(buf: &mut BufWriter, value: &Uuid) {
-        buf.write(&value.as_bytes().as_slice());
+        buf.write(value.as_bytes().as_slice());
     }
 }
 

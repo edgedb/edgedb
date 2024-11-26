@@ -32,10 +32,11 @@ pub enum ConnectionDrive<'a> {
 
 pub trait ConnectionStateSend {
     fn send(&mut self, message: EdgeDBBackendBuilder) -> Result<(), std::io::Error>;
-    fn auth(&mut self, user: String, database: String) -> Result<(), std::io::Error>;
+    fn auth(&mut self, user: String, database: String, branch: String) -> Result<(), std::io::Error>;
     fn params(&mut self) -> Result<(), std::io::Error>;
 }
 
+#[allow(unused)]
 pub trait ConnectionStateUpdate: ConnectionStateSend {
     fn parameter(&mut self, name: &str, value: &str) {}
     fn state_changed(&mut self, state: ConnectionStateType) {}
@@ -45,7 +46,7 @@ pub trait ConnectionStateUpdate: ConnectionStateSend {
 #[derive(Debug)]
 pub enum ConnectionEvent<'a> {
     Send(EdgeDBBackendBuilder<'a>),
-    Auth(String, String),
+    Auth(String, String, String),
     Params,
     Parameter(&'a str, &'a str),
     StateChanged(ConnectionStateType),
@@ -60,8 +61,8 @@ where
         self(ConnectionEvent::Send(message))
     }
 
-    fn auth(&mut self, user: String, database: String) -> Result<(), std::io::Error> {
-        self(ConnectionEvent::Auth(user, database))
+    fn auth(&mut self, user: String, database: String, branch: String) -> Result<(), std::io::Error> {
+        self(ConnectionEvent::Auth(user, database, branch))
     }
 
     fn params(&mut self) -> Result<(), std::io::Error> {
@@ -118,8 +119,10 @@ const AUTH_ERROR: ServerError = ServerError::Protocol(EdbError::AuthenticationEr
 const PROTOCOL_VERSION_ERROR: ServerError =
     ServerError::Protocol(EdbError::UnsupportedProtocolVersionError);
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
+#[allow(clippy::large_enum_variant)] // Auth is much larger
 enum ServerStateImpl {
+    #[default]
     Initial,
     AuthInfo(String),
     Authenticating(ServerAuth),
@@ -134,13 +137,6 @@ pub struct ServerState {
 }
 
 impl ServerState {
-    pub fn new() -> Self {
-        Self {
-            state: ServerStateImpl::Initial,
-            buffer: Default::default(),
-        }
-    }
-
     pub fn is_ready(&self) -> bool {
         matches!(self.state, ServerStateImpl::Ready)
     }
@@ -235,21 +231,21 @@ impl ServerStateImpl {
                             update.parameter(param.name().to_str()?, param.value().to_str()?);
                         }
                         if user.is_empty() {
-                            return Err(AUTH_ERROR.into());
+                            return Err(AUTH_ERROR);
                         }
                         if database.is_empty() {
                             database = user.clone();
                         }
                         *self = AuthInfo(user.clone());
-                        update.auth(user, database)?;
+                        update.auth(user, database, branch)?;
                     },
                     unknown => {
                         log_unknown_message(unknown, "Initial")?;
                     }
                 });
             }
-            (AuthInfo(_), ConnectionDrive::AuthInfo(auth_type, credential_data)) => {
-                let mut auth = ServerAuth::new(String::new(), auth_type, credential_data);
+            (AuthInfo(username), ConnectionDrive::AuthInfo(auth_type, credential_data)) => {
+                let mut auth = ServerAuth::new(username.clone(), auth_type, credential_data);
                 match auth.drive(ServerAuthDrive::Initial) {
                     ServerAuthResponse::Initial(AuthType::ScramSha256, _) => {
                         update.send(EdgeDBBackendBuilder::AuthenticationRequiredSASLMessage(
@@ -363,7 +359,7 @@ fn send_error(
     update.server_error(&code);
     update.send(EdgeDBBackendBuilder::ErrorResponse(
         builder::ErrorResponse {
-            severity: 0x78,
+            severity: ErrorSeverity::Error as _,
             error_code: code as i32,
             message,
             attributes: &[],
@@ -372,7 +368,7 @@ fn send_error(
 }
 
 enum ErrorSeverity {
-    ERROR = 0x78,
-    FATAL = 0xc8,
-    PANIC = 0xff,
+    Error = 0x78,
+    Fatal = 0xc8,
+    Panic = 0xff,
 }

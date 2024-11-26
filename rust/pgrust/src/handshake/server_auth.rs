@@ -28,7 +28,7 @@ enum ServerAuthState {
     Initial,
     Password(CredentialData),
     MD5([u8; 4], CredentialData),
-    SASL(ServerTransaction, StoredKey),
+    Sasl(ServerTransaction, StoredKey),
 }
 
 #[derive(Debug)]
@@ -58,7 +58,7 @@ impl ServerAuth {
     pub fn is_initial_message(&self) -> bool {
         match &self.state {
             ServerAuthState::Initial => false,
-            ServerAuthState::SASL(tx, _) => tx.initial(),
+            ServerAuthState::Sasl(tx, _) => tx.initial(),
             _ => true,
         }
     }
@@ -114,7 +114,7 @@ impl ServerAuth {
                 }
             }
             (
-                ServerAuthState::SASL(tx, data),
+                ServerAuthState::Sasl(tx, data),
                 ServerAuthDrive::Message(AuthType::ScramSha256, input),
             ) => {
                 let initial = tx.initial();
@@ -171,7 +171,7 @@ impl ServerAuth {
                     }
                 };
                 let tx = ServerTransaction::default();
-                self.state = ServerAuthState::SASL(tx, scram);
+                self.state = ServerAuthState::Sasl(tx, scram);
                 ServerAuthResponse::Initial(AuthType::ScramSha256, Vec::new())
             }
         }
