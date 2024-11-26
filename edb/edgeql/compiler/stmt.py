@@ -68,6 +68,7 @@ from . import clauses
 from . import context
 from . import config_desc
 from . import dispatch
+from . import inference
 from . import pathctx
 from . import policies
 from . import setgen
@@ -314,6 +315,9 @@ def compile_InternalGroupQuery(
             span=expr.span,
         )
 
+    _protect_expr(expr.subject, ctx=ctx)
+    _protect_expr(expr.result, ctx=ctx)
+
     with ctx.subquery() as sctx:
         stmt = irast.GroupStmt(by=expr.by)
         init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
@@ -373,8 +377,8 @@ def compile_InternalGroupQuery(
             stmt.group_binding = _make_group_binding(
                 subject_stype, expr.group_alias, ctx=topctx)
 
-            # Compile the shape on the group binding, in case we need it
-            viewgen.late_compile_view_shapes(stmt.group_binding, ctx=topctx)
+            # # Compile the shape on the group binding, in case we need it
+            # viewgen.late_compile_view_shapes(stmt.group_binding, ctx=topctx)
 
             if expr.grouping_alias:
                 ctx.env.schema, grouping_stype = s_types.Array.create(
@@ -404,6 +408,10 @@ def compile_InternalGroupQuery(
             pathctx.register_set_in_scope(
                 stmt.group_binding, path_scope=bctx.path_scope, ctx=bctx
             )
+
+            # Compile the shape on the group binding, in case we need it
+            viewgen.late_compile_view_shapes(stmt.group_binding, ctx=bctx)
+
             node = bctx.path_scope.find_descendant(stmt.group_binding.path_id)
             not_none(node).is_group = True
             for using_value, _ in stmt.using.values():
@@ -616,7 +624,10 @@ def compile_UpdateQuery(
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
-        stmt = irast.UpdateStmt(span=expr.span)
+        stmt = irast.UpdateStmt(
+            span=expr.span,
+            sql_mode_link_only=expr.sql_mode_link_only,
+        )
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         with ictx.new() as ectx:
@@ -672,6 +683,12 @@ def compile_UpdateQuery(
                 ctx=bodyctx,
                 span=expr.span,
             )
+            # If we are doing a SQL-mode link only update (that is,
+            # we are doing a SQL INSERT or DELETE to a link table),
+            # disable rewrites.
+            # HACK: This is a really ass-backwards way to accomplish that.
+            if stmt.sql_mode_link_only:
+                ctx.env.dml_rewrites.pop(stmt.subject, None)
 
         result = setgen.class_set(
             mat_stype, path_id=stmt.subject.path_id, ctx=ctx,
@@ -1293,7 +1310,7 @@ def process_with_block(
     *,
     ctx: context.ContextLevel,
     parent_ctx: context.ContextLevel,
-) -> List[irast.Set]:
+) -> list[tuple[irast.Set, qltypes.Volatility]]:
     if edgeql_tree.aliases is None:
         return []
 
@@ -1313,7 +1330,10 @@ def process_with_block(
                     binding_kind=irast.BindingKind.With,
                     ctx=scopectx,
                 )
-                results.append(binding)
+                volatility = inference.infer_volatility(
+                    binding, ctx.env, exclude_dml=True
+                )
+                results.append((binding, volatility))
 
                 if reason := setgen.should_materialize(binding, ctx=ctx):
                     had_materialized = True

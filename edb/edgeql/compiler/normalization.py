@@ -75,12 +75,16 @@ def renormalize_compat(
     orig_qltree = qlparser.parse_fragment(orig_text)
 
     norm_aliases: Dict[Optional[str], str] = {}
-    assert isinstance(norm_qltree, (qlast.Query, qlast.Command))
+    assert isinstance(norm_qltree, (
+        qlast.Query, qlast.Command, qlast.DDLCommand
+    ))
     for alias in (norm_qltree.aliases or ()):
         if isinstance(alias, qlast.ModuleAliasDecl):
             norm_aliases[alias.alias] = alias.module
 
-    if isinstance(orig_qltree, (qlast.Query, qlast.Command)):
+    if isinstance(orig_qltree, (
+        qlast.Query, qlast.Command, qlast.DDLCommand
+    )):
         orig_aliases: Dict[Optional[str], str] = {}
         for alias in (orig_qltree.aliases or ()):
             if isinstance(alias, qlast.ModuleAliasDecl):

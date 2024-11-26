@@ -40,6 +40,8 @@ cdef class CompiledQuery:
     cdef public object first_extra  # Optional[int]
     cdef public object extra_counts
     cdef public object extra_blobs
+    cdef public bint extra_formatted_as_text
+    cdef public object extra_type_oids
     cdef public object request
     cdef public object recompiled_cache
     cdef public bint use_pending_func_cache
@@ -90,9 +92,9 @@ cdef class Database:
         readonly bytes user_schema_pickle
         readonly object reflection_cache
         readonly object backend_ids
+        readonly object backend_id_to_name
         readonly object extensions
-
-    cdef schedule_config_update(self)
+        readonly object _feature_used_metrics
 
     cdef _invalidate_caches(self)
     cdef _cache_compiled_query(self, key, compiled)
@@ -100,12 +102,18 @@ cdef class Database:
     cdef _remove_view(self, view)
     cdef _observe_auth_ext_config(self)
     cdef _update_backend_ids(self, new_types)
+    cdef _set_extensions(
+        self,
+        extensions,
+    )
+    cdef _set_feature_used_metrics(self, feature_used_metrics)
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema_pickle,
         schema_version,
         extensions,
         ext_config_settings,
+        feature_used_metrics,
         reflection_cache=?,
         backend_ids=?,
         db_config=?,
@@ -131,9 +139,6 @@ cdef class DatabaseConnectionView:
         # Although, transient dbviews users should guarantee the transient use
         # of pgcons, because _pg_ensure_database_not_connected() may still time
         # out `DROP BRANCH` if the transient pgcon is not released soon enough.
-
-        object _db_config_temp
-        object _db_config_dbver
 
         # State properties
         object _config
@@ -209,6 +214,7 @@ cdef class DatabaseConnectionView:
         global_schema,
         roles,
         cached_reflection,
+        feature_used_metrics,
     )
 
     cdef get_user_config_spec(self)
@@ -223,7 +229,6 @@ cdef class DatabaseConnectionView:
     cdef get_state_serializer(self)
     cdef set_state_serializer(self, new_serializer)
 
-    cdef update_database_config(self)
     cpdef get_database_config(self)
     cdef set_database_config(self, new_conf)
 

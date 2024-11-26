@@ -159,6 +159,10 @@ Query behavior
       UI session, so you won't have to remember to re-enable it when you're
       done.
 
+:eql:synopsis:`apply_access_policies_sql -> bool`
+  Determines whether access policies should be applied when running queries over
+  SQL adapter.  Defaults to ``false``.
+
 :eql:synopsis:`force_database_error -> str`
   A hook to force all queries to produce an error. Defaults to 'false'.
 
@@ -435,7 +439,7 @@ Client connections
     - EdgeDB binary protocol
   * - ``cfg::ConnectionTransport.TCP_PG``
     - Postgres protocol for the
-      :ref:`SQL query mode <ref_sql_support>`
+      :ref:`SQL query mode <ref_sql_adapter>`
   * - ``cfg::ConnectionTransport.HTTP``
     - EdgeDB binary protocol
       :ref:`tunneled over HTTP <ref_http_tunnelling>`

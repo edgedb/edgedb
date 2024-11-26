@@ -49,6 +49,15 @@ class Options:
     # allow setting id in inserts
     allow_user_specified_id: bool
 
+    # apply access policies to select & dml statements
+    apply_access_policies: bool
+
+    # whether to generate an EdgeQL-compatible single-column output variant.
+    include_edgeql_io_format_alternative: Optional[bool]
+
+    # makes sure that output does not contain duplicated column names
+    disambiguate_column_names: bool
+
 
 @dataclass(kw_only=True)
 class Scope:
@@ -68,6 +77,13 @@ class Scope:
 
     # Common Table Expressions
     ctes: List[CTE] = field(default_factory=lambda: [])
+
+    # Pairs of columns of the same name that have been compared in a USING
+    # clause. This makes unqualified references to their name them un-ambiguous.
+    # The fourth tuple element is the join type.
+    factored_columns: List[Tuple[str, Table, Table, str]] = field(
+        default_factory=lambda: []
+    )
 
 
 @dataclass(kw_only=True)
@@ -91,6 +107,11 @@ class Table:
     # Columns from parent scopes have lower precedence
     # than columns of input rel vars (tables).
     precedence: int = 0
+
+    # True when this relation is compiled to a direct reference to the
+    # underlying table, without any views or CTEs.
+    # Is the condition for usage of locking clauses.
+    is_direct_relation: bool = False
 
     def __str__(self) -> str:
         columns = ', '.join(str(c) for c in self.columns)
@@ -146,6 +167,12 @@ class ColumnComputable(ColumnKind):
     # An EdgeQL computable property. To get the AST for this column, EdgeQL
     # compiler needs to be invoked.
     pointer: s_pointers.Pointer
+
+
+@dataclass(kw_only=True)
+class ColumnPgExpr(ColumnKind):
+    # Value that was provided by some special resolver path.
+    expr: pgast.BaseExpr
 
 
 @dataclass(kw_only=True, eq=False, slots=True, repr=False)

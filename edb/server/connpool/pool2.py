@@ -15,18 +15,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import edb.server._conn_pool
+import edb.server._rust_native._conn_pool as _rust
 import asyncio
 import time
 import typing
 import dataclasses
-import os
 import pickle
 
 from . import config
 from .config import logger
-
-guard = edb.server._conn_pool.LoggingGuard()
+from edb.server import rust_async_channel
 
 # Connections must be hashable because we use them to reverse-lookup
 # an internal ID.
@@ -86,7 +84,7 @@ class StatsCollector(typing.Protocol):
 
 
 class Pool(typing.Generic[C]):
-    _pool: edb.server._conn_pool.ConnPool
+    _pool: _rust.ConnPool
     _next_conn_id: int
     _failed_connects: int
     _failed_disconnects: int
@@ -101,27 +99,30 @@ class Pool(typing.Generic[C]):
     _errors: dict[int, BaseException]
     _conns_held: dict[C, int]
     _loop: asyncio.AbstractEventLoop
-    _skip_reads: int
     _counts: typing.Any
     _stats_collector: typing.Optional[StatsCollector]
 
-    def __init__(self, *, connect: Connector[C],
-                 disconnect: Disconnector[C],
-                 max_capacity: int,
-                 stats_collector: typing.Optional[StatsCollector]=None,
-                 min_idle_time_before_gc: float = config.MIN_IDLE_TIME_BEFORE_GC
-        ) -> None:
+    def __init__(
+        self,
+        *,
+        connect: Connector[C],
+        disconnect: Disconnector[C],
+        max_capacity: int,
+        stats_collector: typing.Optional[StatsCollector] = None,
+        min_idle_time_before_gc: float = config.MIN_IDLE_TIME_BEFORE_GC,
+    ) -> None:
         # Re-load the logger if it's been mocked for testing
         global logger
         logger = config.logger
 
-        logger.info(f'Creating a connection pool with \
-                    max_capacity={max_capacity}')
+        logger.info(
+            f'Creating a connection pool with max_capacity={max_capacity}'
+        )
         self._connect = connect
         self._disconnect = disconnect
-        self._pool = edb.server._conn_pool.ConnPool(max_capacity,
-                                                    min_idle_time_before_gc,
-                                                    config.STATS_COLLECT_INTERVAL)
+        self._pool = _rust.ConnPool(
+            max_capacity, min_idle_time_before_gc, config.STATS_COLLECT_INTERVAL
+        )
         self._max_capacity = max_capacity
         self._cur_capacity = 0
         self._next_conn_id = 0
@@ -130,10 +131,14 @@ class Pool(typing.Generic[C]):
         self._errors = {}
         self._conns_held = {}
         self._prunes = {}
-        self._skip_reads = 0
 
         self._loop = asyncio.get_running_loop()
-        self._task = self._loop.create_task(self._boot(self._loop))
+        self._channel = rust_async_channel.RustAsyncChannel(
+            self._pool,
+            self._process_message,
+        )
+
+        self._task = self._loop.create_task(self._boot(self._channel))
 
         self._failed_connects = 0
         self._failed_disconnects = 0
@@ -170,34 +175,19 @@ class Pool(typing.Generic[C]):
             self._pool = None
             logger.info("Closed connection pool")
 
-    async def _boot(self, loop: asyncio.AbstractEventLoop) -> None:
+    async def _boot(
+        self,
+        channel: rust_async_channel.RustAsyncChannel,
+    ) -> None:
         logger.info("Python-side connection pool booted")
-        reader = asyncio.StreamReader(loop=loop)
-        reader_protocol = asyncio.StreamReaderProtocol(reader)
-        fd = os.fdopen(self._pool._fd, 'rb')
-        transport, _ = await loop.connect_read_pipe(lambda: reader_protocol, fd)
         try:
-            while len(await reader.read(1)) == 1:
-                if not self._pool or not self._task:
-                    break
-                if self._skip_reads > 0:
-                    self._skip_reads -= 1
-                    continue
-                msg = self._pool._read()
-                if not msg:
-                    break
-                self._process_message(msg)
-
+            await channel.run()
         finally:
-            transport.close()
+            channel.close()
 
-    # Allow readers to skip the self-pipe for performing reads which may reduce
-    # latency a small degree. We'll still need to eventually pick up a self-pipe
-    # read but we increment a counter to skip at that point.
     def _try_read(self) -> None:
-        while msg := self._pool._try_read():
-            self._skip_reads += 1
-            self._process_message(msg)
+        if self._channel:
+            self._channel.read_hint()
 
     def _process_message(self, msg: typing.Any) -> None:
         # If we're closing, don't dispatch any operations
@@ -228,7 +218,9 @@ class Pool(typing.Generic[C]):
             # Pickled metrics
             self._counts = pickle.loads(msg[1])
             if self._stats_collector:
-                self._stats_collector(self._build_snapshot(now=time.monotonic()))
+                self._stats_collector(
+                    self._build_snapshot(now=time.monotonic())
+                )
         else:
             logger.critical(f'Unexpected message: {msg}')
 
@@ -310,12 +302,16 @@ class Pool(typing.Generic[C]):
 
                 # Allow the final exception to escape
                 if i == config.CONNECT_FAILURE_RETRIES:
-                    logger.exception('Failed to acquire connection, will not '
-                                     f'retry {dbname} ({self._cur_capacity}'
-                                     'active)')
+                    logger.exception(
+                        'Failed to acquire connection, will not '
+                        f'retry {dbname} ({self._cur_capacity}'
+                        'active)'
+                    )
                     raise
-                logger.exception('Failed to acquire connection, will retry: '
-                                 f'{dbname} ({self._cur_capacity} active)')
+                logger.exception(
+                    'Failed to acquire connection, will retry: '
+                    f'{dbname} ({self._cur_capacity} active)'
+                )
         raise AssertionError("Unreachable end of loop")
 
     def release(self, dbname: str, conn: C, discard: bool = False) -> None:
@@ -361,12 +357,12 @@ class Pool(typing.Generic[C]):
                 v = stats['value']
                 block_snapshot = BlockSnapshot(
                     dbname=dbname,
-                    nconns=v[edb.server._conn_pool.METRIC_ACTIVE],
-                    nwaiters_avg=v[edb.server._conn_pool.METRIC_WAITING],
-                    npending=v[edb.server._conn_pool.METRIC_CONNECTING] +
-                        v[edb.server._conn_pool.METRIC_RECONNECTING],
-                    nwaiters=v[edb.server._conn_pool.METRIC_WAITING],
-                    quota=stats['target']
+                    nconns=v[_rust.METRIC_ACTIVE],
+                    nwaiters_avg=v[_rust.METRIC_WAITING],
+                    npending=v[_rust.METRIC_CONNECTING]
+                    + v[_rust.METRIC_RECONNECTING],
+                    nwaiters=v[_rust.METRIC_WAITING],
+                    quota=stats['target'],
                 )
                 blocks.append(block_snapshot)
             pass
@@ -376,7 +372,6 @@ class Pool(typing.Generic[C]):
             blocks=blocks,
             capacity=self._cur_capacity,
             log=[],
-
             failed_connects=self._failed_connects,
             failed_disconnects=self._failed_disconnects,
             successful_connects=self._successful_connects,

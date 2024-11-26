@@ -18,7 +18,7 @@
 
 
 cdef extract_token_from_auth_data(bytes auth_data)
-cdef auth_jwt(tenant, str prefixed_token, str user, str dbname)
+cdef auth_jwt(tenant, prefixed_token, str user, str dbname)
 cdef _check_jwt_authz(tenant, claims, token_version, str user, str dbname)
 cdef _get_jwt_edb_scope(claims, claim)
 cdef scram_get_verifier(tenant, str user)

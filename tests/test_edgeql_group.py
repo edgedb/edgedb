@@ -820,6 +820,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             '''
         )
 
+    @tb.needs_factoring_weakly
     async def test_edgeql_group_by_group_by_03b(self):
         await self._test_edgeql_group_by_group_by_03(
             '''
@@ -1498,14 +1499,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ["element", "element", "element", "element"],
         )
 
-    @test.xerror("""
-        Issue #5796
-
-        Materialized set not finalized.
-    """)
     async def test_edgeql_group_issue_5796(self):
-        # Fails on assert mat_set.materialized .
-        # Depends on double select and deck in shape
         await self.assert_query_result(
             r'''
             with
@@ -1527,7 +1521,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]),
         )
 
-    @test.xerror("Issue #6059")
     async def test_edgeql_group_issue_6059(self):
         await self.assert_query_result(
             r'''
@@ -1546,7 +1539,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [{"keyCard": {}}] * 4,
         )
 
-    @test.xerror("Issue #6060")
     async def test_edgeql_group_issue_6060(self):
         await self.assert_query_result(
             r'''
@@ -1572,6 +1564,11 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         assert stype.is_view(ctx.env.schema) when in _inline_type_computable
     """)
     async def test_edgeql_group_issue_6481(self):
+        # NO_FACTOR makes it pass but we don't want it to unexpected
+        # pass since it still fails on other modes
+        if self.NO_FACTOR:
+            raise RuntimeError('sigh')
+
         await self.assert_query_result(
             r'''
             select (
@@ -1603,13 +1600,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 ) by .key
             ''')
 
-    @test.xerror("""
-        Issue #6019
-
-        Grouping on key should probably be rejected.
-        (And if not, it should not ISE!)
-    """)
     async def test_edgeql_group_issue_6019_b(self):
+        # This didn't work because group created free objects which were then
+        # materialized as volatile. `group (group X by .x) by .key` has a
+        # different cause.
         await self.assert_query_result(
             '''
             with
@@ -1688,3 +1682,11 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 }
             ])
         )
+
+
+class TestEdgeQLGroupNoFactor(TestEdgeQLGroup):
+    NO_FACTOR = True
+
+
+class TestEdgeQLGroupWarnFactor(TestEdgeQLGroup):
+    WARN_FACTOR = True

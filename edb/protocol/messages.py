@@ -488,6 +488,12 @@ class ClientMessage(Message, abstract=True):
 ###############################################################################
 
 
+class InputLanguage(enum.Enum):
+
+    EDGEQL = 0x45  # b'E'
+    SQL = 0x53  # b'S'
+
+
 class OutputFormat(enum.Enum):
 
     BINARY = 0x62
@@ -641,8 +647,8 @@ class DumpHeader(ServerMessage):
     mtype = MessageType('@')
     message_length = MessageLength
     attributes = KeyValues
-    major_ver = UInt16('Major version of EdgeDB.')
-    minor_ver = UInt16('Minor version of EdgeDB.')
+    major_ver = UInt16('Major version of Gel.')
+    minor_ver = UInt16('Minor version of Gel.')
     schema_ddl = String('Schema.')
     types = ArrayOf(UInt32, DumpTypeInfo, 'Type identifiers.')
     descriptors = ArrayOf(UInt32, DumpObjectDesc, 'Object descriptors.')
@@ -789,6 +795,7 @@ class Parse(ClientMessage):
     compilation_flags = EnumOf(UInt64, CompilationFlag,
                                'A bit mask of query options.')
     implicit_limit = UInt64('Implicit LIMIT clause on returned sets.')
+    input_language = EnumOf(UInt8, InputLanguage, 'Command source language.')
     output_format = EnumOf(UInt8, OutputFormat, 'Data output format.')
     expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality.')
@@ -807,6 +814,7 @@ class Execute(ClientMessage):
     compilation_flags = EnumOf(UInt64, CompilationFlag,
                                'A bit mask of query options.')
     implicit_limit = UInt64('Implicit LIMIT clause on returned sets.')
+    input_language = EnumOf(UInt8, InputLanguage, 'Command source language.')
     output_format = EnumOf(UInt8, OutputFormat, 'Data output format.')
     expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality.')

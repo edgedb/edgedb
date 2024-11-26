@@ -27,6 +27,7 @@ from typing import (
     Type,
     Union,
     Iterable,
+    Literal,
     Sequence,
     Dict,
     List,
@@ -572,6 +573,7 @@ class BaseHTTPTestCase(TestCase):
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
                 command_text=query,
+                input_language=protocol.InputLanguage.EDGEQL,
                 output_format=protocol.OutputFormat.JSON,
                 expected_cardinality=protocol.Cardinality.AT_MOST_ONE,
                 input_typedesc_id=b"\0" * 16,
@@ -790,7 +792,7 @@ class ClusterTestCase(BaseHTTPTestCase):
     # to *all other* suites with 'system' granularity.
     PARALLELISM_GRANULARITY = 'default'
 
-    # Turns on "EdgeDB developer" mode which allows using restricted
+    # Turns on "Gel developer" mode which allows using restricted
     # syntax like USING SQL and similar. It allows modifying standard
     # library (e.g. declaring casts).
     INTERNAL_TESTMODE = True
@@ -1104,41 +1106,58 @@ class ConnectedTestCase(ClusterTestCase):
         async for tx in self.con.retrying_transaction():
             yield cm(tx)
 
-    def assert_data_shape(self, data, shape, message=None):
+    def assert_data_shape(self, data, shape,
+                          message=None, rel_tol=None, abs_tol=None):
         assert_data_shape.assert_data_shape(
-            data, shape, self.fail, message=message)
+            data, shape, self.fail,
+            message=message, rel_tol=rel_tol, abs_tol=abs_tol,
+        )
 
-    async def assert_query_result(self, query,
-                                  exp_result_json,
-                                  exp_result_binary=...,
-                                  *,
-                                  always_typenames=False,
-                                  msg=None, sort=None, implicit_limit=0,
-                                  variables=None, json_only=False):
+    async def assert_query_result(
+        self,
+        query,
+        exp_result_json,
+        exp_result_binary=...,
+        *,
+        always_typenames=False,
+        msg=None,
+        sort=None,
+        implicit_limit=0,
+        variables=None,
+        json_only=False,
+        binary_only=False,
+        rel_tol=None,
+        abs_tol=None,
+        language: Literal["sql", "edgeql"] = "edgeql",
+    ):
         fetch_args = variables if isinstance(variables, tuple) else ()
         fetch_kw = variables if isinstance(variables, dict) else {}
-        try:
-            tx = self.con.transaction()
-            await tx.start()
-            try:
-                res = await self.con._fetchall_json(
-                    query,
-                    *fetch_args,
-                    __limit__=implicit_limit,
-                    **fetch_kw)
-            finally:
-                await tx.rollback()
 
-            res = json.loads(res)
-            if sort is not None:
-                assert_data_shape.sort_results(res, sort)
-            assert_data_shape.assert_data_shape(
-                res, exp_result_json, self.fail, message=msg)
-        except Exception:
-            self.add_fail_notes(serialization='json')
-            if msg:
-                self.add_fail_notes(msg=msg)
-            raise
+        if not binary_only and language != "sql":
+            try:
+                tx = self.con.transaction()
+                await tx.start()
+                try:
+                    res = await self.con._fetchall_json(
+                        query,
+                        *fetch_args,
+                        __limit__=implicit_limit,
+                        **fetch_kw)
+                finally:
+                    await tx.rollback()
+
+                res = json.loads(res)
+                if sort is not None:
+                    assert_data_shape.sort_results(res, sort)
+                assert_data_shape.assert_data_shape(
+                    res, exp_result_json, self.fail,
+                    message=msg, rel_tol=rel_tol, abs_tol=abs_tol,
+                )
+            except Exception:
+                self.add_fail_notes(serialization='json')
+                if msg:
+                    self.add_fail_notes(msg=msg)
+                raise
 
         if json_only:
             return
@@ -1157,13 +1176,23 @@ class ConnectedTestCase(ClusterTestCase):
                 __typenames__=typenames,
                 __typeids__=typeids,
                 __limit__=implicit_limit,
+                __language__=(
+                    tconn.InputLanguage.SQL if language == "sql"
+                    else tconn.InputLanguage.EDGEQL
+                ),
                 **fetch_kw
             )
             res = serutils.serialize(res)
             if sort is not None:
                 assert_data_shape.sort_results(res, sort)
             assert_data_shape.assert_data_shape(
-                res, exp_result_binary, self.fail, message=msg)
+                res,
+                exp_result_binary,
+                self.fail,
+                message=msg,
+                rel_tol=rel_tol,
+                abs_tol=abs_tol,
+            )
         except Exception:
             self.add_fail_notes(
                 serialization='binary',
@@ -1172,6 +1201,28 @@ class ConnectedTestCase(ClusterTestCase):
             if msg:
                 self.add_fail_notes(msg=msg)
             raise
+
+    async def assert_sql_query_result(
+        self,
+        query,
+        exp_result,
+        *,
+        msg=None,
+        sort=None,
+        variables=None,
+        rel_tol=None,
+        abs_tol=None,
+    ):
+        await self.assert_query_result(
+            query,
+            exp_result,
+            msg=msg,
+            sort=sort,
+            variables=variables,
+            rel_tol=rel_tol,
+            abs_tol=abs_tol,
+            language="sql",
+        )
 
     async def assert_index_use(self, query, *args, index_type):
         def look(obj):
@@ -1283,7 +1334,7 @@ class DatabaseTestCase(ConnectedTestCase):
                     f'CREATE EMPTY BRANCH {qlquote.quote_ident(dbname)}')
 
             # The retry here allows the test to survive a concurrent testing
-            # EdgeDB server (e.g. async with tb.start_edgedb_server()) whose
+            # Gel server (e.g. async with tb.start_edgedb_server()) whose
             # introspection holds a lock on the base_db here
             async for tr in cls.try_until_succeeds(
                 ignore=edgedb.ExecutionError,
@@ -1497,11 +1548,18 @@ class SQLQueryTestCase(BaseQueryTestCase):
     @classmethod
     def setUpClass(cls):
         try:
-            import asyncpg
+            import asyncpg  # noqa: F401
         except ImportError:
             raise unittest.SkipTest('SQL tests skipped: asyncpg not installed')
 
         super().setUpClass()
+        cls.scon = cls.loop.run_until_complete(
+            cls.create_sql_connection()
+        )
+
+    @classmethod
+    def create_sql_connection(cls) -> asyncio.Future[asyncpg.Connection]:
+        import asyncpg
         conargs = cls.get_connect_args()
 
         tls_context = ssl.create_default_context(
@@ -1510,15 +1568,13 @@ class SQLQueryTestCase(BaseQueryTestCase):
         )
         tls_context.check_hostname = False
 
-        cls.scon = cls.loop.run_until_complete(
-            asyncpg.connect(
-                host=conargs['host'],
-                port=conargs['port'],
-                user=conargs['user'],
-                password=conargs['password'],
-                database=cls.con.dbname,
-                ssl=tls_context,
-            )
+        return asyncpg.connect(
+            host=conargs['host'],
+            port=conargs['port'],
+            user=conargs['user'],
+            password=conargs['password'],
+            database=cls.con.dbname,
+            ssl=tls_context,
         )
 
     @classmethod
@@ -1852,7 +1908,7 @@ class StablePGDumpTestCase(BaseQueryTestCase):
         cls.backend = cls.loop.run_until_complete(
             cls.get_backend_sql_connection())
 
-        # Run pg_dump to create the dump data for an existing EdgeDB database.
+        # Run pg_dump to create the dump data for an existing Gel database.
         with tempfile.NamedTemporaryFile() as f:
             cls.run_pg_dump_on_connection(conargs, '-f', f.name)
             # Create a new Postgres database to be used for dump tests.
@@ -2276,7 +2332,7 @@ class _EdgeDBServer:
             if self.debug:
                 print(line.decode())
             if not line:
-                raise RuntimeError("EdgeDB server terminated")
+                raise RuntimeError("Gel server terminated")
             if line.startswith(b'READY='):
                 break
 
@@ -2366,7 +2422,7 @@ class _EdgeDBServer:
         else:
             password = secrets.token_urlsafe()
             bootstrap_command = f"""\
-                ALTER ROLE edgedb {{
+                ALTER ROLE admin {{
                     SET password := '{password}';
                 }};
                 """
@@ -2442,7 +2498,7 @@ class _EdgeDBServer:
 
         if self.debug:
             print(
-                f'Starting EdgeDB cluster with the following params:\n'
+                f'Starting Gel cluster with the following params:\n'
                 f'{" ".join(shlex.quote(c) for c in cmd)}'
             )
 
@@ -2601,7 +2657,7 @@ def start_edgedb_server(
         if backend_dsn or adjacent_to:
             import traceback
             # We don't want to implicitly "fix the issue" for the test author
-            print('WARNING: starting an EdgeDB server with the default '
+            print('WARNING: starting an Gel server with the default '
                   'runstate_dir; the test is likely to fail or hang. '
                   'Consider specifying the runstate_dir parameter.')
             print('\n'.join(traceback.format_stack(limit=5)))

@@ -128,6 +128,8 @@ async def handle_request(
     else:
         response.custom_headers['EdgeDB-Protocol-Version'] = \
             f'{CURRENT_PROTOCOL[0]}.{CURRENT_PROTOCOL[1]}'
+        response.custom_headers['Gel-Protocol-Version'] = \
+            f'{CURRENT_PROTOCOL[0]}.{CURRENT_PROTOCOL[1]}'
         response.body = b'{"kind": "results", "results":' + result + b'}'
 
 

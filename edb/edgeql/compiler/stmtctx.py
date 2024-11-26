@@ -733,9 +733,11 @@ def declare_view(
             cached_view_set = ctx.env.expr_view_cache.get((expr, alias))
             # Detach the view namespace and record the prefix
             # in the parent statement's fence node.
-            view_path_id_ns = ctx.aliases.get('ns')
-            subctx.path_id_namespace |= {view_path_id_ns}
-            ctx.path_scope.add_namespaces({view_path_id_ns})
+            view_path_id_ns = {ctx.aliases.get('ns')}
+            # if view_path_id_ns == {'ns~3'}:
+            #     view_path_id_ns = set()
+            subctx.path_id_namespace |= view_path_id_ns
+            ctx.path_scope.add_namespaces(view_path_id_ns)
         else:
             cached_view_set = None
 
@@ -814,9 +816,13 @@ def _declare_view_from_schema(
         view_ql = view_expr.parse()
         viewcls_name = viewcls.get_name(ctx.env.schema)
         assert isinstance(view_ql, qlast.Expr), 'expected qlast.Expr'
-        view_set = declare_view(view_ql, alias=viewcls_name,
-                                binding_kind=irast.BindingKind.With,
-                                fully_detached=True, ctx=subctx)
+        view_set = declare_view(
+            view_ql,
+            alias=viewcls_name,
+            binding_kind=irast.BindingKind.Schema,
+            fully_detached=True,
+            ctx=subctx,
+        )
         # The view path id _itself_ should not be in the nested namespace.
         view_set.path_id = view_set.path_id.replace_namespace(frozenset())
         view_set.is_schema_alias = True

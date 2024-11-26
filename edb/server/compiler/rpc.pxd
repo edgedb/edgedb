@@ -20,21 +20,26 @@ cimport cython
 
 cdef char serialize_output_format(val)
 cdef deserialize_output_format(char mode)
+cdef char serialize_input_language(val)
+cdef deserialize_input_language(char mode)
 
 @cython.final
 cdef class CompilationRequest:
     cdef:
-        object _serializer
+        object serializer
 
         readonly object source
         readonly object protocol_version
+        readonly object input_language
         readonly object output_format
-        readonly bint json_parameters
+        readonly object input_format
         readonly bint expect_one
         readonly int implicit_limit
         readonly bint inline_typeids
         readonly bint inline_typenames
         readonly bint inline_objectids
+        readonly str role_name
+        readonly str branch_name
 
         readonly object modaliases
         readonly object session_config
@@ -46,4 +51,3 @@ cdef class CompilationRequest:
         object cache_key
 
     cdef _serialize(self)
-    cdef _deserialize_v0(self, bytes data, str query_text)

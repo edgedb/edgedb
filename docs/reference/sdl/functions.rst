@@ -40,7 +40,7 @@ commands <ref_eql_ddl_functions>`.
     function <name> ([ <argspec> ] [, ... ]) -> <returnspec>
     "{"
         [ <annotation-declarations> ]
-        [ volatility := {'Immutable' | 'Stable' | 'Volatile'} ]
+        [ volatility := {'Immutable' | 'Stable' | 'Volatile' | 'Modifying'} ]
         [ using ( <expr> ) ; ]
         [ using <language> <functionbody> ; ]
         [ ... ]
@@ -127,23 +127,26 @@ This declaration defines a new constraint with the following options:
 
 The valid SDL sub-declarations are listed below:
 
-:eql:synopsis:`volatility := {'Immutable' | 'Stable' | 'Volatile'}`
+:eql:synopsis:`volatility := {'Immutable' | 'Stable' | 'Volatile' | 'Modifying'}`
     Function volatility determines how aggressively the compiler can
     optimize its invocations.
 
-    If not explicitly specified the function volatility is set to
-    ``Volatile`` by default.
+    If not explicitly specified the function volatility is
+    :ref:`inferred <ref_reference_volatility>` from the function body.
 
-    * A ``Volatile`` function can modify the database and can return
-      different results on successive calls with the same arguments.
+    * An ``Immutable`` function cannot modify the database and is
+      guaranteed to return the same results given the same arguments
+      *in all statements*.
 
     * A ``Stable`` function cannot modify the database and is
       guaranteed to return the same results given the same
       arguments *within a single statement*.
 
-    * An ``Immutable`` function cannot modify the database and is
-      guaranteed to return the same results given the same arguments
-      *forever*.
+    * A ``Volatile`` function cannot modify the database and can return
+      different results on successive calls with the same arguments.
+
+    * A ``Modifying`` function can modify the database and can return
+      different results on successive calls with the same arguments.
 
 :eql:synopsis:`using ( <expr> )`
     Specified the body of the function.  :eql:synopsis:`<expr>` is an

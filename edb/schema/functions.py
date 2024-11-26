@@ -41,6 +41,7 @@ from typing import (
 
 from edb import errors
 
+from edb.common import ast
 from edb.common import parsing
 from edb.common import struct
 from edb.common import verutils
@@ -1648,19 +1649,6 @@ class FunctionCommand(
 
         ir = expr.irast
 
-        if ir.dml_exprs:
-            if not (
-                context.allow_dml_in_functions
-                or self._get_attribute_value(schema, context, 'is_inlined')
-            ):
-                # DML inside function body detected. Right now is a good
-                # opportunity to raise exceptions or give warnings.
-                raise errors.InvalidFunctionDefinitionError(
-                    'data-modifying statements are not allowed in function'
-                    ' bodies',
-                    span=ir.dml_exprs[0].span,
-                )
-
         spec_volatility: Optional[ft.Volatility] = (
             self.get_specified_attribute_value('volatility', schema, context))
 
@@ -2373,7 +2361,7 @@ def get_params_symtable(
                 right=qlast.Constant.integer(0),
             ),
             if_expr=anchors[p_shortname],
-            else_expr=qlast._Optional(expr=p_default.parse()),
+            else_expr=qlast.OptionalExpr(expr=p_default.parse()),
         )
 
     return anchors
@@ -2478,6 +2466,14 @@ def compile_function_inline(
 
     ql_expr = body.parse()
 
+    # Wrap argument paths
+    param_names: set[str] = {
+        param.get_parameter_name(inlining_context.env.schema)
+        for param in params.objects(inlining_context.env.schema)
+    }
+    argument_path_wrapper = ArgumentPathWrapper(param_names)
+    ql_expr = argument_path_wrapper.visit(ql_expr)
+
     # Add implicit limit if present
     if ctx.implicit_limit:
         ql_expr = qlast.SelectQuery(result=ql_expr, implicit=True)
@@ -2494,6 +2490,86 @@ def compile_function_inline(
         ir_set = setgen.scoped_set(ir_set, ctx=ctx)
 
     return ir_set
+
+
+class ArgumentPathWrapper(ast.NodeTransformer):
+    # Wrap paths based on the inlined arguments which are arguments to other
+    # inlined functions.
+    #
+    # Given the functions:
+    #   function inner(x: int64) -> int64 using (x);
+    #   function outer(x: int64) -> int64 using (inner(x));
+    #
+    # Before inlining the outer function, the irast may look like this:
+    #   FunctionCall outer
+    #     CallArg: Set expr~1: Parameter x
+    #     Body
+    #       Set: FunctionCall inner
+    #         CallArg: Set expr~2: Parameter x
+    #         Body
+    #           SelectStmt: Set expr~2: InlinedParameterExpr
+    #
+    # The outer function will then inline, `Parameter x`:
+    #   FunctionCall outer
+    #     CallArg: Set expr~1: Parameter x
+    #     Body
+    #       Set: FunctionCall inner
+    #         CallArg: Set expr~1: InlinedParameterExpr
+    #         Body
+    #           SelectStmt: Set expr~2: InlinedParameterExpr
+    #
+    # And the definition of `Set expr~2` will be removed.
+    #
+    # To ensure outer function inlines `Parameter x` while keeping the path id
+    # of the inner function, wrap the parameter with a Select:
+    #   FunctionCall outer
+    #     CallArg: Set expr~1: Parameter x
+    #     Body
+    #       Set: FunctionCall inner
+    #         CallArg: Set expr~2: SelectStmt: Set expr~1: Parameter x
+    #         Body
+    #           SelectStmt: Set expr~2: InlinedParameterExpr
+
+    def __init__(
+        self,
+        param_names: set[str],
+    ) -> None:
+        super().__init__()
+        self.param_names = param_names
+
+    def visit_FunctionCall(self, node: qlast.FunctionCall) -> qlast.Base:
+        has_direct_args = False
+        new_args: list[qlast.Expr] = []
+        new_kwargs: dict[str, qlast.Expr] = {}
+
+        for arg in node.args:
+            if (
+                isinstance(arg, qlast.Path)
+                and isinstance(arg.steps[0], qlast.ObjectRef)
+                and arg.steps[0].name in self.param_names
+            ):
+                has_direct_args = True
+                new_args.append(qlast.SelectQuery(result=arg))
+
+            else:
+                new_args.append(arg)
+
+        for arg_name, arg in node.kwargs.items():
+            if (
+                isinstance(arg, qlast.Path)
+                and isinstance(arg.steps[0], qlast.ObjectRef)
+                and arg.steps[0].name in self.param_names
+            ):
+                has_direct_args = True
+                new_kwargs[arg_name] = qlast.SelectQuery(result=arg)
+
+            else:
+                new_kwargs[arg_name] = arg
+
+        if has_direct_args:
+            node = node.replace(args=new_args, kwargs=new_kwargs)
+
+        return cast(qlast.Base, self.generic_visit(node))
 
 
 def get_compiler_options(

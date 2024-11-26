@@ -33,6 +33,7 @@ import immutables
 from edb import edgeql
 from edb.testbase import lang as tb
 from edb.testbase import server as tbs
+from edb.pgsql import params as pg_params
 from edb.server import args as edbargs
 from edb.server import compiler as edbcompiler
 from edb.server.compiler import rpc
@@ -392,14 +393,16 @@ class TestCompilerPool(tbs.TestCase):
         super().setUpClass()
         cls._std_schema = tb._load_std_schema()
         result = tb._load_reflection_schema()
-        cls._refl_schema, cls._schema_class_layout = result
+        cls._refl_schema, _schema_class_layout = result
+        assert _schema_class_layout is not None
+        cls._schema_class_layout = _schema_class_layout
 
     async def _test_pool_disconnect_queue(self, pool_class):
         with tempfile.TemporaryDirectory() as td:
             pool_ = await pool.create_compiler_pool(
                 runstate_dir=td,
                 pool_size=2,
-                backend_runtime_params=None,
+                backend_runtime_params=pg_params.get_default_runtime_params(),
                 std_schema=self._std_schema,
                 refl_schema=self._refl_schema,
                 schema_class_layout=self._schema_class_layout,
@@ -442,13 +445,14 @@ class TestCompilerPool(tbs.TestCase):
                 )
 
                 orig_query = 'SELECT 123'
+                cfg_ser = compiler.state.compilation_config_serializer
                 request = rpc.CompilationRequest(
-                    compiler.state.compilation_config_serializer
-                ).update(
                     source=edgeql.Source.from_string(orig_query),
                     protocol_version=(1, 0),
+                    schema_version=uuid.uuid4(),
+                    compilation_config_serializer=cfg_ser,
                     implicit_limit=101,
-                ).set_schema_version(uuid.uuid4())
+                )
 
                 await asyncio.gather(*(pool_.compile_in_tx(
                     None,
@@ -476,15 +480,15 @@ class TestCompilerPool(tbs.TestCase):
         )
 
         def test(source: edgeql.Source):
+            cfg_ser = compiler.state.compilation_config_serializer
             request1 = rpc.CompilationRequest(
-                compiler.state.compilation_config_serializer
-            ).update(
                 source=source,
                 protocol_version=(1, 0),
-            ).set_schema_version(uuid.uuid4())
-            request2 = rpc.CompilationRequest(
-                compiler.state.compilation_config_serializer
-            ).deserialize(request1.serialize(), "<unknown>")
+                schema_version=uuid.uuid4(),
+                compilation_config_serializer=cfg_ser,
+            )
+            request2 = rpc.CompilationRequest.deserialize(
+                request1.serialize(), "<unknown>", cfg_ser)
             self.assertEqual(hash(request1), hash(request2))
             self.assertEqual(request1, request2)
 

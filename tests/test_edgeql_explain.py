@@ -22,6 +22,7 @@ import unittest
 import json
 import os.path
 
+from edb.tools import test
 from edb.testbase import server as tb
 from edb.common import assert_data_shape
 from edb.schema import name as sn
@@ -133,6 +134,9 @@ class TestEdgeQLExplain(tb.QueryTestCase):
              for p in res['fine_grained']['pipeline'][0]['properties']),
         )
 
+    @test.skip(
+        'fails on PostgreSQL 17 due to changes to indexes and operator classes'
+    )
     async def test_edgeql_explain_with_bound_01(self):
         res = await self.explain('''
             with U := User,

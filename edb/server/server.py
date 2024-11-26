@@ -134,6 +134,7 @@ class BaseServer:
     _http_request_logger: asyncio.Task | None
     _auth_gc: asyncio.Task | None
     _net_worker_http: asyncio.Task | None
+    _net_worker_http_gc: asyncio.Task | None
 
     def __init__(
         self,
@@ -229,6 +230,7 @@ class BaseServer:
         self._http_request_logger = None
         self._auth_gc = None
         self._net_worker_http = None
+        self._net_worker_http_gc = None
         self._net_worker_mode = net_worker_mode
 
         self._stop_evt = asyncio.Event()
@@ -744,7 +746,12 @@ class BaseServer:
         port: int,
     ) -> asyncio.base_events.Server:
         admin_unix_sock_path = os.path.join(
+            self._runstate_dir, f'.s.GEL.admin.{port}')
+        symlink = os.path.join(
             self._runstate_dir, f'.s.EDGEDB.admin.{port}')
+        if not os.path.exists(symlink):
+            os.symlink(admin_unix_sock_path, symlink)
+
         assert len(admin_unix_sock_path) <= (
             defines.MAX_RUNSTATE_DIR_PATH
             + defines.MAX_UNIX_SOCKET_PATH_LENGTH
@@ -870,7 +877,10 @@ class BaseServer:
         def _tls_private_key_password():
             nonlocal tls_password_needed
             tls_password_needed = True
-            return os.environ.get('EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD', '')
+            return (
+                os.environ.get('GEL_SERVER_TLS_PRIVATE_KEY_PASSWORD', '')
+                or os.environ.get('EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD', '')
+            )
 
         sslctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         sslctx_pgext = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -898,7 +908,7 @@ class BaseServer:
                             "Cannot load TLS certificates - the private key "
                             "file is likely protected by a password. Specify "
                             "the password using environment variable: "
-                            "EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD"
+                            "GEL_SERVER_TLS_PRIVATE_KEY_PASSWORD"
                         ) from e
                 elif tls_key_file is None:
                     raise StartupError(
@@ -1050,6 +1060,9 @@ class BaseServer:
             self._net_worker_http = self.__loop.create_task(
                 net_worker.http(self)
             )
+            self._net_worker_http_gc = self.__loop.create_task(
+                net_worker.gc(self)
+            )
 
         if self._echo_runtime_info:
             ri = {
@@ -1103,6 +1116,8 @@ class BaseServer:
             self._auth_gc.cancel()
         if self._net_worker_http is not None:
             self._net_worker_http.cancel()
+        if self._net_worker_http_gc is not None:
+            self._net_worker_http_gc.cancel()
 
         for handle in self._file_watch_handles:
             handle.cancel()
@@ -1259,6 +1274,7 @@ class Server(BaseServer):
         await self._load_instance_data()
         await self._maybe_patch()
         await self._tenant.init()
+        self._load_sidechannel_configs()
         await super().init()
 
     def get_default_tenant(self) -> edbtenant.Tenant:
@@ -1266,6 +1282,20 @@ class Server(BaseServer):
 
     def iter_tenants(self) -> Iterator[edbtenant.Tenant]:
         yield self._tenant
+
+    def _load_sidechannel_configs(self) -> None:
+        # TODO(fantix): Do something like this for multitenant
+        magic_smtp = os.getenv('EDGEDB_MAGIC_SMTP_CONFIG')
+        if magic_smtp:
+            email_type = self._config_settings['email_providers'].type
+            assert not isinstance(email_type, type)
+            configs = [
+                config.CompositeConfigType.from_json_value(
+                    entry, tspec=email_type, spec=self._config_settings
+                )
+                for entry in json.loads(magic_smtp)
+            ]
+            self._tenant.set_sidechannel_configs(configs)
 
     async def _get_patch_log(
         self, conn: pgcon.PGConnection, idx: int
@@ -1418,7 +1448,7 @@ class Server(BaseServer):
                     db_config = self._parse_db_config(config_json, user_schema)
                     try:
                         logger.info("repairing database '%s'", dbname)
-                        sql += bootstrap.prepare_repair_patch(
+                        rep_sql = bootstrap.prepare_repair_patch(
                             self._std_schema,
                             self._refl_schema,
                             user_schema,
@@ -1427,6 +1457,7 @@ class Server(BaseServer):
                             self._tenant.get_backend_runtime_params(),
                             db_config,
                         )
+                        sql += (rep_sql,)
                     except errors.EdgeDBError as e:
                         if isinstance(e, errors.InternalServerError):
                             raise
@@ -1439,7 +1470,7 @@ class Server(BaseServer):
                         ) from e
 
                 if sql:
-                    await conn.sql_fetch(sql)
+                    await conn.sql_execute(sql)
                 logger.info(
                     "finished applying patch %d to database '%s'", num, dbname)
 

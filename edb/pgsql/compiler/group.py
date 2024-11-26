@@ -173,7 +173,7 @@ def _compile_group(
         ctx: context.CompilerContextLevel,
         parent_ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
-    clauses.compile_dml_bindings(stmt, ctx=ctx)
+    clauses.compile_volatile_bindings(stmt, ctx=ctx)
 
     query = ctx.stmt
 

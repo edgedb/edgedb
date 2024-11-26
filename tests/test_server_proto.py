@@ -2095,6 +2095,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
         else:
             server_args['adjacent_to'] = self.con
         server_args['runstate_dir'] = self.runstate_dir
+        server_args['net_worker_mode'] = 'disabled'
         return server_args
 
     @unittest.skipUnless(devmode.is_in_dev_mode(),

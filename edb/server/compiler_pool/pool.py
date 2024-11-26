@@ -603,6 +603,10 @@ class AbstractPool:
         return await self._simple_call(
             'analyze_explain_output', *args, **kwargs)
 
+    async def validate_schema_equivalence(self, *args, **kwargs):
+        return await self._simple_call(
+            'validate_schema_equivalence', *args, **kwargs)
+
     def get_debug_info(self):
         return {}
 

@@ -19,11 +19,15 @@
 import csv
 import io
 import os.path
+from typing import Coroutine, Optional, Tuple
 import unittest
 import uuid
+import asyncio
 
 from edb.tools import test
 from edb.testbase import server as tb
+
+import edgedb
 
 try:
     import asyncpg
@@ -38,6 +42,8 @@ class TestSQLQuery(tb.SQLQueryTestCase):
     SCHEMA_INVENTORY = os.path.join(
         os.path.dirname(__file__), 'schemas', 'inventory.esdl'
     )
+
+    TRANSACTION_ISOLATION = False  # needed for test_sql_query_set_04
 
     SETUP = [
         '''
@@ -222,8 +228,8 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 'genre_id',
                 'release_year',
                 'title',
-                'id',
-                '__type__',
+                'g_id',
+                'g___type__',
                 'name',
             ],
         )
@@ -588,7 +594,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             SELECT tableoid, xmin, cmin, xmax, cmax, ctid FROM ONLY "Content"
             '''
         )
-        # this numbers change, so let's just check that there are 6 of them
+        # these numbers change, so let's just check that there are 6 of them
         self.assertEqual(len(res[0]), 6)
 
         res = await self.squery_values(
@@ -604,6 +610,39 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             '''
         )
         self.assertEqual(len(res[0]), 6)
+
+    async def test_sql_query_33a(self):
+        # system columns when access policies are applied
+        tran = self.scon.transaction()
+        await tran.start()
+        await self.scon.execute('SET LOCAL apply_access_policies_sql TO true')
+        await self.scon.execute(
+            """SET LOCAL "global default::filter_title" TO 'Halo 3'"""
+        )
+
+        res = await self.squery_values(
+            '''
+            SELECT tableoid, xmin, cmin, xmax, cmax, ctid FROM ONLY "Content"
+            '''
+        )
+        # these numbers change, so let's just check that there are 6 of them
+        self.assertEqual(len(res[0]), 6)
+
+        res = await self.squery_values(
+            '''
+            SELECT tableoid, xmin, cmin, xmax, cmax, ctid FROM "Content"
+            '''
+        )
+        self.assertEqual(len(res[0]), 6)
+
+        res = await self.squery_values(
+            '''
+            SELECT tableoid, xmin, cmin, xmax, cmax, ctid FROM "Movie.actors"
+            '''
+        )
+        self.assertEqual(len(res[0]), 6)
+
+        await tran.rollback()
 
     async def test_sql_query_34(self):
         # GROUP and ORDER BY aliased column
@@ -735,6 +774,207 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         res = await self.squery_values("SELECT x'00abcdef00';")
         self.assertEqual(res, [[b'\x00\xab\xcd\xef\x00']])
 
+    async def test_sql_query_42(self):
+        # params out of order
+
+        res = await self.squery_values(
+            'SELECT $2::int, $3::bool, $1::text',
+            'hello',
+            42,
+            True,
+        )
+        self.assertEqual(res, [[42, True, 'hello']])
+
+        tran = self.scon.transaction()
+        await tran.start()
+        res = await self.scon.execute(
+            '''
+            UPDATE "Book" SET pages = $1 WHERE (title = $2)
+            ''',
+            207,
+            'Chronicles of Narnia',
+        )
+        self.assertEqual(res, 'UPDATE 1')
+        await tran.rollback()
+
+    async def test_sql_query_43(self):
+        # USING factoring
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id) AS (SELECT 1 UNION SELECT 2),
+                b(id) AS (SELECT 1 UNION SELECT 3)
+            SELECT a.id, b.id, id
+            FROM a LEFT JOIN b USING (id);
+            '''
+        )
+        self.assertEqual(res, [[1, 1, 1], [2, None, 2]])
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id, sub_id) AS (SELECT 1, 'a' UNION SELECT 2, 'b'),
+                b(id, sub_id) AS (SELECT 1, 'a' UNION SELECT 3, 'c')
+            SELECT a.id, a.sub_id, b.id, b.sub_id, id, sub_id
+            FROM a JOIN b USING (id, sub_id);
+            '''
+        )
+        self.assertEqual(res, [[1, 'a', 1, 'a', 1, 'a']])
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id) AS (SELECT 1 UNION SELECT 2),
+                b(id) AS (SELECT 1 UNION SELECT 3)
+            SELECT a.id, b.id, id
+            FROM a INNER JOIN b USING (id);
+            '''
+        )
+        self.assertEqual(res, [[1, 1, 1]])
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id) AS (SELECT 1 UNION SELECT 2),
+                b(id) AS (SELECT 1 UNION SELECT 3)
+            SELECT a.id, b.id, id
+            FROM a RIGHT JOIN b USING (id);
+            '''
+        )
+        self.assertEqual(res, [[1, 1, 1], [None, 3, 3]])
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id) AS (SELECT 1 UNION SELECT 2),
+                b(id) AS (SELECT 1 UNION SELECT 3)
+            SELECT a.id, b.id, id
+            FROM a RIGHT OUTER JOIN b USING (id);
+            '''
+        )
+        self.assertEqual(res, [[1, 1, 1], [None, 3, 3]])
+
+        res = await self.squery_values(
+            '''
+            WITH
+                a(id) AS (SELECT 1 UNION SELECT 2),
+                b(id) AS (SELECT 1 UNION SELECT 3)
+            SELECT a.id, b.id, id
+            FROM a FULL JOIN b USING (id);
+            '''
+        )
+        self.assertEqual(res, [[1, 1, 1], [2, None, 2], [None, 3, 3]])
+
+    async def test_sql_query_44(self):
+        # range function that is an "sql value function", whatever that is
+
+        # to be exact: User is *parsed* as function call CURRENT_USER
+        # we'd ideally want a message that hints that it should use quotes
+
+        with self.assertRaisesRegex(
+            asyncpg.InvalidColumnReferenceError, 'cannot find column `name`'
+        ):
+            await self.squery_values('SELECT name FROM User')
+
+    async def test_sql_query_45(self):
+        res = await self.scon.fetch('SELECT 1 AS a, 2 AS a')
+        self.assert_shape(res, 1, ['a', 'a'])
+
+    async def test_sql_query_46(self):
+        res = await self.scon.fetch(
+            '''
+            WITH
+              x(a) AS (VALUES (1)),
+              y(a) AS (VALUES (2)),
+              z(a) AS (VALUES (3))
+            SELECT * FROM x, y JOIN z u on TRUE
+            '''
+        )
+
+        # `a` would be duplicated,
+        # so second and third instance are prefixed with rel var name
+        self.assert_shape(res, 1, ['a', 'y_a', 'u_a'])
+
+    async def test_sql_query_47(self):
+        res = await self.scon.fetch(
+            '''
+            WITH
+              x(a) AS (VALUES (1)),
+              y(a) AS (VALUES (2), (3))
+            SELECT x.*, u.* FROM x, y as u
+            '''
+        )
+        self.assert_shape(res, 2, ['a', 'u_a'])
+
+    async def test_sql_query_48(self):
+        res = await self.scon.fetch(
+            '''
+            WITH
+              x(a) AS (VALUES (1)),
+              y(a) AS (VALUES (2), (3))
+            SELECT * FROM x, y, y
+            '''
+        )
+
+        # duplicate rel var names can yield duplicate column names
+        self.assert_shape(res, 4, ['a', 'y_a', 'y_a'])
+
+    async def test_sql_query_49(self):
+        res = await self.scon.fetch(
+            '''
+            WITH
+              x(a) AS (VALUES (2))
+            SELECT 1 as x_a, * FROM x, x
+            '''
+        )
+
+        # duplicate rel var names can yield duplicate column names
+        self.assert_shape(res, 1, ['x_a', 'a', 'x_a'])
+
+    async def test_sql_query_50(self):
+        res = await self.scon.fetch(
+            '''
+            WITH
+              x(a) AS (VALUES (2))
+            SELECT 1 as a, * FROM x
+            '''
+        )
+
+        # duplicate rel var names can yield duplicate column names
+        self.assert_shape(res, 1, ['a', 'x_a'])
+
+    async def test_sql_query_51(self):
+        res = await self.scon.fetch(
+            '''
+            TABLE "Movie"
+            '''
+        )
+        self.assert_shape(res, 2, 6)
+
+    async def test_sql_query_52(self):
+        async def count_table(only: str, table_name: str) -> int:
+            res = await self.squery_values(
+                f'SELECT COUNT(*) FROM {only} "default::links"."{table_name}"'
+            )
+            return res[0][0]
+
+        # link tables must include elements of link's children
+        self.assertEqual(await count_table("", "C.a"), 2)
+        self.assertEqual(await count_table("ONLY", "C.a"), 2)
+        self.assertEqual(await count_table("", "B.a"), 2)
+        self.assertEqual(await count_table("ONLY", "B.a"), 0)
+        # same for property tables
+        self.assertEqual(await count_table("", "C.prop"), 1)
+        self.assertEqual(await count_table("ONLY", "C.prop"), 1)
+        self.assertEqual(await count_table("", "B.prop"), 1)
+        self.assertEqual(await count_table("ONLY", "B.prop"), 0)
+        # same for multi property tables
+        self.assertEqual(await count_table("", "C.vals"), 4)
+        self.assertEqual(await count_table("ONLY", "C.vals"), 4)
+        self.assertEqual(await count_table("", "B.vals"), 4)
+        self.assertEqual(await count_table("ONLY", "B.vals"), 0)
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
@@ -751,6 +991,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ['public', 'Book'],
                 ['public', 'Book.chapters'],
                 ['public', 'Content'],
+                ['public', 'ContentSummary'],
                 ['public', 'Genre'],
                 ['public', 'Movie'],
                 ['public', 'Movie.actors'],
@@ -758,6 +999,15 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ['public', 'Person'],
                 ['public', 'novel'],
                 ['public', 'novel.chapters'],
+                ['public::links', 'A'],
+                ['public::links', 'B'],
+                ['public::links', 'B.a'],
+                ['public::links', 'B.prop'],
+                ['public::links', 'B.vals'],
+                ['public::links', 'C'],
+                ['public::links', 'C.a'],
+                ['public::links', 'C.prop'],
+                ['public::links', 'C.vals'],
                 ['public::nested', 'Hello'],
                 ['public::nested::deep', 'Rolling'],
             ],
@@ -787,6 +1037,9 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ['Content', '__type__', 'NO', 2],
                 ['Content', 'genre_id', 'YES', 3],
                 ['Content', 'title', 'NO', 4],
+                ['ContentSummary', 'id', 'NO', 1],
+                ['ContentSummary', '__type__', 'NO', 2],
+                ['ContentSummary', 'x', 'NO', 3],
                 ['Genre', 'id', 'NO', 1],
                 ['Genre', '__type__', 'NO', 2],
                 ['Genre', 'name', 'NO', 3],
@@ -836,14 +1089,12 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             GROUP BY tbl_name
             '''
         )
-        for [table_name, columns_from_information_schema] in tables:
-            if table_name.split('.')[0] in ('cfg', 'schema', 'sys'):
+        for [tbl_name, columns_from_information_schema] in tables:
+            if tbl_name.split('.')[0] in ('cfg', 'schema', 'sys', '"ext::ai"'):
                 continue
 
             try:
-                prepared = await self.scon.prepare(
-                    f'SELECT * FROM {table_name}'
-                )
+                prepared = await self.scon.prepare(f'SELECT * FROM {tbl_name}')
 
                 attributes = prepared.get_attributes()
                 columns_from_resolver = [a.name for a in attributes]
@@ -853,7 +1104,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                     columns_from_information_schema,
                 )
             except Exception:
-                raise Exception(f'introspecting {table_name}')
+                raise Exception(f'introspecting {tbl_name}')
 
     async def test_sql_query_introspection_03(self):
         res = await self.squery_values(
@@ -897,6 +1148,50 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ['novel', 'genre_id', False],
                 ['novel', 'pages', True],
                 ['novel', 'title', True],
+            ],
+        )
+
+    async def test_sql_query_introspection_05(self):
+        # test pg_constraint
+
+        res = await self.squery_values(
+            '''
+            SELECT pc.relname, pcon.contype, pa.key, pcf.relname, paf.key
+            FROM pg_constraint pcon
+            JOIN pg_class pc ON pc.oid = pcon.conrelid
+            LEFT JOIN pg_class pcf ON pcf.oid = pcon.confrelid
+            LEFT JOIN LATERAL (
+                SELECT string_agg(attname, ',') as key
+                FROM pg_attribute
+                WHERE attrelid = pcon.conrelid
+                  AND attnum = ANY(pcon.conkey)
+            ) pa ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT string_agg(attname, ',') as key
+                FROM pg_attribute
+                WHERE attrelid = pcon.confrelid
+                  AND attnum = ANY(pcon.confkey)
+            ) paf ON TRUE
+            WHERE pc.relname IN (
+                'Book.chapters', 'Movie', 'Movie.director', 'Movie.actors'
+            )
+            ORDER BY pc.relname ASC, pcon.contype DESC, pa.key
+            '''
+        )
+
+        self.assertEqual(
+            res,
+            [
+                ['Book.chapters', b'f', 'source', 'Book', 'id'],
+                ['Movie', b'p', 'id', None, None],
+                ['Movie', b'f', 'director_id', 'Person', 'id'],
+                ['Movie', b'f', 'genre_id', 'Genre', 'id'],
+                ['Movie.actors', b'p', 'source,target', None, None],
+                ['Movie.actors', b'f', 'source', 'Movie', 'id'],
+                ['Movie.actors', b'f', 'target', 'Person', 'id'],
+                ['Movie.director', b'p', 'source,target', None, None],
+                ['Movie.director', b'f', 'source', 'Movie', 'id'],
+                ['Movie.director', b'f', 'target', 'Person', 'id'],
             ],
         )
 
@@ -1014,6 +1309,78 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         res = await self.squery_values('SHOW search_path;')
         self.assertEqual(res, [["public"]])
 
+    async def test_sql_query_set_04(self):
+        # database settings allow_user_specified_ids & apply_access_policies_sql
+        # should be unified over EdgeQL and SQL adapter
+
+        async def set_current_database(val: Optional[bool]):
+            if val is None:
+                await self.con.execute(
+                    f'''
+                    configure current database
+                        reset apply_access_policies_sql;
+                    '''
+                )
+            else:
+                await self.con.execute(
+                    f'''
+                    configure current database
+                        set apply_access_policies_sql := {str(val).lower()};
+                    '''
+                )
+
+        async def set_sql(val: Optional[bool]):
+            if val is None:
+                await self.scon.execute(
+                    f'''
+                    RESET apply_access_policies_sql;
+                    '''
+                )
+            else:
+                await self.scon.execute(
+                    f'''
+                    SET apply_access_policies_sql TO '{str(val).lower()}';
+                    '''
+                )
+
+        async def are_policies_applied() -> bool:
+            res = await self.squery_values(
+                'SELECT title FROM "Content" ORDER BY title'
+            )
+            return len(res) == 0
+
+        await set_current_database(True)
+        await set_sql(True)
+        self.assertEqual(await are_policies_applied(), True)
+
+        await set_sql(False)
+        self.assertEqual(await are_policies_applied(), False)
+
+        await set_sql(None)
+        self.assertEqual(await are_policies_applied(), True)
+
+        await set_current_database(False)
+        await set_sql(True)
+        self.assertEqual(await are_policies_applied(), True)
+
+        await set_sql(False)
+        self.assertEqual(await are_policies_applied(), False)
+
+        await set_sql(None)
+        self.assertEqual(await are_policies_applied(), False)
+
+        await set_current_database(None)
+        await set_sql(True)
+        self.assertEqual(await are_policies_applied(), True)
+
+        await set_sql(False)
+        self.assertEqual(await are_policies_applied(), False)
+
+        await set_sql(None)
+        self.assertEqual(await are_policies_applied(), False)
+
+        # setting cleanup not needed, since with end with the None, None
+
     async def test_sql_query_static_eval_01(self):
         res = await self.squery_values('select current_schema;')
         self.assertEqual(res, [['public']])
@@ -1051,6 +1418,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             SELECT information_schema._pg_truetypid(a.*, t.*)
             FROM pg_attribute a
             JOIN pg_type t ON t.oid = a.atttypid
+            LIMIT 500
             '''
         )
 
@@ -1108,6 +1476,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ["Book", 8192],
                 ["Book.chapters", 8192],
                 ["Content", 8192],
+                ["ContentSummary", 8192],
                 ["Genre", 8192],
                 ["Movie", 8192],
                 ["Movie.actors", 8192],
@@ -1179,7 +1548,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
     async def test_sql_query_version(self):
         version = await self.scon.fetchrow("select version()")
         self.assertTrue(version["version"].startswith("PostgreSQL "))
-        self.assertIn("EdgeDB", version["version"])
+        self.assertIn("Gel", version["version"])
 
     async def test_sql_transaction_01(self):
         await self.scon.execute(
@@ -1688,3 +2057,526 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         )
 
         await tran.rollback()
+
+    async def test_sql_query_access_policy_01(self):
+        tran = self.scon.transaction()
+        await tran.start()
+
+        # no access policies
+        res = await self.squery_values(
+            'SELECT title FROM "Content" ORDER BY title'
+        )
+        self.assertEqual(
+            res,
+            [
+                ['Chronicles of Narnia'],
+                ['Forrest Gump'],
+                ['Halo 3'],
+                ['Hunger Games'],
+                ['Saving Private Ryan'],
+            ],
+        )
+
+        await self.scon.execute('SET LOCAL apply_access_policies_sql TO true')
+
+        # access policies applied
+        res = await self.squery_values(
+            'SELECT title FROM "Content" ORDER BY title'
+        )
+        self.assertEqual(res, [])
+
+        # access policies use globals
+        await self.scon.execute(
+            """SET LOCAL "global default::filter_title" TO 'Forrest Gump'"""
+        )
+        res = await self.squery_values(
+            'SELECT title FROM "Content" ORDER BY title'
+        )
+        self.assertEqual(res, [['Forrest Gump']])
+
+        await tran.rollback()
+
+    async def test_sql_query_access_policy_02(self):
+        # access policies from computeds
+
+        tran = self.scon.transaction()
+        await tran.start()
+
+        # no access policies
+        res = await self.squery_values('SELECT x FROM "ContentSummary"')
+        self.assertEqual(res, [[5]])
+
+        await self.scon.execute('SET LOCAL apply_access_policies_sql TO true')
+
+        # access policies applied
+        res = await self.squery_values('SELECT x FROM "ContentSummary"')
+        self.assertEqual(res, [[0]])
+
+        # access policies use globals
+        await self.scon.execute(
+            """SET LOCAL "global default::filter_title" TO 'Forrest Gump'"""
+        )
+        res = await self.squery_values('SELECT x FROM "ContentSummary"')
+        self.assertEqual(res, [[1]])
+
+        await tran.rollback()
+
+    async def test_sql_query_access_policy_03(self):
+        # access policies for dml
+
+        tran = self.scon.transaction()
+        await tran.start()
+
+        # allowed without applying access policies
+
+        await self.scon.execute('SET LOCAL apply_access_policies_sql TO true')
+
+        # allowed when filter_title == 'summary'
+        await self.scon.execute(
+            """SET LOCAL "global default::filter_title" TO 'summary'"""
+        )
+
+        # not allowed when filter_title is something else
+        await self.scon.execute(
+            """SET LOCAL "global default::filter_title" TO 'something else'"""
+        )
+        with self.assertRaisesRegex(
+            asyncpg.exceptions.InsufficientPrivilegeError,
+            'access policy violation on insert of default::ContentSummary',
+        ):
+            await self.scon.execute(
+                'INSERT INTO "ContentSummary" DEFAULT VALUES'
+            )
+
+        await tran.rollback()
+
+    async def test_sql_query_access_policy_04(self):
+        # access policies without inheritance
+
+        tran = self.scon.transaction()
+        await tran.start()
+
+        # there is only one object that is of exactly type Content
+        res = await self.squery_values('SELECT * FROM ONLY "Content"')
+        self.assertEqual(len(res), 1)
+
+        await self.scon.execute('SET LOCAL apply_access_policies_sql TO true')
+
+        await self.scon.execute(
+            """SET LOCAL "global default::filter_title" TO 'Halo 3'"""
+        )
+        res = await self.squery_values('SELECT * FROM ONLY "Content"')
+        self.assertEqual(len(res), 1)
+
+        await self.scon.execute(
+            """SET LOCAL "global default::filter_title" TO 'Forrest Gump'"""
+        )
+        res = await self.squery_values('SELECT * FROM ONLY "Content"')
+        self.assertEqual(len(res), 0)
+
+        await tran.rollback()
+
+    async def test_sql_query_unsupported_01(self):
+        # test error messages of unsupported queries
+
+        # we build AST for this not, but throw in resolver
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "not supported: CREATE",
+            position="14",  # TODO: this is confusing
+        ):
+            await self.squery_values('CREATE TABLE a();')
+
+        # we don't even have AST node for this
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "not supported: ALTER TABLE",
+        ):
+            await self.squery_values('ALTER TABLE a ADD COLUMN b INT;')
+
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "not supported: REINDEX",
+        ):
+            await self.squery_values('REINDEX TABLE a;')
+
+    async def test_sql_query_locking_00(self):
+        # Movie is allowed because it has no sub-types and access policies are
+        # not enabled.
+        await self.squery_values(
+            '''
+            SELECT id FROM "Movie" LIMIT 1 FOR UPDATE;
+            '''
+        )
+
+        await self.squery_values(
+            '''
+            SELECT id FROM "Movie" LIMIT 1 FOR NO KEY UPDATE NOWAIT;
+            '''
+        )
+        await self.squery_values(
+            '''
+            SELECT id FROM "Movie" LIMIT 1 FOR KEY SHARE SKIP LOCKED;
+            '''
+        )
+
+    async def test_sql_query_locking_01(self):
+        # fail because sub-types
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "locking clause not supported",
+        ):
+            await self.squery_values(
+                '''
+                SELECT id FROM "Content" LIMIT 1 FOR UPDATE;
+                '''
+            )
+
+        # fail because access policies
+        tran = self.scon.transaction()
+        await tran.start()
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "locking clause not supported",
+        ):
+            await self.scon.execute(
+                'SET LOCAL apply_access_policies_sql TO TRUE'
+            )
+            await self.squery_values(
+                '''
+                SELECT id FROM "Movie" LIMIT 1 FOR UPDATE;
+                '''
+            )
+        await tran.rollback()
+
+    async def test_sql_query_locking_02(self):
+        # we are locking just Movie
+        await self.squery_values(
+            '''
+            SELECT * FROM "Movie", "Content" LIMIT 1 FOR UPDATE OF "Movie";
+            '''
+        )
+
+        # we are locking just Movie
+        await self.squery_values(
+            '''
+            SELECT * FROM "Movie" m, "Content" LIMIT 1 FOR UPDATE OF m;
+            '''
+        )
+
+        # we are locking just Content
+        with self.assertRaisesRegex(
+            asyncpg.FeatureNotSupportedError,
+            "locking clause not supported",
+        ):
+            await self.squery_values(
+                '''
+                SELECT * FROM "Movie", "Content" c LIMIT 1 FOR UPDATE OF c;
+                '''
+            )
+
+    async def test_sql_query_locking_03(self):
+        # allowed, but this won't lock anything
+        await self.squery_values(
+            '''
+            SELECT * FROM (VALUES (1)) t FOR UPDATE;
+            '''
+        )
+
+        # allowed, will not lock Content
+        await self.squery_values(
+            '''
+            WITH c AS (SELECT * FROM "Content")
+            SELECT * FROM "Movie" FOR UPDATE;
+            '''
+        )
+
+    @test.skip(
+        'blocking the connection causes other tests which trigger a '
+        'PostgreSQL error to encounter a InternalServerError and close '
+        'the connection'
+    )
+    async def test_sql_query_locking_04(self):
+        # test that we really obtain a lock
+
+        # we will obtain a lock on the main connection
+        # and then check that another connection is blocked
+        con_other = await self.create_sql_connection()
+
+        tran = self.scon.transaction()
+        await tran.start()
+
+        # obtain a lock
+        await self.scon.execute(
+            '''
+            SELECT * FROM "Movie" WHERE title = 'Forrest Gump'
+            FOR UPDATE;
+            '''
+        )
+
+        async def assert_not_blocked(coroutine: Coroutine) -> None:
+            await asyncio.wait_for(coroutine, 0.25)
+
+        async def assert_blocked(
+            coroutine: Coroutine
+        ) -> Tuple[asyncio.Task]:
+            task: asyncio.Task = asyncio.create_task(coroutine)
+            done, pending = await asyncio.wait((task,), timeout=0.25)
+            if len(done) != 0:
+                self.fail("expected this action to block, but it completed")
+            task_t = (next(iter(pending)),)
+            return task_t
+
+        # querying is allowed
+        await assert_not_blocked(
+            con_other.execute(
+                '''
+                SELECT title FROM "Movie" WHERE title = 'Forrest Gump';
+                '''
+            )
+        )
+
+        # another FOR UPDATE is now blocked
+        (task,) = await assert_blocked(
+            con_other.execute(
+                '''
+                SELECT * FROM "Movie" WHERE title = 'Forrest Gump'
+                FOR UPDATE;
+                '''
+            )
+        )
+
+        # release the lock
+        await tran.rollback()
+
+        # now we can finish the second SELECT FOR UPDATE
+        await task
+
+        # and subsequent FOR UPDATE are not blocked
+        await assert_not_blocked(
+            con_other.execute(
+                '''
+                SELECT * FROM "Movie" WHERE title = 'Forrest Gump'
+                FOR UPDATE;
+                '''
+            )
+        )
+
+        await con_other.close()
+
+    async def test_native_sql_query_00(self):
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                    1 AS a,
+                    'two' AS b,
+                    to_json('three') AS c,
+                    timestamp '2000-12-16 12:21:13' AS d,
+                    timestamp with time zone '2000-12-16 12:21:13' AS e,
+                    date '0001-01-01 AD' AS f,
+                    interval '2000 years' AS g,
+                    ARRAY[1, 2, 3] AS h,
+                    FALSE AS i
+            """,
+            [
+                {
+                    "a": 1,
+                    "b": "two",
+                    "c": '"three"',
+                    "d": "2000-12-16T12:21:13",
+                    "e": "2000-12-16T12:21:13+00:00",
+                    "f": "0001-01-01",
+                    "g": edgedb.RelativeDuration(months=2000 * 12),
+                    "h": [1, 2, 3],
+                    "i": False,
+                }
+            ],
+        )
+
+    async def test_native_sql_query_01(self):
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                    "Movie".title,
+                    "Genre".name AS genre
+                FROM
+                    "Movie",
+                    "Genre"
+                WHERE
+                    "Movie".genre_id = "Genre".id
+                    AND "Genre".name = 'Drama'
+                ORDER BY
+                    title
+            """,
+            [
+                {
+                    "title": "Forrest Gump",
+                    "genre": "Drama",
+                },
+                {
+                    "title": "Saving Private Ryan",
+                    "genre": "Drama",
+                },
+            ],
+        )
+
+    async def test_native_sql_query_02(self):
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                    "Movie".title,
+                    "Genre".name AS genre
+                FROM
+                    "Movie",
+                    "Genre"
+                WHERE
+                    "Movie".genre_id = "Genre".id
+                    AND "Genre".name = $1::text
+                    AND length("Movie".title) > $2::int
+                ORDER BY
+                    title
+            """,
+            [
+                {
+                    "title": "Saving Private Ryan",
+                    "genre": "Drama",
+                }
+            ],
+            variables={
+                "0": "Drama",
+                "1": 14,
+            },
+        )
+
+    async def test_native_sql_query_03(self):
+        # No output at all
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                WHERE NULL
+            """,
+            [],
+        )
+
+        # Empty tuples
+        await self.assert_sql_query_result(
+            """
+                SELECT
+                FROM "Movie"
+                LIMIT 1
+            """,
+            [{}],
+        )
+
+    async def test_native_sql_query_04(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            'duplicate column name: `a`',
+            _position=16,
+        ):
+            await self.assert_sql_query_result('SELECT 1 AS a, 2 AS a', [])
+
+    async def test_native_sql_query_05(self):
+        # `a` would be duplicated,
+        # so second and third instance are prefixed with rel var name
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(a) AS (VALUES (1::int)),
+              y(a) AS (VALUES (1::int + 1::int)),
+              z(a) AS (VALUES (1::int + 1::int + 1::int))
+            SELECT * FROM x, y JOIN z u ON TRUE::bool
+            ''',
+            [{'a': 1, 'y_a': 2, 'u_a': 3}],
+        )
+
+    async def test_native_sql_query_06(self):
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(a) AS (VALUES (1)),
+              y(a) AS (VALUES (2), (3))
+            SELECT x.*, u.* FROM x, y as u
+            ''',
+            [{'a': 1, 'u_a': 2}, {'a': 1, 'u_a': 3}],
+        )
+
+    async def test_native_sql_query_07(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            'duplicate column name: `y_a`',
+            # _position=114, TODO: spans are messed up somewhere
+        ):
+            await self.assert_sql_query_result(
+                '''
+                WITH
+                x(a) AS (VALUES (1)),
+                y(a) AS (VALUES (1 + 1), (1 + 1 + 1))
+                SELECT * FROM x, y, y
+                ''',
+                [],
+            )
+
+    async def test_native_sql_query_08(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            'duplicate column name: `x_a`',
+            # _position=83, TODO: spans are messed up somewhere
+        ):
+            await self.assert_sql_query_result(
+                '''
+                WITH
+                x(a) AS (VALUES (2))
+                SELECT 1 as x_a, * FROM x, x
+                ''',
+                [],
+            )
+
+    async def test_native_sql_query_09(self):
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(a) AS (VALUES (1 + 1))
+            SELECT 1 as a, * FROM x
+            ''',
+            [{'a': 1, 'x_a': 2}],
+        )
+
+    async def test_native_sql_query_10(self):
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(b, c) AS (VALUES (2, 3))
+            SELECT 1 as a, * FROM x
+            ''',
+            [{'a': 1, 'b': 2, 'c': 3}],  # values are swapped around
+        )
+
+    async def test_native_sql_query_11(self):
+        # JOIN ... ON TRUE fails, saying it expects bool, but it got an int
+        await self.assert_sql_query_result(
+            '''
+            WITH
+              x(a) AS (VALUES (1)),
+              y(b) AS (VALUES (2)),
+              z(c) AS (VALUES (3))
+            SELECT * FROM x, y JOIN z ON TRUE
+            ''',
+            [{'a': 1, 'b': 2, 'c': 3}],
+        )
+
+    async def test_native_sql_query_12(self):
+        await self.assert_sql_query_result(
+            '''
+            WITH
+                x(a) AS (VALUES (1), (5)),
+                y(b) AS (VALUES (2), (3))
+            SELECT * FROM x, y
+            ''',
+            [
+                {'a': 1, 'b': 2},
+                {'a': 1, 'b': 3},
+                {'a': 5, 'b': 2},
+                {'a': 5, 'b': 3},
+            ],
+        )

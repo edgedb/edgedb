@@ -119,7 +119,7 @@ async def _inittestdb(
 
     try:
         if not update:
-            print(f'Bootstrapping test EdgeDB instance in {data_dir}...')
+            print(f'Bootstrapping test Gel instance in {data_dir}...')
             await cluster.init()
         await cluster.start(port=0)
     except BaseException:
@@ -133,7 +133,7 @@ async def _inittestdb(
 
     try:
         await execute(tests_dir, conn, num_workers=jobs, include=include)
-        print(f'Initialized and populated test EdgeDB instance in {data_dir}')
+        print(f'Initialized and populated test Gel instance in {data_dir}')
     except BaseException:
         destroy_cluster = True
         raise

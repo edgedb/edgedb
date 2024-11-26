@@ -615,6 +615,7 @@ def _trace_item_layout(
         obj = local_obj
 
     assert fq_name is not None
+    PointerType: type[qltracer.Pointer]
 
     if isinstance(node, qlast.BasedOnTuple):
         bases = []
@@ -1139,7 +1140,7 @@ def _register_item(
         parent.commands.append(op)
         op = top_parent
     else:
-        assert isinstance(op, (qlast.Query, qlast.Command))
+        assert isinstance(op, (qlast.Query, qlast.Command, qlast.DDLCommand))
         op.aliases = [qlast.ModuleAliasDecl(alias=None, module=ctx.module)]
 
     assert isinstance(op, qlast.DDLCommand)

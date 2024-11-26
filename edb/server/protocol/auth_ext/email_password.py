@@ -94,12 +94,9 @@ class Client(local.Client):
         assert len(result_json) == 1
         return data.EmailFactor(**result_json[0])
 
-    async def authenticate(self, input: dict[str, Any]) -> data.LocalIdentity:
-        if 'email' not in input or 'password' not in input:
-            raise errors.InvalidData("Missing 'email' or 'password' in data")
-
-        password = input["password"]
-        email = input["email"]
+    async def authenticate(
+        self, email: str, password: str
+    ) -> data.LocalIdentity:
         r = await execute.parse_execute_json(
             db=self.db,
             query="""\
@@ -151,12 +148,8 @@ set { password_hash := new_hash };""",
 
     async def get_email_factor_and_secret(
         self,
-        input: dict[str, Any],
+        email: str,
     ) -> tuple[data.EmailFactor, str]:
-        if 'email' not in input:
-            raise errors.InvalidData("Missing 'email' in data")
-
-        email = input["email"]
         r = await execute.parse_execute_json(
             db=self.db,
             query="""
@@ -215,13 +208,8 @@ filter .identity.id = identity_id;""",
         return local_identity if secret == current_secret else None
 
     async def update_password(
-        self, identity_id: str, secret: str, input: dict[str, Any]
+        self, identity_id: str, secret: str, password: str
     ) -> data.LocalIdentity:
-        if 'password' not in input:
-            raise errors.InvalidData("Missing 'password' in data")
-
-        password = input["password"]
-
         local_identity = await self.validate_reset_secret(identity_id, secret)
 
         if local_identity is None:

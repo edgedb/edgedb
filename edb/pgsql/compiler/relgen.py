@@ -976,7 +976,7 @@ def process_set_as_path_type_intersection(
 
     assert not rptr.expr, 'type intersection pointer with expr??'
 
-    if ir_set.typeref.union is not None and len(ir_set.typeref.union) == 0:
+    if irtyputils.is_empty_typeref(ir_set.typeref):
         # If the typeref was a type expression which resolves to no actual
         # types, just return an empty set.
         empty_ir = irast.Set(
@@ -1147,6 +1147,29 @@ def process_set_as_path(
         # instead of semi-joining.
         not relctx.find_rvar(stmt, path_id=ir_source.path_id, ctx=ctx)
     )
+
+    if irtyputils.is_empty_typeref(ir_source.typeref):
+        # If the source is an empty type intersection, just produce an empty set
+
+        if is_primitive_ref:
+            aspects = [pgce.PathAspect.VALUE]
+        else:
+            aspects = [pgce.PathAspect.VALUE, pgce.PathAspect.SOURCE]
+
+        empty_ir = irast.Set(
+            path_id=ir_set.path_id,
+            typeref=ir_set.typeref,
+            expr=irast.EmptySet(typeref=ir_set.typeref),
+        )
+        empty_rvar = SetRVar(
+            relctx.new_empty_rvar(
+                cast('irast.SetE[irast.EmptySet]', empty_ir),
+                ctx=ctx
+            ),
+            path_id=ir_set.path_id,
+            aspects=aspects,
+        )
+        return SetRVars(main=empty_rvar, new=[empty_rvar])
 
     main_rvar = None
     source_rptr = (
@@ -2823,9 +2846,12 @@ def process_set_as_enumerate(
                 or arg_expr.limit
                 or arg_expr.offset
             )
+        ) and not any(
+            f_arg.param_typemod == qltypes.TypeModifier.SetOfType
+            for _, f_arg in arg_subj.args.items()
         )
     ):
-        # Enumeration of a SET-returning function
+        # Enumeration of a non-aggregate function
         rvars = process_set_as_func_enumerate(ir_set, ctx=ctx)
     else:
         rvars = process_set_as_simple_enumerate(ir_set, ctx=ctx)
@@ -3323,7 +3349,13 @@ def _compile_func_epilogue(
         aspect=pgce.PathAspect.VALUE,
     )
 
-    aspects: Tuple[pgce.PathAspect, ...] = (pgce.PathAspect.VALUE,)
+    aspects: Tuple[pgce.PathAspect, ...]
+    if expr.body:
+        # For inlined functions, we want all of the aspects provided.
+        aspects = tuple(pathctx.list_path_aspects(func_rel, ir_set.path_id))
+    else:
+        # Otherwise we just know we have value.
+        aspects = (pgce.PathAspect.VALUE,)
 
     func_rvar = relctx.new_rel_rvar(ir_set, func_rel, ctx=ctx)
     relctx.include_rvar(
@@ -3605,6 +3637,12 @@ def process_set_as_func_expr(
             _compile_inlined_call_args(ir_set, ctx=newctx)
 
             set_expr = dispatch.compile(expr.body, ctx=newctx)
+            # Map the path id so that we can extract source aspects
+            # from it, which we want so that we can directly select
+            # from an INSERT instead of using overlays.
+            pathctx.put_path_id_map(
+                newctx.rel, ir_set.path_id, expr.body.path_id
+            )
 
         else:
             args = _compile_call_args(ir_set, ctx=newctx)

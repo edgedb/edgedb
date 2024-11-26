@@ -1339,28 +1339,56 @@ class FunctionCommand(MetaCommand):
                     {matching_impl}
             """
 
-    def compile_edgeql_function(self, func: s_funcs.Function, schema, context):
-        nativecode = not_none(func.get_nativecode(schema))
-        nativecode = self._compile_edgeql_function(
-            schema,
-            context,
-            func,
-            nativecode,
-        )
+    def compile_edgeql_function(
+        self,
+        func: s_funcs.Function,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> tuple[Optional[dbops.Function], bool]:
+        if func.get_volatility(schema) == ql_ft.Volatility.Modifying:
+            # Modifying functions cannot be compiled correctly and should be
+            # inlined at the call point.
 
-        nativecode = self.fix_return_type(func, nativecode, schema, context)
+            if func.find_object_param_overloads(schema) is not None:
+                raise errors.SchemaDefinitionError(
+                    f"cannot overload an existing function "
+                    f"with a modifying function: "
+                    f"'{func.get_shortname(schema)}'",
+                    span=self.span,
+                )
+
+            return None, False
+
+        nativecode: s_expr.Expression = not_none(func.get_nativecode(schema))
+        compiled_expr = self._compile_edgeql_function(
+            schema, context, func, nativecode
+        )
+        compiled_expr = self.fix_return_type(
+            func, compiled_expr, schema, context
+        )
 
         replace = False
 
         obj_overload = func.find_object_param_overloads(schema)
         if obj_overload is not None:
-            ov, ov_param_idx = obj_overload
+            overloads, ov_param_idx = obj_overload
+            if any(
+                overload.get_volatility(schema) == ql_ft.Volatility.Modifying
+                for overload in overloads
+            ):
+                raise errors.SchemaDefinitionError(
+                    f"cannot overload an existing modifying function: "
+                    f"'{func.get_shortname(schema)}'",
+                    span=self.span,
+                )
+
             body = self.compile_edgeql_overloaded_function_body(
-                func, ov, ov_param_idx, schema, context)
+                func, overloads, ov_param_idx, schema, context
+            )
             replace = True
         else:
             sql_res = compiler.compile_ir_to_sql_tree(
-                nativecode.irast,
+                compiled_expr.irast,
                 ignore_shapes=True,
                 explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
                     schema, func.get_return_type(schema), cache=None),
@@ -1533,11 +1561,13 @@ class FunctionCommand(MetaCommand):
         else:
             func_language = func.get_language(schema)
 
+            dbf: Optional[dbops.Function]
             if func_language is ql_ast.Language.SQL:
                 dbf = self.compile_sql_function(func, schema)
             elif func_language is ql_ast.Language.EdgeQL:
                 dbf, overload_replace = self.compile_edgeql_function(
-                    func, schema, context)
+                    func, schema, context
+                )
                 if overload_replace:
                     or_replace = True
             else:
@@ -1548,8 +1578,9 @@ class FunctionCommand(MetaCommand):
 
             ops: list[dbops.Command] = []
 
-            ops.append(dbops.CreateFunction(dbf, or_replace=or_replace))
-            self.maybe_trampoline(dbf, context)
+            if dbf is not None:
+                ops.append(dbops.CreateFunction(dbf, or_replace=or_replace))
+                self.maybe_trampoline(dbf, context)
             return ops
 
 
@@ -1610,20 +1641,24 @@ class DeleteFunction(FunctionCommand, adapts=s_funcs.DeleteFunction):
             overload = False
             if nativecode and func.find_object_param_overloads(schema):
                 dbf, overload_replace = self.compile_edgeql_function(
-                    func, schema, context)
-                if overload_replace:
+                    func, schema, context
+                )
+                if dbf is not None and overload_replace:
                     self.pgops.add(dbops.CreateFunction(dbf, or_replace=True))
                     overload = True
 
             if not overload:
                 variadic = func.get_params(schema).find_variadic(schema)
-                self.pgops.add(
-                    dbops.DropFunction(
-                        name=self.get_pgname(func, schema),
-                        args=self.compile_args(func, schema),
-                        has_variadic=variadic is not None,
+                if func.get_volatility(schema) != ql_ft.Volatility.Modifying:
+                    # Modifying functions are not compiled.
+                    # See: compile_edgeql_function
+                    self.pgops.add(
+                        dbops.DropFunction(
+                            name=self.get_pgname(func, schema),
+                            args=self.compile_args(func, schema),
+                            has_variadic=variadic is not None,
+                        )
                     )
-                )
 
         return super().apply(schema, context)
 
@@ -2786,7 +2821,12 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
 
         # do an apply of the schema-level command to force it to canonicalize,
         # which prunes out duplicate deletions
+        #
+        # HACK: Clear out the context's stack so that
+        # context.canonical is false while doing this.
+        stack, context.stack = context.stack, []
         cmd.apply(schema, context)
+        context.stack = stack
 
         for sub in cmd.get_subcommands():
             acmd2 = CommandMeta.adapt(sub)
@@ -2913,7 +2953,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         return schema
 
 
-def drop_dependant_func_cache(pg_type: Tuple[str, ...]) -> dbops.Query:
+def drop_dependant_func_cache(pg_type: Tuple[str, ...]) -> dbops.PLQuery:
     if len(pg_type) == 1:
         types_cte = f'''
                     SELECT
@@ -2940,7 +2980,6 @@ def drop_dependant_func_cache(pg_type: Tuple[str, ...]) -> dbops.Query:
                         )\
         '''
     drop_func_cache_sql = textwrap.dedent(f'''
-        DO $$
         DECLARE
             qc RECORD;
         BEGIN
@@ -2974,9 +3013,9 @@ def drop_dependant_func_cache(pg_type: Tuple[str, ...]) -> dbops.Query:
             LOOP
                 PERFORM edgedb_VER."_evict_query_cache"(qc.key);
             END LOOP;
-        END $$;
+        END;
     ''')
-    return dbops.Query(drop_func_cache_sql)
+    return dbops.PLQuery(drop_func_cache_sql)
 
 
 class DeleteScalarType(ScalarTypeMetaCommand,
@@ -5358,10 +5397,10 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
 
         id = sn.QualName(
             module=prop.get_name(schema).module, name=str(prop.id))
-        index_name = common.convert_name(id, 'idx0', catenate=True)
+        index_name = common.convert_name(id, 'idx0', catenate=False)
 
         pg_index = dbops.Index(
-            name=index_name, table_name=new_table_name,
+            name=index_name[1], table_name=new_table_name,
             unique=False, columns=[src_col],
             metadata={'code': DEFAULT_INDEX_CODE},
         )
@@ -6021,14 +6060,14 @@ class UpdateEndpointDeleteActions(MetaCommand):
                                     || linkname || ' of ' || endname || ' ('
                                     || srcid || ').';
                     END IF;
-                ''')).format(
+                '''.format(
                     tables=tables,
                     id='id',
                     tgtname=target.get_displayname(schema),
                     near_endpoint=near_endpoint,
                     far_endpoint=far_endpoint,
                     prefix=prefix,
-                )
+                )))
 
                 chunks.append(text)
 
@@ -6252,14 +6291,14 @@ class UpdateEndpointDeleteActions(MetaCommand):
                                     || linkname || ' of ' || endname || ' ('
                                     || srcid || ').';
                     END IF;
-                ''')).format(
+                '''.format(
                     tables=tables,
                     id='id',
                     tgtname=target.get_displayname(schema),
                     near_endpoint=near_endpoint,
                     far_endpoint=far_endpoint,
                     prefix=prefix,
-                )
+                )))
 
                 chunks.append(text)
 

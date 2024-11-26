@@ -1,0 +1,96 @@
+-- test old extension version entry points
+CREATE EXTENSION edb_stat_statements WITH VERSION '1.0';
+SELECT pg_get_functiondef('edb_stat_statements_info'::regproc);
+                                                    pg_get_functiondef                                                    
+--------------------------------------------------------------------------------------------------------------------------
+ CREATE OR REPLACE FUNCTION public.edb_stat_statements_info(OUT dealloc bigint, OUT stats_reset timestamp with time zone)+
+  RETURNS record                                                                                                         +
+  LANGUAGE c                                                                                                             +
+  PARALLEL SAFE STRICT                                                                                                   +
+ AS '$libdir/edb_stat_statements', $function$edb_stat_statements_info$function$                                          +
+ 
+(1 row)
+
+SELECT pg_get_functiondef('edb_stat_statements_reset'::regproc);
+                                                                               pg_get_functiondef                                                                                
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ CREATE OR REPLACE FUNCTION public.edb_stat_statements_reset(userid oid DEFAULT 0, dbids oid[] DEFAULT '{}'::oid[], queryid bigint DEFAULT 0, minmax_only boolean DEFAULT false)+
+  RETURNS timestamp with time zone                                                                                                                                              +
+  LANGUAGE c                                                                                                                                                                    +
+  PARALLEL SAFE STRICT                                                                                                                                                          +
+ AS '$libdir/edb_stat_statements', $function$edb_stat_statements_reset$function$                                                                                                +
+ 
+(1 row)
+
+SELECT edb_stat_statements_reset() IS NOT NULL AS t;
+ t 
+---
+ t
+(1 row)
+
+\d edb_stat_statements
+                           View "public.edb_stat_statements"
+           Column           |           Type           | Collation | Nullable | Default 
+----------------------------+--------------------------+-----------+----------+---------
+ userid                     | oid                      |           |          | 
+ dbid                       | oid                      |           |          | 
+ toplevel                   | boolean                  |           |          | 
+ queryid                    | bigint                   |           |          | 
+ query                      | text                     |           |          | 
+ extras                     | jsonb                    |           |          | 
+ id                         | uuid                     |           |          | 
+ stmt_type                  | smallint                 |           |          | 
+ plans                      | bigint                   |           |          | 
+ total_plan_time            | double precision         |           |          | 
+ min_plan_time              | double precision         |           |          | 
+ max_plan_time              | double precision         |           |          | 
+ mean_plan_time             | double precision         |           |          | 
+ stddev_plan_time           | double precision         |           |          | 
+ calls                      | bigint                   |           |          | 
+ total_exec_time            | double precision         |           |          | 
+ min_exec_time              | double precision         |           |          | 
+ max_exec_time              | double precision         |           |          | 
+ mean_exec_time             | double precision         |           |          | 
+ stddev_exec_time           | double precision         |           |          | 
+ rows                       | bigint                   |           |          | 
+ shared_blks_hit            | bigint                   |           |          | 
+ shared_blks_read           | bigint                   |           |          | 
+ shared_blks_dirtied        | bigint                   |           |          | 
+ shared_blks_written        | bigint                   |           |          | 
+ local_blks_hit             | bigint                   |           |          | 
+ local_blks_read            | bigint                   |           |          | 
+ local_blks_dirtied         | bigint                   |           |          | 
+ local_blks_written         | bigint                   |           |          | 
+ temp_blks_read             | bigint                   |           |          | 
+ temp_blks_written          | bigint                   |           |          | 
+ shared_blk_read_time       | double precision         |           |          | 
+ shared_blk_write_time      | double precision         |           |          | 
+ local_blk_read_time        | double precision         |           |          | 
+ local_blk_write_time       | double precision         |           |          | 
+ temp_blk_read_time         | double precision         |           |          | 
+ temp_blk_write_time        | double precision         |           |          | 
+ wal_records                | bigint                   |           |          | 
+ wal_fpi                    | bigint                   |           |          | 
+ wal_bytes                  | numeric                  |           |          | 
+ jit_functions              | bigint                   |           |          | 
+ jit_generation_time        | double precision         |           |          | 
+ jit_inlining_count         | bigint                   |           |          | 
+ jit_inlining_time          | double precision         |           |          | 
+ jit_optimization_count     | bigint                   |           |          | 
+ jit_optimization_time      | double precision         |           |          | 
+ jit_emission_count         | bigint                   |           |          | 
+ jit_emission_time          | double precision         |           |          | 
+ jit_deform_count           | bigint                   |           |          | 
+ jit_deform_time            | double precision         |           |          | 
+ parallel_workers_to_launch | bigint                   |           |          | 
+ parallel_workers_launched  | bigint                   |           |          | 
+ stats_since                | timestamp with time zone |           |          | 
+ minmax_stats_since         | timestamp with time zone |           |          | 
+
+SELECT count(*) > 0 AS has_data FROM edb_stat_statements;
+ has_data 
+----------
+ t
+(1 row)
+
+DROP EXTENSION edb_stat_statements;

@@ -17,7 +17,7 @@
 #
 
 
-"""Database structure and objects supporting EdgeDB metadata."""
+"""Database structure and objects supporting Gel metadata."""
 
 from __future__ import annotations
 from typing import (
@@ -32,6 +32,7 @@ from typing import (
     cast,
 )
 
+import json
 import re
 
 import edb._edgeql_parser as ql_parser
@@ -57,6 +58,7 @@ from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import properties as s_props
+from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
@@ -105,13 +107,13 @@ class PGConnection(Protocol):
 
     async def sql_execute(
         self,
-        sql: bytes | tuple[bytes, ...],
+        sql: bytes,
     ) -> None:
         ...
 
     async def sql_fetch(
         self,
-        sql: bytes | tuple[bytes, ...],
+        sql: bytes,
         *,
         args: tuple[bytes, ...] | list[bytes] = (),
     ) -> list[tuple[bytes, ...]]:
@@ -1356,7 +1358,7 @@ class GetStdModulesFunction(trampoline.VersionedFunction):
 
 
 class GetObjectMetadata(trampoline.VersionedFunction):
-    """Return EdgeDB metadata associated with a backend object."""
+    """Return Gel metadata associated with a backend object."""
     text = '''
         SELECT
             CASE WHEN substr(d, 1, char_length({prefix})) = {prefix}
@@ -1379,7 +1381,7 @@ class GetObjectMetadata(trampoline.VersionedFunction):
 
 
 class GetColumnMetadata(trampoline.VersionedFunction):
-    """Return EdgeDB metadata associated with a backend object."""
+    """Return Gel metadata associated with a backend object."""
     text = '''
         SELECT
             CASE WHEN substr(d, 1, char_length({prefix})) = {prefix}
@@ -1402,7 +1404,7 @@ class GetColumnMetadata(trampoline.VersionedFunction):
 
 
 class GetSharedObjectMetadata(trampoline.VersionedFunction):
-    """Return EdgeDB metadata associated with a backend object."""
+    """Return Gel metadata associated with a backend object."""
     text = '''
         SELECT
             CASE WHEN substr(d, 1, char_length({prefix})) = {prefix}
@@ -1425,7 +1427,7 @@ class GetSharedObjectMetadata(trampoline.VersionedFunction):
 
 
 class GetDatabaseMetadataFunction(trampoline.VersionedFunction):
-    """Return EdgeDB metadata associated with a given database."""
+    """Return Gel metadata associated with a given database."""
     text = f'''
         SELECT
             CASE
@@ -1493,6 +1495,83 @@ class GetCurrentDatabaseFunction(trampoline.VersionedFunction):
             returns=('text',),
             language='sql',
             volatility='stable',
+            text=self.text,
+        )
+
+
+class RaiseNoticeFunction(trampoline.VersionedFunction):
+    text = '''
+    BEGIN
+        RAISE NOTICE USING
+            MESSAGE = "msg",
+            DETAIL = COALESCE("detail", ''),
+            HINT = COALESCE("hint", ''),
+            COLUMN = COALESCE("column", ''),
+            CONSTRAINT = COALESCE("constraint", ''),
+            DATATYPE = COALESCE("datatype", ''),
+            TABLE = COALESCE("table", ''),
+            SCHEMA = COALESCE("schema", '');
+        RETURN "rtype";
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'notice'),
+            args=[
+                ('rtype', ('anyelement',)),
+                ('msg', ('text',), "''"),
+                ('detail', ('text',), "''"),
+                ('hint', ('text',), "''"),
+                ('column', ('text',), "''"),
+                ('constraint', ('text',), "''"),
+                ('datatype', ('text',), "''"),
+                ('table', ('text',), "''"),
+                ('schema', ('text',), "''"),
+            ],
+            returns=('anyelement',),
+            # NOTE: The main reason why we don't want this function to be
+            # immutable is that immutable functions can be
+            # pre-evaluated by the query planner once if they have
+            # constant arguments. This means that using this function
+            # as the second argument in a COALESCE will raise a
+            # notice regardless of whether the first argument is
+            # NULL or not.
+            volatility='stable',
+            language='plpgsql',
+            text=self.text,
+        )
+
+
+# edgedb.indirect_return() to be used to return values from
+# anonymous code blocks or other contexts that have no return
+# data channel.
+class IndirectReturnFunction(trampoline.VersionedFunction):
+    text = """
+    SELECT
+        edgedb_VER.notice(
+            NULL::text,
+            msg => 'edb:notice:indirect_return',
+            detail => "value"
+        )
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'indirect_return'),
+            args=[
+                ('value', ('text',)),
+            ],
+            returns=('text',),
+            # NOTE: The main reason why we don't want this function to be
+            # immutable is that immutable functions can be
+            # pre-evaluated by the query planner once if they have
+            # constant arguments. This means that using this function
+            # as the second argument in a COALESCE will raise a
+            # notice regardless of whether the first argument is
+            # NULL or not.
+            volatility='stable',
+            language='sql',
             text=self.text,
         )
 
@@ -3992,9 +4071,9 @@ class ResetSessionConfigFunction(trampoline.VersionedFunction):
 
 
 class ApplySessionConfigFunction(trampoline.VersionedFunction):
-    """Apply an EdgeDB config setting to the backend, if possible.
+    """Apply an Gel config setting to the backend, if possible.
 
-    The function accepts any EdgeDB config name/value pair. If this
+    The function accepts any Gel config name/value pair. If this
     specific config setting happens to be implemented via a backend
     setting, it would be applied to the current PostgreSQL session.
     If the config setting doesn't reflect into a backend setting the
@@ -4093,7 +4172,7 @@ class ApplySessionConfigFunction(trampoline.VersionedFunction):
 
 
 class SysGetTransactionIsolation(trampoline.VersionedFunction):
-    "Get transaction isolation value as text compatible with EdgeDB's enum."
+    "Get transaction isolation value as text compatible with Gel's enum."
     text = r'''
         SELECT
             CASE setting
@@ -4150,7 +4229,7 @@ class GetCachedReflection(trampoline.VersionedFunction):
 
 
 class GetBaseScalarTypeMap(trampoline.VersionedFunction):
-    """Return a map of base EdgeDB scalar type ids to Postgres type names."""
+    """Return a map of base Gel scalar type ids to Postgres type names."""
 
     text = "VALUES" + ", ".join(
         f"({ql(str(k))}::uuid, {qtl(v)})"
@@ -4207,7 +4286,7 @@ class GetTypeToMultiRangeNameMap(trampoline.VersionedFunction):
 
 
 class GetPgTypeForEdgeDBTypeFunction(trampoline.VersionedFunction):
-    """Return Postgres OID representing a given EdgeDB type."""
+    """Return Postgres OID representing a given Gel type."""
 
     text = f'''
         SELECT
@@ -4307,7 +4386,7 @@ class GetPgTypeForEdgeDBTypeFunction(trampoline.VersionedFunction):
                     'invalid_parameter_value',
                     msg => (
                         format(
-                            'cannot determine OID of EdgeDB type %L',
+                            'cannot determine OID of Gel type %L',
                             "typeid"::text
                         )
                     )
@@ -4331,7 +4410,7 @@ class GetPgTypeForEdgeDBTypeFunction(trampoline.VersionedFunction):
 
 
 class GetPgTypeForEdgeDBTypeFunction2(trampoline.VersionedFunction):
-    """Return Postgres OID representing a given EdgeDB type.
+    """Return Postgres OID representing a given Gel type.
 
     This is an updated version that should replace the original. It takes
     advantage of the schema views to correctly identify non-trivial array
@@ -4456,8 +4535,13 @@ class GetPgTypeForEdgeDBTypeFunction2(trampoline.VersionedFunction):
                     'invalid_parameter_value',
                     msg => (
                         format(
-                            'cannot determine OID of EdgeDB type %L',
-                            "typeid"::text
+                            'cannot determine Postgres OID of Gel %s(%L)%s',
+                            "kind",
+                            "typeid"::text,
+                            (case when "elemid" is not null
+                             then ' with element type ' || "elemid"::text
+                             else ''
+                             end)
                         )
                     )
                 )
@@ -4747,53 +4831,6 @@ class FTSToRegconfig(trampoline.VersionedFunction):
         )
 
 
-class FormatTypeFunction(trampoline.VersionedFunction):
-    """Used instead of pg_catalog.format_type in pg_dump."""
-
-    text = r'''
-    SELECT
-        CASE WHEN t.typcategory = 'A'
-        THEN (
-            SELECT
-                quote_ident(nspname) || '.' ||
-                quote_ident(el.typname) || tm.mod || '[]'
-            FROM edgedbsql_VER.pg_namespace
-            WHERE oid = el.typnamespace
-        )
-        ELSE (
-            SELECT
-                quote_ident(nspname) || '.' ||
-                quote_ident(t.typname) || tm.mod
-            FROM edgedbsql_VER.pg_namespace
-            WHERE oid = t.typnamespace
-        )
-        END
-    FROM
-        (
-            SELECT
-                CASE WHEN typemod >= 0
-                THEN '(' || typemod::text || ')'
-                ELSE ''
-                END AS mod
-        ) as tm,
-        edgedbsql_VER.pg_type t
-    LEFT JOIN edgedbsql_VER.pg_type el ON t.typelem = el.oid
-    WHERE t.oid = typeoid
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_format_type'),
-            args=[
-                ('typeoid', ('oid',)),
-                ('typemod', ('integer',)),
-            ],
-            returns=('text',),
-            volatility='stable',
-            text=self.text,
-        )
-
-
 class UuidGenerateV1mcFunction(trampoline.VersionedFunction):
     def __init__(self, ext_schema: str) -> None:
         super().__init__(
@@ -4868,6 +4905,118 @@ class PadBase64StringFunction(trampoline.VersionedFunction):
             strict=True,
             parallel_safe=True,
             text=self.text,
+        )
+
+
+class ResetQueryStatsFunction(trampoline.VersionedFunction):
+    text = r"""
+    DECLARE
+        tenant_id TEXT;
+        other_tenant_exists BOOLEAN;
+        db_oid OID;
+        queryid bigint;
+    BEGIN
+        tenant_id := edgedb_VER.get_backend_tenant_id();
+        IF id IS NULL THEN
+            queryid := 0;
+        ELSE
+            queryid := edgedbext.edb_stat_queryid(id);
+        END IF;
+
+        SELECT EXISTS (
+            SELECT 1
+            FROM
+                pg_database dat
+                CROSS JOIN LATERAL (
+                    SELECT
+                        edgedb_VER.shobj_metadata(dat.oid, 'pg_database')
+                            AS description
+                ) AS d
+            WHERE
+                (d.description)->>'id' IS NOT NULL
+                AND (d.description)->>'tenant_id' != tenant_id
+        ) INTO other_tenant_exists;
+
+        IF branch_name IS NULL THEN
+            IF other_tenant_exists THEN
+                RETURN edgedbext.edb_stat_statements_reset(
+                    0,  -- userid
+                    ARRAY(
+                        SELECT
+                            dat.oid
+                        FROM
+                            pg_database dat
+                            CROSS JOIN LATERAL (
+                                SELECT
+                                    edgedb_VER.shobj_metadata(dat.oid,
+                                                              'pg_database')
+                                        AS description
+                            ) AS d
+                        WHERE
+                            (d.description)->>'id' IS NOT NULL
+                            AND (d.description)->>'tenant_id' = tenant_id
+                    ),
+                    queryid,
+                    COALESCE(minmax_only, false)
+                );
+            ELSE
+                RETURN edgedbext.edb_stat_statements_reset(
+                    0,  -- userid
+                    '{}',  -- database oid
+                    queryid,
+                    COALESCE(minmax_only, false)
+                );
+            END IF;
+        ELSE
+            SELECT
+                dat.oid INTO db_oid
+            FROM
+                pg_database dat
+                CROSS JOIN LATERAL (
+                    SELECT
+                        edgedb_VER.shobj_metadata(dat.oid, 'pg_database')
+                            AS description
+                ) AS d
+            WHERE
+                (d.description)->>'id' IS NOT NULL
+                AND (d.description)->>'tenant_id' = tenant_id
+                AND edgedb_VER.get_database_frontend_name(dat.datname) =
+                    branch_name;
+
+            IF db_oid IS NULL THEN
+                RETURN NULL::edgedbt.timestamptz_t;
+            END IF;
+
+            RETURN edgedbext.edb_stat_statements_reset(
+                0,  -- userid
+                ARRAY[db_oid],
+                queryid,
+                COALESCE(minmax_only, false)
+            );
+        END IF;
+
+        RETURN now()::edgedbt.timestamptz_t;
+    END;
+    """
+
+    noop_text = r"""
+        BEGIN
+        RETURN NULL::edgedbt.timestamptz_t;
+        END;
+    """
+
+    def __init__(self, enable_stats: bool) -> None:
+        super().__init__(
+            name=('edgedb', 'reset_query_stats'),
+            args=[
+                ('branch_name', ('text',)),
+                ('id', ('uuid',)),
+                ('minmax_only', ('bool',)),
+            ],
+            returns=('edgedbt', 'timestamptz_t'),
+            volatility='volatile',
+            language='plpgsql',
+            text=self.text if enable_stats else self.noop_text,
         )
 
 
@@ -5022,6 +5171,8 @@ def get_bootstrap_commands(
         dbops.CreateFunction(GetSharedObjectMetadata()),
         dbops.CreateFunction(GetDatabaseMetadataFunction()),
         dbops.CreateFunction(GetCurrentDatabaseFunction()),
+        dbops.CreateFunction(RaiseNoticeFunction()),
+        dbops.CreateFunction(IndirectReturnFunction()),
         dbops.CreateFunction(RaiseExceptionFunction()),
         dbops.CreateFunction(RaiseExceptionOnNullFunction()),
         dbops.CreateFunction(RaiseExceptionOnNotNullFunction()),
@@ -5094,6 +5245,7 @@ def get_bootstrap_commands(
         dbops.CreateFunction(FTSNormalizeDocFunction()),
         dbops.CreateFunction(FTSToRegconfig()),
         dbops.CreateFunction(PadBase64StringFunction()),
+        dbops.CreateFunction(ResetQueryStatsFunction(False)),
     ]
 
     commands = dbops.CommandGroup()
@@ -5115,15 +5267,19 @@ async def create_pg_extensions(
     commands.add_command(
         dbops.CreateSchema(name=ext_schema, conditional=True),
     )
-    if (
-        inst_params.existing_exts is None
-        or inst_params.existing_exts.get("uuid-ossp") is None
-    ):
-        commands.add_commands([
-            dbops.CreateExtension(
-                dbops.Extension(name='uuid-ossp', schema=ext_schema),
-            ),
-        ])
+    extensions = ["uuid-ossp"]
+    if backend_params.has_stat_statements:
+        extensions.append("edb_stat_statements")
+    for ext in extensions:
+        if (
+            inst_params.existing_exts is None
+            or inst_params.existing_exts.get(ext) is None
+        ):
+            commands.add_commands([
+                dbops.CreateExtension(
+                    dbops.Extension(name=ext, schema=ext_schema),
+                ),
+            ])
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
@@ -5820,6 +5976,109 @@ def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
     return views
 
 
+def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
+    QueryStats = schema.get(
+        'sys::QueryStats',
+        type=s_objtypes.ObjectType,
+    )
+    pvd = common.get_backend_name(
+        schema,
+        QueryStats
+            .getptr(schema, s_name.UnqualName("protocol_version"))
+            .get_target(schema)  # type: ignore
+    )
+    QueryType = schema.get(
+        'sys::QueryType',
+        type=s_scalars.ScalarType,
+    )
+    query_type_domain = common.get_backend_name(schema, QueryType)
+    type_mapping = {
+        str(v): k for k, v in defines.QueryType.__members__.items()
+    }
+    output_format_domain = common.get_backend_name(
+        schema, schema.get('sys::OutputFormat', type=s_scalars.ScalarType)
+    )
+
+    def float64_to_duration_t(val: str) -> str:
+        return f"({val} * interval '1ms')::edgedbt.duration_t"
+
+    query_stats_fields = {
+        'id': "s.id",
+        'name': "s.id::text",
+        'name__internal': "s.queryid::text",
+        'builtin': "false",
+        'internal': "false",
+        'computed_fields': 'ARRAY[]::text[]',
+
+        'compilation_config': "s.extras->'cc'",
+        'protocol_version': f"ROW(s.extras->'pv'->0, s.extras->'pv'->1)::{pvd}",
+        'default_namespace': "s.extras->>'dn'",
+        'namespace_aliases': "s.extras->'na'",
+        'output_format': f"(s.extras->>'of')::{output_format_domain}",
+        'expect_one': "(s.extras->'e1')::boolean",
+        'implicit_limit': "(s.extras->'il')::bigint",
+        'inline_typeids': "(s.extras->'ii')::boolean",
+        'inline_typenames': "(s.extras->'in')::boolean",
+        'inline_objectids': "(s.extras->'io')::boolean",
+
+        'branch': "((d.description)->>'id')::uuid",
+        'query': "s.query",
+        'query_type': f"(t.mapping->>s.stmt_type::text)::{query_type_domain}",
+
+        'plans': 's.plans',
+        'total_plan_time': float64_to_duration_t('s.total_plan_time'),
+        'min_plan_time': float64_to_duration_t('s.min_plan_time'),
+        'max_plan_time': float64_to_duration_t('s.max_plan_time'),
+        'mean_plan_time': float64_to_duration_t('s.mean_plan_time'),
+        'stddev_plan_time': float64_to_duration_t('s.stddev_plan_time'),
+
+        'calls': 's.calls',
+        'total_exec_time': float64_to_duration_t('s.total_exec_time'),
+        'min_exec_time': float64_to_duration_t('s.min_exec_time'),
+        'max_exec_time': float64_to_duration_t('s.max_exec_time'),
+        'mean_exec_time': float64_to_duration_t('s.mean_exec_time'),
+        'stddev_exec_time': float64_to_duration_t('s.stddev_exec_time'),
+
+        'rows': 's.rows',
+        'stats_since': 's.stats_since::edgedbt.timestamptz_t',
+        'minmax_stats_since': 's.minmax_stats_since::edgedbt.timestamptz_t',
+    }
+
+    query_stats_query = fr'''
+        SELECT
+            {format_fields(schema, QueryStats, query_stats_fields)}
+        FROM
+            edgedbext.edb_stat_statements AS s
+            INNER JOIN pg_database dat ON s.dbid = dat.oid
+            CROSS JOIN LATERAL (
+                SELECT
+                    edgedb_VER.shobj_metadata(dat.oid, 'pg_database')
+                        AS description
+            ) AS d
+            CROSS JOIN LATERAL (
+                SELECT {ql(json.dumps(type_mapping))}::jsonb AS mapping
+            ) AS t
+        WHERE
+            s.id IS NOT NULL
+            AND (d.description)->>'id' IS NOT NULL
+            AND (d.description)->>'tenant_id'
+                = edgedb_VER.get_backend_tenant_id()
+            AND t.mapping ? s.stmt_type::text
+    '''
+
+    objects = {
+        QueryStats: query_stats_query,
+    }
+
+    views: list[dbops.View] = []
+    for obj, query in objects.items():
+        tabview = trampoline.VersionedView(
+            name=tabname(schema, obj), query=query)
+        views.append(tabview)
+
+    return views
+
+
 def _make_json_caster(
     schema: s_schema.Schema,
     stype: s_types.Type,
@@ -5900,9 +6159,9 @@ def _schema_alias_view_name(
     return ('edgedb', name)
 
 
-def _generate_sql_information_schema() -> List[dbops.Command]:
-
-    system_columns = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
+def _generate_sql_information_schema(
+    backend_version: params.BackendVersion
+) -> List[dbops.Command]:
 
     # A helper view that contains all data tables we expose over SQL, excluding
     # introspection tables.
@@ -5961,7 +6220,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             schema_name,
             table_name,
             sm.id AS module_id,
-            pt.oid AS backend_id
+            pt.oid AS pg_type_id
         FROM all_tables at
         JOIN edgedb_VER."_SchemaModule" sm ON sm.name = at.module_name
         LEFT JOIN pg_type pt ON pt.typname = at.id::text
@@ -6017,11 +6276,11 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         volatility='stable',
         text=r'''
             SELECT COALESCE (
-                -- is the nmae in virtual_tables?
+                -- is the name in virtual_tables?
                 (
                     SELECT vt.table_name::name
                     FROM edgedbsql_VER.virtual_tables vt
-                    WHERE vt.backend_id = typeoid
+                    WHERE vt.pg_type_id = typeoid
                 ),
                 -- is this a scalar or tuple?
                 (
@@ -6068,7 +6327,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 (
                     SELECT edgedbsql_VER.uuid_to_oid(vt.module_id)
                     FROM edgedbsql_VER.virtual_tables vt
-                    WHERE vt.backend_id = typeoid
+                    WHERE vt.pg_type_id = typeoid
                 ),
                 -- just replace "edgedbpub" with "public"
                 (SELECT nsdef.oid WHERE typens = nspub.oid),
@@ -6321,95 +6580,21 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         """.format(
                 ",".join(
                     f"pt.{col}"
-                    for col, _ in sql_introspection.PG_CATALOG["pg_type"][3:]
+                    for col, _, _ in sql_introspection.PG_CATALOG["pg_type"][3:]
                 )
             ),
         ),
-        # TODO: Should we try to filter here, and fix up some stuff
-        # elsewhere, instead of overriding pg_get_constraintdef?
+        # pg_class that contains classes only for tables
+        # This is needed so we can use it to filter pg_index to indexes only on
+        # visible tables.
         trampoline.VersionedView(
-            name=("edgedbsql", "pg_constraint"),
+            name=("edgedbsql", "pg_class_tables"),
             query="""
-        SELECT
-            pc.*,
-            pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
-        FROM pg_constraint pc
-        JOIN pg_namespace pn ON pc.connamespace = pn.oid
-        WHERE NOT (pn.nspname = 'edgedbpub' AND pc.conbin IS NOT NULL)
-        """
-        ),
-        trampoline.VersionedView(
-            name=("edgedbsql", "pg_index"),
-            query="""
-        SELECT pi.*, pi.tableoid, pi.xmin, pi.cmin, pi.xmax, pi.cmax, pi.ctid
-        FROM pg_index pi
-        LEFT JOIN pg_class pr ON pi.indrelid = pr.oid
-        LEFT JOIN pg_catalog.pg_namespace pn ON pr.relnamespace = pn.oid
-        WHERE pn.nspname <> 'edgedbpub'
-        """,
-        ),
-        trampoline.VersionedView(
-            name=("edgedbsql", "pg_class"),
-            query="""
-        WITH
-            nsdef AS (
-                SELECT edgedbsql_VER.uuid_to_oid(id) AS oid
-                FROM edgedb_VER."_SchemaModule"
-                WHERE name = 'default'
-            )
         -- Postgres tables
         SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
         FROM pg_class pc
         JOIN pg_namespace pn ON pc.relnamespace = pn.oid
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
-
-        UNION ALL
-
-        -- get all the tuples
-        SELECT
-            pc.oid,
-            edgedbsql_VER._long_name(pc.reltype::text, tup.name) as relname,
-            nsdef.oid as relnamespace,
-            pc.reltype,
-            pc.reloftype,
-            pc.relowner,
-            pc.relam,
-            pc.relfilenode,
-            pc.reltablespace,
-            pc.relpages,
-            pc.reltuples,
-            pc.relallvisible,
-            pc.reltoastrelid,
-            pc.relhasindex,
-            pc.relisshared,
-            pc.relpersistence,
-            pc.relkind,
-            pc.relnatts,
-            0 as relchecks, -- don't care about CHECK constraints
-            pc.relhasrules,
-            pc.relhastriggers,
-            pc.relhassubclass,
-            pc.relrowsecurity,
-            pc.relforcerowsecurity,
-            pc.relispopulated,
-            pc.relreplident,
-            pc.relispartition,
-            pc.relrewrite,
-            pc.relfrozenxid,
-            pc.relminmxid,
-            pc.relacl,
-            pc.reloptions,
-            pc.relpartbound,
-            pc.tableoid,
-            pc.xmin,
-            pc.cmin,
-            pc.xmax,
-            pc.cmax,
-            pc.ctid
-        FROM
-            nsdef,
-            pg_class pc
-        JOIN edgedb_VER."_SchemaTuple" tup ON tup.backend_id = pc.reltype
 
         UNION ALL
 
@@ -6455,14 +6640,130 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             pc.cmax,
             pc.ctid
         FROM pg_class pc
-        JOIN edgedbsql_VER.virtual_tables vt ON vt.backend_id = pc.reltype
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pc.reltype
+        """,
+        ),
+        trampoline.VersionedView(
+            name=("edgedbsql", "pg_index"),
+            query=f"""
+        SELECT
+            pi.indexrelid,
+            pi.indrelid,
+            pi.indnatts,
+            pi.indnkeyatts,
+            CASE
+                WHEN COALESCE(is_id.t, FALSE) THEN TRUE
+                ELSE pi.indisprimary
+            END AS indisunique,
+            {'pi.indnullsnotdistinct,' if backend_version.major >= 15 else ''}
+            CASE
+                WHEN COALESCE(is_id.t, FALSE) THEN TRUE
+                ELSE pi.indisprimary
+            END AS indisprimary,
+            pi.indisexclusion,
+            pi.indimmediate,
+            pi.indisclustered,
+            pi.indisvalid,
+            pi.indcheckxmin,
+            CASE
+                WHEN COALESCE(is_id.t, FALSE) THEN TRUE
+                ELSE FALSE -- override so pg_dump won't try to recreate them
+            END AS indisready,
+            pi.indislive,
+            pi.indisreplident,
+            CASE
+                WHEN COALESCE(is_id.t, FALSE) THEN ARRAY[1]::int2vector -- id: 1
+                ELSE pi.indkey
+            END AS indkey,
+            pi.indcollation,
+            pi.indclass,
+            pi.indoption,
+            pi.indexprs,
+            pi.indpred,
+            pi.tableoid, pi.xmin, pi.cmin, pi.xmax, pi.cmax, pi.ctid
+        FROM pg_index pi
+
+        -- filter by tables visible in pg_class
+        INNER JOIN edgedbsql_VER.pg_class_tables pr ON pi.indrelid = pr.oid
+
+        -- find indexes that are on virtual tables and on `id` columns
+        LEFT JOIN LATERAL (
+            SELECT TRUE AS t
+            FROM pg_attribute pa
+            WHERE pa.attrelid = pi.indrelid
+              AND pa.attnum = ANY(pi.indkey)
+              AND pa.attname = 'id'
+        ) is_id ON TRUE
+
+        -- for our tables show only primary key indexes
+        LEFT JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pr.reltype
+        WHERE vt.id IS NULL OR is_id.t IS NOT NULL
+        """,
+        ),
+        trampoline.VersionedView(
+            name=("edgedbsql", "pg_class"),
+            query="""
+        -- tables
+        SELECT pc.*
+        FROM edgedbsql_VER.pg_class_tables pc
 
         UNION
 
         -- indexes
         SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
         FROM pg_class pc
-        JOIN edgedbsql_VER.pg_index pi ON pc.oid = pi.indexrelid
+        JOIN pg_index pi ON pc.oid = pi.indexrelid
+
+        UNION
+
+        -- compound types (tuples)
+        SELECT
+            pc.oid,
+            edgedbsql_VER._long_name(pc.reltype::text, tup.name) as relname,
+            nsdef.oid as relnamespace,
+            pc.reltype,
+            pc.reloftype,
+            pc.relowner,
+            pc.relam,
+            pc.relfilenode,
+            pc.reltablespace,
+            pc.relpages,
+            pc.reltuples,
+            pc.relallvisible,
+            pc.reltoastrelid,
+            pc.relhasindex,
+            pc.relisshared,
+            pc.relpersistence,
+            pc.relkind,
+            pc.relnatts,
+            0 as relchecks, -- don't care about CHECK constraints
+            pc.relhasrules,
+            pc.relhastriggers,
+            pc.relhassubclass,
+            pc.relrowsecurity,
+            pc.relforcerowsecurity,
+            pc.relispopulated,
+            pc.relreplident,
+            pc.relispartition,
+            pc.relrewrite,
+            pc.relfrozenxid,
+            pc.relminmxid,
+            pc.relacl,
+            pc.reloptions,
+            pc.relpartbound,
+            pc.tableoid,
+            pc.xmin,
+            pc.cmin,
+            pc.xmax,
+            pc.cmax,
+            pc.ctid
+        FROM pg_class pc
+        JOIN edgedb_VER."_SchemaTuple" tup ON tup.backend_id = pc.reltype
+        JOIN (
+            SELECT edgedbsql_VER.uuid_to_oid(id) AS oid
+            FROM edgedb_VER."_SchemaModule"
+            WHERE name = 'default'
+        ) nsdef ON TRUE
         """,
         ),
 
@@ -6565,7 +6866,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
 
         FROM edgedb_VER."_SchemaPointer" sp
         JOIN edgedbsql_VER.virtual_tables vt ON vt.id = sp.source
-        JOIN pg_class pc ON pc.reltype = vt.backend_id
+        JOIN pg_class pc ON pc.reltype = vt.pg_type_id
 
         -- try to find existing pg_attribute (it will not exist for computeds)
         LEFT JOIN pg_attribute pa ON (
@@ -6603,12 +6904,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             pa.attrelid as pc_oid,
             pa.*,
             pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
-        FROM edgedb_VER."_SchemaPointer" sp
+        FROM edgedb_VER."_SchemaProperty" sp
         JOIN pg_class pc ON pc.relname = sp.id::TEXT
         JOIN pg_attribute pa ON pa.attrelid = pc.oid
-
-        -- needed for filtering out links
-        LEFT JOIN edgedb_VER."_SchemaLink" sl ON sl.id = sp.id
 
         -- positions for special pointers
         JOIN (
@@ -6617,8 +6915,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         ) spec(k, position) ON (spec.k = pa.attname)
 
         WHERE
-            sl.id IS NULL -- property (non-link)
-            AND sp.cardinality = 'Many' -- multi
+            sp.cardinality = 'Many' -- multi
             AND sp.expr IS NULL -- non-computed
 
         UNION ALL
@@ -6633,7 +6930,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
         FROM pg_attribute pa
         JOIN pg_class pc ON pc.oid = pa.attrelid
-        JOIN edgedbsql_VER.virtual_tables vt ON vt.backend_id = pc.reltype
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pc.reltype
         WHERE pa.attnum < 0
         ) t
         """,
@@ -6729,6 +7026,164 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE FALSE
         """,
+        ),
+        trampoline.VersionedView(
+            name=("edgedbsql", "pg_constraint"),
+            query=r"""
+        -- primary keys for:
+        --  - objects tables (that contains id)
+        --  - link tables (that contains source and target)
+        -- there exists a unique constraint for each of these
+        SELECT
+          pc.oid,
+          vt.table_name || '_pk' AS conname,
+          pc.connamespace,
+          'p'::"char" AS contype,
+          pc.condeferrable,
+          pc.condeferred,
+          pc.convalidated,
+          pc.conrelid,
+          pc.contypid,
+          pc.conindid,
+          pc.conparentid,
+          NULL::oid AS confrelid,
+          NULL::"char" AS confupdtype,
+          NULL::"char" AS confdeltype,
+          NULL::"char" AS confmatchtype,
+          pc.conislocal,
+          pc.coninhcount,
+          pc.connoinherit,
+          CASE WHEN pa.attname = 'id'
+            THEN ARRAY[1]::int2[] -- id will always have attnum 1
+            ELSE ARRAY[1, 2]::int2[] -- source and target
+          END AS conkey,
+          NULL::int2[] AS confkey,
+          NULL::oid[] AS conpfeqop,
+          NULL::oid[] AS conppeqop,
+          NULL::oid[] AS conffeqop,
+          NULL::int2[] AS confdelsetcols,
+          NULL::oid[] AS conexclop,
+          pc.conbin,
+          pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
+        FROM pg_constraint pc
+        JOIN edgedbsql_VER.pg_class_tables pct ON pct.oid = pc.conrelid
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pct.reltype
+        JOIN pg_attribute pa
+          ON (pa.attrelid = pct.oid
+              AND pa.attnum = ANY(conkey)
+              AND pa.attname IN ('id', 'source')
+             )
+        WHERE contype = 'u' -- our ids and all links will have unique constraint
+
+        UNION ALL
+
+        -- foreign keys for object tables
+        SELECT
+          edgedbsql_VER.uuid_to_oid(sl.id) as oid,
+          vt.table_name || '_fk_' || sl.name AS conname,
+          edgedbsql_VER.uuid_to_oid(vt.module_id) AS connamespace,
+          'f'::"char" AS contype,
+          FALSE AS condeferrable,
+          FALSE AS condeferred,
+          TRUE AS convalidated,
+          pc.oid AS conrelid,
+          0::oid AS contypid,
+          0::oid AS conindid, -- let's hope this is not needed
+          0::oid AS conparentid,
+          pc_target.oid AS confrelid,
+          'a'::"char" AS confupdtype,
+          'a'::"char" AS confdeltype,
+          's'::"char" AS confmatchtype,
+          TRUE AS conislocal,
+          0::int2 AS coninhcount,
+          TRUE AS connoinherit,
+          ARRAY[pa.attnum]::int2[] AS conkey,
+          ARRAY[1]::int2[] AS confkey, -- id will always have attnum 1
+          ARRAY['uuid_eq'::regproc]::oid[] AS conpfeqop,
+          ARRAY['uuid_eq'::regproc]::oid[] AS conppeqop,
+          ARRAY['uuid_eq'::regproc]::oid[] AS conffeqop,
+          NULL::int2[] AS confdelsetcols,
+          NULL::oid[] AS conexclop,
+          NULL::pg_node_tree AS conbin,
+          pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
+        FROM edgedbsql_VER.virtual_tables vt
+        JOIN pg_class pc ON pc.reltype = vt.pg_type_id
+        JOIN edgedb_VER."_SchemaLink" sl
+          ON sl.source = vt.id -- AND COALESCE(sl.cardinality = 'One', TRUE)
+        JOIN edgedbsql_VER.virtual_tables vt_target
+          ON sl.target = vt_target.id
+        JOIN pg_class pc_target ON pc_target.reltype = vt_target.pg_type_id
+        JOIN edgedbsql_VER.pg_attribute pa
+          ON pa.attrelid = pc.oid
+         AND pa.attname = sl.name || '_id'
+
+        UNION ALL
+
+        -- foreign keys for:
+        -- - multi link tables (source & target),
+        -- - multi property tables (source),
+        -- - single link with link properties (source & target),
+        -- these constraints do not actually exist, so we emulate it entierly
+        SELECT
+            edgedbsql_VER.uuid_to_oid(sp.id) AS oid,
+            vt.table_name || '_fk_' || spec.name AS conname,
+            edgedbsql_VER.uuid_to_oid(vt.module_id) AS connamespace,
+            'f'::"char" AS contype,
+            FALSE AS condeferrable,
+            FALSE AS condeferred,
+            TRUE AS convalidated,
+            pc.oid AS conrelid,
+            pc.reltype AS contypid,
+            0::oid AS conindid, -- TODO
+            0::oid AS conparentid,
+            pcf.oid AS confrelid,
+            'r'::"char" AS confupdtype,
+            'r'::"char" AS confdeltype,
+            's'::"char" AS confmatchtype,
+            TRUE AS conislocal,
+            0::int2 AS coninhcount,
+            TRUE AS connoinherit,
+            ARRAY[spec.attnum]::int2[] AS conkey,
+            ARRAY[1]::int2[] AS confkey,     -- id will have attnum 1
+            ARRAY['uuid_eq'::regproc]::oid[] AS conpfeqop,
+            ARRAY['uuid_eq'::regproc]::oid[] AS conppeqop,
+            ARRAY['uuid_eq'::regproc]::oid[] AS conffeqop,
+            NULL::int2[] AS confdelsetcols,
+            NULL::oid[] AS conexclop,
+            pc.relpartbound AS conbin,
+            pc.tableoid,
+            pc.xmin,
+            pc.cmin,
+            pc.xmax,
+            pc.cmax,
+            pc.ctid
+        FROM edgedb_VER."_SchemaPointer" sp
+
+        -- find links with link properties
+        LEFT JOIN LATERAL (
+            SELECT sl.id
+            FROM edgedb_VER."_SchemaLink" sl
+            LEFT JOIN edgedb_VER."_SchemaProperty" AS slp ON slp.source = sl.id
+            GROUP BY sl.id
+            HAVING COUNT(*) > 2
+        ) link_props ON link_props.id = sp.id
+
+        JOIN pg_class pc ON pc.relname = sp.id::TEXT
+        JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pc.reltype
+
+        -- duplicate each row for source and target
+        JOIN LATERAL (VALUES
+            ('source', 1::int2, sp.source),
+            ('target', 2::int2, sp.target)
+        ) spec(name, attnum, foreign_id) ON TRUE
+        JOIN edgedbsql_VER.virtual_tables vtf ON vtf.id = spec.foreign_id
+        JOIN pg_class pcf ON pcf.reltype = vtf.pg_type_id
+
+        WHERE
+            sp.cardinality = 'Many' OR link_props.id IS NOT NULL
+            AND sp.computable IS NOT TRUE
+            AND sp.internal IS NOT TRUE
+        """
         ),
         trampoline.VersionedView(
             name=("edgedbsql", "pg_statistic"),
@@ -6875,78 +7330,50 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE FALSE
         """,
         ),
+        trampoline.VersionedView(
+            name=("edgedbsql", "pg_tables"),
+            query="""
+        SELECT
+            n.nspname AS schemaname,
+            c.relname AS tablename,
+            pg_get_userbyid(c.relowner) AS tableowner,
+            t.spcname AS tablespace,
+            c.relhasindex AS hasindexes,
+            c.relhasrules AS hasrules,
+            c.relhastriggers AS hastriggers,
+            c.relrowsecurity AS rowsecurity
+        FROM edgedbsql_VER.pg_class c
+        LEFT JOIN edgedbsql_VER.pg_namespace n ON n.oid = c.relnamespace
+        LEFT JOIN pg_tablespace t ON t.oid = c.reltablespace
+        WHERE c.relkind = ANY (ARRAY['r'::"char", 'p'::"char"])
+        """,
+        ),
+        trampoline.VersionedView(
+            name=("edgedbsql", "pg_views"),
+            query="""
+        SELECT
+            n.nspname AS schemaname,
+            c.relname AS viewname,
+            pg_get_userbyid(c.relowner) AS viewowner,
+            pg_get_viewdef(c.oid) AS definition
+        FROM edgedbsql_VER.pg_class c
+        LEFT JOIN edgedbsql_VER.pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'v'::"char"
+        """,
+        ),
+        # Omit all descriptions (comments), becase all non-system comments
+        # are our internal implementation details.
+        trampoline.VersionedView(
+            name=("edgedbsql", "pg_description"),
+            query="""
+        SELECT
+            *,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_description
+        WHERE FALSE
+        """,
+        ),
     ]
-
-    def construct_pg_view(table_name: str, columns: List[str]) -> dbops.View:
-        if table_name in (
-            'pg_aggregate',
-            'pg_am',
-            'pg_amop',
-            'pg_amproc',
-            'pg_attrdef',
-            'pg_attribute',
-            'pg_auth_members',
-            'pg_authid',
-            'pg_cast',
-            'pg_class',
-            'pg_collation',
-            'pg_constraint',
-            'pg_conversion',
-            'pg_database',
-            'pg_db_role_setting',
-            'pg_default_acl',
-            'pg_depend',
-            'pg_description',
-            'pg_enum',
-            'pg_event_trigger',
-            'pg_extension',
-            'pg_foreign_data_wrapper',
-            'pg_foreign_server',
-            'pg_foreign_table',
-            'pg_index',
-            'pg_inherits',
-            'pg_init_privs',
-            'pg_language',
-            'pg_largeobject',
-            'pg_largeobject_metadata',
-            'pg_namespace',
-            'pg_opclass',
-            'pg_operator',
-            'pg_opfamily',
-            'pg_partitioned_table',
-            'pg_policy',
-            'pg_publication',
-            'pg_publication_rel',
-            'pg_range',
-            'pg_replication_origin',
-            'pg_rewrite',
-            'pg_seclabel',
-            'pg_sequence',
-            'pg_shdepend',
-            'pg_shdescription',
-            'pg_shseclabel',
-            'pg_statistic',
-            'pg_statistic_ext',
-            'pg_statistic_ext_data',
-            'pg_subscription_rel',
-            'pg_tablespace',
-            'pg_transform',
-            'pg_trigger',
-            'pg_ts_config',
-            'pg_ts_config_map',
-            'pg_ts_dict',
-            'pg_ts_parser',
-            'pg_ts_template',
-            'pg_type',
-            'pg_user_mapping',
-        ):
-            columns = list(columns) + system_columns
-
-        columns_sql = ','.join('o.' + c for c in columns)
-        return trampoline.VersionedView(
-            name=("edgedbsql", table_name),
-            query=f"SELECT {columns_sql} FROM pg_catalog.{table_name} o",
-        )
 
     # We expose most of the views as empty tables, just to prevent errors when
     # the tools do introspection.
@@ -6966,39 +7393,135 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 query="SELECT {} LIMIT 0".format(
                     ",".join(
                         f"NULL::information_schema.{type} AS {name}"
-                        for name, type in columns
+                        for name, type, _ver_since in columns
                     )
                 ),
             )
         )
 
+    PG_TABLES_SKIP = {
+        'pg_type',
+        'pg_attribute',
+        'pg_namespace',
+        'pg_class',
+        'pg_database',
+        'pg_proc',
+        'pg_operator',
+        'pg_pltemplate',
+        'pg_stats',
+        'pg_stats_ext_exprs',
+        'pg_statistic',
+        'pg_statistic_ext',
+        'pg_statistic_ext_data',
+        'pg_rewrite',
+        'pg_cast',
+        'pg_index',
+        'pg_constraint',
+        'pg_trigger',
+        'pg_subscription',
+        'pg_tables',
+        'pg_views',
+        'pg_description',
+    }
+
+    PG_TABLES_WITH_SYSTEM_COLS = {
+        'pg_aggregate',
+        'pg_am',
+        'pg_amop',
+        'pg_amproc',
+        'pg_attrdef',
+        'pg_attribute',
+        'pg_auth_members',
+        'pg_authid',
+        'pg_cast',
+        'pg_class',
+        'pg_collation',
+        'pg_constraint',
+        'pg_conversion',
+        'pg_database',
+        'pg_db_role_setting',
+        'pg_default_acl',
+        'pg_depend',
+        'pg_enum',
+        'pg_event_trigger',
+        'pg_extension',
+        'pg_foreign_data_wrapper',
+        'pg_foreign_server',
+        'pg_foreign_table',
+        'pg_index',
+        'pg_inherits',
+        'pg_init_privs',
+        'pg_language',
+        'pg_largeobject',
+        'pg_largeobject_metadata',
+        'pg_namespace',
+        'pg_opclass',
+        'pg_operator',
+        'pg_opfamily',
+        'pg_partitioned_table',
+        'pg_policy',
+        'pg_publication',
+        'pg_publication_rel',
+        'pg_range',
+        'pg_replication_origin',
+        'pg_rewrite',
+        'pg_seclabel',
+        'pg_sequence',
+        'pg_shdepend',
+        'pg_shdescription',
+        'pg_shseclabel',
+        'pg_statistic',
+        'pg_statistic_ext',
+        'pg_statistic_ext_data',
+        'pg_subscription_rel',
+        'pg_tablespace',
+        'pg_transform',
+        'pg_trigger',
+        'pg_ts_config',
+        'pg_ts_config_map',
+        'pg_ts_dict',
+        'pg_ts_parser',
+        'pg_ts_template',
+        'pg_type',
+        'pg_user_mapping',
+    }
+
+    SYSTEM_COLUMNS = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
+
+    def construct_pg_view(
+        table_name: str, backend_version: params.BackendVersion
+    ) -> Optional[dbops.View]:
+        pg_columns = sql_introspection.PG_CATALOG[table_name]
+
+        columns = []
+        has_columns = False
+        for c_name, c_typ, c_ver_since in pg_columns:
+            if c_ver_since <= backend_version.major:
+                columns.append('o.' + c_name)
+                has_columns = True
+            elif c_typ:
+                columns.append(f'NULL::{c_typ} as {c_name}')
+            else:
+                columns.append(f'NULL as {c_name}')
+        if not has_columns:
+            return None
+
+        if table_name in PG_TABLES_WITH_SYSTEM_COLS:
+            for c_name in SYSTEM_COLUMNS:
+                columns.append('o.' + c_name)
+
+        return trampoline.VersionedView(
+            name=("edgedbsql", table_name),
+            query=f"SELECT {','.join(columns)} FROM pg_catalog.{table_name} o",
+        )
+
     views.extend(pg_catalog_views)
 
-    for table_name, columns in sql_introspection.PG_CATALOG.items():
-        if table_name in [
-            'pg_type',
-            'pg_attribute',
-            'pg_namespace',
-            'pg_class',
-            'pg_database',
-            'pg_proc',
-            'pg_operator',
-            'pg_pltemplate',
-            'pg_stats',
-            'pg_stats_ext_exprs',
-            'pg_statistic',
-            'pg_statistic_ext',
-            'pg_statistic_ext_data',
-            'pg_rewrite',
-            'pg_cast',
-            'pg_index',
-            'pg_constraint',
-            'pg_trigger',
-            'pg_subscription',
-        ]:
+    for table_name in sql_introspection.PG_CATALOG.keys():
+        if table_name in PG_TABLES_SKIP:
             continue
-
-        views.append(construct_pg_view(table_name, [c for c, _ in columns]))
+        if v := construct_pg_view(table_name, backend_version):
+            views.append(v)
 
     util_functions = [
         trampoline.VersionedFunction(
@@ -7158,7 +7681,102 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 FROM edgedbsql_VER.pg_class pc
                 WHERE id = pc.oid
             '''
-        )
+        ),
+        trampoline.VersionedFunction(
+            # Used instead of pg_catalog.format_type in pg_dump.
+            name=('edgedbsql', '_format_type'),
+            args=[
+                ('typeoid', ('oid',)),
+                ('typemod', ('integer',)),
+            ],
+            returns=('text',),
+            volatility='STABLE',
+            text=r'''
+                SELECT
+                    CASE
+                        -- arrays
+                        WHEN t.typcategory = 'A' THEN (
+                            SELECT
+                                quote_ident(nspname) || '.' ||
+                                quote_ident(el.typname) || tm.mod || '[]'
+                            FROM edgedbsql_VER.pg_namespace
+                            WHERE oid = el.typnamespace
+                        )
+
+                        -- composite (tuples) and types in irregular schemas
+                        WHEN (
+                            t.typcategory = 'C' OR COALESCE(tn.nspname IN (
+                                'edgedb', 'edgedbt', 'edgedbpub', 'edgedbstd',
+                                'edgedb_VER', 'edgedbstd_VER'
+                            ), TRUE)
+                        ) THEN (
+                            SELECT
+                                quote_ident(nspname) || '.' ||
+                                quote_ident(t.typname) || tm.mod
+                            FROM edgedbsql_VER.pg_namespace
+                            WHERE oid = t.typnamespace
+                        )
+                        ELSE format_type(typeoid, typemod)
+                    END
+                FROM edgedbsql_VER.pg_type t
+                LEFT JOIN pg_namespace tn ON t.typnamespace = tn.oid
+                LEFT JOIN edgedbsql_VER.pg_type el ON t.typelem = el.oid
+
+                CROSS JOIN (
+                    SELECT
+                        CASE
+                            WHEN typemod >= 0 THEN '(' || typemod::text || ')'
+                            ELSE ''
+                        END AS mod
+                ) as tm
+
+                WHERE t.oid = typeoid
+            ''',
+        ),
+        trampoline.VersionedFunction(
+            name=("edgedbsql", "pg_get_constraintdef"),
+            args=[
+                ('conid', ('oid',)),
+            ],
+            returns=('text',),
+            volatility='stable',
+            text=r"""
+                SELECT CASE
+                    WHEN contype = 'p' THEN
+                    'PRIMARY KEY(' || (
+                        SELECT string_agg('"' || attname || '"', ', ')
+                        FROM edgedbsql_VER.pg_attribute
+                        WHERE attrelid = conrelid AND attnum = ANY(conkey)
+                    ) || ')'
+                    WHEN contype = 'f' THEN
+                    'FOREIGN KEY ("' || (
+                        SELECT attname
+                        FROM edgedbsql_VER.pg_attribute
+                        WHERE attrelid = conrelid AND attnum = ANY(conkey)
+                        LIMIT 1
+                    ) || '")' || ' REFERENCES "'
+                    || pn.nspname || '"."' || pc.relname || '"(id)'
+                    ELSE ''
+                    END
+                FROM edgedbsql_VER.pg_constraint con
+                LEFT JOIN edgedbsql_VER.pg_class_tables pc ON pc.oid = confrelid
+                LEFT JOIN edgedbsql_VER.pg_namespace pn
+                  ON pc.relnamespace = pn.oid
+                WHERE con.oid = conid
+            """
+        ),
+        trampoline.VersionedFunction(
+            name=("edgedbsql", "pg_get_constraintdef"),
+            args=[
+                ('conid', ('oid',)),
+                ('pretty', ('bool',)),
+            ],
+            returns=('text',),
+            volatility='stable',
+            text=r"""
+                SELECT pg_get_constraintdef(conid)
+            """
+        ),
     ]
 
     return (
@@ -7290,6 +7908,15 @@ def get_synthetic_type_views(
     for verview in _generate_schema_ver_views(schema):
         commands.add_command(dbops.CreateView(verview, or_replace=True))
 
+    if backend_params.has_stat_statements:
+        for stats_view in _generate_stats_views(schema):
+            commands.add_command(dbops.CreateView(stats_view, or_replace=True))
+        commands.add_command(
+            dbops.CreateFunction(
+                ResetQueryStatsFunction(True), or_replace=True
+            )
+        )
+
     return commands
 
 
@@ -7345,7 +7972,11 @@ def get_support_views(
     for alias_view in sys_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
-    commands.add_commands(_generate_sql_information_schema())
+    commands.add_commands(
+        _generate_sql_information_schema(
+            backend_params.instance_params.version
+        )
+    )
 
     # The synthetic type views (cfg::, sys::) need to be trampolined
     trampolines = []
@@ -7379,7 +8010,6 @@ async def generate_support_functions(
         dbops.CreateFunction(IssubclassFunction()),
         dbops.CreateFunction(IssubclassFunction2()),
         dbops.CreateFunction(GetSchemaObjectNameFunction()),
-        dbops.CreateFunction(FormatTypeFunction()),
     ]
     commands.add_commands(cmds)
 

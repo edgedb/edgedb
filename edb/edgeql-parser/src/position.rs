@@ -124,7 +124,7 @@ impl InflatedPos {
             let prefix_s = from_utf8(prefix).map_err(InflatingError::Utf8)?;
             let line_offset;
             let line;
-            if let Some(loff) = prefix_s.rfind(|c| c == '\r' || c == '\n') {
+            if let Some(loff) = prefix_s.rfind(['\r', '\n']) {
                 line_offset = loff + 1;
                 let mut lines = &prefix[..loff];
                 if data[loff] == b'\n' && loff > 0 && data[loff - 1] == b'\r' {

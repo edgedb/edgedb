@@ -34,17 +34,13 @@ import abc
 import asyncio
 import contextlib
 import contextvars
-import http
 import itertools
 import json
 import logging
-
-import httpx
-import httpx_sse
+import uuid
 
 import tiktoken
 from mistral_common.tokens.tokenizers import mistral as mistral_tokenizer
-
 
 from edb import errors
 from edb.common import asyncutil
@@ -53,7 +49,7 @@ from edb.common import enum as s_enum
 from edb.common import markup
 from edb.common import uuidgen
 
-from edb.server import compiler
+from edb.server import compiler, http
 from edb.server.compiler import sertypes
 from edb.server.protocol import execute
 from edb.server.protocol import request_scheduler as rs
@@ -210,6 +206,30 @@ class MistralTokenizer(Tokenizer):
         return cast(str, self.tokenizer.decode(tokens))
 
 
+class TestTokenizer(Tokenizer):
+
+    _instances: dict[str, TestTokenizer] = {}
+
+    @classmethod
+    def for_model(cls, model_name: str) -> TestTokenizer:
+        if model_name in cls._instances:
+            return cls._instances[model_name]
+
+        tokenizer = TestTokenizer()
+        cls._instances[model_name] = tokenizer
+
+        return tokenizer
+
+    def encode(self, text: str) -> list[int]:
+        return [ord(c) for c in text]
+
+    def encode_padding(self) -> int:
+        return 0
+
+    def decode(self, tokens: list[int]) -> str:
+        return ''.join(chr(c) for c in tokens)
+
+
 @dataclass
 class ProviderConfig:
     name: str
@@ -272,9 +292,9 @@ async def _ext_ai_index_builder_controller_loop(
 
     try:
         while True:
+            models = []
+            sleep_timer: rs.Timer = rs.Timer(None, False)
             try:
-                models = []
-                sleep_timer: rs.Timer = rs.Timer(None, False)
                 async with tenant.with_pgcon(dbname) as pgconn:
                     models = await _ext_ai_fetch_active_models(pgconn)
                     if models:
@@ -284,6 +304,7 @@ async def _ext_ai_index_builder_controller_loop(
                             provider_contexts = _prepare_provider_contexts(
                                 db,
                                 pgconn,
+                                tenant.get_http_client(originator="ai/index"),
                                 models,
                                 provider_schedulers,
                                 naptime,
@@ -363,6 +384,7 @@ async def _ext_ai_unlock(
 def _prepare_provider_contexts(
     db: dbview.Database,
     pgconn: pgcon.PGConnection,
+    http_client: http.HttpClient,
     models: list[tuple[int, str, str]],
     provider_schedulers: dict[str, ProviderScheduler],
     naptime: float,
@@ -408,6 +430,7 @@ def _prepare_provider_contexts(
             naptime=naptime,
             db=db,
             pgconn=pgconn,
+            http_client=http_client,
             provider_models=provider_models,
         )
 
@@ -448,6 +471,7 @@ class ProviderContext(rs.Context):
 
     db: dbview.Database
     pgconn: pgcon.PGConnection
+    http_client: http.HttpClient
     provider_models: list[str]
 
 
@@ -469,6 +493,7 @@ class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
         return await _generate_embeddings_params(
             context.db,
             context.pgconn,
+            context.http_client,
             self.provider_name,
             context.provider_models,
             self.model_excluded_ids,
@@ -493,13 +518,12 @@ class ProviderScheduler(rs.Scheduler[EmbeddingsData]):
 @dataclass(frozen=True, kw_only=True)
 class EmbeddingsParams(rs.Params[EmbeddingsData]):
     pgconn: pgcon.PGConnection
+    http_client: http.HttpClient
     provider: ProviderConfig
     model_name: str
-    inputs: list[str]
+    inputs: list[tuple[PendingEmbedding, str]]
     token_count: int
     shortening: Optional[int]
-
-    entries: list[tuple[bytes, ...]]
 
     def costs(self) -> dict[str, int]:
         return {
@@ -521,11 +545,14 @@ class EmbeddingsRequest(rs.Request[EmbeddingsData]):
             result = await _generate_embeddings(
                 self.params.provider,
                 self.params.model_name,
-                self.params.inputs,
+                [input[1] for input in self.params.inputs],
                 self.params.shortening,
+                self.params.http_client
             )
             result.pgconn = self.params.pgconn
-            result.entries = self.params.entries
+            result.pending_entries = [
+                input[0] for input in self.params.inputs
+            ]
             return result
         except AIExtError as e:
             logger.error(f"{task_name}: {e}")
@@ -541,20 +568,26 @@ class EmbeddingsRequest(rs.Request[EmbeddingsData]):
 class EmbeddingsResult(rs.Result[EmbeddingsData]):
 
     pgconn: Optional[Any] = None
-    entries: Optional[list[tuple[bytes, ...]]] = None
+    pending_entries: Optional[list[PendingEmbedding]] = None
 
     async def finalize(self) -> None:
         if isinstance(self.data, rs.Error):
             return
-        if self.pgconn is None or self.entries is None:
+        if self.pgconn is None or self.pending_entries is None:
             return
 
+        # Entries must line up with the embeddings data:
+        # - `_generate_embeddings` produces produces embeddings data matching
+        #   the order of its inputs
+        #
+        # Entries must be grouped by target rel:
+        # - `_generate_embeddings_params` sorts inputs by target rel before
         groups = itertools.groupby(
-            self.entries, key=lambda e: e[2:],
+            self.pending_entries, key=lambda e: (e.target_rel, e.target_attr),
         )
         offset = 0
-        for (rel, attr, *_), items in groups:
-            ids = [item[0] for item in items]
+        for (rel, attr), items in groups:
+            ids = [item.id for item in items]
             await _update_embeddings_in_db(
                 self.pgconn,
                 rel,
@@ -569,6 +602,7 @@ class EmbeddingsResult(rs.Result[EmbeddingsData]):
 async def _generate_embeddings_params(
     db: dbview.Database,
     pgconn: pgcon.PGConnection,
+    http_client: http.HttpClient,
     provider_name: str,
     provider_models: list[str],
     model_excluded_ids: dict[str, list[str]],
@@ -595,6 +629,11 @@ async def _generate_embeddings_params(
             model_name: MistralTokenizer.for_model(model_name)
             for model_name in provider_models
         }
+    elif provider_name == 'custom::test':
+        model_tokenizers = {
+            model_name: TestTokenizer.for_model(model_name)
+            for model_name in provider_models
+        }
 
     model_max_input_tokens: dict[str, int] = {
         model_name: await _get_model_annotation_as_int(
@@ -616,7 +655,7 @@ async def _generate_embeddings_params(
         for model_name in provider_models
     }
 
-    model_entries: dict[str, list[tuple[bytes, ...]]] = {}
+    model_pending_entries: dict[str, list[PendingEmbedding]] = {}
 
     for model_name in provider_models:
         logger.debug(
@@ -624,82 +663,38 @@ async def _generate_embeddings_params(
             f"indexes via {provider_name!r}"
         )
 
-        where_clause = ""
-        if (
-            model_name in model_excluded_ids
-            and (excluded_ids := model_excluded_ids[model_name])
-        ):
-            # Only exclude long text if it won't be auto-truncated.
-            logger.debug(
-                f"{task_name} skipping {len(excluded_ids)} indexes "
-                f"for {model_name!r}"
-            )
-            where_clause = (f"""
-                WHERE
-                    q."id" not in ({','.join(
-                        "'" + excluded_id + "'"
-                        for excluded_id in excluded_ids
-                    )})
-                    OR q."truncate_to_max"
-            """)
-
-        entries = await pgconn.sql_fetch(
-            f"""
-            SELECT
-                *
-            FROM
-                (
-                    SELECT
-                        "id",
-                        "text",
-                        "target_rel",
-                        "target_attr",
-                        "target_dims_shortening",
-                        "truncate_to_max"
-                    FROM
-                        edgedbext."ai_pending_embeddings_{model_name}"
-                    LIMIT
-                        500
-                ) AS q
-            {where_clause}
-            ORDER BY
-                q."target_dims_shortening",
-                q."target_rel"
-            """.encode()
+        pending_entries = await _get_pending_embeddings(
+            pgconn, model_name, model_excluded_ids
         )
 
-        if not entries:
+        if not pending_entries:
             continue
 
-        logger.debug(f"{task_name} found {len(entries)} entries to index")
+        logger.debug(
+            f"{task_name} found {len(pending_entries)} entries to index"
+        )
 
         try:
-            model_list = model_entries[model_name]
+            model_list = model_pending_entries[model_name]
         except KeyError:
-            model_list = model_entries[model_name] = []
+            model_list = model_pending_entries[model_name] = []
 
-        model_list.extend(entries)
+        model_list.extend(pending_entries)
 
     embeddings_params: list[EmbeddingsParams] = []
 
-    for model_name, entries in model_entries.items():
-        groups = itertools.groupby(entries, key=lambda e: e[4])
-        for shortening_datum, part_iter in groups:
-            if shortening_datum is not None:
-                shortening = int.from_bytes(
-                    shortening_datum,
-                    byteorder="big",
-                    signed=False,
-                )
-            else:
-                shortening = None
+    for model_name, pending_entries in model_pending_entries.items():
+        groups = itertools.groupby(
+            pending_entries, key=lambda e: e.target_dims_shortening
+        )
+        for shortening, part_iter in groups:
             part = list(part_iter)
 
-            inputs: list[str] = []
+            input_texts: list[str] = []
+            input_entries: list[PendingEmbedding] = []
             total_token_count: int = 0
-            for entry in part:
-                input = entry[1].decode("utf-8")
-                truncate_to_max = bool.from_bytes(entry[5])
+            for pending_entry in part:
+                text = pending_entry.text
 
                 if model_name in model_tokenizers:
                     tokenizer = model_tokenizers[model_name]
@@ -708,13 +703,13 @@ async def _generate_embeddings_params(
                         - tokenizer.encode_padding()
                     )
 
-                    if truncate_to_max:
-                        input = tokenizer.shorten_to_token_length(
-                            input, truncate_length
+                    if pending_entry.truncate_to_max:
+                        text = tokenizer.shorten_to_token_length(
+                            text, truncate_length
                         )
                         total_token_count += truncate_length
                     else:
-                        current_token_count = len(tokenizer.encode(input))
+                        current_token_count = len(tokenizer.encode(text))
 
                         if current_token_count > truncate_length:
                             # If the text is too long, mark it as excluded and
@@ -722,15 +717,17 @@ async def _generate_embeddings_params(
                             if model_name not in model_excluded_ids:
                                 model_excluded_ids[model_name] = []
                             model_excluded_ids[model_name].append(
-                                uuidgen.from_bytes(entry[0]).hex
+                                pending_entry.id.hex
                             )
                             continue
 
                         total_token_count += current_token_count
 
-                inputs.append(input)
+                input_texts.append(text)
+                input_entries.append(pending_entry)
 
             if model_name in model_tokenizers:
+                tokenizer = model_tokenizers[model_name]
                 max_batch_tokens = model_max_batch_tokens[model_name]
                 if isinstance(tokens_rate_limit, int):
                     # If the rate limit is lower than the batch limit, use that
@@ -739,21 +736,37 @@ async def _generate_embeddings_params(
 
                 # Group the input into batches based on token count
                 batches = _batch_embeddings_inputs(
-                    tokenizer, inputs, max_batch_tokens
+                    tokenizer, input_texts, max_batch_tokens
                 )
 
-                for batch, batch_token_count in batches:
+                for batch_input_indexes, batch_token_count in batches:
+                    inputs = [
+                        (input_entries[index], input_texts[index])
+                        for index in batch_input_indexes
+                    ]
+
+                    # Sort the batches by target_rel. This groups embeddings
+                    # for each table together.
+                    # This is necessary for `EmbeddingsResult.finalize()`
+                    inputs.sort(key=lambda e: e[0].target_rel)
+
                     embeddings_params.append(EmbeddingsParams(
                         pgconn=pgconn,
                         provider=provider_cfg,
                         model_name=model_name,
-                        inputs=batch,
+                        inputs=inputs,
                         token_count=batch_token_count,
                         shortening=shortening,
-                        entries=part,
+                        http_client=http_client,
                     ))
 
             else:
+                inputs = list(zip(input_entries, input_texts))
+                # Sort the inputs by target_rel. This groups embeddings
+                # for each table together.
+                # This is necessary for `EmbeddingsResult.finalize()`
+                inputs.sort(key=lambda e: e[0].target_rel)
+
                 embeddings_params.append(EmbeddingsParams(
                     pgconn=pgconn,
                     provider=provider_cfg,
@@ -761,21 +774,106 @@ async def _generate_embeddings_params(
                     inputs=inputs,
                     token_count=total_token_count,
                     shortening=shortening,
-                    entries=part,
+                    http_client=http_client,
                 ))
 
     return embeddings_params
+
+
+@dataclass(frozen=True, kw_only=True)
+class PendingEmbedding:
+    id: uuid.UUID
+    text: str
+    target_rel: str
+    target_attr: str
+    target_dims_shortening: Optional[int]
+    truncate_to_max: bool
+
+
+async def _get_pending_embeddings(
+    pgconn: pgcon.PGConnection,
+    model_name: str,
+    model_excluded_ids: dict[str, list[str]],
+) -> list[PendingEmbedding]:
+    task_name = _task_name.get()
+
+    where_clause = ""
+    if (
+        model_name in model_excluded_ids
+        and (excluded_ids := model_excluded_ids[model_name])
+    ):
+        # Only exclude long text if it won't be auto-truncated.
+        logger.debug(
+            f"{task_name} skipping {len(excluded_ids)} indexes "
+            f"for {model_name!r}"
+        )
+        where_clause = (f"""
+            WHERE
+                q."id" not in ({','.join(
+                    "'" + excluded_id + "'"
+                    for excluded_id in excluded_ids
+                )})
+                OR q."truncate_to_max"
+        """)
+
+    entries = await pgconn.sql_fetch(
+        f"""
+        SELECT
+            *
+        FROM
+            (
+                SELECT
+                    "id",
+                    "text",
+                    "target_rel",
+                    "target_attr",
+                    "target_dims_shortening",
+                    "truncate_to_max"
+                FROM
+                    edgedbext."ai_pending_embeddings_{model_name}"
+                LIMIT
+                    500
+            ) AS q
+        {where_clause}
+        ORDER BY
+            q."target_dims_shortening"
+        """.encode()
+    )
+
+    if not entries:
+        return []
+
+    result = []
+    for entry in entries:
+        result.append(PendingEmbedding(
+            id=uuidgen.from_bytes(entry[0]),
+            text=entry[1].decode("utf-8"),
+            target_rel=entry[2].decode(),
+            target_attr=entry[3].decode(),
+            target_dims_shortening=(
+                int.from_bytes(
+                    entry[4],
+                    byteorder="big",
+                    signed=False,
+                )
+                if entry[4] is not None else
+                None
+            ),
+            truncate_to_max=bool.from_bytes(entry[5]),
+        ))
+
+    return result
 
 
 def _batch_embeddings_inputs(
     tokenizer: Tokenizer,
     inputs: list[str],
     max_batch_tokens: int,
-) -> list[tuple[list[str], int]]:
+) -> list[tuple[list[int], int]]:
     """Create batches of embeddings inputs.
 
     Returns batches which are a tuple of:
-    - Input strings grouped to avoid exceeding the max_batch_token
+    - Indexes of input strings grouped to avoid exceeding the max_batch_token
     - The batch's token count
     """
 
@@ -792,9 +890,6 @@ def _batch_embeddings_inputs(
         reverse=False,
     )
 
-    def unbatched_input(unbatched_index: int) -> str:
-        return inputs[unbatched_input_indexes[unbatched_index]]
-
     def unbatched_token_count(unbatched_index: int) -> int:
         return input_token_counts[unbatched_input_indexes[unbatched_index]]
 
@@ -805,10 +900,10 @@ def _batch_embeddings_inputs(
     ):
         unbatched_input_indexes.pop()
 
-    batches: list[tuple[list[str], int]] = []
+    batches: list[tuple[list[int], int]] = []
     while unbatched_input_indexes:
         # Start with the largest available input
-        batch = [unbatched_input(-1)]
+        batch_input_indexes = [unbatched_input_indexes[-1]]
         batch_token_count = unbatched_token_count(-1)
         unbatched_input_indexes.pop()
 
@@ -821,32 +916,34 @@ def _batch_embeddings_inputs(
                     batch_token_count + unbatched_token_count(unbatched_index)
                     <= max_batch_tokens
                 ):
-                    batch.append(unbatched_input(unbatched_index))
+                    batch_input_indexes.append(
+                        unbatched_input_indexes[unbatched_index]
+                    )
                     batch_token_count += unbatched_token_count(unbatched_index)
                     unbatched_input_indexes.pop(unbatched_index)
                 else:
                     unbatched_index += 1
 
-        batches.append((batch, batch_token_count))
+        batches.append((batch_input_indexes, batch_token_count))
 
     return batches
 
 
 async def _update_embeddings_in_db(
     pgconn: pgcon.PGConnection,
-    rel: bytes,
-    attr: bytes,
-    ids: list[bytes],
+    rel: str,
+    attr: str,
+    ids: list[uuid.UUID],
     embeddings: bytes,
     offset: int,
 ) -> int:
-    id_array = '", "'.join(uuidgen.from_bytes(ub).hex for ub in ids)
+    id_array = '", "'.join(id.hex for id in ids)
     entries = await pgconn.sql_fetch_val(
         f"""
         WITH upd AS (
-            UPDATE {rel.decode()} AS target
+            UPDATE {rel} AS target
             SET
-                {attr.decode()} = (
+                {attr} = (
                     (embeddings.data ->> 'embedding')::edgedb.vector)
             FROM
                 (
@@ -886,6 +983,7 @@ async def _generate_embeddings(
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
+    http_client: http.HttpClient,
 ) -> EmbeddingsResult:
     task_name = _task_name.get()
     count = len(inputs)
@@ -897,7 +995,7 @@ async def _generate_embeddings(
 
     if provider.api_style == ApiStyle.OpenAI:
         return await _generate_openai_embeddings(
-            provider, model_name, inputs, shortening,
+            provider, model_name, inputs, shortening, http_client
         )
     else:
         raise RuntimeError(
@@ -911,6 +1009,7 @@ async def _generate_openai_embeddings(
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
+    http_client: http.HttpClient,
 ) -> EmbeddingsResult:
 
     headers = {
@@ -918,7 +1017,7 @@ async def _generate_openai_embeddings(
     }
     if provider.name == "builtin::openai" and provider.client_id:
         headers["OpenAI-Organization"] = provider.client_id
-    client = httpx.AsyncClient(
+    client = http_client.with_context(
         headers=headers,
         base_url=provider.api_url,
     )
@@ -951,7 +1050,7 @@ async def _generate_openai_embeddings(
         )
 
     return EmbeddingsResult(
-        data=(error if error else EmbeddingsData(result.content)),
+        data=(error if error else EmbeddingsData(result.bytes())),
         limits=_read_openai_limits(result),
     )
 
@@ -1020,22 +1119,62 @@ def _read_openai_limits(
 
 
 async def _start_chat(
+    *,
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
     provider: ProviderConfig,
+    http_client: http.HttpClient,
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
+    temperature: Optional[float],
+    top_p: Optional[float],
+    max_tokens: Optional[int],
+    seed: Optional[int],
+    safe_prompt: Optional[bool],
+    top_k: Optional[int],
+    logit_bias: Optional[dict[int, int]],
+    logprobs: Optional[bool],
+    user: Optional[str],
+    tools: Optional[list[dict[str, Any]]],
 ) -> None:
     if provider.api_style == "OpenAI":
         await _start_openai_chat(
-            protocol, request, response,
-            provider, model_name, messages, stream)
+            protocol=protocol,
+            request=request,
+            response=response,
+            provider=provider,
+            http_client=http_client,
+            model_name=model_name,
+            messages=messages,
+            stream=stream,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+            seed=seed,
+            safe_prompt=safe_prompt,
+            logit_bias=logit_bias,
+            logprobs=logprobs,
+            user=user,
+            tools=tools,
+        )
     elif provider.api_style == "Anthropic":
         await _start_anthropic_chat(
-            protocol, request, response,
-            provider, model_name, messages, stream)
+            protocol=protocol,
+            request=request,
+            response=response,
+            provider=provider,
+            http_client=http_client,
+            model_name=model_name,
+            messages=messages,
+            stream=stream,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            tools=tools,
+            max_tokens=max_tokens,
+        )
     else:
         raise RuntimeError(
             f"unsupported model provider API style: {provider.api_style}, "
@@ -1045,48 +1184,103 @@ async def _start_chat(
 
 @contextlib.asynccontextmanager
 async def aconnect_sse(
-    client: httpx.AsyncClient,
+    client: http.HttpClient,
     method: str,
     url: str,
     **kwargs: Any,
-) -> AsyncIterator[httpx_sse.EventSource]:
+) -> AsyncIterator[http.ResponseSSE]:
     headers = kwargs.pop("headers", {})
     headers["Accept"] = "text/event-stream"
     headers["Cache-Control"] = "no-store"
 
-    stream = client.stream(method, url, headers=headers, **kwargs)
-    async with stream as response:
+    stm = await client.stream_sse(
+        method=method,
+        path=url,
+        headers=headers,
+        **kwargs
+    )
+    if isinstance(stm, http.Response):
+        raise AIProviderError(
+            f"API call to generate chat completions failed with status "
+            f"{stm.status_code}: {stm.text}"
+        )
+    async with stm as response:
         if response.status_code >= 400:
-            await response.aread()
+            # Unlikely that we have a streaming response with a non-200 result
             raise AIProviderError(
                 f"API call to generate chat completions failed with status "
-                f"{response.status_code}: {response.text}"
+                f"{response.status_code}"
             )
-        else:
-            yield httpx_sse.EventSource(response)
+        yield response
 
 
 async def _start_openai_like_chat(
+    *,
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
-    client: httpx.AsyncClient,
+    provider_name: str,
+    client: http.HttpClient,
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
+    temperature: Optional[float],
+    top_p: Optional[float],
+    max_tokens: Optional[int],
+    seed: Optional[int],
+    safe_prompt: Optional[bool],
+    logit_bias: Optional[dict[int, int]],
+    logprobs: Optional[bool],
+    user: Optional[str],
+    tools: Optional[list[dict[str, Any]]],
 ) -> None:
+    isOpenAI = provider_name == "builtin::openai"
+
+    params: dict[str, Any] = {
+        "model": model_name,
+        "messages": messages,
+    }
+    if temperature is not None:
+        params["temperature"] = temperature
+    if top_p is not None:
+        params["top_p"] = top_p
+    if tools is not None:
+        params["tools"] = tools
+    if isOpenAI and logit_bias is not None:
+        params["logit_bias"] = logit_bias
+    if isOpenAI and logprobs is not None:
+        params["logprobs"] = logprobs
+    if isOpenAI and user is not None:
+        params["user"] = user
+    if not isOpenAI and safe_prompt is not None:
+        params["safe_prompt"] = safe_prompt
+    if max_tokens is not None:
+        if isOpenAI:
+            params["max_completion_tokens"] = max_tokens
+        else:
+            params["max_tokens"] = max_tokens
+    if seed is not None:
+        if isOpenAI:
+            params["seed"] = seed
+        else:
+            params["random_seed"] = seed
+
     if stream:
         async with aconnect_sse(
             client,
             method="POST",
             url="/chat/completions",
             json={
-                "model": model_name,
-                "messages": messages,
+                **params,
                 "stream": True,
             }
         ) as event_source:
-            async for sse in event_source.aiter_sse():
+            # we need tool_index and finish_reason to correctly
+            # send 'content_block_stop' chunk for tool call messages
+            tool_index = 0
+            finish_reason = "unknown"
+
+            async for sse in event_source:
                 if not response.sent:
                     response.status = http.HTTPStatus.OK
                     response.content_type = b'text/event-stream'
@@ -1098,18 +1292,28 @@ async def _start_openai_like_chat(
                     continue
 
                 if sse.data == "[DONE]":
+                    # mistral doesn't send finish_reason for tool calls
+                    if finish_reason == "unknown":
+                        event = (
+                            b'event: content_block_stop\n'
+                            + b'data: {"type": "content_block_stop",'
+                            + b'"index": ' + str(tool_index).encode() + b'}\n\n'
+                        )
+                        protocol.write_raw(event)
                     event = (
                         b'event: message_stop\n'
                         + b'data: {"type": "message_stop"}\n\n'
                     )
                     protocol.write_raw(event)
-                    continue
+                    break
 
                 message = sse.json()
                 if message.get("object") == "chat.completion.chunk":
                     data = message.get("choices")[0]
                     delta = data.get("delta")
                     role = delta.get("role")
+                    tool_calls = delta.get("tool_calls")
+
                     if role:
                         event_data = json.dumps({
                             "type": "message_start",
@@ -1117,26 +1321,96 @@ async def _start_openai_like_chat(
                                 "id": message["id"],
                                 "role": role,
                                 "model": message["model"],
-                            }
+                                "usage": message.get("usage")
+                            },
                         }).encode("utf-8")
                         event = (
                             b'event: message_start\n'
                             + b'data: ' + event_data + b'\n\n'
                         )
                         protocol.write_raw(event)
+                        # if there's only one openai tool call it shows up here
+                        if tool_calls:
+                            for tool_call in tool_calls:
+                                tool_index = tool_call["index"]
+                                event_data = json.dumps({
+                                    "type": "content_block_start",
+                                    "index": tool_call["index"],
+                                    "content_block": {
+                                        "id": tool_call["id"],
+                                        "type": "tool_use",
+                                        "name": tool_call["function"]["name"],
+                                        "args":
+                                        tool_call["function"]["arguments"],
+                                    },
+                                }).encode("utf-8")
 
-                        event = (
-                            b'event: content_block_start\n'
-                            + b'data: {"type": "content_block_start",'
-                            + b'"index":0,'
-                            + b'"content_block":{"type":"text","text":""}}\n\n'
-                        )
-                        protocol.write_raw(event)
+                                event = (
+                                    b'event: content_block_start\n'
+                                    + b'data:' + event_data + b'\n\n'
+                                )
+                                protocol.write_raw(event)
+                    # if there are few openai tool calls, they show up here
+                    # mistral tool calls always show up here
+                    elif tool_calls:
+                        # OpenAI provides index, Mistral doesn't
+                        for index, tool_call in enumerate(tool_calls):
+                            currentIndex = tool_call.get("index") or index
+                            if tool_call.get("type") == "function" or \
+                            "id" in tool_call:
+                                if currentIndex > 0:
+                                    tool_index = currentIndex
+                                    # send the stop chunk for the previous tool
+                                    event = (
+                                        b'event: content_block_stop\n'
+                                        + b'data: { \
+                                        "type": "content_block_stop",'
+                                        + b'"index": '
+                                        + str(currentIndex - 1).encode()
+                                        + b'}\n\n'
+                                    )
+                                    protocol.write_raw(event)
+
+                                event_data = json.dumps({
+                                    "type": "content_block_start",
+                                    "index": currentIndex,
+                                    "content_block": {
+                                        "id": tool_call.get("id"),
+                                        "type": "tool_use",
+                                        "name": tool_call["function"]["name"],
+                                        "args":
+                                        tool_call["function"]["arguments"],
+                                    },
+                                }).encode("utf-8")
+
+                                event = (
+                                    b'event: content_block_start\n'
+                                    + b'data:' + event_data + b'\n\n'
+                                )
+                                protocol.write_raw(event)
+                            else:
+                                event_data = json.dumps({
+                                        "type": "content_block_delta",
+                                        "index": currentIndex,
+                                        "delta": {
+                                            "type": "tool_call_delta",
+                                            "args":
+                                             tool_call["function"]["arguments"],
+                                        },
+                                    }).encode("utf-8")
+                                event = (
+                                    b'event: content_block_delta\n'
+                                    + b'data:' + event_data + b'\n\n'
+                                )
+                                protocol.write_raw(event)
                     elif finish_reason := data.get("finish_reason"):
+                        index = (
+                            tool_index if finish_reason == "tool_calls" else 0
+                        )
                         event = (
                             b'event: content_block_stop\n'
                             + b'data: {"type": "content_block_stop",'
-                            + b'"index":0}\n\n'
+                            + b'"index": ' + str(index).encode() + b'}\n\n'
                         )
                         protocol.write_raw(event)
 
@@ -1144,7 +1418,8 @@ async def _start_openai_like_chat(
                             "type": "message_delta",
                             "delta": {
                                 "stop_reason": finish_reason,
-                            }
+                            },
+                            "usage": message.get("usage")
                         }).encode("utf-8")
                         event = (
                             b'event: message_delta\n'
@@ -1154,14 +1429,18 @@ async def _start_openai_like_chat(
 
                     else:
                         event_data = json.dumps({
-                            "type": "text_delta",
-                            "text": delta.get("content"),
+                            "type": "content_block_delta",
+                            "index": 0,
+                             "delta": {
+                                "type": "text_delta",
+                                "text": delta.get("content"),
+                            },
+                            "logprobs": data.get("logprobs"),
                         }).encode("utf-8")
+
                         event = (
                             b'event: content_block_delta\n'
-                            + b'data: {"type": "content_block_delta",'
-                            + b'"index":0,'
-                            + b'"delta":' + event_data + b'}\n\n'
+                            + b'data:' + event_data + b'\n\n'
                         )
                         protocol.write_raw(event)
 
@@ -1170,34 +1449,63 @@ async def _start_openai_like_chat(
         result = await client.post(
             "/chat/completions",
             json={
-                "model": model_name,
-                "messages": messages,
+                **params
             }
         )
 
         if result.status_code >= 400:
-            await result.aread()
             raise AIProviderError(
                 f"API call to generate chat completions failed with status "
                 f"{result.status_code}: {result.text}"
             )
 
         response.status = http.HTTPStatus.OK
-        response_text = result.json()["choices"][0]["message"]["content"]
+
+        result_data = result.json()
+        choice = result_data["choices"][0]
+        tool_calls = choice["message"].get("tool_calls")
+        tool_calls_formatted = [
+            {
+                "id": tool_call["id"],
+                "type": tool_call["type"],
+                "name": tool_call["function"]["name"],
+                "args": json.loads(tool_call["function"]["arguments"]),
+            }
+            for tool_call in tool_calls or []
+        ]
+
+        body = {
+            "id": result_data["id"],
+            "model": result_data["model"],
+            "text": choice["message"]["content"],
+            "finish_reason": choice.get("finish_reason"),
+            "usage": result_data.get("usage"),
+            "logprobs": choice.get("logprobs"),
+            "tool_calls": tool_calls_formatted,
+        }
         response.content_type = b'application/json'
-        response.body = json.dumps({
-            "response": response_text,
-        }).encode("utf-8")
+        response.body = json.dumps(body).encode("utf-8")
 
 
 async def _start_openai_chat(
+    *,
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
     provider: ProviderConfig,
+    http_client: http.HttpClient,
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
+    temperature: Optional[float],
+    top_p: Optional[float],
+    max_tokens: Optional[int],
+    seed: Optional[int],
+    safe_prompt: Optional[bool],
+    logit_bias: Optional[dict[int, int]],
+    logprobs: Optional[bool],
+    user: Optional[str],
+    tools: Optional[list[dict[str, Any]]],
 ) -> None:
     headers = {
         "Authorization": f"Bearer {provider.secret}",
@@ -1206,30 +1514,50 @@ async def _start_openai_chat(
     if provider.name == "builtin::openai" and provider.client_id:
         headers["OpenAI-Organization"] = provider.client_id
 
-    client = httpx.AsyncClient(
+    client = http_client.with_context(
         base_url=provider.api_url,
         headers=headers,
     )
 
     await _start_openai_like_chat(
-        protocol,
-        request,
-        response,
-        client,
-        model_name,
-        messages,
-        stream,
+        protocol=protocol,
+        request=request,
+        response=response,
+        provider_name=provider.name,
+        client=client,
+        model_name=model_name,
+        messages=messages,
+        stream=stream,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        seed=seed,
+        safe_prompt=safe_prompt,
+        logit_bias=logit_bias,
+        logprobs=logprobs,
+        user=user,
+        tools=tools,
     )
 
 
+# Anthropic differs from OpenAI and Mistral as there's no tool chunk:
+# tool_call(tool_use) is part of the assistant chunk, and
+# tool_result is part of the user chunk.
 async def _start_anthropic_chat(
+    *,
     protocol: protocol.HttpProtocol,
     request: protocol.HttpRequest,
     response: protocol.HttpResponse,
     provider: ProviderConfig,
+    http_client: http.HttpClient,
     model_name: str,
     messages: list[dict[str, Any]],
     stream: bool,
+    temperature: Optional[float],
+    top_p: Optional[float],
+    top_k: Optional[int],
+    tools: Optional[list[dict[str, Any]]],
+    max_tokens: Optional[int],
 ) -> None:
     headers = {
         "x-api-key": f"{provider.secret}",
@@ -1239,7 +1567,7 @@ async def _start_anthropic_chat(
         headers["anthropic-version"] = "2023-06-01"
         headers["anthropic-beta"] = "messages-2023-12-15"
 
-    client = httpx.AsyncClient(
+    client = http_client.with_context(
         headers={
             "anthropic-version": "2023-06-01",
             "anthropic-beta": "messages-2023-12-15",
@@ -1250,13 +1578,86 @@ async def _start_anthropic_chat(
 
     anthropic_messages = []
     system_prompt_parts = []
+
     for message in messages:
         if message["role"] == "system":
             system_prompt_parts.append(message["content"])
+
+        elif message["role"] == "assistant" and "tool_calls" in message:
+            # Anthropic fails when an assistant chunk has multiple tool calls
+            # and is followed by several tool_result chunks (or a user chunk
+            # with multiple tool_results). Each assistant chunk should have
+            # only 1 tool_use, followed by 1 tool_result chunk.
+            for tool_call in message["tool_calls"]:
+                msg = {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "id": tool_call["id"],
+                            "type": "tool_use",
+                            "name": tool_call["function"]["name"],
+                            "input": json.loads(
+                                tool_call["function"]["arguments"]),
+                        }
+                    ],
+                }
+                anthropic_messages.append(msg)
+        # Check if message is a tool result
+        elif message["role"] == "tool":
+            tool_result = {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": message["tool_call_id"],
+                        "content": message["content"]
+                    }
+                ],
+            }
+            anthropic_messages.append(tool_result)
         else:
             anthropic_messages.append(message)
 
     system_prompt = "\n".join(system_prompt_parts)
+
+    # Each tool_use chunk must be followed by a matching tool_result chunk
+    reordered_messages = []
+
+    # Separate tool_result messages by tool_use_id for faster access
+    tool_result_map = {
+        item["content"][0]["tool_use_id"]: item
+        for item in anthropic_messages
+        if item["role"] == "user" and isinstance(item["content"][0], dict)
+          and item["content"][0]["type"] == "tool_result"
+    }
+
+    for message in anthropic_messages:
+        if message["role"] == "assistant":
+            reordered_messages.append(message)
+            if isinstance(message["content"], list):
+                for item in message["content"]:
+                    if item["type"] == "tool_use":
+                        # find the matching user tool_result message
+                        tool_use_id = item["id"]
+                        if tool_use_id in tool_result_map:
+                            reordered_messages.append(
+                                tool_result_map[tool_use_id])
+        # append user message that is not tool_result
+        elif not (message["role"] == "user"
+                  and isinstance(message["content"][0], dict)
+                  and message["content"][0]["type"] == "tool_result"):
+            reordered_messages.append(message)
+
+    params = {
+        "model": model_name,
+        "messages": reordered_messages,
+        "system": system_prompt,
+        **({"temperature": temperature} if temperature is not None else {}),
+        **({"top_p": top_p} if top_p is not None else {}),
+        **{"max_tokens": max_tokens if max_tokens is not None else 4096},
+        **({"top_k": top_k} if top_k is not None else {}),
+        **({"tools": tools} if tools is not None else {}),
+    }
 
     if stream:
         async with aconnect_sse(
@@ -1264,14 +1665,12 @@ async def _start_anthropic_chat(
             method="POST",
             url="/messages",
             json={
-                "model": model_name,
-                "messages": anthropic_messages,
+                **params,
                 "stream": True,
-                "system": system_prompt,
-                "max_tokens": 4096,
             }
         ) as event_source:
-            async for sse in event_source.aiter_sse():
+            tool_index = 0
+            async for sse in event_source:
                 if not response.sent:
                     response.status = http.HTTPStatus.OK
                     response.content_type = b'text/event-stream'
@@ -1282,8 +1681,12 @@ async def _start_anthropic_chat(
                 if sse.event == "message_start":
                     message = sse.json()["message"]
                     for k in tuple(message):
-                        if k not in {"id", "type", "role", "model"}:
+                        if k not in {"id", "type", "role", "model", "usage"}:
                             del message[k]
+                    message["usage"] = {
+                        "prompt_tokens": message["usage"]["input_tokens"],
+                        "completion_tokens": message["usage"]["output_tokens"]
+                    }
                     message_data = json.dumps(message).encode("utf-8")
                     event = (
                         b'event: message_start\n'
@@ -1293,23 +1696,70 @@ async def _start_anthropic_chat(
                     protocol.write_raw(event)
 
                 elif sse.event == "content_block_start":
+                    sse_data = json.loads(sse.data)
                     protocol.write_raw(
                         b'event: content_block_start\n'
-                        + b'data: ' + sse.data.encode("utf-8") + b'\n\n'
+                        + b'data: ' + json.dumps(sse_data).encode("utf-8")
+                        + b'\n\n'
                     )
+                    # we don't send content_block_stop event when text
+                    # chunk ends, should be okay since we don't consume
+                    # this event on the client side
+                    data = sse.json()
+                    if (
+                        "content_block" in data
+                        and data["content_block"].get("type") == "tool_use"
+                    ):
+                        currentIndex = data["index"]
+                        if currentIndex > 0:
+                            tool_index = currentIndex
+                            event_data = json.dumps({
+                                "type": "content_block_stop",
+                                "index": currentIndex - 1})
+                            protocol.write_raw(
+                                b'event: content_block_stop\n'
+                                + b'data: ' + event_data.encode("utf-8")
+                                + b'\n\n'
+                            )
                 elif sse.event == "content_block_delta":
-                    protocol.write_raw(
-                        b'event: content_block_start\n'
-                        + b'data: ' + sse.data.encode("utf-8") + b'\n\n'
-                    )
-                elif sse.event == "message_delta":
-                    delta = sse.json()["delta"]
-                    delta_data = json.dumps(delta).encode("utf-8")
+                    message = sse.json()
+                    # it is always dict irl but test is failing
+                    delta = message.get("delta")
+                    if delta and delta.get("type") == "input_json_delta":
+                        delta["type"] = "tool_call_delta"
+
+                    if delta and "partial_json" in delta:
+                        delta["args"] = delta.pop("partial_json")
+
+                    event_data = json.dumps(message)
                     event = (
-                        b'event: message_delta\n'
-                        + b'data: {"type": "message_delta",'
-                        + b"delta:" + delta_data + b'}\n\n'
+                        b'event: content_block_delta\n'
+                        + b'data: ' + event_data.encode("utf-8") + b'\n\n'
                     )
+                    protocol.write_raw(event)
+                elif sse.event == "message_delta":
+                    message = sse.json()
+                    if message["delta"]["stop_reason"] == "tool_use":
+                        event = (
+                            b'event: content_block_stop\n'
+                            + b'data: {"type": "content_block_stop",'
+                            + b'"index": '
+                            + str(tool_index).encode("utf-8")
+                            + b'}\n\n'
+                        )
+                        protocol.write_raw(event)
+
+                    event_data = json.dumps({
+                            "type": "message_delta",
+                            "delta": message["delta"],
+                            "usage": {"completion_tokens":
+                                      message["usage"]["output_tokens"]}
+                    })
+                    event = (
+                            b'event: message_delta\n'
+                            + b'data: ' + event_data.encode("utf-8") + b'\n\n'
+                        )
+
                     protocol.write_raw(event)
                 elif sse.event == "message_stop":
                     event = (
@@ -1317,22 +1767,17 @@ async def _start_anthropic_chat(
                         + b'data: {"type": "message_stop"}\n\n'
                     )
                     protocol.write_raw(event)
-
+                    # needed because stream doesn't close itself
+                    protocol.close()
             protocol.close()
-
     else:
         result = await client.post(
             "/messages",
             json={
-                "model": model_name,
-                "messages": anthropic_messages,
-                "system": system_prompt,
-                "max_tokens": 4096,
+                **params
             }
         )
-
         if result.status_code >= 400:
-            await result.aread()
             raise AIProviderError(
                 f"API call to generate chat completions failed with status "
                 f"{result.status_code}: {result.text}"
@@ -1340,10 +1785,40 @@ async def _start_anthropic_chat(
 
         response.status = http.HTTPStatus.OK
         response.content_type = b'application/json'
-        response_text = result.json()["content"][0]["text"]
-        response.body = json.dumps({
-            "response": response_text,
-        }).encode("utf-8")
+
+        result_data = result.json()
+        tool_calls = [
+            item
+            for item in result_data["content"]
+            if item.get("type") == "tool_use"
+        ]
+        tool_calls_formatted = [
+            {
+                "id": tool_call["id"],
+                "type": "function",
+                "name": tool_call["name"],
+                "args": tool_call["input"],
+            }
+            for tool_call in tool_calls
+        ]
+
+        body = {
+            "id": result_data["id"],
+            "model": result_data["model"],
+            "text": next((item["text"]
+                          for item in result_data["content"]
+                          if item.get("type") == "text"), ""),
+            "finish_reason": result_data["stop_reason"],
+             "usage": {
+                "prompt_tokens": result_data["usage"]["input_tokens"],
+                "completion_tokens": result_data["usage"]["output_tokens"]
+            },
+            "tool_calls": tool_calls_formatted,
+        }
+
+        response.body = json.dumps(
+            body
+        ).encode("utf-8")
 
 
 #
@@ -1408,7 +1883,10 @@ async def _handle_rag_request(
     tenant: srv_tenant.Tenant,
 ) -> None:
     try:
+        http_client = tenant.get_http_client(originator="ai/rag")
+
         body = json.loads(request.body)
+
         if not isinstance(body, dict):
             raise TypeError(
                 'the body of the request must be a JSON object')
@@ -1456,7 +1934,7 @@ async def _handle_rag_request(
             ctx_max_obj_count = 5
         elif not isinstance(ctx_max_obj_count, int) or ctx_max_obj_count <= 0:
             raise TypeError(
-                '"context.max_object_count" must be an postitive integer')
+                '"context.max_object_count" must be a positive integer')
 
         prompt_id = None
         prompt_name = None
@@ -1464,6 +1942,7 @@ async def _handle_rag_request(
         custom_prompt_messages: list[dict[str, Any]] = []
 
         prompt = body.get("prompt")
+
         if prompt is None:
             prompt_name = "builtin::rag-default"
         else:
@@ -1482,22 +1961,122 @@ async def _handle_rag_request(
             if custom_prompt:
                 if not isinstance(custom_prompt, list):
                     raise TypeError(
-                        "prompt.custom must be a list of {role, content} "
-                        "objects"
+                        (
+                            "prompt.custom must be a list, where each element "
+                            "is one of the following types:\n"
+                            "{ role: 'system', content: str },\n"
+                            "{ role: 'user', content: [{ type: 'text', "
+                            "text: str }] },\n"
+                            "{ role: 'assistant', content: str, "
+                            "optional tool_calls: [{id: str, type: 'function',"
+                            " function: { name: str, arguments: str }}] },\n"
+                            "{ role: 'tool', content: str, tool_call_id: str }"
+                        )
                     )
                 for entry in custom_prompt:
-                    if (
-                        not isinstance(entry, dict)
-                        or not entry.get("role")
-                        or not entry.get("content")
-                        or len(entry) > 2
-                    ):
+                    if not isinstance(entry, dict) or not entry.get("role"):
                         raise TypeError(
-                            "prompt.custom must be a list of {role, content} "
-                            "objects"
+                            (
+                                "each prompt.custom entry must be a "
+                                "dictionary of one of the following types:\n"
+                                "{ role: 'system', content: str },\n"
+                                "{ role: 'user', content: [{ type: 'text', "
+                                "text: str }] },\n"
+                                "{ role: 'assistant', content: str, "
+                                "optional tool_calls: [{id: str, "
+                                "type: 'function', function: { "
+                                "name: str, arguments: str }}] },\n"
+                                "{ role: 'tool', content: str, "
+                                "tool_call_id: str }"
+                            )
+                        )
+
+                    entry_role = entry.get('role')
+                    if entry_role == 'system':
+                        if not isinstance(entry.get("content"), str):
+                            raise TypeError(
+                                "System message content has to be string."
+                            )
+                    elif entry_role == 'user':
+                        if not isinstance(entry.get("content"), list):
+                            raise TypeError(
+                                (
+                                    "User message content has to be a list of "
+                                    "{ type: 'text', text: str }"
+                                )
+                            )
+                        for content_entry in entry["content"]:
+                            if content_entry.get(
+                                "type"
+                            ) != "text" or not isinstance(
+                                content_entry.get("text"), str
+                            ):
+                                raise TypeError(
+                                    (
+                                        "Element of user message content has to"
+                                        "be of type { type: 'text', text: str }"
+                                    )
+                                )
+                    elif entry_role == 'assistant':
+                        if not isinstance(entry.get("content"), str):
+                            raise TypeError(
+                                "Assistant message content has to be string"
+                            )
+
+                        tool_calls = entry.get("tool_calls")
+                        if tool_calls:
+                            if not isinstance(tool_calls, list):
+                                raise TypeError(
+                                    (
+                                        "Assistant tool calls must be"
+                                        "a list of:\n"
+                                        "{id: str, type: 'function', function:"
+                                        " {name: str, arguments: str }}"
+                                    )
+                                )
+
+                            for call in tool_calls:
+                                if (
+                                    not isinstance(call, dict)
+                                    or not isinstance(call.get("id"), str)
+                                    or call.get("type") != "function"
+                                    or not isinstance(
+                                        call.get("function"), dict
+                                    )
+                                    or not isinstance(
+                                        call["function"].get("name"), str
+                                    )
+                                    or not isinstance(
+                                        call["function"].get("arguments"),
+                                        str,
+                                    )
+                                ):
+                                    raise TypeError(
+                                        (
+                                            "A tool call must be of type:\n"
+                                            "{id: str, type: 'function', "
+                                            "function: { name: str, "
+                                            "arguments: str }}"
+                                        )
+                                    )
+
+                    elif entry_role == 'tool':
+                        if not isinstance(entry.get("content"), str):
+                            raise TypeError(
+                                "Tool message content has to be string."
+                            )
+                        if not isinstance(entry.get("tool_call_id"), str):
+                            raise TypeError(
+                                "Tool message tool_call_id has to be string."
+                            )
+                    else:
+                        raise TypeError(
+                            (
+                                "Message role must match one of these: "
+                                "system, user, assistant, tool."
+                            )
                         )
                     custom_prompt_messages.append(entry)
-
     except Exception as ex:
         raise BadRequestError(ex.args[0])
 
@@ -1511,6 +2090,7 @@ async def _handle_rag_request(
 
     vector_query = await _generate_embeddings_for_type(
         db,
+        http_client,
         ctx_query,
         content=query,
     )
@@ -1528,7 +2108,6 @@ async def _handle_rag_request(
         LIMIT
             <int64>$limit
     """
-
     if ctx_variables is None:
         ctx_variables = {}
 
@@ -1598,16 +2177,29 @@ async def _handle_rag_request(
 
         prompt_messages.append(dict(role=role, content=content))
 
+    # don't add here at the end the user query msg because Mistral and
+    # Anthropic doesn't work if the user message shows after the tools
     messages = prompt_messages + custom_prompt_messages
 
     await _start_chat(
-        protocol,
-        request,
-        response,
-        provider,
-        model,
-        messages,
-        stream,
+        protocol=protocol,
+        request=request,
+        response=response,
+        provider=provider,
+        http_client=http_client,
+        model_name=model,
+        messages=messages,
+        stream=stream,
+        temperature=body.get("temperature"),
+        top_p=body.get("top_p"),
+        max_tokens=body.get("max_tokens"),
+        seed=body.get("seed"),
+        safe_prompt=body.get("safe_prompt"),
+        top_k=body.get("top_k"),
+        logit_bias=body.get("logit_bias"),
+        logprobs=body.get("logprobs"),
+        user=body.get("user"),
+        tools=body.get("tools"),
     )
 
 
@@ -1655,6 +2247,7 @@ async def _handle_embeddings_request(
         model_name,
         inputs,
         shortening=None,
+        http_client=tenant.get_http_client(originator="ai/embeddings")
     )
     if isinstance(result.data, rs.Error):
         raise AIProviderError(result.data.message)
@@ -1801,7 +2394,7 @@ async def _get_model_provider(
     model_name: str,
 ) -> str:
     provider = await _get_model_annotation_as_json(
-        db, base_model_type, model_name, "ext::ai::model_name")
+        db, base_model_type, model_name, "ext::ai::model_provider")
     return cast(str, provider)
 
 
@@ -1818,6 +2411,7 @@ async def _get_model_annotation_as_int(
 
 async def _generate_embeddings_for_type(
     db: dbview.Database,
+    http_client: http.HttpClient,
     type_query: str,
     content: str,
 ) -> bytes:
@@ -1911,7 +2505,8 @@ async def _generate_embeddings_for_type(
     else:
         shortening = None
     result = await _generate_embeddings(
-        provider, index["model"], [content], shortening=shortening)
+        provider, index["model"], [content], shortening=shortening,
+        http_client=http_client)
     if isinstance(result.data, rs.Error):
         raise AIProviderError(result.data.message)
     return result.data.embeddings

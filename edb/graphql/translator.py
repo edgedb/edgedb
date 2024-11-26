@@ -1989,7 +1989,7 @@ def augment_error_message(gqlcore: gt.GQLCoreSchema, message: str):
 
         message += (
             f' There\'s no corresponding type or alias "{name}" exposed in '
-            'EdgeDB. Please check the configuration settings for this port '
+            'Gel. Please check the configuration settings for this port '
             'to make sure that you\'re connecting to the right database.'
         )
 

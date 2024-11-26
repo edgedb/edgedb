@@ -336,9 +336,9 @@ class ReferencedInheritingObject(
 
         cmdcls = sd.AlterObject if existing is not None else sd.CreateObject
         cmd: sd.ObjectCommand[ReferencedInheritingObjectT] = (
-            sd.get_object_delta_command(
+            sd.get_object_delta_command(  # type: ignore[type-var, assignment]
                 objtype=type(self),
-                cmdtype=cmdcls,  # type: ignore[arg-type]
+                cmdtype=cmdcls,
                 schema=schema,
                 name=derived_name,
             )
@@ -651,7 +651,7 @@ class CreateReferencedObject(
     ) -> qlast.ObjectDDL:
         nref = cls.get_inherited_ref_name(schema, context, parent, refname)
         astnode_cls = cls.referenced_astnode
-        astnode = astnode_cls(name=nref)  # type: ignore
+        astnode = astnode_cls(name=nref)
         assert isinstance(astnode, qlast.ObjectDDL)
         return astnode
 

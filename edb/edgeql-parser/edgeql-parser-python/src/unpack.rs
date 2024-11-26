@@ -14,13 +14,13 @@ pub fn unpack(py: Python<'_>, serialized: &Bound<PyBytes>) -> PyResult<PyObject>
         0u8 => {
             let tokens: Vec<Token> = bincode::deserialize(&buf[1..])
                 .map_err(|e| PyValueError::new_err(format!("{e}")))?;
-            tokens_to_py(py, tokens)
+            Ok(tokens_to_py(py, tokens)?.into_any())
         }
         1u8 => {
             let pack: PackedEntry = bincode::deserialize(&buf[1..])
                 .map_err(|e| PyValueError::new_err(format!("Failed to unpack: {e}")))?;
             let entry = Entry::new(py, pack.into())?;
-            Ok(entry.into_py(py))
+            entry.into_pyobject(py).map(|e| e.unbind().into_any())
         }
         _ => Err(PyValueError::new_err(format!(
             "Invalid type/version byte: {}",

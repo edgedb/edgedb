@@ -29,16 +29,17 @@ impl ParserResult {
         let mut buf = vec![0u8]; // type and version
         bincode::serialize_into(&mut buf, &rv)
             .map_err(|e| PyValueError::new_err(format!("Failed to pack: {e}")))?;
-        Ok(PyBytes::new_bound(py, buf.as_slice()).into())
+        Ok(PyBytes::new(py, buf.as_slice()).into())
     }
 }
 
-pub fn parser_error_into_tuple(py: Python, error: Error) -> PyObject {
+pub fn parser_error_into_tuple(
+    error: &Error,
+) -> (&str, (u64, u64), Option<&String>, Option<&String>) {
     (
-        error.message,
+        &error.message,
         (error.span.start, error.span.end),
-        error.hint,
-        error.details,
+        error.hint.as_ref(),
+        error.details.as_ref(),
     )
-        .into_py(py)
 }

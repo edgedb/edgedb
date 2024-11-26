@@ -324,7 +324,7 @@ class ObjectType(
     def allow_ref_propagation(
         self,
         schema: s_schema.Schema,
-        constext: sd.CommandContext,
+        context: sd.CommandContext,
         refdict: so.RefDict,
     ) -> bool:
         return not self.is_view(schema) or refdict.attr == 'pointers'
@@ -333,9 +333,7 @@ class ObjectType(
         self,
         schema: s_schema.Schema,
     ) -> Optional[sd.DeleteObject[ObjectType]]:
-        if not schema.get_by_id(self.id, default=None):
-            # this type was already deleted by some other op
-            # (probably alias types cleanup)
+        if not self._is_deletable(schema):
             return None
 
         # References to aliases can only occur inside other aliases,

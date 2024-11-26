@@ -1,0 +1,5 @@
+# edb_stat_statements extension
+comment = 'track planning and execution statistics of all EdgeDB queries executed'
+default_version = '1.0'
+module_pathname = '$libdir/edb_stat_statements'
+relocatable = true

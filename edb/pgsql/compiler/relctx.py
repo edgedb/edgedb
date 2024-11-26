@@ -249,6 +249,7 @@ def include_rvar(
     """
     if aspects is None:
         aspects = (pgce.PathAspect.VALUE,)
+
         if path_id.is_objtype_path():
             if isinstance(rvar, pgast.RangeSubselect):
                 if pathctx.has_path_aspect(
@@ -259,6 +260,9 @@ def include_rvar(
                     aspects += (pgce.PathAspect.SOURCE,)
             else:
                 aspects += (pgce.PathAspect.SOURCE,)
+
+        elif path_id.is_tuple_path():
+            aspects += (pgce.PathAspect.SOURCE,)
 
     return include_specific_rvar(
         stmt, rvar=rvar, path_id=path_id,

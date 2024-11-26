@@ -16,11 +16,11 @@ use pyo3::{prelude::*, types::PyString};
 fn _graphql_rewrite(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_rewrite, m)?)?;
     m.add_class::<py_entry::Entry>()?;
-    m.add("LexingError", py.get_type_bound::<LexingError>())?;
-    m.add("SyntaxError", py.get_type_bound::<SyntaxError>())?;
-    m.add("NotFoundError", py.get_type_bound::<NotFoundError>())?;
-    m.add("AssertionError", py.get_type_bound::<AssertionError>())?;
-    m.add("QueryError", py.get_type_bound::<QueryError>())?;
+    m.add("LexingError", py.get_type::<LexingError>())?;
+    m.add("SyntaxError", py.get_type::<SyntaxError>())?;
+    m.add("NotFoundError", py.get_type::<NotFoundError>())?;
+    m.add("AssertionError", py.get_type::<AssertionError>())?;
+    m.add("QueryError", py.get_type::<QueryError>())?;
     Ok(())
 }
 

@@ -171,3 +171,43 @@ Public methods
         Optional. Variable settings required for the context query.
     :param number context.max_object_count:
         Optional. A maximum number of objects to return from the context query.
+
+.. js:method:: async streamRag( \
+                   message: string, \
+                   context: QueryContext = this.context \
+                 ): AsyncIterable<StreamingMessage> & PromiseLike<Response>
+
+    Can be used in two ways:
+
+    - as **an async iterator** - if you want to process streaming data in 
+        real-time as it arrives, ideal for handling long-running streams.
+
+    - as **a Promise that resolves to a full Response object** - you have 
+        complete control over how you want to handle the stream, this might be 
+        useful when you want to manipulate the raw stream or parse it in a custom way.
+
+    :param string message:
+        Required. The message to be sent to the text generation provider's API.
+    :param string context.query:
+        Required. Specifies an expression to determine the relevant objects and
+        index to serve as context for text generation. You may set this to any
+        expression that produces a set of objects, even if it is not a
+        standalone query.
+    :param string context.variables:
+        Optional. Variable settings required for the context query.
+    :param string context.globals:
+        Optional. Variable settings required for the context query.
+    :param number context.max_object_count:
+        Optional. A maximum number of objects to return from the context query.
+
+.. js:method:: async generateEmbeddings( \
+                   inputs: string[], \
+                   model: string \
+                 ): Promise<number[]>
+
+    Generates embeddings for the array of strings.
+
+    :param string[] inputs:
+        Required. Strings array to generate embeddings for.
+    :param string model:
+        Required. Specifies the AI model to use.

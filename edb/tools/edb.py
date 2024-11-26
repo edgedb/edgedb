@@ -79,6 +79,7 @@ from . import gen_meta_grammars  # noqa
 from . import gen_cast_table  # noqa
 from . import inittestdb  # noqa
 from . import test  # noqa
+from . import test_extension  # noqa
 from . import wipe  # noqa
 from . import gen_test_dumps  # noqa
 from . import gen_sql_introspection  # noqa
@@ -86,5 +87,6 @@ from . import gen_rust_ast  # noqa
 from . import ast_inheritance_graph  # noqa
 from . import parser_demo  # noqa
 from . import ls_forbidden_functions  # noqa
+from . import redo_metaschema  # noqa
 from .profiling import cli as prof_cli  # noqa
 from .experimental_interpreter import edb_entry # noqa

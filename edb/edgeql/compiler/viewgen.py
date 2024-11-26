@@ -69,7 +69,6 @@ from . import astutils
 from . import context
 from . import dispatch
 from . import eta_expand
-from . import inference
 from . import pathctx
 from . import schemactx
 from . import setgen
@@ -1946,27 +1945,6 @@ def _normalize_view_ptr_expr(
 
     assert ptrcls is not None
 
-    if materialized and is_mutation and any(
-        x.is_binding == irast.BindingKind.With
-        and x.expr
-        # If it is a computed pointer, look just at the definition.
-        # TODO: It is a weird artifact of how our shapes are defined
-        # that if a shape element is defined to be some WITH-bound variable,
-        # that set can is both a is_binding and an irast.Pointer. It seems like
-        # the is_binding part should be nested inside it.
-        and (y := x.expr.expr if isinstance(x.expr, irast.Pointer) else x.expr)
-        and inference.infer_volatility(
-            y, ctx.env, exclude_dml=True).is_volatile()
-
-        for reason in materialized
-        if isinstance(reason, irast.MaterializeVisible)
-        for _, x in reason.sets
-    ):
-        raise errors.QueryError(
-            f'cannot refer to volatile WITH bindings from DML',
-            span=compexpr.span if compexpr else None,
-        )
-
     if materialized and not is_mutation and ctx.qlstmt:
         assert ptrcls not in ctx.env.materialized_sets
         ctx.env.materialized_sets[ptrcls] = ctx.qlstmt, materialized
@@ -2171,6 +2149,7 @@ def has_implicit_tid(
 
     return (
         stype.is_object_type()
+        and not stype.is_free_object_type(ctx.env.schema)
         and not is_mutation
         and ctx.implicit_tid_in_shapes
     )
@@ -2182,6 +2161,7 @@ def has_implicit_tname(
 
     return (
         stype.is_object_type()
+        and not stype.is_free_object_type(ctx.env.schema)
         and not is_mutation
         and ctx.implicit_tname_in_shapes
     )

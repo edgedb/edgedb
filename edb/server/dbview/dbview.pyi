@@ -118,6 +118,9 @@ class Database:
     def lookup_config(self, name: str) -> Any:
         ...
 
+    def is_introspected(self) -> bool:
+        ...
+
 class DatabaseConnectionView:
     def in_tx(self) -> bool:
         ...
@@ -179,10 +182,11 @@ class DatabaseIndex:
         schema_version: Optional[uuid.UUID],
         db_config: Optional[Config],
         reflection_cache: Optional[Mapping[str, tuple[str, ...]]],
-        backend_ids: Optional[Mapping[str, int]],
+        backend_ids: Optional[Mapping[str, tuple[int, str]]],
         extensions: Optional[set[str]],
         ext_config_settings: Optional[list[config.Setting]],
         early: bool = False,
+        feature_used_metrics: Optional[Mapping[str, float]] = ...,
     ) -> Database:
         ...
 

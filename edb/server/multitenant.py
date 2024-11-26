@@ -37,6 +37,7 @@ from edb.common import signalctl
 from edb.common.log import current_tenant
 from edb.pgsql import params as pgparams
 from edb.server import compiler as edbcompiler
+from edb.server import metrics
 
 from . import args as srvargs
 from . import config
@@ -170,29 +171,35 @@ class MultiTenantServer(server.BaseServer):
                 tenant.stop()
             for tenant in self._tenants.values():
                 await tenant.wait_stopped()
+                metrics.mt_tenants_total.dec()
         finally:
             for tenant in self._tenants.values():
                 tenant.terminate_sys_pgcon()
 
     def reload_tenants(self) -> Sequence[asyncio.Future]:
-        with self._config_file.open() as cf:
-            conf = json.load(cf)
-        self._last_tenants_conf = self._tenants_conf
-        rv = []
-        for sni, tenant_conf in conf.items():
-            if sni not in self._tenants_conf:
-                rv.append(
-                    self._create_task(self._add_tenant, sni, tenant_conf)
-                )
-        for sni in self._tenants_conf:
-            if sni in conf:
-                rv.append(
-                    self._create_task(self._reload_tenant, sni, conf[sni])
-                )
-            else:
-                rv.append(self._create_task(self._remove_tenant, sni))
-        self._tenants_conf = conf
-        return rv
+        metrics.mt_config_reloads.inc()
+        try:
+            with self._config_file.open() as cf:
+                conf = json.load(cf)
+            self._last_tenants_conf = self._tenants_conf
+            rv = []
+            for sni, tenant_conf in conf.items():
+                if sni not in self._tenants_conf:
+                    rv.append(
+                        self._create_task(self._add_tenant, sni, tenant_conf)
+                    )
+            for sni in self._tenants_conf:
+                if sni in conf:
+                    rv.append(
+                        self._create_task(self._reload_tenant, sni, conf[sni])
+                    )
+                else:
+                    rv.append(self._create_task(self._remove_tenant, sni))
+            self._tenants_conf = conf
+            return rv
+        except Exception:
+            metrics.mt_config_reload_errors.inc()
+            raise
 
     def _create_task(self, method, *args) -> asyncio.Task:
         self._task_serial += 1
@@ -299,6 +306,7 @@ class MultiTenantServer(server.BaseServer):
 
         async def _add_tenant():
             current_tenant.set(conf["instance-name"])
+            metrics.mt_tenant_add_total.inc(1.0, current_tenant.get())
             rloop = retryloop.RetryLoop(
                 backoff=retryloop.exp_backoff(),
                 timeout=300,
@@ -312,6 +320,7 @@ class MultiTenantServer(server.BaseServer):
                             if sni not in self._tenants:
                                 tenant = await self._create_tenant(conf)
                                 self._tenants[sni] = tenant
+                                metrics.mt_tenants_total.inc()
                                 logger.info("Added Tenant %s", sni)
                             self._tenants_serial[sni] = serial
 
@@ -327,25 +336,38 @@ class MultiTenantServer(server.BaseServer):
             async with self._tenants_lock[sni]:
                 if serial > self._tenants_serial.get(sni, 0):
                     self._tenants_conf.pop(sni, None)
+            metrics.mt_tenant_add_errors.inc(1.0, conf["instance-name"])
 
     async def _remove_tenant(self, serial: int, sni: str):
+        tenant = None
         try:
             async with self._tenants_lock[sni]:
                 if serial > self._tenants_serial.get(sni, 0):
                     if sni in self._tenants:
                         tenant = self._tenants.pop(sni)
+                        metrics.mt_tenant_remove_total.inc(
+                            1.0, tenant.get_instance_name()
+                        )
                         current_tenant.set(tenant.get_instance_name())
                         await self._destroy_tenant(tenant)
+                        metrics.mt_tenants_total.dec()
                         logger.info("Removed Tenant %s", sni)
                     self._tenants_serial[sni] = serial
         except Exception:
             logger.critical("Failed to remove Tenant %s", sni, exc_info=True)
+            metrics.mt_tenant_remove_errors.inc(
+                1.0, tenant.get_instance_name() if tenant else 'unknown'
+            )
 
     async def _reload_tenant(self, serial: int, sni: str, conf: TenantConfig):
+        tenant = None
         try:
             async with self._tenants_lock[sni]:
                 if serial > self._tenants_serial.get(sni, 0):
                     if tenant := self._tenants.get(sni):
+                        metrics.mt_tenant_reload_total.inc(
+                            1.0, tenant.get_instance_name()
+                        )
                         current_tenant.set(tenant.get_instance_name())
 
                         orig = self._last_tenants_conf.get(sni, {})
@@ -385,6 +407,9 @@ class MultiTenantServer(server.BaseServer):
                     # removing of the tenant.
         except Exception:
             logger.critical("Failed to reload Tenant %s", sni, exc_info=True)
+            metrics.mt_tenant_reload_errors.inc(
+                1.0, tenant.get_instance_name() if tenant else 'unknown'
+            )
 
     def get_debug_info(self):
         parent = super().get_debug_info()

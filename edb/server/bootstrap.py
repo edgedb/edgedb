@@ -173,7 +173,7 @@ class PGConnectionProxy:
 
         return result
 
-    async def sql_execute(self, sql: bytes | tuple[bytes, ...]) -> None:
+    async def sql_execute(self, sql: bytes) -> None:
         async def _task() -> None:
             assert self._conn is not None
             await self._conn.sql_execute(sql)
@@ -181,7 +181,7 @@ class PGConnectionProxy:
 
     async def sql_fetch(
         self,
-        sql: bytes | tuple[bytes, ...],
+        sql: bytes,
         *,
         args: tuple[bytes, ...] | list[bytes] = (),
     ) -> list[tuple[bytes, ...]]:
@@ -420,7 +420,7 @@ async def _get_cluster_mode(ctx: BootstrapContext) -> ClusterMode:
         return ClusterMode.single_database
 
     # At last, check for single-role-bootstrapped instance by trying to find
-    # the EdgeDB System DB with the assumption that we are not running in
+    # the Gel System DB with the assumption that we are not running in
     # single-db mode. If not found, this is a pristine backend cluster.
     if is_default_tenant:
         result = await ctx.conn.sql_fetch_col(
@@ -634,8 +634,8 @@ def compile_single_query(
 ) -> str:
     ql_source = edgeql.Source.from_string(eql)
     units = edbcompiler.compile(ctx=compilerctx, source=ql_source).units
-    assert len(units) == 1 and len(units[0].sql) == 1
-    return units[0].sql[0].decode()
+    assert len(units) == 1
+    return units[0].sql.decode()
 
 
 def _get_all_subcommands(
@@ -687,7 +687,7 @@ def prepare_repair_patch(
     schema_class_layout: s_refl.SchemaClassLayout,
     backend_params: params.BackendRuntimeParams,
     config: Any,
-) -> tuple[bytes, ...]:
+) -> bytes:
     compiler = edbcompiler.new_compiler(
         std_schema=stdschema,
         reflection_schema=reflschema,
@@ -701,7 +701,7 @@ def prepare_repair_patch(
     )
     res = edbcompiler.repair_schema(compilerctx)
     if not res:
-        return ()
+        return b""
     sql, _, _ = res
 
     return sql
@@ -906,7 +906,10 @@ def prepare_patch(
     elif kind == 'sql-introspection':
         support_view_commands = dbops.CommandGroup()
         support_view_commands.add_commands(
-            metaschema._generate_sql_information_schema())
+            metaschema._generate_sql_information_schema(
+                backend_params.instance_params.version
+            )
+        )
         support_view_commands.generate(subblock)
 
         _generate_drop_views(support_view_commands, preblock)
@@ -960,7 +963,10 @@ def prepare_patch(
             )
         ])
         support_view_commands.add_commands(
-            metaschema._generate_sql_information_schema())
+            metaschema._generate_sql_information_schema(
+                backend_params.instance_params.version
+            )
+        )
 
         _generate_drop_views(support_view_commands, preblock)
 
@@ -1129,6 +1135,9 @@ async def create_branch(
         elif line.startswith('CREATE TYPE'):
             if any(skip in line for skip in to_skip):
                 skipping = True
+        elif line == 'SET transaction_timeout = 0;':
+            continue
+
         if skipping:
             continue
         new_lines.append(line)
@@ -1524,6 +1533,15 @@ def cleanup_tpldbdump(tpldbdump: bytes) -> bytes:
     # elide these to preserve compatibility with earlier servers.
     tpldbdump = re.sub(
         rb',\s*multirange_type_name\s*=[^,\n]+',
+        rb'',
+        tpldbdump,
+        flags=re.MULTILINE,
+    )
+
+    # PostgreSQL 17 adds a transaction_timeout config setting that
+    # didn't exist on earlier versions.
+    tpldbdump = re.sub(
+        rb'^SET transaction_timeout = 0;$',
         rb'',
         tpldbdump,
         flags=re.MULTILINE,
@@ -2005,48 +2023,68 @@ def compile_sys_queries(
     # `schema::Object.backend_id` property and are injected into
     # array query arguments.
     #
-    # The code below re-syncs backend_id properties of EdgeDB builtin
+    # The code below re-syncs backend_id properties of Gel builtin
     # types with the actual OIDs in the DB.
     backend_id_fixup_edgeql = '''
-        WITH
-          _ := (
-            UPDATE {schema::ScalarType, schema::Tuple}
-            FILTER
-                NOT (.abstract ?? False)
-                AND NOT (.transient ?? False)
-            SET {
-                backend_id := sys::_get_pg_type_for_edgedb_type(
-                    .id,
-                    .__type__.name,
-                    <uuid>{},
-                    [is schema::ScalarType].sql_type ?? (
-                      select [is schema::ScalarType]
-                      .bases[is schema::ScalarType] limit 1
-                    ).sql_type,
-                )
-            }
-          ),
-          _ := (
-            UPDATE {schema::Array, schema::Range, schema::MultiRange}
-            FILTER
-                NOT (.abstract ?? False)
-                AND NOT (.transient ?? False)
-            SET {
-                backend_id := sys::_get_pg_type_for_edgedb_type(
-                    .id,
-                    .__type__.name,
-                    .element_type.id,
-                    <str>{},
-                )
-            }
-          ),
-        SELECT 1;
+        UPDATE schema::ScalarType
+        FILTER
+            NOT (.abstract ?? False)
+            AND NOT (.transient ?? False)
+        SET {
+            backend_id := sys::_get_pg_type_for_edgedb_type(
+                .id,
+                .__type__.name,
+                <uuid>{},
+                [is schema::ScalarType].sql_type ?? (
+                    select [is schema::ScalarType]
+                    .bases[is schema::ScalarType] limit 1
+                ).sql_type,
+            )
+        };
+        UPDATE schema::Tuple
+        FILTER
+            NOT (.abstract ?? False)
+            AND NOT (.transient ?? False)
+        SET {
+            backend_id := sys::_get_pg_type_for_edgedb_type(
+                .id,
+                .__type__.name,
+                <uuid>{},
+                [is schema::ScalarType].sql_type ?? (
+                    select [is schema::ScalarType]
+                    .bases[is schema::ScalarType] limit 1
+                ).sql_type,
+            )
+        };
+        UPDATE {schema::Range, schema::MultiRange}
+        FILTER
+            NOT (.abstract ?? False)
+            AND NOT (.transient ?? False)
+        SET {
+            backend_id := sys::_get_pg_type_for_edgedb_type(
+                .id,
+                .__type__.name,
+                .element_type.id,
+                <str>{},
+            )
+        };
+        UPDATE schema::Array
+        FILTER
+            NOT (.abstract ?? False)
+            AND NOT (.transient ?? False)
+        SET {
+            backend_id := sys::_get_pg_type_for_edgedb_type(
+                .id,
+                .__type__.name,
+                .element_type.id,
+                <str>{},
+            )
+        };
     '''
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
         backend_id_fixup_edgeql,
-        expected_cardinality_one=True,
     )
     queries['backend_id_fixup'] = sql
 
@@ -2073,10 +2111,10 @@ def compile_sys_queries(
         ),
         source=edgeql.Source.from_string(report_configs_query),
     ).units
-    assert len(units) == 1 and len(units[0].sql) == 1
+    assert len(units) == 1
 
     report_configs_typedesc_2_0 = units[0].out_type_id + units[0].out_type_data
-    queries['report_configs'] = units[0].sql[0].decode()
+    queries['report_configs'] = units[0].sql.decode()
 
     units = edbcompiler.compile(
         ctx=edbcompiler.new_compiler_context(
@@ -2090,7 +2128,7 @@ def compile_sys_queries(
         ),
         source=edgeql.Source.from_string(report_configs_query),
     ).units
-    assert len(units) == 1 and len(units[0].sql) == 1
+    assert len(units) == 1
     report_configs_typedesc_1_0 = units[0].out_type_id + units[0].out_type_data
 
     return (
@@ -2138,7 +2176,6 @@ async def _populate_misc_instance_data(
             json.dumps(json_single_role_metadata),
         )
 
-    assert backend_params.has_create_database
     if not backend_params.has_create_database:
         await _store_static_json_cache(
             ctx,
@@ -2322,10 +2359,10 @@ async def _check_catalog_compatibility(
             for status_sink in ctx.args.status_sinks:
                 status_sink(f'INCOMPATIBLE={json.dumps(status)}')
             raise errors.ConfigurationError(
-                'database instance incompatible with this version of EdgeDB',
+                'database instance incompatible with this version of Gel',
                 details=(
                     f'The database instance was initialized with '
-                    f'EdgeDB version {datadir_major}, '
+                    f'Gel version {datadir_major}, '
                     f'which is incompatible with this version '
                     f'{expected_ver.major}'
                 ),
@@ -2339,10 +2376,10 @@ async def _check_catalog_compatibility(
             for status_sink in ctx.args.status_sinks:
                 status_sink(f'INCOMPATIBLE={json.dumps(status)}')
             raise errors.ConfigurationError(
-                'database instance incompatible with this version of EdgeDB',
+                'database instance incompatible with this version of Gel',
                 details=(
                     f'The database instance was initialized with '
-                    f'EdgeDB format version {datadir_catver}, '
+                    f'Gel format version {datadir_catver}, '
                     f'but this version of the server expects '
                     f'format version {expected_catver}'
                 ),
@@ -2442,7 +2479,7 @@ async def _bootstrap(
         raise errors.ConfigurationError(
             'unsupported backend',
             details=(
-                f'EdgeDB requires PostgreSQL version {min_ver} or later, '
+                f'Gel requires PostgreSQL version {min_ver} or later, '
                 f'while the specified backend reports itself as '
                 f'{backend_params.instance_params.version.string}.'
             )
@@ -2476,7 +2513,7 @@ async def _bootstrap(
         tpl_ctx = ctx
 
     in_dev_mode = devmode.is_in_dev_mode()
-    # Protect against multiple EdgeDB tenants from trying to bootstrap
+    # Protect against multiple Gel tenants from trying to bootstrap
     # on the same cluster in devmode, as that is both a waste of resources
     # and might result in broken stdlib cache.
     if in_dev_mode:
@@ -2656,7 +2693,7 @@ async def ensure_bootstrapped(
     cluster: pgcluster.BaseCluster,
     args: edbargs.ServerConfig,
 ) -> tuple[bool, edbcompiler.CompilerState]:
-    """Bootstraps EdgeDB instance if it hasn't been bootstrapped already.
+    """Bootstraps Gel instance if it hasn't been bootstrapped already.
 
     Returns True if bootstrap happened and False if the instance was already
     bootstrapped, along with the bootstrap compiler state.

@@ -32,6 +32,7 @@ import hmac
 
 from typing import Any, Optional, cast
 from jwcrypto import jwt, jwk
+from email.message import EmailMessage
 
 from edgedb import QueryAssertionError
 from edb.testbase import http as tb
@@ -236,7 +237,7 @@ APPLE_SECRET = 'c' * 32
 DISCORD_SECRET = 'd' * 32
 SLACK_SECRET = 'd' * 32
 GENERIC_OIDC_SECRET = 'e' * 32
-APP_NAME = "Test App"
+APP_NAME = "Test App" * 13
 LOGO_URL = "http://example.com/logo.png"
 DARK_LOGO_URL = "http://example.com/darklogo.png"
 BRAND_COLOR = "f0f8ff"
@@ -249,6 +250,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
     SETUP = [
         f"""
+        CONFIGURE CURRENT DATABASE INSERT cfg::SMTPProviderConfig {{
+            name := "email_hosting_is_easy",
+            sender := "{SENDER}",
+        }};
+
+        CONFIGURE CURRENT DATABASE SET
+        cfg::current_email_provider_name := "email_hosting_is_easy";
+
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::auth_signing_key := '{SIGNING_KEY}';
 
@@ -272,9 +281,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
           redirect_to := 'https://example.com/app',
           redirect_to_on_signup := 'https://example.com/signup/app',
         }};
-
-        CONFIGURE CURRENT DATABASE SET
-        ext::auth::SMTPConfig::sender := '{SENDER}';
 
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::allowed_redirect_urls := {{
@@ -363,6 +369,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
         self.mock_net_server = tb.MockHttpServer()
         self.mock_net_server.start()
+        super().setUp()
 
     def tearDown(self):
         if self.mock_oauth_server is not None:
@@ -370,6 +377,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         if self.mock_net_server is not None:
             self.mock_net_server.stop()
         self.mock_oauth_server = None
+        super().tearDown()
 
     @classmethod
     def get_setup_script(cls):
@@ -492,6 +500,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             provider_name = provider_config.name
             client_id = provider_config.client_id
             redirect_to = f"{self.http_addr}/some/path"
+            callback_url = f"{self.http_addr}/some/callback/url"
             challenge = (
                 base64.urlsafe_b64encode(
                     hashlib.sha256(
@@ -505,6 +514,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 "provider": provider_name,
                 "redirect_to": redirect_to,
                 "challenge": challenge,
+                "callback_url": callback_url,
             }
 
             _, headers, status = self.http_con_request(
@@ -533,7 +543,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(claims.get("redirect_to"), redirect_to)
 
             self.assertEqual(
-                qs.get("redirect_uri"), [f"{self.http_addr}/callback"]
+                qs.get("redirect_uri"), [callback_url]
             )
             self.assertEqual(qs.get("client_id"), [client_id])
 
@@ -738,8 +748,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
+            body = requests_for_token[0].body
+            assert body is not None
             self.assertEqual(
-                json.loads(requests_for_token[0]["body"]),
+                json.loads(body),
                 {
                     "grant_type": "authorization_code",
                     "code": "abc123",
@@ -752,7 +764,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_user = self.mock_oauth_server.requests[user_request]
             self.assertEqual(len(requests_for_user), 1)
             self.assertEqual(
-                requests_for_user[0]["headers"]["authorization"],
+                requests_for_user[0].headers["authorization"],
                 "Bearer github_access_token",
             )
 
@@ -1042,7 +1054,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-            user_request = ("GET", "https://discord.com/api/v10", "users/@me")
+            user_request = ("GET", "https://discord.com", "api/v10/users/@me")
             self.mock_oauth_server.register_route_handler(*user_request)(
                 (
                     json.dumps(
@@ -1109,7 +1121,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             self.assertEqual(len(requests_for_token), 1)
 
             self.assertEqual(
-                urllib.parse.parse_qs(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0].body),
                 {
                     "grant_type": ["authorization_code"],
                     "code": ["abc123"],
@@ -1122,7 +1134,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_user = self.mock_oauth_server.requests[user_request]
             self.assertEqual(len(requests_for_user), 1)
             self.assertEqual(
-                requests_for_user[0]["headers"]["authorization"],
+                requests_for_user[0].headers["authorization"],
                 "Bearer discord_access_token",
             )
 
@@ -1308,7 +1320,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                urllib.parse.parse_qs(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0].body),
                 {
                     "grant_type": ["authorization_code"],
                     "code": ["abc123"],
@@ -1416,8 +1428,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             discovery_request = (
                 "GET",
-                "https://login.microsoftonline.com/common/v2.0",
-                ".well-known/openid-configuration",
+                "https://login.microsoftonline.com",
+                "common/v2.0/.well-known/openid-configuration",
             )
             self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
@@ -1490,8 +1502,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             discovery_request = (
                 "GET",
-                "https://login.microsoftonline.com/common/v2.0",
-                ".well-known/openid-configuration",
+                "https://login.microsoftonline.com",
+                "common/v2.0/.well-known/openid-configuration",
             )
             self.mock_oauth_server.register_route_handler(*discovery_request)(
                 (
@@ -1605,7 +1617,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                urllib.parse.parse_qs(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0].body),
                 {
                     "grant_type": ["authorization_code"],
                     "code": ["abc123"],
@@ -1826,7 +1838,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                urllib.parse.parse_qs(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0].body),
                 {
                     "grant_type": ["authorization_code"],
                     "code": ["abc123"],
@@ -2114,7 +2126,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                urllib.parse.parse_qs(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0].body),
                 {
                     "grant_type": ["authorization_code"],
                     "code": ["abc123"],
@@ -2421,7 +2433,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
             self.assertEqual(
-                urllib.parse.parse_qs(requests_for_token[0]["body"]),
+                urllib.parse.parse_qs(requests_for_token[0].body),
                 {
                     "grant_type": ["authorization_code"],
                     "code": ["abc123"],
@@ -2590,7 +2602,8 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     "EmailVerificationRequested": None,
                 }
                 for request in requests_for_webhook:
-                    event_data = json.loads(request["body"])
+                    assert request.body is not None
+                    event_data = json.loads(request.body)
                     event_type = event_data["event_type"]
                     self.assertIn(event_type, event_types)
                     self.assertEqual(
@@ -3162,7 +3175,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 auth_data_redirect_on_failure["redirect_on_failure"],
             )
 
-    async def test_http_auth_ext_resend_verification_email(self):
+    async def test_http_auth_ext_local_emailpassword_resend_verification(self):
         with self.http_con() as http_con:
             # Register a new user
             provider_config = await self.get_builtin_provider_config_by_name(
@@ -3199,10 +3212,18 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], form_data["email"])
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
-                r'<p style="word-break: break-all">([^<]+)', html_email
+                r'<p style="word-break: break-all">([^<]+)',
+                html_email,
             )
             assert match is not None
             verify_url = urllib.parse.urlparse(match.group(1))
@@ -3299,6 +3320,137 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertEqual(status, 400)
 
+    async def test_http_auth_ext_local_webauthn_resend_verification(self):
+        with self.http_con() as http_con:
+            # Register a new user
+            provider_config = await self.get_builtin_provider_config_by_name(
+                "local_webauthn"
+            )
+            provider_name = provider_config.name
+            email = f"{uuid.uuid4()}@example.com"
+            credential_one = uuid.uuid4().bytes
+            credential_two = uuid.uuid4().bytes
+
+            await self.con.query_single(
+                """
+                with
+                    email := <str>$email,
+                    user_handle := <bytes>$user_handle,
+                    credential_one := <bytes>$credential_one,
+                    public_key_one := <bytes>$public_key_one,
+                    credential_two := <bytes>$credential_two,
+                    public_key_two := <bytes>$public_key_two,
+                    factor_one := (insert ext::auth::WebAuthnFactor {
+                        email := email,
+                        user_handle := user_handle,
+                        credential_id := credential_one,
+                        public_key := public_key_one,
+                        identity := (insert ext::auth::LocalIdentity {
+                            issuer := "local",
+                            subject := "",
+                        }),
+                    }),
+                    factor_two := (insert ext::auth::WebAuthnFactor {
+                        email := email,
+                        user_handle := user_handle,
+                        credential_id := credential_two,
+                        public_key := public_key_two,
+                        identity := (insert ext::auth::LocalIdentity {
+                            issuer := "local",
+                            subject := "",
+                        }),
+                    }),
+                select true;
+                """,
+                email=email,
+                user_handle=uuid.uuid4().bytes,
+                credential_one=credential_one,
+                public_key_one=uuid.uuid4().bytes,
+                credential_two=credential_two,
+                public_key_two=uuid.uuid4().bytes,
+            )
+
+            # Resend verification email with credential_id
+            resend_data = {
+                "provider": provider_name,
+                "credential_id": base64.b64encode(credential_one).decode(),
+            }
+            resend_data_encoded = urllib.parse.urlencode(resend_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="resend-verification-email",
+                method="POST",
+                body=resend_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 200)
+
+            file_name_hash = hashlib.sha256(
+                f"{SENDER}{email}".encode()
+            ).hexdigest()
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE",
+                f"/tmp/edb-test-email-{file_name_hash}.pickle",
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], SENDER)
+            self.assertEqual(email_args["recipients"], email)
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(
+                r'<p style="word-break: break-all">([^<]+)', html_email
+            )
+            assert match is not None
+            verify_url = urllib.parse.urlparse(match.group(1))
+            search_params = urllib.parse.parse_qs(verify_url.query)
+            verification_token = search_params.get(
+                "verification_token", [None]
+            )[0]
+            assert verification_token is not None
+
+            # Resend verification email with the verification token
+            resend_data = {
+                "provider": provider_name,
+                "verification_token": verification_token,
+            }
+            resend_data_encoded = urllib.parse.urlencode(resend_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="resend-verification-email",
+                method="POST",
+                body=resend_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 200)
+
+            # Resend verification email with email
+            resend_data = {
+                "provider": provider_name,
+                "email": email,
+            }
+            resend_data_encoded = urllib.parse.urlencode(resend_data).encode()
+
+            _, _, status = self.http_con_request(
+                http_con,
+                None,
+                path="resend-verification-email",
+                method="POST",
+                body=resend_data_encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            self.assertEqual(status, 400)
+
     async def test_http_auth_ext_token_01(self):
         base_url = self.mock_net_server.get_base_url().rstrip("/")
         webhook_request = (
@@ -3345,6 +3497,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                             challenge := <str>$challenge,
                             auth_token := <str>$auth_token,
                             refresh_token := <str>$refresh_token,
+                            id_token := <str>$id_token,
                             identity := (
                                 insert ext::auth::Identity {
                                     issuer := "https://example.com",
@@ -3357,12 +3510,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         challenge,
                         auth_token,
                         refresh_token,
+                        id_token,
                         identity_id := .identity.id
                     }
                     """,
                     challenge=challenge.decode(),
                     auth_token="a_provider_token",
                     refresh_token="a_refresh_token",
+                    id_token="an_id_token",
                 )
 
                 # Correct code, random verifier
@@ -3401,6 +3556,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         "identity_id": str(pkce.identity_id),
                         "provider_token": "a_provider_token",
                         "provider_refresh_token": "a_refresh_token",
+                        "provider_id_token": "an_id_token",
                     },
                 )
                 async for tr in self.try_until_succeeds(
@@ -3412,7 +3568,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                         ]
 
                 self.assertEqual(len(requests_for_webhook), 1)
-                event_data = json.loads(requests_for_webhook[0]["body"])
+                webhook_request = requests_for_webhook[0]
+                maybe_json_body = webhook_request.body
+                self.assertIsNotNone(maybe_json_body)
+                assert maybe_json_body is not None
+                event_data = json.loads(maybe_json_body)
                 self.assertEqual(
                     event_data["event_type"],
                     "IdentityAuthenticated",
@@ -3554,8 +3714,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )
@@ -3741,8 +3904,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )
@@ -3910,7 +4076,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             body_str = body.decode()
 
-            self.assertIn(APP_NAME, body_str)
+            self.assertIn(f"{APP_NAME[:100]}...", body_str)
             self.assertIn(LOGO_URL, body_str)
             self.assertIn(BRAND_COLOR, body_str)
 
@@ -3944,7 +4110,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
             self.assertIsInstance(body_json["rp"], dict)
             self.assertIn("name", body_json["rp"])
-            self.assertEqual(body_json["rp"]["name"], APP_NAME)
+            self.assertEqual(body_json["rp"]["name"], f"{APP_NAME[:100]}...")
             self.assertIn("id", body_json["rp"])
             self.assertEqual(body_json["rp"]["id"], "example.com")
 
@@ -4189,13 +4355,167 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
             )
 
-    async def test_http_auth_ext_magic_link_01(self):
+    async def test_http_auth_ext_magic_link_with_link_url(self):
+        email = f"{uuid.uuid4()}@example.com"
+        challenge = "test_challenge"
+        callback_url = "https://example.com/app/auth/callback"
+        redirect_on_failure = "https://example.com/app/auth/magic-link-failure"
+        link_url = "https://example.com/app/magic-link/authenticate"
+
+        with self.http_con() as http_con:
+            # Register with link_url
+            _, _, status = self.http_con_request(
+                http_con,
+                method="POST",
+                path="magic-link/register",
+                body=json.dumps(
+                    {
+                        "provider": "builtin::local_magic_link",
+                        "email": email,
+                        "challenge": challenge,
+                        "callback_url": callback_url,
+                        "redirect_on_failure": redirect_on_failure,
+                        "link_url": link_url,
+                    }
+                ).encode(),
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+            )
+            self.assertEqual(status, 200)
+
+            # Get the token from email
+            file_name_hash = hashlib.sha256(
+                f"{SENDER}{email}".encode()
+            ).hexdigest()
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE",
+                f"/tmp/edb-test-email-{file_name_hash}.pickle",
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], SENDER)
+            self.assertEqual(email_args["recipients"], email)
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(
+                r'<p style="word-break: break-all">([^<]+)', html_email
+            )
+            assert match is not None
+            magic_link_url = urllib.parse.urlparse(match.group(1))
+            search_params = urllib.parse.parse_qs(magic_link_url.query)
+            token = search_params.get("token", [None])[0]
+            assert token is not None
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        magic_link_url.scheme,
+                        magic_link_url.netloc,
+                        magic_link_url.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                link_url,
+            )
+
+            _, headers, status = self.http_con_request(
+                http_con,
+                method="GET",
+                path=f"magic-link/authenticate?token={token}",
+            )
+
+            self.assertEqual(status, 302)
+            location = headers.get("location")
+            assert location is not None
+            parsed_location = urllib.parse.urlparse(location)
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        parsed_location.scheme,
+                        parsed_location.netloc,
+                        parsed_location.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                callback_url,
+            )
+
+            # Sign in with the registered email and link_url
+            _, _, status = self.http_con_request(
+                http_con,
+                method="POST",
+                path="magic-link/email",
+                body=json.dumps(
+                    {
+                        "provider": "builtin::local_magic_link",
+                        "email": email,
+                        "challenge": challenge,
+                        "callback_url": callback_url,
+                        "redirect_on_failure": redirect_on_failure,
+                        "link_url": link_url,
+                    }
+                ).encode(),
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+            )
+
+            # Get the token from email
+            file_name_hash = hashlib.sha256(
+                f"{SENDER}{email}".encode()
+            ).hexdigest()
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE",
+                f"/tmp/edb-test-email-{file_name_hash}.pickle",
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], SENDER)
+            self.assertEqual(email_args["recipients"], email)
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(
+                r'<p style="word-break: break-all">([^<]+)', html_email
+            )
+            assert match is not None
+            magic_link_url = urllib.parse.urlparse(match.group(1))
+            search_params = urllib.parse.parse_qs(magic_link_url.query)
+            token = search_params.get("token", [None])[0]
+            assert token is not None
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        magic_link_url.scheme,
+                        magic_link_url.netloc,
+                        magic_link_url.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                link_url,
+            )
+
+    async def test_http_auth_ext_magic_link_without_link_url(self):
         email = f"{uuid.uuid4()}@example.com"
         challenge = "test_challenge"
         callback_url = "https://example.com/app/auth/callback"
         redirect_on_failure = "https://example.com/app/auth/magic-link-failure"
 
         with self.http_con() as http_con:
+            # Register without link_url
             _, _, status = self.http_con_request(
                 http_con,
                 method="POST",
@@ -4228,16 +4548,32 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 email_args = pickle.load(f)
             self.assertEqual(email_args["sender"], SENDER)
             self.assertEqual(email_args["recipients"], email)
-            html_msg = email_args["message"].get_payload(0).get_payload(1)
-            html_email = html_msg.get_payload(decode=True).decode("utf-8")
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
             match = re.search(
                 r'<p style="word-break: break-all">([^<]+)', html_email
             )
             assert match is not None
-            verify_url = urllib.parse.urlparse(match.group(1))
-            search_params = urllib.parse.parse_qs(verify_url.query)
+            magic_link_url = urllib.parse.urlparse(match.group(1))
+            search_params = urllib.parse.parse_qs(magic_link_url.query)
             token = search_params.get("token", [None])[0]
             assert token is not None
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        magic_link_url.scheme,
+                        magic_link_url.netloc,
+                        magic_link_url.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                f"{self.http_addr}/magic-link/authenticate",
+            )
 
             _, headers, status = self.http_con_request(
                 http_con,
@@ -4261,6 +4597,65 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     )
                 ),
                 callback_url,
+            )
+
+            # Sign in with the registered email without link_url
+            _, _, status = self.http_con_request(
+                http_con,
+                method="POST",
+                path="magic-link/email",
+                body=json.dumps(
+                    {
+                        "provider": "builtin::local_magic_link",
+                        "email": email,
+                        "challenge": challenge,
+                        "callback_url": callback_url,
+                        "redirect_on_failure": redirect_on_failure,
+                    }
+                ).encode(),
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+            )
+
+            # Get the token from email
+            file_name_hash = hashlib.sha256(
+                f"{SENDER}{email}".encode()
+            ).hexdigest()
+            test_file = os.environ.get(
+                "EDGEDB_TEST_EMAIL_FILE",
+                f"/tmp/edb-test-email-{file_name_hash}.pickle",
+            )
+            with open(test_file, "rb") as f:
+                email_args = pickle.load(f)
+            self.assertEqual(email_args["sender"], SENDER)
+            self.assertEqual(email_args["recipients"], email)
+            msg = cast(EmailMessage, email_args["message"]).get_body(
+                ("html",)
+            )
+            assert msg is not None
+            html_email = msg.get_payload(decode=True).decode("utf-8")
+            match = re.search(
+                r'<p style="word-break: break-all">([^<]+)', html_email
+            )
+            assert match is not None
+            magic_link_url = urllib.parse.urlparse(match.group(1))
+            search_params = urllib.parse.parse_qs(magic_link_url.query)
+            token = search_params.get("token", [None])[0]
+            assert token is not None
+            self.assertEqual(
+                urllib.parse.urlunparse(
+                    (
+                        magic_link_url.scheme,
+                        magic_link_url.netloc,
+                        magic_link_url.path,
+                        '',
+                        '',
+                        '',
+                    )
+                ),
+                f"{self.http_addr}/magic-link/authenticate",
             )
 
     async def test_http_auth_ext_identity_delete_cascade_01(self):

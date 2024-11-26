@@ -21,8 +21,11 @@ from __future__ import annotations
 
 import functools
 import typing
+import re
 
+from edb.server.pgcon import errors as pgerror
 from edb.pgsql import ast as pgast
+from edb import errors
 
 from . import context
 
@@ -34,7 +37,8 @@ BaseRelation_T = typing.TypeVar('BaseRelation_T', bound=pgast.BaseRelation)
 def _resolve(
     expr: pgast.Base, *, ctx: context.ResolverContextLevel
 ) -> pgast.Base:
-    raise ValueError(f'no SQL resolve handler for {expr.__class__}')
+    expr.dump()
+    _raise_unsupported(expr)
 
 
 def resolve(expr: Base_T, *, ctx: context.ResolverContextLevel) -> Base_T:
@@ -85,7 +89,7 @@ def _resolve_relation(
     include_inherited: bool,
     ctx: context.ResolverContextLevel,
 ) -> typing.Tuple[pgast.BaseRelation, context.Table]:
-    raise ValueError(f'no SQL resolve handler for {rel.__class__}')
+    _raise_unsupported(rel)
 
 
 @_resolve.register
@@ -96,3 +100,16 @@ def _resolve_BaseRelation(
 
     rel, _ = resolve_relation(rel, ctx=ctx)
     return rel
+
+
+def _raise_unsupported(expr: pgast.Base) -> typing.Never:
+    pretty_name = expr.__class__.__name__
+    pretty_name = pretty_name.removesuffix('Stmt')
+    # title case to spaces
+    pretty_name = re.sub(r'(?<!^)(?=[A-Z])', ' ', pretty_name).upper()
+
+    raise errors.QueryError(
+        f'not supported: {pretty_name}',
+        span=expr.span,
+        pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
+    )

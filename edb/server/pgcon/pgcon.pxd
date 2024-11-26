@@ -139,6 +139,8 @@ cdef class PGConnection:
 
         object last_state
 
+        str last_indirect_return
+
     cdef before_command(self)
 
     cdef write(self, buf)
@@ -154,6 +156,7 @@ cdef class PGConnection:
     cdef bint before_prepare(
         self, bytes stmt_name, int dbver, WriteBuffer outbuf)
     cdef write_sync(self, WriteBuffer outbuf)
+    cdef send_sync(self)
 
     cdef make_clean_stmt_message(self, bytes stmt_name)
     cdef send_query_unit_group(
@@ -186,4 +189,4 @@ cdef class PGConnection:
     cdef inline str get_tenant_label(self)
     cpdef set_stmt_cache_size(self, int maxsize)
 
-cdef str setting_to_sql(self)
+cdef setting_to_sql(setting)

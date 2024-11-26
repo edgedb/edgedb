@@ -20,13 +20,12 @@
 from __future__ import annotations
 
 
+import datetime
 import decimal
 import math
 import pprint
 import uuid
 import unittest
-
-from datetime import timedelta
 
 import edgedb
 
@@ -61,7 +60,10 @@ def sort_results(results, sort):
             results.sort(key=sort)
 
 
-def assert_data_shape(data, shape, fail, message=None, from_sql=False):
+def assert_data_shape(
+    data, shape, fail,
+    message=None, from_sql=False, rel_tol=None, abs_tol=None,
+):
     try:
         import asyncpg
         from asyncpg import types as pgtypes
@@ -71,6 +73,8 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                 'SQL tests skipped: asyncpg not installed')
 
     base_fail = fail
+    rel_tol = 1e-04 if rel_tol is None else rel_tol
+    abs_tol = 1e-15 if abs_tol is None else abs_tol
 
     def fail(msg):
         base_fail(f'{msg}\nshape: {shape!r}\ndata: {data!r}')
@@ -265,7 +269,7 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                 return _assert_type_shape(path, data, shape)
             elif isinstance(shape, float):
                 if not math.isclose(data, shape,
-                                    rel_tol=1e-04, abs_tol=1e-15):
+                                    rel_tol=rel_tol, abs_tol=abs_tol):
                     fail(
                         f'{message}: not isclose({data}, {shape}) '
                         f'{_format_path(path)}')
@@ -275,14 +279,14 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                     fail(
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
-            elif isinstance(shape, (str, int, bytes, timedelta,
+            elif isinstance(shape, (str, int, bytes, datetime.timedelta,
                                     decimal.Decimal)):
                 if data != shape:
                     fail(
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
             elif isinstance(shape, edgedb.RelativeDuration):
-                if data != timedelta(
+                if data != datetime.timedelta(
                     days=shape.months * 30 + shape.days,
                     microseconds=shape.microseconds,
                 ):
@@ -290,7 +294,7 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
             elif isinstance(shape, edgedb.DateDuration):
-                if data != timedelta(
+                if data != datetime.timedelta(
                     days=shape.months * 30 + shape.days,
                 ):
                     fail(
@@ -337,7 +341,7 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                 return _assert_type_shape(path, data, shape)
             elif isinstance(shape, float):
                 if not math.isclose(data, shape,
-                                    rel_tol=1e-04, abs_tol=1e-15):
+                                    rel_tol=rel_tol, abs_tol=abs_tol):
                     fail(
                         f'{message}: not isclose({data}, {shape}) '
                         f'{_format_path(path)}')
@@ -347,7 +351,7 @@ def assert_data_shape(data, shape, fail, message=None, from_sql=False):
                     fail(
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
-            elif isinstance(shape, (str, int, bytes, timedelta,
+            elif isinstance(shape, (str, int, bytes, datetime.timedelta,
                                     decimal.Decimal)):
                 if data != shape:
                     fail(

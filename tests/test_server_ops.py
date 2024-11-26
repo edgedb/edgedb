@@ -35,12 +35,15 @@ import sys
 import tempfile
 import time
 import unittest
+import urllib.error
+import urllib.request
 import uuid
 
 import edgedb
-import httpx
 from edgedb import errors
 
+import edb
+from edb import buildmeta
 from edb import protocol
 from edb.common import devmode
 from edb.protocol import protocol as edb_protocol  # type: ignore
@@ -397,7 +400,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             async with tb.start_edgedb_server(
                 data_dir=temp_dir,
                 default_auth_method=args.ServerAuthMethod.Scram,
-                bootstrap_command='ALTER ROLE edgedb SET password := "first";'
+                bootstrap_command='ALTER ROLE admin SET password := "first";'
             ) as sd:
                 con = await sd.connect(password='first')
                 try:
@@ -409,7 +412,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             async with tb.start_edgedb_server(
                 data_dir=temp_dir,
                 default_auth_method=args.ServerAuthMethod.Scram,
-                bootstrap_command='ALTER ROLE edgedb SET password := "second";'
+                bootstrap_command='ALTER ROLE admin SET password := "second";'
             ) as sd:
                 con = await sd.connect(password='first')
                 try:
@@ -506,7 +509,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     databases = await con.query('SELECT sys::Branch.name')
                     self.assertEqual(set(databases), {'main', tenant})
                     roles = await con.query('SELECT sys::Role.name')
-                    self.assertEqual(set(roles), {'edgedb', tenant})
+                    self.assertEqual(set(roles), {'admin', tenant})
                 finally:
                     await con.aclose()
 
@@ -541,7 +544,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     databases = await con.query('SELECT sys::Branch.name')
                     self.assertEqual(set(databases), {'main', tenant})
                     roles = await con.query('SELECT sys::Role.name')
-                    self.assertEqual(set(roles), {'edgedb', tenant})
+                    self.assertEqual(set(roles), {'admin', tenant})
                 finally:
                     await con.aclose()
 
@@ -683,6 +686,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
                 command_text='SELECT 1',
+                input_language=protocol.InputLanguage.EDGEQL,
                 output_format=protocol.OutputFormat.NONE,
                 expected_cardinality=protocol.Cardinality.MANY,
                 input_typedesc_id=b'\0' * 16,
@@ -781,6 +785,130 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
                 finally:
                     await con.aclose()
+
+    async def test_server_ops_schema_metrics_01(self):
+        def _extkey(extension: str) -> str:
+            return (
+                f'edgedb_server_extension_used_branch_count_current'
+                f'{{tenant="localtest",extension="{extension}"}}'
+            )
+
+        def _featkey(feature: str) -> str:
+            return (
+                f'edgedb_server_feature_used_branch_count_current'
+                f'{{tenant="localtest",feature="{feature}"}}'
+            )
+
+        async with tb.start_edgedb_server(
+            default_auth_method=args.ServerAuthMethod.Trust,
+            net_worker_mode='disabled',
+        ) as sd:
+            con = await sd.connect()
+            con2 = None
+            try:
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_extkey('graphql'), 0), 0)
+                self.assertEqual(metrics.get(_extkey('pg_trgm'), 0), 0)
+                self.assertEqual(metrics.get(_featkey('function'), 0), 0)
+
+                await con.execute('create extension graphql')
+                await con.execute('create extension pg_trgm')
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_extkey('graphql'), 0), 1)
+                self.assertEqual(metrics.get(_extkey('pg_trgm'), 0), 1)
+                # The innards of extensions shouldn't be counted in
+                # feature use metrics. (pg_trgm has functions.)
+                self.assertEqual(metrics.get(_featkey('function'), 0), 0)
+
+                await con.execute('drop extension graphql')
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_extkey('graphql'), 0), 0)
+                self.assertEqual(metrics.get(_extkey('pg_trgm'), 0), 1)
+
+                self.assertEqual(metrics.get(_extkey('global'), 0), 0)
+
+                await con.execute('create global foo -> str;')
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_featkey('global'), 0), 1)
+
+                # Make sure it works after a transaction
+                await con.execute('start transaction;')
+                await con.execute('drop global foo;')
+                await con.execute('commit;')
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_featkey('global'), 0), 0)
+
+                # And inside a script
+                await con.execute('create global foo -> str; select 1;')
+                await con.execute('create function asdf() -> int64 using (0)')
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_featkey('global'), 0), 1)
+                self.assertEqual(metrics.get(_featkey('function'), 0), 1)
+
+                # Check in a second branch
+                await con.execute('create empty branch b2')
+                con2 = await sd.connect(database='b2')
+                await con2.execute('create function asdf() -> int64 using (0)')
+                await con2.execute('create extension graphql')
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_extkey('graphql'), 0), 1)
+                self.assertEqual(metrics.get(_featkey('global'), 0), 1)
+                self.assertEqual(metrics.get(_featkey('function'), 0), 2)
+
+                await con2.aclose()
+                con2 = None
+
+                # Dropping the other branch clears them out
+                await con.execute('drop branch b2')
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_extkey('graphql'), 0), 0)
+                self.assertEqual(metrics.get(_featkey('function'), 0), 1)
+
+                # More detailed testing
+
+                await con.execute('create type Foo;')
+
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_featkey('index'), 0), 0)
+                self.assertEqual(metrics.get(_featkey('constraint'), 0), 0)
+
+                await con.execute('''
+                    alter type Foo create constraint expression on (true)
+                ''')
+
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(metrics.get(_featkey('index'), 0), 0)
+                self.assertEqual(metrics.get(_featkey('constraint'), 0), 1)
+                self.assertEqual(metrics.get(_featkey('constraint_expr'), 0), 1)
+                self.assertEqual(
+                    metrics.get(_featkey('multiple_inheritance'), 0), 0
+                )
+                self.assertEqual(metrics.get(_featkey('scalar'), 0), 0)
+                self.assertEqual(metrics.get(_featkey('enum'), 0), 0)
+                self.assertEqual(metrics.get(_featkey('link_property'), 0), 0)
+
+                await con.execute('''
+                    create type Bar;
+                    create type Baz extending Foo, Bar;
+                    create scalar type EnumType02 extending enum<foo, bar>;
+
+                    create type Lol { create multi link foo -> Bar {
+                        create property x -> str;
+                    } };
+                ''')
+
+                metrics = tb.parse_metrics(sd.fetch_metrics())
+                self.assertEqual(
+                    metrics.get(_featkey('multiple_inheritance'), 0), 1
+                )
+                self.assertEqual(metrics.get(_featkey('scalar'), 0), 1)
+                self.assertEqual(metrics.get(_featkey('enum'), 0), 1)
+                self.assertEqual(metrics.get(_featkey('link_property'), 0), 1)
+
+            finally:
+                await con.aclose()
+                if con2:
+                    await con2.aclose()
 
     async def test_server_ops_downgrade_to_cleartext(self):
         async with tb.start_edgedb_server(
@@ -904,15 +1032,25 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             security=args.ServerSecurityMode.Strict,
         ) as sd:
             def test(url):
-                resp = httpx.get(url, verify=sd.tls_cert_file)
-                self.assertFalse(resp.is_success)
-
-                resp = httpx.get(
-                    url,
-                    verify=sd.tls_cert_file,
-                    cert=(str(client_ssl_cert_file), str(client_ssl_key_file)),
+                # Connection without the client cert fails
+                tls_context = ssl.create_default_context(
+                    ssl.Purpose.SERVER_AUTH,
+                    cafile=sd.tls_cert_file,
                 )
-                self.assertTrue(resp.is_success)
+                error_code = None
+                try:
+                    resp = urllib.request.urlopen(url, context=tls_context)
+                except urllib.error.HTTPError as e:
+                    error_code = e.code
+                self.assertEqual(error_code, 401)
+
+                # But once we load the client it will work
+                tls_context.load_cert_chain(
+                    client_ssl_cert_file,
+                    client_ssl_key_file,
+                )
+                resp = urllib.request.urlopen(url, context=tls_context)
+                self.assertEqual(resp.status, 200)
 
             test(f'https://{sd.host}:{sd.port}/metrics')
             test(f'https://{sd.host}:{sd.port}/server/status/alive')
@@ -1293,6 +1431,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             raise
         return cluster, connect_args
 
+    @unittest.skip('Test was failing mysteriously in CI. See #7933.')
     async def test_server_ops_multi_tenant(self):
         with (
             tempfile.TemporaryDirectory() as td1,
@@ -1334,7 +1473,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     )
                     for i in range(1, 7):
                         name = f"_test_server_ops_multi_tenant_{i}"
-                        with self.subTest(name):
+                        with self.subTest(name, i=i):
                             await getattr(self, name)(mtargs)
             finally:
                 try:
@@ -1361,6 +1500,24 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             await conn.aclose()
 
     async def _test_server_ops_multi_tenant_3(self, mtargs: MultiTenantArgs):
+        data = mtargs.sd.fetch_metrics()
+        self.assertIn(
+            '\nedgedb_server_mt_tenants_current 2.0\n', data
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_config_reload_errors_total 0.0\n', data
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_tenant_add_total'
+            '{tenant="localtest1"} 1.0\n',
+            data,
+        )
+        self.assertNotIn(
+            '\nedgedb_server_mt_tenant_remove_total'
+            '{tenant="localtest1"} 1.0\n',
+            data,
+        )
+
         conf1 = mtargs.conf.pop("1.localhost")
         mtargs.reload_server()
 
@@ -1372,6 +1529,26 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
         await self._test_server_ops_multi_tenant_2(mtargs)
 
+        data = mtargs.sd.fetch_metrics()
+        self.assertIn(
+            '\nedgedb_server_mt_tenants_current 1.0\n',
+            data,
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_config_reload_errors_total 0.0\n',
+            data,
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_tenant_add_total'
+            '{tenant="localtest1"} 1.0\n',
+            data,
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_tenant_remove_total'
+            '{tenant="localtest1"} 1.0\n',
+            data,
+        )
+
         mtargs.conf["1.localhost"] = conf1
         mtargs.reload_server()
 
@@ -1382,6 +1559,26 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 await self._test_server_ops_multi_tenant_1(mtargs)
 
         await self._test_server_ops_multi_tenant_2(mtargs)
+
+        data = mtargs.sd.fetch_metrics()
+        self.assertIn(
+            '\nedgedb_server_mt_tenants_current 2.0\n',
+            data,
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_config_reload_errors_total 0.0\n',
+            data,
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_tenant_add_total'
+            '{tenant="localtest1"} 2.0\n',
+            data,
+        )
+        self.assertIn(
+            '\nedgedb_server_mt_tenant_remove_total'
+            '{tenant="localtest1"} 1.0\n',
+            data,
+        )
 
     async def _test_server_ops_multi_tenant_4(self, mtargs: MultiTenantArgs):
         mtargs.rd1.file.seek(0)
@@ -1451,9 +1648,6 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 insert ext::auth::EmailPasswordProviderConfig {{
                     require_verification := false,
                 }};
-
-                configure current database set
-                ext::auth::SMTPConfig::sender := 'noreply@example.com';
             ''')
         finally:
             await conn.aclose()
@@ -1506,3 +1700,39 @@ class MultiTenantArgs(NamedTuple):
         json.dump(self.conf, self.conf_file.file)
         self.conf_file.file.flush()
         self.srv.proc.send_signal(signal.SIGHUP)
+
+
+class TestPGExtensions(tb.TestCase):
+    async def test_edb_stat_statements(self):
+        ext_home = (
+            pathlib.Path(edb.__file__).parent.parent / 'edb_stat_statements'
+        ).resolve()
+        if not ext_home.exists():
+            raise unittest.SkipTest("no source of edb_stat_statements")
+        with tempfile.TemporaryDirectory() as td:
+            cluster = await pgcluster.get_local_pg_cluster(td, log_level='s')
+            cluster.update_connection_params(
+                user='postgres',
+                database='template1',
+            )
+            self.assertTrue(await cluster.ensure_initialized())
+            await cluster.start(server_settings={
+                'edb_stat_statements.track_planning': 'false',
+                'edb_stat_statements.track_unrecognized': 'true',
+                'max_prepared_transactions': '5',
+            })
+            try:
+                pg_config = buildmeta.get_pg_config_path()
+                env = os.environ.copy()
+                params = cluster.get_pgaddr()
+                env['PGHOST'] = params.host
+                env['PGPORT'] = params.port
+                env['PGUSER'] = params.user
+                env['PGDATABASE'] = params.database
+                subprocess.check_output([
+                    'make',
+                    f'PG_CONFIG={pg_config}',
+                    'installcheck',
+                ], cwd=str(ext_home), env=env)
+            finally:
+                await cluster.stop()

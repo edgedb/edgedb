@@ -31,9 +31,16 @@ type Genre {
     required name: str;
 }
 
+global filter_title: str;
+
 type Content {
     required title: str;
     genre: Genre;
+
+    access policy filter_title
+        allow select
+        using (global filter_title ?= .title);
+    access policy dml allow insert, update, delete;
 }
 
 type Movie extending Content {
@@ -68,4 +75,26 @@ module nested {
             property rolling -> str;
         };
     };
+}
+
+type ContentSummary {
+    property x := std::count((select Content));
+
+    access policy select_always allow select;
+    access policy dml allow insert, update, delete
+        using (global filter_title ?= 'summary');
+}
+
+module links {
+    type A;
+
+    type B {
+        multi link a: A;
+        link prop: A {
+            property lp: str;
+        };
+        multi property vals: str;
+    }
+
+    type C extending B;
 }

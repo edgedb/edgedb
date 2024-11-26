@@ -594,7 +594,7 @@ class EQLTypeDirective(BaseEQLDirective):
 
     def handle_signature(self, sig, signode):
         if '::' in sig:
-            mod, name = sig.strip().split('::')
+            mod, name = sig.strip().rsplit('::', 1)
         else:
             name = sig.strip()
             mod = 'std'
@@ -772,7 +772,9 @@ class EQLFunctionDirective(BaseEQLDirective):
                 f'create function {sig} using SQL function "xxx";')[0]
         except Exception as ex:
             raise self.error(
-                f'could not parse function signature {sig!r}') from ex
+                f'could not parse function signature {sig!r}: '
+                f'{ex.__class__.__name__}({ex.args[0]!r})'
+            ) from ex
 
         if (not isinstance(astnode, ql_ast.CreateFunction) or
                 not isinstance(astnode.name, ql_ast.ObjectRef)):

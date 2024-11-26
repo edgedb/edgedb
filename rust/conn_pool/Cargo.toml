@@ -1,0 +1,60 @@
+[package]
+name = "conn_pool"
+version = "0.1.0"
+license = "MIT/Apache-2.0"
+authors = ["MagicStack Inc. <hello@magic.io>"]
+edition = "2021"
+
+[lints]
+workspace = true
+
+[features]
+python_extension = ["pyo3/extension-module"]
+optimizer = ["genetic_algorithm", "lru", "rand", "statrs", "anyhow", "tokio/test-util"]
+
+[dependencies]
+pyo3 = { workspace = true, optional = true }
+tokio.workspace = true
+pyo3_util.workspace = true
+tracing.workspace = true
+
+futures = "0"
+scopeguard = "1"
+itertools = "0"
+thiserror = "1"
+strum = { version = "0.26", features = ["derive"] }
+consume_on_drop = "0"
+smart-default = "0"
+serde = { version = "1", features = ["derive"] }
+serde-pickle = "1"
+
+# For the optimizer
+genetic_algorithm = { version = "0.9.0", optional = true }
+lru = { version = "0.12.4", optional = true }
+rand = { version = "0.8.5", optional = true }
+statrs = { version = "0.17.1", optional = true }
+anyhow = { version = "1", optional = true }
+
+[dependencies.derive_more]
+version = "1.0.0-beta.6"
+features = ["full"]
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
+pretty_assertions = "1.2.0"
+test-log = { version = "0", features = ["trace"] }
+anyhow = "1"
+rstest = "0"
+
+statrs = "0.17.1"
+rand = "0.8.5"
+
+[lib]
+crate-type = ["lib", "cdylib"]
+name = "conn_pool"
+path = "src/lib.rs"
+
+[[bin]]
+name = "optimizer"
+required-features = ["optimizer"]

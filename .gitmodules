@@ -7,4 +7,4 @@
 	url = https://github.com/MagicStack/py-pgproto.git
 [submodule "edb/pgsql/parser/libpg_query"]
 	path = edb/pgsql/parser/libpg_query
-	url = https://github.com/msullivan/libpg_query.git
+	url = https://github.com/edgedb/libpg_query.git

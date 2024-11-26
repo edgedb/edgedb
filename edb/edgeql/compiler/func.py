@@ -202,7 +202,10 @@ def compile_FunctionCall(
     inline_func = None
     if (
         func.get_language(ctx.env.schema) == qlast.Language.EdgeQL
-        and func.get_is_inlined(ctx.env.schema)
+        and (
+            func.get_volatility(ctx.env.schema) == ft.Volatility.Modifying
+            or func.get_is_inlined(ctx.env.schema)
+        )
     ):
         inline_func = s_func.compile_function_inline(
             schema=ctx.env.schema,
@@ -334,7 +337,11 @@ def compile_FunctionCall(
     else:
         tuple_path_ids = []
 
-    global_args = get_globals(expr, matched_call, candidates=funcs, ctx=ctx)
+    global_args = None
+    if not inline_func:
+        global_args = get_globals(
+            expr, matched_call, candidates=funcs, ctx=ctx
+        )
 
     fcall = irast.FunctionCall(
         args=final_args,
@@ -495,7 +502,7 @@ class ArgumentInliner(ast.NodeTransformer):
                 # Inline param as an expr ref. The pg compiler will find the
                 # appropriate rvar.
                 self.mapped_args[node.path_id] = arg.expr.path_id
-                return setgen.ensure_set(
+                inlined_param_expr = setgen.ensure_set(
                     irast.InlinedParameterExpr(
                         typeref=arg.expr.typeref,
                         required=node.expr.required,
@@ -504,6 +511,8 @@ class ArgumentInliner(ast.NodeTransformer):
                     path_id=arg.expr.path_id,
                     ctx=self.ctx,
                 )
+                inlined_param_expr.shape = node.shape
+                return inlined_param_expr
             else:
                 # Directly inline the set.
                 # Used for default values, which are constants.
@@ -532,6 +541,28 @@ class ArgumentInliner(ast.NodeTransformer):
             return result
 
         return cast(irast.Base, self.generic_visit(node))
+
+    # Don't transform pointer refs.
+    # They are updated in other places, such as cardinality inference.
+    def visit_PointerRef(
+        self, node: irast.PointerRef
+    ) -> irast.Base:
+        return node
+
+    def visit_TupleIndirectionPointerRef(
+        self, node: irast.TupleIndirectionPointerRef
+    ) -> irast.Base:
+        return node
+
+    def visit_SpecialPointerRef(
+        self, node: irast.SpecialPointerRef
+    ) -> irast.Base:
+        return node
+
+    def visit_TypeIntersectionPointerRef(
+        self, node: irast.TypeIntersectionPointerRef
+    ) -> irast.Base:
+        return node
 
 
 class _SpecialCaseFunc(Protocol):

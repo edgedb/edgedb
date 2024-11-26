@@ -66,4 +66,14 @@ TYPE_IDS = {
         UUID('00000000-0000-0000-0000-000000000112'),
     sn.name_from_string('cfg::memory'):
         UUID('00000000-0000-0000-0000-000000000130'),
+    sn.name_from_string('std::pg::json'):
+        UUID('00000000-0000-0000-0000-000001000001'),
+    sn.name_from_string('std::pg::timestamptz'):
+        UUID('00000000-0000-0000-0000-000001000002'),
+    sn.name_from_string('std::pg::timestamp'):
+        UUID('00000000-0000-0000-0000-000001000003'),
+    sn.name_from_string('std::pg::date'):
+        UUID('00000000-0000-0000-0000-000001000004'),
+    sn.name_from_string('std::pg::interval'):
+        UUID('00000000-0000-0000-0000-000001000005'),
 }

@@ -374,7 +374,7 @@ def _describe_tuple(t: s_types.Tuple, *, ctx: Context) -> uuid.UUID:
         # .name
         buf.append(_name_packer(t.get_name(ctx.schema)))
         # .schema_defined
-        buf.append(_bool_packer(True))
+        buf.append(_bool_packer(t.get_is_persistent(ctx.schema)))
         # .ancestors
         buf.append(_type_ref_seq_packer([], ctx=ctx))
 
@@ -420,7 +420,7 @@ def _describe_array(t: s_types.Array, *, ctx: Context) -> uuid.UUID:
         # .name
         buf.append(_name_packer(t.get_name(ctx.schema)))
         # .schema_defined
-        buf.append(_bool_packer(True))
+        buf.append(_bool_packer(t.get_is_persistent(ctx.schema)))
         # .ancestors
         buf.append(_type_ref_seq_packer([], ctx=ctx))
 
@@ -459,7 +459,7 @@ def _describe_range(t: s_types.Range, *, ctx: Context) -> uuid.UUID:
         # .name
         buf.append(_name_packer(t.get_name(ctx.schema)))
         # .schema_defined
-        buf.append(_bool_packer(True))
+        buf.append(_bool_packer(t.get_is_persistent(ctx.schema)))
         # .ancestors
         buf.append(_type_ref_seq_packer([], ctx=ctx))
 
@@ -494,7 +494,7 @@ def _describe_multirange(t: s_types.MultiRange, *, ctx: Context) -> uuid.UUID:
         # .name
         buf.append(_name_packer(t.get_name(ctx.schema)))
         # .schema_defined
-        buf.append(_bool_packer(True))
+        buf.append(_bool_packer(t.get_is_persistent(ctx.schema)))
         # .ancestors
         buf.append(_type_ref_seq_packer([], ctx=ctx))
 
@@ -551,7 +551,8 @@ def _describe_object_shape(
         link_props.append(False)
         links.append(not ptr.is_property(ctx.schema))
         cardinalities.append(cardinality_from_ptr(ptr, ctx.schema))
-        ptr_source = ptr.get_source(ctx.schema)
+        ctx.schema, material_ptr = ptr.material_type(ctx.schema)
+        ptr_source = material_ptr.get_source(ctx.schema)
         assert isinstance(ptr_source, s_objtypes.ObjectType)
         ctx.schema, ptr_source = ptr_source.material_type(ctx.schema)
         assert ptr_source is not None
@@ -1102,7 +1103,7 @@ def _parse(desc: binwrapper.BinWrapper, ctx: ParseContext) -> None:
             return
         else:
             raise NotImplementedError(
-                f'no codec implementation for EdgeDB data kind {hex(t[0])}')
+                f'no codec implementation for Gel data kind {hex(t[0])}')
     else:
         ctx.codecs_list.append(_parse_descriptor(tag, desc, ctx=ctx))
 
@@ -1168,7 +1169,7 @@ def _parse_descriptor(
     ctx: ParseContext,
 ) -> TypeDesc:
     raise AssertionError(
-        f'no codec implementation for EdgeDB data kind {tag._name_}')
+        f'no codec implementation for Gel data kind {tag._name_}')
 
 
 @_parse_descriptor.register(DescriptorTag.SET)
@@ -1630,7 +1631,6 @@ class StateSerializerFactory:
             config := cfg::Config {
                 session_idle_transaction_timeout: <duration>'0:05:00',
                 query_execution_timeout: <duration>'0:00:00',
-                allow_dml_in_functions: false,
                 allow_bare_ddl: AlwaysAllow,
                 apply_access_policies: true,
             },

@@ -1,0 +1,59 @@
+<% from "tests.inc.yml" import build, calc_cache_key, restore_cache -%>
+name: Tests with reflection validation
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs: {}
+  push:
+    branches:
+      - "REFL-*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    <%- call build() -%>
+
+    - name: Compute cache keys
+      env:
+        GIST_TOKEN: ${{ secrets.CI_BOT_GIST_TOKEN }}
+      run: |
+        << calc_cache_key()|indent >>
+    <%- endcall %>
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    <<- restore_cache() >>
+
+    # Run the test
+
+    - name: Test
+      env:
+        EDGEDB_TEST_REPEATS: 1
+      run: |
+        edb test -j2 -v
+
+  workflow-notifications:
+    if: failure() && github.event_name != 'pull_request'
+    name: Notify in Slack on failures
+    needs:
+      - build
+      - test
+    runs-on: ubuntu-latest
+    permissions:
+      actions: 'read'
+    steps:
+      - name: Slack Workflow Notification
+        uses: Gamesight/slack-workflow-status@26a36836c887f260477432e4314ec3490a84f309
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          slack_webhook_url: ${{secrets.ACTIONS_SLACK_WEBHOOK_URL}}
+          name: 'Workflow notifications'
+          icon_emoji: ':hammer:'
+          include_jobs: 'on-failure'

@@ -20,14 +20,18 @@
 in our internal Postgres instance."""
 
 from typing import Optional, Tuple, List, cast, Set
+import uuid
 
 from edb import errors
 from edb.server.pgcon import errors as pgerror
+
+from edb.edgeql import qltypes
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common as pgcommon
 from edb.pgsql import codegen as pgcodegen
 from edb.pgsql import inheritance as pginheritance
+from edb.pgsql import types as pgtypes
 
 from edb.schema import objtypes as s_objtypes
 from edb.schema import links as s_links
@@ -41,6 +45,7 @@ from . import context
 from . import range_var
 from . import expr
 from . import sql_introspection
+from . import command
 
 Context = context.ResolverContextLevel
 
@@ -128,6 +133,7 @@ def resolve_SelectStmt(
         targets, columns = expr.resolve_ResTarget(
             t, existing_names=names, ctx=ctx
         )
+
         target_list.extend(targets)
         table.columns.extend(columns)
         names.update(c.name for c in columns)
@@ -141,26 +147,27 @@ def resolve_SelectStmt(
 
     # order by can refer to columns in SELECT projection, so we need to add
     # table.columns into scope
-    ctx.scope.tables.append(
-        context.Table(
-            columns=[
-                context.Column(
-                    name=c.name,
-                    kind=context.ColumnByName(reference_as=c.name),
-                )
-                for c, target in zip(table.columns, stmt.target_list)
-                if target.name
-                and (
-                    not isinstance(target.val, pgast.ColumnRef)
-                    or target.val.name[-1] != target.name
-                )
-            ]
-        )
+    projected_table = context.Table(
+        columns=[
+            context.Column(
+                name=c.name,
+                kind=context.ColumnByName(reference_as=c.name),
+            )
+            for c, target in zip(table.columns, stmt.target_list)
+            if target.name
+            and (
+                not isinstance(target.val, pgast.ColumnRef)
+                or target.val.name[-1] != target.name
+            )
+        ]
     )
+    if len(projected_table.columns) > 0:
+        ctx.scope.tables.append(projected_table)
 
     sort_clause = dispatch.resolve_opt_list(stmt.sort_clause, ctx=ctx)
     limit_offset = dispatch.resolve_opt(stmt.limit_offset, ctx=ctx)
     limit_count = dispatch.resolve_opt(stmt.limit_count, ctx=ctx)
+    locking_clause = dispatch.resolve_opt_list(stmt.locking_clause, ctx=ctx)
 
     ctes.extend(extract_ctes_from_ctx(ctx))
 
@@ -173,6 +180,7 @@ def resolve_SelectStmt(
         sort_clause=sort_clause,
         limit_offset=limit_offset,
         limit_count=limit_count,
+        locking_clause=locking_clause,
         ctes=ctes if len(ctes) > 0 else None,
     )
     return (
@@ -213,11 +221,11 @@ def register_projections(target_list: List[pgast.ResTarget], *, ctx: Context):
 
 
 PG_TOAST_TABLE: List[
-    Tuple[sql_introspection.ColumnName, sql_introspection.ColumnType]
+    Tuple[sql_introspection.ColumnName, sql_introspection.ColumnType, int]
 ] = [
-    ('chunk_id', None),
-    ('chunk_seq', None),
-    ('chunk_data', None),
+    ('chunk_id', None, 13),
+    ('chunk_seq', None, 13),
+    ('chunk_data', None, 13),
 ]
 
 
@@ -251,10 +259,12 @@ def resolve_relation(
     if preset_tables and relation.name in preset_tables[0]:
         cols = [
             context.Column(name=n, kind=context.ColumnByName(reference_as=n))
-            for n, _type in preset_tables[0][relation.name]
+            for n, _type, _ver_since in preset_tables[0][relation.name]
         ]
         cols.extend(_construct_system_columns())
-        table = context.Table(name=relation.name, columns=cols)
+        table = context.Table(
+            name=relation.name, columns=cols, is_direct_relation=True
+        )
         rel = pgast.Relation(name=relation.name, schemaname=preset_tables[1])
 
         return rel, table
@@ -322,7 +332,7 @@ def resolve_relation(
             if card.is_multi():
                 continue
 
-            columns.append(_construct_column(p, ctx, include_inherited))
+            columns.append(_construct_column(p, ctx))
     else:
         for c in ['source', 'target']:
             columns.append(
@@ -346,19 +356,61 @@ def resolve_relation(
 
     table.columns.extend(_construct_system_columns())
 
-    if include_inherited:
-        relation = _select_from_inheritance_cte(obj, ctx)
+    if ctx.options.apply_access_policies and _has_access_policies(obj, ctx):
+        if isinstance(obj, s_objtypes.ObjectType):
+            rel = _compile_read_of_obj_table(
+                obj, include_inherited, table, ctx
+            )
+        else:
+            # TODO: implement access policy filtering for link and
+            # multi-property tables
+            rel = _relation_of_table(obj, table, ctx)
     else:
-        # use base table directly
-        schemaname, dbname = pgcommon.get_backend_name(
-            ctx.schema, obj, aspect='table', catenate=False
-        )
-        relation = pgast.Relation(name=dbname, schemaname=schemaname)
+        if include_inherited and _has_sub_types(obj, ctx):
+            rel = _relation_of_inheritance_cte(obj, ctx)
+        else:
+            rel = _relation_of_table(obj, table, ctx)
 
-    return relation, table
+    return rel, table
 
 
-def _select_from_inheritance_cte(
+def _has_access_policies(
+    obj: s_sources.Source | s_properties.Property, ctx: Context
+):
+    if isinstance(obj, s_pointers.Pointer):
+        return False
+    assert isinstance(obj, s_objtypes.ObjectType)
+
+    policies = obj.get_access_policies(ctx.schema)
+    return len(policies) > 0
+
+
+def _has_sub_types(obj: s_sources.Source | s_properties.Property, ctx: Context):
+    return len(obj.children(ctx.schema)) > 0
+
+
+def _relation_of_table(
+    obj: s_sources.Source | s_properties.Property,
+    table: context.Table,
+    ctx: Context,
+) -> pgast.Relation:
+    schemaname, dbname = pgcommon.get_backend_name(
+        ctx.schema, obj, aspect='table', catenate=False
+    )
+    relation = pgast.Relation(name=dbname, schemaname=schemaname)
+
+    table.is_direct_relation = True
+    # When referencing actual tables, we need to statically provide __type__,
+    # since this column does not exist in the database.
+    for col in table.columns:
+        if col.name == '__type__':
+            col.kind = context.ColumnStaticVal(val=obj.id)
+            break
+
+    return relation
+
+
+def _relation_of_inheritance_cte(
     obj: s_sources.Source | s_properties.Property, ctx: Context
 ) -> pgast.Relation:
     if obj not in ctx.inheritance_ctes:
@@ -423,9 +475,7 @@ def _lookup_pointer_table(
     raise NotImplementedError()
 
 
-def _construct_column(
-    p: s_pointers.Pointer, ctx: Context, include_inherited: bool
-) -> context.Column:
+def _construct_column(p: s_pointers.Pointer, ctx: Context) -> context.Column:
     short_name = p.get_shortname(ctx.schema)
 
     col_name: str
@@ -453,17 +503,7 @@ def _construct_column(
             kind = context.ColumnComputable(pointer=p)
         elif short_name.name == '__type__':
             col_name = '__type__'
-
-            if not include_inherited:
-                # When using FROM ONLY, we will be referencing actual tables
-                # and not inheritance views. Actual tables don't contain
-                # __type__ column, which means that we have to provide value
-                # in some other way. Fortunately, it is a constant value, so we
-                # can compute it statically.
-                source_id = p.get_source_type(ctx.schema).get_id(ctx.schema)
-                kind = context.ColumnStaticVal(val=source_id)
-            else:
-                kind = context.ColumnByName(reference_as='__type__')
+            kind = context.ColumnByName(reference_as='__type__')
         else:
             col_name = short_name.name + '_id'
             _, dbname = pgcommon.get_backend_name(ctx.schema, p, catenate=False)
@@ -479,3 +519,106 @@ def _construct_system_columns() -> List[context.Column]:
         )
         for c in ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
     ]
+
+
+def _compile_read_of_obj_table(
+    obj: s_objtypes.ObjectType,
+    include_inherited: bool,
+    table: context.Table,
+    ctx: Context,
+) -> pgast.Relation:
+    from edb.edgeql import ast as qlast
+    from edb.edgeql import compiler as qlcompiler
+    from edb.ir import ast as irast
+    from edb.pgsql import compiler as pgcompiler
+    from edb.pgsql.compiler import enums as pgce
+
+    obj_name: sn.QualName = obj.get_name(ctx.schema)
+    assert obj_name
+    ql_stmt = qlast.SelectQuery(
+        result=qlast.Path(
+            steps=[qlast.ObjectRef(module=obj_name.module, name=obj_name.name)]
+        )
+    )
+
+    if not include_inherited:
+        ql_stmt.where = qlast.BinOp(
+            left=qlast.Path(
+                partial=True,
+                steps=[qlast.Ptr(name='__type__'), qlast.Ptr(name='id')],
+            ),
+            op='=',
+            right=qlast.TypeCast(
+                expr=qlast.Constant.string(str(obj.id)),
+                type=qlast.TypeName(maintype=qlast.ObjectRef(name='uuid')),
+            ),
+        )
+
+    ir_stmt = qlcompiler.compile_ast_to_ir(
+        ql_stmt,
+        ctx.schema,
+        options=qlcompiler.CompilerOptions(apply_user_access_policies=True),
+    )
+
+    sql_tree = pgcompiler.compile_ir_to_sql_tree(
+        ir_stmt,
+        output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
+        alias_generator=ctx.alias_generator,
+    )
+    command.merge_params(sql_tree, ir_stmt, ctx)
+
+    # add CTEs to resolver's CTE buffer
+    assert isinstance(sql_tree.ast, pgast.Query)
+    if sql_tree.ast.ctes:
+        ctx.ctes_buffer.extend(sql_tree.ast.ctes)
+        sql_tree.ast.ctes.clear()
+
+    SYSTEM_COLS = {'tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid'}
+
+    # pull all expected columns out of the result rvar
+    obj_id = irast.PathId.from_type(ctx.schema, obj, env=None)
+    for column in table.columns:
+        if not isinstance(column.kind, context.ColumnByName):
+            continue
+
+        if column.kind.reference_as in {'id', 'source', 'target', '__type__'}:
+            ptr = obj.getptr(
+                ctx.schema, sn.UnqualName.from_string(column.kind.reference_as)
+            )
+            ptr_id = irast.PathId.from_pointer(ctx.schema, ptr, env=None)
+        elif column.kind.reference_as in SYSTEM_COLS:
+            el_name = sn.QualName('__object__', column.kind.reference_as)
+            ptr_ref = irast.SpecialPointerRef(
+                name=el_name,
+                shortname=el_name,
+                out_source=obj_id.target,
+                out_target=pgtypes.pg_oid_typeref,
+                out_cardinality=qltypes.Cardinality.AT_MOST_ONE,
+            )
+            ptr_id = obj_id.extend(ptrref=ptr_ref)
+        else:
+            ptr = ctx.schema.get_by_id(
+                uuid.UUID(column.kind.reference_as), type=s_pointers.Pointer
+            )
+            ptr_id = irast.PathId.from_pointer(ctx.schema, ptr, env=None)
+
+        output = pgcompiler.pathctx.get_path_output(
+            sql_tree.ast,
+            ptr_id,
+            aspect=pgce.PathAspect.VALUE,
+            env=sql_tree.env,
+        )
+        assert isinstance(output, pgast.ColumnRef)
+        assert isinstance(output.name[-1], str)
+
+        # override how this column will be referenced as
+        column.kind.reference_as = output.name[-1]
+
+    cte_name = ctx.alias_generator.get('tbl')
+    ctx.ctes_buffer.append(
+        pgast.CommonTableExpr(
+            name=cte_name,
+            query=sql_tree.ast,
+        )
+    )
+    return pgast.Relation(name=cte_name)

@@ -28,22 +28,81 @@ from edb.edgeql import qltypes
 @functools.singledispatch
 def get_status(ql: qlast.Base) -> bytes:
     raise NotImplementedError(
-        f'cannot get status for the {type(ql).__name__!r} AST node')
+        f'cannot get status for the {type(ql).__name__!r} AST node'
+    )
 
 
 @get_status.register(qlast.CreateObject)
 def _ddl_create(ql: qlast.CreateObject) -> bytes:
-    return f'CREATE {ql.object_class}'.encode()
+    return f'CREATE {get_schema_class(ql)}'.encode()
 
 
 @get_status.register(qlast.AlterObject)
 def _ddl_alter(ql: qlast.AlterObject) -> bytes:
-    return f'ALTER {ql.object_class}'.encode()
+    return f'ALTER {get_schema_class(ql)}'.encode()
 
 
 @get_status.register(qlast.DropObject)
 def _ddl_drop(ql: qlast.DropObject) -> bytes:
-    return f'DROP {ql.object_class}'.encode()
+    return f'DROP {get_schema_class(ql)}'.encode()
+
+
+def get_schema_class(ql: qlast.ObjectDDL) -> qltypes.SchemaObjectClass:
+    osc = qltypes.SchemaObjectClass
+    match ql:
+        case qlast.DatabaseCommand(flavor='BRANCH'):
+            return osc.BRANCH
+        case qlast.DatabaseCommand(flavor='DATABASE'):
+            return osc.DATABASE
+        case qlast.FutureCommand():
+            return osc.FUTURE
+        case qlast.ModuleCommand():
+            return osc.MODULE
+        case qlast.RoleCommand():
+            return osc.ROLE
+        case qlast.PropertyCommand():
+            return osc.PROPERTY
+        case qlast.ObjectTypeCommand():
+            return osc.TYPE
+        case qlast.AliasCommand():
+            return osc.ALIAS
+        case qlast.GlobalCommand():
+            return osc.GLOBAL
+        case qlast.LinkCommand():
+            return osc.LINK
+        case qlast.IndexCommand():
+            return osc.INDEX
+        case qlast.TriggerCommand():
+            return osc.TRIGGER
+        case qlast.RewriteCommand():
+            return osc.REWRITE
+        case qlast.FunctionCommand():
+            return osc.FUNCTION
+        case qlast.OperatorCommand():
+            return osc.OPERATOR
+        case qlast.CastCommand():
+            return osc.CAST
+        case qlast.MigrationCommand():
+            return osc.MIGRATION
+        case qlast.ExtensionPackageCommand():
+            return osc.EXTENSION_PACKAGE
+        case qlast.ExtensionCommand():
+            return osc.EXTENSION
+        case qlast.ExtensionCommand():
+            return osc.EXTENSION
+        case qlast.AnnotationCommand():
+            return osc.ANNOTATION
+        case qlast.PseudoTypeCommand():
+            return osc.PSEUDO_TYPE
+        case qlast.ScalarTypeCommand():
+            return osc.SCALAR_TYPE
+        case qlast.ConstraintCommand():
+            return osc.CONSTRAINT
+        case qlast.AccessPolicyCommand():
+            return osc.ACCESS_POLICY
+
+        case _:
+            raise AssertionError('unimplemented')
 
 
 @get_status.register(qlast.StartMigration)
