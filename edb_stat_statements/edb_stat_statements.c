@@ -651,7 +651,11 @@ edbss_extract_stmt_info(const char* query_str, int query_len) {
 					PG_UTF8,
 					true);
 			JsonParseErrorType parse_rv = pg_parse_json(lex, &sem);
+#if PG_VERSION_NUM >= 170000
 			freeJsonLexContext(lex);
+#else
+			pfree(lex);
+#endif
 
 			if (parse_rv == JSON_SUCCESS)
 				if ((state.found & EDB_STMT_INFO_PARSE_REQUIRED) == EDB_STMT_INFO_PARSE_REQUIRED)
