@@ -22,6 +22,7 @@ import os
 import os.path
 import pathlib
 import platform
+import shlex
 import shutil
 import subprocess
 import textwrap
@@ -377,6 +378,53 @@ def _compile_edb_stat_statements(pg_config, build_temp):
     )
 
 
+def _get_env_with_protobuf_c_flags():
+    env = dict(os.environ)
+    cflags = env.get('EDGEDB_BUILD_PROTOBUFC_CFLAGS')
+    ldflags = env.get('EDGEDB_BUILD_PROTOBUFC_LDFLAGS')
+
+    if not (cflags or ldflags) and platform.system() == 'Darwin':
+        try:
+            prefix = pathlib.Path(subprocess.check_output(
+                ['brew', '--prefix', 'protobuf-c'], text=True
+            ).strip())
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            prefix = None
+        else:
+            pc_path = str(prefix / 'lib' / 'pkgconfig')
+            if 'PKG_CONFIG_PATH' in env:
+                env['PKG_CONFIG_PATH'] += f':{pc_path}'
+            else:
+                env['PKG_CONFIG_PATH'] = pc_path
+        try:
+            cflags = subprocess.check_output(
+                ['pkg-config', '--cflags', 'protobuf-c'], text=True, env=env
+            ).strip()
+            ldflags = subprocess.check_output(
+                ['pkg-config', '--libs', 'protobuf-c'], text=True, env=env
+            ).strip()
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            # pkg-config is not installed or cannot find flags with pkg-config
+            if not prefix:
+                prefix = pathlib.Path("/opt/local")
+            cflags = f'-I{prefix / "include"!s}'
+            ldflags = f'-L{prefix / "lib"!s}'
+
+    if cflags:
+        if 'CPPFLAGS' in env:
+            env['CPPFLAGS'] += f' {cflags}'
+        elif 'CFLAGS' in env:
+            env['CFLAGS'] += f' {cflags}'
+        else:
+            env['CPPFLAGS'] = cflags
+    if ldflags:
+        if 'LDFLAGS' in env:
+            env['LDFLAGS'] += f' {ldflags}'
+        else:
+            env['LDFLAGS'] = ldflags
+    return env
+
+
 def _compile_libpg_query():
     dir = (ROOT_PATH / 'edb' / 'pgsql' / 'parser' / 'libpg_query').resolve()
 
@@ -388,15 +436,21 @@ def _compile_libpg_query():
     cflags = os.environ.get("CFLAGS", "")
     cflags = f"{cflags} {' '.join(SAFE_EXT_CFLAGS)} -std=gnu99"
 
+    env = _get_env_with_protobuf_c_flags()
+    if "CFLAGS" in env:
+        env["CFLAGS"] += f' {cflags}'
+    else:
+        env["CFLAGS"] = cflags
+
     subprocess.run(
         [
             'make',
             'build',
             '-j',
             str(max(os.cpu_count() - 1, 1)),
-            f'CFLAGS={cflags}',
         ],
         cwd=str(dir),
+        env=env,
         check=True,
     )
 
@@ -999,6 +1053,10 @@ def _version():
     return buildmeta.get_version_from_scm(ROOT_PATH)
 
 
+_protobuf_c_flags = _get_env_with_protobuf_c_flags()
+_protobuf_c_cflags = shlex.split(_protobuf_c_flags.get("CPPFLAGS", ""))
+
+
 setuptools.setup(
     version=_version(),
     cmdclass={
@@ -1133,7 +1191,6 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS,
             include_dirs=EXT_INC_DIRS,
         ),
-
         setuptools_extension.Extension(
             "edb.server.pgcon.pgcon",
             ["edb/server/pgcon/pgcon.pyx"],
@@ -1153,7 +1210,7 @@ setuptools.setup(
         setuptools_extension.Extension(
             "edb.pgsql.parser.parser",
             ["edb/pgsql/parser/parser.pyx"],
-            extra_compile_args=EXT_CFLAGS,
+            extra_compile_args=EXT_CFLAGS + _protobuf_c_cflags,
             extra_link_args=EXT_LDFLAGS,
             include_dirs=EXT_INC_DIRS,
             library_dirs=EXT_LIB_DIRS,
