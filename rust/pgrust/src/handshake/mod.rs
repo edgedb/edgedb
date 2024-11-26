@@ -11,7 +11,6 @@ pub enum ConnectionSslRequirement {
 
 mod client_state_machine;
 pub mod edgedb_server;
-mod server_auth;
 mod server_state_machine;
 
 pub mod client {
@@ -30,11 +29,11 @@ mod tests {
         ConnectionSslRequirement,
     };
     use crate::{
-        auth::{AuthType, CredentialData},
         connection::Credentials,
         errors::{PgError, PgServerError},
         protocol::postgres::{data::*, *},
     };
+    use gel_auth::{AuthType, CredentialData};
     use rstest::rstest;
     use std::collections::VecDeque;
 

@@ -74,7 +74,7 @@ use sha2::{digest::FixedOutput, Digest, Sha256};
 use std::borrow::Cow;
 use std::str::FromStr;
 
-use super::sasl_normalize_password_bytes;
+use crate::stringprep::sasl_normalize_password_bytes;
 
 const CHANNEL_BINDING_ENCODED: &str = "biws";
 const MINIMUM_NONCE_LENGTH: usize = 16;
@@ -776,6 +776,7 @@ fn generate_server_proof(
 mod tests {
     use super::*;
     use hex_literal::hex;
+    use pretty_assertions::{assert_eq, assert_ne};
     use rstest::rstest;
 
     // Define a set of test parameters

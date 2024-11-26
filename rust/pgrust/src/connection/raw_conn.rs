@@ -9,11 +9,9 @@ use crate::handshake::{
     },
     ConnectionSslRequirement,
 };
+use crate::protocol::postgres::{FrontendBuilder, InitialBuilder};
 use crate::protocol::{postgres::data::SSLResponse, postgres::meta, StructBuffer};
-use crate::{
-    auth::AuthType,
-    protocol::postgres::{FrontendBuilder, InitialBuilder},
-};
+use gel_auth::AuthType;
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};

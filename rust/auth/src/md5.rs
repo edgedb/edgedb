@@ -14,10 +14,11 @@
 /// # Example
 ///
 /// ```
+/// # use gel_auth::md5::*;
 /// let password = "secret";
 /// let username = "user";
 /// let salt = [0x01, 0x02, 0x03, 0x04];
-/// let hash = pgrust::auth::md5_password(password, username, &salt);
+/// let hash = md5_password(password, username, &salt);
 /// assert_eq!(hash, "md5fccef98e4f1cf6cbe96b743fad4e8bd0");
 /// ```
 pub fn md5_password(password: &str, username: &str, salt: &[u8; 4]) -> String {

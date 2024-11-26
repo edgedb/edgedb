@@ -1,15 +1,10 @@
-mod md5;
-mod scram;
-mod stringprep;
+pub mod handshake;
+pub mod md5;
+pub mod scram;
+pub mod stringprep;
 mod stringprep_table;
 
-pub use md5::{md5_password, StoredHash};
 use rand::Rng;
-pub use scram::{
-    generate_salted_password, ClientEnvironment, ClientTransaction, SCRAMError, ServerEnvironment,
-    ServerTransaction, Sha256Out, StoredKey,
-};
-pub use stringprep::{sasl_normalize_password, sasl_normalize_password_bytes};
 
 /// Specifies the type of authentication or indicates the authentication method used for a connection.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
@@ -49,9 +44,9 @@ pub enum CredentialData {
     /// A plain-text password.
     Plain(String),
     /// A stored MD5 hash + salt.
-    Md5(StoredHash),
+    Md5(md5::StoredHash),
     /// A stored SCRAM-SHA-256 key.
-    Scram(StoredKey),
+    Scram(scram::StoredKey),
 }
 
 impl CredentialData {
@@ -60,10 +55,10 @@ impl CredentialData {
             AuthType::Deny => Self::Deny,
             AuthType::Trust => Self::Trust,
             AuthType::Plain => Self::Plain(password),
-            AuthType::Md5 => Self::Md5(StoredHash::generate(password.as_bytes(), &username)),
+            AuthType::Md5 => Self::Md5(md5::StoredHash::generate(password.as_bytes(), &username)),
             AuthType::ScramSha256 => {
                 let salt: [u8; 32] = rand::thread_rng().gen();
-                Self::Scram(StoredKey::generate(password.as_bytes(), &salt, 4096))
+                Self::Scram(scram::StoredKey::generate(password.as_bytes(), &salt, 4096))
             }
         }
     }

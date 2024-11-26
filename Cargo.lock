@@ -367,7 +367,7 @@ dependencies = [
  "statrs",
  "strum",
  "test-log",
- "thiserror",
+ "thiserror 1.0.63",
  "tokio",
  "tracing",
 ]
@@ -540,7 +540,7 @@ dependencies = [
  "combine",
  "num-bigint 0.2.6",
  "num-traits",
- "thiserror",
+ "thiserror 1.0.63",
 ]
 
 [[package]]
@@ -584,7 +584,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "snafu",
- "thiserror",
+ "thiserror 1.0.63",
  "unicode-width",
 ]
 
@@ -841,6 +841,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "gel_auth"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "constant_time_eq",
+ "derive_more",
+ "hex-literal",
+ "hmac",
+ "md5",
+ "pretty_assertions",
+ "rand",
+ "roaring",
+ "rstest",
+ "sha2",
+ "thiserror 2.0.3",
+ "tracing",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -901,7 +921,7 @@ dependencies = [
  "num-traits",
  "pretty_assertions",
  "pyo3",
- "thiserror",
+ "thiserror 1.0.63",
 ]
 
 [[package]]
@@ -973,7 +993,6 @@ dependencies = [
 name = "http"
 version = "0.1.0"
 dependencies = [
- "derive_more",
  "eventsource-stream",
  "futures",
  "pyo3",
@@ -1540,42 +1559,32 @@ checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 name = "pgrust"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "base64",
- "byteorder",
  "clap",
  "clap_derive",
- "constant_time_eq",
  "derive_more",
  "futures",
- "hex-literal",
+ "gel_auth",
  "hexdump",
- "hmac",
  "libc",
- "lru",
- "md5",
  "openssl",
  "paste",
  "percent-encoding",
  "pretty_assertions",
  "pyo3",
  "rand",
- "roaring",
  "rstest",
  "scopeguard",
  "serde",
  "serde_derive",
- "sha2",
  "socket2",
- "statrs",
  "tempfile",
  "test-log",
- "thiserror",
+ "thiserror 1.0.63",
  "tokio",
  "tokio-openssl",
  "tracing",
  "tracing-subscriber",
- "unicode-normalization",
  "url",
  "uuid",
 ]
@@ -1676,9 +1685,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.86"
+version = "1.0.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e719e8df665df0d1c8fbfd238015744736151d4445ec0836b8e628aae103b77"
+checksum = "37d3544b3f2748c54e147655edb5025752e2303145b5aefb3c3ea2c78b973bb0"
 dependencies = [
  "unicode-ident",
 ]
@@ -1754,7 +1763,7 @@ dependencies = [
  "nix",
  "pyo3",
  "scopeguard",
- "thiserror",
+ "thiserror 1.0.63",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2354,9 +2363,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "syn"
-version = "2.0.79"
+version = "2.0.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89132cd0bf050864e1d38dc3bbc07a0eb8e7530af26344d3d2bbbef83499f590"
+checksum = "44d46482f1c1c87acd84dea20c1bf5ebff4c757009ed6bf19cfd36fb10e92c4e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2440,7 +2449,16 @@ version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0342370b38b6a11b6cc11d6a805569958d54cfa061a29969c3b5ce2ea405724"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 1.0.63",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c006c85c7651b3cf2ada4584faa36773bd07bac24acfb39f3c431b36d7e667aa"
+dependencies = [
+ "thiserror-impl 2.0.3",
 ]
 
 [[package]]
@@ -2448,6 +2466,17 @@ name = "thiserror-impl"
 version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4558b58466b9ad7ca0f102865eccc95938dca1a74a856f2b57b6629050da261"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f077553d607adc1caf65430528a576c757a71ed73944b66ebb58ef2bbd243568"
 dependencies = [
  "proc-macro2",
  "quote",

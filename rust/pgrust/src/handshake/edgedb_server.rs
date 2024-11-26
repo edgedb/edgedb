@@ -1,13 +1,14 @@
-use super::server_auth::{ServerAuth, ServerAuthError};
 use crate::{
-    auth::{AuthType, CredentialData},
     connection::ConnectionError,
     errors::edgedb::EdbError,
-    handshake::server_auth::{ServerAuthDrive, ServerAuthResponse},
     protocol::{
         edgedb::{data::*, *},
         match_message, ParseError, StructBuffer,
     },
+};
+use gel_auth::{
+    handshake::{ServerAuth, ServerAuthDrive, ServerAuthError, ServerAuthResponse},
+    AuthType, CredentialData,
 };
 use std::str::Utf8Error;
 use tracing::{error, trace, warn};
@@ -32,7 +33,12 @@ pub enum ConnectionDrive<'a> {
 
 pub trait ConnectionStateSend {
     fn send(&mut self, message: EdgeDBBackendBuilder) -> Result<(), std::io::Error>;
-    fn auth(&mut self, user: String, database: String, branch: String) -> Result<(), std::io::Error>;
+    fn auth(
+        &mut self,
+        user: String,
+        database: String,
+        branch: String,
+    ) -> Result<(), std::io::Error>;
     fn params(&mut self) -> Result<(), std::io::Error>;
 }
 
@@ -61,7 +67,12 @@ where
         self(ConnectionEvent::Send(message))
     }
 
-    fn auth(&mut self, user: String, database: String, branch: String) -> Result<(), std::io::Error> {
+    fn auth(
+        &mut self,
+        user: String,
+        database: String,
+        branch: String,
+    ) -> Result<(), std::io::Error> {
         self(ConnectionEvent::Auth(user, database, branch))
     }
 
@@ -367,6 +378,7 @@ fn send_error(
     ))
 }
 
+#[allow(unused)]
 enum ErrorSeverity {
     Error = 0x78,
     Fatal = 0xc8,

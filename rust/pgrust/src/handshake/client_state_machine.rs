@@ -1,8 +1,5 @@
 use super::ConnectionSslRequirement;
 use crate::{
-    auth::{
-        self, generate_salted_password, AuthType, ClientEnvironment, ClientTransaction, Sha256Out,
-    },
     connection::{invalid_state, ConnectionError, Credentials, SslError},
     errors::PgServerError,
     protocol::{
@@ -18,6 +15,10 @@ use crate::{
     },
 };
 use base64::Engine;
+use gel_auth::{
+    scram::{generate_salted_password, ClientEnvironment, ClientTransaction, Sha256Out},
+    AuthType,
+};
 use rand::Rng;
 use tracing::{error, trace, warn};
 
@@ -221,7 +222,7 @@ impl ConnectionState {
                         let mut tx = ClientTransaction::new("".into());
                         let env = ClientEnvironmentImpl { credentials };
                         let Some(initial_message) = tx.process_message(&[], &env)? else {
-                            return Err(auth::SCRAMError::ProtocolError.into());
+                            return Err(gel_auth::scram::SCRAMError::ProtocolError.into());
                         };
                         update.auth(AuthType::ScramSha256);
                         update.send(builder::SASLInitialResponse {
@@ -234,7 +235,7 @@ impl ConnectionState {
                     (AuthenticationMD5Password as md5) => {
                         *sent_auth = true;
                         trace!("auth md5");
-                        let md5_hash = auth::md5_password(&credentials.password, &credentials.username, &md5.salt());
+                        let md5_hash = gel_auth::md5::md5_password(&credentials.password, &credentials.username, &md5.salt());
                         update.auth(AuthType::Md5);
                         update.send(builder::PasswordMessage {
                             password: &md5_hash,
@@ -263,7 +264,7 @@ impl ConnectionState {
                 match_message!(message, Backend {
                     (AuthenticationSASLContinue as sasl) => {
                         let Some(message) = tx.process_message(&sasl.data(), env)? else {
-                            return Err(auth::SCRAMError::ProtocolError.into());
+                            return Err(gel_auth::scram::SCRAMError::ProtocolError.into());
                         };
                         update.send(builder::SASLResponse {
                             response: &message,
@@ -271,7 +272,7 @@ impl ConnectionState {
                     },
                     (AuthenticationSASLFinal as sasl) => {
                         let None = tx.process_message(&sasl.data(), env)? else {
-                            return Err(auth::SCRAMError::ProtocolError.into());
+                            return Err(gel_auth::scram::SCRAMError::ProtocolError.into());
                         };
                     },
                     (AuthenticationOk) => {

@@ -474,7 +474,7 @@ impl ConnectionStateUpdate for PyConnectionStateUpdate {
         });
     }
 
-    fn auth(&mut self, auth: crate::auth::AuthType) {
+    fn auth(&mut self, auth: gel_auth::AuthType) {
         Python::with_gil(|py| {
             if let Err(e) = self.py_update.call_method1(py, "auth", (auth as u8,)) {
                 eprintln!("Error in auth: {:?}", e);

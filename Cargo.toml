@@ -5,6 +5,7 @@ members = [
     "edb/edgeql-parser/edgeql-parser-python",
     "edb/graphql-rewrite",
     "edb/server/_rust_native",
+    "rust/auth",
     "rust/conn_pool",
     "rust/pgrust",
     "rust/http",
@@ -17,6 +18,8 @@ pyo3 = { version = "0.23.1", features = ["extension-module", "serde", "macros"] 
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "sync", "net", "io-util"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["registry", "env-filter"] }
+
+gel_auth = { path = "rust/auth" }
 conn_pool = { path = "rust/conn_pool" }
 pgrust = { path = "rust/pgrust" }
 http = { path = "rust/http" }

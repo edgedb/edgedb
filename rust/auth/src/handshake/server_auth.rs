@@ -1,4 +1,8 @@
-use crate::auth::{AuthType, CredentialData, SCRAMError, ServerTransaction, StoredHash, StoredKey};
+use crate::{
+    md5::StoredHash,
+    scram::{SCRAMError, ServerTransaction, StoredKey},
+    AuthType, CredentialData,
+};
 use tracing::error;
 
 #[derive(Debug)]

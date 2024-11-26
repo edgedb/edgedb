@@ -1,20 +1,19 @@
-use super::{
-    server_auth::{ServerAuth, ServerAuthError},
-    ConnectionSslRequirement,
-};
+use super::ConnectionSslRequirement;
 use crate::{
-    auth::{AuthType, CredentialData},
     connection::ConnectionError,
     errors::{
         PgError, PgErrorConnectionException, PgErrorFeatureNotSupported,
         PgErrorInvalidAuthorizationSpecification, PgServerError, PgServerErrorField,
     },
-    handshake::server_auth::{ServerAuthDrive, ServerAuthResponse},
     protocol::{
         match_message,
         postgres::{data::*, *},
         ParseError, StructBuffer,
     },
+};
+use gel_auth::{
+    handshake::{ServerAuth, ServerAuthDrive, ServerAuthError, ServerAuthResponse},
+    AuthType, CredentialData,
 };
 use std::str::Utf8Error;
 use tracing::{error, trace, warn};

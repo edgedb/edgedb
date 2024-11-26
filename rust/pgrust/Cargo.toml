@@ -13,6 +13,7 @@ python_extension = ["pyo3/extension-module", "pyo3/serde"]
 optimizer = []
 
 [dependencies]
+gel_auth.workspace = true
 pyo3.workspace = true
 tokio.workspace = true
 tracing.workspace = true
@@ -22,19 +23,13 @@ thiserror = "1"
 openssl = { version = "0.10.66", features = ["v111"] }
 tokio-openssl = "0.6.4"
 paste = "1"
-unicode-normalization = "0.1.23"
-hmac = "0.12"
 base64 = "0.22"
-sha2 = "0.10"
-md5 = "0.7.0"
 rand = "0"
 hexdump = "0"
 url = "2"
 serde = "1"
 serde_derive = "1"
 percent-encoding = "2"
-roaring = "0.10.6"
-constant_time_eq = "0.3"
 uuid = "1"
 
 [dependencies.derive_more]
@@ -47,14 +42,9 @@ scopeguard = "1"
 
 pretty_assertions = "1.2.0"
 test-log = { version = "0", features = ["trace"] }
-anyhow = "1"
 rstest = "0"
-statrs = "0"
-lru = "0"
-byteorder = "1.5"
 clap = "4"
 clap_derive = "4"
-hex-literal = "0.4"
 tempfile = "3"
 socket2 = "0.5.7"
 libc = "0.2.158"

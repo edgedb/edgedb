@@ -1,6 +1,6 @@
 // Constants
+use gel_auth::AuthType;
 use openssl::ssl::{Ssl, SslContext, SslMethod};
-use pgrust::auth::AuthType;
 use pgrust::connection::dsn::{Host, HostType};
 use pgrust::connection::{connect_raw_ssl, ConnectionError, Credentials, ResolvedTarget};
 use pgrust::errors::PgServerError;

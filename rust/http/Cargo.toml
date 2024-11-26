@@ -23,10 +23,6 @@ eventsource-stream = "0.2.3"
 
 futures = "0"
 
-[dependencies.derive_more]
-version = "1.0.0"
-features = ["full"]
-
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
 rstest = "0.23"

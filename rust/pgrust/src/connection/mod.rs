@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use crate::{
-    auth,
     errors::{edgedb::EdbError, PgServerError},
     protocol::ParseError,
 };
@@ -52,7 +51,7 @@ pub enum ConnectionError {
 
     /// Error related to SCRAM authentication.
     #[error("SCRAM: {0}")]
-    Scram(#[from] auth::SCRAMError),
+    Scram(#[from] gel_auth::scram::SCRAMError),
 
     /// I/O error encountered during connection operations.
     #[error("I/O error: {0}")]
