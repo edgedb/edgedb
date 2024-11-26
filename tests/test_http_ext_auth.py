@@ -28,6 +28,7 @@ import os
 import pickle
 import re
 import hashlib
+import hmac
 
 from typing import Any, Optional, cast
 from jwcrypto import jwt, jwk
@@ -3458,6 +3459,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             "/webhook-02",
         )
         url = f"{webhook_request[1]}/{webhook_request[2]}"
+        signing_secret_key = str(uuid.uuid4())
         await self.con.query(
             f"""
             CONFIGURE CURRENT DATABASE
@@ -3466,9 +3468,11 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 events := {{
                     ext::auth::WebhookEvent.IdentityAuthenticated,
                 }},
+                signing_secret_key := <str>$signing_secret_key,
             }};
             """,
             url=url,
+            signing_secret_key=signing_secret_key,
         )
         await self._wait_for_db_config("ext::auth::AuthConfig::webhooks")
 
@@ -3575,6 +3579,18 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 )
                 self.assertEqual(
                     event_data["identity_id"], str(pkce.identity_id)
+                )
+                signature = requests_for_webhook[0].headers[
+                    "x-ext-auth-signature-sha256"
+                ]
+
+                self.assertEqual(
+                    signature,
+                    hmac.new(
+                        signing_secret_key.encode(),
+                        requests_for_webhook[0].body.encode(),
+                        hashlib.sha256,
+                    ).hexdigest(),
                 )
 
                 # Correct code, correct verifier, already used PKCE
