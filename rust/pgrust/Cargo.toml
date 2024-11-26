@@ -31,6 +31,8 @@ serde = "1"
 serde_derive = "1"
 percent-encoding = "2"
 uuid = "1"
+zerocopy = "0.8.11"
+zerocopy-derive = "0.8.11"
 
 [dependencies.derive_more]
 version = "1.0.0-beta.6"
@@ -39,6 +41,7 @@ features = ["full"]
 [dev-dependencies]
 tracing-subscriber.workspace = true
 scopeguard = "1"
+captive_postgres.workspace = true
 
 pretty_assertions = "1.2.0"
 test-log = { version = "0", features = ["trace"] }
@@ -48,6 +51,7 @@ clap_derive = "4"
 tempfile = "3"
 socket2 = "0.5.7"
 libc = "0.2.158"
+hex-literal = "0.4.1"
 
 [dev-dependencies.tokio]
 version = "1"

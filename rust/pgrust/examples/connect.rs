@@ -2,8 +2,8 @@ use clap::Parser;
 use clap_derive::Parser;
 use openssl::ssl::{Ssl, SslContext, SslMethod};
 use pgrust::{
-    connection::{dsn::parse_postgres_dsn_env, Client, Credentials, ResolvedTarget},
-    protocol::postgres::data::{DataRow, ErrorResponse, RowDescription},
+    connection::{dsn::parse_postgres_dsn_env, Client, Credentials, Format, MaxRows, Param, PipelineBuilder, Portal, QuerySink, ResolvedTarget, Statement},
+    protocol::postgres::data::{CopyData, CopyOutResponse, DataRow, ErrorResponse, RowDescription},
 };
 use std::net::SocketAddr;
 use tokio::task::LocalSet;
@@ -103,6 +103,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn logging_sink() -> impl QuerySink {
+    (
+        |rows: RowDescription<'_>| {
+            eprintln!("\nFields:");
+            for field in rows.fields() {
+                eprint!(" {:?}", field.name());
+            }
+            eprintln!();
+            let guard = scopeguard::guard((), |_| {
+                eprintln!("Done");
+            });
+            move |row: DataRow<'_>| {
+                let _ = &guard;
+                eprintln!("Row:");
+                for field in row.values() {
+                    eprint!(" {:?}", field);
+                }
+                eprintln!();
+            }
+        },
+        |_: CopyOutResponse<'_>| {
+            eprintln!("\nCopy:");
+            let guard = scopeguard::guard((), |_| {
+                eprintln!("Done");
+            });
+            move |data: CopyData<'_>| {
+                let _ = &guard;
+                eprintln!("Chunk:");
+                for line in hexdump::hexdump_iter(data.data().as_ref()) {
+                    eprintln!("{line}");
+                }
+            }
+        },
+        |error: ErrorResponse<'_>| {
+            eprintln!("\nError:\n {:?}", error);
+        },
+    )
+}
+
 async fn run_queries(
     socket_address: ResolvedTarget,
     credentials: Credentials,
@@ -116,37 +155,19 @@ async fn run_queries(
     tokio::task::spawn_local(task);
     conn.ready().await?;
 
-    let local = LocalSet::new();
+    let pipeline = PipelineBuilder::default()
+        .parse(Statement("select oid from pg_type where name = $1"), "select oid from pg_type where name = $1", &[], ())
+        .bind(Portal(""), Statement(""), &[Param::Text("text")], &[Format::Binary], ())
+        .execute(Portal(""), MaxRows::Unlimited, ())
+        .build();
+
+    tokio::task::spawn_local(conn.pipeline_sync(pipeline)).await??;
+
     eprintln!("Statements: {statements:?}");
+
     for statement in statements {
-        let sink = (
-            |rows: RowDescription<'_>| {
-                eprintln!("\nFields:");
-                for field in rows.fields() {
-                    eprint!(" {:?}", field.name());
-                }
-                eprintln!();
-                let guard = scopeguard::guard((), |_| {
-                    eprintln!("Done");
-                });
-                move |row: Result<DataRow<'_>, ErrorResponse<'_>>| {
-                    let _ = &guard;
-                    if let Ok(row) = row {
-                        eprintln!("Row:");
-                        for field in row.values() {
-                            eprint!(" {:?}", field);
-                        }
-                        eprintln!();
-                    }
-                }
-            },
-            |error: ErrorResponse<'_>| {
-                eprintln!("\nError:\n {:?}", error);
-            },
-        );
-        local.spawn_local(conn.query(&statement, sink));
+        tokio::task::spawn_local(conn.query(&statement, logging_sink())).await??;
     }
-    local.await;
 
     Ok(())
 }

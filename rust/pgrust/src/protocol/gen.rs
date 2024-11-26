@@ -276,6 +276,7 @@ macro_rules! protocol_builder {
                 $( "  (value = `", stringify!($value), "`)", )?
                 "\n\n"
             )* )]
+            #[derive(Copy, Clone)]
             pub struct $name<'a> {
                 /// Our zero-copy buffer.
                 #[doc(hidden)]

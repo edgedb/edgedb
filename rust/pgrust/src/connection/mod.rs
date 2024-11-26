@@ -7,6 +7,7 @@ use crate::{
 
 mod conn;
 pub mod dsn;
+mod flow;
 pub mod openssl;
 mod raw_conn;
 mod stream;
@@ -14,6 +15,10 @@ pub mod tokio;
 
 pub use conn::Client;
 use dsn::HostType;
+pub use flow::{
+    CopyDataSink, DataSink, DoneHandling, ExecuteSink, MaxRows, Param, Pipeline, PipelineBuilder,
+    Portal, QuerySink, Statement, Format,
+};
 pub use raw_conn::connect_raw_ssl;
 
 macro_rules! __invalid_state {
@@ -91,7 +96,7 @@ pub struct Credentials {
     pub server_settings: HashMap<String, String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, derive_more::From)]
 /// The resolved target of a connection attempt.
 pub enum ResolvedTarget {
     SocketAddr(std::net::SocketAddr),
@@ -100,6 +105,17 @@ pub enum ResolvedTarget {
 }
 
 impl ResolvedTarget {
+    #[cfg(test)]
+    pub fn from_captive_server_listen_address(address: captive_postgres::ListenAddress) -> Self {
+        match address {
+            captive_postgres::ListenAddress::Tcp(addr) => Self::SocketAddr(addr),
+            #[cfg(unix)]
+            captive_postgres::ListenAddress::Unix(path) => {
+                Self::UnixSocketAddr(std::os::unix::net::SocketAddr::from_pathname(path).unwrap())
+            }
+        }
+    }
+
     /// Resolves the target addresses for a given host.
     pub fn to_addrs_sync(host: &dsn::Host) -> Result<Vec<ResolvedTarget>, std::io::Error> {
         use std::net::{SocketAddr, ToSocketAddrs};

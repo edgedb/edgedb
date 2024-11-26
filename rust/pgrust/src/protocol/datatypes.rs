@@ -385,6 +385,15 @@ pub enum Encoded<'a> {
     Value(&'a [u8]),
 }
 
+impl<'a> Encoded<'a> {
+    pub fn to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
+        match self {
+            Encoded::Null => "".into(),
+            Encoded::Value(value) => String::from_utf8_lossy(value),
+        }
+    }
+}
+
 impl<'a> AsRef<Encoded<'a>> for Encoded<'a> {
     fn as_ref(&self) -> &Encoded<'a> {
         self
