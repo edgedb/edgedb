@@ -68,6 +68,9 @@ tracing-subscriber = "0"
 version = "1"
 features = ["macros", "rt-multi-thread", "time", "test-util"]
 
+[build-dependencies]
+pyo3-build-config = "*"
+
 [lib]
 crate-type = ["lib", "cdylib"]
 path = "src/lib.rs"

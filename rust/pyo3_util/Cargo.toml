@@ -18,6 +18,9 @@ nix = { version = "0.29", features = ["fs"] }
 scopeguard = "1"
 thiserror = "1"
 
+[build-dependencies]
+pyo3-build-config = "*"
+
 [lib]
 crate-type = ["lib", "cdylib"]
 path = "src/lib.rs"

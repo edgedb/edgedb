@@ -10,7 +10,14 @@ workspace = true
 
 [features]
 python_extension = ["pyo3/extension-module"]
-optimizer = ["genetic_algorithm", "lru", "rand", "statrs", "anyhow", "tokio/test-util"]
+optimizer = [
+    "genetic_algorithm",
+    "lru",
+    "rand",
+    "statrs",
+    "anyhow",
+    "tokio/test-util",
+]
 
 [dependencies]
 pyo3 = { workspace = true, optional = true }
@@ -49,6 +56,9 @@ rstest = "0"
 
 statrs = "0.17.1"
 rand = "0.8.5"
+
+[build-dependencies]
+pyo3-build-config = "*"
 
 [lib]
 crate-type = ["lib", "cdylib"]
