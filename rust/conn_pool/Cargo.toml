@@ -9,7 +9,7 @@ edition = "2021"
 workspace = true
 
 [features]
-python_extension = ["pyo3/extension-module"]
+python_extension = ["pyo3"]
 optimizer = ["genetic_algorithm", "lru", "rand", "statrs", "anyhow", "tokio/test-util"]
 
 [dependencies]
@@ -51,9 +51,6 @@ statrs = "0.17.1"
 rand = "0.8.5"
 
 [lib]
-crate-type = ["lib", "cdylib"]
-name = "conn_pool"
-path = "src/lib.rs"
 
 [[bin]]
 name = "optimizer"

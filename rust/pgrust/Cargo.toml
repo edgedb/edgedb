@@ -9,7 +9,7 @@ edition = "2021"
 workspace = true
 
 [features]
-python_extension = ["pyo3/extension-module", "pyo3/serde"]
+python_extension = ["pyo3/serde"]
 optimizer = []
 
 [dependencies]
@@ -69,5 +69,3 @@ version = "1"
 features = ["macros", "rt-multi-thread", "time", "test-util"]
 
 [lib]
-crate-type = ["lib", "cdylib"]
-path = "src/lib.rs"

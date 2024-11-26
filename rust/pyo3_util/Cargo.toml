@@ -19,5 +19,3 @@ scopeguard = "1"
 thiserror = "1"
 
 [lib]
-crate-type = ["lib", "cdylib"]
-path = "src/lib.rs"

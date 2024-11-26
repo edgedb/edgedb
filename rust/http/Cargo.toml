@@ -9,7 +9,7 @@ edition = "2021"
 workspace = true
 
 [features]
-python_extension = ["pyo3/extension-module"]
+python_extension = ["pyo3"]
 
 [dependencies]
 pyo3 = { workspace = true, optional = true }
@@ -32,6 +32,3 @@ tokio = { workspace = true, features = ["test-util"] }
 rstest = "0.23"
 
 [lib]
-crate-type = ["lib", "cdylib"]
-name = "http"
-path = "src/lib.rs"
