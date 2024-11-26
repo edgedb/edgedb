@@ -25,4 +25,4 @@ pub use pool::{Pool, PoolConfig, PoolHandle};
 pub mod test;
 
 #[cfg(feature = "python_extension")]
-mod python;
+pub mod python;

@@ -30,7 +30,8 @@ MAX_NAME_LENGTH = 63 - MAX_TENANT_ID_LENGTH - 1 - 1
 # Maximum number of arguments supported by SQL functions.
 MAX_FUNC_ARG_COUNT = 100
 
-EDGEDB_SUPERUSER = 'edgedb'
+EDGEDB_SUPERUSER = 'admin'
+EDGEDB_OLD_SUPERUSER = 'edgedb'
 EDGEDB_TEMPLATE_DB = '__edgedbtpl__'
 EDGEDB_SYSTEM_DB = '__edgedbsys__'
 

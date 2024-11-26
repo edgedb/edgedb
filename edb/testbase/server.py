@@ -2422,7 +2422,7 @@ class _EdgeDBServer:
         else:
             password = secrets.token_urlsafe()
             bootstrap_command = f"""\
-                ALTER ROLE edgedb {{
+                ALTER ROLE admin {{
                     SET password := '{password}';
                 }};
                 """

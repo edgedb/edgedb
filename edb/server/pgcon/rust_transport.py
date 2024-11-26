@@ -37,7 +37,7 @@ import warnings
 from enum import Enum, auto
 from dataclasses import dataclass
 
-from edb.server import _pg_rust as pgrust
+from edb.server._rust_native import _pg_rust as pgrust
 from edb.server.pgconnparams import (
     ConnectionParams,
     SSLMode,

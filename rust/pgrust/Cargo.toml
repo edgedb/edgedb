@@ -15,13 +15,12 @@ optimizer = []
 [dependencies]
 pyo3.workspace = true
 tokio.workspace = true
+tracing.workspace = true
 
 futures = "0"
 scopeguard = "1"
 itertools = "0"
 thiserror = "1"
-tracing = "0"
-tracing-subscriber = "0"
 strum = { version = "0.26", features = ["derive"] }
 consume_on_drop = "0"
 smart-default = "0"
@@ -63,6 +62,7 @@ hex-literal = "0.4"
 tempfile = "3"
 socket2 = "0.5.7"
 libc = "0.2.158"
+tracing-subscriber = "0"
 
 [dev-dependencies.tokio]
 version = "1"

@@ -7,6 +7,7 @@ use crate::{
 use derive_more::{Add, AddAssign};
 use futures::future::poll_fn;
 use pyo3::{exceptions::PyException, prelude::*, types::PyByteArray};
+use pyo3_util::logging::{get_python_logger_level, initialize_logging_in_thread};
 use serde_pickle::SerOptions;
 use std::{
     cell::{Cell, RefCell},
@@ -20,8 +21,7 @@ use std::{
 };
 use strum::IntoEnumIterator;
 use tokio::{io::AsyncWrite, task::LocalSet};
-use tracing::{error, info, subscriber::DefaultGuard, trace};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing::{error, info, trace};
 
 pyo3::create_exception!(_conn_pool, InternalError, PyException);
 
@@ -50,7 +50,7 @@ impl RustToPythonMessage {
             Failed(conn, error) => (5, conn, error.0).into_pyobject(py),
             Metrics(metrics) => {
                 // This is not really fast but it should not be happening very often
-                (6, PyByteArray::new(py, &metrics)).into_pyobject(py)
+                (6, PyByteArray::new(py, metrics)).into_pyobject(py)
             }
         }
         .map(|e| e.into())
@@ -79,9 +79,9 @@ type PythonConnId = u64;
 #[derive(Debug, Default, Clone, Copy, Add, AddAssign, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct ConnHandleId(u64);
 
-impl Into<Box<(dyn derive_more::Error + std::marker::Send + Sync + 'static)>> for ConnHandleId {
-    fn into(self) -> Box<(dyn derive_more::Error + std::marker::Send + Sync + 'static)> {
-        Box::new(ConnError::Underlying(format!("{self:?}")))
+impl From<ConnHandleId> for Box<(dyn derive_more::Error + std::marker::Send + Sync + 'static)> {
+    fn from(val: ConnHandleId) -> Self {
+        Box::new(ConnError::Underlying(format!("{val:?}")))
     }
 }
 
@@ -127,7 +127,7 @@ impl RpcPipe {
         self.write(msg)
             .await
             .map_err(|_| ConnError::Underlying(conn_id))?;
-        if let Ok(_) = rx.await {
+        if rx.await.is_ok() {
             Err(ConnError::Underlying(conn_id))
         } else {
             Ok(ok)
@@ -293,46 +293,55 @@ impl ConnPool {
     /// Create the connection pool and automatically boot a tokio runtime on a
     /// new thread. When this [`ConnPool`] is GC'd, the thread will be torn down.
     #[new]
-    fn new(max_capacity: usize, min_idle_time_before_gc: f64, stats_interval: f64) -> Self {
+    fn new(
+        py: Python,
+        max_capacity: usize,
+        min_idle_time_before_gc: f64,
+        stats_interval: f64,
+    ) -> PyResult<Self> {
+        let level = get_python_logger_level(py, "edb.server.conn_pool")?;
         let min_idle_time_before_gc = min_idle_time_before_gc as usize;
-        info!("ConnPool::new(max_capacity={max_capacity}, min_idle_time_before_gc={min_idle_time_before_gc})");
-        let (txrp, rxrp) = std::sync::mpsc::channel();
-        let (txpr, rxpr) = tokio::sync::mpsc::unbounded_channel();
-        let (txfd, rxfd) = std::sync::mpsc::channel();
+        let new = py.allow_threads(|| {
+            let (txrp, rxrp) = std::sync::mpsc::channel();
+            let (txpr, rxpr) = tokio::sync::mpsc::unbounded_channel();
+            let (txfd, rxfd) = std::sync::mpsc::channel();
+            thread::spawn(move || {
+                initialize_logging_in_thread("edb.server.conn_pool", level);
+                info!("ConnPool::new(max_capacity={max_capacity}, min_idle_time_before_gc={min_idle_time_before_gc})");
+                info!("Rust-side ConnPool thread booted");
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_time()
+                    .enable_io()
+                    .build()
+                    .unwrap();
+                let _guard = rt.enter();
+                let (txn, rxn) = tokio::net::unix::pipe::pipe().unwrap();
+                let fd = rxn.into_nonblocking_fd().unwrap().into_raw_fd() as u64;
+                txfd.send(fd).unwrap();
+                let local = LocalSet::new();
 
-        thread::spawn(move || {
-            info!("Rust-side ConnPool thread booted");
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_time()
-                .enable_io()
-                .build()
-                .unwrap();
-            let _guard = rt.enter();
-            let (txn, rxn) = tokio::net::unix::pipe::pipe().unwrap();
-            let fd = rxn.into_nonblocking_fd().unwrap().into_raw_fd() as u64;
-            txfd.send(fd).unwrap();
-            let local = LocalSet::new();
+                let rpc_pipe = RpcPipe {
+                    python_to_rust: rxpr.into(),
+                    rust_to_python: txrp,
+                    rust_to_python_notify: txn.into(),
+                    next_id: Default::default(),
+                    handles: Default::default(),
+                    async_ops: Default::default(),
+                };
 
-            let rpc_pipe = RpcPipe {
-                python_to_rust: rxpr.into(),
-                rust_to_python: txrp,
-                rust_to_python_notify: txn.into(),
-                next_id: Default::default(),
-                handles: Default::default(),
-                async_ops: Default::default(),
-            };
+                let config = PoolConfig::suggested_default_for(max_capacity)
+                    .with_min_idle_time_for_gc(Duration::from_secs(min_idle_time_before_gc as _));
+                local.block_on(&rt, run_and_block(config, rpc_pipe, stats_interval));
+            });
 
-            let config = PoolConfig::suggested_default_for(max_capacity)
-                .with_min_idle_time_for_gc(Duration::from_secs(min_idle_time_before_gc as _));
-            local.block_on(&rt, run_and_block(config, rpc_pipe, stats_interval));
+            let notify_fd = rxfd.recv().unwrap();
+            ConnPool {
+                python_to_rust: txpr,
+                rust_to_python: Mutex::new(rxrp),
+                notify_fd,
+            }
         });
-
-        let notify_fd = rxfd.recv().unwrap();
-        ConnPool {
-            python_to_rust: txpr,
-            rust_to_python: Mutex::new(rxrp),
-            notify_fd,
-        }
+        Ok(new)
     }
 
     #[getter]
@@ -407,102 +416,9 @@ impl ConnPool {
     }
 }
 
-/// Ensure that logging does not outlive the Python runtime.
-#[pyclass]
-struct LoggingGuard {
-    #[allow(unused)]
-    guard: DefaultGuard,
-}
-
-#[pymethods]
-impl LoggingGuard {
-    #[new]
-    fn init_logging(py: Python) -> PyResult<LoggingGuard> {
-        let logging = py.import("logging")?;
-        let logger = logging.getattr("getLogger")?.call(("edb.server",), None)?;
-        let level = logger
-            .getattr("getEffectiveLevel")?
-            .call((), None)?
-            .extract::<i32>()?;
-
-        struct PythonSubscriber {
-            logger: Py<PyAny>,
-        }
-
-        impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for PythonSubscriber {
-            fn on_event(
-                &self,
-                event: &tracing::Event,
-                _ctx: tracing_subscriber::layer::Context<S>,
-            ) {
-                let mut message = format!("[{}] ", event.metadata().target());
-                #[derive(Default)]
-                struct Visitor(String);
-                impl tracing::field::Visit for Visitor {
-                    fn record_debug(
-                        &mut self,
-                        field: &tracing::field::Field,
-                        value: &dyn std::fmt::Debug,
-                    ) {
-                        if field.name() == "message" {
-                            self.0 += &format!("{value:?} ");
-                        } else {
-                            self.0 += &format!("{}={:?} ", field.name(), value)
-                        }
-                    }
-                }
-
-                let mut visitor = Visitor::default();
-                event.record(&mut visitor);
-                message += &visitor.0;
-
-                Python::with_gil(|py| {
-                    let Ok(log) = (match *event.metadata().level() {
-                        tracing::Level::TRACE => self.logger.getattr(py, "debug"),
-                        tracing::Level::DEBUG => self.logger.getattr(py, "warning"),
-                        tracing::Level::INFO => self.logger.getattr(py, "info"),
-                        tracing::Level::WARN => self.logger.getattr(py, "warning"),
-                        tracing::Level::ERROR => self.logger.getattr(py, "error"),
-                    }) else {
-                        return;
-                    };
-                    // This may fail
-                    _ = log.call1(py, (message,));
-                });
-            }
-        }
-
-        let level = if level < 10 {
-            tracing_subscriber::filter::LevelFilter::TRACE
-        } else if level <= 10 {
-            tracing_subscriber::filter::LevelFilter::DEBUG
-        } else if level <= 20 {
-            tracing_subscriber::filter::LevelFilter::INFO
-        } else if level <= 30 {
-            tracing_subscriber::filter::LevelFilter::WARN
-        } else if level <= 40 {
-            tracing_subscriber::filter::LevelFilter::ERROR
-        } else {
-            tracing_subscriber::filter::LevelFilter::OFF
-        };
-
-        let subscriber = PythonSubscriber {
-            logger: logger.into(),
-        };
-        let guard = tracing_subscriber::registry()
-            .with(level)
-            .with(subscriber)
-            .set_default();
-
-        tracing::info!("ConnPool initialized (level = {level})");
-        Ok(LoggingGuard { guard })
-    }
-}
-
 #[pymodule]
-fn _conn_pool(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
+pub fn _conn_pool(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<ConnPool>()?;
-    m.add_class::<LoggingGuard>()?;
     m.add("InternalError", py.get_type::<InternalError>())?;
 
     // Add each metric variant as a constant
