@@ -469,7 +469,7 @@ def apply_sdl(
     testmode: bool = False,
 ) -> tuple[s_schema.Schema, list[errors.EdgeDBError]]:
     # group declarations by module
-    documents: Dict[str, List[qlast.DDL]] = defaultdict(list)
+    documents: Dict[str, List[qlast.DDLCommand]] = defaultdict(list)
     # initialize the "default" module
     documents[s_mod.DEFAULT_MODULE_ALIAS] = []
     extensions = {}
