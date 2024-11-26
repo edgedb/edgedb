@@ -276,6 +276,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f'missing required connection parameter in ClientHandshake '
                 f'message: "user"'
             )
+        user = self.tenant.resolve_user_name(user)
 
         database = params.get('database')
         branch = params.get('branch')
