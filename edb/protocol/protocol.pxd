@@ -17,7 +17,7 @@
 #
 
 
-from edgedb.protocol.asyncio_proto cimport AsyncIOProtocol
+from gel.protocol.asyncio_proto cimport AsyncIOProtocol
 
 
 cdef class Protocol(AsyncIOProtocol):

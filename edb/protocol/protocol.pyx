@@ -21,10 +21,10 @@ import asyncio
 import re
 import time
 
-from edgedb import con_utils
-from edgedb import enums
-from edgedb.protocol.asyncio_proto cimport AsyncIOProtocol
-from edgedb.protocol.protocol cimport ReadBuffer, WriteBuffer
+from gel import con_utils
+from gel import enums
+from gel.protocol.asyncio_proto cimport AsyncIOProtocol
+from gel.protocol.protocol cimport ReadBuffer, WriteBuffer
 
 from . import messages
 
