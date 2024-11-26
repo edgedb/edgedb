@@ -90,6 +90,7 @@ impl PyConnectionParams {
     }
 
     #[getter]
+    #[allow(clippy::type_complexity)]
     pub fn host_candidates(
         &self,
         py: Python,
@@ -354,7 +355,7 @@ impl PyConnectionState {
         let buffer = PyBuffer::<u8>::get(data)?;
         if self.inner.read_ssl_response() {
             // SSL responses are always one character
-            let response = [buffer.as_slice(py).unwrap().get(0).unwrap().get()];
+            let response = [buffer.as_slice(py).unwrap().first().unwrap().get()];
             let response = SSLResponse::new(&response)?;
             self.inner
                 .drive(ConnectionDrive::SslResponse(response), &mut self.update)?;

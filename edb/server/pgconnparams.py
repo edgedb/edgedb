@@ -22,7 +22,7 @@ import pathlib
 import platform
 import warnings
 
-from edb.server._pg_rust import PyConnectionParams
+from edb.server._rust_native._pg_rust import PyConnectionParams
 
 _system = platform.uname().system
 if _system == 'Windows':
