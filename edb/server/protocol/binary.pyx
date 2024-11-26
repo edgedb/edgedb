@@ -110,26 +110,7 @@ cdef tuple CURRENT_PROTOCOL = edbdef.CURRENT_PROTOCOL
 cdef object logger = logging.getLogger('edb.server')
 cdef object log_metrics = logging.getLogger('edb.server.metrics')
 
-DEF QUERY_HEADER_IMPLICIT_LIMIT = 0xFF01
-DEF QUERY_HEADER_IMPLICIT_TYPENAMES = 0xFF02
-DEF QUERY_HEADER_IMPLICIT_TYPEIDS = 0xFF03
-DEF QUERY_HEADER_ALLOW_CAPABILITIES = 0xFF04
-DEF QUERY_HEADER_EXPLICIT_OBJECTIDS = 0xFF05
-
 DEF QUERY_HEADER_DUMP_SECRETS = 0xFF10
-
-DEF SERVER_HEADER_CAPABILITIES = 0x1001
-
-DEF ALL_CAPABILITIES = 0xFFFFFFFFFFFFFFFF
-
-
-def parse_capabilities_header(value: bytes) -> uint64_t:
-    if len(value) != 8:
-        raise errors.BinaryProtocolError(
-            f'capabilities header must be exactly 8 bytes'
-        )
-    cdef uint64_t mask = hton.unpack_uint64(cpython.PyBytes_AS_STRING(value))
-    return mask
 
 
 def parse_catalog_version_header(value: bytes) -> uint64_t:
@@ -139,18 +120,6 @@ def parse_catalog_version_header(value: bytes) -> uint64_t:
         )
     cdef uint64_t catver = hton.unpack_uint64(cpython.PyBytes_AS_STRING(value))
     return catver
-
-
-cdef inline bint parse_boolean(value: bytes, header: str):
-    cdef bytes lower = value.lower()
-    if lower == b'true':
-        return True
-    elif lower == b'false':
-        return False
-    else:
-        raise errors.BinaryProtocolError(
-            f'{header} header must equal "true" or "false"'
-        )
 
 
 cdef class EdgeConnection(frontend.FrontendConnection):
@@ -605,11 +574,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     cdef char render_cardinality(self, query_unit_group) except -1:
         return query_unit_group.cardinality.value
-
-    cdef inline reject_headers(self):
-        cdef int16_t nheaders = self.buffer.read_int16()
-        if nheaders != 0:
-            raise errors.BinaryProtocolError('unexpected headers')
 
     cdef dict parse_headers(self):
         cdef:
@@ -1572,7 +1536,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             await _dbview.reload_state_serializer()
 
         # Parse the "Restore" message
-        self.reject_headers()
+        if self.buffer.read_int16() != 0:  # number of attributes
+            raise errors.BinaryProtocolError('unexpected attributes')
         self.buffer.read_int16()  # discard -j level
 
         # Now parse the embedded "DumpHeader" message:
