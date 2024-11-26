@@ -1322,9 +1322,16 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         cdef:
             WriteBuffer msg_buf
             dbview.DatabaseConnectionView _dbview
+            uint64_t flags
 
-        headers = self.parse_headers()
-        include_secrets = headers.get(QUERY_HEADER_DUMP_SECRETS) == b'\x01'
+        # Parse the "Dump" message
+        if self.protocol_version >= (3, 0):
+            self.ignore_annotations()
+            flags = <uint64_t>self.buffer.read_int64()
+            include_secrets = flags & messages.DumpFlag.DUMP_SECRETS
+        else:
+            headers = self.parse_headers()
+            include_secrets = headers.get(QUERY_HEADER_DUMP_SECRETS) == b'\x01'
 
         self.buffer.finish_message()
 
