@@ -110,47 +110,16 @@ cdef tuple CURRENT_PROTOCOL = edbdef.CURRENT_PROTOCOL
 cdef object logger = logging.getLogger('edb.server')
 cdef object log_metrics = logging.getLogger('edb.server.metrics')
 
-DEF QUERY_HEADER_IMPLICIT_LIMIT = 0xFF01
-DEF QUERY_HEADER_IMPLICIT_TYPENAMES = 0xFF02
-DEF QUERY_HEADER_IMPLICIT_TYPEIDS = 0xFF03
-DEF QUERY_HEADER_ALLOW_CAPABILITIES = 0xFF04
-DEF QUERY_HEADER_EXPLICIT_OBJECTIDS = 0xFF05
-
 DEF QUERY_HEADER_DUMP_SECRETS = 0xFF10
-
-DEF SERVER_HEADER_CAPABILITIES = 0x1001
-
-DEF ALL_CAPABILITIES = 0xFFFFFFFFFFFFFFFF
-
-
-def parse_capabilities_header(value: bytes) -> uint64_t:
-    if len(value) != 8:
-        raise errors.BinaryProtocolError(
-            f'capabilities header must be exactly 8 bytes'
-        )
-    cdef uint64_t mask = hton.unpack_uint64(cpython.PyBytes_AS_STRING(value))
-    return mask
 
 
 def parse_catalog_version_header(value: bytes) -> uint64_t:
     if len(value) != 8:
         raise errors.BinaryProtocolError(
-            f'catalog version header must be exactly 8 bytes (got {len(value)})'
+            f'catalog version value must be exactly 8 bytes (got {len(value)})'
         )
     cdef uint64_t catver = hton.unpack_uint64(cpython.PyBytes_AS_STRING(value))
     return catver
-
-
-cdef inline bint parse_boolean(value: bytes, header: str):
-    cdef bytes lower = value.lower()
-    if lower == b'true':
-        return True
-    elif lower == b'false':
-        return False
-    else:
-        raise errors.BinaryProtocolError(
-            f'{header} header must equal "true" or "false"'
-        )
 
 
 cdef class EdgeConnection(frontend.FrontendConnection):
@@ -607,11 +576,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     cdef char render_cardinality(self, query_unit_group) except -1:
         return query_unit_group.cardinality.value
 
-    cdef inline reject_headers(self):
-        cdef int16_t nheaders = self.buffer.read_int16()
-        if nheaders != 0:
-            raise errors.BinaryProtocolError('unexpected headers')
-
     cdef dict parse_headers(self):
         cdef:
             dict attrs
@@ -637,6 +601,31 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.buffer.read_int16()
             self.buffer.read_len_prefixed_bytes()
             num_fields -= 1
+
+    cdef dict parse_annotations(self):
+        cdef:
+            dict annos
+            uint16_t num_annos
+            str name, value
+
+        annos = {}
+        num_annos = <uint16_t>self.buffer.read_int16()
+        while num_annos:
+            name = self.buffer.read_len_prefixed_utf8()
+            value = self.buffer.read_len_prefixed_utf8()
+            annos[name] = value
+            num_annos -= 1
+        return annos
+
+    cdef inline ignore_annotations(self):
+        cdef:
+            uint16_t num_annos
+
+        num_annos = <uint16_t>self.buffer.read_int16()
+        while num_annos:
+            self.buffer.read_len_prefixed_bytes()
+            self.buffer.read_len_prefixed_bytes()
+            num_annos -= 1
 
     #############
 
@@ -675,7 +664,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             msg.write_len_prefixed_bytes(b'warnings')
             msg.write_len_prefixed_bytes(warnings)
         else:
-            msg.write_int16(0)  # no headers
+            msg.write_int16(0)  # no annotations
 
         msg.write_int64(<int64_t><uint64_t>query.query_unit_group.capabilities)
         msg.write_byte(self.render_cardinality(query.query_unit_group))
@@ -710,7 +699,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         state_tid, state_data = self.get_dbview().encode_state()
 
         msg = WriteBuffer.new_message(b'C')
-        msg.write_int16(0)  # no headers
+        msg.write_int16(0)  # no annotations
         msg.write_int64(<int64_t><uint64_t>capabilities)
         msg.write_len_prefixed_bytes(status)
 
@@ -884,7 +873,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self._last_anon_compiled = None
 
-        self.ignore_headers()
+        if self.protocol_version >= (3, 0):
+            self.ignore_annotations()
+        else:
+            self.ignore_headers()
 
         _dbview = self.get_dbview()
         if _dbview.get_state_serializer() is None:
@@ -914,7 +906,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             bytes args
             uint64_t allow_capabilities
 
-        self.ignore_headers()
+        if self.protocol_version >= (3, 0):
+            self.ignore_annotations()
+        else:
+            self.ignore_headers()
 
         _dbview = self.get_dbview()
         if _dbview.get_state_serializer() is None:
@@ -1251,7 +1246,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         buf.write_byte(<char><uint8_t>severity)
         buf.write_int32(<int32_t><uint32_t>code)
         buf.write_len_prefixed_utf8(message)
-        buf.write_int16(0)  # number of headers
+        buf.write_int16(0)  # number of annotations
         buf.end_message()
 
         self.write(buf)
@@ -1262,7 +1257,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             dbview.DatabaseConnectionView _dbview
 
         buf = WriteBuffer.new_message(b'Z')
-        buf.write_int16(0)  # no headers
+        buf.write_int16(0)  # no annotations
 
         # NOTE: EdgeDB and PostgreSQL current statuses can disagree.
         # For example, Postres can be "PQTRANS_INTRANS" whereas EdgeDB
@@ -1394,9 +1389,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     if result:
                         schema_ddl += '\n' + result.decode('utf-8')
 
-            msg_buf = WriteBuffer.new_message(b'@')
+            msg_buf = WriteBuffer.new_message(b'@')  # DumpHeader
 
-            msg_buf.write_int16(4)  # number of headers
+            msg_buf.write_int16(4)  # number of key-value pairs
             msg_buf.write_int16(DUMP_HEADER_BLOCK_TYPE)
             msg_buf.write_len_prefixed_bytes(DUMP_HEADER_BLOCK_TYPE_INFO)
             msg_buf.write_int16(DUMP_HEADER_SERVER_VER)
@@ -1456,8 +1451,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     else:
                         block, block_num, data = out
 
-                        msg_buf = WriteBuffer.new_message(b'=')
-                        msg_buf.write_int16(4)  # number of headers
+                        msg_buf = WriteBuffer.new_message(b'=')  # DumpBlock
+                        msg_buf.write_int16(4)  # number of key-value pairs
 
                         msg_buf.write_int16(DUMP_HEADER_BLOCK_TYPE)
                         msg_buf.write_len_prefixed_bytes(
@@ -1477,8 +1472,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
             await pgcon.sql_execute(b"ROLLBACK;")
 
-        msg_buf = WriteBuffer.new_message(b'C')
-        msg_buf.write_int16(0)  # no headers
+        msg_buf = WriteBuffer.new_message(b'C')  # CommandComplete
+        msg_buf.write_int16(0)  # no annotations
         msg_buf.write_int64(0)  # capabilities
         msg_buf.write_len_prefixed_bytes(b'DUMP')
         msg_buf.write_bytes(sertypes.NULL_TYPE_ID.bytes)
@@ -1541,10 +1536,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if _dbview.get_state_serializer() is None:
             await _dbview.reload_state_serializer()
 
-        self.reject_headers()
+        # Parse the "Restore" message
+        if self.buffer.read_int16() != 0:  # number of attributes
+            raise errors.BinaryProtocolError('unexpected attributes')
         self.buffer.read_int16()  # discard -j level
 
-        # Now parse the embedded dump header message:
+        # Now parse the embedded "DumpHeader" message:
 
         server = self.server
         compiler_pool = server.get_compiler_pool()
@@ -1670,9 +1667,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
                 await pgcon.sql_execute(disable_trigger_q.encode())
 
-                # Send "RestoreReadyMessage"
+                # Send "RestoreReady" message
                 msg = WriteBuffer.new_message(b'+')
-                msg.write_int16(0)  # no headers
+                msg.write_int16(0)  # no annotations
                 msg.write_int16(1)  # -j1
                 self.write(msg.end_message())
                 self.flush()
@@ -1685,7 +1682,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                         await self.wait_for_message(report_idling=False)
                     mtype = self.buffer.get_message_type()
 
-                    if mtype == b'=':
+                    if mtype == b'=':  # RestoreBlock
                         block_type = None
                         block_id = None
                         block_num = None
@@ -1717,7 +1714,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                         await pgcon.restore(restore_block, block_data, type_id_map)
                         self._transport.resume_reading()
 
-                    elif mtype == b'.':
+                    elif mtype == b'.':  # RestoreEof
                         self.buffer.finish_message()
                         break
 
@@ -1745,8 +1742,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         state_tid, state_data = _dbview.encode_state()
 
-        msg = WriteBuffer.new_message(b'C')
-        msg.write_int16(0)  # no headers
+        msg = WriteBuffer.new_message(b'C')  # CommandComplete
+        msg.write_int16(0)  # no annotations
         msg.write_int64(0)  # capabilities
         msg.write_len_prefixed_bytes(b'RESTORE')
         msg.write_bytes(state_tid.bytes)
