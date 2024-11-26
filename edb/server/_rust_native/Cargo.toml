@@ -5,7 +5,7 @@ license = "MIT/Apache-2.0"
 authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2021"
 
-[lint]
+[lints]
 workspace = true
 
 [features]

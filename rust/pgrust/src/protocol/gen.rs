@@ -689,7 +689,6 @@ mod tests {
     }
 
     mod mixed {
-        use crate::protocol::meta::ZTString;
         protocol!(struct Mixed {
             a: u8 = 1,
             s: ZTString,
@@ -697,7 +696,6 @@ mod tests {
     }
 
     mod docs {
-        use crate::protocol::meta::ZTString;
         protocol!(
             /// Docs
             struct Docs {
@@ -710,7 +708,6 @@ mod tests {
     }
 
     mod length {
-        use crate::protocol::meta::Length;
         protocol!(
             struct WithLength {
                 a: u8,
@@ -729,7 +726,6 @@ mod tests {
     }
 
     mod string {
-        use crate::protocol::meta::LString;
         protocol!(
             struct HasLString {
                 s: LString,
