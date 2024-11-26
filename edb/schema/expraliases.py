@@ -276,7 +276,7 @@ class AliasCommand(
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> sn.QualName:
         type_name = super()._classname_from_ast(schema, astnode, context)

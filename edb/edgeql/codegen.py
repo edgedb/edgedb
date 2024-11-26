@@ -904,6 +904,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         commands = self._ddl_clean_up_commands(commands)
         if len(commands) == 1 and allow_short and not (
             isinstance(commands[0], qlast.ObjectDDL)
+            and not isinstance(commands[0], qlast.Rename)
         ):
             self.write(' ')
             self.visit(commands[0])

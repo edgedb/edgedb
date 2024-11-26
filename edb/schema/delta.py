@@ -1826,7 +1826,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: CommandContext,
     ) -> sn.Name:
         return sn.UnqualName(astnode.name.name)
@@ -2944,7 +2944,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: CommandContext,
     ) -> sn.QualName:
         objref = astnode.name

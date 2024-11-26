@@ -724,13 +724,10 @@ class SetPointerOptionality(SetField):
     fill_expr: typing.Optional[Expr] = None
 
 
-class NamedDDL(DDLCommand):
+class ObjectDDL(DDLCommand):
     __abstract_node__ = True
+
     name: ObjectRef
-
-
-class ObjectDDL(NamedDDL):
-    __abstract_node__ = True
 
 
 class CreateObject(ObjectDDL):
@@ -759,7 +756,7 @@ class CreateExtendingObject(CreateObject):
     bases: typing.List[TypeName]
 
 
-class Rename(NamedDDL):
+class Rename(ObjectDDL):
     new_name: ObjectRef
 
     @property
@@ -1543,11 +1540,11 @@ class ModuleDeclaration(SDL):
     # The 'name' is treated same as in CreateModule, for consistency,
     # since this declaration also implies creating a module.
     name: ObjectRef
-    declarations: typing.List[typing.Union[NamedDDL, ModuleDeclaration]]
+    declarations: typing.List[typing.Union[ObjectDDL, ModuleDeclaration]]
 
 
-class Schema(GrammarEntryPoint, SDL):
-    declarations: typing.List[typing.Union[NamedDDL, ModuleDeclaration]]
+class Schema(SDL, GrammarEntryPoint, Base):
+    declarations: typing.List[typing.Union[ObjectDDL, ModuleDeclaration]]
 
 
 #

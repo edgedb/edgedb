@@ -476,7 +476,7 @@ def apply_sdl(
     futures = {}
 
     def collect(
-        decl: qlast.NamedDDL | qlast.ModuleDeclaration,
+        decl: qlast.ObjectDDL | qlast.ModuleDeclaration,
         module: Optional[str],
     ) -> None:
         # declarations are either in a module block or fully-qualified
@@ -494,7 +494,7 @@ def apply_sdl(
             assert not module
             futures[decl.name.name] = decl
         else:
-            assert isinstance(decl, qlast.NamedDDL)
+            assert isinstance(decl, qlast.ObjectDDL)
             assert module or decl.name.module is not None
             if decl.name.module is None:
                 assert module
