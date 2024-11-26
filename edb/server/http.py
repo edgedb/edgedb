@@ -37,7 +37,7 @@ import urllib.parse
 import time
 from http import HTTPStatus as HTTPStatus
 
-from edb.server._http import Http
+from edb.server._rust_native._http import Http
 from . import rust_async_channel
 
 logger = logging.getLogger("edb.server")

@@ -895,6 +895,7 @@ cdef class HttpProtocol:
                 request.authorization)
             username, opt_password = auth_helpers.extract_http_user(
                 scheme, auth_payload, request.params)
+            username = self.tenant.resolve_user_name(username)
 
             # Fetch the configured auth methods
             authmethods = await self.tenant.get_auth_methods(

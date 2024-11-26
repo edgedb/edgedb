@@ -147,26 +147,27 @@ def resolve_SelectStmt(
 
     # order by can refer to columns in SELECT projection, so we need to add
     # table.columns into scope
-    ctx.scope.tables.append(
-        context.Table(
-            columns=[
-                context.Column(
-                    name=c.name,
-                    kind=context.ColumnByName(reference_as=c.name),
-                )
-                for c, target in zip(table.columns, stmt.target_list)
-                if target.name
-                and (
-                    not isinstance(target.val, pgast.ColumnRef)
-                    or target.val.name[-1] != target.name
-                )
-            ]
-        )
+    projected_table = context.Table(
+        columns=[
+            context.Column(
+                name=c.name,
+                kind=context.ColumnByName(reference_as=c.name),
+            )
+            for c, target in zip(table.columns, stmt.target_list)
+            if target.name
+            and (
+                not isinstance(target.val, pgast.ColumnRef)
+                or target.val.name[-1] != target.name
+            )
+        ]
     )
+    if len(projected_table.columns) > 0:
+        ctx.scope.tables.append(projected_table)
 
     sort_clause = dispatch.resolve_opt_list(stmt.sort_clause, ctx=ctx)
     limit_offset = dispatch.resolve_opt(stmt.limit_offset, ctx=ctx)
     limit_count = dispatch.resolve_opt(stmt.limit_count, ctx=ctx)
+    locking_clause = dispatch.resolve_opt_list(stmt.locking_clause, ctx=ctx)
 
     ctes.extend(extract_ctes_from_ctx(ctx))
 
@@ -179,6 +180,7 @@ def resolve_SelectStmt(
         sort_clause=sort_clause,
         limit_offset=limit_offset,
         limit_count=limit_count,
+        locking_clause=locking_clause,
         ctes=ctes if len(ctes) > 0 else None,
     )
     return (
@@ -260,7 +262,9 @@ def resolve_relation(
             for n, _type, _ver_since in preset_tables[0][relation.name]
         ]
         cols.extend(_construct_system_columns())
-        table = context.Table(name=relation.name, columns=cols)
+        table = context.Table(
+            name=relation.name, columns=cols, is_direct_relation=True
+        )
         rel = pgast.Relation(name=relation.name, schemaname=preset_tables[1])
 
         return rel, table
@@ -328,7 +332,7 @@ def resolve_relation(
             if card.is_multi():
                 continue
 
-            columns.append(_construct_column(p, ctx, include_inherited))
+            columns.append(_construct_column(p, ctx))
     else:
         for c in ['source', 'target']:
             columns.append(
@@ -352,31 +356,58 @@ def resolve_relation(
 
     table.columns.extend(_construct_system_columns())
 
-    if ctx.options.apply_access_policies:
+    if ctx.options.apply_access_policies and _has_access_policies(obj, ctx):
         if isinstance(obj, s_objtypes.ObjectType):
-            relation = _compile_read_of_obj_table(
+            rel = _compile_read_of_obj_table(
                 obj, include_inherited, table, ctx
             )
         else:
-            # link and multi-property tables cannot have access policies,
-            # so we allow access to base table directly
-            relation = _relation_of_table(obj, ctx)
+            # TODO: implement access policy filtering for link and
+            # multi-property tables
+            rel = _relation_of_table(obj, table, ctx)
     else:
-        if include_inherited:
-            relation = _relation_of_inheritance_cte(obj, ctx)
+        if include_inherited and _has_sub_types(obj, ctx):
+            rel = _relation_of_inheritance_cte(obj, ctx)
         else:
-            relation = _relation_of_table(obj, ctx)
+            rel = _relation_of_table(obj, table, ctx)
 
-    return relation, table
+    return rel, table
+
+
+def _has_access_policies(
+    obj: s_sources.Source | s_properties.Property, ctx: Context
+):
+    if isinstance(obj, s_pointers.Pointer):
+        return False
+    assert isinstance(obj, s_objtypes.ObjectType)
+
+    policies = obj.get_access_policies(ctx.schema)
+    return len(policies) > 0
+
+
+def _has_sub_types(obj: s_sources.Source | s_properties.Property, ctx: Context):
+    return len(obj.children(ctx.schema)) > 0
 
 
 def _relation_of_table(
-    obj: s_sources.Source | s_properties.Property, ctx: Context
+    obj: s_sources.Source | s_properties.Property,
+    table: context.Table,
+    ctx: Context,
 ) -> pgast.Relation:
     schemaname, dbname = pgcommon.get_backend_name(
         ctx.schema, obj, aspect='table', catenate=False
     )
-    return pgast.Relation(name=dbname, schemaname=schemaname)
+    relation = pgast.Relation(name=dbname, schemaname=schemaname)
+
+    table.is_direct_relation = True
+    # When referencing actual tables, we need to statically provide __type__,
+    # since this column does not exist in the database.
+    for col in table.columns:
+        if col.name == '__type__':
+            col.kind = context.ColumnStaticVal(val=obj.id)
+            break
+
+    return relation
 
 
 def _relation_of_inheritance_cte(
@@ -444,9 +475,7 @@ def _lookup_pointer_table(
     raise NotImplementedError()
 
 
-def _construct_column(
-    p: s_pointers.Pointer, ctx: Context, include_inherited: bool
-) -> context.Column:
+def _construct_column(p: s_pointers.Pointer, ctx: Context) -> context.Column:
     short_name = p.get_shortname(ctx.schema)
 
     col_name: str
@@ -474,17 +503,7 @@ def _construct_column(
             kind = context.ColumnComputable(pointer=p)
         elif short_name.name == '__type__':
             col_name = '__type__'
-
-            if not include_inherited:
-                # When using FROM ONLY, we will be referencing actual tables
-                # and not inheritance views. Actual tables don't contain
-                # __type__ column, which means that we have to provide value
-                # in some other way. Fortunately, it is a constant value, so we
-                # can compute it statically.
-                source_id = p.get_source_type(ctx.schema).get_id(ctx.schema)
-                kind = context.ColumnStaticVal(val=source_id)
-            else:
-                kind = context.ColumnByName(reference_as='__type__')
+            kind = context.ColumnByName(reference_as='__type__')
         else:
             col_name = short_name.name + '_id'
             _, dbname = pgcommon.get_backend_name(ctx.schema, p, catenate=False)

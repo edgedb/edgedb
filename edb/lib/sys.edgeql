@@ -57,13 +57,36 @@ CREATE TYPE sys::ExtensionPackage EXTENDING
         sys::SystemObject,
         schema::AnnotationSubject {
     CREATE REQUIRED PROPERTY script -> str;
-    CREATE REQUIRED PROPERTY version -> tuple<
-                                            major: std::int64,
-                                            minor: std::int64,
-                                            stage: sys::VersionStage,
-                                            stage_no: std::int64,
-                                            local: array<std::str>,
-                                        >;
+    CREATE REQUIRED PROPERTY version ->
+        tuple<
+             major: std::int64,
+             minor: std::int64,
+             stage: sys::VersionStage,
+             stage_no: std::int64,
+             local: array<std::str>,
+         >;
+};
+
+CREATE TYPE sys::ExtensionPackageMigration EXTENDING
+        sys::SystemObject,
+        schema::AnnotationSubject {
+    CREATE REQUIRED PROPERTY script -> str;
+    CREATE REQUIRED PROPERTY from_version ->
+        tuple<
+             major: std::int64,
+             minor: std::int64,
+             stage: sys::VersionStage,
+             stage_no: std::int64,
+             local: array<std::str>,
+         >;
+    CREATE REQUIRED PROPERTY to_version ->
+        tuple<
+             major: std::int64,
+             minor: std::int64,
+             stage: sys::VersionStage,
+             stage_no: std::int64,
+             local: array<std::str>,
+         >;
 };
 
 

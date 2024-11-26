@@ -1,5 +1,5 @@
 [package]
-name = "edbrust-rust"
+name = "rust_native"
 version = "0.1.0"
 license = "MIT/Apache-2.0"
 authors = ["MagicStack Inc. <hello@magic.io>"]
@@ -12,8 +12,12 @@ workspace = true
 python_extension = ["pyo3/extension-module", "pyo3/serde"]
 
 [dependencies]
-pyo3 = { workspace = true, optional = true }
+pyo3 = { workspace = true }
 tokio.workspace = true
+pyo3_util.workspace = true
+conn_pool = { workspace = true, features = [ "python_extension" ] }
+pgrust = { workspace = true, features = [ "python_extension" ] }
+http = { workspace = true, features = [ "python_extension" ] }
 
 [lib]
 crate-type = ["lib", "cdylib"]

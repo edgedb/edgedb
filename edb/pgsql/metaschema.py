@@ -5622,6 +5622,135 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
     return views
 
 
+def _generate_extension_migration_views(
+    schema: s_schema.Schema
+) -> List[dbops.View]:
+    ExtPkgMigration = schema.get(
+        'sys::ExtensionPackageMigration', type=s_objtypes.ObjectType)
+    annos = ExtPkgMigration.getptr(
+        schema, s_name.UnqualName('annotations'), type=s_links.Link)
+    int_annos = ExtPkgMigration.getptr(
+        schema, s_name.UnqualName('annotations__internal'), type=s_links.Link)
+    from_ver = ExtPkgMigration.getptr(
+        schema, s_name.UnqualName('from_version'), type=s_props.Property)
+    ver_t = common.get_backend_name(
+        schema,
+        not_none(from_ver.get_target(schema)),
+        catenate=False,
+    )
+
+    view_query_fields = {
+        'id': "(e.value->>'id')::uuid",
+        'name': "(e.value->>'name')",
+        'name__internal': "(e.value->>'name__internal')",
+        'script': "(e.value->>'script')",
+        'sql_early_script': "(e.value->>'sql_early_script')",
+        'sql_late_script': "(e.value->>'sql_late_script')",
+        'computed_fields': 'ARRAY[]::text[]',
+        'builtin': "(e.value->>'builtin')::bool",
+        'internal': "(e.value->>'internal')::bool",
+        # XXX: code duplication here
+        'from_version': f'''
+            (
+                (e.value->'from_version'->>'major')::int,
+                (e.value->'from_version'->>'minor')::int,
+                (e.value->'from_version'->>'stage')::text,
+                (e.value->'from_version'->>'stage_no')::int,
+                COALESCE(
+                    (SELECT array_agg(q.v::text)
+                    FROM jsonb_array_elements(
+                        e.value->'from_version'->'local'
+                    ) AS q(v)),
+                    ARRAY[]::text[]
+                )
+            )::{qt(ver_t)}
+        ''',
+        'to_version': f'''
+            (
+                (e.value->'to_version'->>'major')::int,
+                (e.value->'to_version'->>'minor')::int,
+                (e.value->'to_version'->>'stage')::text,
+                (e.value->'to_version'->>'stage_no')::int,
+                COALESCE(
+                    (SELECT array_agg(q.v::text)
+                    FROM jsonb_array_elements(
+                        e.value->'to_version'->'local'
+                    ) AS q(v)),
+                    ARRAY[]::text[]
+                )
+            )::{qt(ver_t)}
+        ''',
+    }
+
+    view_query = f'''
+        SELECT
+            {format_fields(schema, ExtPkgMigration, view_query_fields)}
+        FROM
+            jsonb_each(
+                edgedb_VER.get_database_metadata(
+                    {ql(defines.EDGEDB_TEMPLATE_DB)}
+                ) -> 'ExtensionPackageMigration'
+            ) AS e
+    '''
+
+    annos_link_fields = {
+        'source': "(e.value->>'id')::uuid",
+        'target': "(annotations->>'id')::uuid",
+        'value': "(annotations->>'value')::text",
+        'owned': "(annotations->>'owned')::bool",
+    }
+
+    int_annos_link_fields = {
+        'source': "(e.value->>'id')::uuid",
+        'target': "(annotations->>'id')::uuid",
+        'owned': "(annotations->>'owned')::bool",
+    }
+
+    annos_link_query = f'''
+        SELECT
+            {format_fields(schema, annos, annos_link_fields)}
+        FROM
+            jsonb_each(
+                edgedb_VER.get_database_metadata(
+                    {ql(defines.EDGEDB_TEMPLATE_DB)}
+                ) -> 'ExtensionPackageMigration'
+            ) AS e
+            CROSS JOIN LATERAL
+                ROWS FROM (
+                    jsonb_array_elements(e.value->'annotations')
+                ) AS annotations
+    '''
+
+    int_annos_link_query = f'''
+        SELECT
+            {format_fields(schema, int_annos, int_annos_link_fields)}
+        FROM
+            jsonb_each(
+                edgedb_VER.get_database_metadata(
+                    {ql(defines.EDGEDB_TEMPLATE_DB)}
+                ) -> 'ExtensionPackageMigration'
+            ) AS e
+            CROSS JOIN LATERAL
+                ROWS FROM (
+                    jsonb_array_elements(e.value->'annotations__internal')
+                ) AS annotations
+    '''
+
+    objects = {
+        ExtPkgMigration: view_query,
+        annos: annos_link_query,
+        int_annos: int_annos_link_query,
+    }
+
+    views: list[dbops.View] = []
+    for obj, query in objects.items():
+        tabview = trampoline.VersionedView(
+            name=tabname(schema, obj), query=query)
+        views.append(tabview)
+
+    return views
+
+
 def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
     Role = schema.get('sys::Role', type=s_objtypes.ObjectType)
     member_of = Role.getptr(
@@ -7896,6 +8025,8 @@ def get_synthetic_type_views(
         commands.add_command(dbops.CreateView(dbview, or_replace=True))
 
     for extview in _generate_extension_views(schema):
+        commands.add_command(dbops.CreateView(extview, or_replace=True))
+    for extview in _generate_extension_migration_views(schema):
         commands.add_command(dbops.CreateView(extview, or_replace=True))
 
     if backend_params.has_create_role:

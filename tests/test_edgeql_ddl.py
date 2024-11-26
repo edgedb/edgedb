@@ -9358,14 +9358,14 @@ type default::Foo {
             [{
                 'name': 'MyExtension',
                 'package': {
-                    'ver': [1, 1],
+                    'ver': [1, 0],
                 }
             }]
         )
 
         async with self.assertRaisesRegexTx(
             edgedb.SchemaError,
-            "version 1.1 is already installed",
+            "version 1.0 is already installed",
         ):
             await self.con.execute(r"""
                 CREATE EXTENSION MyExtension VERSION '2.0';

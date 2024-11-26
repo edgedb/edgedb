@@ -4,17 +4,23 @@ members = [
     "edb/edgeql-parser/edgeql-parser-derive",
     "edb/edgeql-parser/edgeql-parser-python",
     "edb/graphql-rewrite",
-    "edb/server/conn_pool",
-    "edb/server/pgrust",
-    "edb/server/http",
+    "edb/server/_rust_native",
+    "rust/conn_pool",
+    "rust/pgrust",
+    "rust/http",
+    "rust/pyo3_util"
 ]
 resolver = "2"
 
 [workspace.dependencies]
-pyo3 = { version = "0.23.1", features = ["extension-module", "serde"] }
+pyo3 = { version = "0.23.1", features = ["extension-module", "serde", "macros"] }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "sync", "net", "io-util"] }
 tracing = "0.1.40"
-tracing-subscriber = "0.3.18"
+tracing-subscriber = { version = "0.3.18", features = ["registry", "env-filter"] }
+conn_pool = { path = "rust/conn_pool" }
+pgrust = { path = "rust/pgrust" }
+http = { path = "rust/http" }
+pyo3_util = { path = "rust/pyo3_util" }
 
 [profile.release]
 debug = true

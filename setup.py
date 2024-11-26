@@ -1182,20 +1182,8 @@ setuptools.setup(
             binding=setuptools_rust.Binding.PyO3,
         ),
         setuptools_rust.RustExtension(
-            "edb.server._conn_pool",
-            path="edb/server/conn_pool/Cargo.toml",
-            features=["python_extension"],
-            binding=setuptools_rust.Binding.PyO3,
-        ),
-        setuptools_rust.RustExtension(
-            "edb.server._pg_rust",
-            path="edb/server/pgrust/Cargo.toml",
-            features=["python_extension"],
-            binding=setuptools_rust.Binding.PyO3,
-        ),
-        setuptools_rust.RustExtension(
-            "edb.server._http",
-            path="edb/server/http/Cargo.toml",
+            "edb.server._rust_native",
+            path="edb/server/_rust_native/Cargo.toml",
             features=["python_extension"],
             binding=setuptools_rust.Binding.PyO3,
         ),

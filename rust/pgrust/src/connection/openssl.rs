@@ -110,7 +110,7 @@ mod tests {
 
     #[test]
     fn create_ssl() {
-        let cert_path = Path::new("../../../tests/certs").canonicalize().unwrap();
+        let cert_path = Path::new("../../tests/certs").canonicalize().unwrap();
 
         let ssl = SslContextBuilder::new(SslMethod::tls()).unwrap();
         let ssl = create_ssl_client_context(

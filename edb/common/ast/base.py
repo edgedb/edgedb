@@ -157,7 +157,7 @@ class AST:
                     # there's a cycle it's better to have correct
                     # static type analysis even though the runtime
                     # validation infrastructure does not support
-                    # cyclic rerefences.
+                    # cyclic references.
                     # XXX: This is a horrible hack, need to find
                     # a better way.
                     m = re.match(r"name '(\w+)' is not defined", e.args[0])

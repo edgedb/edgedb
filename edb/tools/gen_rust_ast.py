@@ -60,7 +60,7 @@ def main() -> None:
         if not isinstance(typ, type) or not hasattr(typ, '_direct_fields'):
             continue
 
-        if not issubclass(typ, qlast.Base) or typ.__rust_ignore__:
+        if not issubclass(typ, qlast.Base):
             continue
 
         # re-run field collection to correctly handle forward-references
