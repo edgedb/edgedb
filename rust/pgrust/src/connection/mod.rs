@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{auth, errors::PgServerError, protocol::ParseError};
+use crate::{
+    errors::{edgedb::EdbError, PgServerError},
+    protocol::ParseError,
+};
 
 mod conn;
 pub mod dsn;
@@ -38,13 +41,17 @@ pub enum ConnectionError {
     #[error("Server error: {0}")]
     ServerError(#[from] PgServerError),
 
+    /// Error returned by the server.
+    #[error("Server error: {0}")]
+    EdbServerError(#[from] EdbError),
+
     /// The server sent something we didn't expect
     #[error("Unexpected server response: {0}")]
     UnexpectedResponse(String),
 
     /// Error related to SCRAM authentication.
     #[error("SCRAM: {0}")]
-    Scram(#[from] auth::SCRAMError),
+    Scram(#[from] gel_auth::scram::SCRAMError),
 
     /// I/O error encountered during connection operations.
     #[error("I/O error: {0}")]

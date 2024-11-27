@@ -8,8 +8,7 @@ use unicode_normalization::UnicodeNormalization;
 /// # Examples
 ///
 /// ```
-/// use pgrust::auth::sasl_normalize_password_bytes;
-///
+/// # use gel_auth::stringprep::*;
 /// assert_eq!(sasl_normalize_password_bytes(b"password").as_ref(), b"password");
 /// assert_eq!(sasl_normalize_password_bytes("passw\u{00A0}rd".as_bytes()).as_ref(), b"passw rd");
 /// assert_eq!(sasl_normalize_password_bytes("pass\u{200B}word".as_bytes()).as_ref(), b"password");
@@ -36,8 +35,7 @@ pub fn sasl_normalize_password_bytes(s: &[u8]) -> Cow<[u8]> {
 /// # Examples
 ///
 /// ```
-/// use pgrust::auth::sasl_normalize_password;
-///
+/// # use gel_auth::stringprep::*;
 /// assert_eq!(sasl_normalize_password("password").as_ref(), "password");
 /// assert_eq!(sasl_normalize_password("passw\u{00A0}rd").as_ref(), "passw rd");
 /// assert_eq!(sasl_normalize_password("pass\u{200B}word").as_ref(), "password");

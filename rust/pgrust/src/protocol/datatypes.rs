@@ -1,5 +1,7 @@
 use std::{marker::PhantomData, str::Utf8Error};
 
+use uuid::Uuid;
+
 use super::{
     arrays::{array_access, Array, ArrayMeta},
     field_access,
@@ -9,8 +11,10 @@ use super::{
 
 pub mod meta {
     pub use super::EncodedMeta as Encoded;
+    pub use super::LStringMeta as LString;
     pub use super::LengthMeta as Length;
     pub use super::RestMeta as Rest;
+    pub use super::UuidMeta as Uuid;
     pub use super::ZTStringMeta as ZTString;
 }
 
@@ -198,6 +202,178 @@ impl FieldAccess<ZTStringMeta> {
     pub fn copy_to_buf_ref(buf: &mut BufWriter, value: &str) {
         buf.write(value.as_bytes());
         buf.write_u8(0);
+    }
+}
+
+/// A length-prefixed string.
+#[allow(unused)]
+pub struct LString<'a> {
+    buf: &'a [u8],
+}
+
+field_access!(LStringMeta);
+array_access!(LStringMeta);
+
+pub struct LStringMeta {}
+impl Meta for LStringMeta {
+    fn name(&self) -> &'static str {
+        "LString"
+    }
+}
+
+impl Enliven for LStringMeta {
+    type WithLifetime<'a> = LString<'a>;
+    type ForMeasure<'a> = &'a str;
+    type ForBuilder<'a> = &'a str;
+}
+
+impl std::fmt::Debug for LString<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        String::from_utf8_lossy(self.buf).fmt(f)
+    }
+}
+
+impl<'a> LString<'a> {
+    pub fn to_owned(&self) -> Result<String, std::str::Utf8Error> {
+        std::str::from_utf8(self.buf).map(|s| s.to_owned())
+    }
+
+    pub fn to_str(&self) -> Result<&str, std::str::Utf8Error> {
+        std::str::from_utf8(self.buf)
+    }
+
+    pub fn to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
+        String::from_utf8_lossy(self.buf)
+    }
+
+    pub fn to_bytes(&self) -> &[u8] {
+        self.buf
+    }
+}
+
+impl PartialEq for LString<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.buf == other.buf
+    }
+}
+impl Eq for LString<'_> {}
+
+impl PartialEq<str> for LString<'_> {
+    fn eq(&self, other: &str) -> bool {
+        self.buf == other.as_bytes()
+    }
+}
+
+impl PartialEq<&str> for LString<'_> {
+    fn eq(&self, other: &&str) -> bool {
+        self.buf == other.as_bytes()
+    }
+}
+
+impl<'a> TryInto<&'a str> for LString<'a> {
+    type Error = Utf8Error;
+    fn try_into(self) -> Result<&'a str, Self::Error> {
+        std::str::from_utf8(self.buf)
+    }
+}
+
+impl FieldAccess<LStringMeta> {
+    #[inline(always)]
+    pub const fn meta() -> &'static dyn Meta {
+        &LStringMeta {}
+    }
+    #[inline(always)]
+    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
+        if buf.len() < 4 {
+            return Err(ParseError::TooShort);
+        }
+        let len = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
+        Ok(4 + len)
+    }
+    #[inline(always)]
+    pub const fn extract(buf: &[u8]) -> Result<LString<'_>, ParseError> {
+        if buf.len() < 4 {
+            return Err(ParseError::TooShort);
+        }
+        let len = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
+        if buf.len() < 4 + len {
+            return Err(ParseError::TooShort);
+        }
+        Ok(LString {
+            buf: buf.split_at(4).1,
+        })
+    }
+    #[inline(always)]
+    pub const fn measure(buf: &str) -> usize {
+        4 + buf.len()
+    }
+    #[inline(always)]
+    pub fn copy_to_buf(buf: &mut BufWriter, value: &str) {
+        let len = value.len() as u32;
+        buf.write(&len.to_be_bytes());
+        buf.write(value.as_bytes());
+    }
+    #[inline(always)]
+    pub fn copy_to_buf_ref(buf: &mut BufWriter, value: &str) {
+        let len = value.len() as u32;
+        buf.write(&len.to_be_bytes());
+        buf.write(value.as_bytes());
+    }
+}
+
+field_access!(UuidMeta);
+array_access!(UuidMeta);
+
+pub struct UuidMeta {}
+impl Meta for UuidMeta {
+    fn name(&self) -> &'static str {
+        "Uuid"
+    }
+}
+
+impl Enliven for UuidMeta {
+    type WithLifetime<'a> = Uuid;
+    type ForMeasure<'a> = Uuid;
+    type ForBuilder<'a> = Uuid;
+}
+
+impl FieldAccess<UuidMeta> {
+    #[inline(always)]
+    pub const fn meta() -> &'static dyn Meta {
+        &UuidMeta {}
+    }
+
+    #[inline(always)]
+    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
+        if buf.len() < 16 {
+            Err(ParseError::TooShort)
+        } else {
+            Ok(16)
+        }
+    }
+
+    #[inline(always)]
+    pub const fn extract(buf: &[u8]) -> Result<Uuid, ParseError> {
+        if let Some(bytes) = buf.first_chunk() {
+            Ok(Uuid::from_u128(<u128>::from_be_bytes(*bytes)))
+        } else {
+            Err(ParseError::TooShort)
+        }
+    }
+
+    #[inline(always)]
+    pub const fn measure(_value: &Uuid) -> usize {
+        16
+    }
+
+    #[inline(always)]
+    pub fn copy_to_buf(buf: &mut BufWriter, value: Uuid) {
+        buf.write(value.as_bytes().as_slice());
+    }
+
+    #[inline(always)]
+    pub fn copy_to_buf_ref(buf: &mut BufWriter, value: &Uuid) {
+        buf.write(value.as_bytes().as_slice());
     }
 }
 
@@ -514,7 +690,7 @@ macro_rules! basic_types {
             }
         }
 
-        basic_types!(: array<$ty> u8 i16 i32);
+        basic_types!(: array<$ty> u8 i16 i32 u32 u64);
         )*
     };
 
@@ -600,4 +776,4 @@ macro_rules! basic_types {
         )*
     }
 }
-basic_types!(u8 i16 i32);
+basic_types!(u8 i16 i32 u32 u64);

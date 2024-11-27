@@ -11,7 +11,10 @@ use crate::{
         },
         ConnectionSslRequirement,
     },
-    protocol::{meta, SSLResponse, StructBuffer},
+    protocol::{
+        postgres::{data::SSLResponse, meta, FrontendBuilder, InitialBuilder},
+        StructBuffer,
+    },
 };
 use pyo3::{
     buffer::PyBuffer,
@@ -404,10 +407,7 @@ struct PyConnectionStateUpdate {
 }
 
 impl ConnectionStateSend for PyConnectionStateUpdate {
-    fn send_initial(
-        &mut self,
-        message: crate::protocol::definition::InitialBuilder,
-    ) -> Result<(), std::io::Error> {
+    fn send_initial(&mut self, message: InitialBuilder) -> Result<(), std::io::Error> {
         Python::with_gil(|py| {
             let bytes = PyByteArray::new(py, &message.to_vec());
             if let Err(e) = self.py_update.call_method1(py, "send", (bytes,)) {
@@ -418,10 +418,7 @@ impl ConnectionStateSend for PyConnectionStateUpdate {
         Ok(())
     }
 
-    fn send(
-        &mut self,
-        message: crate::protocol::definition::FrontendBuilder,
-    ) -> Result<(), std::io::Error> {
+    fn send(&mut self, message: FrontendBuilder) -> Result<(), std::io::Error> {
         Python::with_gil(|py| {
             let bytes = PyBytes::new(py, &message.to_vec());
             if let Err(e) = self.py_update.call_method1(py, "send", (bytes,)) {
@@ -477,7 +474,7 @@ impl ConnectionStateUpdate for PyConnectionStateUpdate {
         });
     }
 
-    fn auth(&mut self, auth: crate::handshake::AuthType) {
+    fn auth(&mut self, auth: gel_auth::AuthType) {
         Python::with_gil(|py| {
             if let Err(e) = self.py_update.call_method1(py, "auth", (auth as u8,)) {
                 eprintln!("Error in auth: {:?}", e);

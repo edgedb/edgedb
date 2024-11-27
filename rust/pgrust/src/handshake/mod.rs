@@ -9,35 +9,8 @@ pub enum ConnectionSslRequirement {
     Required,
 }
 
-/// Specifies the type of authentication or indicates the authentication method used for a connection.
-#[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
-pub enum AuthType {
-    /// Denies a login or indicates that a connection was denied.
-    ///
-    /// When used with the server, this will cause it to emulate the given
-    /// authentication type, but unconditionally return a failure.
-    ///
-    /// This is used for testing purposes, and to emulate timing when a user
-    /// does not exist.
-    #[default]
-    Deny,
-    /// Trusts a login without requiring authentication, or indicates
-    /// that a connection required no authentication.
-    ///
-    /// When used with the server side of the handshake, this will cause it to
-    /// emulate the given authentication type, but unconditionally succeed.
-    /// Not compatible with SCRAM-SHA-256 as that protocol requires server and client
-    /// to cryptographically agree on a password.
-    Trust,
-    /// Plain text authentication, or indicates that plain text authentication was required.
-    Plain,
-    /// MD5 password authentication, or indicates that MD5 password authentication was required.
-    Md5,
-    /// SCRAM-SHA-256 authentication, or indicates that SCRAM-SHA-256 authentication was required.
-    ScramSha256,
-}
-
 mod client_state_machine;
+pub mod edgedb_server;
 mod server_state_machine;
 
 pub mod client {
@@ -58,9 +31,9 @@ mod tests {
     use crate::{
         connection::Credentials,
         errors::{PgError, PgServerError},
-        handshake::{server::CredentialData, AuthType},
-        protocol::{InitialMessage, Message},
+        protocol::postgres::{data::*, *},
     };
+    use gel_auth::{AuthType, CredentialData};
     use rstest::rstest;
     use std::collections::VecDeque;
 
@@ -91,18 +64,12 @@ mod tests {
     }
 
     impl client::ConnectionStateSend for ConnectionPipe {
-        fn send(
-            &mut self,
-            message: crate::protocol::definition::FrontendBuilder,
-        ) -> Result<(), std::io::Error> {
+        fn send(&mut self, message: FrontendBuilder) -> Result<(), std::io::Error> {
             eprintln!("Client -> Server {message:?}");
             self.smsg.push_back((false, message.to_vec()));
             Ok(())
         }
-        fn send_initial(
-            &mut self,
-            message: crate::protocol::definition::InitialBuilder,
-        ) -> Result<(), std::io::Error> {
+        fn send_initial(&mut self, message: InitialBuilder) -> Result<(), std::io::Error> {
             eprintln!("Client -> Server {message:?}");
             self.smsg.push_back((true, message.to_vec()));
             Ok(())
@@ -131,18 +98,12 @@ mod tests {
             self.sparams = true;
             Ok(())
         }
-        fn send(
-            &mut self,
-            message: crate::protocol::definition::BackendBuilder,
-        ) -> Result<(), std::io::Error> {
+        fn send(&mut self, message: BackendBuilder) -> Result<(), std::io::Error> {
             eprintln!("Server -> Client {message:?}");
             self.cmsg.push_back((false, message.to_vec()));
             Ok(())
         }
-        fn send_ssl(
-            &mut self,
-            message: crate::protocol::builder::SSLResponse,
-        ) -> Result<(), std::io::Error> {
+        fn send_ssl(&mut self, message: builder::SSLResponse) -> Result<(), std::io::Error> {
             self.cmsg.push_back((true, message.to_vec()));
             Ok(())
         }
@@ -153,7 +114,7 @@ mod tests {
 
     /// We test the full matrix of server and client combinations.
     #[rstest]
-    #[test]
+    #[test_log::test]
     fn test_both(
         #[values(
             AuthType::Deny,
@@ -182,8 +143,7 @@ mod tests {
             },
             ConnectionSslRequirement::Disable,
         );
-        let mut server =
-            server::ServerState::new(ConnectionSslRequirement::Disable, 0x1234, 0x4321);
+        let mut server = server::ServerState::new(ConnectionSslRequirement::Disable);
 
         // We test all variations here, but not all combinations will result in
         // valid auth, even with a correct password.
@@ -231,7 +191,7 @@ mod tests {
                 };
                 let data = CredentialData::new(credential_type, user.clone(), password);
                 server_error |= server
-                    .drive(ConnectionDrive::AuthInfo(user, auth_type, data), &mut pipe)
+                    .drive(ConnectionDrive::AuthInfo(auth_type, data), &mut pipe)
                     .is_err();
             }
             if pipe.sparams {
@@ -247,7 +207,9 @@ mod tests {
                         &mut pipe,
                     )
                     .is_err();
-                server_error |= server.drive(ConnectionDrive::Ready, &mut pipe).is_err();
+                server_error |= server
+                    .drive(ConnectionDrive::Ready(1234, 4567), &mut pipe)
+                    .is_err();
             }
             while let Some((initial, msg)) = pipe.smsg.pop_front() {
                 if initial {
@@ -281,7 +243,12 @@ mod tests {
         }
 
         if expect_success {
-            assert!(client.is_ready() && server.is_ready())
+            assert!(
+                client.is_ready() && server.is_ready(),
+                "client={:?} server={:?}",
+                client,
+                server
+            );
         } else {
             assert!(client_error && server_error);
             assert!(pipe.cerror.is_some() && pipe.serror.is_some());

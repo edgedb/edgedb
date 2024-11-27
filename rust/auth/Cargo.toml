@@ -1,0 +1,30 @@
+[package]
+name = "gel_auth"
+version = "0.1.0"
+license = "MIT/Apache-2.0"
+authors = ["MagicStack Inc. <hello@magic.io>"]
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+tracing.workspace = true
+
+rand = "0.8.5"
+md5 = "0.7.0"
+sha2 = "0.10.8"
+roaring = "0.10.6"
+constant_time_eq = "0.3"
+base64 = "0.22"
+unicode-normalization = "0.1.23"
+thiserror = "2"
+hmac = "0.12.1"
+derive_more = { version = "1", features = ["debug"] }
+
+[dev-dependencies]
+pretty_assertions = "1"
+rstest = "0.23.0"
+hex-literal = "0.4.1"
+
+[lib]

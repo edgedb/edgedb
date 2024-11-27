@@ -7,9 +7,11 @@ use crate::handshake::{
         ConnectionDrive, ConnectionState, ConnectionStateSend, ConnectionStateType,
         ConnectionStateUpdate,
     },
-    AuthType, ConnectionSslRequirement,
+    ConnectionSslRequirement,
 };
-use crate::protocol::{meta, SSLResponse, StructBuffer};
+use crate::protocol::postgres::{FrontendBuilder, InitialBuilder};
+use crate::protocol::{postgres::data::SSLResponse, postgres::meta, StructBuffer};
+use gel_auth::AuthType;
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -32,17 +34,11 @@ pub struct ConnectionDriver {
 }
 
 impl ConnectionStateSend for ConnectionDriver {
-    fn send_initial(
-        &mut self,
-        message: crate::protocol::definition::InitialBuilder,
-    ) -> Result<(), std::io::Error> {
+    fn send_initial(&mut self, message: InitialBuilder) -> Result<(), std::io::Error> {
         self.send_buffer.extend(message.to_vec());
         Ok(())
     }
-    fn send(
-        &mut self,
-        message: crate::protocol::definition::FrontendBuilder,
-    ) -> Result<(), std::io::Error> {
+    fn send(&mut self, message: FrontendBuilder) -> Result<(), std::io::Error> {
         self.send_buffer.extend(message.to_vec());
         Ok(())
     }

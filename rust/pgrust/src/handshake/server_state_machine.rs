@@ -1,18 +1,20 @@
 use super::ConnectionSslRequirement;
 use crate::{
-    auth::{ServerTransaction, StoredHash, StoredKey},
     connection::ConnectionError,
     errors::{
         PgError, PgErrorConnectionException, PgErrorFeatureNotSupported,
         PgErrorInvalidAuthorizationSpecification, PgServerError, PgServerErrorField,
     },
-    handshake::AuthType,
     protocol::{
-        builder, definition::BackendBuilder, match_message, InitialMessage, Message, ParseError,
-        PasswordMessage, SASLInitialResponse, SASLResponse, SSLRequest, StartupMessage,
+        match_message,
+        postgres::{data::*, *},
+        ParseError, StructBuffer,
     },
 };
-use rand::Rng;
+use gel_auth::{
+    handshake::{ServerAuth, ServerAuthDrive, ServerAuthError, ServerAuthResponse},
+    AuthType, CredentialData,
+};
 use std::str::Utf8Error;
 use tracing::{error, trace, warn};
 
@@ -25,62 +27,10 @@ pub enum ConnectionStateType {
     Ready,
 }
 
-#[derive(Debug, Clone)]
-pub struct ServerCredentials {
-    pub auth_type: AuthType,
-    pub credential_data: CredentialData,
-}
-
-#[derive(Debug, Clone)]
-pub enum CredentialData {
-    /// A credential that always succeeds, regardless of input password. Due to
-    /// the design of SCRAM-SHA-256, this cannot be used with that auth type.
-    Trust,
-    /// A credential that always fails, regardless of the input password.
-    Deny,
-    /// A plain-text password.
-    Plain(String),
-    /// A stored MD5 hash + salt.
-    Md5(StoredHash),
-    /// A stored SCRAM-SHA-256 key.
-    Scram(StoredKey),
-}
-
-impl CredentialData {
-    pub fn new(ty: AuthType, username: String, password: String) -> Self {
-        match ty {
-            AuthType::Deny => Self::Deny,
-            AuthType::Trust => Self::Trust,
-            AuthType::Plain => Self::Plain(password),
-            AuthType::Md5 => Self::Md5(StoredHash::generate(password.as_bytes(), &username)),
-            AuthType::ScramSha256 => {
-                let salt: [u8; 32] = rand::thread_rng().gen();
-                Self::Scram(StoredKey::generate(password.as_bytes(), &salt, 4096))
-            }
-        }
-    }
-}
-
-/// Internal flag used to store a predetermined result: ie, a connection that
-/// must succeed for fail regardless of the correctness of the credential.
-///
-/// Used for testing purposes, and to disguise timing in cases where a user may
-/// not exist.
-#[derive(Debug, Clone, Eq, PartialEq)]
-enum PredeterminedResult {
-    Trust,
-    Deny,
-}
-
-#[derive(Debug)]
-struct ServerEnvironmentImpl {
-    ssl_requirement: ConnectionSslRequirement,
-    pid: i32,
-    key: i32,
-}
-
 #[derive(Debug)]
 pub enum ConnectionDrive<'a> {
+    /// Raw bytes from a client.
+    RawMessage(&'a [u8]),
     /// Initial message from client.
     Initial(Result<InitialMessage<'a>, ParseError>),
     /// Non-initial message from the client.
@@ -94,11 +44,11 @@ pub enum ConnectionDrive<'a> {
     /// Additionally, the environment can provide a "Trust" credential for automatic
     /// success or a "Deny" credential for automatic failure. The server will simulate
     /// a login process before unconditionally succeeding or failing in these cases.
-    AuthInfo(String, AuthType, CredentialData),
+    AuthInfo(AuthType, CredentialData),
     /// Once authorized, the server may sync any number of parameters until ready.
     Parameter(String, String),
     /// Ready, handshake complete.
-    Ready,
+    Ready(i32, i32),
     /// Fail the connection with a Postgres error code and message.
     Fail(PgError, &'a str),
 }
@@ -111,7 +61,7 @@ pub trait ConnectionStateSend {
     /// Perform the SSL upgrade.
     fn upgrade(&mut self) -> Result<(), std::io::Error>;
     /// Notify the environment that a user and database were selected.
-    fn auth(&mut self, user: String, data: String) -> Result<(), std::io::Error>;
+    fn auth(&mut self, user: String, database: String) -> Result<(), std::io::Error>;
     /// Notify the environment that parameters are requested.
     fn params(&mut self) -> Result<(), std::io::Error>;
 }
@@ -125,19 +75,70 @@ pub trait ConnectionStateUpdate: ConnectionStateSend {
 }
 
 #[derive(Debug)]
+pub enum ConnectionEvent<'a> {
+    SendSSL(builder::SSLResponse<'a>),
+    Send(BackendBuilder<'a>),
+    Upgrade,
+    Auth(String, String),
+    Params,
+    Parameter(&'a str, &'a str),
+    StateChanged(ConnectionStateType),
+    ServerError(&'a PgServerError),
+}
+
+impl<F> ConnectionStateSend for F
+where
+    F: FnMut(ConnectionEvent) -> Result<(), std::io::Error>,
+{
+    fn send_ssl(&mut self, message: builder::SSLResponse) -> Result<(), std::io::Error> {
+        self(ConnectionEvent::SendSSL(message))
+    }
+
+    fn send(&mut self, message: BackendBuilder) -> Result<(), std::io::Error> {
+        self(ConnectionEvent::Send(message))
+    }
+
+    fn upgrade(&mut self) -> Result<(), std::io::Error> {
+        self(ConnectionEvent::Upgrade)
+    }
+
+    fn auth(&mut self, user: String, database: String) -> Result<(), std::io::Error> {
+        self(ConnectionEvent::Auth(user, database))
+    }
+
+    fn params(&mut self) -> Result<(), std::io::Error> {
+        self(ConnectionEvent::Params)
+    }
+}
+
+impl<F> ConnectionStateUpdate for F
+where
+    F: FnMut(ConnectionEvent) -> Result<(), std::io::Error>,
+{
+    fn parameter(&mut self, name: &str, value: &str) {
+        let _ = self(ConnectionEvent::Parameter(name, value));
+    }
+
+    fn state_changed(&mut self, state: ConnectionStateType) {
+        let _ = self(ConnectionEvent::StateChanged(state));
+    }
+
+    fn server_error(&mut self, error: &PgServerError) {
+        let _ = self(ConnectionEvent::ServerError(error));
+    }
+}
+
+#[derive(Debug)]
+#[allow(clippy::large_enum_variant)] // Auth is much larger
 enum ServerStateImpl {
-    /// Initial state, boolean indicates whether SSL is required
-    Initial(bool),
+    /// Initial state, enum indicates whether SSL is required (or None if enabled)
+    Initial(Option<ConnectionSslRequirement>),
     /// SSL connection is being established
     SslConnecting,
+    /// Waiting for AuthInfo
+    AuthInfo(String),
     /// Authentication process has begun
-    Authenticating,
-    /// Password-based authentication in progress
-    AuthenticatingPassword(String, CredentialData),
-    /// MD5 authentication in progress
-    AuthenticatingMD5(Option<PredeterminedResult>, [u8; 4], StoredHash),
-    /// SASL authentication in progress
-    AuthenticatingSASL(ServerTransaction, Option<PredeterminedResult>, StoredKey),
+    Authenticating(ServerAuth),
     /// Synchronizing connection parameters
     Synchronizing,
     /// Connection is ready for queries
@@ -146,9 +147,13 @@ enum ServerStateImpl {
     Error,
 }
 
+#[derive(derive_more::Debug)]
 pub struct ServerState {
     state: ServerStateImpl,
-    environment: ServerEnvironmentImpl,
+    #[debug(skip)]
+    initial_buffer: StructBuffer<meta::InitialMessage>,
+    #[debug(skip)]
+    buffer: StructBuffer<meta::Message>,
 }
 
 fn send_error(
@@ -187,29 +192,48 @@ enum ServerError {
     Utf8Error(#[from] Utf8Error),
 }
 
+impl From<ServerAuthError> for ServerError {
+    fn from(value: ServerAuthError) -> Self {
+        match value {
+            ServerAuthError::InvalidAuthorizationSpecification => {
+                ServerError::Protocol(PgError::InvalidAuthorizationSpecification(
+                    PgErrorInvalidAuthorizationSpecification::InvalidAuthorizationSpecification,
+                ))
+            }
+            ServerAuthError::InvalidPassword => {
+                ServerError::Protocol(PgError::InvalidAuthorizationSpecification(
+                    PgErrorInvalidAuthorizationSpecification::InvalidPassword,
+                ))
+            }
+            ServerAuthError::InvalidSaslMessage(_) => ServerError::Protocol(
+                PgError::ConnectionException(PgErrorConnectionException::ProtocolViolation),
+            ),
+            ServerAuthError::UnsupportedAuthType => ServerError::Protocol(
+                PgError::FeatureNotSupported(PgErrorFeatureNotSupported::FeatureNotSupported),
+            ),
+            ServerAuthError::InvalidMessageType => ServerError::Protocol(
+                PgError::ConnectionException(PgErrorConnectionException::ProtocolViolation),
+            ),
+        }
+    }
+}
+
 const PROTOCOL_ERROR: ServerError = ServerError::Protocol(PgError::ConnectionException(
     PgErrorConnectionException::ProtocolViolation,
 ));
 const AUTH_ERROR: ServerError = ServerError::Protocol(PgError::InvalidAuthorizationSpecification(
     PgErrorInvalidAuthorizationSpecification::InvalidAuthorizationSpecification,
 ));
-const PASSWORD_ERROR: ServerError =
-    ServerError::Protocol(PgError::InvalidAuthorizationSpecification(
-        PgErrorInvalidAuthorizationSpecification::InvalidPassword,
-    ));
 const PROTOCOL_VERSION_ERROR: ServerError = ServerError::Protocol(PgError::FeatureNotSupported(
     PgErrorFeatureNotSupported::FeatureNotSupported,
 ));
 
 impl ServerState {
-    pub fn new(ssl_requirement: ConnectionSslRequirement, pid: i32, key: i32) -> Self {
+    pub fn new(ssl_requirement: ConnectionSslRequirement) -> Self {
         Self {
-            state: ServerStateImpl::Initial(false),
-            environment: ServerEnvironmentImpl {
-                ssl_requirement,
-                pid,
-                key,
-            },
+            state: ServerStateImpl::Initial(Some(ssl_requirement)),
+            initial_buffer: Default::default(),
+            buffer: Default::default(),
         }
     }
 
@@ -230,7 +254,26 @@ impl ServerState {
         drive: ConnectionDrive,
         update: &mut impl ConnectionStateUpdate,
     ) -> Result<(), ConnectionError> {
-        match self.drive_inner(drive, update) {
+        trace!("SERVER DRIVE: {:?} {:?}", self.state, drive);
+        let res = match drive {
+            ConnectionDrive::RawMessage(raw) => match self.state {
+                ServerStateImpl::Initial(..) => self.initial_buffer.push_fallible(raw, |message| {
+                    self.state
+                        .drive_inner(ConnectionDrive::Initial(message), update)
+                }),
+                ServerStateImpl::Authenticating(..) => self.buffer.push_fallible(raw, |message| {
+                    self.state
+                        .drive_inner(ConnectionDrive::Message(message), update)
+                }),
+                _ => {
+                    error!("Unexpected drive in state {:?}", self.state);
+                    Err(PROTOCOL_ERROR)
+                }
+            },
+            drive => self.state.drive_inner(drive, update),
+        };
+
+        match res {
             Ok(_) => Ok(()),
             Err(ServerError::IO(e)) => Err(e.into()),
             Err(ServerError::Utf8Error(e)) => Err(e.into()),
@@ -241,7 +284,9 @@ impl ServerState {
             }
         }
     }
+}
 
+impl ServerStateImpl {
     fn drive_inner(
         &mut self,
         drive: ConnectionDrive,
@@ -249,8 +294,8 @@ impl ServerState {
     ) -> Result<(), ServerError> {
         use ServerStateImpl::*;
 
-        match (&mut self.state, drive) {
-            (Initial(ssl_active), ConnectionDrive::Initial(initial_message)) => {
+        match (&mut *self, drive) {
+            (Initial(ssl), ConnectionDrive::Initial(initial_message)) => {
                 match_message!(initial_message, InitialMessage {
                     (StartupMessage as startup) => {
                         let mut user = String::new();
@@ -265,26 +310,24 @@ impl ServerState {
                             update.parameter(param.name().to_str()?, param.value().to_str()?);
                         }
                         if user.is_empty() {
-                            // Postgres returns invalid_authorization_specification if no user is specified
                             return Err(AUTH_ERROR);
                         }
                         if database.is_empty() {
-                            // Postgres uses the username as the database if not specified
                             database = user.clone();
                         }
-                        self.state = Authenticating;
+                        *self = AuthInfo(user.clone());
                         update.auth(user, database)?;
                     },
                     (SSLRequest) => {
-                        if *ssl_active {
+                        let Some(ssl) = *ssl else {
                             return Err(PROTOCOL_ERROR);
-                        }
-                        if self.environment.ssl_requirement == ConnectionSslRequirement::Disable {
+                        };
+                        if ssl == ConnectionSslRequirement::Disable {
                             update.send_ssl(builder::SSLResponse { code: b'N' })?;
                             update.upgrade()?;
                         } else {
                             update.send_ssl(builder::SSLResponse { code: b'S' })?;
-                            self.state = SslConnecting;
+                            *self = SslConnecting;
                         }
                     },
                     unknown => {
@@ -293,202 +336,115 @@ impl ServerState {
                 });
             }
             (SslConnecting, ConnectionDrive::SslReady) => {
-                self.state = Initial(true);
+                *self = Initial(None);
             }
             (SslConnecting, _) => {
                 return Err(PROTOCOL_ERROR);
             }
-            (Authenticating, ConnectionDrive::AuthInfo(username, auth_type, credential_data)) => {
-                match auth_type {
-                    AuthType::Deny => {
-                        return Err(AUTH_ERROR);
-                    }
-                    AuthType::Trust => {
-                        update.send(BackendBuilder::AuthenticationOk(Default::default()))?;
-                        self.state = Synchronizing;
-                        update.params()?;
-                    }
-                    AuthType::Plain => {
+            (AuthInfo(username), ConnectionDrive::AuthInfo(auth_type, credential_data)) => {
+                let mut auth = ServerAuth::new(username.clone(), auth_type, credential_data);
+                match auth.drive(ServerAuthDrive::Initial) {
+                    ServerAuthResponse::Initial(AuthType::Plain, _) => {
                         update.send(BackendBuilder::AuthenticationCleartextPassword(
                             Default::default(),
                         ))?;
-                        self.state = AuthenticatingPassword(username, credential_data);
                     }
-                    AuthType::Md5 => {
-                        let salt = rand::random();
-                        let (result, hash) = match credential_data {
-                            CredentialData::Deny => {
-                                let md5 = StoredHash::generate(b"", &username);
-                                (Some(PredeterminedResult::Deny), md5)
-                            }
-                            CredentialData::Trust => {
-                                let md5 = StoredHash::generate(b"", &username);
-                                (Some(PredeterminedResult::Trust), md5)
-                            }
-                            CredentialData::Md5(md5) => (None, md5),
-                            CredentialData::Plain(password) => {
-                                let md5 = StoredHash::generate(password.as_bytes(), &username);
-                                (None, md5)
-                            }
-                            CredentialData::Scram(..) => {
-                                return Err(AUTH_ERROR);
-                            }
-                        };
-                        self.state = AuthenticatingMD5(result, salt, hash);
+                    ServerAuthResponse::Initial(AuthType::Md5, salt) => {
                         update.send(BackendBuilder::AuthenticationMD5Password(
-                            builder::AuthenticationMD5Password { salt },
+                            builder::AuthenticationMD5Password {
+                                salt: salt.try_into().unwrap(),
+                            },
                         ))?;
                     }
-                    AuthType::ScramSha256 => {
-                        let salt: [u8; 32] = rand::random();
-                        match credential_data {
-                            CredentialData::Trust | CredentialData::Md5(..) => {
-                                return Err(AUTH_ERROR);
-                            }
-                            CredentialData::Deny => {
-                                // Create fake scram data
-                                let scram = StoredKey::generate("".as_bytes(), &salt, 4096);
-                                self.state = AuthenticatingSASL(
-                                    ServerTransaction::default(),
-                                    Some(PredeterminedResult::Deny),
-                                    scram,
-                                );
-                            }
-                            CredentialData::Plain(password) => {
-                                // Upgrade password to SCRAM
-                                let scram = StoredKey::generate(password.as_bytes(), &salt, 4096);
-                                self.state =
-                                    AuthenticatingSASL(ServerTransaction::default(), None, scram);
-                            }
-                            CredentialData::Scram(scram) => {
-                                self.state =
-                                    AuthenticatingSASL(ServerTransaction::default(), None, scram);
-                            }
-                        }
+                    ServerAuthResponse::Initial(AuthType::ScramSha256, _) => {
                         update.send(BackendBuilder::AuthenticationSASL(
                             builder::AuthenticationSASL {
                                 mechanisms: &["SCRAM-SHA-256"],
                             },
                         ))?;
                     }
+                    ServerAuthResponse::Complete(..) => {
+                        update.send(BackendBuilder::AuthenticationOk(Default::default()))?;
+                        *self = Synchronizing;
+                        update.params()?;
+                        return Ok(());
+                    }
+                    ServerAuthResponse::Error(e) => {
+                        error!("Authentication error in initial state: {e:?}");
+                        return Err(e.into());
+                    }
+                    response => {
+                        error!("Unexpected response: {response:?}");
+                        return Err(PROTOCOL_ERROR);
+                    }
                 }
+                *self = Authenticating(auth);
             }
-            (AuthenticatingPassword(username, data), ConnectionDrive::Message(message)) => {
+            (Authenticating(auth), ConnectionDrive::Message(message)) => {
+                trace!("auth = {auth:?}, initial = {}", auth.is_initial_message());
                 match_message!(message, Message {
-                    (PasswordMessage as password) => {
-                        let client_password = password.password();
-                        let success = match data {
-                            CredentialData::Deny => {
-                                false
-                            },
-                            CredentialData::Trust => {
-                                true
-                            },
-                            CredentialData::Plain(password) => {
-                                let md5_1 = StoredHash::generate(password.as_bytes(), username);
-                                let md5_2 = StoredHash::generate(client_password.to_bytes(), username);
-                                md5_1 == md5_2
+                    (PasswordMessage as password) if matches!(auth.auth_type(), AuthType::Plain | AuthType::Md5) => {
+                        match auth.drive(ServerAuthDrive::Message(auth.auth_type(), password.password().to_bytes())) {
+                            ServerAuthResponse::Complete(..) => {
+                                update.send(BackendBuilder::AuthenticationOk(Default::default()))?;
+                                *self = Synchronizing;
+                                update.params()?;
                             }
-                            CredentialData::Md5(md5) => {
-                                let md5_1 = StoredHash::generate(client_password.to_bytes(), username);
-                                md5_1 == *md5
+                            ServerAuthResponse::Error(e) => {
+                                error!("Authentication error for password message: {e:?}");
+                                return Err(e.into())
                             },
-                            CredentialData::Scram(scram) => {
-                                // We can test a password by hashing it with the same salt and iteration count
-                                let key = StoredKey::generate(client_password.to_bytes(), &scram.salt, scram.iterations);
-                                key.stored_key == scram.stored_key
+                            response => {
+                                error!("Unexpected response for password message: {response:?}");
+                                return Err(PROTOCOL_ERROR);
                             }
-                        };
-                        if success {
-                            update.send(BackendBuilder::AuthenticationOk(Default::default()))?;
-                            self.state = Synchronizing;
-                            update.params()?;
-                        } else {
-                            return Err(PASSWORD_ERROR);
                         }
                     },
-                    unknown => {
-                        log_unknown_message(unknown, "Password")?;
-                    }
-                });
-            }
-            (AuthenticatingMD5(results, salt, md5), ConnectionDrive::Message(message)) => {
-                match_message!(message, Message {
-                    (PasswordMessage as password) => {
-                        let password = password.password();
-                        let success = match (results, md5) {
-                            (Some(PredeterminedResult::Deny), _) => {
-                                false
-                            },
-                            (Some(PredeterminedResult::Trust), _) => {
-                                true
-                            },
-                            (None, md5) => {
-                                md5.matches(password.to_bytes(), *salt)
-                            },
-                        };
-                        if success {
-                            update.send(BackendBuilder::AuthenticationOk(Default::default()))?;
-                            self.state = Synchronizing;
-                            update.params()?;
-                        } else {
-                            return Err(PASSWORD_ERROR);
-                        }
-                    },
-                    unknown => {
-                        log_unknown_message(unknown, "MD5")?;
-                    }
-                });
-            }
-            (AuthenticatingSASL(tx, result, data), ConnectionDrive::Message(message)) => {
-                if tx.initial() {
-                    match_message!(message, Message {
-                        (SASLInitialResponse as sasl) => {
-                            match tx.process_message(sasl.response().as_ref(), data) {
-                                Ok(Some(final_message)) => {
-                                    update.send(BackendBuilder::AuthenticationSASLContinue(builder::AuthenticationSASLContinue {
-                                        data: &final_message,
-                                    }))?;
-                                },
-                                Ok(None) => return Err(PASSWORD_ERROR),
-                                Err(e) => {
-                                    error!("SCRAM auth failed: {e:?}");
-                                    return Err(PASSWORD_ERROR);
-                                }
-                            }
-                        },
-                        unknown => {
-                            warn!("Protocol error: unknown or malformed message: {unknown:?}");
+                    (SASLInitialResponse as sasl) if auth.is_initial_message() => {
+                        if sasl.mechanism() != "SCRAM-SHA-256" {
+                            error!("Unexpected mechanism: {:?}", sasl.mechanism());
                             return Err(PROTOCOL_ERROR);
                         }
-                    });
-                } else {
-                    match_message!(message, Message {
-                        (SASLResponse as sasl) => {
-                            match tx.process_message(sasl.response().as_ref(), data) {
-                                Ok(Some(final_message)) => {
-                                    if *result == Some(PredeterminedResult::Deny) {
-                                        return Err(PASSWORD_ERROR)
-                                    }
-                                    self.state = Synchronizing;
-                                    update.send(BackendBuilder::AuthenticationSASLFinal(builder::AuthenticationSASLFinal {
-                                        data: &final_message,
-                                    }))?;
-                                    update.send(BackendBuilder::AuthenticationOk(Default::default()))?;
-                                    update.params()?;
-                                },
-                                Ok(None) => return Err(PASSWORD_ERROR),
-                                Err(e) => {
-                                    error!("SCRAM auth failed: {e:?}");
-                                    return Err(PASSWORD_ERROR);
-                                }
+                        match auth.drive(ServerAuthDrive::Message(AuthType::ScramSha256, sasl.response().as_ref())) {
+                            ServerAuthResponse::Continue(final_message) => {
+                                update.send(BackendBuilder::AuthenticationSASLContinue(builder::AuthenticationSASLContinue {
+                                    data: &final_message,
+                                }))?;
                             }
-                        },
-                        unknown => {
-                            log_unknown_message(unknown, "SASL")?;
+                            ServerAuthResponse::Error(e) => {
+                                error!("Authentication error for SASL initial response: {e:?}");
+                                return Err(e.into())
+                            },
+                            response => {
+                                error!("Unexpected response for SASL initial response: {response:?}");
+                                return Err(PROTOCOL_ERROR);
+                            }
                         }
-                    });
-                };
+                    },
+                    (SASLResponse as sasl) if !auth.is_initial_message() => {
+                        match auth.drive(ServerAuthDrive::Message(AuthType::ScramSha256, sasl.response().as_ref())) {
+                            ServerAuthResponse::Complete(data) => {
+                                update.send(BackendBuilder::AuthenticationSASLFinal(builder::AuthenticationSASLFinal {
+                                    data: &data,
+                                }))?;
+                                update.send(BackendBuilder::AuthenticationOk(Default::default()))?;
+                                *self = Synchronizing;
+                                update.params()?;
+                            }
+                            ServerAuthResponse::Error(e) => {
+                                error!("Authentication error for SASL response: {e:?}");
+                                return Err(e.into())
+                            },
+                            response => {
+                                error!("Unexpected response for SASL response: {response:?}");
+                                return Err(PROTOCOL_ERROR);
+                            }
+                        }
+                    },
+                    unknown => {
+                        log_unknown_message(unknown, "Authenticating")?;
+                    }
+                });
             }
             (Synchronizing, ConnectionDrive::Parameter(name, value)) => {
                 update.send(BackendBuilder::ParameterStatus(builder::ParameterStatus {
@@ -496,21 +452,21 @@ impl ServerState {
                     value: &value,
                 }))?;
             }
-            (Synchronizing, ConnectionDrive::Ready) => {
+            (Synchronizing, ConnectionDrive::Ready(pid, key)) => {
                 update.send(BackendBuilder::BackendKeyData(builder::BackendKeyData {
-                    key: self.environment.key,
-                    pid: self.environment.pid,
+                    pid,
+                    key,
                 }))?;
                 update.send(BackendBuilder::ReadyForQuery(builder::ReadyForQuery {
                     status: b'I',
                 }))?;
-                self.state = Ready;
+                *self = Ready;
             }
             (_, ConnectionDrive::Fail(error, _)) => {
                 return Err(ServerError::Protocol(error));
             }
             _ => {
-                error!("Unexpected drive in state {:?}", self.state);
+                error!("Unexpected drive in state {:?}", self);
                 return Err(PROTOCOL_ERROR);
             }
         }

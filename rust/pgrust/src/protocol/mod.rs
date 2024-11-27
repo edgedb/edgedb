@@ -1,41 +1,25 @@
 mod arrays;
 mod buffer;
 mod datatypes;
-pub(crate) mod definition;
+pub mod edgedb;
 mod gen;
 mod message_group;
+pub mod postgres;
 mod writer;
 
 /// Metatypes for the protocol and related arrays/strings.
 pub mod meta {
     pub use super::arrays::meta::*;
     pub use super::datatypes::meta::*;
-    pub use super::definition::meta::*;
-}
-
-/// Measurement structs.
-pub mod measure {
-    pub use super::definition::measure::*;
-}
-
-/// Builder structs.
-pub mod builder {
-    pub use super::definition::builder::*;
-}
-
-/// Message types collections.
-pub mod messages {
-    pub use super::definition::{Backend, Frontend, Initial};
 }
 
 #[allow(unused)]
 pub use arrays::{Array, ArrayIter, ZTArray, ZTArrayIter};
 pub use buffer::StructBuffer;
 #[allow(unused)]
-pub use datatypes::{Encoded, Rest, ZTString};
-#[allow(unused)]
-pub use definition::data::*;
+pub use datatypes::{Encoded, LString, Rest, ZTString};
 pub use message_group::match_message;
+pub use writer::BufWriter;
 
 #[derive(thiserror::Error, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseError {
@@ -179,7 +163,7 @@ pub(crate) use field_access;
 mod tests {
     use super::*;
     use buffer::StructBuffer;
-    use definition::builder;
+    use postgres::{builder, data::*, measure, meta};
     use rand::Rng;
     /// We want to ensure that no malformed messages will cause unexpected
     /// panics, so we try all sorts of combinations of message mutation to
@@ -624,5 +608,21 @@ mod tests {
         assert_eq!(message.result_format_code(), 0);
 
         fuzz_test::<meta::FunctionCall>(message);
+    }
+
+    #[test]
+    fn test_edgedb_sasl() {
+        use crate::protocol::edgedb::*;
+
+        assert_eq!(
+            builder::AuthenticationRequiredSASLMessage {
+                methods: &["SCRAM-SHA-256"]
+            }
+            .to_vec(),
+            vec![
+                82, 0, 0, 0, 29, 0, 0, 0, 10, 0, 0, 0, 1, 0, 0, 0, 13, 83, 67, 82, 65, 77, 45, 83,
+                72, 65, 45, 50, 53, 54
+            ]
+        );
     }
 }
