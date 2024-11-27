@@ -35,7 +35,6 @@ import socket
 import ssl
 import time
 
-import edgedb
 from gel import abstract
 from gel import errors
 from gel import con_utils
