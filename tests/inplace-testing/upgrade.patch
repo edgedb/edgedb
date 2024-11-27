@@ -1,5 +1,5 @@
 diff --git a/edb/buildmeta.py b/edb/buildmeta.py
-index 4d224737d..c6e1a1106 100644
+index 52d9f700d..2297151e7 100644
 --- a/edb/buildmeta.py
 +++ b/edb/buildmeta.py
 @@ -68,6 +68,12 @@ class MetadataError(Exception):
@@ -16,18 +16,16 @@ index 4d224737d..c6e1a1106 100644
      major: int
      minor: int
 diff --git a/edb/edgeql/ast.py b/edb/edgeql/ast.py
-index ab575e310..3ed277fb0 100644
+index 53f317d26..ce83fb341 100644
 --- a/edb/edgeql/ast.py
 +++ b/edb/edgeql/ast.py
-@@ -1150,6 +1150,25 @@ class SetGlobalType(SetField):
+@@ -1134,6 +1134,23 @@ class SetGlobalType(SetField):
      reset_value: bool = False
  
  
 +class BlobalCommand(ObjectDDL):
 +
 +    __abstract_node__ = True
-+    __rust_ignore__ = True
-+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.GLOBAL
 +
 +
 +class CreateBlobal(CreateObject, BlobalCommand):
@@ -46,10 +44,10 @@ index ab575e310..3ed277fb0 100644
  
      __abstract_node__ = True
 diff --git a/edb/edgeql/codegen.py b/edb/edgeql/codegen.py
-index f65a16364..bb3d847d9 100644
+index 5e82472ff..d06a8cd72 100644
 --- a/edb/edgeql/codegen.py
 +++ b/edb/edgeql/codegen.py
-@@ -2385,6 +2385,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
+@@ -2448,6 +2448,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
      def visit_DropGlobal(self, node: qlast.DropGlobal) -> None:
          self._visit_DropObject(node, 'GLOBAL')
  
@@ -63,7 +61,7 @@ index f65a16364..bb3d847d9 100644
          if node.scope == qltypes.ConfigScope.GLOBAL:
              self._write_keywords('SET GLOBAL ')
 diff --git a/edb/edgeql/parser/grammar/ddl.py b/edb/edgeql/parser/grammar/ddl.py
-index 40459e520..7b6c767b1 100644
+index 72bbb77fa..5a59b25b8 100644
 --- a/edb/edgeql/parser/grammar/ddl.py
 +++ b/edb/edgeql/parser/grammar/ddl.py
 @@ -246,6 +246,14 @@ class InnerDDLStmt(Nonterm):
@@ -81,7 +79,7 @@ index 40459e520..7b6c767b1 100644
      @parsing.inline(0)
      def reduce_DropCastStmt(self, *_):
          pass
-@@ -3431,6 +3439,38 @@ class DropGlobalStmt(Nonterm):
+@@ -3565,6 +3573,38 @@ class DropGlobalStmt(Nonterm):
              name=kids[2].val
          )
  
@@ -121,7 +119,7 @@ index 40459e520..7b6c767b1 100644
  # MIGRATIONS
  #
 diff --git a/edb/lib/_testmode.edgeql b/edb/lib/_testmode.edgeql
-index 508382ecd..addd01b4f 100644
+index 0f0f1332c..ef977c8dd 100644
 --- a/edb/lib/_testmode.edgeql
 +++ b/edb/lib/_testmode.edgeql
 @@ -214,6 +214,15 @@ create extension package _conf VERSION '1.0' {
@@ -141,10 +139,10 @@ index 508382ecd..addd01b4f 100644
  std::_gen_series(
      `start`: std::int64,
 diff --git a/edb/lib/schema.edgeql b/edb/lib/schema.edgeql
-index 2d7b92d31..61f64cba0 100644
+index ae5c70d5b..b7692b16c 100644
 --- a/edb/lib/schema.edgeql
 +++ b/edb/lib/schema.edgeql
-@@ -533,9 +533,17 @@ CREATE TYPE schema::Global EXTENDING schema::AnnotationSubject {
+@@ -526,9 +526,17 @@ CREATE TYPE schema::Global EXTENDING schema::AnnotationSubject {
  };
  
  
@@ -163,7 +161,7 @@ index 2d7b92d31..61f64cba0 100644
          SET default := false;
      };
 diff --git a/edb/pgsql/delta.py b/edb/pgsql/delta.py
-index 0555dd420..7f99636fe 100644
+index b447e6a4c..fc7ee4a74 100644
 --- a/edb/pgsql/delta.py
 +++ b/edb/pgsql/delta.py
 @@ -748,6 +748,38 @@ class DeleteGlobal(
@@ -206,10 +204,10 @@ index 0555dd420..7f99636fe 100644
      pass
  
 diff --git a/edb/schema/functions.py b/edb/schema/functions.py
-index 9cca3de6d..c22d3f414 100644
+index a8792324b..527b8c38f 100644
 --- a/edb/schema/functions.py
 +++ b/edb/schema/functions.py
-@@ -1237,6 +1237,27 @@ class Function(
+@@ -1244,6 +1244,27 @@ class Function(
      data_safe=True,
  ):
  
@@ -237,7 +235,7 @@ index 9cca3de6d..c22d3f414 100644
      used_globals = so.SchemaField(
          so.ObjectSet[s_globals.Global],
          coerce=True, default=so.DEFAULT_CONSTRUCTOR,
-@@ -1608,6 +1629,10 @@ class FunctionCommand(
+@@ -1615,6 +1636,10 @@ class FunctionCommand(
                  nativecode.not_compiled()
              )
  
@@ -249,10 +247,10 @@ index 9cca3de6d..c22d3f414 100644
          # volatility, so force it to happen as part of
          # canonicalization of attributes.
 diff --git a/edb/schema/globals.py b/edb/schema/globals.py
-index d8d4ef67b..eb531ec85 100644
+index 76ec833f4..460ea0a67 100644
 --- a/edb/schema/globals.py
 +++ b/edb/schema/globals.py
-@@ -618,3 +618,60 @@ class DeleteGlobal(
+@@ -619,3 +619,60 @@ class DeleteGlobal(
      GlobalCommand,
  ):
      astnode = qlast.DropGlobal
@@ -330,11 +328,24 @@ index 856225997..bc9a3aea7 100644
      # If this is a derivative operator, *derivative_of* would
      # contain the name of the origin operator.
      # For example, the `std::IN` operator has `std::=`
+diff --git a/edb/server/compiler/status.py b/edb/server/compiler/status.py
+index 9c11af6e3..54321982e 100644
+--- a/edb/server/compiler/status.py
++++ b/edb/server/compiler/status.py
+@@ -68,6 +68,8 @@ def get_schema_class(ql: qlast.ObjectDDL) -> qltypes.SchemaObjectClass:
+             return osc.ALIAS
+         case qlast.GlobalCommand():
+             return osc.GLOBAL
++        case qlast.BlobalCommand():
++            return osc.GLOBAL
+         case qlast.LinkCommand():
+             return osc.LINK
+         case qlast.IndexCommand():
 diff --git a/tests/test_edgeql_select.py b/tests/test_edgeql_select.py
-index 1927d16eb..0db9b759c 100644
+index aa26da128..18da441d0 100644
 --- a/tests/test_edgeql_select.py
 +++ b/tests/test_edgeql_select.py
-@@ -1960,6 +1960,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
+@@ -1964,6 +1964,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
              ]),
          )
  
