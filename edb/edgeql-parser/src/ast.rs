@@ -14,6 +14,7 @@ pub enum Base {
     Expr(Box<Expr>),
     SortExpr(SortExpr),
     Alias(Alias),
+    GroupingAtom(GroupingAtom),
     BaseObjectRef(BaseObjectRef),
     Index(Index),
     Slice(Slice),
@@ -105,6 +106,13 @@ pub struct AliasedExpr {
 pub struct ModuleAliasDecl {
     pub module: String,
     pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum GroupingAtom {
+    ObjectRef(ObjectRef),
+    Path(Path),
+    GroupingIdentList(GroupingIdentList),
 }
 
 #[derive(Debug, Clone)]
@@ -452,14 +460,7 @@ pub struct SelectQuery {
 
 #[derive(Debug, Clone)]
 pub struct GroupingIdentList {
-    pub elements: Vec<GroupingIdentListElements>,
-}
-
-#[derive(Debug, Clone)]
-pub enum GroupingIdentListElements {
-    ObjectRef(ObjectRef),
-    Path(Path),
-    GroupingIdentList(GroupingIdentList),
+    pub elements: Vec<GroupingAtom>,
 }
 
 #[derive(Debug, Clone)]
@@ -471,14 +472,7 @@ pub enum GroupingElement {
 
 #[derive(Debug, Clone)]
 pub struct GroupingSimple {
-    pub element: GroupingSimpleElement,
-}
-
-#[derive(Debug, Clone)]
-pub enum GroupingSimpleElement {
-    ObjectRef(ObjectRef),
-    Path(Path),
-    GroupingIdentList(GroupingIdentList),
+    pub element: GroupingAtom,
 }
 
 #[derive(Debug, Clone)]
@@ -489,14 +483,7 @@ pub struct GroupingSets {
 #[derive(Debug, Clone)]
 pub struct GroupingOperation {
     pub oper: String,
-    pub elements: Vec<GroupingOperationElements>,
-}
-
-#[derive(Debug, Clone)]
-pub enum GroupingOperationElements {
-    ObjectRef(ObjectRef),
-    Path(Path),
-    GroupingIdentList(GroupingIdentList),
+    pub elements: Vec<GroupingAtom>,
 }
 
 #[derive(Debug, Clone)]
@@ -633,10 +620,16 @@ pub enum DDLOperation {
 
 #[derive(Debug, Clone)]
 pub enum DDLCommand {
+    NonTransactionalDDLCommand(NonTransactionalDDLCommand),
     NamedDDL(NamedDDL),
     MigrationCommand(MigrationCommand),
     FunctionCommand(FunctionCommand),
     OperatorCommand(OperatorCommand),
+}
+
+#[derive(Debug, Clone)]
+pub enum NonTransactionalDDLCommand {
+    DatabaseCommand(DatabaseCommand),
 }
 
 #[derive(Debug, Clone)]
@@ -742,6 +735,7 @@ pub enum ObjectDDL {
     LinkCommand(LinkCommand),
     ConstraintCommand(ConstraintCommand),
     IndexCommand(IndexCommand),
+    IndexMatchCommand(IndexMatchCommand),
     AccessPolicyCommand(AccessPolicyCommand),
     TriggerCommand(TriggerCommand),
     RewriteCommand(RewriteCommand),
@@ -1010,7 +1004,7 @@ pub struct CreateDatabase {
     pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
     pub name: ObjectRef,
-    pub flavor: String,
+    pub flavor: SchemaObjectClass,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
     pub create_if_not_exists: bool,
@@ -1023,7 +1017,7 @@ pub struct AlterDatabase {
     pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
     pub name: ObjectRef,
-    pub flavor: String,
+    pub flavor: SchemaObjectClass,
     pub force: bool,
 }
 
@@ -1032,7 +1026,7 @@ pub struct DropDatabase {
     pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
     pub name: ObjectRef,
-    pub flavor: String,
+    pub flavor: SchemaObjectClass,
     pub force: bool,
 }
 
@@ -1684,6 +1678,12 @@ pub struct DropIndex {
     pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
     pub name: ObjectRef,
+}
+
+#[derive(Debug, Clone)]
+pub enum IndexMatchCommand {
+    CreateIndexMatch(CreateIndexMatch),
+    DropIndexMatch(DropIndexMatch),
 }
 
 #[derive(Debug, Clone)]

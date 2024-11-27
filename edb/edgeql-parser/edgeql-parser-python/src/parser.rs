@@ -26,6 +26,12 @@ pub fn parse(
 
     let errors = PyList::new(py, errors.iter().map(|e| parser_error_into_tuple(e)))?;
 
+    {
+        let cst = cst.as_ref().unwrap();
+        let node = edgeql_parser::grammar::cst_to_ast(cst);
+        dbg!(node);
+    }
+
     let res = ParserResult {
         out: cst.as_ref().map(ParserCSTNode).into_pyobject(py)?.unbind(),
         errors: errors.into(),
@@ -131,7 +137,7 @@ pub fn save_spec(spec_json: &Bound<PyString>, dst: &Bound<PyString>) -> PyResult
 #[pyfunction]
 pub fn get_productions(py: Python) -> PyResult<PyObject> {
     let (_spec, productions) = get_spec()?;
-    Ok(productions.to_object(py))
+    Ok(productions.clone_ref(py).into_any())
 }
 
 fn load_productions(py: Python<'_>, spec: &parser::Spec) -> PyResult<PyObject> {

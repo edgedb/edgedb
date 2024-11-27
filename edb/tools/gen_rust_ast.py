@@ -38,7 +38,8 @@ ast_classes: typing.Dict[str, ASTClass] = {}
 @edbcommands.command("gen-rust-ast")
 def main() -> None:
     gen_rust_ast()
-    gen_rust_reductions()
+    gen_rust_from_id()
+    gen_rust_grammar_stub()
 
 
 def gen_rust_ast() -> None:
@@ -95,8 +96,8 @@ def gen_rust_ast() -> None:
         f.write(codegen_enum(name, typ))
 
 
-def gen_rust_reductions() -> None:
-    f = open('edb/edgeql-parser/src/reductions.rs', 'w')
+def gen_rust_from_id() -> None:
+    f = open('edb/edgeql-parser/src/grammar/from_id.rs', 'w')
 
     f.write(
         textwrap.dedent(
@@ -104,9 +105,6 @@ def gen_rust_reductions() -> None:
             // DO NOT EDIT. This file was generated with:
             //
             // $ edb gen-rust-ast
-
-            //! Reductions for productions in EdgeQL
-            #![allow(non_camel_case_types)]
             '''
         )
     )
@@ -114,25 +112,45 @@ def gen_rust_reductions() -> None:
     parser.preload_spec()
     productions = rust_parser.get_productions()
 
-    prod_to_reductions = collections.defaultdict(list)
-    for prod, reduction_method in productions:
-        if reduction_method.__doc__ is not None:
-            reduction_name = get_reduction_name(reduction_method.__doc__)
-            prod_to_reductions[prod.__name__].append(reduction_name)
+    f.write(codegen_reduction_from_id_func(productions))
 
-    f.write(codegen_reduction_enum(prod_to_reductions))
+
+def gen_rust_grammar_stub() -> None:
+    f = open('edb/edgeql-parser/src/grammar/stub.rs', 'w')
+
+    f.write('use super::*;\n')
+    f.write('use crate::parser::CSTNode;\n')
+    f.write('use crate::ast;\n')
+
+    parser.preload_spec()
+    productions = rust_parser.get_productions()
+
+    prod_to_reductions = {}
+    for prod, reduction_method in productions:
+        if reduction_method.__doc__ is None:
+            continue
+
+        prod_name = prod.__name__
+        if prod_name not in prod_to_reductions:
+            val_ty = (
+                reduction_method.val_ty
+                if hasattr(reduction_method, 'val_ty')
+                else None
+            )
+            prod_to_reductions[prod_name] = (val_ty, [])
+
+        reduction_name = get_reduction_name(reduction_method.__doc__)
+        prod_to_reductions[prod_name][1].append(reduction_name)
 
     for prod in sorted(prod_to_reductions.keys()):
-        f.write(codegen_production_reductions_enum(prod, prod_to_reductions[prod]))
-
-    f.write(codegen_reduction_from_id_func(productions))
+        f.write(codegen_grammar_non_term(prod, prod_to_reductions[prod]))
 
 
 def codegen_struct(cls: ASTClass) -> str:
     if cls.typ.__abstract_node__:
-        return codegen_union(ASTUnion(
-            name=cls.name, variants=cls.children, for_composition=True
-        ))
+        return codegen_union(
+            ASTUnion(name=cls.name, variants=cls.children, for_composition=True)
+        )
 
     fields = collections.OrderedDict()
     for parent in reversed(cls.typ.__mro__):
@@ -225,17 +243,17 @@ def codegen_union(union: ASTUnion) -> str:
 
 
 def translate_type(
-    typ: typing.Type, union_name: str, for_composition: bool
+    typ: typing.Type, union_name: str, for_composition: bool, ast_path: str = ''
 ) -> str:
-    params = [
-        translate_type(param, union_name, for_composition)
+    args = [
+        translate_type(param, union_name, for_composition, ast_path)
         for param in typing_inspect.get_args(typ)
     ]
 
     if typing_inspect.is_union_type(typ):
 
         if hasattr(typ, '_name') and typ._name == 'Optional':
-            return f'Option<{params[0]}>'
+            return f'Option<{args[0]}>'
 
         union_types.append(
             ASTUnion(
@@ -249,19 +267,22 @@ def translate_type(
     if typing_inspect.is_generic_type(typ) and hasattr(typ, '_name'):
 
         if typ._name in ('List', 'Sequence'):
-            return f'Vec<{params[0]}>'
+            return f'Vec<{args[0]}>'
 
         if typ._name == 'Dict':
-            return f'IndexMap<{params[0]}, {params[1]}>'
+            return f'IndexMap<{args[0]}, {args[1]}>'
 
     if not hasattr(typ, '__name__'):
         return str(typ)
 
-    if typ.__name__ == 'Tuple' and typ.__module__ == 'typing':
-        if len(params) > 0 and params[1] == 'Ellipsis':
-            return f'Vec<{params[0]}>'
+    if typing_inspect.is_tuple_type(typ):
+        if len(args) > 0 and args[1] == 'Ellipsis':
+            return f'Vec<{args[0]}>'
         else:
-            return '(' + ', '.join(params) + ')'
+            return '(' + ', '.join(args) + ')'
+
+    if issubclass(typ, tuple):
+        return 'TodoAst'
 
     mappings = {
         'str': 'String',
@@ -280,68 +301,96 @@ def translate_type(
         raise NotImplementedError(f'cannot translate: {typ}')
 
     if for_composition or typ.__name__ not in ast_classes:
-        return typ.__name__
+        return ast_path + typ.__name__
 
-    return typ.__name__
+    return ast_path + typ.__name__
 
 
-def codegen_reduction_enum(
-    prod_to_reductions: typing.Dict[str, typing.List[str]],
+# Some non-terminals are redundant - they are not needed and don't have any
+# productions, so they are removed from the grammar.
+# Which means that we can (must) also skip them here.
+SKIP_REDUCTIONS = {
+    'CreateAccessPolicySDLCommandBlock',
+    'CreateAliasSDLCommandBlock',
+    'CreateConcreteIndexSDLCommandBlock',
+    'CreateFunctionSDLCommandBlock',
+    'CreateGlobalSDLCommandBlock',
+    'CreateIndexSDLCommandBlock',
+    'CreatePropertySDLCommandBlock',
+    'CreateRewriteSDLCommandBlock',
+    'CreateSDLCommandBlock',
+    'CreateTriggerSDLCommandBlock',
+}
+
+
+def codegen_grammar_non_term(
+    non_term_name: str,
+    non_term: typing.Tuple[str, typing.List[str]],
 ) -> str:
-    members = ''
-    for production in sorted(prod_to_reductions.keys()):
-        members += f'    {production}({production}),\n'
+    r = '\n'
 
-    return (
-        '\n#[derive(Debug, Clone)]\n'
-        + f'pub enum Reduction {"{"}\n'
-        + members
-        + '}\n'
-    )
+    output_ty = non_term[0]
 
+    if output_ty == None:
+        output_ty_str = 'TodoAst'
+    else:
+        output_ty_str = translate_type(
+            output_ty, '???', False, ast_path='ast::'
+        )
 
-def codegen_production_reductions_enum(
-    prod_name: str,
-    reductions: typing.List[str],
-) -> str:
-    members = ''
-    for reduction in reductions:
-        members += f'    {reduction},\n'
+    output_ty_str = output_ty_str.replace('<', '::<')
 
-    return (
-        '\n#[derive(Debug, Clone)]\n'
-        + f'pub enum {prod_name} {"{"}\n'
-        + members
-        + '}\n'
-    )
+    r += '#[derive(edgeql_parser_derive::Reduce)]\n'
+    r += f'#[output({output_ty_str})]\n'
+    r += '#[stub()]\n'
+    r += f'pub enum {non_term_name} {"{"}\n'
+    for reduction in non_term[1]:
+        if reduction in SKIP_REDUCTIONS:
+            continue
+        r += f'    {reduction},\n'
+    r += '}\n'
+
+    # r += '\n'
+    # r += f'impl {non_term_name} {"{"}\n'
+    # r += '    fn reduce(node: &CSTNode) -> () {\n'
+    # r += '        match Self::from_node(node) {\n'
+    # for reduction in reductions:
+    #     r += f'            Self::{reduction} => todo!(),\n'
+    # r += '        }\n'
+    # r += '    }\n'
+    # r += '}\n'
+    return r
 
 
 def codegen_reduction_from_id_func(
-    productions: typing.List[
-        typing.Tuple[typing.Type, typing.Callable]
-    ],
+    productions: typing.List[typing.Tuple[typing.Type, typing.Callable]],
 ) -> str:
-    matches = ''
+    non_terminals = collections.defaultdict(list)
     for id, (prod, reduction_method) in enumerate(productions):
-        matches += f'        {id} => '
-
         if reduction_method.__doc__ is not None:
-            prod_name = prod.__name__
+            non_term_name = prod.__name__
             reduction_name = get_reduction_name(reduction_method.__doc__)
 
-            reduction_member = f'{prod_name}::{reduction_name}'
-            matches += f'Reduction::{prod_name}({reduction_member}),\n'
-        else:
-            matches += 'unreachable!(),\n'
+            non_terminals[non_term_name].append((id, reduction_name))
 
-    return (
-        '\npub fn reduction_from_id(id: usize) -> Reduction {\n'
-        + '    match id {\n'
-        + matches
-        + '        _ => unreachable!(),\n'
-        + '    }\n'
-        + '}\n'
-    )
+    res = ''
+    for non_term_name, reductions in sorted(non_terminals.items()):
+        res += '\n'
+        res += f'impl super::FromId for super::{non_term_name} {'{'}\n'
+        res += '    fn from_id(id: usize) -> Self {\n'
+        res += '        match id {\n'
+
+        for id, reduction_name in reductions:
+            if reduction_name in SKIP_REDUCTIONS:
+                continue
+            res += f'            {id} => Self::{reduction_name},\n'
+
+        res += '          _ => unreachable!(),\n'
+        res += '        }\n'
+        res += '    }\n'
+        res += '}\n'
+
+    return res
 
 
 def get_reduction_name(docstring: str) -> str:

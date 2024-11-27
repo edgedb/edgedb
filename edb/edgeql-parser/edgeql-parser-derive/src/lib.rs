@@ -1,198 +1,124 @@
 use proc_macro::TokenStream;
+use quote::{format_ident, quote};
+use syn::parse_macro_input;
 
-use syn::{parse_macro_input, Attribute, Type, TypePath};
+#[proc_macro_derive(Reduce, attributes(output, stub))]
+pub fn grammar_non_terminal(input: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(input as syn::Item);
 
-use quote::quote;
-use syn::{self, Fields, Ident};
+    let syn::Item::Enum(enum_item) = item else {
+        panic!("Only enums are allowed to be grammar rules")
+    };
 
-#[proc_macro_derive(IntoPython, attributes(py_child, py_enum, py_union))]
-pub fn into_python(input: TokenStream) -> TokenStream {
-    use syn::Item;
-    let mut item = parse_macro_input!(input as Item);
-    match &mut item {
-        Item::Enum(enum_) => impl_enum_into_python(enum_),
-        Item::Struct(struct_) => impl_struct_into_python(struct_),
-        unsupported => {
-            syn::Error::new_spanned(unsupported, "IntoPython only supports structs and enums")
-                .into_compile_error()
-                .into()
-        }
-    }
-}
+    let name = &enum_item.ident;
+    let data_name = format_ident!("{name}Data");
 
-fn impl_enum_into_python(enum_: &mut syn::ItemEnum) -> TokenStream {
-    let variants = infer_variants(enum_);
+    let output_ty = find_list_attribute(&enum_item, "output")
+        .unwrap_or_else(|| panic!("missing #[output(...)] attribute"));
+    let output_ty: TokenStream = output_ty.clone().into();
+    let output_ty: syn::Type = parse_macro_input!(output_ty as syn::Type);
 
-    let name = &enum_.ident;
-    let mut cases = Vec::new();
+    let is_stub = find_list_attribute(&enum_item, "stub").is_some();
 
-    if let Some(py_enum) = find_attr(&enum_.attrs, "py_enum") {
-        let class_path = py_enum.meta.path();
+    let mut data_variants = proc_macro2::TokenStream::new();
+    for variant in &enum_item.variants {
+        let variant_name = &variant.ident;
 
-        for Variant { name } in variants {
-            cases.push(quote! {
-                Self::#name => py.eval(#class_path.#name, None, None),
+        let mut kids = proc_macro2::TokenStream::new();
+        for non_term_name in iter_non_terminals(&variant_name.to_string()) {
+            let non_term_name = format_ident!("{non_term_name}");
+            kids.extend(quote! {
+                <#non_term_name as Reduce>::Output,
             });
         }
-    } else if find_attr(&enum_.attrs, "py_child").is_some() {
-        for Variant { name } in variants {
-            cases.push(quote! {
-                Self::#name(value) => value.into_python(py, parent),
-            });
-        }
-    } else if find_attr(&enum_.attrs, "py_union").is_some() {
-        for Variant { name } in variants {
-            cases.push(quote! {
-                Self::#name(value) => value.into_python(py, None),
-            });
-        }
-    } else {
-        panic!("enum is missing one of #[py_enum], #[py_child] or #[py_union]")
-    }
 
-    quote! {
-        impl crate::into_python::IntoPython for #name {
-            fn into_python(
-                self,
-                py: cpython::Python,
-                parent: Option<cpython::PyDict>,
-            ) -> cpython::PyResult<cpython::PyObject> {
-                use crate::into_python::IntoPython;
-
-                match self { #(#cases)* }
-            }
-        }
-    }
-    .into()
-}
-
-fn infer_variants(enum_: &syn::ItemEnum) -> Vec<Variant> {
-    let mut variants = Vec::new();
-
-    for variant in &enum_.variants {
-        let name = variant.ident.clone();
-
-        match &variant.fields {
-            Fields::Named(_) => panic!("IntoPython does not support named enum variant fields"),
-            Fields::Unnamed(fields) => {
-                if fields.unnamed.len() != 1 {
-                    panic!("IntoPython supports only enum variant fields with zero or one fields")
-                }
-
-                variants.push(Variant { name });
-            }
-            Fields::Unit => {
-                variants.push(Variant { name });
-            }
-        }
-    }
-
-    variants
-}
-
-/// Information about the struct annotated with IntoPython
-struct Variant {
-    name: Ident,
-}
-
-fn impl_struct_into_python(struct_: &mut syn::ItemStruct) -> TokenStream {
-    let (properties, py_child_field) = infer_fields(struct_);
-
-    let name = &struct_.ident;
-
-    let mut property_assigns = Vec::new();
-    for property in properties {
-        property_assigns.push(quote! {
-            kw_args.set_item(
-                py,
-                stringify!(#property),
-                self.#property.into_python(py, None)?
-            )?;
+        data_variants.extend(quote! {
+            #variant_name(#kids),
         });
     }
 
-    let init = if let Some(py_child_field) = py_child_field {
-        let field = py_child_field.ident;
-        if py_child_field.is_option {
-            quote! {
-                match self.#field {
-                    Some(kind) => kind.into_python(py, Some(kw_args)),
-                    None => crate::into_python::init_ast_class(py, stringify!(#name), kw_args)
+    let mut match_arms = proc_macro2::TokenStream::new();
+    for variant in &enum_item.variants {
+        let variant_name = &variant.ident;
+
+        let mut args = proc_macro2::TokenStream::new();
+        let mut calls = proc_macro2::TokenStream::new();
+        for (index, non_term_name) in iter_non_terminals(&variant_name.to_string()).enumerate() {
+            let arg_name = format_ident!("arg{index}");
+            let non_term_name = format_ident!("{non_term_name}");
+
+            calls.extend(quote! {
+                let #arg_name = <#non_term_name as Reduce>::reduce(&p.args[#index]);
+            });
+
+            args.extend(quote! { #arg_name, });
+        }
+
+        match_arms.extend(quote! {
+            Self::#variant_name => {
+                #calls
+
+                let data = #data_name::#variant_name(#args);
+                #output_ty::from(data)
+            }
+        });
+    }
+
+    let mut stub = proc_macro2::TokenStream::new();
+    if is_stub {
+        stub.extend(quote! {
+            impl From<#data_name> for #output_ty {
+                fn from(val: #data_name) -> Self {
+                    todo!();
                 }
             }
-        } else {
-            quote! {
-                self.#field.into_python(py, Some(kw_args))
-            }
-        }
-    } else {
-        quote! {
-            crate::into_python::init_ast_class(py, stringify!(#name), kw_args)
-        }
-    };
-
-    quote! {
-        impl crate::into_python::IntoPython for #name {
-            fn into_python(
-                self,
-                py: cpython::Python,
-                parent_kw_args: Option<cpython::PyDict>,
-            ) -> cpython::PyResult<cpython::PyObject> {
-                use crate::into_python::IntoPython;
-
-                let kw_args = parent_kw_args.unwrap_or_else(|| cPython::PyDict::new_bound(py));
-                #(#property_assigns)*
-
-                #init
-            }
-        }
-    }
-    .into()
-}
-
-struct PyChildField {
-    ident: Ident,
-    is_option: bool,
-}
-
-fn infer_fields(r#struct: &mut syn::ItemStruct) -> (Vec<Ident>, Option<PyChildField>) {
-    let mut properties = Vec::new();
-    let mut py_child = None;
-
-    for field in &mut r#struct.fields {
-        let ident = field
-            .ident
-            .clone()
-            .expect("py_inherit supports only named fields");
-
-        if find_attr(&field.attrs, "py_child").is_some() {
-            let is_option = is_option(&field.ty);
-
-            py_child = Some(PyChildField { ident, is_option });
-            continue;
-        }
-
-        properties.push(ident);
+        })
     }
 
-    (properties, py_child)
+    let output = quote!(
+        enum #data_name {
+            #data_variants
+        }
+
+        impl Reduce for #name {
+            type Output = #output_ty;
+
+            fn reduce(node: &CSTNode) -> #output_ty {
+                let CSTNode::Production(p) = node else { panic!() };
+                match Self::from_id(p.id) {
+                    #match_arms
+                }
+            }
+        }
+
+        #stub
+    );
+
+    TokenStream::from(output)
 }
 
-fn find_attr<'a>(attrs: &'a [Attribute], name: &'static str) -> Option<&'a Attribute> {
-    attrs.iter().find(|a| {
-        let Some(ident) = a.path().get_ident() else {
-            return false;
-        };
-        *ident == name
+fn find_list_attribute<'a>(
+    enum_item: &'a syn::ItemEnum,
+    name: &'static str,
+) -> Option<&'a proc_macro2::TokenStream> {
+    enum_item.attrs.iter().find_map(|x| match &x.meta {
+        syn::Meta::List(ml) => {
+            if path_eq(&ml.path, name) {
+                Some(&ml.tokens)
+            } else {
+                None
+            }
+        }
+        _ => None,
     })
 }
 
-fn is_option(ty: &Type) -> bool {
-    let Type::Path(TypePath { path, .. }) = ty else {
-        return false;
-    };
-    let Some(segment) = path.segments.first() else {
-        return false;
-    };
-    segment.ident == "Option"
+fn path_eq(path: &syn::Path, name: &str) -> bool {
+    path.get_ident().map_or(false, |i| i.to_string() == name)
+}
+
+fn iter_non_terminals(variant_name: &str) -> impl Iterator<Item = &str> {
+    variant_name
+        .split('_')
+        .filter(|c| *c != "epsilon" && *c != c.to_ascii_uppercase())
 }

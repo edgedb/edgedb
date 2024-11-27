@@ -20,7 +20,7 @@ memchr = "2.5.0"
 serde = { version = "1.0.106", features = ["derive"], optional = true }
 thiserror = "1.0.23"
 unicode-width = "0.1.8"
-edgeql-parser-derive = { path = "edgeql-parser-derive", optional = true }
+edgeql-parser-derive = { path = "edgeql-parser-derive" }
 indexmap = "2.4.0"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 bumpalo = { version = "3.13.0", features = ["collections"] }
@@ -29,6 +29,6 @@ append-only-vec = "0.1.2"
 
 [features]
 default = []
-python = ["pyo3", "serde", "edgeql-parser-derive"]
+python = ["pyo3", "serde"]
 
 [lib]

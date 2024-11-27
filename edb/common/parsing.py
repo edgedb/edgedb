@@ -27,6 +27,7 @@ import logging
 import os
 import sys
 import types
+import typing
 
 import parsing
 
@@ -122,6 +123,10 @@ class Nonterm(parsing.Nonterm):
         if not cls.__doc__:
             cls.__doc__ = '%nonterm'
 
+        mod = sys.modules[cls.__module__]
+        annotations = typing.get_type_hints(cls, localns=mod.__dict__)
+        val_ty = annotations['val'] if 'val' in annotations else None
+
         for name, attr in cls.__dict__.items():
             if (name.startswith('reduce_') and
                     isinstance(attr, types.FunctionType)):
@@ -145,6 +150,7 @@ class Nonterm(parsing.Nonterm):
 
                 a.__doc__ = attr.__doc__
                 a.inline_index = inline_index
+                a.val_ty = val_ty
                 setattr(cls, name, a)
 
 
