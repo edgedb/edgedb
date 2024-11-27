@@ -587,7 +587,8 @@ cdef class PGConnection:
     cdef send_query_unit_group(
         self, object query_unit_group, bint sync,
         object bind_datas, bytes state,
-        ssize_t start, ssize_t end, int dbver, object parse_array
+        ssize_t start, ssize_t end, int dbver, object parse_array,
+        object query_prefix,
     ):
         # parse_array is an array of booleans for output with the same size as
         # the query_unit_group, indicating if each unit is freshly parsed
@@ -633,6 +634,8 @@ cdef class PGConnection:
             query_unit_group.units[start:end], bind_datas):
             stmt_name = query_unit.sql_hash
             sql = query_unit.sql
+            if query_prefix:
+                sql = query_prefix + sql
             if stmt_name:
                 if parse_array[idx]:
                     buf = WriteBuffer.new_message(b'P')
@@ -968,6 +971,7 @@ cdef class PGConnection:
         bint use_pending_func_cache,
         tx_isolation,
         list param_data_types,
+        bytes query_prefix,
     ):
         cdef:
             WriteBuffer out
@@ -1047,9 +1051,9 @@ cdef class PGConnection:
 
         if use_pending_func_cache and query.cache_func_call:
             sql, stmt_name = query.cache_func_call
-            sqls = (sql,)
+            sqls = (query_prefix + sql,)
         else:
-            sqls = (query.sql,) + query.db_op_trailer
+            sqls = (query_prefix + query.sql,) + query.db_op_trailer
             stmt_name = query.sql_hash
 
         msgs_num = <uint64_t>(len(sqls))
@@ -1298,6 +1302,7 @@ cdef class PGConnection:
         int dbver = 0,
         bint use_pending_func_cache = 0,
         tx_isolation = None,
+        query_prefix = None,
     ):
         self.before_command()
         started_at = time.monotonic()
@@ -1312,6 +1317,7 @@ cdef class PGConnection:
                 use_pending_func_cache,
                 tx_isolation,
                 param_data_types,
+                query_prefix or b'',
             )
         finally:
             metrics.backend_query_duration.observe(

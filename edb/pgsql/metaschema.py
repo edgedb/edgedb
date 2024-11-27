@@ -6153,6 +6153,7 @@ def _generate_stats_views(schema: s_schema.Schema) -> List[dbops.View]:
         'branch': "((d.description)->>'id')::uuid",
         'query': "s.query",
         'query_type': f"(t.mapping->>s.stmt_type::text)::{query_type_domain}",
+        'tag': "s.tag",
 
         'plans': 's.plans',
         'total_plan_time': float64_to_duration_t('s.total_plan_time'),

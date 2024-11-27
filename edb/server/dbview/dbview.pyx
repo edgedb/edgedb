@@ -113,6 +113,16 @@ cdef class CompiledQuery:
         self.recompiled_cache = recompiled_cache
         self.use_pending_func_cache = use_pending_func_cache
 
+    cdef bytes make_query_prefix(self):
+        data = {}
+        if self.tag:
+            data['tag'] = self.tag
+        if data:
+            data_bytes = json.dumps(data).encode(defines.EDGEDB_ENCODING)
+            return b''.join([b'-- ', data_bytes, b'\n'])
+        else:
+            return b''
+
 
 cdef class Database:
 
