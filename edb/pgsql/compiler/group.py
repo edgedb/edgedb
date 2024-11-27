@@ -173,7 +173,7 @@ def _compile_group(
         ctx: context.CompilerContextLevel,
         parent_ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
-    clauses.compile_volatile_bindings(stmt, ctx=ctx)
+    uncompiled_bindings = clauses.compile_volatile_bindings(stmt, ctx=ctx)
 
     query = ctx.stmt
 
@@ -181,9 +181,29 @@ def _compile_group(
     with ctx.subrel() as groupctx:
         grouprel = groupctx.rel
 
+        # Compile the remaining bindings here
+        if False:
+            for binding in uncompiled_bindings:
+                with groupctx.subrel() as bindctx:
+                    dispatch.compile(binding, ctx=bindctx)
+
+                bind_rvar = relctx.rvar_for_rel(
+                    bindctx.rel, ctx=groupctx, lateral=True
+                )
+                relctx.include_rvar(
+                    groupctx.rel,
+                    bind_rvar,
+                    binding.path_id,
+                    ctx=groupctx,
+                )
+
+
         # First compile the actual subject
         # subrel *solely* for path id map reasons
         with groupctx.subrel() as subjctx:
+            # Process materialized sets
+            #clauses.compile_materialized_exprs(groupctx.rel, stmt, ctx=subjctx)
+
             subjctx.expr_exposed = False
 
             dispatch.visit(stmt.subject, ctx=subjctx)
@@ -391,9 +411,6 @@ def _compile_group(
         outctx.path_scope = groupctx.path_scope
 
         outctx.volatility_ref += (lambda stmt, xctx: _get_volatility_ref(),)
-
-        # Process materialized sets
-        clauses.compile_materialized_exprs(query, stmt, ctx=outctx)
 
         clauses.compile_output(stmt.result, ctx=outctx)
 

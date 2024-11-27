@@ -297,7 +297,9 @@ def compile_volatile_bindings(
     stmt: irast.Stmt,
     *,
     ctx: context.CompilerContextLevel
-) -> None:
+) -> list[irast.Set]:
+    uncompiled_bindings = []
+
     for binding, volatility in (stmt.bindings or ()):
         # If something we are WITH binding contains DML, we want to
         # compile it *now*, in the context of its initial appearance
@@ -321,6 +323,11 @@ def compile_volatile_bindings(
         elif irutils.contains_dml(binding):
             with ctx.substmt() as bctx:
                 dispatch.compile(binding, ctx=bctx)
+
+        else:
+            uncompiled_bindings.append(binding)
+
+    return uncompiled_bindings
 
 
 def _compile_volatile_binding_for_dml(

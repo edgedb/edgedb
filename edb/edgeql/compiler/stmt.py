@@ -320,9 +320,10 @@ def compile_InternalGroupQuery(
 
     with ctx.subquery() as sctx:
         stmt = irast.GroupStmt(by=expr.by)
-        init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
 
         with sctx.newscope(fenced=True) as topctx:
+            init_stmt(stmt, expr, ctx=topctx, parent_ctx=ctx)
+
             # N.B: Subject is exposed because we want any shape on the
             # subject to be exposed on bare references to the group
             # alias.  This is frankly pretty dodgy behavior for
