@@ -23,6 +23,7 @@ from typing import Optional, Union, Sequence, List
 
 import random
 
+from edb.common import topological
 from edb.common import ast as ast_visitor
 
 from edb.edgeql import qltypes
@@ -114,12 +115,34 @@ def compile_materialized_exprs(
         matctx.materializing |= {stmt}
         matctx.expr_exposed = True
 
-        # HACK: Sort longer paths before shorter ones
-        # We want foo->bar to appear before foo
-        mat_sets = sorted(
-            (stmt.materialized_sets.values()),
-            key=lambda m: -len(m.materialized.path_id),
-        )
+        # Determine the order to materialize sets. If a set A references another
+        # set B, B should materialize first.
+        mat_set_dependency_graph: dict[
+            irast.PathId,
+            topological.DepGraphEntry[
+                irast.PathId, irast.MaterializedSet, None
+            ],
+        ] = {}
+        for mat_set in stmt.materialized_sets.values():
+            path_id = mat_set.materialized.path_id
+
+            mat_set_dependency_graph[path_id] = topological.DepGraphEntry(
+                item=mat_set,
+                deps={
+                    child.path_id
+                    for child in ast_visitor.find_children(
+                        mat_set.materialized, irast.Set
+                    )
+                    if isinstance(child.expr, irast.MaterializedExpr)
+                },
+            )
+
+        mat_sets: list[irast.MaterializedSet] = [
+            mat_set
+            for mat_set in topological.sort(
+                mat_set_dependency_graph, allow_unresolved=True,
+            )
+        ]
 
         for mat_set in mat_sets:
             if len(mat_set.uses) <= 1:
