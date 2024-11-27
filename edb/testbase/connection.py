@@ -35,12 +35,12 @@ import socket
 import ssl
 import time
 
-from edgedb import abstract
-from edgedb import errors
-from edgedb import con_utils
-from edgedb import enums as edgedb_enums
-from edgedb import options
-from edgedb.protocol import protocol  # type: ignore
+from gel import abstract
+from gel import errors
+from gel import con_utils
+from gel import enums as edgedb_enums
+from gel import options
+from gel.protocol import protocol  # type: ignore
 
 from edb.protocol import protocol as edb_protocol  # type: ignore
 
