@@ -130,6 +130,10 @@ CREATE TYPE sys::QueryStats EXTENDING sys::ExternalObject {
         CREATE ANNOTATION std::description :=
             "Type of the query.";
     };
+    CREATE PROPERTY tag -> std::str {
+        CREATE ANNOTATION std::description :=
+            "Query tag, commonly specifies the origin of the query, e.g 'gel/cli' for queries originating from the CLI.  Clients can specify a tag for easier query identification.";
+    };
 
     CREATE PROPERTY compilation_config -> std::json;
     CREATE PROPERTY protocol_version -> tuple<major: std::int16,

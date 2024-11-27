@@ -88,7 +88,7 @@ PG_MODULE_MAGIC;
 #define PGSS_TEXT_FILE	PG_STAT_TMP_DIR "/edbss_query_texts.stat"
 
 /* Magic number identifying the stats file format */
-static const uint32 PGSS_FILE_HEADER = 0x20241021;
+static const uint32 PGSS_FILE_HEADER = 0x20241125;
 
 /* PostgreSQL major version number, changes in which invalidate all entries */
 static const uint32 PGSS_PG_MAJOR_VERSION = PG_VERSION_NUM / 100;
@@ -140,6 +140,7 @@ typedef enum EdbStmtInfoParseState {
 	EDB_STMT_INFO_PARSE_ID			= 1 << 1,
 	EDB_STMT_INFO_PARSE_TYPE		= 1 << 2,
 	EDB_STMT_INFO_PARSE_EXTRAS		= 1 << 3,
+	EDB_STMT_INFO_PARSE_TAG			= 1 << 4,
 } EdbStmtInfoParseState;
 
 /*
@@ -148,8 +149,8 @@ typedef enum EdbStmtInfoParseState {
  */
 #define EDB_STMT_INFO_PARSE_REQUIRED \
 	(EDB_STMT_INFO_PARSE_QUERY \
-	 & EDB_STMT_INFO_PARSE_ID \
-	 & EDB_STMT_INFO_PARSE_TYPE \
+	 | EDB_STMT_INFO_PARSE_ID \
+	 | EDB_STMT_INFO_PARSE_TYPE \
 	)
 
 /*
@@ -162,6 +163,8 @@ typedef struct EdbStmtInfo {
 	} id;
 	const char *query;
 	int query_len;
+	const char *tag;
+	int tag_len;
 	EdbStmtType stmt_type;
 	Jsonb *extras;
 } EdbStmtInfo;
@@ -291,7 +294,8 @@ typedef struct pgssEntry
 
 	pg_uuid_t	id;				/* Full 16-bytes query ID as UUID */
 	EdbStmtType	stmt_type;		/* Type of the EdgeDB query */
-	int			extras_len;		/* # of valid bytes in extras jsonb, or -1 */
+	int			extras_len;		/* # of valid bytes in extras jsonb, or 0 */
+	int			tag_len;		/* # of valid bytes in tag string, or 0 */
 } pgssEntry;
 
 /*
@@ -427,6 +431,7 @@ static void pgss_store(const char *query, uint64 queryId,
 					   pg_uuid_t *id,
 					   EdbStmtType stmt_type,
 					   const Jsonb *extras,
+					   const char *tag, int tag_len,
 					   int parallel_workers_to_launch,
 					   int parallel_workers_launched);
 static void edb_stat_statements_internal(FunctionCallInfo fcinfo,
@@ -435,10 +440,11 @@ static void edb_stat_statements_internal(FunctionCallInfo fcinfo,
 static Size pgss_memsize(void);
 static pgssEntry *entry_alloc(pgssHashKey *key, Size query_offset, int query_len,
 							  int encoding, bool sticky, pg_uuid_t *id,
-							  EdbStmtType stmt_type, int extras_len);
+							  EdbStmtType stmt_type, int extras_len, int tag_len);
 static void entry_dealloc(void);
 static bool qtext_store(const char *query, int query_len,
 						const Jsonb *extras, int extras_len,
+						const char *tag, int tag_len,
 						Size *query_offset, int *gc_count);
 static char *qtext_load_file(Size *buffer_size);
 static char *qtext_fetch(Size query_offset, int query_len,
@@ -673,7 +679,10 @@ edbss_extract_stmt_info(const char* query_str, int query_len) {
 static inline void
 edbss_free_stmt_info(EdbStmtInfo *info) {
 	Assert(info != NULL);
-	pfree((void *) info->query);
+	if (info->query != NULL)
+		pfree((void *) info->query);
+	if (info->tag != NULL)
+		pfree((void *) info->tag);
 	pfree(info);
 }
 
@@ -704,6 +713,8 @@ edbss_json_ofield_start(void *semstate, char *fname, bool isnull) {
 			state->state = EDB_STMT_INFO_PARSE_TYPE;
 		} else if (strcmp(fname, "extras") == 0) {
 			state->state = EDB_STMT_INFO_PARSE_EXTRAS;
+		} else if (strcmp(fname, "tag") == 0) {
+			state->state = EDB_STMT_INFO_PARSE_TAG;
 		}
 	}
 	pfree(fname);  /* must not use object_field_end */
@@ -760,6 +771,14 @@ edbss_json_scalar(void *semstate, char *token, JsonTokenType tokenType) {
 				Datum extras_jsonb = DirectFunctionCall1(jsonb_in, CStringGetDatum(token));
 				state->info->extras = DatumGetJsonbP(extras_jsonb);
 				pfree(token);
+				break;
+			}
+			goto fail;
+
+		case EDB_STMT_INFO_PARSE_TAG:
+			if (tokenType == JSON_TOKEN_STRING) {
+				state->info->tag = token;
+				state->info->tag_len = (int) strlen(token);
 				break;
 			}
 			goto fail;
@@ -926,7 +945,7 @@ pgss_shmem_startup(void)
 		if (!PG_VALID_BE_ENCODING(temp.encoding))
 			goto data_error;
 
-		len = temp.query_len + temp.extras_len;
+		len = temp.query_len + temp.extras_len + temp.tag_len;
 
 		/* Resize buffer as needed */
 		if (len >= buffer_size)
@@ -954,7 +973,7 @@ pgss_shmem_startup(void)
 		/* make the hashtable entry (discards old entries if too many) */
 		entry = entry_alloc(&temp.key, query_offset, temp.query_len,
 							temp.encoding,
-							false, NULL, 0, temp.extras_len);
+							false, NULL, 0, temp.extras_len, temp.tag_len);
 
 		/* copy in the actual stats */
 		entry->counters = temp.counters;
@@ -1073,7 +1092,7 @@ pgss_shmem_shutdown(int code, Datum arg)
 	hash_seq_init(&hash_seq, pgss_hash);
 	while ((entry = hash_seq_search(&hash_seq)) != NULL)
 	{
-		int			len = entry->query_len + entry->extras_len;
+		int			len = entry->query_len + entry->extras_len + entry->tag_len;
 		char	   *qstr = qtext_fetch(entry->query_offset, len,
 									   qbuffer, qbuffer_size);
 
@@ -1182,6 +1201,8 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 				   &info->id.uuid,
 				   info->stmt_type,
 				   info->extras,
+				   info->tag,
+				   info->tag_len,
 				   0,
 				   0);
 		edbss_free_stmt_info(info);
@@ -1210,6 +1231,8 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 				   NULL,
 				   0,
 				   NULL,
+				   NULL,
+				   0,
 				   0,
 				   0);
 }
@@ -1294,6 +1317,8 @@ pgss_planner(Query *parse,
 				   NULL,
 				   0,
 				   NULL,
+				   NULL,
+				   0,
 				   0,
 				   0);
 	}
@@ -1433,6 +1458,8 @@ pgss_ExecutorEnd(QueryDesc *queryDesc)
 				   NULL,
 				   0,
 				   NULL,
+				   NULL,
+				   0,
 #if PG_VERSION_NUM >= 180000
 				   queryDesc->estate->es_parallel_workers_to_launch,
 				   queryDesc->estate->es_parallel_workers_launched
@@ -1576,6 +1603,8 @@ pgss_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 				   NULL,
 				   0,
 				   NULL,
+				   NULL,
+				   0,
 				   0,
 				   0);
 	}
@@ -1643,6 +1672,7 @@ pgss_store(const char *query, uint64 queryId,
 		   pg_uuid_t *id,
 		   EdbStmtType stmt_type,
 		   const Jsonb *extras,
+		   const char *tag, int tag_len,
 		   int parallel_workers_to_launch,
 		   int parallel_workers_launched)
 {
@@ -1712,6 +1742,8 @@ pgss_store(const char *query, uint64 queryId,
 				id = &info->id.uuid;
 				stmt_type = info->stmt_type;
 				extras = info->extras;
+				tag = info->tag;
+				tag_len = info->tag_len;
 			} else if (!edbss_track_unrecognized()) {
 				/* skip unrecognized statements unless we're told not to */
 				goto done;
@@ -1739,7 +1771,8 @@ pgss_store(const char *query, uint64 queryId,
 		extras_len = extras == NULL ? 0 : VARSIZE(JsonbPGetDatum(extras));
 
 		/* Append new query text to file with only shared lock held */
-		stored = qtext_store(norm_query ? norm_query : query, query_len, extras, extras_len,
+		stored = qtext_store(norm_query ? norm_query : query, query_len,
+							 extras, extras_len, tag, tag_len,
 							 &query_offset, &gc_count);
 
 		/*
@@ -1762,7 +1795,7 @@ pgss_store(const char *query, uint64 queryId,
 		 */
 		if (!stored || pgss->gc_count != gc_count)
 			stored = qtext_store(norm_query ? norm_query : query, query_len,
-								 extras, extras_len,
+								 extras, extras_len, tag, tag_len,
 								 &query_offset, NULL);
 
 		/* If we failed to write to the text file, give up */
@@ -1771,7 +1804,7 @@ pgss_store(const char *query, uint64 queryId,
 
 		/* OK to create a new hashtable entry */
 		entry = entry_alloc(&key, query_offset, query_len, encoding,
-							sticky, id, stmt_type, extras_len);
+							sticky, id, stmt_type, extras_len, tag_len);
 
 		/* If needed, perform garbage collection while exclusive lock held */
 		if (do_gc)
@@ -1926,8 +1959,8 @@ edb_stat_statements_reset(PG_FUNCTION_ARGS)
 }
 
 /* Number of output arguments (columns) for various API versions */
-#define PG_STAT_STATEMENTS_COLS_V1_0	54
-#define PG_STAT_STATEMENTS_COLS			54	/* maximum of above */
+#define PG_STAT_STATEMENTS_COLS_V1_0	55
+#define PG_STAT_STATEMENTS_COLS			55	/* maximum of above */
 
 /*
  * Retrieve statement statistics.
@@ -2080,7 +2113,7 @@ edb_stat_statements_internal(FunctionCallInfo fcinfo,
 			if (showtext)
 			{
 				char	   *qstr = qtext_fetch(entry->query_offset,
-											   entry->query_len + entry->extras_len,
+											   entry->query_len + entry->extras_len + entry->tag_len,
 											   qbuffer,
 											   qbuffer_size);
 
@@ -2088,7 +2121,7 @@ edb_stat_statements_internal(FunctionCallInfo fcinfo,
 				{
 					char	   *enc;
 
-					enc = pg_any_to_server(qstr + entry->extras_len,
+					enc = pg_any_to_server(qstr + entry->extras_len + entry->tag_len,
 										   entry->query_len,
 										   entry->encoding);
 
@@ -2096,11 +2129,17 @@ edb_stat_statements_internal(FunctionCallInfo fcinfo,
 
 					// The "extras" Jsonb varlena datum
 					if (entry->extras_len > 0)
-						values[i++] = PointerGetDatum(qstr);
+						values[i++] = PointerGetDatum(qstr + entry->tag_len);
 					else
 						nulls[i++] = true;
 
-					if (enc != qstr + entry->extras_len)
+					// The "tag" text varlena datum
+					if (entry->tag_len > 0)
+						values[i++] = PointerGetDatum(cstring_to_text_with_len(qstr, entry->tag_len));
+					else
+						nulls[i++] = true;
+
+					if (enc != qstr + entry->extras_len + entry->tag_len)
 						pfree(enc);
 				}
 				else
@@ -2109,6 +2148,9 @@ edb_stat_statements_internal(FunctionCallInfo fcinfo,
 					nulls[i++] = true;
 
 					/* null extras */
+					nulls[i++] = true;
+
+					/* null tag */
 					nulls[i++] = true;
 				}
 			}
@@ -2119,6 +2161,13 @@ edb_stat_statements_internal(FunctionCallInfo fcinfo,
 
 				/* null extras */
 				nulls[i++] = true;
+
+				/* always show tag */
+				if (entry->tag_len > 0 && qbuffer != NULL && entry->query_offset + entry->tag_len < qbuffer_size) {
+					values[i++] = PointerGetDatum(cstring_to_text_with_len(qbuffer + entry->query_offset, entry->tag_len));
+				} else {
+					nulls[i++] = true;
+				}
 			}
 		}
 		else
@@ -2137,6 +2186,13 @@ edb_stat_statements_internal(FunctionCallInfo fcinfo,
 
 			/* null extras */
 			nulls[i++] = true;
+
+			/* always show tag */
+			if (entry->tag_len > 0 && qbuffer != NULL && entry->query_offset + entry->tag_len < qbuffer_size) {
+				values[i++] = PointerGetDatum(cstring_to_text_with_len(qbuffer + entry->query_offset, entry->tag_len));
+			} else {
+				nulls[i++] = true;
+			}
 		}
 
 		if (memcmp(&entry->id, &zero_uuid, sizeof(zero_uuid)) == 0)
@@ -2320,7 +2376,7 @@ pgss_memsize(void)
  */
 static pgssEntry *
 entry_alloc(pgssHashKey *key, Size query_offset, int query_len, int encoding,
-			bool sticky, pg_uuid_t *id, EdbStmtType stmt_type, int extras_len)
+			bool sticky, pg_uuid_t *id, EdbStmtType stmt_type, int extras_len, int tag_len)
 {
 	pgssEntry  *entry;
 	bool		found;
@@ -2353,6 +2409,7 @@ entry_alloc(pgssHashKey *key, Size query_offset, int query_len, int encoding,
 			entry->id = *id;
 		entry->stmt_type = stmt_type;
 		entry->extras_len = extras_len;
+		entry->tag_len = tag_len;
 	}
 
 	return entry;
@@ -2474,6 +2531,7 @@ entry_dealloc(void)
 static bool
 qtext_store(const char *query, int query_len,
 			const Jsonb *extras, int extras_len,
+			const char *tag, int tag_len,
 			Size *query_offset, int *gc_count)
 {
 	Size		off;
@@ -2485,7 +2543,7 @@ qtext_store(const char *query, int query_len,
 	 */
 	SpinLockAcquire(&pgss->mutex);
 	off = pgss->extent;
-	pgss->extent += query_len + extras_len + 1;
+	pgss->extent += query_len + extras_len + tag_len + 1;
 	pgss->n_writers++;
 	if (gc_count)
 		*gc_count = pgss->gc_count;
@@ -2498,7 +2556,7 @@ qtext_store(const char *query, int query_len,
 	 * (theoretically) handle.  This has been seen to be reachable on 32-bit
 	 * platforms.
 	 */
-	if (unlikely(query_len + extras_len >= MaxAllocHugeSize - off))
+	if (unlikely(query_len + extras_len + tag_len >= MaxAllocHugeSize - off))
 	{
 		errno = EFBIG;			/* not quite right, but it'll do */
 		fd = -1;
@@ -2510,11 +2568,23 @@ qtext_store(const char *query, int query_len,
 	if (fd < 0)
 		goto error;
 
+	/*
+	 * The format of the stored string is:
+	 *  - tag_len bytes of query tag (maybe empty)
+	 *  - extras_len bytes of extras JSONB (maybe empty)
+	 *  - query_len bytes of query string
+	 *  - NUL
+	 */
+	if (tag_len > 0 && pg_pwrite(fd, tag, tag_len, off) != tag_len)
+		goto error;
+	off += tag_len;
 	if (extras_len > 0 && pg_pwrite(fd, extras, extras_len, off) != extras_len)
 		goto error;
-	if (pg_pwrite(fd, query, query_len, off + extras_len) != query_len)
+	off += extras_len;
+	if (pg_pwrite(fd, query, query_len, off) != query_len)
 		goto error;
-	if (pg_pwrite(fd, "\0", 1, off + extras_len + query_len) != 1)
+	off += query_len;
+	if (pg_pwrite(fd, "\0", 1, off) != 1)
 		goto error;
 
 	CloseTransientFile(fd);
@@ -2771,7 +2841,7 @@ gc_qtexts(void)
 	hash_seq_init(&hash_seq, pgss_hash);
 	while ((entry = hash_seq_search(&hash_seq)) != NULL)
 	{
-		int			query_len = entry->query_len + entry->extras_len;
+		int			query_len = entry->query_len + entry->extras_len + entry->tag_len;
 		char	   *qry = qtext_fetch(entry->query_offset,
 									  query_len,
 									  qbuffer,
@@ -2783,6 +2853,7 @@ gc_qtexts(void)
 			entry->query_offset = 0;
 			entry->query_len = -1;
 			entry->extras_len = 0;
+			entry->tag_len = 0;
 			/* entry will not be counted in mean query length computation */
 			continue;
 		}
@@ -2866,6 +2937,7 @@ gc_fail:
 		entry->query_offset = 0;
 		entry->query_len = -1;
 		entry->extras_len = 0;
+		entry->tag_len = 0;
 	}
 
 	/*

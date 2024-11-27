@@ -45,6 +45,9 @@ cdef class CompiledQuery:
     cdef public object request
     cdef public object recompiled_cache
     cdef public bint use_pending_func_cache
+    cdef public object tag
+
+    cdef bytes make_query_prefix(self)
 
 
 cdef class DatabaseIndex:

@@ -862,6 +862,15 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         )
         return rv, allow_capabilities
 
+    cdef get_checked_tag(self, dict annotations):
+        tag = annotations.get("tag")
+        if not tag:
+            return None
+        if len(tag) > 128:
+            raise errors.BinaryProtocolError(
+                'bad annotation: tag too long (> 128 bytes)')
+        return tag
+
     async def parse(self):
         cdef:
             bytes eql
@@ -907,9 +916,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             uint64_t allow_capabilities
 
         if self.protocol_version >= (3, 0):
-            self.ignore_annotations()
+            tag = self.get_checked_tag(self.parse_annotations())
         else:
             self.ignore_headers()
+            tag = None
 
         _dbview = self.get_dbview()
         if _dbview.get_state_serializer() is None:
@@ -940,6 +950,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     raise ConnectionAbortedError
             else:
                 compiled = _dbview.as_compiled(query_req, query_unit_group)
+
+        compiled.tag = tag
 
         if query_req.input_language is LANG_SQL and len(query_unit_group) > 1:
             raise errors.UnsupportedFeatureError(
@@ -1322,9 +1334,16 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         cdef:
             WriteBuffer msg_buf
             dbview.DatabaseConnectionView _dbview
+            uint64_t flags
 
-        headers = self.parse_headers()
-        include_secrets = headers.get(QUERY_HEADER_DUMP_SECRETS) == b'\x01'
+        # Parse the "Dump" message
+        if self.protocol_version >= (3, 0):
+            self.ignore_annotations()
+            flags = <uint64_t>self.buffer.read_int64()
+            include_secrets = flags & messages.DumpFlag.DUMP_SECRETS
+        else:
+            headers = self.parse_headers()
+            include_secrets = headers.get(QUERY_HEADER_DUMP_SECRETS) == b'\x01'
 
         self.buffer.finish_message()
 
@@ -1898,6 +1917,7 @@ async def run_script(
                 branch_name=database,
             ),
         )
+        compiled.tag = "gel/startup-script"
         if len(compiled.query_unit_group) > 1:
             await conn._execute_script(compiled, b'')
         else:
