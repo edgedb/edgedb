@@ -519,6 +519,11 @@ class CompilationFlag(enum.IntFlag):
     INJECT_OUTPUT_OBJECT_IDS = 1 << 2    # noqa
 
 
+class DumpFlag(enum.IntFlag):
+
+    DUMP_SECRETS = 1 << 0    # noqa
+
+
 class ErrorSeverity(enum.Enum):
     ERROR = 120
     FATAL = 200
@@ -746,6 +751,7 @@ class Dump(ClientMessage):
     mtype = MessageType('>')
     message_length = MessageLength
     annotations = Annotations
+    flags = EnumOf(UInt64, DumpFlag, 'A bit mask of dump options.')
 
 
 class Sync(ClientMessage):

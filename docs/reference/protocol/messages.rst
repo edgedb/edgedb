@@ -229,6 +229,13 @@ Format:
 
 .. eql:struct:: edb.protocol.Annotation
 
+.. eql:struct:: edb.protocol.DumpFlag
+
+Use:
+
+* ``DUMP_SECRETS`` to include secrets in the backup. By default, secrets are
+  not included.
+
 
 .. _ref_protocol_msg_command_data_description:
 
