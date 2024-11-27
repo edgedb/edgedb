@@ -1484,8 +1484,12 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     )
                     for i in range(1, 7):
                         name = f"_test_server_ops_multi_tenant_{i}"
+                        print('v' * 80)
+                        print(name)
                         with self.subTest(name, i=i):
                             await getattr(self, name)(mtargs)
+                        print(name)
+                        print('^' * 80)
             finally:
                 try:
                     await cluster1.stop()
