@@ -309,11 +309,6 @@ def compile_InternalGroupQuery(
     expr: qlast.InternalGroupQuery, *, ctx: context.ContextLevel
 ) -> irast.Set:
     # We disallow use of FOR GROUP except for when running in test mode.
-    if not expr.from_desugaring and not ctx.env.options.testmode:
-        raise errors.UnsupportedFeatureError(
-            "'FOR GROUP' is an internal testing feature",
-            span=expr.span,
-        )
 
     _protect_expr(expr.subject, ctx=ctx)
     _protect_expr(expr.result, ctx=ctx)
@@ -321,8 +316,9 @@ def compile_InternalGroupQuery(
     with ctx.subquery() as sctx:
         stmt = irast.GroupStmt(by=expr.by)
 
+        init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+
         with sctx.newscope(fenced=True) as topctx:
-            init_stmt(stmt, expr, ctx=topctx, parent_ctx=ctx)
 
             # N.B: Subject is exposed because we want any shape on the
             # subject to be exposed on bare references to the group
@@ -330,11 +326,15 @@ def compile_InternalGroupQuery(
             # FOR GROUP to have but the real GROUP needs to
             # maintain shapes, and this is the easiest way to handle
             # that.
-            stmt.subject = compile_result_clause(
-                expr.subject,
-                result_alias=expr.subject_alias,
-                exprtype=s_types.ExprType.Group,
-                ctx=topctx)
+            stmt.subject = setgen.scoped_set(
+                compile_result_clause(
+                    (expr.subject),
+                    result_alias=expr.subject_alias,
+                    exprtype=s_types.ExprType.Group,
+                    ctx=topctx,
+                ),
+                ctx=topctx,
+            )
 
             if topctx.partial_path_prefix:
                 pathctx.register_set_in_scope(
@@ -425,10 +425,14 @@ def compile_InternalGroupQuery(
                     stmt.grouping_binding, path_scope=bctx.path_scope, ctx=bctx
                 )
 
-            stmt.result = compile_result_clause(
-                astutils.ensure_ql_query(expr.result),
-                result_alias=expr.result_alias,
-                ctx=bctx)
+            stmt.result = setgen.scoped_set(
+                compile_result_clause(
+                    astutils.ensure_ql_query(expr.result),
+                    result_alias=expr.result_alias,
+                    ctx=bctx,
+                ),
+                ctx=bctx,
+            )
 
             stmt.where = clauses.compile_where_clause(expr.where, ctx=bctx)
 

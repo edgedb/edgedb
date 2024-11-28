@@ -177,6 +177,9 @@ def _compile_group(
 
     query = ctx.stmt
 
+    # Process materialized sets
+    clauses.compile_materialized_exprs(ctx.rel, stmt, ctx=ctx)
+
     # Compile a GROUP BY into a subquery, along with all the aggregations
     with ctx.subrel() as groupctx:
         grouprel = groupctx.rel
@@ -196,7 +199,6 @@ def _compile_group(
                     binding.path_id,
                     ctx=groupctx,
                 )
-
 
         # First compile the actual subject
         # subrel *solely* for path id map reasons
