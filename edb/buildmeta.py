@@ -222,7 +222,8 @@ def get_extension_dir_path() -> pathlib.Path:
 def hash_dirs(
     dirs: Sequence[Tuple[str, str]],
     *,
-    extra_files: Optional[Sequence[Union[str, pathlib.Path]]]=None
+    extra_files: Optional[Sequence[Union[str, pathlib.Path]]]=None,
+    extra_data: Optional[bytes] = None,
 ) -> bytes:
     def hash_dir(dirname, ext, paths):
         with os.scandir(dirname) as it:
@@ -247,6 +248,8 @@ def hash_dirs(
         with open(path, 'rb') as f:
             h.update(f.read())
     h.update(str(sys.version_info[:2]).encode())
+    if extra_data is not None:
+        h.update(extra_data)
     return h.digest()
 
 
