@@ -29,6 +29,7 @@ impl Into<ast::GrammarEntryPoint> for EdgeQLGrammarNode {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(Box::<ast::Expr>)]
 #[stub()]
+#[list(separator=COMMA, trailing=true)]
 pub enum Expr {
     BaseAtomicExpr,
     DETACHED_Expr,
@@ -74,6 +75,7 @@ pub enum Expr {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(Vec::<ast::AccessKind>)]
+#[list(separator=COMMA)]
 pub enum AccessKind {
     ALL,
     DELETE,
@@ -100,30 +102,3 @@ impl From<AccessKindNode> for Vec<ast::AccessKind> {
         }
     }
 }
-
-macro_rules! list {
-    ($name: ident, $inner: ident) => {
-        #[derive(edgeql_parser_derive::Reduce)]
-        #[output(Vec::<Vec::<ast::AccessKind>>)]
-        pub enum $name {
-            $inner,
-            AccessKindList_COMMA_AccessKind,
-        }
-
-        impl From<AccessKindListNode> for Vec<Vec<ast::AccessKind>> {
-            fn from(value: AccessKindListNode) -> Self {
-                match value {
-                    AccessKindListNode::AccessKind(a) => {
-                        vec![a]
-                    }
-                    AccessKindListNode::AccessKindList_COMMA_AccessKind(mut list, a) => {
-                        list.push(a);
-                        list
-                    }
-                }
-            }
-        }
-    };
-}
-
-list!(AccessKindList, AccessKind);

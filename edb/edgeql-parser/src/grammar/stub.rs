@@ -13,27 +13,6 @@ pub enum AbortMigrationStmt {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AccessKind {
-    ALL,
-    DELETE,
-    INSERT,
-    SELECT,
-    UPDATE,
-    UPDATE_READ,
-    UPDATE_WRITE,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum AccessKindList {
-    AccessKind,
-    AccessKindList_COMMA_AccessKind,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AccessPermStmt {
     AccessPolicyAction_AccessKindList,
 }
@@ -3427,80 +3406,6 @@ pub enum DropTriggerStmt {
 pub enum EdgeQLBlock {
     OptSemicolons,
     StatementBlock_OptSemicolons,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(ast::GrammarEntryPoint)]
-#[stub()]
-pub enum EdgeQLGrammar {
-    STARTBLOCK_EdgeQLBlock_EOI,
-    STARTEXTENSION_CreateExtensionPackageCommandsBlock_EOI,
-    STARTFRAGMENT_ExprStmt_EOI,
-    STARTFRAGMENT_Expr_EOI,
-    STARTMIGRATION_CreateMigrationCommandsBlock_EOI,
-    STARTSDLDOCUMENT_SDLDocument_EOI,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum Expr {
-    BaseAtomicExpr,
-    DETACHED_Expr,
-    DISTINCT_Expr,
-    EXISTS_Expr,
-    Expr_AND_Expr,
-    Expr_CIRCUMFLEX_Expr,
-    Expr_CompareOp_Expr_P_COMPARE_OP,
-    Expr_DOUBLEPLUS_Expr,
-    Expr_DOUBLEQMARK_Expr_P_DOUBLEQMARK_OP,
-    Expr_DOUBLESLASH_Expr,
-    Expr_EXCEPT_Expr,
-    Expr_IF_Expr_ELSE_Expr,
-    Expr_ILIKE_Expr,
-    Expr_INTERSECT_Expr,
-    Expr_IN_Expr,
-    Expr_IS_NOT_TypeExpr_P_IS,
-    Expr_IS_TypeExpr,
-    Expr_IndirectionEl,
-    Expr_LIKE_Expr,
-    Expr_MINUS_Expr,
-    Expr_NOT_ILIKE_Expr,
-    Expr_NOT_IN_Expr_P_IN,
-    Expr_NOT_LIKE_Expr,
-    Expr_OR_Expr,
-    Expr_PERCENT_Expr,
-    Expr_PLUS_Expr,
-    Expr_SLASH_Expr,
-    Expr_STAR_Expr,
-    Expr_Shape,
-    Expr_UNION_Expr,
-    GLOBAL_NodeName,
-    INTROSPECT_TypeExpr,
-    IfThenElseExpr,
-    LANGBRACKET_FullTypeExpr_RANGBRACKET_Expr_P_TYPECAST,
-    LANGBRACKET_OPTIONAL_FullTypeExpr_RANGBRACKET_Expr_P_TYPECAST,
-    LANGBRACKET_REQUIRED_FullTypeExpr_RANGBRACKET_Expr_P_TYPECAST,
-    MINUS_Expr_P_UMINUS,
-    NOT_Expr,
-    PLUS_Expr_P_UMINUS,
-    Path,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum ExprList {
-    ExprListInner,
-    ExprListInner_COMMA,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum ExprListInner {
-    Expr,
-    ExprListInner_COMMA_Expr,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
