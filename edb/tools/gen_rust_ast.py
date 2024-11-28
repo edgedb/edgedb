@@ -62,14 +62,18 @@ def gen_rust_ast() -> None:
 
     # discover all nodes
     for name, typ in qlast.__dict__.items():
-        if not isinstance(typ, type) or not hasattr(typ, '_direct_fields'):
+        if not isinstance(typ, type):
             continue
 
-        if not issubclass(typ, qlast.Base):
+        if not issubclass(typ, (qlast.Base, qlast.GrammarEntryPoint)):
             continue
 
-        # re-run field collection to correctly handle forward-references
-        typ = typ._collect_direct_fields()  # type: ignore
+        if hasattr(typ, '_direct_fields'):
+            # re-run field collection to correctly handle forward-references
+            typ = typ._collect_direct_fields()  # type: ignore
+
+        if name in {'Base', 'DDL'}:
+            continue
 
         ast_classes[typ.__name__] = ASTClass(name=name, typ=typ)
 
@@ -82,6 +86,7 @@ def gen_rust_ast() -> None:
 
     # generate structs
     for ast_class in ast_classes.values():
+        print(ast_class.name)
         f.write(codegen_struct(ast_class))
 
         while len(union_types) > 0:
@@ -168,7 +173,7 @@ def codegen_struct(cls: ASTClass) -> str:
 
         union_name = f'{cls.name}{title_case(f.name)}'
 
-        print(f'struct {cls.name}, field {f.name}, type: {f.type}')
+        # print(f'struct {cls.name}, field {f.name}, type: {f.type}')
         typ = translate_type(f.type, union_name, False)
         if hasattr(cls.typ, '__rust_box__') and f.name in cls.typ.__rust_box__:
             typ = f'Box<{typ}>'
@@ -228,7 +233,7 @@ def codegen_union(union: ASTUnion) -> str:
         if isinstance(arg, str):
             fields += f'    {arg},\n'
         else:
-            print(f'union {union.name}, variant {arg}')
+            # print(f'union {union.name}, variant {arg}')
             typ = translate_type(arg, '???', union.for_composition)
             fields += f'    {arg.__name__}({typ}),\n'
 

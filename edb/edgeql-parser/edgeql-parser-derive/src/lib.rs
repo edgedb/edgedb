@@ -2,6 +2,22 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse_macro_input;
 
+/// Implements [edgeql_parser::grammar::Reduce] for conversion from CST nodes to
+/// AST nodes.
+///
+/// Requires an enum with unit variants only. Each variant name is interpreted
+/// as a "production name", which consists of names of parser terms (either
+/// Terminals or NonTerminals), delimited by `_`.
+///
+/// Requires an `#[output(...)]` attribute, which denotes the output type of
+/// this parser non-terminal.
+///
+/// Will generate a `*Node` enum, which contains the reduced AST nodes of child
+/// non-terminals. This "node" requires an implementation of `Into<OutputTy>`,
+/// or rather `OutputTy` requires `From<Node>`.
+///
+/// If `#[stub()]` attribute is present, the `From` trait is automatically
+/// derived, filled with `todo!()`.
 #[proc_macro_derive(Reduce, attributes(output, stub))]
 pub fn grammar_non_terminal(input: TokenStream) -> TokenStream {
     let item = parse_macro_input!(input as syn::Item);
@@ -11,7 +27,7 @@ pub fn grammar_non_terminal(input: TokenStream) -> TokenStream {
     };
 
     let name = &enum_item.ident;
-    let data_name = format_ident!("{name}Data");
+    let node_name = format_ident!("{name}Node");
 
     let output_ty = find_list_attribute(&enum_item, "output")
         .unwrap_or_else(|| panic!("missing #[output(...)] attribute"));
@@ -20,7 +36,7 @@ pub fn grammar_non_terminal(input: TokenStream) -> TokenStream {
 
     let is_stub = find_list_attribute(&enum_item, "stub").is_some();
 
-    let mut data_variants = proc_macro2::TokenStream::new();
+    let mut node_variants = proc_macro2::TokenStream::new();
     for variant in &enum_item.variants {
         let variant_name = &variant.ident;
 
@@ -32,7 +48,7 @@ pub fn grammar_non_terminal(input: TokenStream) -> TokenStream {
             });
         }
 
-        data_variants.extend(quote! {
+        node_variants.extend(quote! {
             #variant_name(#kids),
         });
     }
@@ -58,8 +74,8 @@ pub fn grammar_non_terminal(input: TokenStream) -> TokenStream {
             Self::#variant_name => {
                 #calls
 
-                let data = #data_name::#variant_name(#args);
-                #output_ty::from(data)
+                let node = #node_name::#variant_name(#args);
+                <#node_name as Into<#output_ty>>::into(node)
             }
         });
     }
@@ -67,8 +83,8 @@ pub fn grammar_non_terminal(input: TokenStream) -> TokenStream {
     let mut stub = proc_macro2::TokenStream::new();
     if is_stub {
         stub.extend(quote! {
-            impl From<#data_name> for #output_ty {
-                fn from(val: #data_name) -> Self {
+            impl From<#node_name> for #output_ty {
+                fn from(val: #node_name) -> Self {
                     todo!();
                 }
             }
@@ -76,8 +92,8 @@ pub fn grammar_non_terminal(input: TokenStream) -> TokenStream {
     }
 
     let output = quote!(
-        enum #data_name {
-            #data_variants
+        enum #node_name {
+            #node_variants
         }
 
         impl Reduce for #name {

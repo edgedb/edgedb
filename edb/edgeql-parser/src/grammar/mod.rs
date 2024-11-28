@@ -10,16 +10,14 @@ mod stub;
 use non_terminals::*;
 use stub::*;
 
-use crate::parser::CSTNode;
-
-pub fn cst_to_ast(node: &CSTNode) -> TodoAst {
+pub fn cst_to_ast(node: &crate::parser::CSTNode) -> crate::ast::GrammarEntryPoint {
     EdgeQLGrammar::reduce(node)
 }
 
 trait Reduce {
     type Output;
 
-    fn reduce(node: &CSTNode) -> Self::Output;
+    fn reduce(node: &crate::parser::CSTNode) -> Self::Output;
 }
 
 trait FromId: Sized {

@@ -13,6 +13,27 @@ pub enum AbortMigrationStmt {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
+pub enum AccessKind {
+    ALL,
+    DELETE,
+    INSERT,
+    SELECT,
+    UPDATE,
+    UPDATE_READ,
+    UPDATE_WRITE,
+}
+
+#[derive(edgeql_parser_derive::Reduce)]
+#[output(TodoAst)]
+#[stub()]
+pub enum AccessKindList {
+    AccessKind,
+    AccessKindList_COMMA_AccessKind,
+}
+
+#[derive(edgeql_parser_derive::Reduce)]
+#[output(TodoAst)]
+#[stub()]
 pub enum AccessPermStmt {
     AccessPolicyAction_AccessKindList,
 }
@@ -56,7 +77,7 @@ pub enum AccessWhenStmt {
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[output(ast::AdministerStmt)]
 #[stub()]
 pub enum AdministerStmt {
     ADMINISTER_FuncExpr,
@@ -591,6 +612,13 @@ pub enum AlterExtending {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
+pub enum AlterExtensionStmt {
+    ALTER_EXTENSION_ShortNodeName_TO_ExtensionVersion,
+}
+
+#[derive(edgeql_parser_derive::Reduce)]
+#[output(TodoAst)]
+#[stub()]
 pub enum AlterFunctionCommand {
     AlterAnnotationValueStmt,
     CreateAnnotationValueStmt,
@@ -1105,7 +1133,7 @@ pub enum AlterTriggerStmt {
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[output(ast::ExplainStmt)]
 #[stub()]
 pub enum AnalyzeStmt {
     ANALYZE_ExprStmt,
@@ -1438,7 +1466,7 @@ pub enum ConcreteUnknownPointerShort {
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[output(ast::ConfigOp)]
 #[stub()]
 pub enum ConfigOp {
     INSERT_NodeName_Shape,
@@ -2070,6 +2098,13 @@ pub enum CreateExtensionPackageCommandsBlock {
 pub enum CreateExtensionPackageCommandsList {
     CreateExtensionPackageCommand,
     CreateExtensionPackageCommandsList_Semicolons_CreateExtensionPackageCommand,
+}
+
+#[derive(edgeql_parser_derive::Reduce)]
+#[output(TodoAst)]
+#[stub()]
+pub enum CreateExtensionPackageMigrationStmt {
+    CREATE_EXTENSIONPACKAGE_ShortNodeName_MIGRATION_FROM_ExtensionVersion_TO_ExtensionVersion_OptCreateExtensionPackageCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -2995,7 +3030,7 @@ pub enum CreateTriggerStmt {
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[output(ast::DDLCommand)]
 #[stub()]
 pub enum DDLStmt {
     BranchStmt,
@@ -3043,7 +3078,7 @@ pub enum DescribeFormat {
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[output(ast::DescribeStmt)]
 #[stub()]
 pub enum DescribeStmt {
     DESCRIBE_CURRENT_BRANCH_CONFIG_DescribeFormat,
@@ -3205,6 +3240,13 @@ pub enum DropConstraintStmt {
 #[stub()]
 pub enum DropDatabaseStmt {
     DROP_DATABASE_DatabaseName,
+}
+
+#[derive(edgeql_parser_derive::Reduce)]
+#[output(TodoAst)]
+#[stub()]
+pub enum DropExtensionPackageMigrationStmt {
+    DROP_EXTENSIONPACKAGE_ShortNodeName_MIGRATION_FROM_ExtensionVersion_TO_ExtensionVersion,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -3380,7 +3422,7 @@ pub enum DropTriggerStmt {
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[output(Vec::<ast::Command>)]
 #[stub()]
 pub enum EdgeQLBlock {
     OptSemicolons,
@@ -3388,7 +3430,7 @@ pub enum EdgeQLBlock {
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[output(ast::GrammarEntryPoint)]
 #[stub()]
 pub enum EdgeQLGrammar {
     STARTBLOCK_EdgeQLBlock_EOI,
@@ -3500,7 +3542,9 @@ pub enum ExtendingSimple {
 #[output(TodoAst)]
 #[stub()]
 pub enum ExtensionPackageStmt {
+    CreateExtensionPackageMigrationStmt,
     CreateExtensionPackageStmt,
+    DropExtensionPackageMigrationStmt,
     DropExtensionPackageStmt,
 }
 
@@ -3515,6 +3559,7 @@ pub enum ExtensionRequirementDeclaration {
 #[output(TodoAst)]
 #[stub()]
 pub enum ExtensionStmt {
+    AlterExtensionStmt,
     CreateExtensionStmt,
     DropExtensionStmt,
 }
@@ -4968,7 +5013,7 @@ pub enum ResetSchemaStmt {
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[output(ast::SessionResetAliasDecl)]
 #[stub()]
 pub enum ResetStmt {
     RESET_ALIAS_Identifier,
@@ -5146,7 +5191,7 @@ pub enum Semicolons {
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[output(ast::Command)]
 #[stub()]
 pub enum SessionStmt {
     ResetStmt,
@@ -5234,7 +5279,7 @@ pub enum SetRequiredStmt {
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[output(ast::SessionSetAliasDecl)]
 #[stub()]
 pub enum SetStmt {
     SET_ALIAS_Identifier_AS_MODULE_ModuleName,
@@ -5389,7 +5434,7 @@ pub enum SimpleUpdate {
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[output(ast::Command)]
 #[stub()]
 pub enum SingleStatement {
     ConfigStmt,
@@ -5446,7 +5491,7 @@ pub enum StatementBlock {
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[output(ast::Command)]
 #[stub()]
 pub enum Stmt {
     AdministerStmt,

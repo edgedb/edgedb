@@ -8,31 +8,12 @@
 use indexmap::IndexMap;
 
 #[derive(Debug, Clone)]
-pub enum Base {
-    OptionValue(OptionValue),
-    Options(Options),
+pub enum GrammarEntryPoint {
     Expr(Box<Expr>),
-    SortExpr(SortExpr),
-    Alias(Alias),
-    GroupingAtom(GroupingAtom),
-    BaseObjectRef(BaseObjectRef),
-    Index(Index),
-    Slice(Slice),
-    WindowSpec(WindowSpec),
-    TypeExpr(TypeExpr),
-    FuncParam(FuncParam),
-    TypeIntersection(TypeIntersection),
-    Ptr(Ptr),
-    Splat(Splat),
-    TupleElement(TupleElement),
     Command(Command),
-    ShapeOperation(ShapeOperation),
-    GroupingIdentList(GroupingIdentList),
-    GroupingElement(GroupingElement),
-    Transaction(Transaction),
-    DDL(DDL),
-    ConfigOp(ConfigOp),
-    SDL(SDL),
+    Query(Query),
+    CreateMigration(CreateMigration),
+    Schema(Schema),
 }
 
 #[derive(Debug, Clone)]
@@ -380,6 +361,7 @@ pub enum Command {
     SessionResetAliasDecl(SessionResetAliasDecl),
     SessionResetModule(SessionResetModule),
     SessionResetAllAliases(SessionResetAllAliases),
+    DDLCommand(DDLCommand),
     DescribeStmt(DescribeStmt),
     ExplainStmt(ExplainStmt),
     AdministerStmt(AdministerStmt),
@@ -589,19 +571,6 @@ pub struct ReleaseSavepoint {
 }
 
 #[derive(Debug, Clone)]
-pub enum DDL {
-    Position(Position),
-    DDLOperation(DDLOperation),
-    NestedQLBlock(NestedQLBlock),
-    CommittedSchema(CommittedSchema),
-    IndexType(IndexType),
-    IndexCode(IndexCode),
-    FunctionCode(FunctionCode),
-    OperatorCode(OperatorCode),
-    CastCode(CastCode),
-}
-
-#[derive(Debug, Clone)]
 pub struct Position {
     pub r#ref: Option<ObjectRef>,
     pub position: String,
@@ -621,7 +590,7 @@ pub enum DDLOperation {
 #[derive(Debug, Clone)]
 pub enum DDLCommand {
     NonTransactionalDDLCommand(NonTransactionalDDLCommand),
-    NamedDDL(NamedDDL),
+    ObjectDDL(ObjectDDL),
     MigrationCommand(MigrationCommand),
     FunctionCommand(FunctionCommand),
     OperatorCommand(OperatorCommand),
@@ -714,16 +683,11 @@ pub enum SetPointerOptionalityValue {
 }
 
 #[derive(Debug, Clone)]
-pub enum NamedDDL {
-    ObjectDDL(ObjectDDL),
-    Rename(Rename),
-}
-
-#[derive(Debug, Clone)]
 pub enum ObjectDDL {
     CreateObject(CreateObject),
     AlterObject(AlterObject),
     DropObject(DropObject),
+    Rename(Rename),
     UnqualifiedObjectCommand(UnqualifiedObjectCommand),
     AnnotationCommand(AnnotationCommand),
     PseudoTypeCommand(PseudoTypeCommand),
@@ -748,6 +712,7 @@ pub enum CreateObject {
     CreateMigration(CreateMigration),
     CreateDatabase(CreateDatabase),
     CreateExtensionPackage(CreateExtensionPackage),
+    CreateExtensionPackageMigration(CreateExtensionPackageMigration),
     CreateExtension(CreateExtension),
     CreateFuture(CreateFuture),
     CreateModule(CreateModule),
@@ -802,6 +767,8 @@ pub enum DropObject {
     DropMigration(DropMigration),
     DropDatabase(DropDatabase),
     DropExtensionPackage(DropExtensionPackage),
+    DropExtensionPackageMigration(DropExtensionPackageMigration),
+    AlterExtension(AlterExtension),
     DropExtension(DropExtension),
     DropFuture(DropFuture),
     DropModule(DropModule),
@@ -843,8 +810,8 @@ pub enum CreateExtendingObject {
 
 #[derive(Debug, Clone)]
 pub struct Rename {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub new_name: ObjectRef,
 }
@@ -874,8 +841,8 @@ pub enum MigrationCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateMigration {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -891,8 +858,8 @@ pub struct CommittedSchema {}
 
 #[derive(Debug, Clone)]
 pub struct StartMigration {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub target: StartMigrationTarget,
 }
 
@@ -904,72 +871,72 @@ pub enum StartMigrationTarget {
 
 #[derive(Debug, Clone)]
 pub struct AbortMigration {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
 }
 
 #[derive(Debug, Clone)]
 pub struct PopulateMigration {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
 }
 
 #[derive(Debug, Clone)]
 pub struct AlterCurrentMigrationRejectProposed {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
 }
 
 #[derive(Debug, Clone)]
 pub struct DescribeCurrentMigration {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub language: DescribeLanguage,
 }
 
 #[derive(Debug, Clone)]
 pub struct CommitMigration {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
 }
 
 #[derive(Debug, Clone)]
 pub struct AlterMigration {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropMigration {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct ResetSchema {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub target: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct StartMigrationRewrite {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
 }
 
 #[derive(Debug, Clone)]
 pub struct AbortMigrationRewrite {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
 }
 
 #[derive(Debug, Clone)]
 pub struct CommitMigrationRewrite {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
 }
 
 #[derive(Debug, Clone)]
@@ -984,6 +951,7 @@ pub enum UnqualifiedObjectCommand {
 pub enum GlobalObjectCommand {
     ExternalObjectCommand(ExternalObjectCommand),
     ExtensionPackageCommand(ExtensionPackageCommand),
+    ExtensionPackageMigrationCommand(ExtensionPackageMigrationCommand),
     RoleCommand(RoleCommand),
 }
 
@@ -1001,8 +969,8 @@ pub enum DatabaseCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateDatabase {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub flavor: SchemaObjectClass,
     pub r#abstract: bool,
@@ -1014,8 +982,8 @@ pub struct CreateDatabase {
 
 #[derive(Debug, Clone)]
 pub struct AlterDatabase {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub flavor: SchemaObjectClass,
     pub force: bool,
@@ -1023,8 +991,8 @@ pub struct AlterDatabase {
 
 #[derive(Debug, Clone)]
 pub struct DropDatabase {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub flavor: SchemaObjectClass,
     pub force: bool,
@@ -1038,8 +1006,8 @@ pub enum ExtensionPackageCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateExtensionPackage {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub version: Constant,
     pub r#abstract: bool,
@@ -1050,34 +1018,71 @@ pub struct CreateExtensionPackage {
 
 #[derive(Debug, Clone)]
 pub struct DropExtensionPackage {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub version: Constant,
 }
 
 #[derive(Debug, Clone)]
+pub enum ExtensionPackageMigrationCommand {
+    CreateExtensionPackageMigration(CreateExtensionPackageMigration),
+    DropExtensionPackageMigration(DropExtensionPackageMigration),
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateExtensionPackageMigration {
+    pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
+    pub name: ObjectRef,
+    pub r#abstract: bool,
+    pub sdl_alter_if_exists: bool,
+    pub create_if_not_exists: bool,
+    pub from_version: Constant,
+    pub to_version: Constant,
+    pub body: NestedQLBlock,
+}
+
+#[derive(Debug, Clone)]
+pub struct DropExtensionPackageMigration {
+    pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
+    pub name: ObjectRef,
+    pub from_version: Constant,
+    pub to_version: Constant,
+}
+
+#[derive(Debug, Clone)]
 pub enum ExtensionCommand {
     CreateExtension(CreateExtension),
+    AlterExtension(AlterExtension),
     DropExtension(DropExtension),
-    DropFuture(DropFuture),
 }
 
 #[derive(Debug, Clone)]
 pub struct CreateExtension {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
-    pub version: Option<Constant>,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
     pub create_if_not_exists: bool,
+    pub version: Option<Constant>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AlterExtension {
+    pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
+    pub name: ObjectRef,
+    pub version: Option<Constant>,
+    pub to_version: Constant,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropExtension {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub version: Option<Constant>,
 }
@@ -1085,12 +1090,13 @@ pub struct DropExtension {
 #[derive(Debug, Clone)]
 pub enum FutureCommand {
     CreateFuture(CreateFuture),
+    DropFuture(DropFuture),
 }
 
 #[derive(Debug, Clone)]
 pub struct CreateFuture {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1099,10 +1105,9 @@ pub struct CreateFuture {
 
 #[derive(Debug, Clone)]
 pub struct DropFuture {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
-    pub version: Option<Constant>,
 }
 
 #[derive(Debug, Clone)]
@@ -1114,8 +1119,8 @@ pub enum ModuleCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateModule {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1124,15 +1129,15 @@ pub struct CreateModule {
 
 #[derive(Debug, Clone)]
 pub struct AlterModule {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropModule {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1145,8 +1150,8 @@ pub enum RoleCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateRole {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1157,15 +1162,15 @@ pub struct CreateRole {
 
 #[derive(Debug, Clone)]
 pub struct AlterRole {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropRole {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1181,8 +1186,8 @@ pub enum AnnotationCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateAnnotation {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1195,15 +1200,15 @@ pub struct CreateAnnotation {
 
 #[derive(Debug, Clone)]
 pub struct AlterAnnotation {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropAnnotation {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1214,8 +1219,8 @@ pub enum PseudoTypeCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreatePseudoType {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1231,8 +1236,8 @@ pub enum ScalarTypeCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateScalarType {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1243,15 +1248,15 @@ pub struct CreateScalarType {
 
 #[derive(Debug, Clone)]
 pub struct AlterScalarType {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropScalarType {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1268,8 +1273,8 @@ pub enum PropertyCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateProperty {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1280,15 +1285,15 @@ pub struct CreateProperty {
 
 #[derive(Debug, Clone)]
 pub struct AlterProperty {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropProperty {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1301,8 +1306,8 @@ pub enum CreateConcretePointer {
 
 #[derive(Debug, Clone)]
 pub struct CreateConcreteUnknownPointer {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1323,15 +1328,15 @@ pub enum CreateConcreteUnknownPointerTarget {
 
 #[derive(Debug, Clone)]
 pub struct AlterConcreteUnknownPointer {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct CreateConcreteProperty {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1352,15 +1357,15 @@ pub enum CreateConcretePropertyTarget {
 
 #[derive(Debug, Clone)]
 pub struct AlterConcreteProperty {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropConcreteProperty {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1373,8 +1378,8 @@ pub enum ObjectTypeCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateObjectType {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1385,15 +1390,15 @@ pub struct CreateObjectType {
 
 #[derive(Debug, Clone)]
 pub struct AlterObjectType {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropObjectType {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1406,8 +1411,8 @@ pub enum AliasCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateAlias {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1416,15 +1421,15 @@ pub struct CreateAlias {
 
 #[derive(Debug, Clone)]
 pub struct AlterAlias {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropAlias {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1437,8 +1442,8 @@ pub enum GlobalCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateGlobal {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1457,15 +1462,15 @@ pub enum CreateGlobalTarget {
 
 #[derive(Debug, Clone)]
 pub struct AlterGlobal {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropGlobal {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1491,8 +1496,8 @@ pub enum LinkCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateLink {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1503,22 +1508,22 @@ pub struct CreateLink {
 
 #[derive(Debug, Clone)]
 pub struct AlterLink {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropLink {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct CreateConcreteLink {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1540,15 +1545,15 @@ pub enum CreateConcreteLinkTarget {
 
 #[derive(Debug, Clone)]
 pub struct AlterConcreteLink {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropConcreteLink {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1562,8 +1567,8 @@ pub enum ConstraintCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateConstraint {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1576,15 +1581,15 @@ pub struct CreateConstraint {
 
 #[derive(Debug, Clone)]
 pub struct AlterConstraint {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropConstraint {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1597,8 +1602,8 @@ pub enum ConcreteConstraintOp {
 
 #[derive(Debug, Clone)]
 pub struct CreateConcreteConstraint {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1611,8 +1616,8 @@ pub struct CreateConcreteConstraint {
 
 #[derive(Debug, Clone)]
 pub struct AlterConcreteConstraint {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub args: Vec<Box<Expr>>,
     pub subjectexpr: Option<Box<Expr>>,
@@ -1621,8 +1626,8 @@ pub struct AlterConcreteConstraint {
 
 #[derive(Debug, Clone)]
 pub struct DropConcreteConstraint {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub args: Vec<Box<Expr>>,
     pub subjectexpr: Option<Box<Expr>>,
@@ -1652,8 +1657,8 @@ pub struct IndexCode {
 
 #[derive(Debug, Clone)]
 pub struct CreateIndex {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1668,15 +1673,15 @@ pub struct CreateIndex {
 
 #[derive(Debug, Clone)]
 pub struct AlterIndex {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropIndex {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1688,10 +1693,9 @@ pub enum IndexMatchCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateIndexMatch {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
-    pub object_class: SchemaObjectClass,
     pub valid_type: TypeName,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1700,10 +1704,9 @@ pub struct CreateIndexMatch {
 
 #[derive(Debug, Clone)]
 pub struct DropIndexMatch {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
-    pub object_class: SchemaObjectClass,
     pub valid_type: TypeName,
 }
 
@@ -1716,8 +1719,8 @@ pub enum ConcreteIndexCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateConcreteIndex {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1730,8 +1733,8 @@ pub struct CreateConcreteIndex {
 
 #[derive(Debug, Clone)]
 pub struct AlterConcreteIndex {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub kwargs: IndexMap<String, Box<Expr>>,
     pub expr: Box<Expr>,
@@ -1741,8 +1744,8 @@ pub struct AlterConcreteIndex {
 
 #[derive(Debug, Clone)]
 pub struct DropConcreteIndex {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub kwargs: IndexMap<String, Box<Expr>>,
     pub expr: Box<Expr>,
@@ -1752,8 +1755,8 @@ pub struct DropConcreteIndex {
 
 #[derive(Debug, Clone)]
 pub struct CreateAnnotationValue {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1763,16 +1766,16 @@ pub struct CreateAnnotationValue {
 
 #[derive(Debug, Clone)]
 pub struct AlterAnnotationValue {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub value: Option<Box<Expr>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropAnnotationValue {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1785,8 +1788,8 @@ pub enum AccessPolicyCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateAccessPolicy {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1806,15 +1809,15 @@ pub struct SetAccessPerms {
 
 #[derive(Debug, Clone)]
 pub struct AlterAccessPolicy {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropAccessPolicy {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1827,8 +1830,8 @@ pub enum TriggerCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateTrigger {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
@@ -1842,15 +1845,15 @@ pub struct CreateTrigger {
 
 #[derive(Debug, Clone)]
 pub struct AlterTrigger {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropTrigger {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
 }
 
@@ -1863,8 +1866,8 @@ pub enum RewriteCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateRewrite {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub kinds: Vec<RewriteKind>,
     pub r#abstract: bool,
@@ -1875,16 +1878,16 @@ pub struct CreateRewrite {
 
 #[derive(Debug, Clone)]
 pub struct AlterRewrite {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub kinds: Vec<RewriteKind>,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropRewrite {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub kinds: Vec<RewriteKind>,
 }
@@ -1907,8 +1910,8 @@ pub enum FunctionCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateFunction {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub params: Vec<FuncParam>,
     pub name: ObjectRef,
     pub r#abstract: bool,
@@ -1922,8 +1925,8 @@ pub struct CreateFunction {
 
 #[derive(Debug, Clone)]
 pub struct AlterFunction {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub params: Vec<FuncParam>,
     pub name: ObjectRef,
     pub code: FunctionCode,
@@ -1932,8 +1935,8 @@ pub struct AlterFunction {
 
 #[derive(Debug, Clone)]
 pub struct DropFunction {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub params: Vec<FuncParam>,
     pub name: ObjectRef,
 }
@@ -1956,8 +1959,8 @@ pub enum OperatorCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateOperator {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub kind: OperatorKind,
     pub params: Vec<FuncParam>,
     pub name: ObjectRef,
@@ -1971,8 +1974,8 @@ pub struct CreateOperator {
 
 #[derive(Debug, Clone)]
 pub struct AlterOperator {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub kind: OperatorKind,
     pub params: Vec<FuncParam>,
     pub name: ObjectRef,
@@ -1980,8 +1983,8 @@ pub struct AlterOperator {
 
 #[derive(Debug, Clone)]
 pub struct DropOperator {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub kind: OperatorKind,
     pub params: Vec<FuncParam>,
     pub name: ObjectRef,
@@ -2005,8 +2008,8 @@ pub enum CastCommand {
 
 #[derive(Debug, Clone)]
 pub struct CreateCast {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub from_type: TypeName,
     pub to_type: TypeName,
@@ -2020,8 +2023,8 @@ pub struct CreateCast {
 
 #[derive(Debug, Clone)]
 pub struct AlterCast {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub from_type: TypeName,
     pub to_type: TypeName,
@@ -2029,8 +2032,8 @@ pub struct AlterCast {
 
 #[derive(Debug, Clone)]
 pub struct DropCast {
-    pub commands: Vec<DDLOperation>,
     pub aliases: Option<Vec<Alias>>,
+    pub commands: Vec<DDLOperation>,
     pub name: ObjectRef,
     pub from_type: TypeName,
     pub to_type: TypeName,
@@ -2110,7 +2113,7 @@ pub struct ModuleDeclaration {
 
 #[derive(Debug, Clone)]
 pub enum ModuleDeclarationDeclarations {
-    NamedDDL(NamedDDL),
+    ObjectDDL(ObjectDDL),
     ModuleDeclaration(ModuleDeclaration),
 }
 
@@ -2121,7 +2124,7 @@ pub struct Schema {
 
 #[derive(Debug, Clone)]
 pub enum SchemaDeclarations {
-    NamedDDL(NamedDDL),
+    ObjectDDL(ObjectDDL),
     ModuleDeclaration(ModuleDeclaration),
 }
 
@@ -2330,6 +2333,7 @@ pub enum SchemaObjectClass {
     DATABASE,
     EXTENSION,
     EXTENSION_PACKAGE,
+    EXTENSION_PACKAGE_MIGRATION,
     FUTURE,
     FUNCTION,
     GLOBAL,

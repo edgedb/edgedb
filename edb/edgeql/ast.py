@@ -101,7 +101,7 @@ class Base(ast.AST):
 
 class GrammarEntryPoint(Base):
     """Mixin denoting nodes that are entry points for EdgeQL grammar"""
-    __mixin_node__ = True
+    __abstract_node__ = True
 
 
 class OptionValue(Base):
@@ -660,7 +660,7 @@ class ReleaseSavepoint(Transaction):
 
 class DDL(Base):
     '''A mixin denoting DDL nodes.'''
-    __mixin_node__ = True
+    __abstract_node__ = True
 
 
 class Position(DDL):
@@ -1539,7 +1539,7 @@ class AdministerStmt(Command):
 class SDL(Base):
     '''A mixin denoting SDL nodes.'''
 
-    __mixin_node__ = True
+    __abstract_node__ = True
 
 
 class ModuleDeclaration(SDL):
