@@ -136,9 +136,11 @@ cdef class Connection:
             self._protocol.write(buf)
 
     async def aclose(self):
+        print('begin aclose', id(self))
         # TODO: Fix when edgedb-python implements proper cancellation
         asyncio.get_running_loop().call_soon(lambda: self._protocol.abort())
         await self._protocol.wait_for_disconnect()
+        print('end aclose', id(self))
 
 
 async def new_connection(
