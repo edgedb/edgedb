@@ -1139,6 +1139,7 @@ def trace_GroupingAtom(node: qlast.GroupingAtom, *, ctx: TracerContext) -> None:
     elif isinstance(node, qlast.Path):
         trace(node, ctx=ctx)
     else:
+        assert isinstance(node, qlast.GroupingIdentList)
         for el in node.elements:
             trace_GroupingAtom(el, ctx=ctx)
 

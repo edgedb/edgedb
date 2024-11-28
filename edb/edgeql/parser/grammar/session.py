@@ -28,6 +28,8 @@ from .expressions import *  # NOQA
 
 
 class SessionStmt(Nonterm):
+    val: qlast.Command
+
     @parsing.inline(0)
     def reduce_SetStmt(self, *kids):
         pass
@@ -38,6 +40,8 @@ class SessionStmt(Nonterm):
 
 
 class SetStmt(Nonterm):
+    val: qlast.SessionSetAliasDecl
+
     def reduce_SET_ALIAS_Identifier_AS_MODULE_ModuleName(self, *kids):
         _, _, alias, _, _, module = kids
         self.val = qlast.SessionSetAliasDecl(
@@ -54,6 +58,8 @@ class SetStmt(Nonterm):
 
 
 class ResetStmt(Nonterm):
+    val: qlast.SessionResetAliasDecl
+
     def reduce_RESET_ALIAS_Identifier(self, *kids):
         self.val = qlast.SessionResetAliasDecl(
             alias=kids[2].val)

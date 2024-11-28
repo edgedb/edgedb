@@ -46,6 +46,8 @@ class ListNonterm(parsing.ListNonterm, element=None, is_internal=True):
 
 
 class ExprStmt(Nonterm):
+    val: qlast.Query
+
     def reduce_WithBlock_ExprStmtCore(self, *kids):
         self.val = kids[1].val
         self.val.aliases = kids[0].val.aliases
@@ -56,6 +58,8 @@ class ExprStmt(Nonterm):
 
 
 class ExprStmtCore(Nonterm):
+    val: qlast.Query
+
     @parsing.inline(0)
     def reduce_SimpleFor(self, *kids):
         pass
@@ -86,11 +90,21 @@ class ExprStmtCore(Nonterm):
 
 
 class AliasedExpr(Nonterm):
+    val: qlast.AliasedExpr
+
     def reduce_Identifier_ASSIGN_Expr(self, *kids):
         self.val = qlast.AliasedExpr(alias=kids[0].val, expr=kids[2].val)
 
 
+# NOTE: This is intentionally not an AST node, since this structure never
+# makes it to the actual AST and exists solely for parser convenience.
+AliasedExprSpec = collections.namedtuple(
+    'AliasedExprSpec', ['alias', 'expr'], module=__name__)
+
+
 class OptionallyAliasedExpr(Nonterm):
+    val: AliasedExprSpec
+
     def reduce_AliasedExpr(self, *kids):
         val = kids[0].val
         self.val = AliasedExprSpec(alias=val.alias, expr=val.expr)
@@ -101,16 +115,12 @@ class OptionallyAliasedExpr(Nonterm):
 
 class AliasedExprList(ListNonterm, element=AliasedExpr,
                       separator=tokens.T_COMMA, allow_trailing_separator=True):
-    pass
-
-
-# NOTE: This is intentionally not an AST node, since this structure never
-# makes it to the actual AST and exists solely for parser convenience.
-AliasedExprSpec = collections.namedtuple(
-    'AliasedExprSpec', ['alias', 'expr'], module=__name__)
+    val: typing.List[qlast.AliasedExpr]
 
 
 class GroupingIdent(Nonterm):
+    val: qlast.GroupingAtom
+
     def reduce_Identifier(self, *kids):
         self.val = qlast.ObjectRef(name=kids[0].val)
 
@@ -135,10 +145,12 @@ class GroupingIdent(Nonterm):
 
 class GroupingIdentList(ListNonterm, element=GroupingIdent,
                         separator=tokens.T_COMMA):
-    pass
+    val: typing.List[qlast.GroupingAtom]
 
 
 class GroupingAtom(Nonterm):
+    val: qlast.GroupingAtom
+
     @parsing.inline(0)
     def reduce_GroupingIdent(self, *kids):
         pass
@@ -150,10 +162,12 @@ class GroupingAtom(Nonterm):
 class GroupingAtomList(
         ListNonterm, element=GroupingAtom, separator=tokens.T_COMMA,
         allow_trailing_separator=True):
-    pass
+    val: typing.List[qlast.GroupingAtom]
 
 
 class GroupingElement(Nonterm):
+    val: qlast.GroupingElement
+
     def reduce_GroupingAtom(self, *kids):
         self.val = qlast.GroupingSimple(element=kids[0].val)
 
@@ -170,10 +184,12 @@ class GroupingElement(Nonterm):
 class GroupingElementList(
         ListNonterm, element=GroupingElement, separator=tokens.T_COMMA,
         allow_trailing_separator=True):
-    pass
+    val: typing.List[qlast.GroupingElement]
 
 
 class OptionalOptional(Nonterm):
+    val: bool
+
     def reduce_OPTIONAL(self, *kids):
         self.val = True
 
@@ -182,6 +198,8 @@ class OptionalOptional(Nonterm):
 
 
 class SimpleFor(Nonterm):
+    val: qlast.ForQuery
+
     def reduce_ForIn(self, *kids):
         r"%reduce FOR OptionalOptional Identifier IN AtomicExpr UNION Expr"
         _, optional, iterator_alias, _, iterator, _, body = kids
@@ -205,6 +223,8 @@ class SimpleFor(Nonterm):
 
 
 class SimpleSelect(Nonterm):
+    val: qlast.SelectQuery
+
     def reduce_Select(self, *kids):
         r"%reduce SELECT OptionallyAliasedExpr \
                   OptFilterClause OptSortClause OptSelectLimit"
@@ -235,18 +255,24 @@ class SimpleSelect(Nonterm):
 
 
 class ByClause(Nonterm):
+    val: typing.List[qlast.GroupingElement]
+
     @parsing.inline(1)
     def reduce_BY_GroupingElementList(self, *kids):
         pass
 
 
 class UsingClause(Nonterm):
+    val: typing.List[qlast.AliasedExpr]
+
     @parsing.inline(1)
     def reduce_USING_AliasedExprList(self, *kids):
         pass
 
 
 class OptUsingClause(Nonterm):
+    val: typing.List[qlast.AliasedExpr]
+
     @parsing.inline(0)
     def reduce_UsingClause(self, *kids):
         pass
@@ -256,6 +282,8 @@ class OptUsingClause(Nonterm):
 
 
 class SimpleGroup(Nonterm):
+    val: qlast.GroupQuery
+
     def reduce_Group(self, *kids):
         r"%reduce GROUP OptionallyAliasedExpr \
                   OptUsingClause \
@@ -269,6 +297,8 @@ class SimpleGroup(Nonterm):
 
 
 class OptGroupingAlias(Nonterm):
+    val: typing.Optional[qlast.GroupQuery]
+
     @parsing.inline(1)
     def reduce_COMMA_Identifier(self, *kids):
         pass
@@ -278,6 +308,8 @@ class OptGroupingAlias(Nonterm):
 
 
 class InternalGroup(Nonterm):
+    val: qlast.InternalGroupQuery
+
     def reduce_InternalGroup(self, *kids):
         r"%reduce FOR GROUP OptionallyAliasedExpr \
                   UsingClause \
@@ -301,6 +333,8 @@ class InternalGroup(Nonterm):
 
 
 class SimpleInsert(Nonterm):
+    val: qlast.InsertQuery
+
     def reduce_Insert(self, *kids):
         r'%reduce INSERT Expr OptUnlessConflictClause'
 
@@ -356,6 +390,8 @@ class SimpleInsert(Nonterm):
 
 
 class SimpleUpdate(Nonterm):
+    val: qlast.UpdateQuery
+
     def reduce_Update(self, *kids):
         "%reduce UPDATE Expr OptFilterClause SET Shape"
         self.val = qlast.UpdateQuery(
@@ -366,6 +402,8 @@ class SimpleUpdate(Nonterm):
 
 
 class SimpleDelete(Nonterm):
+    val: qlast.DeleteQuery
+
     def reduce_Delete(self, *kids):
         r"%reduce DELETE Expr \
                   OptFilterClause OptSortClause OptSelectLimit"
@@ -1845,6 +1883,8 @@ class OptPosCallArgList(Nonterm):
 
 
 class Identifier(Nonterm):
+    val: str  # == Token.value
+
     def reduce_IDENT(self, ident):
         self.val = ident.clean_value
 

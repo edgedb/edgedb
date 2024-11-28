@@ -673,6 +673,7 @@ def flatten_grouping_atom(atom: qlast.GroupingAtom) -> Tuple[ByElement, ...]:
     if isinstance(atom, (qlast.ObjectRef, qlast.Path)):
         return (get_by_element(atom),)
     else:
+        assert isinstance(atom, qlast.GroupingIdentList)
         return tuple(
             x for g in atom.elements
             for x in flatten_grouping_atom(g)

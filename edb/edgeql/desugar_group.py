@@ -120,6 +120,7 @@ def desugar_group(
                     )
             return qlast.ObjectRef(name=alias)
         else:
+            assert isinstance(el, qlast.GroupingIdentList)
             return qlast.GroupingIdentList(
                 span=el.span,
                 elements=tuple(rewrite_atom(at) for at in el.elements),

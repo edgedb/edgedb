@@ -72,6 +72,8 @@ def get_schema_class(ql: qlast.ObjectDDL) -> qltypes.SchemaObjectClass:
             return osc.LINK
         case qlast.IndexCommand():
             return osc.INDEX
+        case qlast.AccessPolicyCommand():
+            return osc.INDEX_MATCH
         case qlast.TriggerCommand():
             return osc.TRIGGER
         case qlast.RewriteCommand():

@@ -611,6 +611,7 @@ def imprint_expr_context(
         qltree = copy.copy(qltree)
         qltree.aliases = (
             list(qltree.aliases) if qltree.aliases is not None else None)
+    assert isinstance(qltree, (qlast_.Query, qlast_.Command))
 
     existing_aliases: Dict[Optional[str], str] = {}
     for alias in (qltree.aliases or ()):

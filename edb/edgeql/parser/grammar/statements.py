@@ -35,6 +35,7 @@ from . import tokens
 
 
 class Stmt(Nonterm):
+    val: qlast.Command
 
     @parsing.inline(0)
     def reduce_TransactionStmt(self, stmt):
@@ -155,6 +156,7 @@ class DescribeFmt(typing.NamedTuple):
 
 
 class DescribeFormat(Nonterm):
+    val: DescribeFmt
 
     def reduce_empty(self, *kids):
         self.val = DescribeFmt(
@@ -197,6 +199,7 @@ class DescribeFormat(Nonterm):
 
 
 class DescribeStmt(Nonterm):
+    val: qlast.DescribeStmt
 
     def reduce_DESCRIBE_SCHEMA(self, *kids):
         """%reduce DESCRIBE SCHEMA DescribeFormat"""
@@ -281,6 +284,7 @@ class DescribeStmt(Nonterm):
 
 
 class AnalyzeStmt(Nonterm):
+    val: qlast.ExplainStmt
 
     def reduce_ANALYZE_NamedTuple_ExprStmt(self, *kids):
         _, args, stmt = kids
@@ -297,6 +301,7 @@ class AnalyzeStmt(Nonterm):
 
 
 class AdministerStmt(Nonterm):
+    val: qlast.AdministerStmt
 
     def reduce_ADMINISTER_FuncExpr(self, *kids):
         _, expr = kids

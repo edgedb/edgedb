@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+import typing
 
 from edb.common import parsing
 from edb.edgeql import ast as qlast
@@ -43,6 +44,7 @@ from .config import *  # NOQA
 #   in parser.rs `fn get_token_kind`
 class EdgeQLGrammar(Nonterm):
     "%start"
+    val: qlast.GrammarEntryPoint
 
     def reduce_STARTBLOCK_EdgeQLBlock_EOI(self, *kids):
         self.val = kids[1].val
@@ -64,6 +66,8 @@ class EdgeQLGrammar(Nonterm):
 
 
 class EdgeQLBlock(Nonterm):
+    val: typing.List[qlast.Command]
+
     @parsing.inline(0)
     def reduce_StatementBlock_OptSemicolons(self, _, _semicolon):
         pass
@@ -73,6 +77,8 @@ class EdgeQLBlock(Nonterm):
 
 
 class SingleStatement(Nonterm):
+    val: qlast.Command
+
     @parsing.inline(0)
     def reduce_Stmt(self, _):
         # Expressions
