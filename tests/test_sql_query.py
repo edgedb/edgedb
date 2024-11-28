@@ -2418,6 +2418,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                     "genre": "Drama",
                 },
             ],
+            apply_access_policies=False,
         )
 
     async def test_native_sql_query_02(self):
@@ -2446,6 +2447,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 "0": "Drama",
                 "1": 14,
             },
+            apply_access_policies=False,
         )
 
     async def test_native_sql_query_03(self):
@@ -2466,6 +2468,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 LIMIT 1
             """,
             [{}],
+            apply_access_policies=False,
         )
 
     async def test_native_sql_query_04(self):
@@ -2581,7 +2584,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             ],
         )
 
-    @test.xfail('todo')
     async def test_native_sql_query_13(self):
         # globals
 
@@ -2607,7 +2609,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             [{'username': "user_robin"}]
         )
 
-    @test.xfail('todo')
     async def test_native_sql_query_14(self):
         # globals
 
@@ -2624,7 +2625,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             SET GLOBAL glob_mod::glob_float32 := 42.1;
             """
         )
-        await self.scon.execute('INSERT INTO glob_mod."G" DEFAULT VALUES')
+        await self.con.execute_sql('INSERT INTO glob_mod."G" DEFAULT VALUES')
 
         await self.assert_sql_query_result(
             '''
@@ -2653,7 +2654,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             ],
         )
 
-    @test.xfail('todo')
     async def test_native_sql_query_15(self):
         # no access policies
         await self.assert_sql_query_result(
@@ -2665,10 +2665,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 {'title': 'Hunger Games'},
                 {'title': 'Saving Private Ryan'},
             ],
-        )
-
-        await self.con.execute(
-            'CONFIGURE SESSION SET apply_access_policies_sql := true'
+            apply_access_policies=False,
         )
 
         # access policies applied
@@ -2684,8 +2681,4 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         await self.assert_sql_query_result(
             'SELECT title FROM "Content" ORDER BY title',
             [{'title': 'Forrest Gump'}]
-        )
-
-        await self.con.execute(
-            'CONFIGURE SESSION SET apply_access_policies_sql := false'
         )
