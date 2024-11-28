@@ -910,17 +910,22 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     await con2.aclose()
 
     async def test_server_ops_downgrade_to_cleartext(self):
+        print('test_server_ops_downgrade_to_cleartext 11111111')
         async with tb.start_edgedb_server(
             binary_endpoint_security=args.ServerEndpointSecurityMode.Optional,
         ) as sd:
+            print('test_server_ops_downgrade_to_cleartext 22222222')
             con = await sd.connect_test_protocol(
                 user='edgedb',
                 tls_security='insecure',
             )
+            print('test_server_ops_downgrade_to_cleartext 333333333')
             try:
                 await self._test_connection(con)
             finally:
+                print('test_server_ops_downgrade_to_cleartext 44444444444')
                 await con.aclose()
+        print('test_server_ops_downgrade_to_cleartext 55555555555')
 
     async def test_server_ops_no_cleartext(self):
         async with tb.start_edgedb_server(
