@@ -419,6 +419,19 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 finally:
                     await con.aclose()
 
+    async def test_server_alter_role_fallback(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            async with tb.start_edgedb_server(
+                data_dir=temp_dir,
+                default_auth_method=args.ServerAuthMethod.Scram,
+                bootstrap_command='ALTER ROLE edgedb SET password := "first";'
+            ) as sd:
+                con = await sd.connect(password='first')
+                try:
+                    await con.query_single('SELECT 1')
+                finally:
+                    await con.aclose()
+
     async def test_server_ops_bogus_bind_addr_in_mix(self):
         async with tb.start_edgedb_server(
             bind_addrs=('host.invalid', '127.0.0.1',),
