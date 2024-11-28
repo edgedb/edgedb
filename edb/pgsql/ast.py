@@ -494,6 +494,9 @@ class TupleVar(TupleVarBase):
 class ParamRef(ImmutableBaseExpr):
     """Query parameter ($0..$n)."""
 
+    __ast_mutable_fields__ = (
+        ImmutableBaseExpr.__ast_mutable_fields__ | frozenset(['number']))
+
     # Number of the parameter.
     number: int
 
