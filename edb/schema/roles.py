@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import Optional, Type, List, TYPE_CHECKING
+from typing import Optional, Type, List, Union, overload, TYPE_CHECKING
 
 from edgedb import scram
 
@@ -30,6 +30,7 @@ from edb.schema import defines as s_def
 from . import annos as s_anno
 from . import delta as sd
 from . import inheriting
+from . import name as sn
 from . import objects as so
 from . import utils
 
@@ -194,6 +195,60 @@ class RenameRole(RoleCommand, sd.RenameObject[Role]):
 
 class AlterRole(RoleCommand, inheriting.AlterInheritingObject[Role]):
     astnode = qlast.AlterRole
+
+    @overload
+    def get_object(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        name: Optional[sn.Name] = None,
+        default: Union[Role, so.NoDefaultT] = so.NoDefault,
+        sourcectx: Optional[qlast.Span] = None,
+    ) -> Role:
+        ...
+
+    @overload
+    def get_object(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        name: Optional[sn.Name] = None,
+        default: None = None,
+        sourcectx: Optional[qlast.Span] = None,
+    ) -> Optional[Role]:
+        ...
+
+    def get_object(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        name: Optional[sn.Name] = None,
+        default: Union[Role, so.NoDefaultT, None] = so.NoDefault,
+        sourcectx: Optional[qlast.Span] = None,
+    ) -> Optional[Role]:
+        # On an ALTER ROLE edgedb, if 'edgedb' doesn't exist, fall
+        # back to 'admin'. This mirrors what we do for login and
+        # avoids breaking setup scripts.
+        if name is None and str(self.classname) == 'edgedb':
+            try:
+                return super().get_object(
+                    schema,
+                    context,
+                    sourcectx=sourcectx,
+                )
+            except errors.InvalidReferenceError:
+                name = sn.UnqualName('admin')
+
+        return super().get_object(
+            schema,
+            context,
+            name=name,
+            default=default,
+            sourcectx=sourcectx,
+        )
 
     @classmethod
     def _cmd_tree_from_ast(
