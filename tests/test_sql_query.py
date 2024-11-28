@@ -2580,3 +2580,112 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 {'a': 5, 'b': 3},
             ],
         )
+
+    @test.xfail('todo')
+    async def test_native_sql_query_13(self):
+        # globals
+
+        await self.assert_sql_query_result(
+            """
+            SELECT username FROM "Person"
+            ORDER BY first_name LIMIT 1
+            """,
+            [{'username': "u_robin"}]
+        )
+
+        await self.con.execute(
+            '''
+            SET GLOBAL default::username_prefix := 'user_';
+            '''
+        )
+
+        await self.assert_sql_query_result(
+            """
+            SELECT username FROM "Person"
+            ORDER BY first_name LIMIT 1
+            """,
+            [{'username': "user_robin"}]
+        )
+
+    @test.xfail('todo')
+    async def test_native_sql_query_14(self):
+        # globals
+
+        await self.con.execute(
+            f"""
+            SET GLOBAL glob_mod::glob_str := 'hello';
+            SET GLOBAL glob_mod::glob_uuid :=
+                <uuid>'f527c032-ad4c-461e-95e2-67c4e2b42ca7';
+            SET GLOBAL glob_mod::glob_int64 := 42;
+            SET GLOBAL glob_mod::glob_int32 := 42;
+            SET GLOBAL glob_mod::glob_int16 := 42;
+            SET GLOBAL glob_mod::glob_bool := true;
+            SET GLOBAL glob_mod::glob_float64 := 42.1;
+            SET GLOBAL glob_mod::glob_float32 := 42.1;
+            """
+        )
+        await self.scon.execute('INSERT INTO glob_mod."G" DEFAULT VALUES')
+
+        await self.assert_sql_query_result(
+            '''
+            SELECT
+                p_str,
+                p_uuid,
+                p_int64,
+                p_int32,
+                p_int16,
+                p_bool,
+                p_float64,
+                p_float32
+            FROM glob_mod."G"
+            ''',
+            [
+                {
+                    'p_str': 'hello',
+                    'p_uuid': uuid.UUID('f527c032-ad4c-461e-95e2-67c4e2b42ca7'),
+                    'p_int64': 42,
+                    'p_int32': 42,
+                    'p_int16': 42,
+                    'p_bool': True,
+                    'p_float64': 42.1,
+                    'p_float32': 42.099998474121094,
+                }
+            ],
+        )
+
+    @test.xfail('todo')
+    async def test_native_sql_query_15(self):
+        # no access policies
+        await self.assert_sql_query_result(
+            'SELECT title FROM "Content" ORDER BY title',
+            [
+                {'title': 'Chronicles of Narnia'},
+                {'title': 'Forrest Gump'},
+                {'title': 'Halo 3'},
+                {'title': 'Hunger Games'},
+                {'title': 'Saving Private Ryan'},
+            ],
+        )
+
+        await self.con.execute(
+            'CONFIGURE SESSION SET apply_access_policies_sql := true'
+        )
+
+        # access policies applied
+        await self.assert_sql_query_result(
+            'SELECT title FROM "Content" ORDER BY title',
+            []
+        )
+
+        # access policies use globals
+        await self.con.execute(
+            "SET global default::filter_title := 'Forrest Gump'"
+        )
+        await self.assert_sql_query_result(
+            'SELECT title FROM "Content" ORDER BY title',
+            [{'title': 'Forrest Gump'}]
+        )
+
+        await self.con.execute(
+            'CONFIGURE SESSION SET apply_access_policies_sql := false'
+        )
