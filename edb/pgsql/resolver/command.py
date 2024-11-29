@@ -2121,8 +2121,8 @@ class ParamMapper(ast.NodeVisitor):
         super().__init__()
         self.mapping = mapping
 
-    def visit_ParamRef(self, p: pgast.ParamRef) -> None:
-        p.number = self.mapping[p.number]
+    def visit_Param(self, p: pgast.Param) -> None:
+        p.index = self.mapping[p.index]
 
 
 def init_external_params(query: pgast.Base, ctx: Context):
