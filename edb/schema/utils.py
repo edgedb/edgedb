@@ -1409,7 +1409,17 @@ def get_config_type_shape(
     path: List[qlast.PathElement],
 ) -> List[qlast.ShapeElement]:
     from . import objtypes as s_objtypes
-    shape = []
+    shape = [
+        qlast.ShapeElement(
+            expr=qlast.Path(steps=[qlast.Ptr(name='_tname')], ),
+            compexpr=qlast.Path(
+                steps=path + [
+                    qlast.Ptr(name='__type__'),
+                    qlast.Ptr(name='name'),
+                ],
+            ),
+        ),
+    ]
     seen: Set[str] = set()
 
     stypes = [stype] + list(stype.ordered_descendants(schema))
@@ -1446,17 +1456,6 @@ def get_config_type_shape(
             if isinstance(ptype, s_objtypes.ObjectType):
                 subshape = get_config_type_shape(
                     schema, ptype, path + elem_path)
-                subshape.append(
-                    qlast.ShapeElement(
-                        expr=qlast.Path(steps=[qlast.Ptr(name='_tname')],),
-                        compexpr=qlast.Path(
-                            steps=path + elem_path + [
-                                qlast.Ptr(name='__type__'),
-                                qlast.Ptr(name='name'),
-                            ],
-                        ),
-                    ),
-                )
             else:
                 subshape = []
 

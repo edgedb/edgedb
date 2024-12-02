@@ -378,11 +378,9 @@ def value_to_json_value(setting: spec.Setting, value: Any):
             # if they are single, because it simplifies things in the
             # config handling SQL.
             return [value.to_json_value()] if value is not None else []
-        elif _issubclass(setting.type, statypes.Duration) and value is not None:
-            return value.to_iso8601()
-        elif (_issubclass(setting.type, statypes.ConfigMemory) and
+        elif (_issubclass(setting.type, statypes.ScalarType) and
                 value is not None):
-            return value.to_str()
+            return value.to_json()
         else:
             return value
 

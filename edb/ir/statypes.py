@@ -100,6 +100,9 @@ class ScalarType:
     def to_backend_str(self) -> str:
         raise NotImplementedError
 
+    def to_json(self) -> str:
+        raise NotImplementedError
+
     def encode(self) -> bytes:
         raise NotImplementedError
 
@@ -372,6 +375,9 @@ class Duration(ScalarType):
     def to_backend_str(self) -> str:
         return f'{self.to_microseconds()}us'
 
+    def to_json(self) -> str:
+        return self.to_iso8601()
+
     def __repr__(self) -> str:
         return f'<statypes.Duration {self.to_iso8601()!r}>'
 
@@ -487,6 +493,9 @@ class ConfigMemory(ScalarType):
             return f'{self._value // self.KiB}kB'
 
         return f'{self._value}B'
+
+    def to_json(self) -> str:
+        return self.to_str()
 
     def __repr__(self) -> str:
         return f'<statypes.ConfigMemory {self.to_str()!r}>'
