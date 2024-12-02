@@ -247,6 +247,9 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
                 value = value.to_json_value(redacted=redacted)
             elif typing_inspect.is_generic_type(f_type):
                 value = list(value) if value is not None else []
+            elif (_issubclass(f_type, statypes.ScalarType) and
+                  value is not None):
+                value = value.to_json()
 
             dct[f.name] = value
 
