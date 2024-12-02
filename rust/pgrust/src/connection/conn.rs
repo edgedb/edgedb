@@ -68,6 +68,17 @@ where
     conn: Rc<PGConn<B, C>>,
 }
 
+impl<B: Stream, C: Unpin> Clone for Client<B, C>
+where
+    (B, C): StreamWithUpgrade,
+{
+    fn clone(&self) -> Self {
+        Self {
+            conn: self.conn.clone(),
+        }
+    }
+}
+
 impl<B: Stream, C: Unpin> Client<B, C>
 where
     (B, C): StreamWithUpgrade,

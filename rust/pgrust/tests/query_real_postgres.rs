@@ -69,7 +69,13 @@ async fn test_extended_query_success() -> Result<(), Box<dyn std::error::Error>>
                 PipelineBuilder::default()
                     .parse(Statement("test"), "SELECT $1", &[Oid::Unspecified], ())
                     .describe_statement(Statement("test"), ())
-                    .bind(Portal("test"), Statement("test"), &[Param::Null], &[], ())
+                    .bind(
+                        Portal("test"),
+                        Statement("test"),
+                        &[Param::Text("1")],
+                        &[],
+                        (),
+                    )
                     .describe_portal(Portal("test"), ())
                     .execute(
                         Portal("test"),

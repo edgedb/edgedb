@@ -283,13 +283,23 @@ fn run_postgres(
 }
 
 fn test_data_dir() -> std::path::PathBuf {
-    Path::new("../../tests")
-        .canonicalize()
-        .expect("Failed to canonicalize tests directory path")
+    let cargo_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests");
+    if cargo_path.exists() {
+        cargo_path
+    } else {
+        Path::new("../../tests")
+            .canonicalize()
+            .expect("Failed to canonicalize tests directory path")
+    }
 }
 
 fn postgres_bin_dir() -> std::io::Result<std::path::PathBuf> {
-    Path::new("../../build/postgres/install/bin").canonicalize()
+    let cargo_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../build/postgres/install/bin");
+    if cargo_path.exists() {
+        cargo_path.canonicalize()
+    } else {
+        Path::new("../../build/postgres/install/bin").canonicalize()
+    }
 }
 
 fn get_unix_socket_path(socket_path: &Path, port: u16) -> PathBuf {

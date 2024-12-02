@@ -23,7 +23,7 @@ use crate::protocol::{
         builder,
         data::{
             BindComplete, CloseComplete, CommandComplete, CopyData, CopyDone, CopyOutResponse,
-            DataRow, EmptyQueryResponse, ErrorResponse, Message, ParameterDescription,
+            DataRow, EmptyQueryResponse, ErrorResponse, Message, NoData, ParameterDescription,
             ParseComplete, PortalSuspended, ReadyForQuery, RowDescription,
         },
     },
@@ -508,6 +508,9 @@ impl<S: DescribeSink> MessageHandler for DescribeMessageHandler<S> {
                 self.sink.rows(rows);
                 return MessageResult::Done;
             },
+            (NoData) => {
+                return MessageResult::Done;
+            },
             (ErrorResponse as err) => {
                 self.sink.error(err);
                 return MessageResult::SkipUntilSync;
@@ -540,6 +543,46 @@ impl ExecuteSink for () {
     fn rows(&mut self) -> () {}
     fn copy(&mut self, _: CopyOutResponse) -> () {}
     fn error(&mut self, _: ErrorResponse) {}
+}
+
+impl<F1, F2, S> ExecuteSink for (F1, F2)
+where
+    F1: for<'a> FnMut() -> S,
+    F2: for<'a> FnMut(ErrorResponse<'a>),
+    S: DataSink,
+{
+    type Output = S;
+    type CopyOutput = ();
+    fn rows(&mut self) -> S {
+        (self.0)()
+    }
+    fn copy(&mut self, _: CopyOutResponse) -> () {
+        ()
+    }
+    fn error(&mut self, error: ErrorResponse) {
+        (self.1)(error)
+    }
+}
+
+impl<F1, F2, F3, S, T> ExecuteSink for (F1, F2, F3)
+where
+    F1: for<'a> FnMut() -> S,
+    F2: for<'a> FnMut(CopyOutResponse<'a>) -> T,
+    F3: for<'a> FnMut(ErrorResponse<'a>),
+    S: DataSink,
+    T: CopyDataSink,
+{
+    type Output = S;
+    type CopyOutput = T;
+    fn rows(&mut self) -> S {
+        (self.0)()
+    }
+    fn copy(&mut self, copy: CopyOutResponse) -> T {
+        (self.1)(copy)
+    }
+    fn error(&mut self, error: ErrorResponse) {
+        (self.2)(error)
+    }
 }
 
 /// A sink capable of handling standard query and COPY (out direction) messages.
