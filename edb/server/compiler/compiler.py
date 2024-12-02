@@ -2486,10 +2486,12 @@ def compile_sql_as_unit_group(
     if setting:
         allow_user_specified_id = sql.is_setting_truthy(setting)
 
-    apply_access_policies_sql = None
-    setting = _get_config_val(ctx, 'apply_access_policies_sql')
+    # Note that unlike SQL over PostgreSQL protocol we use
+    # the general access policy toggle, not the SQL-specific one.
+    apply_access_policies = None
+    setting = _get_config_val(ctx, 'apply_access_policies')
     if setting:
-        apply_access_policies_sql = sql.is_setting_truthy(setting)
+        apply_access_policies = sql.is_setting_truthy(setting)
 
     tx_state = ctx.state.current_tx()
     schema = tx_state.get_schema(ctx.compiler_state.std_schema)
@@ -2514,7 +2516,7 @@ def compile_sql_as_unit_group(
         current_database=ctx.branch_name or "<unknown>",
         current_user=ctx.role_name or "<unknown>",
         allow_user_specified_id=allow_user_specified_id,
-        apply_access_policies_sql=apply_access_policies_sql,
+        apply_access_policies_sql=apply_access_policies,
         include_edgeql_io_format_alternative=True,
         allow_prepared_statements=False,
         disambiguate_column_names=True,
