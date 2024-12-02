@@ -34,7 +34,7 @@ from edb.server.pgproto.pgproto cimport (
     WriteBuffer,
 )
 
-from libc.stdint cimport int8_t, uint8_t, int32_t
+from libc.stdint cimport int8_t, uint8_t, int32_t, uint64_t
 
 
 cdef extern from "pg_query.h":
@@ -61,11 +61,20 @@ cdef extern from "pg_query.h":
         int clocations_count
         int highest_extern_param_id
 
+    ctypedef struct PgQueryFingerprintResult:
+        uint64_t fingerprint
+        char *fingerprint_str
+        char *stderr_buffer
+        PgQueryError *error
+
     PgQueryParseResult pg_query_parse(const char *input)
     void pg_query_free_parse_result(PgQueryParseResult result)
 
     PgQueryNormalizeResult pg_query_normalize(const char *input)
     void pg_query_free_normalize_result(PgQueryNormalizeResult result)
+
+    PgQueryFingerprintResult pg_query_fingerprint(const char* input)
+    void pg_query_free_fingerprint_result(PgQueryFingerprintResult result)
 
 
 cdef extern from "protobuf/pg_query.pb-c.h":
@@ -120,6 +129,7 @@ class PgLiteralTypeOID(enum.IntEnum):
 
 class NormalizedQuery(NamedTuple):
     text: str
+    cache_key: bytes
     highest_extern_param_id: int
     extracted_constants: list[tuple[int, LiteralTokenType, bytes]]
 
@@ -173,8 +183,22 @@ def pg_normalize(query: str) -> NormalizedQuery:
                         bytes(loc.val),
                     ))
 
+        fp_result = pg_query_fingerprint(result.normalized_query)
+        try:
+            if fp_result.error:
+                error = PSqlParseError(
+                    fp_result.error.message.decode('utf8'),
+                    fp_result.error.lineno,
+                    fp_result.error.cursorpos,
+                )
+                raise error
+        finally:
+            pg_query_free_fingerprint_result(fp_result)
+        fingerprint = fp_result.fingerprint
+
         return NormalizedQuery(
             text=normalized_query,
+            cache_key=fingerprint.to_bytes(length=8, byteorder='big'),
             highest_extern_param_id=result.highest_extern_param_id,
             extracted_constants=consts,
         )
@@ -273,6 +297,7 @@ cdef class NormalizedSource(Source):
             sorted(normalized.extracted_constants, key=lambda i: i[0]),
         )
         self._highest_extern_param_id = normalized.highest_extern_param_id
+        self._cache_key = normalized.cache_key
         self._orig_text = orig_text
 
     @classmethod
@@ -290,8 +315,13 @@ cdef class NormalizedSource(Source):
             buf.write_int32(<int32_t>param_id)
             buf.write_len_prefixed_utf8(token.value)
             buf.write_len_prefixed_bytes(val)
+        assert len(self._cache_key) == 8
+        buf.write_bytes(self._cache_key)
 
         return buf
+
+    def cache_key(self) -> bytes:
+        return self._cache_key
 
     def variables(self) -> dict[str, bytes]:
         return {f"${n}": v for n, _, v in self._extracted_constants}
@@ -358,10 +388,12 @@ cdef class NormalizedSource(Source):
             token = buf.read_len_prefixed_utf8()
             val = buf.read_len_prefixed_bytes()
             consts.append((param_id, LiteralTokenType(token), val))
+        cache_key = buf.read_bytes(8)
 
         return NormalizedSource(
             NormalizedQuery(
                 text=text,
+                cache_key=cache_key,
                 highest_extern_param_id=highest_extern_param_id,
                 extracted_constants=consts,
             ),
