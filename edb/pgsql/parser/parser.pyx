@@ -235,7 +235,9 @@ cdef class Source:
 
     def cache_key(self) -> bytes:
         if not self._cache_key:
-            self._cache_key = hashlib.blake2b(self.serialize()).digest()
+            h = hashlib.blake2b(self._tag().to_bytes())
+            h.update(bytes(self.text(), 'UTF-8'))
+            self._cache_key = h.digest()
         return self._cache_key
 
     def variables(self) -> dict[str, Any]:
