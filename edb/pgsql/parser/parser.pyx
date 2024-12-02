@@ -294,7 +294,7 @@ cdef class NormalizedSource(Source):
         return buf
 
     def variables(self) -> dict[str, bytes]:
-        return {f"${n}": v[1] for n, _, v in self._extracted_constants}
+        return {f"${n}": v for n, _, v in self._extracted_constants}
 
     def first_extra(self) -> Optional[int]:
         return (
