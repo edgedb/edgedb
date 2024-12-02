@@ -4,7 +4,7 @@ description = "Gel Server"
 requires-python = '>=3.12.0'
 dynamic = ["version"]
 dependencies = [
-    'edgedb==3.0.0b3',
+    'edgedb==3.0.0b4',
 
     'httptools>=0.6.0',
     'immutables>=0.18',
@@ -103,7 +103,7 @@ requires = [
     "wheel",
 
     "parsing ~= 2.0",
-    "edgedb==3.0.0b3",
+    "edgedb==3.0.0b4",
 ]
 # Custom backend needed to set up build-time sys.path because
 # setup.py needs to import `edb.buildmeta`.

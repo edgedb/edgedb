@@ -90,6 +90,14 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 set default := global glob_mod::glob_float32
             };
         };
+
+        create global glob_mod::a: str;
+        create global glob_mod::b: str;
+        create type glob_mod::Computed {
+            create property a := global glob_mod::a;
+            create property b := global glob_mod::b;
+        };
+        insert glob_mod::Computed;
         ''',
         os.path.join(
             os.path.dirname(__file__), 'schemas', 'movies_setup.edgeql'
@@ -2057,6 +2065,35 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         )
 
         await tran.rollback()
+
+    async def test_sql_query_computed_12(self):
+        # globals
+
+        tran = self.scon.transaction()
+        await tran.start()
+        try:
+            res = await self.squery_values(
+                '''
+                SELECT a, b FROM glob_mod."Computed"
+                '''
+            )
+            self.assertEqual(res, [[None, None]])
+
+            await self.scon.execute(
+                f"""
+                SET LOCAL "global glob_mod::a" TO hello;
+                SET LOCAL "global glob_mod::b" TO world;
+                """
+            )
+
+            res = await self.squery_values(
+                '''
+                SELECT a, b FROM glob_mod."Computed"
+                '''
+            )
+            self.assertEqual(res, [["hello", "world"]])
+        finally:
+            await tran.rollback()
 
     async def test_sql_query_access_policy_01(self):
         tran = self.scon.transaction()
