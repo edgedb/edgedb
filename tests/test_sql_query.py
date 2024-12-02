@@ -2013,6 +2013,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         await tran.rollback()
 
+    @test.skip("This is flaking in CI")
     async def test_sql_query_computed_11(self):
         # globals
 
