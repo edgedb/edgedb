@@ -111,3 +111,8 @@ def _range(o: edgedb.Range):
 @serialize.register
 def _multirane(o: edgedb.MultiRange):
     return [serialize(el) for el in o]
+
+
+@serialize.register
+def _cfg_memory(o: edgedb.ConfigMemory):
+    return str(o)

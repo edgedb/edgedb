@@ -726,6 +726,38 @@ class TestServerConfig(tb.QueryTestCase):
         )
 
         await self.con.query(f'''
+            CONFIGURE {scope} INSERT TestInstanceConfigStatTypes {{
+                name := 'test_03_02',
+                memprop := <cfg::memory>'108MiB',
+                durprop := <duration>'108 seconds',
+            }}
+        ''')
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj {
+                name,
+                [IS cfg::TestInstanceConfigStatTypes].memprop,
+                [IS cfg::TestInstanceConfigStatTypes].durprop,
+            }
+            FILTER .name = 'test_03_02';
+            ''',
+            [
+                {
+                    'name': 'test_03_02',
+                    'memprop': '108MiB',
+                    'durprop': 'PT1M48S',
+                },
+            ],
+            [
+                {
+                    'name': 'test_03_02',
+                    'memprop': '108MiB',
+                    'durprop': datetime.timedelta(seconds=108),
+                },
+            ],
+        )
+
+        await self.con.query(f'''
             CONFIGURE {scope} RESET TestInstanceConfig
             FILTER .name ILIKE 'test_03%';
         ''')
