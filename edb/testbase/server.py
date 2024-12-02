@@ -1212,17 +1212,23 @@ class ConnectedTestCase(ClusterTestCase):
         variables=None,
         rel_tol=None,
         abs_tol=None,
+        apply_access_policies=True,
     ):
-        await self.assert_query_result(
-            query,
-            exp_result,
-            msg=msg,
-            sort=sort,
-            variables=variables,
-            rel_tol=rel_tol,
-            abs_tol=abs_tol,
-            language="sql",
-        )
+        if not apply_access_policies:
+            ctx = self.without_access_policies()
+        else:
+            ctx = contextlib.nullcontext()
+        async with ctx:
+            await self.assert_query_result(
+                query,
+                exp_result,
+                msg=msg,
+                sort=sort,
+                variables=variables,
+                rel_tol=rel_tol,
+                abs_tol=abs_tol,
+                language="sql",
+            )
 
     async def assert_index_use(self, query, *args, index_type):
         def look(obj):
@@ -1283,6 +1289,16 @@ class ConnectedTestCase(ClusterTestCase):
             yield con
         finally:
             await con.close()
+
+    @contextlib.asynccontextmanager
+    async def without_access_policies(self):
+        await self.con.execute(
+            'CONFIGURE SESSION SET apply_access_policies := false')
+        try:
+            yield
+        finally:
+            await self.con.execute(
+                'CONFIGURE SESSION RESET apply_access_policies')
 
 
 class DatabaseTestCase(ConnectedTestCase):

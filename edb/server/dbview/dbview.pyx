@@ -1433,8 +1433,13 @@ cdef class DatabaseConnectionView:
         desc_map = {}
         source = query_req.source
         first_extra = source.first_extra()
+        num_injected_params = 0
+        if qug.globals is not None:
+            num_injected_params += len(qug.globals)
         if first_extra is not None:
-            all_type_oids = [0] * first_extra + source.extra_type_oids()
+            extra_type_oids = source.extra_type_oids()
+            all_type_oids = [0] * first_extra + extra_type_oids
+            num_injected_params += len(extra_type_oids)
         else:
             all_type_oids = []
 
@@ -1459,9 +1464,9 @@ cdef class DatabaseConnectionView:
                 result_types.append(
                     f"{edgeql.quote_ident(col)} := <{edb_type_expr}>{{}}"
                 )
-            if first_extra is not None:
-                param_desc = param_desc[:first_extra]
             params = []
+            if num_injected_params:
+                param_desc = param_desc[:-num_injected_params]
             for pi, toid in enumerate(param_desc):
                 edb_type_expr = self._db.backend_id_to_name.get(toid)
                 if edb_type_expr is None:
