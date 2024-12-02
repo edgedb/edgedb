@@ -250,7 +250,7 @@ async fn run_queries(
                         Portal::default(),
                         Statement::default(),
                         &[],
-                        &[Format::Text],
+                        &[Format::text()],
                         (),
                     )
                     .describe_portal(Portal::default(), ())

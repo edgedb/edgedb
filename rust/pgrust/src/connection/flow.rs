@@ -37,18 +37,32 @@ pub enum Param<'a> {
     Binary(&'a [u8]),
 }
 
-#[derive(Debug, Clone, Copy, zerocopy_derive::KnownLayout)]
-#[repr(u32)]
-pub enum Oid {
-    Unspecified,
-    Oid(NonZeroU32),
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(transparent)]
+pub struct Oid(u32);
+
+impl Oid {
+    pub fn unspecified() -> Self {
+        Self(0)
+    }
+
+    pub fn from(oid: NonZeroU32) -> Self {
+        Self(oid.get())
+    }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[repr(i16)]
-pub enum Format {
-    Text = 0,
-    Binary = 1,
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(transparent)]
+pub struct Format(i16);
+
+impl Format {
+    pub fn text() -> Self {
+        Self(0)
+    }
+
+    pub fn binary() -> Self {
+        Self(1)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -170,18 +184,11 @@ struct QueryFlow<'a> {
 
 impl<'a> Flow for ParseFlow<'a> {
     fn to_vec(&self) -> Vec<u8> {
-        let param_types: Vec<i32> = self
-            .param_types
-            .iter()
-            .map(|oid| match oid {
-                Oid::Unspecified => 0,
-                Oid::Oid(n) => n.get() as i32,
-            })
-            .collect();
+        let param_types = bytemuck::cast_slice(self.param_types);
         builder::Parse {
             statement: self.name.0,
             query: self.query,
-            param_types: &param_types,
+            param_types,
         }
         .to_vec()
     }
@@ -209,8 +216,7 @@ impl<'a> Flow for BindFlow<'a> {
             }
         }
 
-        let result_format_codes: Vec<i16> =
-            self.result_format_codes.iter().map(|f| *f as i16).collect();
+        let result_format_codes = bytemuck::cast_slice(self.result_format_codes);
 
         builder::Bind {
             portal: self.portal.0,

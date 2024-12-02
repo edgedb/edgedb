@@ -67,7 +67,7 @@ async fn test_extended_query_success() -> Result<(), Box<dyn std::error::Error>>
         client
             .pipeline_sync(
                 PipelineBuilder::default()
-                    .parse(Statement("test"), "SELECT $1", &[Oid::Unspecified], ())
+                    .parse(Statement("test"), "SELECT $1", &[Oid::unspecified()], ())
                     .describe_statement(Statement("test"), ())
                     .bind(
                         Portal("test"),
