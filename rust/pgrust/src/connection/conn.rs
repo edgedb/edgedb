@@ -9,7 +9,11 @@ use crate::{
     connection::{flow::QueryMessageHandler, ConnectionError},
     handshake::ConnectionSslRequirement,
     protocol::{
-        postgres::{builder, data::Message, meta},
+        postgres::{
+            builder,
+            data::{Message, NotificationResponse, ParameterStatus},
+            meta,
+        },
         StructBuffer,
     },
 };
@@ -116,6 +120,8 @@ where
     ///  - `DataRow`
     ///  - `CopyOutResponse`
     ///  - `CopyData`
+    ///  - `CopyDone`
+    ///  - `EmptyQueryResponse`
     ///  - `ErrorResponse`
     ///
     /// `CopyInResponse` is not currently supported and will result in a `CopyFail` being
@@ -273,9 +279,17 @@ where
         let state = &mut *self.state.borrow_mut();
         match state {
             ConnState::Ready(_, queue) => {
-                let message = message.ok_or(PGConnError::InvalidState);
+                let message = message.ok_or(PGConnError::InvalidState)?;
+                if NotificationResponse::try_new(&message).is_some() {
+                    warn!("Notification: {:?}", message);
+                    return Ok(());
+                }
+                if ParameterStatus::try_new(&message).is_some() {
+                    warn!("ParameterStatus: {:?}", message);
+                    return Ok(());
+                }
                 if let Some((name, handler, _tx)) = queue.front_mut() {
-                    match handler.handle(message?) {
+                    match handler.handle(message) {
                         MessageResult::SkipUntilSync => {
                             let mut found_sync = false;
                             while let Some((name, handler, _)) = queue.front() {
@@ -296,7 +310,7 @@ where
                         }
                         MessageResult::Unknown => {
                             // TODO
-                            warn!("Unknown message in {name}");
+                            warn!("Unknown message in {name} ({:?})", message.mtype() as char);
                         }
                     };
                 };

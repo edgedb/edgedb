@@ -24,7 +24,7 @@ use crate::protocol::{
         data::{
             BindComplete, CloseComplete, CommandComplete, CopyData, CopyDone, CopyOutResponse,
             DataRow, EmptyQueryResponse, ErrorResponse, Message, NoData, ParameterDescription,
-            ParseComplete, PortalSuspended, ReadyForQuery, RowDescription,
+            ParseComplete, PortalSuspended, ReadyForQuery, RowDescription, Sync,
         },
     },
     Encoded,
@@ -300,8 +300,11 @@ pub(crate) trait MessageHandler {
 pub(crate) struct SyncMessageHandler;
 
 impl MessageHandler for SyncMessageHandler {
-    fn handle(&mut self, _: Message) -> MessageResult {
-        MessageResult::Done
+    fn handle(&mut self, message: Message) -> MessageResult {
+        if let Some(_) = ReadyForQuery::try_new(&message) {
+            return MessageResult::Done;
+        }
+        MessageResult::Unknown
     }
     fn is_sync(&self) -> bool {
         true
@@ -475,8 +478,8 @@ where
     fn rows(&mut self, rows: RowDescription) {
         (self)(rows)
     }
-    fn params(&mut self, params: ParameterDescription) {}
-    fn error(&mut self, error: ErrorResponse) {}
+    fn params(&mut self, _params: ParameterDescription) {}
+    fn error(&mut self, _error: ErrorResponse) {}
 }
 
 impl<F1, F2> DescribeSink for (F1, F2)
@@ -523,13 +526,12 @@ impl<S: DescribeSink> MessageHandler for DescribeMessageHandler<S> {
 }
 
 pub trait ExecuteSink {
-    type Output: DataSink;
+    type Output: ExecuteDataSink;
     type CopyOutput: CopyDataSink;
 
     fn rows(&mut self) -> Self::Output;
     fn copy(&mut self, copy: CopyOutResponse) -> Self::CopyOutput;
-    fn suspended(&mut self, _suspended: PortalSuspended) {}
-    fn complete(&mut self, _complete: CommandComplete) {}
+    fn complete(&mut self, _complete: Option<CommandComplete>) {}
     fn error(&mut self, error: ErrorResponse);
 
     fn protocol_violation(&mut self, message: Message, hint: &'static str) {
@@ -549,7 +551,7 @@ impl<F1, F2, S> ExecuteSink for (F1, F2)
 where
     F1: for<'a> FnMut() -> S,
     F2: for<'a> FnMut(ErrorResponse<'a>),
-    S: DataSink,
+    S: ExecuteDataSink,
 {
     type Output = S;
     type CopyOutput = ();
@@ -569,7 +571,7 @@ where
     F1: for<'a> FnMut() -> S,
     F2: for<'a> FnMut(CopyOutResponse<'a>) -> T,
     F3: for<'a> FnMut(ErrorResponse<'a>),
-    S: DataSink,
+    S: ExecuteDataSink,
     T: CopyDataSink,
 {
     type Output = S;
@@ -582,6 +584,29 @@ where
     }
     fn error(&mut self, error: ErrorResponse) {
         (self.2)(error)
+    }
+}
+
+pub trait ExecuteDataSink {
+    /// Sink a row of data.
+    fn row(&mut self, values: DataRow);
+    /// Handle the completion of a command. If unimplemented, will be redirected to the parent.
+    #[must_use]
+    fn done(&mut self, _result: Result<Option<CommandComplete>, ErrorResponse>) -> DoneHandling {
+        DoneHandling::RedirectToParent
+    }
+}
+
+impl ExecuteDataSink for () {
+    fn row(&mut self, _: DataRow) {}
+}
+
+impl<F> ExecuteDataSink for F
+where
+    F: for<'a> Fn(DataRow<'a>),
+{
+    fn row(&mut self, values: DataRow) {
+        (self)(values)
     }
 }
 
@@ -768,7 +793,6 @@ impl<Q: ExecuteSink> MessageHandler for ExecuteMessageHandler<Q> {
                     self.sink.protocol_violation(message, "copy sink does not exist");
                 }
             },
-
             (DataRow as row) => {
                 if self.data.is_none() {
                     self.data = Some(self.sink.rows());
@@ -779,29 +803,53 @@ impl<Q: ExecuteSink> MessageHandler for ExecuteMessageHandler<Q> {
                 sink.row(row)
             },
             (PortalSuspended) => {
-                // self.sink.suspended(message);
+                if let Some(mut sink) = std::mem::take(&mut self.data) {
+                    if sink.done(Ok(None)) == DoneHandling::RedirectToParent {
+                        self.sink.complete(None);
+                    }
+                } else {
+                    self.sink.protocol_violation(message, "data sink does not exist");
+                }
                 return MessageResult::Done;
             },
             (CommandComplete as complete) => {
-                let sink = std::mem::take(&mut self.data);
-                if let Some(mut sink) = sink {
+                if let Some(mut sink) = std::mem::take(&mut self.copy) {
+                    // If COPY has started, route this to the COPY sink.
                     if sink.done(Ok(complete)) == DoneHandling::RedirectToParent {
-                        self.sink.complete(complete);
+                        self.sink.complete(Some(complete));
+                    }
+                } else if let Some(mut sink) = std::mem::take(&mut self.data) {
+                    // If data has started, route this to the data sink.
+                    if sink.done(Ok(Some(complete))) == DoneHandling::RedirectToParent {
+                        self.sink.complete(Some(complete));
                     }
                 } else {
-                    let sink = std::mem::take(&mut self.copy);
-                    if let Some(mut sink) = sink {
-                        if sink.done(Ok(complete)) == DoneHandling::RedirectToParent {
-                            self.sink.complete(complete);
-                        }
-                    } else {
-                        self.sink.complete(complete);
+                    // Otherwise, create a new data sink and route to there.
+                    if self.sink.rows().done(Ok(Some(complete))) == DoneHandling::RedirectToParent {
+                        self.sink.complete(Some(complete));
                     }
                 }
                 return MessageResult::Done;
             },
 
             (ErrorResponse as err) => {
+                if let Some(mut sink) = std::mem::take(&mut self.copy) {
+                    // If COPY has started, route this to the COPY sink.
+                    if sink.done(Err(err)) == DoneHandling::RedirectToParent {
+                        self.sink.error(err);
+                    }
+                } else if let Some(mut sink) = std::mem::take(&mut self.data) {
+                    // If data has started, route this to the data sink.
+                    if sink.done(Err(err)) == DoneHandling::RedirectToParent {
+                        self.sink.error(err);
+                    }
+                } else {
+                    // Otherwise, create a new data sink and route to there.
+                    if self.sink.rows().done(Err(err)) == DoneHandling::RedirectToParent {
+                        self.sink.error(err);
+                    }
+                }
+
                 return MessageResult::SkipUntilSync;
             },
 
