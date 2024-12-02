@@ -372,7 +372,7 @@ macro_rules! protocol_builder {
                     })
                 }
 
-                pub fn to_vec(&self) -> Vec<u8> {
+                pub fn to_vec(self) -> Vec<u8> {
                     self.__buf.to_vec()
                 }
 

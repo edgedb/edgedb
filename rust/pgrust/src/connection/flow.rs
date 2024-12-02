@@ -24,7 +24,7 @@ use crate::protocol::{
         data::{
             BindComplete, CloseComplete, CommandComplete, CopyData, CopyDone, CopyOutResponse,
             DataRow, EmptyQueryResponse, ErrorResponse, Message, NoData, ParameterDescription,
-            ParseComplete, PortalSuspended, ReadyForQuery, RowDescription, Sync,
+            ParseComplete, PortalSuspended, ReadyForQuery, RowDescription,
         },
     },
     Encoded,
@@ -241,7 +241,7 @@ impl<'a> Flow for DescribePortalFlow<'a> {
     fn to_vec(&self) -> Vec<u8> {
         builder::Describe {
             name: self.name.0,
-            dtype: 'P' as _,
+            dtype: b'P',
         }
         .to_vec()
     }
@@ -251,7 +251,7 @@ impl<'a> Flow for DescribeStatementFlow<'a> {
     fn to_vec(&self) -> Vec<u8> {
         builder::Describe {
             name: self.name.0,
-            dtype: 'S' as _,
+            dtype: b'S',
         }
         .to_vec()
     }
@@ -261,7 +261,7 @@ impl<'a> Flow for ClosePortalFlow<'a> {
     fn to_vec(&self) -> Vec<u8> {
         builder::Close {
             name: self.name.0,
-            ctype: 'P' as _,
+            ctype: b'P',
         }
         .to_vec()
     }
@@ -271,7 +271,7 @@ impl<'a> Flow for CloseStatementFlow<'a> {
     fn to_vec(&self) -> Vec<u8> {
         builder::Close {
             name: self.name.0,
-            ctype: 'S' as _,
+            ctype: b'S',
         }
         .to_vec()
     }
@@ -301,7 +301,7 @@ pub(crate) struct SyncMessageHandler;
 
 impl MessageHandler for SyncMessageHandler {
     fn handle(&mut self, message: Message) -> MessageResult {
-        if let Some(_) = ReadyForQuery::try_new(&message) {
+        if ReadyForQuery::try_new(&message).is_some() {
             return MessageResult::Done;
         }
         MessageResult::Unknown
@@ -345,7 +345,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (ParseFlow<'_>, S) {
     }
     fn make_handler(mut self) -> Box<dyn MessageHandler> {
         Box::new(move |message: Message<'_>| {
-            if let Some(_) = ParseComplete::try_new(&message) {
+            if ParseComplete::try_new(&message).is_some() {
                 self.1.handle(Ok(()));
                 return MessageResult::Done;
             }
@@ -353,7 +353,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (ParseFlow<'_>, S) {
                 self.1.handle(Err(msg));
                 return MessageResult::SkipUntilSync;
             }
-            return MessageResult::Unknown;
+            MessageResult::Unknown
         })
     }
 }
@@ -364,7 +364,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (BindFlow<'_>, S) {
     }
     fn make_handler(mut self) -> Box<dyn MessageHandler> {
         Box::new(move |message: Message<'_>| {
-            if let Some(_) = BindComplete::try_new(&message) {
+            if BindComplete::try_new(&message).is_some() {
                 self.1.handle(Ok(()));
                 return MessageResult::Done;
             }
@@ -372,7 +372,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (BindFlow<'_>, S) {
                 self.1.handle(Err(msg));
                 return MessageResult::SkipUntilSync;
             }
-            return MessageResult::Unknown;
+            MessageResult::Unknown
         })
     }
 }
@@ -383,7 +383,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (ClosePortalFlow<'_>, S) {
     }
     fn make_handler(mut self) -> Box<dyn MessageHandler> {
         Box::new(move |message: Message<'_>| {
-            if let Some(_) = CloseComplete::try_new(&message) {
+            if CloseComplete::try_new(&message).is_some() {
                 self.1.handle(Ok(()));
                 return MessageResult::Done;
             }
@@ -391,7 +391,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (ClosePortalFlow<'_>, S) {
                 self.1.handle(Err(msg));
                 return MessageResult::SkipUntilSync;
             }
-            return MessageResult::Unknown;
+            MessageResult::Unknown
         })
     }
 }
@@ -402,7 +402,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (CloseStatementFlow<'_>, S) {
     }
     fn make_handler(mut self) -> Box<dyn MessageHandler> {
         Box::new(move |message: Message<'_>| {
-            if let Some(_) = CloseComplete::try_new(&message) {
+            if CloseComplete::try_new(&message).is_some() {
                 self.1.handle(Ok(()));
                 return MessageResult::Done;
             }
@@ -410,7 +410,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (CloseStatementFlow<'_>, S) {
                 self.1.handle(Err(msg));
                 return MessageResult::Done;
             }
-            return MessageResult::Unknown;
+            MessageResult::Unknown
         })
     }
 }
@@ -473,7 +473,7 @@ impl DescribeSink for () {
 
 impl<F> DescribeSink for F
 where
-    F: for<'a> FnMut(RowDescription<'a>) -> (),
+    F: for<'a> FnMut(RowDescription<'a>),
 {
     fn rows(&mut self, rows: RowDescription) {
         (self)(rows)
@@ -484,8 +484,8 @@ where
 
 impl<F1, F2> DescribeSink for (F1, F2)
 where
-    F1: for<'a> FnMut(ParameterDescription<'a>) -> (),
-    F2: for<'a> FnMut(RowDescription<'a>) -> (),
+    F1: for<'a> FnMut(ParameterDescription<'a>),
+    F2: for<'a> FnMut(RowDescription<'a>),
 {
     fn params(&mut self, params: ParameterDescription) {
         (self.0)(params)
@@ -493,7 +493,7 @@ where
     fn rows(&mut self, rows: RowDescription) {
         (self.1)(rows)
     }
-    fn error(&mut self, error: ErrorResponse) {}
+    fn error(&mut self, _error: ErrorResponse) {}
 }
 
 struct DescribeMessageHandler<S: DescribeSink> {
@@ -542,8 +542,8 @@ pub trait ExecuteSink {
 impl ExecuteSink for () {
     type Output = ();
     type CopyOutput = ();
-    fn rows(&mut self) -> () {}
-    fn copy(&mut self, _: CopyOutResponse) -> () {}
+    fn rows(&mut self) {}
+    fn copy(&mut self, _: CopyOutResponse) {}
     fn error(&mut self, _: ErrorResponse) {}
 }
 
@@ -558,9 +558,7 @@ where
     fn rows(&mut self) -> S {
         (self.0)()
     }
-    fn copy(&mut self, _: CopyOutResponse) -> () {
-        ()
-    }
+    fn copy(&mut self, _: CopyOutResponse) {}
     fn error(&mut self, error: ErrorResponse) {
         (self.1)(error)
     }
@@ -677,8 +675,8 @@ where
 impl QuerySink for () {
     type Output = ();
     type CopyOutput = ();
-    fn rows(&mut self, _: RowDescription) -> () {}
-    fn copy(&mut self, _: CopyOutResponse) -> () {}
+    fn rows(&mut self, _: RowDescription) {}
+    fn copy(&mut self, _: CopyOutResponse) {}
     fn error(&mut self, _: ErrorResponse) {}
 }
 
@@ -693,9 +691,7 @@ where
     fn rows(&mut self, rows: RowDescription) -> S {
         (self.0)(rows)
     }
-    fn copy(&mut self, _: CopyOutResponse) -> () {
-        ()
-    }
+    fn copy(&mut self, _: CopyOutResponse) {}
     fn error(&mut self, error: ErrorResponse) {
         (self.1)(error)
     }
@@ -946,6 +942,7 @@ impl<Q: QuerySink> MessageHandler for QueryMessageHandler<Q> {
                         self.sink.error(err);
                     }
                 } else {
+                    // Top level errors must complete this operation
                     self.sink.error(err);
                 }
             },

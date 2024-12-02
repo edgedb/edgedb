@@ -13,7 +13,7 @@ mod raw_conn;
 mod stream;
 pub mod tokio;
 
-pub use conn::Client;
+pub use conn::{Client, PGConnError};
 use dsn::HostType;
 pub use flow::{
     CopyDataSink, DataSink, DoneHandling, ExecuteSink, Format, MaxRows, Oid, Param, Pipeline,

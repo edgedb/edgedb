@@ -40,9 +40,9 @@ features = ["full"]
 
 [dev-dependencies]
 tracing-subscriber.workspace = true
-scopeguard = "1"
 captive_postgres.workspace = true
 
+scopeguard = "1"
 pretty_assertions = "1.2.0"
 test-log = { version = "0", features = ["trace"] }
 rstest = "0"
@@ -52,9 +52,5 @@ tempfile = "3"
 socket2 = "0.5.7"
 libc = "0.2.158"
 hex-literal = "0.4.1"
-
-[dev-dependencies.tokio]
-version = "1"
-features = ["macros", "rt-multi-thread", "time", "test-util"]
 
 [lib]

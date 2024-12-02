@@ -53,17 +53,26 @@ pub enum PGConnError {
 /// A client for a PostgreSQL connection.
 ///
 /// ```
-/// client = Client::new(credentials, socket, config);
-/// client.query("SELECT 1", logging_sink()).await;
-/// if client.pipeline(Pipeline::Flush, &[
-///     Flow::Parse("stmt1", "SELECT 1", &[Oid::Unspecified]),
-///     Flow::Bind("portal1", "stmt1", &[Param::Null], &[Format::Text]),
-///     Flow::Execute("portal1", MaxRows::Limited(NonZeroU32::new(1).unwrap())),
-/// ]).await.is_ok() {
-///     client.pipeline(Pipeline::Sync, &[
-///         Flow::Query("..."),
-///     ]).await;
-/// }
+/// # use pgrust::connection::*;
+/// # _ = async {
+/// # let config = ();
+/// # let credentials = Credentials::default();
+/// # let (client, server) = ::tokio::io::duplex(64);
+/// # let socket = client;
+/// let (client, task) = Client::new(credentials, socket, config);
+/// ::tokio::task::spawn_local(task);
+///
+/// // Run a basic query
+/// client.query("SELECT 1", ()).await?;
+///
+/// // Run a pipelined extended query
+/// client.pipeline_sync(PipelineBuilder::default()
+///     .parse(Statement("stmt1"), "SELECT 1", &[], ())
+///     .bind(Portal("portal1"), Statement("stmt1"), &[], &[Format::Text], ())
+///     .execute(Portal("portal1"), MaxRows::Unlimited, ())
+///     .build()).await?;
+/// # Ok::<(), PGConnError>(())
+/// # }
 /// ```
 pub struct Client<B: Stream, C: Unpin>
 where
@@ -144,6 +153,7 @@ where
 }
 
 #[derive(derive_more::Debug)]
+#[allow(clippy::type_complexity)]
 enum ConnState<B: Stream, C: Unpin>
 where
     (B, C): StreamWithUpgrade,
@@ -399,12 +409,12 @@ where
         f: impl QuerySink + 'static,
     ) -> impl Future<Output = Result<(), PGConnError>> {
         trace!("Query task started: {query}");
-        let message = builder::Query { query: &query }.to_vec();
+        let message = builder::Query { query }.to_vec();
         let (tx, rx) = tokio::sync::oneshot::channel();
         let handler = QueryMessageHandler {
             sink: f,
-            data: None.into(),
-            copy: None.into(),
+            data: None,
+            copy: None,
         };
         async move {
             self.enqueue_handler("query", Box::new(handler), Some(tx))?;
@@ -414,21 +424,16 @@ where
         }
     }
 
-    pub fn pipeline_sync(
-        self: Rc<Self>,
-        pipeline: Pipeline,
-    ) -> impl Future<Output = Result<(), PGConnError>> {
-        async move {
-            let (tx, rx) = tokio::sync::oneshot::channel();
-            for handler in pipeline.handlers {
-                self.enqueue_handler("pipeline", handler, None)?;
-            }
-            self.enqueue_handler("sync", Box::new(SyncMessageHandler), Some(tx))?;
-            self.write(&pipeline.messages).await?;
-            self.write(&builder::Sync::default().to_vec()).await?;
-            _ = rx.await;
-            Ok(())
+    pub async fn pipeline_sync(self: Rc<Self>, pipeline: Pipeline) -> Result<(), PGConnError> {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        for handler in pipeline.handlers {
+            self.enqueue_handler("pipeline", handler, None)?;
         }
+        self.enqueue_handler("sync", Box::new(SyncMessageHandler), Some(tx))?;
+        self.write(&pipeline.messages).await?;
+        self.write(&builder::Sync::default().to_vec()).await?;
+        _ = rx.await;
+        Ok(())
     }
 }
 
@@ -825,6 +830,40 @@ mod tests {
     }
 
     #[test_log::test(tokio::test)]
+    async fn query_notification() {
+        run_expect(
+            |client, log| async move {
+                client
+                    .query("listen a; select pg_notify('a','b')", log.clone())
+                    .await
+                    .unwrap();
+            },
+            &[(
+                &hex!(
+                    "
+                        51000000 286c6973 74656e20 613b2073
+                        656c6563 74207067 5f6e6f74 69667928
+                        2761272c 27622729 00
+                    "
+                ),
+                // C, T, D, C, A, Z
+                &hex!(
+                    "
+                        43000000 0b4c4953 54454e00 54000000
+                        22000170 675f6e6f 74696679 00000000
+                        00000000 0008e600 04ffffff ff000044
+                        0000000a 00010000 00004300 00000d53
+                        454c4543 54203100 41000000 0c002cba
+                        5f610062 005a0000 000549
+                    "
+                ),
+                "[table=[pg_notify,][,] done=SELECT 1]",
+            )],
+        )
+        .await;
+    }
+
+    #[test_log::test(tokio::test)]
     async fn query_two_empty() {
         run_expect(
             |client, log| async move {
@@ -853,14 +892,8 @@ mod tests {
     async fn query_two_error() {
         run_expect(
             |client, log| async move {
-                client
-                    .query(".", log.clone())
-                    .await
-                    .expect_err("should fail");
-                client
-                    .query(".", log.clone())
-                    .await
-                    .expect_err("should fail");
+                client.query(".", log.clone()).await.unwrap();
+                client.query(".", log.clone()).await.unwrap();
             },
             &[
                 (
@@ -872,9 +905,9 @@ mod tests {
                         78206572 726f7220 6174206f 72206e65
                         61722022 2e220050 31004673 63616e2e
                         6c004c31 32343400 52736361 6e6e6572
-                        5f797965 72726f72 0000
+                        5f797965 72726f72 00005a00 00000549
                     """),
-                    "",
+                    "[error 42601]",
                 ),
                 (
                     &hex!("51000000 062e00"),
@@ -887,7 +920,7 @@ mod tests {
                         6c004c31 32343400 52736361 6e6e6572
                         5f797965 72726f72 00005a00 00000549
                     """),
-                    "",
+                    "[error 42601]",
                 ),
             ],
         )
