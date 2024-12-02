@@ -23,8 +23,8 @@ use crate::protocol::{
         builder,
         data::{
             BindComplete, CloseComplete, CommandComplete, CopyData, CopyDone, CopyOutResponse,
-            DataRow, EmptyQueryResponse, ErrorResponse, Message, ParseComplete, PortalSuspended,
-            ReadyForQuery, RowDescription,
+            DataRow, EmptyQueryResponse, ErrorResponse, Message, ParameterDescription,
+            ParseComplete, PortalSuspended, ReadyForQuery, RowDescription,
         },
     },
     Encoded,
@@ -58,10 +58,10 @@ pub enum MaxRows {
     Limited(NonZeroU32),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Portal<'a>(pub &'a str);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Statement<'a>(pub &'a str);
 
 pub trait Flow {
@@ -292,6 +292,9 @@ pub(crate) enum MessageResult {
 
 pub(crate) trait MessageHandler {
     fn handle(&mut self, message: Message) -> MessageResult;
+    fn is_sync(&self) -> bool {
+        false
+    }
 }
 
 pub(crate) struct SyncMessageHandler;
@@ -299,6 +302,9 @@ pub(crate) struct SyncMessageHandler;
 impl MessageHandler for SyncMessageHandler {
     fn handle(&mut self, _: Message) -> MessageResult {
         MessageResult::Done
+    }
+    fn is_sync(&self) -> bool {
+        true
     }
 }
 
@@ -308,12 +314,6 @@ where
 {
     fn handle(&mut self, message: Message) -> MessageResult {
         (self)(message)
-    }
-}
-
-impl MessageHandler for Box<dyn MessageHandler> {
-    fn handle(&mut self, message: Message) -> MessageResult {
-        self.as_mut().handle(message)
     }
 }
 
@@ -434,6 +434,87 @@ impl<S: QuerySink + 'static> FlowWithSink for (QueryFlow<'_>, S) {
             sink: self.1,
             data: None,
             copy: None,
+        })
+    }
+}
+
+impl<S: DescribeSink + 'static> FlowWithSink for (DescribePortalFlow<'_>, S) {
+    fn visit_flow(&self, mut f: impl FnMut(&dyn Flow)) {
+        f(&self.0);
+    }
+    fn make_handler(self) -> Box<dyn MessageHandler> {
+        Box::new(DescribeMessageHandler { sink: self.1 })
+    }
+}
+
+impl<S: DescribeSink + 'static> FlowWithSink for (DescribeStatementFlow<'_>, S) {
+    fn visit_flow(&self, mut f: impl FnMut(&dyn Flow)) {
+        f(&self.0);
+    }
+    fn make_handler(self) -> Box<dyn MessageHandler> {
+        Box::new(DescribeMessageHandler { sink: self.1 })
+    }
+}
+
+pub trait DescribeSink {
+    fn params(&mut self, params: ParameterDescription);
+    fn rows(&mut self, rows: RowDescription);
+    fn error(&mut self, error: ErrorResponse);
+}
+
+impl DescribeSink for () {
+    fn params(&mut self, _: ParameterDescription) {}
+    fn rows(&mut self, _: RowDescription) {}
+    fn error(&mut self, _: ErrorResponse) {}
+}
+
+impl<F> DescribeSink for F
+where
+    F: for<'a> FnMut(RowDescription<'a>) -> (),
+{
+    fn rows(&mut self, rows: RowDescription) {
+        (self)(rows)
+    }
+    fn params(&mut self, params: ParameterDescription) {}
+    fn error(&mut self, error: ErrorResponse) {}
+}
+
+impl<F1, F2> DescribeSink for (F1, F2)
+where
+    F1: for<'a> FnMut(ParameterDescription<'a>) -> (),
+    F2: for<'a> FnMut(RowDescription<'a>) -> (),
+{
+    fn params(&mut self, params: ParameterDescription) {
+        (self.0)(params)
+    }
+    fn rows(&mut self, rows: RowDescription) {
+        (self.1)(rows)
+    }
+    fn error(&mut self, error: ErrorResponse) {}
+}
+
+struct DescribeMessageHandler<S: DescribeSink> {
+    sink: S,
+}
+
+impl<S: DescribeSink> MessageHandler for DescribeMessageHandler<S> {
+    fn handle(&mut self, message: Message) -> MessageResult {
+        match_message!(Ok(message), Backend {
+            (ParameterDescription as params) => {
+                self.sink.params(params);
+                return MessageResult::Continue;
+            },
+            (RowDescription as rows) => {
+                self.sink.rows(rows);
+                return MessageResult::Done;
+            },
+            (ErrorResponse as err) => {
+                self.sink.error(err);
+                return MessageResult::SkipUntilSync;
+            },
+            _unknown => {
+                return MessageResult::Unknown;
+            }
         })
     }
 }
@@ -683,6 +764,7 @@ impl<Q: ExecuteSink> MessageHandler for ExecuteMessageHandler<Q> {
 
             _unknown => {
                 self.sink.protocol_violation(message, "unknown message");
+                return MessageResult::Unknown;
             }
         });
         MessageResult::Continue
@@ -787,6 +869,7 @@ impl<Q: QuerySink> MessageHandler for QueryMessageHandler<Q> {
 
             _unknown => {
                 self.sink.protocol_violation(message, "unknown message");
+                return MessageResult::Unknown;
             }
         });
         MessageResult::Continue
@@ -807,7 +890,7 @@ impl PipelineBuilder {
     }
 
     pub fn bind(
-        mut self,
+        self,
         portal: Portal,
         statement: Statement,
         params: &[Param],
@@ -826,7 +909,7 @@ impl PipelineBuilder {
     }
 
     pub fn parse(
-        mut self,
+        self,
         name: Statement,
         query: &str,
         param_types: &[Oid],
@@ -843,7 +926,7 @@ impl PipelineBuilder {
     }
 
     pub fn execute(
-        mut self,
+        self,
         portal: Portal,
         max_rows: MaxRows,
         handler: impl ExecuteSink + 'static,
@@ -851,16 +934,20 @@ impl PipelineBuilder {
         self.push_flow_with_sink((ExecuteFlow { portal, max_rows }, handler))
     }
 
-    pub fn close_portal(mut self, name: Portal, handler: impl SimpleFlowSink + 'static) -> Self {
+    pub fn close_portal(self, name: Portal, handler: impl SimpleFlowSink + 'static) -> Self {
         self.push_flow_with_sink((ClosePortalFlow { name }, handler))
     }
 
-    pub fn close_statement(
-        mut self,
-        name: Statement,
-        handler: impl SimpleFlowSink + 'static,
-    ) -> Self {
+    pub fn close_statement(self, name: Statement, handler: impl SimpleFlowSink + 'static) -> Self {
         self.push_flow_with_sink((CloseStatementFlow { name }, handler))
+    }
+
+    pub fn describe_portal(self, name: Portal, handler: impl DescribeSink + 'static) -> Self {
+        self.push_flow_with_sink((DescribePortalFlow { name }, handler))
+    }
+
+    pub fn describe_statement(self, name: Statement, handler: impl DescribeSink + 'static) -> Self {
+        self.push_flow_with_sink((DescribeStatementFlow { name }, handler))
     }
 
     /// Add a query flow to the pipeline.
@@ -868,7 +955,7 @@ impl PipelineBuilder {
     /// Note that if a query fails, the pipeline will continue executing until it
     /// completes or a non-query pipeline element fails. If a previous non-query
     /// element of this pipeline failed, the query will not be executed.
-    pub fn query(mut self, query: &str, handler: impl QuerySink + 'static) -> Self {
+    pub fn query(self, query: &str, handler: impl QuerySink + 'static) -> Self {
         self.push_flow_with_sink((QueryFlow { query }, handler))
     }
 

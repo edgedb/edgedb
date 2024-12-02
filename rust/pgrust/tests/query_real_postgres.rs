@@ -5,7 +5,7 @@ use std::num::NonZero;
 use gel_auth::AuthType;
 use pgrust::connection::tokio::TokioStream;
 use pgrust::connection::{
-    Client, Credentials, MaxRows, PipelineBuilder, Portal, ResolvedTarget, Statement,
+    Client, Credentials, MaxRows, Oid, Param, PipelineBuilder, Portal, ResolvedTarget, Statement,
 };
 use tokio::task::LocalSet;
 
@@ -67,8 +67,10 @@ async fn test_extended_query_success() -> Result<(), Box<dyn std::error::Error>>
         client
             .pipeline_sync(
                 PipelineBuilder::default()
-                    .parse(Statement("test"), "SELECT generate_series(1, 10)", &[], ())
-                    .bind(Portal("test"), Statement("test"), &[], &[], ())
+                    .parse(Statement("test"), "SELECT $1", &[Oid::Unspecified], ())
+                    .describe_statement(Statement("test"), ())
+                    .bind(Portal("test"), Statement("test"), &[Param::Null], &[], ())
+                    .describe_portal(Portal("test"), ())
                     .execute(
                         Portal("test"),
                         MaxRows::Limited(NonZero::new(1).unwrap()),

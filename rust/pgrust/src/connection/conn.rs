@@ -9,13 +9,7 @@ use crate::{
     connection::{flow::QueryMessageHandler, ConnectionError},
     handshake::ConnectionSslRequirement,
     protocol::{
-        postgres::{
-            builder,
-            data::{
-                Message
-            },
-            meta,
-        },
+        postgres::{builder, data::Message, meta},
         StructBuffer,
     },
 };
@@ -218,12 +212,12 @@ where
     fn enqueue_handler(
         &self,
         name: &'static str,
-        handler: impl MessageHandler + 'static,
+        handler: Box<dyn MessageHandler>,
         tx: Option<tokio::sync::oneshot::Sender<()>>,
     ) -> Result<(), PGConnError> {
         match &mut *self.state.borrow_mut() {
             ConnState::Ready(_, queue) => {
-                queue.push_back((name, Box::new(handler), tx));
+                queue.push_back((name, handler, tx));
             }
             x => {
                 warn!("Connection state was not ready: {x:?}");
@@ -274,10 +268,11 @@ where
                         MessageResult::SkipUntilSync => {
                             let mut found_sync = false;
                             while let Some((name, handler, _)) = queue.front() {
-                                if let Some(sync) = handler.as_any().downcast_ref::<SyncMessageHandler>() {
+                                if handler.is_sync() {
                                     found_sync = true;
                                     break;
                                 }
+                                trace!("skipping {name}");
                                 queue.pop_front();
                             }
                             if !found_sync {
@@ -290,7 +285,7 @@ where
                         }
                         MessageResult::Unknown => {
                             // TODO
-                            warn!("Unknown message");
+                            warn!("Unknown message in {name}");
                         }
                     };
                 };
@@ -387,7 +382,7 @@ where
             copy: None.into(),
         };
         async move {
-            self.enqueue_handler("query", handler, Some(tx))?;
+            self.enqueue_handler("query", Box::new(handler), Some(tx))?;
             self.write(&message).await?;
             _ = rx.await;
             Ok(())
@@ -401,9 +396,9 @@ where
         async move {
             let (tx, rx) = tokio::sync::oneshot::channel();
             for handler in pipeline.handlers {
-                self.enqueue_handler("pipeline",handler, None)?;
+                self.enqueue_handler("pipeline", handler, None)?;
             }
-            self.enqueue_handler("sync", SyncMessageHandler, Some(tx))?;
+            self.enqueue_handler("sync", Box::new(SyncMessageHandler), Some(tx))?;
             self.write(&pipeline.messages).await?;
             self.write(&builder::Sync::default().to_vec()).await?;
             _ = rx.await;
@@ -833,8 +828,14 @@ mod tests {
     async fn query_two_error() {
         run_expect(
             |client, log| async move {
-                client.query(".", log.clone()).await.expect_err("should fail");
-                client.query(".", log.clone()).await.expect_err("should fail");
+                client
+                    .query(".", log.clone())
+                    .await
+                    .expect_err("should fail");
+                client
+                    .query(".", log.clone())
+                    .await
+                    .expect_err("should fail");
             },
             &[
                 (

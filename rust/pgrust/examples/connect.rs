@@ -2,7 +2,7 @@ use clap::Parser;
 use clap_derive::Parser;
 use openssl::ssl::{Ssl, SslContext, SslMethod};
 use pgrust::{
-    connection::{dsn::parse_postgres_dsn_env, Client, Credentials, Format, MaxRows, Param, PipelineBuilder, Portal, QuerySink, ResolvedTarget, Statement},
+    connection::{dsn::parse_postgres_dsn_env, Client, Credentials, QuerySink, ResolvedTarget},
     protocol::postgres::data::{CopyData, CopyOutResponse, DataRow, ErrorResponse, RowDescription},
 };
 use std::net::SocketAddr;
@@ -154,14 +154,6 @@ async fn run_queries(
     let (conn, task) = Client::new(credentials, client, ssl);
     tokio::task::spawn_local(task);
     conn.ready().await?;
-
-    let pipeline = PipelineBuilder::default()
-        .parse(Statement("select oid from pg_type where name = $1"), "select oid from pg_type where name = $1", &[], ())
-        .bind(Portal(""), Statement(""), &[Param::Text("text")], &[Format::Binary], ())
-        .execute(Portal(""), MaxRows::Unlimited, ())
-        .build();
-
-    tokio::task::spawn_local(conn.pipeline_sync(pipeline)).await??;
 
     eprintln!("Statements: {statements:?}");
 

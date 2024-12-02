@@ -16,8 +16,8 @@ pub mod tokio;
 pub use conn::Client;
 use dsn::HostType;
 pub use flow::{
-    CopyDataSink, DataSink, DoneHandling, ExecuteSink, MaxRows, Param, Pipeline, PipelineBuilder,
-    Portal, QuerySink, Statement, Format,
+    CopyDataSink, DataSink, DoneHandling, ExecuteSink, Format, MaxRows, Oid, Param, Pipeline,
+    PipelineBuilder, Portal, QuerySink, Statement,
 };
 pub use raw_conn::connect_raw_ssl;
 
