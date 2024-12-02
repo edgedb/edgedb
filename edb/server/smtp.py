@@ -219,9 +219,11 @@ def _get_current_email_provider(
     )
     for obj in objs:
         if obj.name == current_provider_name:
-            as_json = obj.to_json_value()
-            as_json.pop('_tname', None)
-            found = SMTPProviderConfig(**as_json)
+            values = {}
+            for field in dataclasses.fields(SMTPProviderConfig):
+                key = field.name
+                values[key] = getattr(obj, key)
+            found = SMTPProviderConfig(**values)
             break
 
     if found is None:
