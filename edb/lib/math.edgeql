@@ -405,6 +405,16 @@ std::math::var_pop(vals: SET OF std::float64) -> OPTIONAL std::float64
 
 
 CREATE FUNCTION
+std::math::pi() -> std::float64
+{
+    CREATE ANNOTATION std::description :=
+        'Return the constant value of pi.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'pi';
+};
+
+
+CREATE FUNCTION
 std::math::acos(x: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
