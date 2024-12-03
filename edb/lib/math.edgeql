@@ -405,7 +405,7 @@ std::math::var_pop(vals: SET OF std::float64) -> OPTIONAL std::float64
 
 
 CREATE FUNCTION
-math::acos(x: std::float64) -> std::float64
+std::math::acos(x: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the inverse cosine of the input value.';
@@ -415,7 +415,7 @@ math::acos(x: std::float64) -> std::float64
 
 
 CREATE FUNCTION
-math::asin(x: std::float64) -> std::float64
+std::math::asin(x: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the inverse sine of the input value.';
@@ -425,7 +425,7 @@ math::asin(x: std::float64) -> std::float64
 
 
 CREATE FUNCTION
-math::atan(x: std::float64) -> std::float64
+std::math::atan(x: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the inverse tangent of the input value.';
@@ -435,7 +435,7 @@ math::atan(x: std::float64) -> std::float64
 
 
 CREATE FUNCTION
-math::atan2(y: std::float64, x: std::float64) -> std::float64
+std::math::atan2(y: std::float64, x: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the inverse tangent of y/x of the input value.';
@@ -445,7 +445,7 @@ math::atan2(y: std::float64, x: std::float64) -> std::float64
 
 
 CREATE FUNCTION
-math::cos(x: std::float64) -> std::float64
+std::math::cos(x: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the cosine of the input value.';
@@ -455,7 +455,7 @@ math::cos(x: std::float64) -> std::float64
 
 
 CREATE FUNCTION
-math::cot(x: std::float64) -> std::float64
+std::math::cot(x: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the cotangent of the input value.';
@@ -465,7 +465,7 @@ math::cot(x: std::float64) -> std::float64
 
 
 CREATE FUNCTION
-math::sin(x: std::float64) -> std::float64
+std::math::sin(x: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the sine of the input value.';
@@ -475,7 +475,7 @@ math::sin(x: std::float64) -> std::float64
 
 
 CREATE FUNCTION
-math::tan(x: std::float64) -> std::float64
+std::math::tan(x: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the tangent of the input value.';
