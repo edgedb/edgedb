@@ -1687,6 +1687,20 @@ class TestSchema(tb.BaseSchemaLoadTest):
             scalar type one extending str;
         """
 
+    def test_schema_trigger_order_01(self):
+        """
+            type Feed extending Entity {
+              trigger sync_trigger_on_update after update for each when (
+                __old__.field ?= __new__.field
+              )
+              do (1)
+            }
+
+            abstract type Entity {
+              field: str;
+            }
+        """
+
     def test_schema_property_cardinality_alter_01(self):
         schema = self.load_schema('''
             type Foo {
