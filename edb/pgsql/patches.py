@@ -170,4 +170,22 @@ ALTER TYPE cfg::AbstractConfig {
     };
 }
 '''),
+    # === 5.8
+    ('edgeql', '''
+ALTER FUNCTION
+std::re_match(pattern: std::str, str: std::str)
+{
+    USING SQL $$
+    SELECT array_replace(regexp_matches("str", "pattern"), NULL, '');
+    $$;
+};
+ALTER FUNCTION
+std::re_match_all(pattern: std::str, str: std::str)
+{
+    USING SQL $$
+    SELECT array_replace(regexp_matches("str", "pattern", 'g'), NULL, '');
+    $$;
+};
+'''),
+
 ])
