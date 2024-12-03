@@ -50,6 +50,11 @@ CREATE TYPE cfg::TestInstanceConfig EXTENDING cfg::ConfigObject {
     CREATE LINK obj -> cfg::Base;
 };
 
+CREATE TYPE cfg::TestInstanceConfigStatTypes EXTENDING cfg::TestInstanceConfig {
+    CREATE PROPERTY memprop -> cfg::memory;
+    CREATE PROPERTY durprop -> std::duration;
+};
+
 
 CREATE SCALAR TYPE cfg::TestEnum extending enum<One, Two, Three>;
 

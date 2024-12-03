@@ -689,6 +689,8 @@ cdef class PgConnection(frontend.FrontendConnection):
         ):
             database = self.tenant.default_database
 
+        user = self.tenant.resolve_user_name(user)
+
         await self._authenticate(user, database, params)
 
         logger.debug('successfully authenticated %s in database %s',

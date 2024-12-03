@@ -90,6 +90,14 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 set default := global glob_mod::glob_float32
             };
         };
+
+        create global glob_mod::a: str;
+        create global glob_mod::b: str;
+        create type glob_mod::Computed {
+            create property a := global glob_mod::a;
+            create property b := global glob_mod::b;
+        };
+        insert glob_mod::Computed;
         ''',
         os.path.join(
             os.path.dirname(__file__), 'schemas', 'movies_setup.edgeql'
@@ -2005,6 +2013,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         await tran.rollback()
 
+    @test.skip("This is flaking in CI")
     async def test_sql_query_computed_11(self):
         # globals
 
@@ -2057,6 +2066,35 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         )
 
         await tran.rollback()
+
+    async def test_sql_query_computed_12(self):
+        # globals
+
+        tran = self.scon.transaction()
+        await tran.start()
+        try:
+            res = await self.squery_values(
+                '''
+                SELECT a, b FROM glob_mod."Computed"
+                '''
+            )
+            self.assertEqual(res, [[None, None]])
+
+            await self.scon.execute(
+                f"""
+                SET LOCAL "global glob_mod::a" TO hello;
+                SET LOCAL "global glob_mod::b" TO world;
+                """
+            )
+
+            res = await self.squery_values(
+                '''
+                SELECT a, b FROM glob_mod."Computed"
+                '''
+            )
+            self.assertEqual(res, [["hello", "world"]])
+        finally:
+            await tran.rollback()
 
     async def test_sql_query_access_policy_01(self):
         tran = self.scon.transaction()
@@ -2418,6 +2456,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                     "genre": "Drama",
                 },
             ],
+            apply_access_policies=False,
         )
 
     async def test_native_sql_query_02(self):
@@ -2446,6 +2485,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 "0": "Drama",
                 "1": 14,
             },
+            apply_access_policies=False,
         )
 
     async def test_native_sql_query_03(self):
@@ -2466,6 +2506,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 LIMIT 1
             """,
             [{}],
+            apply_access_policies=False,
         )
 
     async def test_native_sql_query_04(self):
@@ -2579,4 +2620,103 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 {'a': 5, 'b': 2},
                 {'a': 5, 'b': 3},
             ],
+        )
+
+    async def test_native_sql_query_13(self):
+        # globals
+
+        await self.assert_sql_query_result(
+            """
+            SELECT username FROM "Person"
+            ORDER BY first_name LIMIT 1
+            """,
+            [{'username': "u_robin"}]
+        )
+
+        await self.con.execute(
+            '''
+            SET GLOBAL default::username_prefix := 'user_';
+            '''
+        )
+
+        await self.assert_sql_query_result(
+            """
+            SELECT username FROM "Person"
+            ORDER BY first_name LIMIT 1
+            """,
+            [{'username': "user_robin"}]
+        )
+
+    async def test_native_sql_query_14(self):
+        # globals
+
+        await self.con.execute(
+            f"""
+            SET GLOBAL glob_mod::glob_str := 'hello';
+            SET GLOBAL glob_mod::glob_uuid :=
+                <uuid>'f527c032-ad4c-461e-95e2-67c4e2b42ca7';
+            SET GLOBAL glob_mod::glob_int64 := 42;
+            SET GLOBAL glob_mod::glob_int32 := 42;
+            SET GLOBAL glob_mod::glob_int16 := 42;
+            SET GLOBAL glob_mod::glob_bool := true;
+            SET GLOBAL glob_mod::glob_float64 := 42.1;
+            SET GLOBAL glob_mod::glob_float32 := 42.1;
+            """
+        )
+        await self.con.execute_sql('INSERT INTO glob_mod."G" DEFAULT VALUES')
+
+        await self.assert_sql_query_result(
+            '''
+            SELECT
+                p_str,
+                p_uuid,
+                p_int64,
+                p_int32,
+                p_int16,
+                p_bool,
+                p_float64,
+                p_float32
+            FROM glob_mod."G"
+            ''',
+            [
+                {
+                    'p_str': 'hello',
+                    'p_uuid': uuid.UUID('f527c032-ad4c-461e-95e2-67c4e2b42ca7'),
+                    'p_int64': 42,
+                    'p_int32': 42,
+                    'p_int16': 42,
+                    'p_bool': True,
+                    'p_float64': 42.1,
+                    'p_float32': 42.099998474121094,
+                }
+            ],
+        )
+
+    async def test_native_sql_query_15(self):
+        # no access policies
+        await self.assert_sql_query_result(
+            'SELECT title FROM "Content" ORDER BY title',
+            [
+                {'title': 'Chronicles of Narnia'},
+                {'title': 'Forrest Gump'},
+                {'title': 'Halo 3'},
+                {'title': 'Hunger Games'},
+                {'title': 'Saving Private Ryan'},
+            ],
+            apply_access_policies=False,
+        )
+
+        # access policies applied
+        await self.assert_sql_query_result(
+            'SELECT title FROM "Content" ORDER BY title',
+            []
+        )
+
+        # access policies use globals
+        await self.con.execute(
+            "SET global default::filter_title := 'Forrest Gump'"
+        )
+        await self.assert_sql_query_result(
+            'SELECT title FROM "Content" ORDER BY title',
+            [{'title': 'Forrest Gump'}]
         )

@@ -917,6 +917,8 @@ def trace_Trigger(
     ctx: DepTraceContext,
 ) -> None:
     exprs = [ExprDependency(expr=node.expr)]
+    if node.condition:
+        exprs.append(ExprDependency(expr=node.condition))
 
     obj = ctx.depstack[-1][1]
     _register_item(

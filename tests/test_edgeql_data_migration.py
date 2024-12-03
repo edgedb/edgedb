@@ -1646,6 +1646,37 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         })
 
+    async def test_edgeql_migration_describe_index_05(self):
+        # Migration that creates index.
+        await self.con.execute('''
+            START MIGRATION TO {
+                module default {
+                    type Foo {
+                        property x -> int64;
+                        index on (.x);
+                    };
+                };
+            };
+        ''')
+        # Auto-complete migration
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module default {
+                    type Foo {
+                        property y -> int64;
+                        index on (.y);
+                    };
+                };
+            };
+        ''')
+
+        await self.interact([
+            ("did you drop index on (.x) of object type 'default::Foo'?", "n"),
+            "did you rename property 'x' of object type 'default::Foo' to 'y'?",
+        ])
+
     async def test_edgeql_migration_describe_scalar_01(self):
         # Migration that renames a type.
         await self.con.execute('''

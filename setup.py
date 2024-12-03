@@ -691,12 +691,18 @@ class ci_helper(setuptools.Command):
             print(binascii.hexlify(rust_hash).decode())
 
         elif self.type == 'ext':
-            ext_hash = hash_dirs([
-                (pkg_dir, '.pyx'),
-                (pkg_dir, '.pyi'),
-                (pkg_dir, '.pxd'),
-                (pkg_dir, '.pxi'),
-            ])
+            import gel
+
+            ext_hash = hash_dirs(
+                [
+                    (pkg_dir, '.pyx'),
+                    (pkg_dir, '.pyi'),
+                    (pkg_dir, '.pxd'),
+                    (pkg_dir, '.pxi'),
+                ],
+                # protocol.pyx for tests links to edgedb-python binary
+                extra_data=gel.__version__.encode(),
+            )
             print(
                 binascii.hexlify(ext_hash).decode() + '-'
                 + _get_libpg_query_source_stamp()
