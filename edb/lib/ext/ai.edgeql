@@ -141,7 +141,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         create required property indexer_naptime: std::duration {
             set default := <std::duration>'10s';
             create annotation std::description := '
-                Specifies the minimum delay between runs of the 
+                Specifies the minimum delay between runs of the
                 deferred ext::ai::index indexer on any given branch.
             ';
         };
@@ -344,7 +344,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
     };
 
     # going to be deprecated shortly
-    create abstract type ext::ai::MistralMediumModel 
+    create abstract type ext::ai::MistralMediumModel
         extending ext::ai::TextGenerationModel
     {
         alter annotation
@@ -504,6 +504,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
 
     create abstract index ext::ai::index (
         named only embedding_model: str,
+        named only dimensions: optional int64 = {},
         named only distance_function: ext::ai::DistanceFunction
             = ext::ai::DistanceFunction.Cosine,
         named only index_type: ext::ai::IndexType
