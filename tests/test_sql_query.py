@@ -983,6 +983,41 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         self.assertEqual(await count_table("", "B.vals"), 4)
         self.assertEqual(await count_table("ONLY", "B.vals"), 0)
 
+    async def test_sql_query_53(self):
+        await self.scon.execute(
+            '''
+            SELECT 'hello' as t;
+            SELECT 42 as i;
+            '''
+        )
+
+        # query params will make asyncpg use the extended protocol,
+        # where you can issue only one statement.
+        with self.assertRaisesRegex(
+            asyncpg.PostgresSyntaxError,
+            'cannot insert multiple commands into a prepared statement'
+        ):
+            await self.scon.execute(
+                '''
+                SELECT $1::text as t;
+                SELECT $2::int as i;
+                ''',
+                'hello',
+                42
+            )
+
+    async def test_sql_query_54(self):
+        with self.assertRaisesRegex(
+            asyncpg.UndefinedParameterError,
+            'there is no parameter \\$0'
+        ):
+            await self.scon.fetch(
+                '''
+                SELECT $0::text as t;
+                ''',
+                'hello'
+            )
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
@@ -2720,3 +2755,50 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             'SELECT title FROM "Content" ORDER BY title',
             [{'title': 'Forrest Gump'}]
         )
+
+    async def test_native_sql_query_16(self):
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            'multi-statement SQL scripts are not supported yet',
+        ):
+            await self.assert_sql_query_result(
+                """
+                SELECT 'Hello' as t;
+                SELECT 42 as i;
+                """,
+                [
+                    {"t": "Hello"}
+                ],
+                apply_access_policies=False,
+            )
+
+        await self.assert_sql_query_result(
+            """SELECT $1::text as t, $2::int as i""",
+            [
+                {"t": "Hello", "i": 42}
+            ],
+            variables={
+                "0": "Hello",
+                "1": 42,
+            },
+            apply_access_policies=False,
+        )
+
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            'multi-statement SQL scripts are not supported yet',
+        ):
+            await self.assert_sql_query_result(
+                """
+                SELECT $1::text as t;
+                SELECT $2::int as i;
+                """,
+                [
+                    {"t": "Hello"}
+                ],
+                variables={
+                    "0": "Hello",
+                    "1": 42,
+                },
+                apply_access_policies=False,
+            )
