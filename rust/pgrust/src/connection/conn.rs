@@ -1,12 +1,15 @@
 use super::{
     connect_raw_ssl,
-    flow::{MessageHandler, MessageResult, Pipeline, QuerySink, SyncMessageHandler},
+    flow::{MessageHandler, MessageResult, Pipeline, QuerySink},
     raw_conn::RawClient,
     stream::{Stream, StreamWithUpgrade},
     Credentials,
 };
 use crate::{
-    connection::{flow::QueryMessageHandler, ConnectionError},
+    connection::{
+        flow::{QueryMessageHandler, SyncMessageHandler},
+        ConnectionError,
+    },
     handshake::ConnectionSslRequirement,
     protocol::{
         postgres::{
@@ -17,9 +20,10 @@ use crate::{
         StructBuffer,
     },
 };
-use futures::FutureExt;
+use futures::{future::Either, FutureExt};
 use std::{
     cell::RefCell,
+    future::ready,
     pin::Pin,
     sync::Arc,
     task::{ready, Poll},
@@ -68,7 +72,7 @@ pub enum PGConnError {
 /// // Run a pipelined extended query
 /// client.pipeline_sync(PipelineBuilder::default()
 ///     .parse(Statement("stmt1"), "SELECT 1", &[], ())
-///     .bind(Portal("portal1"), Statement("stmt1"), &[], &[Format::Text], ())
+///     .bind(Portal("portal1"), Statement("stmt1"), &[], &[Format::text()], ())
 ///     .execute(Portal("portal1"), MaxRows::Unlimited, ())
 ///     .build()).await?;
 /// # Ok::<(), PGConnError>(())
@@ -135,20 +139,34 @@ where
     ///
     /// `CopyInResponse` is not currently supported and will result in a `CopyFail` being
     /// sent to the server.
+    ///
+    /// Cancellation safety: if the future is dropped after the first time it is polled, the operation will
+    /// continue to callany callbacks and run to completion. If it has not been polled, the operation will
+    /// not be submitted.
     pub fn query(
         &self,
         query: &str,
         f: impl QuerySink + 'static,
     ) -> impl Future<Output = Result<(), PGConnError>> {
-        self.conn.clone().query(query, f)
+        match self.conn.clone().query(query, f) {
+            Ok(f) => Either::Left(f),
+            Err(e) => Either::Right(ready(Err(e))),
+        }
     }
 
     /// Performs a set of pipelined steps as a `Sync` group.
+    ///
+    /// Cancellation safety: if the future is dropped after the first time it is polled, the operation will
+    /// continue to callany callbacks and run to completion. If it has not been polled, the operation will
+    /// not be submitted.
     pub fn pipeline_sync(
         &self,
         pipeline: Pipeline,
     ) -> impl Future<Output = Result<(), PGConnError>> {
-        self.conn.clone().pipeline_sync(pipeline)
+        match self.conn.clone().pipeline_sync(pipeline) {
+            Ok(f) => Either::Left(f),
+            Err(e) => Either::Right(ready(Err(e))),
+        }
     }
 }
 
@@ -162,14 +180,14 @@ where
     #[allow(clippy::type_complexity)]
     Connecting(Pin<Box<dyn Future<Output = Result<RawClient<B, C>, ConnectionError>>>>),
     #[debug("Ready(..)")]
-    Ready(
-        RawClient<B, C>,
-        VecDeque<(
+    Ready {
+        client: RawClient<B, C>,
+        handlers: VecDeque<(
             &'static str,
             Box<dyn MessageHandler>,
             Option<tokio::sync::oneshot::Sender<()>>,
         )>,
-    ),
+    },
     Error(PGConnError),
     Closed,
 }
@@ -179,28 +197,34 @@ where
     (B, C): StreamWithUpgrade,
 {
     state: RefCell<ConnState<B, C>>,
-    write_lock: tokio::sync::Mutex<()>,
+    queue: RefCell<super::queue::FutureQueue<Result<(), PGConnError>>>,
     ready_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl<B: Stream, C: Unpin> PGConn<B, C>
 where
     (B, C): StreamWithUpgrade,
+    B: 'static,
+    C: 'static,
 {
     pub fn new_connection(
         future: impl Future<Output = Result<RawClient<B, C>, ConnectionError>> + 'static,
     ) -> Self {
         Self {
             state: ConnState::Connecting(future.boxed_local()).into(),
-            write_lock: Default::default(),
+            queue: Default::default(),
             ready_lock: Default::default(),
         }
     }
 
     pub fn new_raw(stm: RawClient<B, C>) -> Self {
         Self {
-            state: ConnState::Ready(stm, Default::default()).into(),
-            write_lock: Default::default(),
+            state: ConnState::Ready {
+                client: stm,
+                handlers: Default::default(),
+            }
+            .into(),
+            queue: Default::default(),
             ready_lock: Default::default(),
         }
     }
@@ -231,64 +255,79 @@ where
         F: FnOnce(Pin<&mut RawClient<B, C>>) -> T,
     {
         match &mut *self.state.borrow_mut() {
-            ConnState::Ready(ref mut raw_client, _) => Ok(f(Pin::new(raw_client))),
+            ConnState::Ready { ref mut client, .. } => Ok(f(Pin::new(client))),
             _ => Err(PGConnError::InvalidState),
         }
     }
 
-    fn enqueue_handler(
-        &self,
-        name: &'static str,
-        handler: Box<dyn MessageHandler>,
-        tx: Option<tokio::sync::oneshot::Sender<()>>,
-    ) -> Result<(), PGConnError> {
-        match &mut *self.state.borrow_mut() {
-            ConnState::Ready(_, queue) => {
-                queue.push_back((name, handler, tx));
-            }
-            x => {
-                warn!("Connection state was not ready: {x:?}");
-                return Err(PGConnError::InvalidState);
-            }
-        }
-        Ok(())
-    }
+    fn write(
+        self: Rc<Self>,
+        message_handlers: Vec<Box<dyn MessageHandler>>,
+        buf: Vec<u8>,
+    ) -> Result<tokio::sync::oneshot::Receiver<()>, PGConnError> {
+        let (tx, rx) = tokio::sync::oneshot::channel();
 
-    async fn write(&self, mut buf: &[u8]) -> Result<(), PGConnError> {
-        let _lock = self.write_lock.lock().await;
+        self.clone().queue.borrow_mut().submit(async move {
+            // If the future was dropped before the first poll, we don't submit the operation
+            if tx.is_closed() {
+                return Ok(());
+            }
 
-        if buf.is_empty() {
-            return Ok(());
-        }
-        if tracing::enabled!(Level::TRACE) {
-            trace!("Write:");
-            for s in hexdump::hexdump_iter(buf) {
-                trace!("{}", s);
+            // Once we're polled the first time, we can add the handlers
+            match &mut *self.state.borrow_mut() {
+                ConnState::Ready { handlers, .. } => {
+                    let mut handlers_iter = message_handlers.into_iter();
+                    let mut tx = Some(tx);
+                    while let Some(handler) = handlers_iter.next() {
+                        if handlers_iter.len() == 0 {
+                            handlers.push_back(("", handler, tx.take()));
+                        } else {
+                            handlers.push_back(("", handler, None));
+                        }
+                    }
+                }
+                x => {
+                    warn!("Connection state was not ready: {x:?}");
+                    return Err(PGConnError::InvalidState);
+                }
             }
-        }
-        loop {
-            let n = poll_fn(|cx| {
-                self.with_stream(|stm| {
-                    let n = match ready!(stm.poll_write(cx, buf)) {
-                        Ok(n) => n,
-                        Err(e) => return Poll::Ready(Err(PGConnError::Io(e))),
-                    };
-                    Poll::Ready(Ok(n))
-                })?
-            })
-            .await?;
-            if n == buf.len() {
-                break;
+
+            if tracing::enabled!(Level::TRACE) {
+                trace!("Write:");
+                for s in hexdump::hexdump_iter(&buf) {
+                    trace!("{}", s);
+                }
             }
-            buf = &buf[n..];
-        }
-        Ok(())
+
+            let mut buf = &buf[..];
+
+            loop {
+                let n = poll_fn(|cx| {
+                    self.with_stream(|stm| {
+                        let n = match ready!(stm.poll_write(cx, buf)) {
+                            Ok(n) => n,
+                            Err(e) => return Poll::Ready(Err(PGConnError::Io(e))),
+                        };
+                        Poll::Ready(Ok(n))
+                    })?
+                })
+                .await?;
+                if n == buf.len() {
+                    break;
+                }
+                buf = &buf[n..];
+            }
+
+            Ok(())
+        });
+
+        Ok(rx)
     }
 
     fn process_message(&self, message: Option<Message>) -> Result<(), PGConnError> {
         let state = &mut *self.state.borrow_mut();
         match state {
-            ConnState::Ready(_, queue) => {
+            ConnState::Ready { handlers, .. } => {
                 let message = message.ok_or(PGConnError::InvalidState)?;
                 if NotificationResponse::try_new(&message).is_some() {
                     warn!("Notification: {:?}", message);
@@ -298,17 +337,17 @@ where
                     warn!("ParameterStatus: {:?}", message);
                     return Ok(());
                 }
-                if let Some((name, handler, _tx)) = queue.front_mut() {
+                if let Some((name, handler, _tx)) = handlers.front_mut() {
                     match handler.handle(message) {
                         MessageResult::SkipUntilSync => {
                             let mut found_sync = false;
-                            while let Some((name, handler, _)) = queue.front() {
+                            while let Some((name, handler, _)) = handlers.front() {
                                 if handler.is_sync() {
                                     found_sync = true;
                                     break;
                                 }
                                 trace!("skipping {name}");
-                                queue.pop_front();
+                                handlers.pop_front();
                             }
                             if !found_sync {
                                 warn!("No sync handler found");
@@ -316,7 +355,7 @@ where
                         }
                         MessageResult::Continue => {}
                         MessageResult::Done => {
-                            queue.pop_front();
+                            handlers.pop_front();
                         }
                         MessageResult::Unknown => {
                             // TODO
@@ -336,7 +375,6 @@ where
 
     pub fn task(self: Rc<Self>) -> impl Future<Output = Result<(), PGConnError>> {
         let ready_lock = self.ready_lock.clone().try_lock_owned().unwrap();
-
         async move {
             poll_fn(|cx| {
                 let mut state = self.state.borrow_mut();
@@ -351,12 +389,15 @@ where
                                     return Poll::Ready(Ok::<_, PGConnError>(()));
                                 }
                             };
-                            *state = ConnState::Ready(raw, VecDeque::new());
+                            *state = ConnState::Ready {
+                                client: raw,
+                                handlers: Default::default(),
+                            };
                             Poll::Ready(Ok::<_, PGConnError>(()))
                         }
                         Poll::Pending => Poll::Pending,
                     },
-                    ConnState::Ready(..) => Poll::Ready(Ok(())),
+                    ConnState::Ready { .. } => Poll::Ready(Ok(())),
                     ConnState::Error(..) | ConnState::Closed => Poll::Ready(self.check_error()),
                 }
             })
@@ -368,6 +409,11 @@ where
             loop {
                 let mut read_buffer = [0; 1024];
                 let n = poll_fn(|cx| {
+                    // Poll the queue before we poll the read stream. Note that we toss
+                    // the result here. Either we'll make progress or there's nothing to
+                    // do.
+                    while self.queue.borrow_mut().poll_next_unpin(cx).is_ready() {}
+
                     self.with_stream(|stm| {
                         let mut buf = ReadBuf::new(&mut read_buffer);
                         let res = ready!(stm.poll_read(cx, &mut buf));
@@ -407,33 +453,40 @@ where
         self: Rc<Self>,
         query: &str,
         f: impl QuerySink + 'static,
-    ) -> impl Future<Output = Result<(), PGConnError>> {
+    ) -> Result<impl Future<Output = Result<(), PGConnError>>, PGConnError> {
         trace!("Query task started: {query}");
         let message = builder::Query { query }.to_vec();
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        let handler = QueryMessageHandler {
-            sink: f,
-            data: None,
-            copy: None,
-        };
-        async move {
-            self.enqueue_handler("query", Box::new(handler), Some(tx))?;
-            self.write(&message).await?;
+        let rx = self.write(
+            vec![Box::new(QueryMessageHandler {
+                sink: f,
+                data: None,
+                copy: None,
+            })],
+            message,
+        )?;
+        Ok(async {
             _ = rx.await;
             Ok(())
-        }
+        })
     }
 
-    pub async fn pipeline_sync(self: Rc<Self>, pipeline: Pipeline) -> Result<(), PGConnError> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        for handler in pipeline.handlers {
-            self.enqueue_handler("pipeline", handler, None)?;
-        }
-        self.enqueue_handler("sync", Box::new(SyncMessageHandler), Some(tx))?;
-        self.write(&pipeline.messages).await?;
-        self.write(&builder::Sync::default().to_vec()).await?;
-        _ = rx.await;
-        Ok(())
+    pub fn pipeline_sync(
+        self: Rc<Self>,
+        pipeline: Pipeline,
+    ) -> Result<impl Future<Output = Result<(), PGConnError>>, PGConnError> {
+        trace!("Pipeline task started");
+        let Pipeline {
+            mut messages,
+            mut handlers,
+        } = pipeline;
+        handlers.push(Box::new(SyncMessageHandler));
+        messages.extend_from_slice(&builder::Sync::default().to_vec());
+
+        let rx = self.write(handlers, messages)?;
+        Ok(async {
+            _ = rx.await;
+            Ok(())
+        })
     }
 }
 

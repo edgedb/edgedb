@@ -107,5 +107,45 @@ async fn test_extended_query_parse_error() -> Result<(), Box<dyn std::error::Err
     .await
 }
 
-// test: execute portal suspended
-// test: execute COPY
+#[test_log::test(tokio::test)]
+async fn test_extended_query_portal_suspended() -> Result<(), Box<dyn std::error::Error>> {
+    with_postgres(|client| async move {
+        client
+            .pipeline_sync(
+                PipelineBuilder::default()
+                    .parse(Statement("test"), "SELECT generate_series(1,3)", &[], ())
+                    .bind(Portal("test"), Statement("test"), &[], &[], ())
+                    .execute(
+                        Portal("test"),
+                        MaxRows::Limited(NonZero::new(2).unwrap()),
+                        (),
+                    )
+                    .execute(
+                        Portal("test"),
+                        MaxRows::Limited(NonZero::new(2).unwrap()),
+                        (),
+                    )
+                    .build(),
+            )
+            .await?;
+        Ok(())
+    })
+    .await
+}
+
+#[test_log::test(tokio::test)]
+async fn test_extended_query_copy() -> Result<(), Box<dyn std::error::Error>> {
+    with_postgres(|client| async move {
+        client
+            .pipeline_sync(
+                PipelineBuilder::default()
+                    .parse(Statement("test"), "COPY (SELECT 1) TO STDOUT", &[], ())
+                    .bind(Portal("test"), Statement("test"), &[], &[], ())
+                    .execute(Portal("test"), MaxRows::Unlimited, ())
+                    .build(),
+            )
+            .await?;
+        Ok(())
+    })
+    .await
+}

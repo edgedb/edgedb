@@ -223,7 +223,7 @@ impl<'a> Flow for BindFlow<'a> {
             statement: self.statement.0,
             format_codes: &format_codes,
             values: &values,
-            result_format_codes: &result_format_codes,
+            result_format_codes,
         }
         .to_vec()
     }
@@ -983,6 +983,7 @@ impl PipelineBuilder {
         self
     }
 
+    /// Add a bind flow to the pipeline.
     pub fn bind(
         self,
         portal: Portal,
@@ -1002,6 +1003,7 @@ impl PipelineBuilder {
         ))
     }
 
+    /// Add a parse flow to the pipeline.
     pub fn parse(
         self,
         name: Statement,
@@ -1019,6 +1021,11 @@ impl PipelineBuilder {
         ))
     }
 
+    /// Add an execute flow to the pipeline.
+    ///
+    /// Note that this may be a COPY statement. In that case, the description of the portal
+    /// will not show any data returned, and this will use the `CopySink` of the provided
+    /// sink. In addition, COPY operations do not respect the `max_rows` parameter.
     pub fn execute(
         self,
         portal: Portal,
@@ -1028,18 +1035,24 @@ impl PipelineBuilder {
         self.push_flow_with_sink((ExecuteFlow { portal, max_rows }, handler))
     }
 
+    /// Add a close portal flow to the pipeline.
     pub fn close_portal(self, name: Portal, handler: impl SimpleFlowSink + 'static) -> Self {
         self.push_flow_with_sink((ClosePortalFlow { name }, handler))
     }
 
+    /// Add a close statement flow to the pipeline.
     pub fn close_statement(self, name: Statement, handler: impl SimpleFlowSink + 'static) -> Self {
         self.push_flow_with_sink((CloseStatementFlow { name }, handler))
     }
 
+    /// Add a describe portal flow to the pipeline. Note that this will describe
+    /// both parameters and rows.
     pub fn describe_portal(self, name: Portal, handler: impl DescribeSink + 'static) -> Self {
         self.push_flow_with_sink((DescribePortalFlow { name }, handler))
     }
 
+    /// Add a describe statement flow to the pipeline. Note that this will describe
+    /// only the rows of the portal.
     pub fn describe_statement(self, name: Statement, handler: impl DescribeSink + 'static) -> Self {
         self.push_flow_with_sink((DescribeStatementFlow { name }, handler))
     }

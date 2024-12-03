@@ -9,6 +9,7 @@ mod conn;
 pub mod dsn;
 mod flow;
 pub mod openssl;
+pub(crate) mod queue;
 mod raw_conn;
 mod stream;
 pub mod tokio;
