@@ -469,6 +469,33 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                 delete Astronomy;
             ''')
 
+    async def test_ext_ai_index_custom_dimensions(self):
+        await self.assert_query_result(
+            """
+            WITH
+                Index := (
+                    SELECT (
+                        SELECT schema::ObjectType
+                        FILTER .name = 'default::CustomDimensions').indexes
+                    FILTER
+                        .name = 'ext::ai::index'
+                )
+            SELECT
+                Index {
+                    annotations: {
+                        @value
+                    }
+                    FILTER
+                        .name = 'ext::ai::embedding_dimensions'
+                }
+            """,
+            [{
+                "annotations": [{
+                    "@value": "9",
+                }],
+            }],
+        )
+
 
 class CharacterTokenizer(ai_ext.Tokenizer):
     def encode(self, text: str) -> list[int]:

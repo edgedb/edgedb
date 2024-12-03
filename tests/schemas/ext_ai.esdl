@@ -43,3 +43,11 @@ type Stuff extending Astronomy {
 type Star extending Astronomy;
 
 type Supernova extending Star;
+
+type CustomDimensions {
+    content: str;
+    deferred index ext::ai::index(
+        embedding_model := 'text-embedding-test',
+        dimensions := 9,
+    ) on (.content);
+};
