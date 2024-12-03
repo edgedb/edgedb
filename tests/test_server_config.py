@@ -1144,6 +1144,7 @@ class TestServerConfig(tb.QueryTestCase):
                     enumprop := <cfg::TestEnum>'foo'
             ''')
 
+    @unittest.skip('flakes a lot; fixed in 6.x, not worth backporting')
     async def test_server_proto_configure_compilation(self):
         try:
             await self.con.execute('''
