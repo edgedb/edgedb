@@ -149,3 +149,20 @@ async fn test_extended_query_copy() -> Result<(), Box<dyn std::error::Error>> {
     })
     .await
 }
+
+#[test_log::test(tokio::test)]
+async fn test_extended_query_empty() -> Result<(), Box<dyn std::error::Error>> {
+    with_postgres(|client| async move {
+        client
+            .pipeline_sync(
+                PipelineBuilder::default()
+                    .parse(Statement("test"), "", &[], ())
+                    .bind(Portal("test"), Statement("test"), &[], &[], ())
+                    .execute(Portal("test"), MaxRows::Unlimited, ())
+                    .build(),
+            )
+            .await?;
+        Ok(())
+    })
+    .await
+}

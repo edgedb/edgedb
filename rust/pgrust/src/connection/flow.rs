@@ -833,6 +833,10 @@ impl<Q: ExecuteSink> MessageHandler for ExecuteMessageHandler<Q> {
                 }
                 return MessageResult::Done;
             },
+            (EmptyQueryResponse) => {
+                // TODO: This should be exposed to the sink
+                return MessageResult::Done;
+            },
 
             (ErrorResponse as err) => {
                 if let Some(mut sink) = std::mem::take(&mut self.copy) {
