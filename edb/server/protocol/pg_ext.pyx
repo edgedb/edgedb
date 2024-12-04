@@ -1501,7 +1501,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         if self.debug:
             self.debug_print("Compile", query_str)
         fe_settings = dbv.current_fe_settings()
-        key = (hashlib.sha1(query_str.encode("utf-8")).digest(), fe_settings)
+        key = compute_cache_key(query_str, fe_settings)
 
         ignore_cache |= self._disable_cache
 
@@ -1582,6 +1582,17 @@ cdef class PgConnection(frontend.FrontendConnection):
                 f"not exist",
             )
         return qu
+
+
+def compute_cache_key(
+    query_str: str, fe_settings: dbstate.SQLSettings
+) -> bytes:
+    h = hashlib.blake2b(query_str.encode("utf-8"))
+    for key, value in fe_settings.items():
+        if key.startswith('global '):
+            continue
+        h.update(hash(value).to_bytes(8, signed=True))
+    return h.digest()
 
 
 cdef WriteBuffer remap_arguments(

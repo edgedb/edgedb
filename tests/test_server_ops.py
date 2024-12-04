@@ -727,6 +727,14 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 '{tenant="localtest",path="compiler"}'
             ) or 0
 
+        def measure_sql_compilations(
+            sd: tb._EdgeDBServerData
+        ) -> Callable[[], float | int]:
+            return lambda: tb.parse_metrics(sd.fetch_metrics()).get(
+                'edgedb_server_sql_compilations_total'
+                '{tenant="localtest"}'
+            ) or 0
+
         with tempfile.TemporaryDirectory() as temp_dir:
             async with tb.start_edgedb_server(
                 data_dir=temp_dir,
@@ -821,6 +829,42 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
                 finally:
                     await con.aclose()
+
+                has_asyncpg = True
+                try:
+                    import asyncpg  # noqa
+                except ImportError:
+                    has_asyncpg = False
+
+                if has_asyncpg:
+                    scon = await sd.connect_pg()
+                    try:
+                        with self.assertChange(measure_sql_compilations(sd), 1):
+                            await scon.fetch('select 1')
+
+                        with self.assertChange(measure_sql_compilations(sd), 1):
+                            await scon.fetch('select 1 + 1')
+
+                        # cache hit
+                        with self.assertChange(measure_sql_compilations(sd), 0):
+                            await scon.fetch('select 1')
+
+                        # TODO: normalization & constant extraction
+                        with self.assertChange(measure_sql_compilations(sd), 2):
+                            await scon.fetch('select 2')
+                            await scon.fetch('sELEcT  1')
+
+                        # cache hit, even after global has been changed
+                        await scon.execute('SET "global default::g" to 1')
+                        with self.assertChange(measure_sql_compilations(sd), 0):
+                            await scon.execute('select 1')
+
+                        # compiler call, because config was changed
+                        await scon.execute('SET apply_access_policies_sql to 1')
+                        with self.assertChange(measure_sql_compilations(sd), 1):
+                            await scon.execute('select 1')
+                    finally:
+                        await scon.close()
 
             # Now restart the server to test the cache persistence.
             async with tb.start_edgedb_server(
