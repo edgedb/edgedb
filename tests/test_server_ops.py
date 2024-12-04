@@ -803,7 +803,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                         con_g = con.with_globals({'g': 'hello'})
                         await con_g.query_sql('select 1')
 
-                    # normalization: libpg_query::pg_query_normalize is shite
+                    # normalization: pg_query_normalize is underwhelming
                     with self.assertChange(measure_compilations(sd), 1):
                         await con.query_sql('sElEct  1')
 
