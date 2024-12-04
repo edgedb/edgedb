@@ -194,3 +194,178 @@ Math
 
         db> select math::var_pop({1, 3, 5});
         {2.66666666666667}
+
+
+-----------
+
+
+.. eql:function:: math::pi() -> float64
+
+    :index: trigonometry
+
+    Returns the value of pi.
+
+    .. code-block:: edgeql-repl
+
+        db> select math::pi();
+        {3.141592653589793}
+
+
+-----------
+
+
+.. eql:function:: math::acos(x: float64) -> float64
+
+    :index: trigonometry
+
+    Returns the arc cosine of the input.
+
+    .. code-block:: edgeql-repl
+
+        db> select math::acos(-1);
+        {3.141592653589793}
+        db> select math::acos(0);
+        {1.5707963267948966}
+        db> select math::acos(1);
+        {0}
+
+
+-----------
+
+
+.. eql:function:: math::asin(x: float64) -> float64
+
+    :index: trigonometry
+
+    Returns the arc sine of the input.
+
+    .. code-block:: edgeql-repl
+
+        db> select math::asin(-1);
+        {-1.5707963267948966}
+        db> select math::asin(0);
+        {0}
+        db> select math::asin(1);
+        {1.5707963267948966}
+
+
+-----------
+
+
+.. eql:function:: math::atan(x: float64) -> float64
+
+    :index: trigonometry
+
+    Returns the arc tangent of the input.
+
+    .. code-block:: edgeql-repl
+
+        db> select math::atan(-1);
+        {-0.7853981633974483}
+        db> select math::atan(0);
+        {0}
+        db> select math::atan(1);
+        {0.7853981633974483}
+
+
+-----------
+
+
+.. eql:function:: math::atan2(y: float64, x: float64) -> float64
+
+    :index: trigonometry
+
+    Returns the arc tangent of ``y / x``.
+
+    Uses the signs of the arguments determine the correct quadrant.
+
+    .. code-block:: edgeql-repl
+
+        db> select math::atan2(1, 1);
+        {0.7853981633974483}
+        db> select math::atan2(1, -1);
+        {2.356194490192345}
+        db> select math::atan2(-1, -1);
+        {-2.356194490192345}
+        db> select math::atan2(-1, 1);
+        {-0.7853981633974483}
+
+
+-----------
+
+
+.. eql:function:: math::cos(x: float64) -> float64
+
+    :index: trigonometry
+
+    Returns the cosine of the input.
+
+    .. code-block:: edgeql-repl
+
+        db> select math::cos(0);
+        {1}
+        db> select math::cos(math::pi() / 2);
+        {0.000000000}
+        db> select math::cos(math::pi());
+        {-1}
+        db> select math::cos(math::pi() * 3 / 2);
+        {-0.000000000}
+
+
+-----------
+
+
+.. eql:function:: math::cot(x: float64) -> float64
+
+    :index: trigonometry
+
+    Returns the cotangent of the input.
+
+    .. code-block:: edgeql-repl
+
+        db> select math::cot(math::pi() / 4);
+        {1.000000000}
+        db> select math::cot(math::pi() / 2);
+        {0.000000000}
+        db> select math::cot(math::pi() * 3 / 4);
+        {-0.999999999}
+
+
+-----------
+
+
+.. eql:function:: math::sin(x: float64) -> float64
+
+    :index: trigonometry
+
+    Returns the sinine of the input.
+
+    .. code-block:: edgeql-repl
+
+        db> select math::sin(0);
+        {0}
+        db> select math::sin(math::pi() / 2);
+        {1}
+        db> select math::sin(math::pi());
+        {0.000000000}
+        db> select math::sin(math::pi() * 3 / 2);
+        {-1}
+
+
+-----------
+
+
+.. eql:function:: math::tan(x: float64) -> float64
+
+    :index: trigonometry
+
+    Returns the tanangent of the input.
+
+    .. code-block:: edgeql-repl
+
+        db> select math::tan(-math::pi() / 4);
+        {-0.999999999}
+        db> select math::tan(0);
+        {0}
+        db> select math::tan(math::pi() / 4);
+        {0.999999999}
