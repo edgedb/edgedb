@@ -809,7 +809,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
                     # constant extraction: cache hit
                     with self.assertChange(measure_compilations(sd), 0):
-                       await con.query_sql('select 2')
+                        await con.query_sql('select 2')
 
                     # TODO: this does not behave the way I though it should
                     # changing certain config options: compiler call

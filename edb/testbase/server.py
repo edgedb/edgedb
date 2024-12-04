@@ -415,6 +415,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             change = after - before
             self.assertEqual(expected_change, change)
 
+
 class RollbackException(Exception):
     pass
 
