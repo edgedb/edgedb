@@ -719,12 +719,11 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
         )
 
     async def test_server_ops_cache_recompile_01(self):
-        ckey = (
-            'edgedb_server_edgeql_query_compilations_total'
-            '{tenant="localtest",path="compiler"}'
-        )
-        qry = 'select schema::Object { name }'
-        qry_sql = 'select 1'
+        def measure_compilations(sd: tb._EdgeDBServer) -> int:
+            return lambda: tb.parse_metrics(sd.fetch_metrics()).get(
+                'edgedb_server_edgeql_query_compilations_total'
+                '{tenant="localtest",path="compiler"}'
+            ) or 0
 
         with tempfile.TemporaryDirectory() as temp_dir:
             async with tb.start_edgedb_server(
@@ -734,13 +733,13 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             ) as sd:
                 con = await sd.connect()
                 try:
+                    qry = 'select schema::Object { name }'
+
                     await con.query(qry)
 
                     # Querying a second time should hit the cache
-                    cnt1 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
-                    await con.query(qry)
-                    cnt2 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
-                    self.assertEqual(cnt1, cnt2)
+                    with self.assertChange(measure_compilations(sd), 0):
+                        await con.query(qry)
 
                     await con.query('''
                         create type X
@@ -749,17 +748,15 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     # We should have recompiled the cache when we created
                     # the type, so doing the query shouldn't cause another
                     # compile!
-                    cnt1 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
-                    await con.query(qry)
-                    cnt2 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
-                    self.assertEqual(cnt1, cnt2)
+                    with self.assertChange(measure_compilations(sd), 0):
+                        await con.query(qry)
+                    with self.assertChange(measure_compilations(sd), 0):
+                        await con.query(qry)
 
-                    # TODO: this does not behave the way I though it should
-
-                    # con_c = con.with_config(apply_access_policies=False)
-                    # await con_c.query(qry)
-                    # cnt3 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
-                    # self.assertEqual(cnt2 + 1, cnt3)
+                    # TODO: this does not behave the way I thing it should
+                    # with self.assertChange(measure_compilations(sd), 1):
+                    #     con_c = con.with_config(apply_access_policies=False)
+                    #     await con_c.query(qry)
 
                     # Set the compilation timeout to 2ms.
                     #
@@ -784,10 +781,8 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                         create global g: str;
                     ''')
 
-                    cnt1 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
-                    await con.query(qry)
-                    cnt2 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
-                    self.assertEqual(cnt1 + 1, cnt2)
+                    with self.assertChange(measure_compilations(sd), 1):
+                        await con.query(qry)
 
                     await con.execute(
                         "configure current database "
@@ -795,31 +790,32 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     )
 
                     # Now, a similar thing for SQL queries
-                    cnt0 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
 
-                    # compiler call
-                    await con.query_sql(qry_sql)
-                    cnt1 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
-                    self.assertEqual(cnt0 + 1, cnt1)
+                    with self.assertChange(measure_compilations(sd), 1):
+                        await con.query_sql('select 1')
 
                     # cache hit
-                    await con.query_sql(qry_sql)
-                    cnt2 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
-                    self.assertEqual(cnt1, cnt2)
+                    with self.assertChange(measure_compilations(sd), 0):
+                        await con.query_sql('select 1')
 
                     # changing globals: cache hit
-                    con_g = con.with_globals({'g': 'hello'})
-                    await con_g.query_sql(qry_sql)
-                    cnt3 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
-                    self.assertEqual(cnt1, cnt3)
+                    with self.assertChange(measure_compilations(sd), 0):
+                        con_g = con.with_globals({'g': 'hello'})
+                        await con_g.query_sql('select 1')
+
+                    # normalization: libpg_query::pg_query_normalize is shite
+                    with self.assertChange(measure_compilations(sd), 1):
+                        await con.query_sql('sElEct  1')
+
+                    # constant extraction: cache hit
+                    with self.assertChange(measure_compilations(sd), 0):
+                       await con.query_sql('select 2')
 
                     # TODO: this does not behave the way I though it should
-
                     # changing certain config options: compiler call
-                    # con_c = con.with_config(apply_access_policies=False)
-                    # await con_c.query_sql(qry_sql)
-                    # cnt4 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
-                    # self.assertEqual(cnt3 + 1, cnt4)
+                    # with self.assertChange(measure_compilations(sd), 1):
+                    #     con_c = con.with_config(apply_access_policies=False)
+                    #     await con_c.query_sql(qry_sql)
 
                 finally:
                     await con.aclose()
@@ -833,10 +829,8 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 con = await sd.connect()
                 try:
                     # It should hit the cache no problem.
-                    cnt1 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
-                    await con.query(qry)
-                    cnt2 = tb.parse_metrics(sd.fetch_metrics()).get(ckey)
-                    self.assertEqual(cnt1, cnt2)
+                    with self.assertChange(measure_compilations(sd), 0):
+                        await con.query(qry)
 
                 finally:
                     await con.aclose()

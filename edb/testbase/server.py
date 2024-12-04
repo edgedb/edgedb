@@ -34,6 +34,7 @@ from typing import (
     NamedTuple,
     TYPE_CHECKING,
 )
+import typing
 
 import asyncio
 import atexit
@@ -401,6 +402,18 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             'fail_notes': getattr(self, 'fail_notes', None),
         }
 
+    @contextlib.contextmanager
+    def assertChange(
+        self, measure_fn: typing.Callable[[], int | float],
+        expected_change: int | float
+    ):
+        before = measure_fn()
+        try:
+            yield
+        finally:
+            after = measure_fn()
+            change = after - before
+            self.assertEqual(expected_change, change)
 
 class RollbackException(Exception):
     pass
