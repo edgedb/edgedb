@@ -2725,6 +2725,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             edgedb.UnsupportedFeatureError,
             "not supported: VARIABLE SET",
+            _position=14, # this point to `1`, but hey, better than nothing
         ):
             await self.assert_sql_query_result(
                 'SET my_var TO 1',
