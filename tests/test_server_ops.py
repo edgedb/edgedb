@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import Any, Tuple, Mapping, NamedTuple
+from typing import Any, Tuple, Mapping, NamedTuple, Callable
 
 import asyncio
 import http
@@ -719,7 +719,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
         )
 
     async def test_server_ops_cache_recompile_01(self):
-        def measure_compilations(sd: tb._EdgeDBServer) -> int:
+        def measure_compilations(
+            sd: tb._EdgeDBServerData
+        ) -> Callable[[], float | int]:
             return lambda: tb.parse_metrics(sd.fetch_metrics()).get(
                 'edgedb_server_edgeql_query_compilations_total'
                 '{tenant="localtest",path="compiler"}'
