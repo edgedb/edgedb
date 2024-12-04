@@ -1339,6 +1339,11 @@ cdef class DatabaseConnectionView:
             self._check_in_tx_error(query_unit_group)
 
             if query_req.input_language is enums.InputLanguage.SQL:
+                if len(query_unit_group) > 1:
+                    raise errors.UnsupportedFeatureError(
+                        "multi-statement SQL scripts are not supported yet"
+                    )
+
                 if pgcon is None:
                     raise errors.InternalServerError(
                         "a valid backend connection is required to fully "

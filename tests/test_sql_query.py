@@ -2757,21 +2757,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         )
 
     async def test_native_sql_query_16(self):
-        with self.assertRaisesRegex(
-            edgedb.UnsupportedFeatureError,
-            'multi-statement SQL scripts are not supported yet',
-        ):
-            await self.assert_sql_query_result(
-                """
-                SELECT 'Hello' as t;
-                SELECT 42 as i;
-                """,
-                [
-                    {"t": "Hello"}
-                ],
-                apply_access_policies=False,
-            )
-
         await self.assert_sql_query_result(
             """SELECT $1::text as t, $2::int as i""",
             [
@@ -2790,12 +2775,55 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         ):
             await self.assert_sql_query_result(
                 """
+                SELECT 'Hello' as t;
+                SELECT 42 as i;
+                """,
+                [],
+                apply_access_policies=False,
+            )
+
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            'multi-statement SQL scripts are not supported yet',
+        ):
+            await self.assert_sql_query_result(
+                """
+                SELECT 'hello'::text as t;
+                SELECT $1::int as i;
+                """,
+                [],
+                variables={
+                    "0": 42,
+                },
+                apply_access_policies=False,
+            )
+
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            'multi-statement SQL scripts are not supported yet',
+        ):
+            await self.assert_sql_query_result(
+                """
+                SELECT $1::text as t;
+                SELECT 42::int as i;
+                """,
+                [],
+                variables={
+                    "0": "Hello",
+                },
+                apply_access_policies=False,
+            )
+
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            'multi-statement SQL scripts are not supported yet',
+        ):
+            await self.assert_sql_query_result(
+                """
                 SELECT $1::text as t;
                 SELECT $2::int as i;
                 """,
-                [
-                    {"t": "Hello"}
-                ],
+                [],
                 variables={
                     "0": "Hello",
                     "1": 42,
