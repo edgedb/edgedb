@@ -42,6 +42,7 @@ import pathlib
 import pickle
 import struct
 import sys
+import textwrap
 import time
 import tomllib
 import uuid
@@ -116,6 +117,8 @@ class Tenant(ha_base.ClusterProtocol):
     _suggested_client_pool_size: int
     _pg_pool: connpool.Pool
     _pg_unavailable_msg: str | None
+    _init_con_data: list[config.ConState]
+    _init_con_sql: bytes | None
 
     _ha_master_serial: int
     _backend_adaptive_ha: adaptive_ha.AdaptiveHASupport | None
@@ -199,6 +202,8 @@ class Tenant(ha_base.ClusterProtocol):
         self._pg_unavailable_msg = None
         self._block_new_connections = set()
         self._report_config_data = {}
+        self._init_con_data = []
+        self._init_con_sql = None
 
         # DB state will be initialized in init().
         self._dbindex = None
@@ -694,6 +699,21 @@ class Tenant(ha_base.ClusterProtocol):
             self.__sys_pgcon = None
         del self._sys_pgcon_waiter
 
+    def set_init_con_data(self, data: list[config.ConState]) -> None:
+        self._init_con_data = data
+        self._init_con_sql = None
+        if data:
+            from edb.pgsql import common
+
+            quoted_json = common.quote_literal(json.dumps(data))
+            self._init_con_sql = textwrap.dedent(
+                f'''
+                    INSERT INTO _edgecon_state
+                        SELECT * FROM jsonb_to_recordset({quoted_json}::jsonb)
+                            AS cfg(name text, value jsonb, type text);
+                '''
+            ).strip().encode()
+
     async def _pg_connect(
         self,
         dbname: str,
@@ -713,6 +733,10 @@ class Tenant(ha_base.ClusterProtocol):
             )
             if self._server.stmt_cache_size is not None:
                 rv.set_stmt_cache_size(self._server.stmt_cache_size)
+
+            if self._init_con_sql is not None:
+                await rv.sql_execute(self._init_con_sql)
+
         except Exception:
             metrics.backend_connection_establishment_errors.inc(
                 1.0, self._instance_name

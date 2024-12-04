@@ -197,6 +197,7 @@ async def _run_server(
     do_setproctitle: bool,
     new_instance: bool,
     compiler_state: edbcompiler.CompilerState,
+    init_con_data: list[config.ConState],
 ):
 
     sockets = service_manager.get_activation_listen_sockets()
@@ -216,6 +217,7 @@ async def _run_server(
             backend_adaptive_ha=args.backend_adaptive_ha,
             extensions_dir=args.extensions_dir,
         )
+        tenant.set_init_con_data(init_con_data)
         tenant.set_reloadable_files(
             readiness_state_file=args.readiness_state_file,
             jwt_sub_allowlist_file=args.jwt_sub_allowlist_file,
@@ -522,10 +524,12 @@ async def run_server(
                 compiler_state.config_spec,
             )
 
-            sys_config, backend_settings = initialize_static_cfg(
-                args,
-                is_remote_cluster=True,
-                config_spec=compiler_state.config_spec,
+            sys_config, backend_settings, init_con_data = (
+                initialize_static_cfg(
+                    args,
+                    is_remote_cluster=True,
+                    config_spec=compiler_state.config_spec,
+                )
             )
             with _internal_state_dir(runstate_dir, args) as (
                 int_runstate_dir,
@@ -547,6 +551,7 @@ async def run_server(
                     internal_runstate_dir=int_runstate_dir,
                     do_setproctitle=do_setproctitle,
                     compiler_state=compiler_state,
+                    init_con_data=init_con_data,
                 )
         except server.StartupError as e:
             abort(str(e))
@@ -606,7 +611,7 @@ async def run_server(
 
         new_instance, compiler_state = await _init_cluster(cluster, args)
 
-        _, backend_settings = initialize_static_cfg(
+        _, backend_settings, init_con_data = initialize_static_cfg(
             args,
             is_remote_cluster=not is_local_cluster,
             config_spec=compiler_state.config_spec,
@@ -663,6 +668,7 @@ async def run_server(
                     do_setproctitle=do_setproctitle,
                     new_instance=new_instance,
                     compiler_state=compiler_state,
+                    init_con_data=init_con_data,
                 )
 
     except server.StartupError as e:
@@ -810,7 +816,9 @@ def initialize_static_cfg(
     args: srvargs.ServerConfig,
     is_remote_cluster: bool,
     config_spec: config.Spec
-) -> Tuple[Mapping[str, config.SettingValue], Dict[str, str]]:
+) -> Tuple[
+    Mapping[str, config.SettingValue], Dict[str, str], list[config.ConState]
+]:
     result = {}
     init_con_script_data = []
     backend_settings = {}
@@ -898,11 +906,7 @@ def initialize_static_cfg(
     if args.port:
         add_config("listen_port", args.port, command_line_argument)
 
-    if init_con_script_data:
-        from . import pgcon
-        pgcon.set_init_con_script_data(init_con_script_data)
-
-    return immutables.Map(result), backend_settings
+    return immutables.Map(result), backend_settings, init_con_script_data
 
 
 if __name__ == '__main__':

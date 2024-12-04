@@ -18,12 +18,10 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import textwrap
 
 from edb.pgsql.common import quote_ident as pg_qi
-from edb.pgsql.common import quote_literal as pg_ql
 from edb.pgsql import params as pg_params
 from edb.server import pgcon
 
@@ -33,7 +31,6 @@ from . import rust_transport
 logger = logging.getLogger('edb.server')
 
 INIT_CON_SCRIPT: bytes | None = None
-INIT_CON_SCRIPT_DATA = ''
 
 # The '_edgecon_state table' is used to store information about
 # the current session. The `type` column is one character, with one
@@ -45,6 +42,8 @@ INIT_CON_SCRIPT_DATA = ''
 #   a corresponding Postgres config setting.
 # * 'A': an instance-level config setting from command-line arguments
 # * 'E': an instance-level config setting from environment variable
+#
+# Please also update ConStateType in edb/server/config/__init__.py if changed.
 SETUP_TEMP_TABLE_SCRIPT = '''
         CREATE TEMPORARY TABLE _edgecon_state (
             name text NOT NULL,
@@ -81,8 +80,6 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
 
         {SETUP_TEMP_TABLE_SCRIPT}
         {SETUP_CONFIG_CACHE_SCRIPT}
-
-        {INIT_CON_SCRIPT_DATA}
 
         PREPARE _clear_state AS
             WITH x1 AS (
@@ -193,15 +190,3 @@ async def pg_connect(
             raise
 
     return pgconn
-
-
-def set_init_con_script_data(cfg):
-    global INIT_CON_SCRIPT, INIT_CON_SCRIPT_DATA
-    INIT_CON_SCRIPT = None
-    INIT_CON_SCRIPT_DATA = (
-        f'''
-        INSERT INTO _edgecon_state
-        SELECT * FROM jsonb_to_recordset({pg_ql(json.dumps(cfg))}::jsonb)
-        AS cfg(name text, value jsonb, type text);
-    '''
-    ).strip()

@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping, TypedDict
 
 import immutables
 
@@ -51,7 +51,18 @@ __all__ = (
     'get_compilation_config',
     'coerce_single_value',
     'QueryCacheMode',
+    'ConState', 'ConStateType',
 )
+
+
+# See edb/server/pgcon/connect.py for documentation of the types
+ConStateType = Literal['C', 'B', 'A', 'E']
+
+
+class ConState(TypedDict):
+    name: str
+    value: Any
+    type: ConStateType
 
 
 def lookup(
