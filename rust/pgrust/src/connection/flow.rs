@@ -2,6 +2,8 @@
 //!
 //! https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-FLOW-PIPELINING
 //!
+//! https://segmentfault.com/a/1190000017136059
+//!
 //! Extended query messages Parse, Bind, Describe, Execute, Close put the server
 //! into a "skip-til-sync" mode when erroring. All messages other than Terminate (including
 //! those not part of the extended query protocol) are skipped until an explicit Sync message is received.
@@ -13,9 +15,7 @@
 //! of Execute, describing the portal will return NoData, but Execute will return CopyOutResponse +
 //! CopyData + CopyDone.
 
-use std::num::NonZeroU32;
-
-use tracing::warn;
+use std::{cell::RefCell, num::NonZeroU32, rc::Rc};
 
 use crate::protocol::{
     match_message,
@@ -23,8 +23,8 @@ use crate::protocol::{
         builder,
         data::{
             BindComplete, CloseComplete, CommandComplete, CopyData, CopyDone, CopyOutResponse,
-            DataRow, EmptyQueryResponse, ErrorResponse, Message, NoData, ParameterDescription,
-            ParseComplete, PortalSuspended, ReadyForQuery, RowDescription,
+            DataRow, EmptyQueryResponse, ErrorResponse, Message, NoData, NoticeResponse,
+            ParameterDescription, ParseComplete, PortalSuspended, ReadyForQuery, RowDescription,
         },
     },
     Encoded,
@@ -294,10 +294,12 @@ pub(crate) enum MessageResult {
     Done,
     SkipUntilSync,
     Unknown,
+    UnexpectedState { complaint: &'static str },
 }
 
 pub(crate) trait MessageHandler {
     fn handle(&mut self, message: Message) -> MessageResult;
+    fn name(&self) -> &'static str;
     fn is_sync(&self) -> bool {
         false
     }
@@ -312,17 +314,23 @@ impl MessageHandler for SyncMessageHandler {
         }
         MessageResult::Unknown
     }
+    fn name(&self) -> &'static str {
+        "Sync"
+    }
     fn is_sync(&self) -> bool {
         true
     }
 }
 
-impl<F> MessageHandler for F
+impl<F> MessageHandler for (&'static str, F)
 where
     F: for<'a> FnMut(Message<'a>) -> MessageResult,
 {
     fn handle(&mut self, message: Message) -> MessageResult {
-        (self)(message)
+        (self.1)(message)
+    }
+    fn name(&self) -> &'static str {
+        self.0
     }
 }
 
@@ -350,7 +358,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (ParseFlow<'_>, S) {
         f(&self.0);
     }
     fn make_handler(mut self) -> Box<dyn MessageHandler> {
-        Box::new(move |message: Message<'_>| {
+        Box::new(("Parse", move |message: Message<'_>| {
             if ParseComplete::try_new(&message).is_some() {
                 self.1.handle(Ok(()));
                 return MessageResult::Done;
@@ -360,7 +368,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (ParseFlow<'_>, S) {
                 return MessageResult::SkipUntilSync;
             }
             MessageResult::Unknown
-        })
+        }))
     }
 }
 
@@ -369,7 +377,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (BindFlow<'_>, S) {
         f(&self.0);
     }
     fn make_handler(mut self) -> Box<dyn MessageHandler> {
-        Box::new(move |message: Message<'_>| {
+        Box::new(("Bind", move |message: Message<'_>| {
             if BindComplete::try_new(&message).is_some() {
                 self.1.handle(Ok(()));
                 return MessageResult::Done;
@@ -379,7 +387,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (BindFlow<'_>, S) {
                 return MessageResult::SkipUntilSync;
             }
             MessageResult::Unknown
-        })
+        }))
     }
 }
 
@@ -388,7 +396,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (ClosePortalFlow<'_>, S) {
         f(&self.0);
     }
     fn make_handler(mut self) -> Box<dyn MessageHandler> {
-        Box::new(move |message: Message<'_>| {
+        Box::new(("ClosePortal", move |message: Message<'_>| {
             if CloseComplete::try_new(&message).is_some() {
                 self.1.handle(Ok(()));
                 return MessageResult::Done;
@@ -398,7 +406,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (ClosePortalFlow<'_>, S) {
                 return MessageResult::SkipUntilSync;
             }
             MessageResult::Unknown
-        })
+        }))
     }
 }
 
@@ -407,7 +415,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (CloseStatementFlow<'_>, S) {
         f(&self.0);
     }
     fn make_handler(mut self) -> Box<dyn MessageHandler> {
-        Box::new(move |message: Message<'_>| {
+        Box::new(("CloseStatement", move |message: Message<'_>| {
             if CloseComplete::try_new(&message).is_some() {
                 self.1.handle(Ok(()));
                 return MessageResult::Done;
@@ -417,7 +425,7 @@ impl<S: SimpleFlowSink + 'static> FlowWithSink for (CloseStatementFlow<'_>, S) {
                 return MessageResult::Done;
             }
             MessageResult::Unknown
-        })
+        }))
     }
 }
 
@@ -507,6 +515,9 @@ struct DescribeMessageHandler<S: DescribeSink> {
 }
 
 impl<S: DescribeSink> MessageHandler for DescribeMessageHandler<S> {
+    fn name(&self) -> &'static str {
+        "Describe"
+    }
     fn handle(&mut self, message: Message) -> MessageResult {
         match_message!(Ok(message), Backend {
             (ParameterDescription as params) => {
@@ -537,12 +548,14 @@ pub trait ExecuteSink {
 
     fn rows(&mut self) -> Self::Output;
     fn copy(&mut self, copy: CopyOutResponse) -> Self::CopyOutput;
-    fn complete(&mut self, _complete: Option<CommandComplete>) {}
+    fn complete(&mut self, _complete: ExecuteCompletion) {}
+    fn notice(&mut self, _: NoticeResponse) {}
     fn error(&mut self, error: ErrorResponse);
+}
 
-    fn protocol_violation(&mut self, message: Message, hint: &'static str) {
-        warn!("Protocol violation: {message:?} ({hint})");
-    }
+pub enum ExecuteCompletion<'a> {
+    PortalSuspended(PortalSuspended<'a>),
+    CommandComplete(CommandComplete<'a>),
 }
 
 impl ExecuteSink for () {
@@ -596,7 +609,7 @@ pub trait ExecuteDataSink {
     fn row(&mut self, values: DataRow);
     /// Handle the completion of a command. If unimplemented, will be redirected to the parent.
     #[must_use]
-    fn done(&mut self, _result: Result<Option<CommandComplete>, ErrorResponse>) -> DoneHandling {
+    fn done(&mut self, _result: Result<ExecuteCompletion, ErrorResponse>) -> DoneHandling {
         DoneHandling::RedirectToParent
     }
 }
@@ -622,11 +635,8 @@ pub trait QuerySink {
     fn rows(&mut self, rows: RowDescription) -> Self::Output;
     fn copy(&mut self, copy: CopyOutResponse) -> Self::CopyOutput;
     fn complete(&mut self, _complete: CommandComplete) {}
+    fn notice(&mut self, _: NoticeResponse) {}
     fn error(&mut self, error: ErrorResponse);
-
-    fn protocol_violation(&mut self, message: Message, hint: &'static str) {
-        warn!("Protocol violation: {message:?} ({hint})");
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -669,9 +679,6 @@ where
     }
     fn complete(&mut self, _complete: CommandComplete) {
         self.as_mut().complete(_complete)
-    }
-    fn protocol_violation(&mut self, message: Message, hint: &'static str) {
-        self.as_mut().protocol_violation(message, hint)
     }
     fn error(&mut self, error: ErrorResponse) {
         self.as_mut().error(error)
@@ -775,24 +782,27 @@ pub(crate) struct ExecuteMessageHandler<Q: ExecuteSink> {
 }
 
 impl<Q: ExecuteSink> MessageHandler for ExecuteMessageHandler<Q> {
+    fn name(&self) -> &'static str {
+        "Execute"
+    }
     fn handle(&mut self, message: Message) -> MessageResult {
         match_message!(Ok(message), Backend {
             (CopyOutResponse as copy) => {
                 let sink = std::mem::replace(&mut self.copy, Some(self.sink.copy(copy)));
                 if sink.is_some() {
-                    self.sink.protocol_violation(message, "copy sink exists");
+                    return MessageResult::UnexpectedState { complaint: "copy sink exists" };
                 }
             },
             (CopyData as data) => {
                 if let Some(sink) = &mut self.copy {
                     sink.data(data);
                 } else {
-                    self.sink.protocol_violation(message, "copy sink does not exist");
+                    return MessageResult::UnexpectedState { complaint: "copy sink does not exist" };
                 }
             },
             (CopyDone) => {
                 if self.copy.is_none() {
-                    self.sink.protocol_violation(message, "copy sink does not exist");
+                    return MessageResult::UnexpectedState { complaint: "copy sink does not exist" };
                 }
             },
             (DataRow as row) => {
@@ -804,13 +814,13 @@ impl<Q: ExecuteSink> MessageHandler for ExecuteMessageHandler<Q> {
                 };
                 sink.row(row)
             },
-            (PortalSuspended) => {
+            (PortalSuspended as complete) => {
                 if let Some(mut sink) = std::mem::take(&mut self.data) {
-                    if sink.done(Ok(None)) == DoneHandling::RedirectToParent {
-                        self.sink.complete(None);
+                    if sink.done(Ok(ExecuteCompletion::PortalSuspended(complete))) == DoneHandling::RedirectToParent {
+                        self.sink.complete(ExecuteCompletion::PortalSuspended(complete));
                     }
                 } else {
-                    self.sink.protocol_violation(message, "data sink does not exist");
+                    return MessageResult::UnexpectedState { complaint: "data sink does not exist" };
                 }
                 return MessageResult::Done;
             },
@@ -818,17 +828,17 @@ impl<Q: ExecuteSink> MessageHandler for ExecuteMessageHandler<Q> {
                 if let Some(mut sink) = std::mem::take(&mut self.copy) {
                     // If COPY has started, route this to the COPY sink.
                     if sink.done(Ok(complete)) == DoneHandling::RedirectToParent {
-                        self.sink.complete(Some(complete));
+                        self.sink.complete(ExecuteCompletion::CommandComplete(complete));
                     }
                 } else if let Some(mut sink) = std::mem::take(&mut self.data) {
                     // If data has started, route this to the data sink.
-                    if sink.done(Ok(Some(complete))) == DoneHandling::RedirectToParent {
-                        self.sink.complete(Some(complete));
+                    if sink.done(Ok(ExecuteCompletion::CommandComplete(complete))) == DoneHandling::RedirectToParent {
+                        self.sink.complete(ExecuteCompletion::CommandComplete(complete));
                     }
                 } else {
                     // Otherwise, create a new data sink and route to there.
-                    if self.sink.rows().done(Ok(Some(complete))) == DoneHandling::RedirectToParent {
-                        self.sink.complete(Some(complete));
+                    if self.sink.rows().done(Ok(ExecuteCompletion::CommandComplete(complete))) == DoneHandling::RedirectToParent {
+                        self.sink.complete(ExecuteCompletion::CommandComplete(complete));
                     }
                 }
                 return MessageResult::Done;
@@ -858,9 +868,11 @@ impl<Q: ExecuteSink> MessageHandler for ExecuteMessageHandler<Q> {
 
                 return MessageResult::SkipUntilSync;
             },
+            (NoticeResponse as notice) => {
+                self.sink.notice(notice);
+            },
 
             _unknown => {
-                self.sink.protocol_violation(message, "unknown message");
                 return MessageResult::Unknown;
             }
         });
@@ -875,38 +887,41 @@ pub(crate) struct QueryMessageHandler<Q: QuerySink> {
 }
 
 impl<Q: QuerySink> MessageHandler for QueryMessageHandler<Q> {
+    fn name(&self) -> &'static str {
+        "Query"
+    }
     fn handle(&mut self, message: Message) -> MessageResult {
         match_message!(Ok(message), Backend {
             (CopyOutResponse as copy) => {
                 let sink = std::mem::replace(&mut self.copy, Some(self.sink.copy(copy)));
                 if sink.is_some() {
-                    self.sink.protocol_violation(message, "copy sink exists");
+                    return MessageResult::UnexpectedState { complaint: "copy sink exists" };
                 }
             },
             (CopyData as data) => {
                 if let Some(sink) = &mut self.copy {
                     sink.data(data);
                 } else {
-                    self.sink.protocol_violation(message, "copy sink does not exist");
+                    return MessageResult::UnexpectedState { complaint: "copy sink does not exist" };
                 }
             },
             (CopyDone) => {
                 if self.copy.is_none() {
-                    self.sink.protocol_violation(message, "copy sink does not exist");
+                    return MessageResult::UnexpectedState { complaint: "copy sink does not exist" };
                 }
             },
 
             (RowDescription as row) => {
                 let sink = std::mem::replace(&mut self.data, Some(self.sink.rows(row)));
                 if sink.is_some() {
-                    self.sink.protocol_violation(message, "data sink exists");
+                    return MessageResult::UnexpectedState { complaint: "data sink exists" };
                 }
             },
             (DataRow as row) => {
                 if let Some(sink) = &mut self.data {
                     sink.row(row)
                 } else {
-                    self.sink.protocol_violation(message, "data sink does not exist");
+                    return MessageResult::UnexpectedState { complaint: "data sink does not exist" };
                 }
             },
             (CommandComplete as complete) => {
@@ -931,11 +946,11 @@ impl<Q: QuerySink> MessageHandler for QueryMessageHandler<Q> {
                 // Equivalent to CommandComplete, but no data was provided
                 let sink = std::mem::take(&mut self.data);
                 if sink.is_some() {
-                    self.sink.protocol_violation(message, "data sink exists");
+                    return MessageResult::UnexpectedState { complaint: "data sink exists" };
                 } else {
                     let sink = std::mem::take(&mut self.copy);
                     if sink.is_some() {
-                        self.sink.protocol_violation(message, "copy sink exists");
+                        return MessageResult::UnexpectedState { complaint: "copy sink exists" };
                     }
                 }
             },
@@ -956,17 +971,19 @@ impl<Q: QuerySink> MessageHandler for QueryMessageHandler<Q> {
                     self.sink.error(err);
                 }
             },
+            (NoticeResponse as notice) => {
+                self.sink.notice(notice);
+            },
 
             (ReadyForQuery) => {
                 // All operations are complete at this point.
                 if std::mem::take(&mut self.data).is_some() || std::mem::take(&mut self.copy).is_some() {
-                    self.sink.protocol_violation(message, "sink exists");
+                    return MessageResult::UnexpectedState { complaint: "sink exists" };
                 }
                 return MessageResult::Done;
             },
 
             _unknown => {
-                self.sink.protocol_violation(message, "unknown message");
                 return MessageResult::Unknown;
             }
         });
@@ -1081,4 +1098,137 @@ impl PipelineBuilder {
 pub struct Pipeline {
     pub(crate) handlers: Vec<Box<dyn MessageHandler>>,
     pub(crate) messages: Vec<u8>,
+}
+
+#[derive(Default)]
+/// Accumulate raw messages from a flow. Useful mainly for testing.
+pub struct FlowAccumulator {
+    data: Vec<u8>,
+    messages: Vec<usize>,
+}
+
+impl FlowAccumulator {
+    pub fn push(&mut self, message: impl AsRef<[u8]>) {
+        self.messages.push(self.data.len());
+        self.data.extend_from_slice(message.as_ref());
+    }
+
+    pub fn with_messages(&self, mut f: impl FnMut(Message)) {
+        for &offset in &self.messages {
+            // First get the message header
+            let message = Message::new(&self.data[offset..]).unwrap();
+            let len = message.mlen();
+            // Then resize the message to the correct length
+            let message = Message::new(&self.data[offset..offset + len + 1]).unwrap();
+            f(message);
+        }
+    }
+}
+
+impl QuerySink for Rc<RefCell<FlowAccumulator>> {
+    type Output = Self;
+    type CopyOutput = Self;
+    fn rows(&mut self, message: RowDescription) -> Self {
+        self.borrow_mut().push(message);
+        self.clone()
+    }
+    fn copy(&mut self, message: CopyOutResponse) -> Self {
+        self.borrow_mut().push(message);
+        self.clone()
+    }
+    fn error(&mut self, message: ErrorResponse) {
+        self.borrow_mut().push(message);
+    }
+    fn complete(&mut self, complete: CommandComplete) {
+        self.borrow_mut().push(complete);
+    }
+    fn notice(&mut self, message: NoticeResponse) {
+        self.borrow_mut().push(message);
+    }
+}
+
+impl ExecuteSink for Rc<RefCell<FlowAccumulator>> {
+    type Output = Self;
+    type CopyOutput = Self;
+
+    fn rows(&mut self) -> Self {
+        self.clone()
+    }
+    fn copy(&mut self, message: CopyOutResponse) -> Self {
+        self.borrow_mut().push(message);
+        self.clone()
+    }
+    fn error(&mut self, message: ErrorResponse) {
+        self.borrow_mut().push(message);
+    }
+    fn complete(&mut self, complete: ExecuteCompletion) {
+        match complete {
+            ExecuteCompletion::PortalSuspended(suspended) => self.borrow_mut().push(suspended),
+            ExecuteCompletion::CommandComplete(complete) => self.borrow_mut().push(complete),
+        }
+    }
+    fn notice(&mut self, message: NoticeResponse) {
+        self.borrow_mut().push(message);
+    }
+}
+
+impl DataSink for Rc<RefCell<FlowAccumulator>> {
+    fn row(&mut self, message: DataRow) {
+        self.borrow_mut().push(message);
+    }
+    fn done(&mut self, result: Result<CommandComplete, ErrorResponse>) -> DoneHandling {
+        match result {
+            Ok(complete) => self.borrow_mut().push(complete),
+            Err(err) => self.borrow_mut().push(err),
+        };
+        DoneHandling::Handled
+    }
+}
+
+impl ExecuteDataSink for Rc<RefCell<FlowAccumulator>> {
+    fn row(&mut self, message: DataRow) {
+        self.borrow_mut().push(message);
+    }
+    fn done(&mut self, result: Result<ExecuteCompletion, ErrorResponse>) -> DoneHandling {
+        match result {
+            Ok(ExecuteCompletion::PortalSuspended(suspended)) => self.borrow_mut().push(suspended),
+            Ok(ExecuteCompletion::CommandComplete(complete)) => self.borrow_mut().push(complete),
+            Err(err) => self.borrow_mut().push(err),
+        };
+        DoneHandling::Handled
+    }
+}
+
+impl CopyDataSink for Rc<RefCell<FlowAccumulator>> {
+    fn data(&mut self, message: CopyData) {
+        self.borrow_mut().push(message);
+    }
+    fn done(&mut self, result: Result<CommandComplete, ErrorResponse>) -> DoneHandling {
+        match result {
+            Ok(complete) => self.borrow_mut().push(complete),
+            Err(err) => self.borrow_mut().push(err),
+        };
+        DoneHandling::Handled
+    }
+}
+
+impl SimpleFlowSink for Rc<RefCell<FlowAccumulator>> {
+    fn handle(&mut self, result: Result<(), ErrorResponse>) {
+        match result {
+            Ok(()) => (),
+            Err(err) => self.borrow_mut().push(err),
+        }
+    }
+}
+
+impl DescribeSink for Rc<RefCell<FlowAccumulator>> {
+    fn params(&mut self, params: ParameterDescription) {
+        self.borrow_mut().push(params);
+    }
+    fn rows(&mut self, rows: RowDescription) {
+        self.borrow_mut().push(rows);
+    }
+    fn error(&mut self, error: ErrorResponse) {
+        self.borrow_mut().push(error);
+    }
 }

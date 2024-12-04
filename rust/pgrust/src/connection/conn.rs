@@ -183,7 +183,6 @@ where
     Ready {
         client: RawClient<B, C>,
         handlers: VecDeque<(
-            &'static str,
             Box<dyn MessageHandler>,
             Option<tokio::sync::oneshot::Sender<()>>,
         )>,
@@ -280,9 +279,9 @@ where
                     let mut tx = Some(tx);
                     while let Some(handler) = handlers_iter.next() {
                         if handlers_iter.len() == 0 {
-                            handlers.push_back(("", handler, tx.take()));
+                            handlers.push_back((handler, tx.take()));
                         } else {
-                            handlers.push_back(("", handler, None));
+                            handlers.push_back((handler, None));
                         }
                     }
                 }
@@ -337,20 +336,21 @@ where
                     warn!("ParameterStatus: {:?}", message);
                     return Ok(());
                 }
-                if let Some((name, handler, _tx)) = handlers.front_mut() {
+                if let Some((handler, _tx)) = handlers.front_mut() {
                     match handler.handle(message) {
                         MessageResult::SkipUntilSync => {
                             let mut found_sync = false;
-                            while let Some((name, handler, _)) = handlers.front() {
+                            let name = handler.name();
+                            while let Some((handler, _)) = handlers.front() {
                                 if handler.is_sync() {
                                     found_sync = true;
                                     break;
                                 }
-                                trace!("skipping {name}");
+                                trace!("skipping {}", handler.name());
                                 handlers.pop_front();
                             }
                             if !found_sync {
-                                warn!("No sync handler found");
+                                warn!("Unexpected state in {name}: No sync handler found");
                             }
                         }
                         MessageResult::Continue => {}
@@ -358,8 +358,20 @@ where
                             handlers.pop_front();
                         }
                         MessageResult::Unknown => {
-                            // TODO
-                            warn!("Unknown message in {name} ({:?})", message.mtype() as char);
+                            // TODO: Should the be exposed to the API consumer?
+                            warn!(
+                                "Unknown message in {} ({:?})",
+                                handler.name(),
+                                message.mtype() as char
+                            );
+                        }
+                        MessageResult::UnexpectedState { complaint } => {
+                            // TODO: Should the be exposed to the API consumer?
+                            warn!(
+                                "Unexpected state in {} while handling message ({:?}): {complaint}",
+                                handler.name(),
+                                message.mtype() as char
+                            );
                         }
                     };
                 };
@@ -542,14 +554,6 @@ mod tests {
                 }
             }
             write!(self.borrow_mut(), "[error ??? {:?}]", error).unwrap();
-        }
-        fn protocol_violation(&mut self, message: Message, hint: &'static str) {
-            // This won't happen during these tests
-            panic!(
-                "protocol error {}: {:?} ({hint})",
-                message.mtype() as char,
-                message
-            );
         }
     }
 
