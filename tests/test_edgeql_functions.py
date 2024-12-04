@@ -20,6 +20,7 @@
 import base64
 import decimal
 import json
+import math
 import os.path
 import random
 import uuid
@@ -6053,6 +6054,780 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 r"elements in input set"):
             await self.con.query(r'''
                 SELECT math::var_pop(<int64>{});
+            ''')
+
+    async def test_edgeql_functions_math_pi_01(self):
+        await self.assert_query_result(
+            r'''SELECT math::pi() IS float64;''',
+            {True},
+        )
+        await self.assert_query_result(
+            r'''SELECT math::pi();''',
+            {math.pi},
+            abs_tol=0.0000000005,
+        )
+
+    async def test_edgeql_functions_math_acos_01(self):
+        await self.assert_query_result(
+            r'''SELECT math::acos(-1);''',
+            {math.pi},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::acos(-math::sqrt(2) / 2);''',
+            {math.pi * 3 / 4},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::acos(-0.0);''',
+            {math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::acos(0.0);''',
+            {math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::acos(math::sqrt(2) / 2);''',
+            {math.pi / 4},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''WITH x := math::acos(1) SELECT (x, <str>x);''',
+            [(0.0, '0')],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <str>math::acos(<float64>"NaN");''',
+            {"NaN"},
+        )
+
+    async def test_edgeql_functions_math_acos_02(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::acos(-1.001);
+            ''')
+
+    async def test_edgeql_functions_math_acos_03(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::acos(1.001);
+            ''')
+
+    async def test_edgeql_functions_math_acos_04(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::acos(<float64>"-inf");
+            ''')
+
+    async def test_edgeql_functions_math_acos_05(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::acos(<float64>"inf");
+            ''')
+
+    async def test_edgeql_functions_math_asin_01(self):
+        await self.assert_query_result(
+            r'''SELECT math::asin(-1);''',
+            {-math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::asin(-math::sqrt(2) / 2);''',
+            {-math.pi / 4},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''WITH x := math::asin(-0.0) SELECT (x, <str>x);''',
+            [[-0.0, '-0']],
+        )
+        await self.assert_query_result(
+            r'''WITH x := math::asin(0.0) SELECT (x, <str>x);''',
+            [[0.0, '0']],
+        )
+        await self.assert_query_result(
+            r'''SELECT math::asin(math::sqrt(2) / 2);''',
+            {math.pi / 4},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::asin(1);''',
+            {math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <str>math::asin(<float64>"NaN");''',
+            {"NaN"},
+        )
+
+    async def test_edgeql_functions_math_asin_02(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::asin(-1.001);
+            ''')
+
+    async def test_edgeql_functions_math_asin_03(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::asin(1.001);
+            ''')
+
+    async def test_edgeql_functions_math_asin_04(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::asin(<float64>"-inf");
+            ''')
+
+    async def test_edgeql_functions_math_asin_05(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::asin(<float64>"inf");
+            ''')
+
+    async def test_edgeql_functions_math_atan_01(self):
+        await self.assert_query_result(
+            r'''SELECT math::atan(<float64>"-inf");''',
+            {-math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan(-1000000000);''',
+            {-math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan(-math::sqrt(3));''',
+            {-math.pi / 3},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan(-1);''',
+            {-math.pi / 4},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan(-1 / math::sqrt(3));''',
+            {-math.pi / 6},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''WITH x := math::atan(-0.0) SELECT (x, <str>x);''',
+            [[-0.0, '-0']],
+        )
+        await self.assert_query_result(
+            r'''WITH x := math::atan(0.0) SELECT (x, <str>x);''',
+            [[0.0, '0']],
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan(1 / math::sqrt(3));''',
+            {math.pi / 6},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan(1);''',
+            {math.pi / 4},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan(math::sqrt(3));''',
+            {math.pi / 3},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan(1000000000);''',
+            {math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan(<float64>"inf");''',
+            {math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <str>math::atan(<float64>"NaN");''',
+            {"NaN"},
+        )
+
+    async def test_edgeql_functions_math_atan2_01(self):
+        await self.assert_query_result(
+            r'''SELECT math::atan2(-0.0, -1);''',
+            {-math.pi},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(-2, -2);''',
+            {-math.pi * 3 / 4},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(-3, -0.0);''',
+            {-math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(-4, 0.0);''',
+            {-math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(-5, 5);''',
+            {-math.pi / 4},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''WITH x := math::atan2(-0.0, 6) SELECT (x, <str>x);''',
+            [[-0.0, '-0']],
+        )
+        await self.assert_query_result(
+            r'''WITH x := math::atan2(0.0, 6) SELECT (x, <str>x);''',
+            [[0.0, '0']],
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(8, 8);''',
+            {math.pi / 4},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(9, 0.0);''',
+            {math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(10, -0.0);''',
+            {math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(11, -11);''',
+            {math.pi * 3 / 4},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(0.0, -12);''',
+            {math.pi},
+            abs_tol=0.0000000005,
+        )
+
+        await self.assert_query_result(
+            r'''SELECT math::atan2(-0.0, -0.0);''',
+            {-math.pi},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''WITH x := math::atan2(-0.0, 0.0) SELECT (x, <str>x);''',
+            [[-0.0, '-0']],
+        )
+        await self.assert_query_result(
+            r'''WITH x := math::atan2(0.0, 0.0) SELECT (x, <str>x);''',
+            [[0.0, '0']],
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(0.0, -0.0);''',
+            {math.pi},
+            abs_tol=0.0000000005,
+        )
+
+        await self.assert_query_result(
+            r'''SELECT math::atan2(-0.0, -<float64>"inf");''',
+            {-math.pi},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(-<float64>"inf", -<float64>"inf");''',
+            {-math.pi * 3 / 4},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(-<float64>"inf", -0.0);''',
+            {-math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(-<float64>"inf", 0.0);''',
+            {-math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(-<float64>"inf", <float64>"inf");''',
+            {-math.pi / 4},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''
+            WITH x := math::atan2(-0.0, <float64>"inf")
+            SELECT (x, <str>x);
+            ''',
+            [[-0.0, '-0']],
+        )
+        await self.assert_query_result(
+            r'''
+            WITH x := math::atan2(0.0, <float64>"inf")
+            SELECT (x, <str>x);
+            ''',
+            [[0.0, '0']],
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(<float64>"inf", <float64>"inf");''',
+            {math.pi / 4},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(<float64>"inf", 0.0);''',
+            {math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(<float64>"inf", -0.0);''',
+            {math.pi / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(<float64>"inf", -<float64>"inf");''',
+            {math.pi * 3 / 4},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::atan2(0.0, -<float64>"inf");''',
+            {math.pi},
+            abs_tol=0.0000000005,
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <str>math::atan2(<float64>"NaN", 1);''',
+            {"NaN"},
+        )
+        await self.assert_query_result(
+            r'''SELECT <str>math::atan2(1, <float64>"NaN");''',
+            {"NaN"},
+        )
+        await self.assert_query_result(
+            r'''SELECT <str>math::atan2(<float64>"NaN", <float64>"NaN");''',
+            {"NaN"},
+        )
+
+    async def test_edgeql_functions_math_cos_01(self):
+        await self.assert_query_result(
+            r'''SELECT math::cos(-math::pi() * 2);''',
+            {1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(-math::pi() * 7 / 4);''',
+            {math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(-math::pi() * 3 / 2);''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(-math::pi() * 5 / 4);''',
+            {-math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(-math::pi());''',
+            {-1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(-math::pi() * 3 / 4);''',
+            {-math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(-math::pi() / 2);''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(-math::pi() / 4);''',
+            {math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(-0.0);''',
+            {1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(0.0);''',
+            {1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(math::pi() / 4);''',
+            {math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(math::pi() / 2);''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(math::pi() * 3 / 4);''',
+            {-math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(math::pi());''',
+            {-1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(math::pi() * 5 / 4);''',
+            {-math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(math::pi() * 3 / 2);''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(math::pi() * 7 / 4);''',
+            {math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cos(math::pi() * 2);''',
+            {1.0},
+            abs_tol=0.0000000005,
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <str>math::cos(<float64>"NaN");''',
+            {"NaN"},
+        )
+
+    async def test_edgeql_functions_math_cos_02(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::cos(<float64>"-inf");
+            ''')
+
+    async def test_edgeql_functions_math_cos_03(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::cos(<float64>"inf");
+            ''')
+
+    async def test_edgeql_functions_math_cot_01(self):
+        await self.assert_query_result(
+            r'''SELECT math::cot(-math::pi() * 7 / 4);''',
+            {1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cot(-math::pi() * 3 / 2);''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cot(-math::pi() * 5 / 4);''',
+            {-1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cot(-math::pi() * 3 / 4);''',
+            {1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cot(-math::pi() / 2);''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cot(-math::pi() / 4);''',
+            {-1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT <str>math::cot(-0.0);''',
+            {"-Infinity"},
+        )
+        await self.assert_query_result(
+            r'''SELECT <str>math::cot(0.0);''',
+            {"Infinity"},
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cot(math::pi() / 4);''',
+            {1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cot(math::pi() / 2);''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cot(math::pi() * 3 / 4);''',
+            {-1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cot(math::pi() * 5 / 4);''',
+            {1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cot(math::pi() * 3 / 2);''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::cot(math::pi() * 7 / 4);''',
+            {-1.0},
+            abs_tol=0.0000000005,
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <str>math::cot(<float64>"NaN");''',
+            {"NaN"},
+        )
+
+    async def test_edgeql_functions_math_cot_02(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::cot(<float64>"-inf");
+            ''')
+
+    async def test_edgeql_functions_math_cot_03(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::cot(<float64>"inf");
+            ''')
+
+    async def test_edgeql_functions_math_sin_01(self):
+        await self.assert_query_result(
+            r'''SELECT math::sin(-math::pi() * 2);''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(-math::pi() * 7 / 4);''',
+            {math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(-math::pi() * 3 / 2);''',
+            {1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(-math::pi() * 5 / 4);''',
+            {math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(-math::pi());''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(-math::pi() * 3 / 4);''',
+            {-math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(-math::pi() / 2);''',
+            {-1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(-math::pi() / 4);''',
+            {-math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''WITH x := math::sin(-0.0) SELECT (x, <str>x);''',
+            [[-0.0, '-0']],
+        )
+        await self.assert_query_result(
+            r'''WITH x := math::sin(0.0) SELECT (x, <str>x);''',
+            [[0.0, '0']],
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(math::pi() / 4);''',
+            {math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(math::pi() / 2);''',
+            {1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(math::pi() * 3 / 4);''',
+            {math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(math::pi());''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(math::pi() * 5 / 4);''',
+            {-math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(math::pi() * 3 / 2);''',
+            {-1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(math::pi() * 7 / 4);''',
+            {-math.sqrt(2) / 2},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::sin(math::pi() * 2);''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <str>math::sin(<float64>"NaN");''',
+            {"NaN"},
+        )
+
+    async def test_edgeql_functions_math_sin_02(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::sin(<float64>"-inf");
+            ''')
+
+    async def test_edgeql_functions_math_sin_03(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::sin(<float64>"inf");
+            ''')
+
+    async def test_edgeql_functions_math_tan_01(self):
+        await self.assert_query_result(
+            r'''SELECT math::tan(-math::pi() * 2);''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::tan(-math::pi() * 7 / 4);''',
+            {1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::tan(-math::pi() * 5 / 4);''',
+            {-1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::tan(-math::pi());''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::tan(-math::pi() * 3 / 4);''',
+            {1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::tan(-math::pi() / 4);''',
+            {-1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''WITH x := math::tan(-0.0) SELECT (x, <str>x);''',
+            [[-0.0, '-0']],
+        )
+        await self.assert_query_result(
+            r'''WITH x := math::tan(0.0) SELECT (x, <str>x);''',
+            [[0.0, '0']],
+        )
+        await self.assert_query_result(
+            r'''SELECT math::tan(math::pi() / 4);''',
+            {1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::tan(math::pi() * 3 / 4);''',
+            {-1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::tan(math::pi());''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::tan(math::pi() * 5 / 4);''',
+            {1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::tan(math::pi() * 7 / 4);''',
+            {-1.0},
+            abs_tol=0.0000000005,
+        )
+        await self.assert_query_result(
+            r'''SELECT math::tan(math::pi() * 2);''',
+            {0.0},
+            abs_tol=0.0000000005,
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <str>math::tan(<float64>"NaN");''',
+            {"NaN"},
+        )
+
+    async def test_edgeql_functions_math_tan_02(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::tan(<float64>"-inf");
+            ''')
+
+    async def test_edgeql_functions_math_tan_03(self):
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r"input is out of range"):
+            await self.con.query(r'''
+                SELECT math::tan(<float64>"inf");
             ''')
 
     async def test_edgeql_functions__genseries_01(self):
