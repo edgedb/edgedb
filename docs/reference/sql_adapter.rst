@@ -308,7 +308,7 @@ construct is mapped to PostgreSQL schema:
       SET "global default::username" TO 'Tom'``.
 
 - Access policies are applied to object type tables when setting
-  ``apply_access_policies_sql`` is set to ``true``.
+  ``apply_access_policies_pg`` is set to ``true``.
 
 - Mutation rewrites and triggers are applied to all DML commands.
 
@@ -342,10 +342,10 @@ SQL adapter supports a limited subset of PostgreSQL connection settings.
 There are the following additionally connection settings:
 
 - ``allow_user_specified_id`` (default ``false``),
-- ``apply_access_policies_sql`` (default ``false``),
+- ``apply_access_policies_pg`` (default ``false``),
 - settings prefixed with ``"global "`` can use used to set values of globals.
 
-Note that if ``allow_user_specified_id`` or ``apply_access_policies_sql`` are
+Note that if ``allow_user_specified_id`` or ``apply_access_policies_pg`` are
 unset, they default to configuration set by ``configure current database``
 EdgeQL command.
 
