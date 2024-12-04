@@ -2526,7 +2526,7 @@ def compile_sql_as_unit_group(
 
     qug = dbstate.QueryUnitGroup(
         cardinality=sql_units[-1].cardinality,
-        cacheable=False,
+        cacheable=True,
     )
 
     for sql_unit in sql_units:
@@ -2592,7 +2592,7 @@ def compile_sql_as_unit_group(
                 tx_state.release_savepoint(sql_unit.sp_name)
                 unit.sp_name = sql_unit.sp_name
             case None:
-                pass
+                unit.cacheable = True
             case _:
                 raise AssertionError(
                     f"unexpected SQLQueryUnit.tx_action: {sql_unit.tx_action}"
