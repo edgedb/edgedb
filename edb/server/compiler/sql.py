@@ -100,6 +100,10 @@ def compile_sql(
         )
 
         if isinstance(stmt, (pgast.VariableSetStmt, pgast.VariableResetStmt)):
+            if protocol_version != defines.POSTGRES_PROTOCOL:
+                from edb.pgsql import resolver as pg_resolver
+                pg_resolver.dispatch._raise_unsupported(stmt)
+
             value: Optional[dbstate.SQLSetting]
             if isinstance(stmt, pgast.VariableSetStmt):
                 value = pg_arg_list_to_python(stmt.args)
@@ -137,6 +141,10 @@ def compile_sql(
                 unit.capabilities |= enums.Capability.SESSION_CONFIG
 
         elif isinstance(stmt, pgast.VariableShowStmt):
+            if protocol_version != defines.POSTGRES_PROTOCOL:
+                from edb.pgsql import resolver as pg_resolver
+                pg_resolver.dispatch._raise_unsupported(stmt)
+
             unit.get_var = stmt.name
             unit.frontend_only = (
                 stmt.name in FE_SETTINGS_MUTABLE
@@ -146,6 +154,10 @@ def compile_sql(
                 unit.command_complete_tag = dbstate.TagPlain(tag=b"SHOW")
 
         elif isinstance(stmt, pgast.SetTransactionStmt):
+            if protocol_version != defines.POSTGRES_PROTOCOL:
+                from edb.pgsql import resolver as pg_resolver
+                pg_resolver.dispatch._raise_unsupported(stmt)
+
             if stmt.scope == pgast.OptionsScope.SESSION:
                 unit.set_vars = {
                     f"default_{name}": (

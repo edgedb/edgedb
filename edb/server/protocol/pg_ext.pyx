@@ -428,7 +428,12 @@ cdef class PgConnection(frontend.FrontendConnection):
                 str(exc), detail=exc.details, severity="FATAL"
             )
         elif isinstance(exc, errors.UnsupportedFeatureError):
-            exc = pgerror.FeatureNotSupported(str(exc))
+            exc = pgerror.new(
+                pgerror.ERROR_FEATURE_NOT_SUPPORTED,
+                str(exc),
+                L=str(exc.line) if exc.line >= 0 else None,
+                P=str(exc.position + 1) if exc.position >= 0 else None,
+            )
         elif isinstance(exc, errors.EdgeDBError):
             args = dict(hint=exc.hint, detail=exc.details)
             if exc.line >= 0:

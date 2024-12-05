@@ -2720,3 +2720,32 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             'SELECT title FROM "Content" ORDER BY title',
             [{'title': 'Forrest Gump'}]
         )
+
+    async def test_native_sql_query_16(self):
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            "not supported: VARIABLE SET",
+            _position=14,  # this point to `1`, but hey, better than nothing
+        ):
+            await self.assert_sql_query_result(
+                'SET my_var TO 1',
+                []
+            )
+
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            "not supported: VARIABLE RESET",
+        ):
+            await self.assert_sql_query_result(
+                'RESET my_var',
+                []
+            )
+
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            "not supported: VARIABLE SHOW",
+        ):
+            await self.assert_sql_query_result(
+                'SHOW my_var',
+                []
+            )
