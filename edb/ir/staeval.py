@@ -531,7 +531,7 @@ def object_type_to_spec(
         default = p.get_default(schema)
         if default is None:
             if p.get_required(schema):
-                default = dataclasses.MISSING
+                default = statypes.MISSING
         else:
             default = qlcompiler.evaluate_to_python_val(
                 default.text, schema=schema)
@@ -554,12 +554,19 @@ def object_type_to_spec(
             default=default,
             secret=p.get_secret(schema),
             protected=p.get_protected(schema),
+            required=p.get_required(schema),
+            enum_values=(
+                ptype.get_enum_values(schema)
+                if isinstance(ptype, s_scalars.ScalarType)
+                else None
+            ),
         )
 
     spec = spec_class(
         name=str(objtype.get_name(schema)),
         fields=immutables.Map(fields),
         parent=parent,
+        is_abstract=objtype.get_abstract(schema),
     )
 
     for subtype in objtype.children(schema):

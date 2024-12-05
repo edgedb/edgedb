@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import dataclasses
 import functools
@@ -42,6 +42,8 @@ class CompositeTypeSpecField:
     default: Any = MISSING
     secret: bool = False
     protected: bool = False
+    required: bool = False
+    enum_values: Optional[Sequence[str]] = None
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -53,6 +55,7 @@ class CompositeTypeSpec:
         default_factory=list, hash=False, compare=False
     )
     has_secret: bool = False
+    is_abstract: bool = False
 
     def __post_init__(self) -> None:
         has_secret = any(

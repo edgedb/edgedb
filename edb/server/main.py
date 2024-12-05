@@ -832,7 +832,7 @@ def initialize_static_cfg(
                     f"Can't set config {name!r} {where} when using "
                     f"a remote Postgres cluster"
                 )
-        value = config.coerce_value(value, config_spec, setting)
+        value = config.coerce_value(value, config_spec, setting, strict=True)
         init_con_script_data.append({
             "name": name,
             "value": config.value_to_json_value(setting, value),
@@ -875,16 +875,14 @@ def initialize_static_cfg(
             setting = config_spec[cfg_name]
         except KeyError:
             continue
-        choices = setting.enum_values
         if setting.type is bool:
             choices = ['true', 'false']
             env_value = env_value.lower()
-        if choices is not None and env_value not in choices:
-            raise server.StartupError(
-                f"Environment variable {env_name!r} can only be one of: " +
-                ", ".join(choices)
-            )
-        if setting.type is bool:
+            if env_value not in choices:
+                raise server.StartupError(
+                    f"Environment variable {env_name!r} can only be one of: " +
+                    ", ".join(choices)
+                )
             env_value = env_value == 'true'
         elif not issubclass(setting.type, statypes.ScalarType):  # type: ignore
             env_value = setting.type(env_value)  # type: ignore

@@ -124,6 +124,7 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
         tspec: statypes.CompositeTypeSpec,
         spec: spec.Spec,
         allow_missing=False,
+        strict: bool = False,
     ) -> CompositeConfigType:
         if allow_missing and data is None:
             return None  # type: ignore
@@ -136,6 +137,9 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
         if tname is not None:
             tspec = spec.get_type_by_name(tname)
         assert tspec
+
+        if strict and tspec.is_abstract:
+            raise cls._err(tspec, f'abstract type: {tspec.name!r}')
 
         fields = tspec.fields
 
@@ -156,6 +160,11 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
             f_type = field.type
 
             if value is None:
+                if strict and field.required:
+                    raise cls._err(
+                        tspec, f'missing required field: {fieldname!r}'
+                    )
+
                 # Config queries return empty pointer values as None.
                 continue
 
@@ -191,14 +200,31 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
                     actual_f_type = f_type
                     value['_tname'] = f_type.name
 
-                value = cls.from_pyvalue(value, tspec=actual_f_type, spec=spec)
+                value = cls.from_pyvalue(
+                    value,
+                    tspec=actual_f_type,
+                    spec=spec,
+                    allow_missing=allow_missing,
+                    strict=strict,
+                )
 
             elif _issubclass(f_type, statypes.Duration):
                 value = statypes.Duration.from_iso8601(value)
             elif _issubclass(f_type, statypes.ConfigMemory):
                 value = statypes.ConfigMemory(value)
 
-            elif not isinstance(f_type, type) or not isinstance(value, f_type):
+            elif isinstance(f_type, type) and isinstance(value, f_type):
+                if (
+                    strict and
+                    field.enum_values is not None and
+                    value not in field.enum_values
+                ):
+                    raise cls._err(
+                        tspec,
+                        f'invalid {fieldname!r} field value: must be one of '
+                        f'{", ".join(field.enum_values)}, but got {value!r}'
+                    )
+            else:
                 raise cls._err(
                     tspec,
                     f'invalid {fieldname!r} field value: expecting '

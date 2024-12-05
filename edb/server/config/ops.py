@@ -89,8 +89,21 @@ def _issubclass(
     return isinstance(typ, type) and issubclass(typ, parent)
 
 
-def coerce_single_value(setting: spec.Setting, value: Any) -> Any:
+def coerce_single_value(
+    setting: spec.Setting,
+    value: Any,
+    *,
+    strict: bool = False,
+) -> Any:
     if isinstance(setting.type, type) and isinstance(value, setting.type):
+        if (
+            strict and
+            setting.enum_values is not None and
+            value not in setting.enum_values
+        ):
+            raise errors.ConfigurationError(
+                f'invalid value for the {setting.name!r} setting: must be one '
+                f'of {", ".join(setting.enum_values)}, but got {value!r}')
         return value
     elif (isinstance(value, str) and
           _issubclass(setting.type, statypes.Duration)):
@@ -140,7 +153,7 @@ def _check_object_set_uniqueness(
 
 
 def coerce_object_set(
-    spec: spec.Spec, setting: spec.Setting, values: Any
+    spec: spec.Spec, setting: spec.Setting, values: Any, strict: bool = False
 ) -> Any:
     assert isinstance(setting.type, types.ConfigTypeSpec)
     if not setting.set_of and len(values) > 1:
@@ -152,7 +165,8 @@ def coerce_object_set(
         setting,
         (
             types.CompositeConfigType.from_pyvalue(
-                jv, spec=spec, tspec=setting.type)
+                jv, spec=spec, tspec=setting.type, strict=strict
+            )
             for jv in values
         ),
     )
@@ -165,15 +179,17 @@ def coerce_value(
     *,
     allow_missing: bool = False,
     unique_object_set: bool = False,
+    strict: bool = False,
 ):
     if isinstance(setting.type, types.ConfigTypeSpec):
         try:
-            if unique_object_set:
-                return coerce_object_set(spec, setting, value)
+            if strict or unique_object_set:
+                return coerce_object_set(spec, setting, value, strict=strict)
             else:
                 return types.CompositeConfigType.from_pyvalue(
                     value, spec=spec, tspec=setting.type,
                     allow_missing=allow_missing,
+                    strict=strict,
                 )
         except (ValueError, TypeError):
             raise errors.ConfigurationError(
@@ -187,7 +203,7 @@ def coerce_value(
                 f'{setting.name!r} setting')
         else:
             val = frozenset(
-                coerce_single_value(setting, v)
+                coerce_single_value(setting, v, strict=strict)
                 for v in value)  # type: ignore
             if len(val) > MAX_CONFIG_SET_SIZE:
                 raise errors.ConfigurationError(
@@ -197,7 +213,7 @@ def coerce_value(
 
     else:
         try:
-            return coerce_single_value(setting, value)
+            return coerce_single_value(setting, value, strict=strict)
         except errors.ConfigurationError:
             if value is None and allow_missing:
                 return None
