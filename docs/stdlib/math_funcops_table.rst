@@ -35,3 +35,30 @@
 
     * - :eql:func:`math::var_pop`
       - :eql:func-desc:`math::var_pop`
+
+    * - :eql:func:`math::pi`
+      - :eql:func-desc:`math::pi`
+
+    * - :eql:func:`math::acos`
+      - :eql:func-desc:`math::acos`
+
+    * - :eql:func:`math::asin`
+      - :eql:func-desc:`math::asin`
+
+    * - :eql:func:`math::atan`
+      - :eql:func-desc:`math::atan`
+
+    * - :eql:func:`math::atan2`
+      - :eql:func-desc:`math::atan2`
+
+    * - :eql:func:`math::cos`
+      - :eql:func-desc:`math::cos`
+
+    * - :eql:func:`math::cot`
+      - :eql:func-desc:`math::cot`
+
+    * - :eql:func:`math::sin`
+      - :eql:func-desc:`math::sin`
+
+    * - :eql:func:`math::tan`
+      - :eql:func-desc:`math::tan`
