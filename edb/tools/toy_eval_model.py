@@ -673,13 +673,16 @@ def flatten_grouping_atom(atom: qlast.GroupingAtom) -> Tuple[ByElement, ...]:
     if isinstance(atom, (qlast.ObjectRef, qlast.Path)):
         return (get_by_element(atom),)
     else:
+        assert isinstance(atom, qlast.GroupingIdentList)
         return tuple(
             x for g in atom.elements
             for x in flatten_grouping_atom(g)
         )
 
 
-def get_grouping_sets(node: qlast.GroupQuery) -> List[Tuple[ByElement, ...]]:
+def get_grouping_sets(
+    node: qlast.GroupQuery | qlast.InternalGroupQuery
+) -> List[Tuple[ByElement, ...]]:
     toplevel_gsets = []
     for col in node.by:
         gsets = simplify_grouping_sets(col)
@@ -703,7 +706,7 @@ def _keyify(v: Data) -> Data:
 
 
 def get_groups(
-    node: qlast.GroupQuery, ctx: EvalContext
+    node: qlast.GroupQuery | qlast.InternalGroupQuery, ctx: EvalContext
 ) -> List[Tuple[Tuple[Data, ...], Tuple[Dict[ByElement, Data], List[Data]]]]:
     ctx = eval_aliases(node, ctx)
 

@@ -287,20 +287,25 @@ construct is mapped to PostgreSQL schema:
   ``UUID``. They contain the ids of the link's target type.
 
 - Multi properties are mapped to tables with two columns:
+
   - ``source UUID``, which contains the id of the property's source object type,
   - ``target``, which contains values of the property.
 
 - Multi links are mapped to tables with columns:
+
   - ``source UUID``, which contains the id of the property's source object type,
   - ``target UUID``, which contains the ids of the link's target object type,
   - one column for each link property, using the same rules as properties on
-  object types.
+    object types.
 
 - Aliases are not mapped to PostgreSQL schema.
 
-- Globals are mapped to connection settings, prefixed with ``global ``.
-  For example, a ``global default::username: str`` can be set using
-  ``SET "global default::username" TO 'Tom'``.
+- Globals are mapped to connection settings, prefixed with ``global``.
+  For example, a ``global default::username: str`` can be set using:
+  
+  .. code-block:: sql
+
+      SET "global default::username" TO 'Tom'``.
 
 - Access policies are applied to object type tables when setting
   ``apply_access_policies_sql`` is set to ``true``.

@@ -23,7 +23,6 @@ from __future__ import annotations
 # AST classes that name-clash with classes from the typing module.
 
 import typing
-import enum
 
 from edb.common import enum as s_enum
 from edb.common import ast, span
@@ -100,6 +99,11 @@ class Base(ast.AST):
         dump_edgeql(self)
 
 
+class GrammarEntryPoint(Base):
+    """Mixin denoting nodes that are entry points for EdgeQL grammar"""
+    __mixin_node__ = True
+
+
 class OptionValue(Base):
     """An option value resulting from a syntax."""
     __abstract_node__ = True
@@ -135,7 +139,7 @@ class Options(Base):
         return len(self.options)
 
 
-class Expr(Base):
+class Expr(GrammarEntryPoint, Base):
     """Abstract parent for all query expressions."""
 
     __abstract_node__ = True
@@ -167,11 +171,15 @@ class ModuleAliasDecl(Alias):
     alias: typing.Optional[str]
 
 
+class GroupingAtom(Base):
+    __abstract_node__ = True
+
+
 class BaseObjectRef(Base):
     __abstract_node__ = True
 
 
-class ObjectRef(BaseObjectRef):
+class ObjectRef(BaseObjectRef, GroupingAtom):
     name: str
     module: typing.Optional[str] = None
     itemclass: typing.Optional[qltypes.SchemaObjectClass] = None
@@ -266,13 +274,13 @@ class Constant(BaseConstant):
         return Constant(kind=ConstantKind.INTEGER, value=str(i))
 
 
-class ConstantKind(enum.IntEnum):
-    STRING = 0
-    BOOLEAN = 1
-    INTEGER = 2
-    FLOAT = 3
-    BIGINT = 4
-    DECIMAL = 5
+class ConstantKind(s_enum.StrEnum):
+    STRING = 'STRING'
+    BOOLEAN = 'BOOLEAN'
+    INTEGER = 'INTEGER'
+    FLOAT = 'FLOAT'
+    BIGINT = 'BIGINT'
+    DECIMAL = 'DECIMAL'
 
 
 class BytesConstant(BaseConstant):
@@ -360,7 +368,7 @@ class Splat(Base):
 PathElement = typing.Union[Expr, Ptr, TypeIntersection, ObjectRef, Splat]
 
 
-class Path(Expr):
+class Path(Expr, GroupingAtom):
     steps: typing.List[PathElement]
     partial: bool = False
     allow_factoring: bool = False
@@ -411,7 +419,7 @@ class Set(Expr):
 #
 
 
-class Command(Base):
+class Command(GrammarEntryPoint, Base):
     """
     A top-level node that is evaluated by our server and
     cannot be a part of a sub expression.
@@ -493,7 +501,7 @@ class Shape(Expr):
     allow_factoring: bool = False
 
 
-class Query(Expr):
+class Query(Expr, GrammarEntryPoint):
     __abstract_node__ = True
 
     aliases: typing.Optional[typing.List[Alias]] = None
@@ -518,11 +526,8 @@ class SelectQuery(Query):
     implicit: bool = False
 
 
-class GroupingIdentList(Base):
-    elements: typing.Tuple[typing.Union[GroupingAtom], ...]
-
-
-GroupingAtom = typing.Union[ObjectRef, Path, GroupingIdentList]
+class GroupingIdentList(GroupingAtom, Base):
+    elements: typing.Tuple[GroupingAtom, ...]
 
 
 class GroupingElement(Base):
@@ -550,7 +555,13 @@ class GroupQuery(Query):
     subject: Expr
 
 
-class InternalGroupQuery(GroupQuery):
+class InternalGroupQuery(Query):
+    subject_alias: typing.Optional[str] = None
+    using: typing.Optional[typing.List[AliasedExpr]]
+    by: typing.List[GroupingElement]
+
+    subject: Expr
+
     group_alias: str
     grouping_alias: typing.Optional[str]
     from_desugaring: bool = False
@@ -648,9 +659,8 @@ class ReleaseSavepoint(Transaction):
 
 
 class DDL(Base):
-    '''Abstract parent for all DDL statements.'''
-
-    __abstract_node__ = True
+    '''A mixin denoting DDL nodes.'''
+    __mixin_node__ = True
 
 
 class Position(DDL):
@@ -665,10 +675,8 @@ class DDLOperation(DDL):
     commands: typing.List[DDLOperation] = ast.field(factory=list)
 
 
-class DDLCommand(DDLOperation):
+class DDLCommand(DDLOperation, Command):
     __abstract_node__ = True
-
-    aliases: typing.Optional[typing.List[Alias]] = None
 
 
 class NonTransactionalDDLCommand(DDLCommand):
@@ -722,13 +730,10 @@ class SetPointerOptionality(SetField):
     fill_expr: typing.Optional[Expr] = None
 
 
-class NamedDDL(DDLCommand):
+class ObjectDDL(DDLCommand):
     __abstract_node__ = True
+
     name: ObjectRef
-
-
-class ObjectDDL(NamedDDL):
-    __abstract_node__ = True
 
 
 class CreateObject(ObjectDDL):
@@ -757,7 +762,7 @@ class CreateExtendingObject(CreateObject):
     bases: typing.List[TypeName]
 
 
-class Rename(NamedDDL):
+class Rename(ObjectDDL):
     new_name: ObjectRef
 
     @property
@@ -776,7 +781,7 @@ class MigrationCommand(DDLCommand):
     __abstract_node__ = True
 
 
-class CreateMigration(CreateObject, MigrationCommand):
+class CreateMigration(CreateObject, MigrationCommand, GrammarEntryPoint):
 
     body: NestedQLBlock
     parent: typing.Optional[ObjectRef] = None
@@ -1246,9 +1251,6 @@ class DropIndex(DropObject, IndexCommand):
 class IndexMatchCommand(ObjectDDL):
 
     __abstract_node__ = True
-    __rust_ignore__ = True
-    object_class: qltypes.SchemaObjectClass = \
-        qltypes.SchemaObjectClass.INDEX_MATCH
     valid_type: TypeName
 
 
@@ -1535,20 +1537,20 @@ class AdministerStmt(Command):
 
 
 class SDL(Base):
-    '''Abstract parent for all SDL statements.'''
+    '''A mixin denoting SDL nodes.'''
 
-    __abstract_node__ = True
+    __mixin_node__ = True
 
 
 class ModuleDeclaration(SDL):
     # The 'name' is treated same as in CreateModule, for consistency,
     # since this declaration also implies creating a module.
     name: ObjectRef
-    declarations: typing.List[typing.Union[NamedDDL, ModuleDeclaration]]
+    declarations: typing.List[typing.Union[ObjectDDL, ModuleDeclaration]]
 
 
-class Schema(SDL):
-    declarations: typing.List[typing.Union[NamedDDL, ModuleDeclaration]]
+class Schema(SDL, GrammarEntryPoint, Base):
+    declarations: typing.List[typing.Union[ObjectDDL, ModuleDeclaration]]
 
 
 #
@@ -1635,4 +1637,4 @@ CallableObjectCommandTuple = (
 )
 
 # A node that can have a WITH block
-Statement = Query | Command | DDLCommand
+Statement = Query | Command

@@ -54,7 +54,7 @@ def _parse_language(node):
 
 def _validate_declarations(
     declarations: typing.Sequence[
-        typing.Union[qlast.ModuleDeclaration, qlast.NamedDDL]]
+        typing.Union[qlast.ModuleDeclaration, qlast.ObjectDDL]]
 ) -> None:
     # Check that top-level declarations either use fully-qualified
     # names or are module blocks.

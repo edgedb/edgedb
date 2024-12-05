@@ -279,7 +279,7 @@ class CastCommand(sd.QualifiedObjectCommand[Cast],
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> sn.QualName:
         assert isinstance(astnode, qlast.CastCommand)

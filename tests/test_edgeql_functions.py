@@ -1309,6 +1309,16 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [['Ab'], ['a']],
         )
 
+        await self.assert_query_result(
+            r'''
+            select re_match(
+                r"(foo)?bar",
+                'barbar',
+            )
+            ''',
+            [[""]],
+        )
+
     async def test_edgeql_functions_re_match_02(self):
         await self.assert_query_result(
             r'''
@@ -1388,6 +1398,16 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 ORDER BY x;
             ''',
             [['Ab'], ['a'], ['a'], ['aB'], ['ab']],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select re_match_all(
+                r"(foo)?bar",
+                'barbar',
+            )
+            ''',
+            [[""], [""]],
         )
 
     async def test_edgeql_functions_re_test_01(self):

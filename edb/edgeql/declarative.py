@@ -368,7 +368,7 @@ class FunctionDependency(ExprDependency):
 
 def sdl_to_ddl(
     schema: s_schema.Schema,
-    documents: Mapping[str, List[qlast.DDL]],
+    documents: Mapping[str, List[qlast.DDLCommand]],
 ) -> Tuple[qlast.DDLCommand, ...]:
 
     ddlgraph: DDLGraph = {}

@@ -200,6 +200,18 @@ class TestEdgeQLFor(tb.QueryTestCase):
             }
         )
 
+    async def test_edgeql_for_implicit_limit_01(self):
+        await self.assert_query_result(
+            r'''
+                select sum((
+                  for i in range_unpack(range(0, 10000)) union
+                    1
+                ));
+            ''',
+            [10000],
+            implicit_limit=100,
+        )
+
     async def test_edgeql_for_filter_02(self):
         await self.assert_query_result(
             r'''

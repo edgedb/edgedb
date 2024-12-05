@@ -27,7 +27,7 @@ std::re_match(pattern: std::str, str: std::str) -> array<std::str>
         'Find the first regular expression match in a string.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT regexp_matches("str", "pattern");
+    SELECT array_replace(regexp_matches("str", "pattern"), NULL, '');
     $$;
 };
 
@@ -39,7 +39,7 @@ std::re_match_all(pattern: std::str, str: std::str) -> SET OF array<std::str>
         'Find all regular expression matches in a string.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT regexp_matches("str", "pattern", 'g');
+    SELECT array_replace(regexp_matches("str", "pattern", 'g'), NULL, '');
     $$;
 };
 

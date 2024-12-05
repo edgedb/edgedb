@@ -108,7 +108,7 @@ def _raise_unsupported(expr: pgast.Base) -> typing.Never:
     # title case to spaces
     pretty_name = re.sub(r'(?<!^)(?=[A-Z])', ' ', pretty_name).upper()
 
-    raise errors.QueryError(
+    raise errors.UnsupportedFeatureError(
         f'not supported: {pretty_name}',
         span=expr.span,
         pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,

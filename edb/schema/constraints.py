@@ -436,7 +436,7 @@ class ConstraintCommand(
     def _classname_quals_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         base_name: sn.Name,
         referrer_name: sn.QualName,
         context: sd.CommandContext,
@@ -473,7 +473,7 @@ class ConstraintCommand(
     def _constraint_args_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> List[s_expr.Expression]:
         args = []
@@ -1377,7 +1377,7 @@ class RenameConstraint(
     def _classname_quals_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         base_name: sn.Name,
         referrer_name: sn.QualName,
         context: sd.CommandContext,

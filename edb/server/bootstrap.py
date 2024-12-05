@@ -1491,7 +1491,11 @@ def compile_intro_queries_stdlib(
 
 def _calculate_src_hash() -> bytes:
     return buildmeta.hash_dirs(
-        buildmeta.get_cache_src_dirs(), extra_files=[__file__],
+        buildmeta.get_cache_src_dirs(),
+        extra_files=[
+            __file__,
+            pathlib.Path(__file__).parent.parent / 'buildmeta.py',
+        ],
     )
 
 

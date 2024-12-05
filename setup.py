@@ -667,7 +667,10 @@ class ci_helper(setuptools.Command):
         elif self.type == 'bootstrap':
             bootstrap_hash = hash_dirs(
                 get_cache_src_dirs(),
-                extra_files=[pkg_dir / 'server/bootstrap.py'],
+                extra_files=[
+                    pkg_dir / 'server/bootstrap.py',
+                    pkg_dir / 'buildmeta.py',
+                ],
             )
             print(binascii.hexlify(bootstrap_hash).decode())
 

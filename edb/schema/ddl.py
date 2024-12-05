@@ -469,14 +469,14 @@ def apply_sdl(
     testmode: bool = False,
 ) -> tuple[s_schema.Schema, list[errors.EdgeDBError]]:
     # group declarations by module
-    documents: Dict[str, List[qlast.DDL]] = defaultdict(list)
+    documents: Dict[str, List[qlast.DDLCommand]] = defaultdict(list)
     # initialize the "default" module
     documents[s_mod.DEFAULT_MODULE_ALIAS] = []
     extensions = {}
     futures = {}
 
     def collect(
-        decl: qlast.NamedDDL | qlast.ModuleDeclaration,
+        decl: qlast.ObjectDDL | qlast.ModuleDeclaration,
         module: Optional[str],
     ) -> None:
         # declarations are either in a module block or fully-qualified
@@ -494,7 +494,7 @@ def apply_sdl(
             assert not module
             futures[decl.name.name] = decl
         else:
-            assert isinstance(decl, qlast.NamedDDL)
+            assert isinstance(decl, qlast.ObjectDDL)
             assert module or decl.name.module is not None
             if decl.name.module is None:
                 assert module

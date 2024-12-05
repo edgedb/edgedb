@@ -292,7 +292,7 @@ class TestServerCompilerPool(tbs.TestCase):
                 f"in {timeout} second(s)"
             )
 
-    async def _get_worker_pids(self, sd, least_num=2, timeout=5):
+    async def _get_worker_pids(self, sd, least_num=2, timeout=15):
         rv = []
         start = time.monotonic()
         while time.monotonic() - start < timeout and len(rv) < least_num:

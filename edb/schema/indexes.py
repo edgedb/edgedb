@@ -559,7 +559,7 @@ class IndexCommand(
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> sn.QualName:
         # We actually want to override how ReferencedObjectCommand determines
@@ -593,7 +593,7 @@ class IndexCommand(
     def _classname_quals_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         base_name: sn.Name,
         referrer_name: sn.QualName,
         context: sd.CommandContext,
@@ -628,7 +628,7 @@ class IndexCommand(
     def _index_kwargs_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> Dict[str, s_expr.Expression]:
         kwargs = dict()
@@ -1479,30 +1479,63 @@ class CreateIndex(
 
             self.add(anno_cmd)
 
-        dimensions = model_stype.must_get_json_annotation(
+        model_dimensions = model_stype.must_get_json_annotation(
             schema,
             sn.QualName("ext::ai", "embedding_model_max_output_dimensions"),
             int,
         )
-
         supports_shortening = model_stype.must_get_json_annotation(
             schema,
             sn.QualName("ext::ai", "embedding_model_supports_shortening"),
             bool,
         )
 
+        kwargs = self.scls.get_concrete_kwargs_as_values(schema)
+        specified_dimensions = kwargs["dimensions"]
+
         MAX_DIM = 2000  # pgvector limit
-        if dimensions > MAX_DIM:
-            if not supports_shortening:
+
+        if specified_dimensions is None:
+            if model_dimensions > MAX_DIM:
+                if not supports_shortening:
+                    raise errors.SchemaDefinitionError(
+                        f"{model_stype_vn} returns embeddings with over "
+                        f"{MAX_DIM} dimensions, does not support embedding "
+                        f"shortening, and thus cannot be used with "
+                        f"this index",
+                        span=self.span,
+                    )
+                else:
+                    dimensions = MAX_DIM
+            else:
+                dimensions = model_dimensions
+        else:
+            if specified_dimensions > MAX_DIM:
                 raise errors.SchemaDefinitionError(
-                    f"{model_stype_vn} returns embeddings with over "
-                    f"{MAX_DIM} dimensions, does not support embedding "
-                    f"shortening, and thus cannot be used with "
+                    f"cannot use more than {MAX_DIM} dimensions with "
                     f"this index",
                     span=self.span,
                 )
+            elif specified_dimensions > model_dimensions:
+                raise errors.SchemaDefinitionError(
+                    f"{model_stype_vn} does not support more than "
+                    f"{model_dimensions} dimensions, "
+                    f"got {specified_dimensions}",
+                    span=self.span,
+                )
+            elif (
+                specified_dimensions != model_dimensions
+                and not supports_shortening
+            ):
+                raise errors.SchemaDefinitionError(
+                    f"{model_stype_vn} returns embeddings with over "
+                    f"{model_dimensions} dimensions, and does not support "
+                    f"embedding shortening, and thus {specified_dimensions} "
+                    f"cannot be used for this index",
+                    span=self.span,
+                )
             else:
-                dimensions = MAX_DIM
+                dimensions = specified_dimensions
 
         dims_anno_sname = sn.get_specialized_name(
             sn.QualName("ext::ai", "embedding_dimensions"),
@@ -1738,8 +1771,10 @@ def get_effective_object_index(
                 span=span,
             )
         effective = object_indexes_defined_here[0]
-        overridden = object_indexes
-        overridden.remove(effective)
+        overridden = [
+            i.get_implicit_bases(schema)[0]
+            for i in object_indexes if i != effective
+        ]
 
     else:
         # there are no object-scoped indexes defined on the subject
@@ -1781,7 +1816,7 @@ class IndexMatchCommand(sd.QualifiedObjectCommand[IndexMatch],
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> sn.QualName:
         assert isinstance(astnode, qlast.IndexMatchCommand)
