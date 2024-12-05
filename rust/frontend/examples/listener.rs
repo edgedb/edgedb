@@ -4,9 +4,9 @@ use edb_frontend::config::*;
 use edb_frontend::listener::*;
 use edb_frontend::service::*;
 use edb_frontend::stream::*;
-use hyper::Response;
 use gel_auth::AuthType;
 use gel_auth::CredentialData;
+use hyper::Response;
 use tokio::io::AsyncReadExt;
 use tokio::io::ReadBuf;
 
@@ -21,7 +21,11 @@ impl BabelfishService for ExampleService {
     ) -> impl Future<Output = Result<CredentialData, std::io::Error>> {
         eprintln!("lookup_auth: {:?}", identity);
         async move {
-            Ok(CredentialData::new(AuthType::Trust, "matt".to_owned(), "password".to_owned()))
+            Ok(CredentialData::new(
+                AuthType::Trust,
+                "matt".to_owned(),
+                "password".to_owned(),
+            ))
         }
     }
 
