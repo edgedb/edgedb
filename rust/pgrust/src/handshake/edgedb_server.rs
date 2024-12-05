@@ -3,12 +3,10 @@ use crate::{
     errors::edgedb::EdbError,
 };
 
-use crate::{
-    protocol::{
+use crate::protocol::{
         edgedb::{data::*, *},
         match_message, ParseError, StructBuffer,
-    },
-};
+    };
 use gel_auth::{
     handshake::{ServerAuth, ServerAuthDrive, ServerAuthError, ServerAuthResponse},
     AuthType, CredentialData,
