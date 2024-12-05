@@ -354,10 +354,8 @@ async fn handle_stream_edgedb_binary(
     bound_config: impl IsBoundConfig,
 ) -> Result<(), std::io::Error> {
     use pgrust::{
-        errors::edgedb::{EdbError},
-        handshake::{
-            edgedb_server::{ConnectionDrive, ConnectionEvent, ServerState},
-        },
+        errors::edgedb::EdbError,
+        handshake::edgedb_server::{ConnectionDrive, ConnectionEvent, ServerState},
     };
 
     let mut resolved_identity = None;
@@ -400,7 +398,15 @@ async fn handle_stream_edgedb_binary(
             let built = match identity.clone().build() {
                 Ok(built) => built,
                 Err(e) => {
-                    server_state.drive(ConnectionDrive::Fail(EdbError::AuthenticationError, "Missing database or user"), &mut update).unwrap();
+                    server_state
+                        .drive(
+                            ConnectionDrive::Fail(
+                                EdbError::AuthenticationError,
+                                "Missing database or user",
+                            ),
+                            &mut update,
+                        )
+                        .unwrap();
                     return Ok(());
                 }
             };
@@ -448,7 +454,6 @@ async fn handle_stream_edgedb_binary(
         .await;
 
     Ok(())
-
 }
 
 async fn handle_stream_http1x(
@@ -938,10 +943,10 @@ fn bind_task<C: ListenerConfig>(
 
 #[cfg(test)]
 mod tests {
+    use gel_auth::CredentialData;
     use hyper::Uri;
     use hyper_util::rt::TokioIo;
     use openssl::ssl::{Ssl, SslContext, SslMethod};
-    use gel_auth::CredentialData;
     use rstest::rstest;
 
     use crate::{
