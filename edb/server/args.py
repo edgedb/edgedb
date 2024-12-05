@@ -150,6 +150,7 @@ class ReloadTrigger(enum.StrEnum):
     3. Multi-tenant config file (server config)
     4. Readiness state (server or tenant config)
     5. JWT sub allowlist and revocation list (server or tenant config)
+    6. The TOML config file (server or tenant config)
     """
 
     Default = "default"
@@ -265,6 +266,7 @@ class ServerConfig(NamedTuple):
     disable_dynamic_system_config: bool
     reload_config_files: ReloadTrigger
     net_worker_mode: NetWorkerMode
+    config_file: Optional[pathlib.Path]
 
     startup_script: Optional[StartupScript]
     status_sinks: List[Callable[[str], None]]
@@ -1106,6 +1108,13 @@ server_options = typeutils.chain_decorators([
         default='default',
         help='Controls how the std::net workers work.',
     ),
+    click.option(
+        "--config-file", type=PathPath(), metavar="PATH",
+        envvar="GEL_SERVER_CONFIG_FILE",
+        cls=EnvvarResolver,
+        help='Path to a TOML file to configure the server.',
+        hidden=True,
+    ),
 ])
 
 
@@ -1534,6 +1543,7 @@ def parse_args(**kwargs: Any):
             "readiness_state_file",
             "jwt_sub_allowlist_file",
             "jwt_revocation_list_file",
+            "config_file",
         ):
             if kwargs.get(name):
                 opt = "--" + name.replace("_", "-")

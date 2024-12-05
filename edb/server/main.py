@@ -815,9 +815,11 @@ def initialize_static_cfg(
     backend_settings = {}
     command_line_argument = "A"
     environment_variable = "E"
+    config_file = "F"
     sources = {
         command_line_argument: "command line argument",
         environment_variable: "environment variable",
+        config_file: "configuration file",
     }
 
     def add_config(name, value, type_):
@@ -889,6 +891,11 @@ def initialize_static_cfg(
         if setting.set_of:
             env_value = (env_value,)
         add_config(cfg_name, env_value, environment_variable)
+
+    if args.config_file is not None:
+        toml_config = config.parse_config_file(args.config_file, config_spec)
+        for f_name, f_value in toml_config.items():
+            add_config(f_name, f_value, config_file)
 
     if args.bind_addresses:
         add_config(

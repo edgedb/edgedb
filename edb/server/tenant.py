@@ -17,6 +17,8 @@
 #
 
 from __future__ import annotations
+
+import textwrap
 from typing import (
     Any,
     Callable,
@@ -125,6 +127,8 @@ class Tenant(ha_base.ClusterProtocol):
     _readiness_state_file: pathlib.Path | None
     _readiness: srvargs.ReadinessState
     _readiness_reason: str
+    _config_file: pathlib.Path | None
+    _config_file_sql: bytes | None
 
     _extensions_dirs: tuple[pathlib.Path, ...]
 
@@ -185,6 +189,8 @@ class Tenant(ha_base.ClusterProtocol):
         self._readiness_state_file = None
         self._readiness = srvargs.ReadinessState.Default
         self._readiness_reason = ""
+        self._config_file = None
+        self._config_file_sql = None
 
         self._max_backend_connections = max_backend_connections
         self._suggested_client_pool_size = max(
@@ -227,6 +233,7 @@ class Tenant(ha_base.ClusterProtocol):
         readiness_state_file: str | pathlib.Path | None = None,
         jwt_sub_allowlist_file: str | pathlib.Path | None = None,
         jwt_revocation_list_file: str | pathlib.Path | None = None,
+        config_file: str | pathlib.Path | None = None,
     ) -> bool:
         rv = False
 
@@ -246,6 +253,12 @@ class Tenant(ha_base.ClusterProtocol):
             jwt_revocation_list_file = pathlib.Path(jwt_revocation_list_file)
         if self._jwt_revocation_list_file != jwt_revocation_list_file:
             self._jwt_revocation_list_file = jwt_revocation_list_file
+            rv = True
+
+        if isinstance(config_file, str):
+            config_file = pathlib.Path(config_file)
+        if self._config_file != config_file:
+            self._config_file = config_file
             rv = True
 
         return rv
@@ -602,6 +615,15 @@ class Tenant(ha_base.ClusterProtocol):
                 )
             )
 
+        if self._config_file is not None:
+
+            def reload_config_file():
+                self.reload_config_file()
+
+            self._file_watch_finalizers.append(
+                self.server.monitor_fs(self._config_file, reload_config_file)
+            )
+
     async def start_accepting_new_tasks(self) -> None:
         assert self._task_group is None
         self._task_group = asyncio.TaskGroup()
@@ -731,6 +753,8 @@ class Tenant(ha_base.ClusterProtocol):
                 database=pg_dbname,
                 apply_init_script=True
             )
+            if self._config_file_sql:
+                await rv.sql_execute(self._config_file_sql)
             if self._server.stmt_cache_size is not None:
                 rv.set_stmt_cache_size(self._server.stmt_cache_size)
 
@@ -1586,6 +1610,22 @@ class Tenant(ha_base.ClusterProtocol):
         self._readiness = state
         self._readiness_reason = reason
 
+    def reload_config_file(self):
+        if self._config_file is None:
+            return
+
+        from edb.pgsql.common import quote_literal as ql
+
+        cfg = config.parse_config_file(
+            self._config_file, self._server.config_settings
+        )
+        self._config_file_sql = textwrap.dedent(f'''
+            INSERT INTO _edgecon_state
+            SELECT "cfg".*, 'F' as "type"
+                FROM jsonb_to_recordset({ql(json.dumps(cfg))}::jsonb)
+                    AS cfg(name text, value jsonb);
+        ''').encode()
+
     def reload(self):
         # In multi-tenant mode, the file paths for the following states may be
         # unset in a reload, while it's impossible in a regular server.
@@ -1600,6 +1640,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         self.reload_readiness_state()
         self.load_jwcrypto()
+        self.reload_config_file()
 
         self.start_watching_files()
 

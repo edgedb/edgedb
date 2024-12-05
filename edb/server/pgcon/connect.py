@@ -42,6 +42,7 @@ INIT_CON_SCRIPT: bytes | None = None
 #   a corresponding Postgres config setting.
 # * 'A': an instance-level config setting from command-line arguments
 # * 'E': an instance-level config setting from environment variable
+# * 'F': an instance/tenant-level config setting from the TOML config file
 #
 # Please also update ConStateType in edb/server/config/__init__.py if changed.
 SETUP_TEMP_TABLE_SCRIPT = '''
@@ -49,7 +50,8 @@ SETUP_TEMP_TABLE_SCRIPT = '''
             name text NOT NULL,
             value jsonb NOT NULL,
             type text NOT NULL CHECK(
-                type = 'C' OR type = 'B' OR type = 'A' OR type = 'E'),
+                type = 'C' OR type = 'B' OR type = 'A' OR type = 'E'
+                OR type = 'F'),
             UNIQUE(name, type)
         );
 '''.strip()

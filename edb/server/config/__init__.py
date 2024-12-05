@@ -35,6 +35,7 @@ from .spec import (
     load_spec_from_schema, load_ext_spec_from_schema,
     load_ext_settings_from_schema,
 )
+from .toml import parse_config_file
 from .types import ConfigType, CompositeConfigType
 from .types import QueryCacheMode
 
@@ -52,11 +53,12 @@ __all__ = (
     'coerce_value',
     'QueryCacheMode',
     'ConState', 'ConStateType',
+    'parse_config_file',
 )
 
 
 # See edb/server/pgcon/connect.py for documentation of the types
-ConStateType = Literal['C', 'B', 'A', 'E']
+ConStateType = Literal['C', 'B', 'A', 'E', 'F']
 
 
 class ConState(TypedDict):
