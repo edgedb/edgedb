@@ -1503,10 +1503,10 @@ class FunctionCommand(
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> sn.QualName:
-        # _classname_from_ast signature expects qlast.NamedDDL,
+        # _classname_from_ast signature expects qlast.ObjectDDL,
         # but _get_param_desc_from_ast expects a ObjectDDL,
         # which is more specific
         assert isinstance(astnode, qlast.ObjectDDL)
@@ -2074,7 +2074,7 @@ class RenameFunction(RenameCallableObject[Function], FunctionCommand):
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> sn.QualName:
         ctx = context.current()

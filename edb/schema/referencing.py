@@ -477,7 +477,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
         cls,
         schema: s_schema.Schema,
         referrer_name: sn.QualName,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext
     ) -> sn.QualName:
         base_ref = utils.ast_to_object_shell(
@@ -497,7 +497,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> sn.QualName:
         parent_ctx = cls.get_referrer_context(context)
@@ -528,7 +528,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
     def _classname_quals_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         base_name: sn.Name,
         referrer_name: sn.QualName,
         context: sd.CommandContext,
@@ -1655,7 +1655,7 @@ class NamedReferencedInheritingObjectCommand(
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> sn.QualName:
         referrer_ctx = cls.get_referrer_context(context)

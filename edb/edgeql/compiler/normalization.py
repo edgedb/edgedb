@@ -187,17 +187,6 @@ def normalize_ObjectRef(
             ref.module = modaliases[ref.module]
 
 
-@normalize.register
-def normalize_DDL(
-    node: qlast.DDL,
-    *,
-    schema: s_schema.Schema,
-    modaliases: Mapping[Optional[str], str],
-    localnames: AbstractSet[str] = frozenset(),
-) -> None:
-    raise AssertionError(f'normalize: cannot handle {node!r}')
-
-
 def _normalize_with_block(
     node: qlast.Query,
     *,

@@ -559,7 +559,7 @@ class IndexCommand(
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> sn.QualName:
         # We actually want to override how ReferencedObjectCommand determines
@@ -593,7 +593,7 @@ class IndexCommand(
     def _classname_quals_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         base_name: sn.Name,
         referrer_name: sn.QualName,
         context: sd.CommandContext,
@@ -628,7 +628,7 @@ class IndexCommand(
     def _index_kwargs_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> Dict[str, s_expr.Expression]:
         kwargs = dict()
@@ -1816,7 +1816,7 @@ class IndexMatchCommand(sd.QualifiedObjectCommand[IndexMatch],
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> sn.QualName:
         assert isinstance(astnode, qlast.IndexMatchCommand)

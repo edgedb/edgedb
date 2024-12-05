@@ -47,6 +47,7 @@ class ConfigScope(Nonterm):
 
 
 class ConfigOp(Nonterm):
+    val: qlast.ConfigOp
 
     def reduce_SET_NodeName_ASSIGN_Expr(self, _s, name, _a, expr):
         self.val = qlast.ConfigSet(

@@ -52,6 +52,7 @@ _new_nonterm = sdl_nontem_helper._new_nonterm
 
 
 class DDLStmt(Nonterm):
+    val: qlast.DDLCommand
 
     @parsing.inline(0)
     def reduce_DatabaseStmt(self, *_):

@@ -212,7 +212,7 @@ class ExtensionPackageCommand(
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext
     ) -> sn.UnqualName:
         assert isinstance(astnode, qlast.ExtensionPackageCommand)
@@ -434,7 +434,7 @@ class ExtensionPackageMigrationCommand(
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext
     ) -> sn.UnqualName:
         assert isinstance(astnode, (

@@ -410,7 +410,7 @@ class BaseSchemaTest(BaseDocTest):
                 migration_target = None
                 migration_script = []
 
-            elif isinstance(stmt, qlast.DDL):
+            elif isinstance(stmt, qlast.DDLCommand):
                 if migration_target is not None:
                     migration_script.append(stmt)
                     ddl_plan = None

@@ -317,7 +317,7 @@ class AnnotationValueCommand(
     def _classname_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> sn.QualName:
         parent_ctx = cls.get_referrer_context_or_die(context)
