@@ -158,6 +158,53 @@ def coerce_object_set(
     )
 
 
+def coerce_value(
+    value: Any,
+    spec: spec.Spec,
+    setting: spec.Setting,
+    *,
+    allow_missing: bool = False,
+    unique_object_set: bool = False,
+):
+    if isinstance(setting.type, types.ConfigTypeSpec):
+        try:
+            if unique_object_set:
+                return coerce_object_set(spec, setting, value)
+            else:
+                return types.CompositeConfigType.from_pyvalue(
+                    value, spec=spec, tspec=setting.type,
+                    allow_missing=allow_missing,
+                )
+        except (ValueError, TypeError):
+            raise errors.ConfigurationError(
+                f'invalid value type for the {setting.name!r} setting')
+    elif setting.set_of:
+        if value is None and allow_missing:
+            return None
+        elif not typeutils.is_container(value):
+            raise errors.ConfigurationError(
+                f'invalid value type for the '
+                f'{setting.name!r} setting')
+        else:
+            val = frozenset(
+                coerce_single_value(setting, v)
+                for v in value)  # type: ignore
+            if len(val) > MAX_CONFIG_SET_SIZE:
+                raise errors.ConfigurationError(
+                    f'invalid value for the '
+                    f'{setting.name!r} setting: set is too large')
+            return val
+
+    else:
+        try:
+            return coerce_single_value(setting, value)
+        except errors.ConfigurationError:
+            if value is None and allow_missing:
+                return None
+            else:
+                raise
+
+
 class Operation(NamedTuple):
 
     opcode: OpCode
@@ -179,43 +226,13 @@ class Operation(NamedTuple):
         *,
         allow_missing: bool = False,
     ):
-        if isinstance(setting.type, types.ConfigTypeSpec):
-            try:
-                if self.opcode is OpCode.CONFIG_SET:
-                    return coerce_object_set(spec, setting, self.value)
-                else:
-                    return types.CompositeConfigType.from_pyvalue(
-                        self.value, spec=spec, tspec=setting.type,
-                        allow_missing=allow_missing,
-                    )
-            except (ValueError, TypeError):
-                raise errors.ConfigurationError(
-                    f'invalid value type for the {setting.name!r} setting')
-        elif setting.set_of:
-            if self.value is None and allow_missing:
-                return None
-            elif not typeutils.is_container(self.value):
-                raise errors.ConfigurationError(
-                    f'invalid value type for the '
-                    f'{setting.name!r} setting')
-            else:
-                val = frozenset(
-                    coerce_single_value(setting, v)
-                    for v in self.value)  # type: ignore
-                if len(val) > MAX_CONFIG_SET_SIZE:
-                    raise errors.ConfigurationError(
-                        f'invalid value for the '
-                        f'{setting.name!r} setting: set is too large')
-                return val
-
-        else:
-            try:
-                return coerce_single_value(setting, self.value)
-            except errors.ConfigurationError:
-                if self.value is None and allow_missing:
-                    return None
-                else:
-                    raise
+        return coerce_value(
+            self.value,
+            spec,
+            setting,
+            allow_missing=allow_missing,
+            unique_object_set=self.opcode is OpCode.CONFIG_SET,
+        )
 
     def coerce_global_value(
         self, *, allow_missing: bool = False

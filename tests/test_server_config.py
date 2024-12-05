@@ -2165,6 +2165,7 @@ class TestStaticServerConfig(tb.TestCase):
             "EDGEDB_SERVER_CONFIG_cfg::session_idle_timeout": "1m22s",
             "EDGEDB_SERVER_CONFIG_cfg::query_execution_timeout": "403",
             "EDGEDB_SERVER_CONFIG_cfg::apply_access_policies": "false",
+            "EDGEDB_SERVER_CONFIG_cfg::multiprop": "single",
         }
         async with tb.start_edgedb_server(env=env) as sd:
             conn = await sd.connect()
@@ -2192,6 +2193,12 @@ class TestStaticServerConfig(tb.TestCase):
                     await conn.query_single("""\
                         select assert_single(cfg::Config.apply_access_policies)
                     """)
+                )
+                self.assertEqual(
+                    await conn.query("""\
+                        select assert_single(cfg::Config).multiprop
+                    """),
+                    ["single"],
                 )
             finally:
                 await conn.aclose()

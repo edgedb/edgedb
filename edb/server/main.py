@@ -803,15 +803,6 @@ def main_dev():
     main()
 
 
-def _coerce_cfg_value(setting: config.Setting, value):
-    if setting.set_of:
-        return frozenset(
-            config.coerce_single_value(setting, v) for v in value
-        )
-    else:
-        return config.coerce_single_value(setting, value)
-
-
 def initialize_static_cfg(
     args: srvargs.ServerConfig,
     is_remote_cluster: bool,
@@ -841,7 +832,7 @@ def initialize_static_cfg(
                     f"Can't set config {name!r} {where} when using "
                     f"a remote Postgres cluster"
                 )
-        value = _coerce_cfg_value(setting, value)
+        value = config.coerce_value(value, config_spec, setting)
         init_con_script_data.append({
             "name": name,
             "value": config.value_to_json_value(setting, value),
@@ -897,6 +888,8 @@ def initialize_static_cfg(
             env_value = env_value == 'true'
         elif not issubclass(setting.type, statypes.ScalarType):  # type: ignore
             env_value = setting.type(env_value)  # type: ignore
+        if setting.set_of:
+            env_value = (env_value,)
         add_config(cfg_name, env_value, environment_variable)
 
     if args.bind_addresses:
