@@ -145,7 +145,6 @@ def pg_normalize(query: str) -> NormalizedQuery:
             raise error
 
         normalized_query = result.normalized_query.decode('utf8')
-        print("normalized_query", normalized_query)
         consts = []
         for i in range(result.clocations_count):
             loc = result.clocations[i]
