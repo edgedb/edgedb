@@ -233,6 +233,9 @@ cdef class Source:
     def text(self) -> str:
         return self._text
 
+    def original_text(self) -> str:
+        return self._text
+
     def cache_key(self) -> bytes:
         if not self._cache_key:
             h = hashlib.blake2b(self._tag().to_bytes())
@@ -280,6 +283,9 @@ cdef class NormalizedSource(Source):
     @classmethod
     def _tag(cls) -> int:
         return 1
+
+    def original_text(self) -> str:
+        return self._orig_text
 
     cdef WriteBuffer _serialize(self):
         cdef WriteBuffer buf

@@ -91,6 +91,7 @@ from edb.pgsql import common as pg_common
 from edb.pgsql import debug as pg_debug
 from edb.pgsql import dbops as pg_dbops
 from edb.pgsql import params as pg_params
+from edb.pgsql import parser as pg_parser
 from edb.pgsql import patches as pg_patches
 from edb.pgsql import types as pg_types
 from edb.pgsql import delta as pg_delta
@@ -557,8 +558,10 @@ class Compiler:
         if setting and setting.value:
             apply_access_policies_sql = sql.is_setting_truthy(setting.value)
 
+        query_source = pg_parser.Source(query_str)
+
         return sql.compile_sql(
-            query_str,
+            query_source,
             schema=schema,
             tx_state=tx_state,
             prepared_stmt_map=prepared_stmt_map,
@@ -2509,7 +2512,7 @@ def compile_sql_as_unit_group(
     )
 
     sql_units = sql.compile_sql(
-        source.text(),
+        source,
         schema=schema,
         tx_state=sql_tx_state,
         prepared_stmt_map={},
