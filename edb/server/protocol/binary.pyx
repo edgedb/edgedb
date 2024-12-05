@@ -953,10 +953,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         compiled.tag = tag
 
-        if query_req.input_language is LANG_SQL and len(query_unit_group) > 1:
-            raise errors.UnsupportedFeatureError(
-                "multi-statement SQL scripts are not supported yet")
-
         self._query_count += 1
 
         # Clear the _last_anon_compiled so that the next Execute - if

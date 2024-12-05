@@ -235,7 +235,9 @@ cdef class Source:
 
     def cache_key(self) -> bytes:
         if not self._cache_key:
-            self._cache_key = hashlib.blake2b(self.serialize()).digest()
+            h = hashlib.blake2b(self._tag().to_bytes())
+            h.update(bytes(self.text(), 'UTF-8'))
+            self._cache_key = h.digest()
         return self._cache_key
 
     def variables(self) -> dict[str, Any]:
@@ -294,7 +296,7 @@ cdef class NormalizedSource(Source):
         return buf
 
     def variables(self) -> dict[str, bytes]:
-        return {f"${n}": v[1] for n, _, v in self._extracted_constants}
+        return {f"${n}": v for n, _, v in self._extracted_constants}
 
     def first_extra(self) -> Optional[int]:
         return (

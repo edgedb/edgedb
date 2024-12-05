@@ -687,7 +687,7 @@ def _build_keyword(name: str) -> Builder[pgast.Keyword]:
 
 
 def _build_param_ref(n: Node, c: Context) -> pgast.ParamRef:
-    return pgast.ParamRef(number=n["number"], span=_build_span(n, c))
+    return pgast.ParamRef(number=n.get("number", 0), span=_build_span(n, c))
 
 
 def _build_collate_clause(n: Node, c: Context) -> pgast.CollateClause:
