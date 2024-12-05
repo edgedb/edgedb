@@ -1,8 +1,4 @@
 use super::ConnectionSslRequirement;
-use gel_auth::{
-    scram::{generate_salted_password, ClientEnvironment, ClientTransaction, Sha256Out},
-    AuthType,
-};
 use crate::{
     connection::{invalid_state, ConnectionError, Credentials, SslError},
     errors::PgServerError,
@@ -18,6 +14,10 @@ use crate::{
 };
 use base64::Engine;
 use db_proto::{match_message, ParseError};
+use gel_auth::{
+    scram::{generate_salted_password, ClientEnvironment, ClientTransaction, Sha256Out},
+    AuthType,
+};
 use rand::Rng;
 use tracing::{error, trace, warn};
 
