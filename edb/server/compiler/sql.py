@@ -58,6 +58,58 @@ FE_SETTINGS_MUTABLE: immutables.Map[str, bool] = immutables.Map(
 
 
 def compile_sql(
+    source: pg_parser.Source,
+    *,
+    schema: s_schema.Schema,
+    tx_state: dbstate.SQLTransactionState,
+    prepared_stmt_map: Mapping[str, str],
+    current_database: str,
+    current_user: str,
+    allow_user_specified_id: Optional[bool],
+    apply_access_policies_sql: Optional[bool],
+    include_edgeql_io_format_alternative: bool = False,
+    allow_prepared_statements: bool = True,
+    disambiguate_column_names: bool,
+    backend_runtime_params: pg_params.BackendRuntimeParams,
+    protocol_version: defines.ProtocolVersion,
+) -> List[dbstate.SQLQueryUnit]:
+    def _try(q: str) -> List[dbstate.SQLQueryUnit]:
+        return _compile_sql(
+            q,
+            schema=schema,
+            tx_state=tx_state,
+            prepared_stmt_map=prepared_stmt_map,
+            current_database=current_database,
+            current_user=current_user,
+            allow_user_specified_id=allow_user_specified_id,
+            apply_access_policies_sql=apply_access_policies_sql,
+            include_edgeql_io_format_alternative=(
+                include_edgeql_io_format_alternative),
+            allow_prepared_statements=allow_prepared_statements,
+            disambiguate_column_names=disambiguate_column_names,
+            backend_runtime_params=backend_runtime_params,
+            protocol_version=protocol_version,
+        )
+
+    try:
+        return _try(source.text())
+    except errors.EdgeDBError as original_err:
+        if isinstance(source, pg_parser.NormalizedSource):
+            # try non-normalized source
+            try:
+                _try(source.original_text())
+            except errors.EdgeDBError as denormalized_err:
+                raise denormalized_err
+            except Exception:
+                raise original_err
+            else:
+                raise AssertionError(
+                    "Normalized query is broken while original is valid")
+        else:
+            raise original_err
+
+
+def _compile_sql(
     query_str: str,
     *,
     schema: s_schema.Schema,

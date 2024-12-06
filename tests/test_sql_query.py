@@ -2548,7 +2548,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             edgedb.errors.QueryError,
             'duplicate column name: `a`',
-            _position=16,
+            _position=15,
         ):
             await self.assert_sql_query_result('SELECT 1 AS a, 2 AS a', [])
 
@@ -2581,7 +2581,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             edgedb.errors.QueryError,
             'duplicate column name: `y_a`',
-            # _position=114, TODO: spans are messed up somewhere
+            _position=137,
         ):
             await self.assert_sql_query_result(
                 '''
@@ -2597,7 +2597,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             edgedb.errors.QueryError,
             'duplicate column name: `x_a`',
-            # _position=83, TODO: spans are messed up somewhere
+            _position=92,
         ):
             await self.assert_sql_query_result(
                 '''
@@ -2858,4 +2858,37 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                     "1": 42,
                 },
                 apply_access_policies=False,
+            )
+
+    async def test_native_sql_query_18(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            'cannot find column `asdf`',
+            _position=35,
+        ):
+            await self.con.query_sql(
+                '''select title, 'aaaaaaaaaaaaaaaaa', asdf from "Content";'''
+            )
+
+    @test.xerror('See #8077')
+    async def test_native_sql_query_19(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.QueryError,
+            '',
+            _position=37,
+        ):
+            await self.con.query_sql(
+                '''select title, 'aaaaaaaaaaaaaaaaa', asdf() from "Content";'''
+            )
+
+    @test.xfail('See #8077')
+    async def test_native_sql_query_20(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.InvalidValueError,
+            'invalid input syntax for type integer',
+            _position=35,
+        ):
+            await self.con.query_sql(
+                '''\
+select title, 'aaaaaaaaaaaaaaaaa', ('goo'::text::integer) from "Content";'''
             )
