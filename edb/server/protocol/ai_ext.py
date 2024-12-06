@@ -2270,6 +2270,7 @@ async def _edgeql_query_json(
             query,
             variables=variables or {},
             globals_=globals_,
+            query_tag='gel/ai',
         )
 
         content = json.loads(result)
@@ -2420,6 +2421,7 @@ async def _generate_embeddings_for_type(
             db,
             f"SELECT ({type_query})",
             allow_capabilities=compiler.Capability.NONE,
+            query_tag='gel/ai',
         )
         if (
             not isinstance(type_desc, sertypes.ShapeDesc)
