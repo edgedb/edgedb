@@ -261,7 +261,7 @@ ALTER TYPE cfg::AbstractConfig {
             'Whether access policies will be applied when running queries.';
     };
 
-    CREATE PROPERTY apply_access_policies_sql -> std::bool {
+    CREATE PROPERTY apply_access_policies_pg -> std::bool {
         SET default := false;
         CREATE ANNOTATION cfg::affects_compilation := 'false';
         CREATE ANNOTATION std::description :=

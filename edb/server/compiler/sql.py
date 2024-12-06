@@ -50,7 +50,7 @@ FE_SETTINGS_MUTABLE: immutables.Map[str, bool] = immutables.Map(
     {
         'search_path': True,
         'allow_user_specified_id': True,
-        'apply_access_policies_sql': True,
+        'apply_access_policies_pg': True,
         'server_version': False,
         'server_version_num': False,
     }
@@ -66,7 +66,7 @@ def compile_sql(
     current_database: str,
     current_user: str,
     allow_user_specified_id: Optional[bool],
-    apply_access_policies_sql: Optional[bool],
+    apply_access_policies: Optional[bool],
     include_edgeql_io_format_alternative: bool = False,
     allow_prepared_statements: bool = True,
     disambiguate_column_names: bool,
@@ -78,7 +78,7 @@ def compile_sql(
         current_database=current_database,
         current_user=current_user,
         allow_user_specified_id=allow_user_specified_id,
-        apply_access_policies_sql=apply_access_policies_sql,
+        apply_access_policies=apply_access_policies,
         include_edgeql_io_format_alternative=(
             include_edgeql_io_format_alternative
         ),
@@ -329,10 +329,10 @@ def compile_sql(
                     'allow_user_specified_id',
                     ('true' if allow_user_specified_id else 'false',),
                 )
-            if apply_access_policies_sql is not None:
+            if apply_access_policies is not None:
                 cconfig.setdefault(
-                    'apply_access_policies_sql',
-                    ('true' if apply_access_policies_sql else 'false',),
+                    'apply_access_policies',
+                    ('true' if apply_access_policies else 'false',),
                 )
             search_path = parse_search_path(cconfig.pop("search_path", ("",)))
             cconfig = dict(sorted((k, v) for k, v in cconfig.items()))
@@ -389,7 +389,7 @@ class ResolverOptionsPartial:
     current_database: str
     query_str: str
     allow_user_specified_id: Optional[bool]
-    apply_access_policies_sql: Optional[bool]
+    apply_access_policies: Optional[bool]
     include_edgeql_io_format_alternative: Optional[bool]
     disambiguate_column_names: bool
 
@@ -422,10 +422,10 @@ def resolve_query(
         allow_user_specified_id = False
 
     apply_access_policies = lookup_bool_setting(
-        tx_state, 'apply_access_policies_sql'
+        tx_state, 'apply_access_policies_pg'
     )
     if apply_access_policies is None:
-        apply_access_policies = opts.apply_access_policies_sql
+        apply_access_policies = opts.apply_access_policies
     if apply_access_policies is None:
         apply_access_policies = False
 

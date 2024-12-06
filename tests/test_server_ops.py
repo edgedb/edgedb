@@ -860,7 +860,8 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                             await scon.execute('select 1')
 
                         # compiler call, because config was changed
-                        await scon.execute('SET apply_access_policies_sql to 1')
+                        await scon.execute('SET apply_access_policies_pg to 1')
+
                         with self.assertChange(measure_sql_compilations(sd), 1):
                             await scon.execute('select 1')
                     finally:
