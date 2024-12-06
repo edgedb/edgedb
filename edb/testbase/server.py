@@ -2269,6 +2269,18 @@ class _EdgeDBServerData(NamedTuple):
         conn_args = self.get_connect_args(**kwargs)
         return await tconn.async_connect_test_client(**conn_args)
 
+    async def connect_pg(self, **kwargs: Any) -> asyncpg.Connection:
+        import asyncpg
+
+        conn_args = self.get_connect_args(**kwargs)
+        return await asyncpg.connect(
+            host=conn_args['host'],
+            port=conn_args['port'],
+            user=conn_args['user'],
+            password=conn_args['password'],
+            ssl='require'
+        )
+
     async def connect_test_protocol(self, **kwargs):
         conn_args = self.get_connect_args(**kwargs)
         conn = await test_protocol.new_connection(**conn_args)
