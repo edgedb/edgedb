@@ -62,6 +62,7 @@ select UPDATED {**};
                 "verified_at": verified_at.isoformat(),
             },
             cached_globally=True,
+            query_tag='gel/auth',
         )
         result_json = json.loads(result_bytes.decode())
         if len(result_json) == 0:
@@ -80,6 +81,7 @@ select ext::auth::EmailFactor { ** } filter .identity.id = <uuid>$identity_id;
             """,
             variables={"identity_id": identity_id},
             cached_globally=True,
+            query_tag='gel/auth',
         )
 
         result_json = json.loads(r.decode())
@@ -102,6 +104,7 @@ select ext::auth::EmailFactor {
             """,
             variables={"identity_id": identity_id},
             cached_globally=True,
+            query_tag='gel/auth',
         )
 
         result_json = json.loads(r.decode())
@@ -127,6 +130,7 @@ with
 select identity.id;""",
             variables={"email": email},
             cached_globally=True,
+            query_tag='gel/auth',
         )
 
         result_json = json.loads(r.decode())
@@ -147,6 +151,7 @@ select ext::auth::EmailFactor { ** } filter .email = <str>$email;
             """,
             variables={"email": email},
             cached_globally=True,
+            query_tag='gel/auth',
         )
 
         result_json = json.loads(r.decode())

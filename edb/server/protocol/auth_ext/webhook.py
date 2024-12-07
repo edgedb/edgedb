@@ -239,6 +239,7 @@ select REQUEST;
             "headers": headers,
         },
         cached_globally=True,
+        query_tag='gel/auth',
     )
     result = json.loads(result_json)
 

@@ -120,6 +120,7 @@ select assert_single((select distinct factors.user_handle));""",
                 "email": email,
             },
             cached_globally=True,
+            query_tag='gel/auth',
         )
 
         result_json = json.loads(result.decode())
@@ -152,6 +153,7 @@ insert ext::auth::WebAuthnRegistrationChallenge {
                 "email": email,
             },
             cached_globally=True,
+            query_tag='gel/auth',
         )
 
     async def register(
@@ -206,6 +208,7 @@ select factor { ** };""",
                     ),
                 },
                 cached_globally=True,
+                query_tag='gel/auth',
             )
         except Exception as e:
             exc = await execute.interpret_error(e, self.db)
@@ -244,6 +247,7 @@ filter .email = email and .user_handle = user_handle;""",
                 "user_handle": user_handle,
             },
             cached_globally=True,
+            query_tag='gel/auth',
         )
         result_json = json.loads(result.decode())
         assert len(result_json) == 1
@@ -273,6 +277,7 @@ filter .email = email and .user_handle = user_handle;""",
                 "email": email,
                 "user_handle": user_handle,
             },
+            query_tag='gel/auth',
         )
 
     async def create_authentication_options_for_email(
@@ -294,6 +299,7 @@ filter .email = <str>$email;""",
                 "email": email,
             },
             cached_globally=True,
+            query_tag='gel/auth',
         )
         result_json = json.loads(result.decode())
         if len(result_json) == 0:
@@ -350,6 +356,7 @@ else (
                 "user_handle": user_handle,
                 "email": email,
             },
+            query_tag='gel/auth',
         )
 
         return (
@@ -381,6 +388,7 @@ select (factor.verified_at <= std::datetime_current()) ?? false;""",
                 "credential_id": credential.raw_id,
             },
             cached_globally=True,
+            query_tag='gel/auth',
         )
         result_json = json.loads(result.decode())
         return bool(result_json[0])
@@ -425,6 +433,7 @@ filter .factors.email = email and .factors.credential_id = credential_id;""",
                 "credential_id": credential_id,
             },
             cached_globally=True,
+            query_tag='gel/auth',
         )
         result_json = json.loads(result.decode())
         if len(result_json) == 0:
@@ -454,6 +463,7 @@ filter .factors.email = email and .factors.credential_id = credential_id;""",
                 "email": email,
                 "credential_id": credential_id,
             },
+            query_tag='gel/auth',
         )
 
     async def authenticate(
@@ -519,6 +529,7 @@ select ext::auth::WebAuthnFactor {
             variables={
                 "credential_id": credential_id,
             },
+            query_tag='gel/auth',
         )
         result_json = json.loads(result.decode())
         if len(result_json) == 0:

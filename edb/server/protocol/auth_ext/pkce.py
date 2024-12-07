@@ -63,6 +63,7 @@ async def create(db: edbtenant.dbview.Database, challenge: str) -> None:
             "challenge": challenge,
         },
         cached_globally=True,
+        query_tag='gel/auth',
     )
 
 
@@ -83,6 +84,7 @@ async def link_identity_challenge(
             "identity_id": identity_id,
         },
         cached_globally=True,
+        query_tag='gel/auth',
     )
 
     result_json = json.loads(r.decode())
@@ -116,6 +118,7 @@ async def add_provider_tokens(
             "id_token": id_token,
         },
         cached_globally=True,
+        query_tag='gel/auth',
     )
 
     result_json = json.loads(r.decode())
@@ -141,6 +144,7 @@ async def get_by_id(db: edbtenant.dbview.Database, id: str) -> PKCEChallenge:
         """,
         variables={"id": id, "validity": VALIDITY.to_backend_str()},
         cached_globally=True,
+        query_tag='gel/auth',
     )
 
     result_json = json.loads(r.decode())
@@ -157,6 +161,7 @@ async def delete(db: edbtenant.dbview.Database, id: str) -> None:
         """,
         variables={"id": id},
         cached_globally=True,
+        query_tag='gel/auth',
     )
 
     result_json = json.loads(r.decode())
@@ -177,6 +182,7 @@ async def _delete_challenge(db: edbtenant.dbview.Database) -> None:
         """,
         variables={"validity": VALIDITY.to_backend_str()},
         cached_globally=True,
+        query_tag='gel/auth',
     )
 
 

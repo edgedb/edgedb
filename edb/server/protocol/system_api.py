@@ -148,6 +148,7 @@ async def _ping(tenant: edbtenant.Tenant) -> bytes:
         query_cache_enabled=False,
         cached_globally=True,
         use_metrics=False,
+        query_tag='gel/system',
     )
 
 
