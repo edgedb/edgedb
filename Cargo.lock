@@ -242,6 +242,20 @@ name = "bytemuck"
 version = "1.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773d90827bc3feecfb67fab12e24de0749aad83c74b9504ecde46237b5cd24e2"
+dependencies = [
+ "bytemuck_derive",
+]
+
+[[package]]
+name = "bytemuck_derive"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcfcc3cd946cb52f0bbfdbbcfa2f4e24f75ebb6c0e1002f7c25904fada18b9ec"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "byteorder"
@@ -254,6 +268,16 @@ name = "bytes"
 version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8318a53db07bb3f8dca91a600466bdb3f2eaadeedfdbcf02e1accbad9271ba50"
+
+[[package]]
+name = "captive_postgres"
+version = "0.1.0"
+dependencies = [
+ "gel_auth",
+ "openssl",
+ "socket2",
+ "tempfile",
+]
 
 [[package]]
 name = "cardinality-estimator"
@@ -1560,11 +1584,14 @@ name = "pgrust"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "bytemuck",
+ "captive_postgres",
  "clap",
  "clap_derive",
  "derive_more",
  "futures",
  "gel_auth",
+ "hex-literal",
  "hexdump",
  "libc",
  "openssl",
@@ -1577,8 +1604,6 @@ dependencies = [
  "scopeguard",
  "serde",
  "serde_derive",
- "socket2",
- "tempfile",
  "test-log",
  "thiserror 1.0.63",
  "tokio",
@@ -2292,9 +2317,9 @@ dependencies = [
 
 [[package]]
 name = "socket2"
-version = "0.5.7"
+version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce305eb0b4296696835b71df73eb912e0f1ffd2556a501fcede6e0c50349191c"
+checksum = "c970269d99b64e60ec3bd6ad27270092a5394c4e309314b18ae3fe575695fbe8"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
