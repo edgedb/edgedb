@@ -17,6 +17,8 @@
 #
 
 from __future__ import annotations
+
+import textwrap
 from typing import (
     Any,
     Callable,
@@ -42,6 +44,7 @@ import pathlib
 import pickle
 import struct
 import sys
+import textwrap
 import time
 import tomllib
 import uuid
@@ -116,12 +119,16 @@ class Tenant(ha_base.ClusterProtocol):
     _suggested_client_pool_size: int
     _pg_pool: connpool.Pool
     _pg_unavailable_msg: str | None
+    _init_con_data: list[config.ConState]
+    _init_con_sql: bytes | None
 
     _ha_master_serial: int
     _backend_adaptive_ha: adaptive_ha.AdaptiveHASupport | None
     _readiness_state_file: pathlib.Path | None
     _readiness: srvargs.ReadinessState
     _readiness_reason: str
+    _config_file: pathlib.Path | None
+    _config_file_sql: bytes | None
 
     _extensions_dirs: tuple[pathlib.Path, ...]
 
@@ -182,6 +189,8 @@ class Tenant(ha_base.ClusterProtocol):
         self._readiness_state_file = None
         self._readiness = srvargs.ReadinessState.Default
         self._readiness_reason = ""
+        self._config_file = None
+        self._config_file_sql = None
 
         self._max_backend_connections = max_backend_connections
         self._suggested_client_pool_size = max(
@@ -199,6 +208,8 @@ class Tenant(ha_base.ClusterProtocol):
         self._pg_unavailable_msg = None
         self._block_new_connections = set()
         self._report_config_data = {}
+        self._init_con_data = []
+        self._init_con_sql = None
 
         # DB state will be initialized in init().
         self._dbindex = None
@@ -222,6 +233,7 @@ class Tenant(ha_base.ClusterProtocol):
         readiness_state_file: str | pathlib.Path | None = None,
         jwt_sub_allowlist_file: str | pathlib.Path | None = None,
         jwt_revocation_list_file: str | pathlib.Path | None = None,
+        config_file: str | pathlib.Path | None = None,
     ) -> bool:
         rv = False
 
@@ -241,6 +253,12 @@ class Tenant(ha_base.ClusterProtocol):
             jwt_revocation_list_file = pathlib.Path(jwt_revocation_list_file)
         if self._jwt_revocation_list_file != jwt_revocation_list_file:
             self._jwt_revocation_list_file = jwt_revocation_list_file
+            rv = True
+
+        if isinstance(config_file, str):
+            config_file = pathlib.Path(config_file)
+        if self._config_file != config_file:
+            self._config_file = config_file
             rv = True
 
         return rv
@@ -597,6 +615,15 @@ class Tenant(ha_base.ClusterProtocol):
                 )
             )
 
+        if self._config_file is not None:
+
+            def reload_config_file():
+                self.reload_config_file()
+
+            self._file_watch_finalizers.append(
+                self.server.monitor_fs(self._config_file, reload_config_file)
+            )
+
     async def start_accepting_new_tasks(self) -> None:
         assert self._task_group is None
         self._task_group = asyncio.TaskGroup()
@@ -694,6 +721,21 @@ class Tenant(ha_base.ClusterProtocol):
             self.__sys_pgcon = None
         del self._sys_pgcon_waiter
 
+    def set_init_con_data(self, data: list[config.ConState]) -> None:
+        self._init_con_data = data
+        self._init_con_sql = None
+        if data:
+            from edb.pgsql import common
+
+            quoted_json = common.quote_literal(json.dumps(data))
+            self._init_con_sql = textwrap.dedent(
+                f'''
+                    INSERT INTO _edgecon_state
+                        SELECT * FROM jsonb_to_recordset({quoted_json}::jsonb)
+                            AS cfg(name text, value jsonb, type text);
+                '''
+            ).strip().encode()
+
     async def _pg_connect(
         self,
         dbname: str,
@@ -711,8 +753,14 @@ class Tenant(ha_base.ClusterProtocol):
                 database=pg_dbname,
                 apply_init_script=True
             )
+            if self._config_file_sql:
+                await rv.sql_execute(self._config_file_sql)
             if self._server.stmt_cache_size is not None:
                 rv.set_stmt_cache_size(self._server.stmt_cache_size)
+
+            if self._init_con_sql is not None:
+                await rv.sql_execute(self._init_con_sql)
+
         except Exception:
             metrics.backend_connection_establishment_errors.inc(
                 1.0, self._instance_name
@@ -1562,6 +1610,22 @@ class Tenant(ha_base.ClusterProtocol):
         self._readiness = state
         self._readiness_reason = reason
 
+    def reload_config_file(self):
+        if self._config_file is None:
+            return
+
+        from edb.pgsql.common import quote_literal as ql
+
+        cfg = config.parse_config_file(
+            self._config_file, self._server.config_settings
+        )
+        self._config_file_sql = textwrap.dedent(f'''
+            INSERT INTO _edgecon_state
+            SELECT "cfg".*, 'F' as "type"
+                FROM jsonb_to_recordset({ql(json.dumps(cfg))}::jsonb)
+                    AS cfg(name text, value jsonb);
+        ''').encode()
+
     def reload(self):
         # In multi-tenant mode, the file paths for the following states may be
         # unset in a reload, while it's impossible in a regular server.
@@ -1576,6 +1640,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         self.reload_readiness_state()
         self.load_jwcrypto()
+        self.reload_config_file()
 
         self.start_watching_files()
 

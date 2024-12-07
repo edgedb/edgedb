@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2024-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,30 +18,26 @@
 
 
 from __future__ import annotations
+from typing import Any
 
-from .errors import (
-    BackendError,
-    BackendConnectionError,
-    BackendPrivilegeError,
-    BackendCatalogNameError,
-)
+import pathlib
+import tomllib
 
-from .pgcon import (
-    PGConnection,
-)
-from .connect import (
-    pg_connect,
-    SETUP_TEMP_TABLE_SCRIPT,
-    SETUP_CONFIG_CACHE_SCRIPT,
-)
+from . import ops
+from . import spec
 
-__all__ = (
-    'pg_connect',
-    'PGConnection',
-    'BackendError',
-    'BackendConnectionError',
-    'BackendPrivilegeError',
-    'BackendCatalogNameError',
-    'SETUP_TEMP_TABLE_SCRIPT',
-    'SETUP_CONFIG_CACHE_SCRIPT',
-)
+
+def parse_config_file(
+    path: pathlib.Path, config_spec: spec.Spec,
+) -> dict[str, Any]:
+    with path.open('rb') as f:
+        toml_data = tomllib.load(f)['cfg']
+    for key, toml_value in toml_data.items():
+        try:
+            setting = config_spec[key]
+        except KeyError:
+            raise ValueError(f"unknown config: 'cfg.{key}'")
+
+        # TODO
+        # value = ops.coerce_value(toml_value, config_spec, setting)
+    return toml_data

@@ -197,6 +197,7 @@ async def _run_server(
     do_setproctitle: bool,
     new_instance: bool,
     compiler_state: edbcompiler.CompilerState,
+    init_con_data: list[config.ConState],
 ):
 
     sockets = service_manager.get_activation_listen_sockets()
@@ -216,6 +217,7 @@ async def _run_server(
             backend_adaptive_ha=args.backend_adaptive_ha,
             extensions_dir=args.extensions_dir,
         )
+        tenant.set_init_con_data(init_con_data)
         tenant.set_reloadable_files(
             readiness_state_file=args.readiness_state_file,
             jwt_sub_allowlist_file=args.jwt_sub_allowlist_file,
@@ -522,10 +524,12 @@ async def run_server(
                 compiler_state.config_spec,
             )
 
-            sys_config, backend_settings = initialize_static_cfg(
-                args,
-                is_remote_cluster=True,
-                config_spec=compiler_state.config_spec,
+            sys_config, backend_settings, init_con_data = (
+                initialize_static_cfg(
+                    args,
+                    is_remote_cluster=True,
+                    config_spec=compiler_state.config_spec,
+                )
             )
             with _internal_state_dir(runstate_dir, args) as (
                 int_runstate_dir,
@@ -547,6 +551,7 @@ async def run_server(
                     internal_runstate_dir=int_runstate_dir,
                     do_setproctitle=do_setproctitle,
                     compiler_state=compiler_state,
+                    init_con_data=init_con_data,
                 )
         except server.StartupError as e:
             abort(str(e))
@@ -606,7 +611,7 @@ async def run_server(
 
         new_instance, compiler_state = await _init_cluster(cluster, args)
 
-        _, backend_settings = initialize_static_cfg(
+        _, backend_settings, init_con_data = initialize_static_cfg(
             args,
             is_remote_cluster=not is_local_cluster,
             config_spec=compiler_state.config_spec,
@@ -663,6 +668,7 @@ async def run_server(
                     do_setproctitle=do_setproctitle,
                     new_instance=new_instance,
                     compiler_state=compiler_state,
+                    init_con_data=init_con_data,
                 )
 
     except server.StartupError as e:
@@ -797,28 +803,23 @@ def main_dev():
     main()
 
 
-def _coerce_cfg_value(setting: config.Setting, value):
-    if setting.set_of:
-        return frozenset(
-            config.coerce_single_value(setting, v) for v in value
-        )
-    else:
-        return config.coerce_single_value(setting, value)
-
-
 def initialize_static_cfg(
     args: srvargs.ServerConfig,
     is_remote_cluster: bool,
     config_spec: config.Spec
-) -> Tuple[Mapping[str, config.SettingValue], Dict[str, str]]:
+) -> Tuple[
+    Mapping[str, config.SettingValue], Dict[str, str], list[config.ConState]
+]:
     result = {}
     init_con_script_data = []
     backend_settings = {}
     command_line_argument = "A"
     environment_variable = "E"
+    config_file = "F"
     sources = {
         command_line_argument: "command line argument",
         environment_variable: "environment variable",
+        config_file: "configuration file",
     }
 
     def add_config(name, value, type_):
@@ -833,7 +834,7 @@ def initialize_static_cfg(
                     f"Can't set config {name!r} {where} when using "
                     f"a remote Postgres cluster"
                 )
-        value = _coerce_cfg_value(setting, value)
+        value = config.coerce_value(value, config_spec, setting, strict=True)
         init_con_script_data.append({
             "name": name,
             "value": config.value_to_json_value(setting, value),
@@ -876,22 +877,25 @@ def initialize_static_cfg(
             setting = config_spec[cfg_name]
         except KeyError:
             continue
-        choices = setting.enum_values
         if setting.type is bool:
             choices = ['true', 'false']
             env_value = env_value.lower()
-        if choices is not None and env_value not in choices:
-            raise server.StartupError(
-                f"Environment variable {env_name!r} can only be one of: " +
-                ", ".join(choices)
-            )
-        if setting.type is bool:
+            if env_value not in choices:
+                raise server.StartupError(
+                    f"Environment variable {env_name!r} can only be one of: " +
+                    ", ".join(choices)
+                )
             env_value = env_value == 'true'
         elif not issubclass(setting.type, statypes.ScalarType):  # type: ignore
             env_value = setting.type(env_value)  # type: ignore
         if setting.set_of:
             env_value = (env_value,)
         add_config(cfg_name, env_value, environment_variable)
+
+    if args.config_file is not None:
+        toml_config = config.parse_config_file(args.config_file, config_spec)
+        for f_name, f_value in toml_config.items():
+            add_config(f_name, f_value, config_file)
 
     if args.bind_addresses:
         add_config(
@@ -900,11 +904,7 @@ def initialize_static_cfg(
     if args.port:
         add_config("listen_port", args.port, command_line_argument)
 
-    if init_con_script_data:
-        from . import pgcon
-        pgcon.set_init_con_script_data(init_con_script_data)
-
-    return immutables.Map(result), backend_settings
+    return immutables.Map(result), backend_settings, init_con_script_data
 
 
 if __name__ == '__main__':
