@@ -1,10 +1,8 @@
-use crate::{
-    connection::ConnectionError,
-    errors::edgedb::EdbError,
-    protocol::{
-        edgedb::{data::*, *},
-        match_message, ParseError, StructBuffer,
-    },
+use crate::{connection::ConnectionError, errors::edgedb::EdbError};
+
+use crate::protocol::{
+    edgedb::{data::*, *},
+    match_message, ParseError, StructBuffer,
 };
 use gel_auth::{
     handshake::{ServerAuth, ServerAuthDrive, ServerAuthError, ServerAuthResponse},
@@ -142,8 +140,10 @@ enum ServerStateImpl {
     Error,
 }
 
+#[derive(derive_more::Debug, Default)]
 pub struct ServerState {
     state: ServerStateImpl,
+    #[debug(skip)]
     buffer: StructBuffer<meta::Message>,
 }
 

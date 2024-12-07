@@ -9,7 +9,8 @@ members = [
     "rust/conn_pool",
     "rust/pgrust",
     "rust/http",
-    "rust/pyo3_util"
+    "rust/pyo3_util",
+    "rust/frontend",
 ]
 resolver = "2"
 
