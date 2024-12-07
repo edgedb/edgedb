@@ -66,7 +66,7 @@ def compile_sql(
     current_database: str,
     current_user: str,
     allow_user_specified_id: Optional[bool],
-    apply_access_policies_sql: Optional[bool],
+    apply_access_policies: Optional[bool],
     include_edgeql_io_format_alternative: bool = False,
     allow_prepared_statements: bool = True,
     disambiguate_column_names: bool,
@@ -82,7 +82,7 @@ def compile_sql(
             current_database=current_database,
             current_user=current_user,
             allow_user_specified_id=allow_user_specified_id,
-            apply_access_policies_sql=apply_access_policies_sql,
+            apply_access_policies=apply_access_policies,
             include_edgeql_io_format_alternative=(
                 include_edgeql_io_format_alternative),
             allow_prepared_statements=allow_prepared_statements,
