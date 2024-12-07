@@ -32,7 +32,6 @@ from typing import (
     FrozenSet,
 )
 
-import dataclasses
 import decimal
 import functools
 
@@ -531,7 +530,7 @@ def object_type_to_spec(
         default = p.get_default(schema)
         if default is None:
             if p.get_required(schema):
-                default = dataclasses.MISSING
+                default = statypes.MISSING
         else:
             default = qlcompiler.evaluate_to_python_val(
                 default.text, schema=schema)
