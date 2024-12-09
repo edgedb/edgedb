@@ -63,6 +63,7 @@ TenantConfig = TypedDict(
         "jwt-revocation-list-file": str,
         "readiness-state-file": str,
         "admin": bool,
+        "config-file": str,
     },
 )
 
@@ -70,6 +71,7 @@ TenantConfig = TypedDict(
 class MultiTenantServer(server.BaseServer):
     _config_file: pathlib.Path
     _sys_config: Mapping[str, config.SettingValue]
+    _init_con_data: list[config.ConState]
     _backend_settings: Mapping[str, str]
 
     _tenants_by_sslobj: MutableMapping
@@ -89,6 +91,7 @@ class MultiTenantServer(server.BaseServer):
         *,
         compiler_pool_tenant_cache_size: int,
         sys_config: Mapping[str, config.SettingValue],
+        init_con_data: list[config.ConState],
         backend_settings: Mapping[str, str],
         sys_queries: Mapping[str, bytes],
         report_config_typedesc: dict[defines.ProtocolVersion, bytes],
@@ -97,6 +100,7 @@ class MultiTenantServer(server.BaseServer):
         super().__init__(**kwargs)
         self._config_file = config_file
         self._sys_config = sys_config
+        self._init_con_data = init_con_data
         self._backend_settings = backend_settings
         self._compiler_pool_tenant_cache_size = compiler_pool_tenant_cache_size
 
@@ -243,13 +247,16 @@ class MultiTenantServer(server.BaseServer):
             max_backend_connections=max_conns,
             backend_adaptive_ha=conf.get("backend-adaptive-ha", False),
         )
+        tenant.set_init_con_data(self._init_con_data)
         tenant.set_reloadable_files(
             readiness_state_file=conf.get("readiness-state-file"),
             jwt_sub_allowlist_file=conf.get("jwt-sub-allowlist-file"),
             jwt_revocation_list_file=conf.get("jwt-revocation-list-file"),
+            config_file=conf.get("config-file"),
         )
         tenant.set_server(self)
         tenant.load_jwcrypto()
+        tenant.reload_config_file()
         try:
             await tenant.init_sys_pgcon()
             await tenant.init()
@@ -379,6 +386,7 @@ class MultiTenantServer(server.BaseServer):
                             "readiness-state-file",
                             "jwt-sub-allowlist-file",
                             "jwt-revocation-list-file",
+                            "config-file",
                         }
                         if diff:
                             logger.warning(
@@ -395,6 +403,7 @@ class MultiTenantServer(server.BaseServer):
                                 "jwt-sub-allowlist-file"),
                             jwt_revocation_list_file=conf.get(
                                 "jwt-revocation-list-file"),
+                            config_file=conf.get("config-file"),
                         ):
                             # none of the reloadable values was modified
                             return
@@ -429,6 +438,7 @@ async def run_server(
     args: srvargs.ServerConfig,
     *,
     sys_config: Mapping[str, config.SettingValue],
+    init_con_data: list[config.ConState],
     backend_settings: Mapping[str, str],
     sys_queries: Mapping[str, bytes],
     report_config_typedesc: dict[defines.ProtocolVersion, bytes],
@@ -444,6 +454,7 @@ async def run_server(
         ss = MultiTenantServer(
             multitenant_config_file,
             sys_config=sys_config,
+            init_con_data=init_con_data,
             backend_settings=backend_settings,
             sys_queries=sys_queries,
             report_config_typedesc=report_config_typedesc,
