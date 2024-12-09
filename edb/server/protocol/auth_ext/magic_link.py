@@ -81,6 +81,7 @@ select email_factor { ** };""",
                     "email": email,
                 },
                 cached_globally=True,
+                query_tag='gel/auth',
             )
 
         except Exception as e:
