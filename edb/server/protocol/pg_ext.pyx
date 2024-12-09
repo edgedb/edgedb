@@ -39,6 +39,7 @@ from edb import errors
 from edb.common import debug
 from edb.common.log import current_tenant
 from edb.pgsql.parser import exceptions as parser_errors
+import edb.pgsql.parser as pg_parser
 from edb.server import args as srvargs
 from edb.server import defines, metrics
 from edb.server import tenant as edbtenant
@@ -1497,17 +1498,24 @@ cdef class PgConnection(frontend.FrontendConnection):
 
         return action, stmts
 
-    async def compile(self, query_str, ConnectionView dbv, ignore_cache=False):
+    async def compile(
+        self, query_str: str, ConnectionView dbv, ignore_cache=False
+    ) -> List[dbstate.SQLQueryUnit]:
         if self.debug:
             self.debug_print("Compile", query_str)
+
+        source = pg_parser.NormalizedSource.from_string(query_str)
+
         fe_settings = dbv.current_fe_settings()
-        key = compute_cache_key(query_str, fe_settings)
+        key = compute_cache_key(source, fe_settings)
 
         ignore_cache |= self._disable_cache
 
+        result: List[dbstate.SQLQueryUnit]
         if not ignore_cache:
             result = self.database.lookup_compiled_sql(key)
             if result is not None:
+                inject_extracted_params(source, result)
                 return result
         # Remember the schema version we are compiling on, so that we can
         # cache the result with the matching version. In case of concurrent
@@ -1524,7 +1532,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 self.database.reflection_cache,
                 self.database.db_config,
                 self.database._index.get_compilation_system_config(),
-                query_str,
+                source.text(),
                 dbv.fe_transaction_state(),
                 self.sql_prepared_stmts_map,
                 self.dbname,
@@ -1543,6 +1551,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         )
         if self.debug:
             self.debug_print("Compile result", result)
+        inject_extracted_params(source, result)
         return result
 
     def _validate_prepare_stmt(self, qu):
@@ -1585,14 +1594,29 @@ cdef class PgConnection(frontend.FrontendConnection):
 
 
 def compute_cache_key(
-    query_str: str, fe_settings: dbstate.SQLSettings
+    source: pg_parser.Source, fe_settings: dbstate.SQLSettings
 ) -> bytes:
-    h = hashlib.blake2b(query_str.encode("utf-8"))
+    h = hashlib.blake2b(source.cache_key())
     for key, value in fe_settings.items():
         if key.startswith('global '):
             continue
         h.update(hash(value).to_bytes(8, signed=True))
     return h.digest()
+
+
+def inject_extracted_params(
+    source: pg_parser.Source,
+    results: List[dbstate.SQLQueryUnit],
+):
+    if source.first_extra() == None:
+        return
+
+    extras = list(source.variables().values())
+    for e in range(0, source.extra_counts()[0]):
+        p = e + source.first_extra()
+        results[0].params[p] = dbstate.SQLParamExtractedConst(
+            value=extras[e]
+        )
 
 
 cdef WriteBuffer remap_arguments(
@@ -1632,6 +1656,8 @@ cdef WriteBuffer remap_arguments(
                 else:
                     o = offset + i * 2
                     buf.write_bytes(data[o:o+2])
+            elif isinstance(param, dbstate.SQLParamExtractedConst):
+                buf.write_int16(0) # text
             else:
                 # this is for globals
                 buf.write_int16(1) # binary
@@ -1671,9 +1697,11 @@ cdef WriteBuffer remap_arguments(
         if arg_offset_external < offset:
             buf.write_bytes(data[arg_offset_external:offset])
 
-        # write global's args
+        # write non-external args
         for param in params[param_count_external:]:
-            if isinstance(param, dbstate.SQLParamGlobal):
+            if isinstance(param, dbstate.SQLParamExtractedConst):
+                buf.write_len_prefixed_bytes(param.value)
+            elif isinstance(param, dbstate.SQLParamGlobal):
                 name = param.global_name
                 setting_name = f'global {name.module}::{name.name}'
                 values = fe_settings.get(setting_name, None)

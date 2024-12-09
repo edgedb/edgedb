@@ -608,6 +608,14 @@ class SQLParamExternal(SQLParam):
 
 
 @dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)
+class SQLParamExtractedConst(SQLParam):
+    # An internal query param whose value is a constant that this param has
+    # replaced during query normalization.
+
+    value: bytes
+
+
+@dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)
 class SQLParamGlobal(SQLParam):
     # An internal query param whose value is provided by a global.
 
