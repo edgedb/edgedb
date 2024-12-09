@@ -63,6 +63,7 @@ import time
 import unittest
 import urllib
 
+import asyncpg.transaction
 import edgedb
 
 from edb.edgeql import quote as qlquote
@@ -1618,8 +1619,16 @@ class SQLQueryTestCase(BaseQueryTestCase):
         finally:
             super().tearDownClass()
 
+    def setUp(self):
+        if self.TRANSACTION_ISOLATION:
+            self.stran = self.scon.transaction()
+            self.loop.run_until_complete(self.stran.start())
+        super().setUp()
+
     def tearDown(self):
         try:
+            if self.TRANSACTION_ISOLATION:
+                self.loop.run_until_complete(self.stran.rollback())
             self.loop.run_until_complete(self.scon.execute('RESET ALL'))
         finally:
             super().tearDown()

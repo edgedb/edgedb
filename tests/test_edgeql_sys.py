@@ -167,6 +167,8 @@ class TestSQLSys(tb.SQLQueryTestCase, TestQueryStatsMixin):
     stats_magic_word = 'TestSQLSys'
     stats_type = 'SQL'
 
+    TRANSACTION_ISOLATION = False
+
     async def _query_for_stats(self):
         self.assertEqual(
             await self.squery_values(
