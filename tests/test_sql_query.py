@@ -2099,7 +2099,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             '''
         )
 
-    async def test_native_sql_query_00(self):
+    async def test_sql_native_query_00(self):
         await self.assert_sql_query_result(
             """
                 SELECT
@@ -2128,7 +2128,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             ],
         )
 
-    async def test_native_sql_query_01(self):
+    async def test_sql_native_query_01(self):
         await self.assert_sql_query_result(
             """
                 SELECT
@@ -2156,7 +2156,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             apply_access_policies=False,
         )
 
-    async def test_native_sql_query_02(self):
+    async def test_sql_native_query_02(self):
         await self.assert_sql_query_result(
             """
                 SELECT
@@ -2185,7 +2185,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             apply_access_policies=False,
         )
 
-    async def test_native_sql_query_03(self):
+    async def test_sql_native_query_03(self):
         # No output at all
         await self.assert_sql_query_result(
             """
@@ -2206,7 +2206,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             apply_access_policies=False,
         )
 
-    async def test_native_sql_query_04(self):
+    async def test_sql_native_query_04(self):
         with self.assertRaisesRegex(
             edgedb.errors.QueryError,
             'duplicate column name: `a`',
@@ -2214,7 +2214,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         ):
             await self.assert_sql_query_result('SELECT 1 AS a, 2 AS a', [])
 
-    async def test_native_sql_query_05(self):
+    async def test_sql_native_query_05(self):
         # `a` would be duplicated,
         # so second and third instance are prefixed with rel var name
         await self.assert_sql_query_result(
@@ -2228,7 +2228,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             [{'a': 1, 'y_a': 2, 'u_a': 3}],
         )
 
-    async def test_native_sql_query_06(self):
+    async def test_sql_native_query_06(self):
         await self.assert_sql_query_result(
             '''
             WITH
@@ -2239,7 +2239,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             [{'a': 1, 'u_a': 2}, {'a': 1, 'u_a': 3}],
         )
 
-    async def test_native_sql_query_07(self):
+    async def test_sql_native_query_07(self):
         with self.assertRaisesRegex(
             edgedb.errors.QueryError,
             'duplicate column name: `y_a`',
@@ -2255,7 +2255,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 [],
             )
 
-    async def test_native_sql_query_08(self):
+    async def test_sql_native_query_08(self):
         with self.assertRaisesRegex(
             edgedb.errors.QueryError,
             'duplicate column name: `x_a`',
@@ -2270,7 +2270,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 [],
             )
 
-    async def test_native_sql_query_09(self):
+    async def test_sql_native_query_09(self):
         await self.assert_sql_query_result(
             '''
             WITH
@@ -2280,7 +2280,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             [{'a': 1, 'x_a': 2}],
         )
 
-    async def test_native_sql_query_10(self):
+    async def test_sql_native_query_10(self):
         await self.assert_sql_query_result(
             '''
             WITH
@@ -2290,7 +2290,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             [{'a': 1, 'b': 2, 'c': 3}],  # values are swapped around
         )
 
-    async def test_native_sql_query_11(self):
+    async def test_sql_native_query_11(self):
         # JOIN ... ON TRUE fails, saying it expects bool, but it got an int
         await self.assert_sql_query_result(
             '''
@@ -2303,7 +2303,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             [{'a': 1, 'b': 2, 'c': 3}],
         )
 
-    async def test_native_sql_query_12(self):
+    async def test_sql_native_query_12(self):
         await self.assert_sql_query_result(
             '''
             WITH
@@ -2319,7 +2319,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             ],
         )
 
-    async def test_native_sql_query_13(self):
+    async def test_sql_native_query_13(self):
         # globals
 
         await self.assert_sql_query_result(
@@ -2344,7 +2344,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             [{'username': "user_robin"}],
         )
 
-    async def test_native_sql_query_14(self):
+    async def test_sql_native_query_14(self):
         # globals
 
         await self.con.execute(
@@ -2389,7 +2389,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             ],
         )
 
-    async def test_native_sql_query_15(self):
+    async def test_sql_native_query_15(self):
         # no access policies
         await self.assert_sql_query_result(
             'SELECT title FROM "Content" ORDER BY title',
@@ -2417,27 +2417,27 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             [{'title': 'Forrest Gump'}],
         )
 
-    async def test_native_sql_query_16(self):
-        with self.assertRaisesRegex(
+    async def test_sql_native_query_16(self):
+        async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
             "not supported: VARIABLE SET",
             _position=14,  # this point to `1`, but hey, better than nothing
         ):
             await self.assert_sql_query_result('SET my_var TO 1', [])
 
-        with self.assertRaisesRegex(
+        async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
             "not supported: VARIABLE RESET",
         ):
             await self.assert_sql_query_result('RESET my_var', [])
 
-        with self.assertRaisesRegex(
+        async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
             "not supported: VARIABLE SHOW",
         ):
             await self.assert_sql_query_result('SHOW my_var', [])
 
-    async def test_native_sql_query_17(self):
+    async def test_sql_native_query_17(self):
         await self.assert_sql_query_result(
             """SELECT $1::text as t, $2::int as i""",
             [{"t": "Hello", "i": 42}],
@@ -2448,7 +2448,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             apply_access_policies=False,
         )
 
-        with self.assertRaisesRegex(
+        async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
             'multi-statement SQL scripts are not supported yet',
         ):
@@ -2461,7 +2461,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 apply_access_policies=False,
             )
 
-        with self.assertRaisesRegex(
+        async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
             'multi-statement SQL scripts are not supported yet',
         ):
@@ -2477,7 +2477,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 apply_access_policies=False,
             )
 
-        with self.assertRaisesRegex(
+        async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
             'multi-statement SQL scripts are not supported yet',
         ):
@@ -2493,7 +2493,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 apply_access_policies=False,
             )
 
-        with self.assertRaisesRegex(
+        async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
             'multi-statement SQL scripts are not supported yet',
         ):
@@ -2510,7 +2510,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 apply_access_policies=False,
             )
 
-    async def test_native_sql_query_18(self):
+    async def test_sql_native_query_18(self):
         with self.assertRaisesRegex(
             edgedb.errors.QueryError,
             'cannot find column `asdf`',
@@ -2521,7 +2521,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             )
 
     @test.xerror('See #8077')
-    async def test_native_sql_query_19(self):
+    async def test_sql_native_query_19(self):
         with self.assertRaisesRegex(
             edgedb.errors.QueryError,
             '',
@@ -2532,7 +2532,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             )
 
     @test.xfail('See #8077')
-    async def test_native_sql_query_20(self):
+    async def test_sql_native_query_20(self):
         with self.assertRaisesRegex(
             edgedb.errors.InvalidValueError,
             'invalid input syntax for type integer',

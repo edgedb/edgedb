@@ -969,7 +969,7 @@ class ConnectedTestCase(ClusterTestCase):
     NO_FACTOR = False
     WARN_FACTOR = False
 
-    con: Any  # XXX: the real type?
+    con: tconn.Connection
 
     @classmethod
     def setUpClass(cls):
@@ -1062,7 +1062,7 @@ class ConnectedTestCase(ClusterTestCase):
         user=edgedb_defines.EDGEDB_SUPERUSER,
         password=None,
         secret_key=None,
-    ):
+    ) -> tconn.Connection:
         conargs = cls.get_connect_args(
             cluster=cluster,
             database=database,
@@ -1308,12 +1308,19 @@ class ConnectedTestCase(ClusterTestCase):
     @contextlib.asynccontextmanager
     async def without_access_policies(self):
         await self.con.execute(
-            'CONFIGURE SESSION SET apply_access_policies := false')
+            'CONFIGURE SESSION SET apply_access_policies := false'
+        )
+        raised_an_execption = False
         try:
             yield
+        except BaseException:
+            raised_an_execption = True
+            raise
         finally:
-            await self.con.execute(
-                'CONFIGURE SESSION RESET apply_access_policies')
+            if not (raised_an_execption and self.con.is_in_transaction()):
+                await self.con.execute(
+                    'CONFIGURE SESSION RESET apply_access_policies'
+                )
 
 
 class DatabaseTestCase(ConnectedTestCase):
