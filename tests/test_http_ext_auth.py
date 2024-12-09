@@ -4345,8 +4345,10 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     SELECT EXISTS (
                         SELECT ext::auth::WebAuthnAuthenticationChallenge
                         filter .challenge = <bytes>$challenge
-                        AND .factors.email = <str>$email
-                        AND .factors.user_handle = <bytes>$user_handle
+                        AND any(
+                            .factors.email = <str>$email
+                            AND .factors.user_handle = <bytes>$user_handle
+                        )
                     )
                     ''',
                     challenge=challenge_bytes,

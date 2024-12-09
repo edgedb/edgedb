@@ -250,7 +250,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT FireCard {name}
-                FILTER FireCard = DaveCard
+                FILTER FireCard IN DaveCard
                 ORDER BY FireCard.name;
             ''',
             [{'name': 'Dragon'}],
@@ -882,7 +882,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                     name,
                     owned_by_alice,
                 }
-                FILTER .name ILIKE {'%turtle%', 'dwarf'}
+                FILTER any(.name ILIKE {'%turtle%', 'dwarf'})
                 ORDER BY .name;
             """,
             [
@@ -902,7 +902,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                 SELECT EarthOrFireCard {
                     name,
                 }
-                FILTER .name = {'Imp', 'Dwarf'}
+                FILTER .name IN {'Imp', 'Dwarf'}
                 ORDER BY .name;
             """,
             [

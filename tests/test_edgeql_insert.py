@@ -1350,6 +1350,7 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_insert_for_02(self):
         await self.con.execute(r'''
             # create 10 DefaultTest3 objects, each object is defined
@@ -1822,6 +1823,7 @@ class TestInsert(tb.QueryTestCase):
                                   INSERT Note {name := y ++ x.name}))))));
             """)
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_insert_default_01(self):
         await self.con.execute(r'''
             # create 10 DefaultTest3 objects, each object is defined
@@ -2315,6 +2317,7 @@ class TestInsert(tb.QueryTestCase):
             }],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_insert_linkprops_with_for_01(self):
         await self.con.execute(r"""
             FOR i IN {'1', '2', '3'} UNION (
