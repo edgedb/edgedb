@@ -394,8 +394,6 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             ext::ai::text_gen_model_context_window := "32000";
     };
 
-
-
     create abstract type ext::ai::CodestralModel
         extending ext::ai::TextGenerationModel
     {
@@ -407,7 +405,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             ext::ai::text_gen_model_context_window := "32000";
     };
 
-    # embedding model 
+    # Mistral embedding model 
     create abstract type ext::ai::MistralEmbedModel
         extending ext::ai::EmbeddingModel
     {
