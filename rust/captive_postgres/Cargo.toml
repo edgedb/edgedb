@@ -1,0 +1,17 @@
+
+[package]
+name = "captive_postgres"
+version = "0.1.0"
+license = "MIT/Apache-2.0"
+authors = ["MagicStack Inc. <hello@magic.io>"]
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+gel_auth.workspace = true
+
+openssl = "0.10.55"
+tempfile = "3"
+socket2 = "0.5.8"

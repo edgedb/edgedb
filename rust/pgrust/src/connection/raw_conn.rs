@@ -1,5 +1,5 @@
 use super::{
-    stream::{Stream, StreamWithUpgrade, UpgradableStream},
+    stream::{Stream, StreamWithUpgrade, UpgradableStream, UpgradableStreamChoice},
     ConnectionError, Credentials,
 };
 use crate::handshake::{
@@ -147,8 +147,18 @@ pub struct RawClient<B: Stream, C: Unpin>
 where
     (B, C): StreamWithUpgrade,
 {
-    stream: UpgradableStream<B, C>,
+    stream: UpgradableStreamChoice<B, C>,
     params: ConnectionParams,
+}
+
+impl<B: Stream> RawClient<B, ()> {
+    /// Create a new raw client from a stream. The stream must be fully authenticated and ready.
+    pub fn new(stream: B, params: ConnectionParams) -> Self {
+        Self {
+            stream: UpgradableStreamChoice::Base(stream),
+            params,
+        }
+    }
 }
 
 impl<B: Stream, C: Unpin> RawClient<B, C>
@@ -169,7 +179,10 @@ where
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
-        Pin::new(&mut self.get_mut().stream).poll_read(cx, buf)
+        match &mut self.get_mut().stream {
+            UpgradableStreamChoice::Base(base) => Pin::new(base).poll_read(cx, buf),
+            UpgradableStreamChoice::Upgrade(upgraded) => Pin::new(upgraded).poll_read(cx, buf),
+        }
     }
 }
 
@@ -182,18 +195,47 @@ where
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize, std::io::Error>> {
-        Pin::new(&mut self.get_mut().stream).poll_write(cx, buf)
+        match &mut self.get_mut().stream {
+            UpgradableStreamChoice::Base(base) => Pin::new(base).poll_write(cx, buf),
+            UpgradableStreamChoice::Upgrade(upgraded) => Pin::new(upgraded).poll_write(cx, buf),
+        }
+    }
+
+    fn poll_write_vectored(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &[std::io::IoSlice<'_>],
+    ) -> Poll<Result<usize, std::io::Error>> {
+        match &mut self.get_mut().stream {
+            UpgradableStreamChoice::Base(base) => Pin::new(base).poll_write_vectored(cx, bufs),
+            UpgradableStreamChoice::Upgrade(upgraded) => {
+                Pin::new(upgraded).poll_write_vectored(cx, bufs)
+            }
+        }
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        match &self.stream {
+            UpgradableStreamChoice::Base(base) => base.is_write_vectored(),
+            UpgradableStreamChoice::Upgrade(upgraded) => upgraded.is_write_vectored(),
+        }
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.get_mut().stream).poll_flush(cx)
+        match &mut self.get_mut().stream {
+            UpgradableStreamChoice::Base(base) => Pin::new(base).poll_flush(cx),
+            UpgradableStreamChoice::Upgrade(upgraded) => Pin::new(upgraded).poll_flush(cx),
+        }
     }
 
     fn poll_shutdown(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.get_mut().stream).poll_shutdown(cx)
+        match &mut self.get_mut().stream {
+            UpgradableStreamChoice::Base(base) => Pin::new(base).poll_shutdown(cx),
+            UpgradableStreamChoice::Upgrade(upgraded) => Pin::new(upgraded).poll_shutdown(cx),
+        }
     }
 }
 
@@ -245,6 +287,8 @@ where
             .drive_bytes(&mut state, &buffer[..n], &mut struct_buffer, &mut stream)
             .await?;
     }
+
+    let stream = stream.into_choice().unwrap();
     Ok(RawClient {
         stream,
         params: update.params,

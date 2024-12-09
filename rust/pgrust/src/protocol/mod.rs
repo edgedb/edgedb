@@ -611,6 +611,17 @@ mod tests {
     }
 
     #[test]
+    fn test_datarow() {
+        let buf = [
+            0x44, 0x00, 0x00, 0x00, 0x0a, 0x00, 0x01, 0xff, 0xff, 0xff, 0xff,
+        ];
+        assert!(DataRow::is_buffer(&buf));
+        let message = DataRow::new(&buf).unwrap();
+        assert_eq!(message.values().len(), 1);
+        assert_eq!(message.values().into_iter().next().unwrap(), Encoded::Null);
+    }
+
+    #[test]
     fn test_edgedb_sasl() {
         use crate::protocol::edgedb::*;
 
