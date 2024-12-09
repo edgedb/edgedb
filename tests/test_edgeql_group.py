@@ -510,6 +510,123 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_group_free_object_01(self):
+        await self.assert_query_result(
+            '''
+            group {a := 1, b := 2} by .a;;
+            ''',
+            [
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': [{'a': 1, 'b': 2}],
+                },
+            ]
+        )
+
+    async def test_edgeql_group_free_object_02(self):
+        await self.assert_query_result(
+            '''
+            group (
+                for n in { 8, 9 }
+                    select { a := 1, b := n }
+            ) by .a;
+            ''',
+            [
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': [
+                        {'a': 1, 'b': 8},
+                        {'a': 1, 'b': 9},
+                    ],
+                },
+            ]
+        )
+
+    async def test_edgeql_group_free_object_03(self):
+        # Use computed pointer in by clause
+        await self.assert_query_result(
+            '''
+            group (
+                for n in { 8, 9 }
+                    select { a := 1, b := n }
+            ) by .b;
+            ''',
+            [
+                {
+                    'key': {'b': 8},
+                    'grouping': {'b'},
+                    'elements': [{'a': 1, 'b': 8}],
+                },
+                {
+                    'key': {'b': 9},
+                    'grouping': {'b'},
+                    'elements': [{'a': 1, 'b': 9}],
+                },
+            ]
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_free_object_04(self):
+        await self.assert_query_result(
+            '''
+            group {
+                a := 1,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            } by .a;
+            ''',
+            [
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': [
+                        {'a': 1, 'b': 8},
+                        {'a': 1, 'b': 9},
+                    ],
+                },
+            ]
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_free_object_05(self):
+        # Use computed pointer in by clause
+        await self.assert_query_result(
+            '''
+            group {
+                a := 1,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            using d := .b.d
+            by d;
+            ''',
+            [
+                {
+                    'key': {'d': 9},
+                    'grouping': {'d'},
+                    'elements': [
+                        {'a': 1, 'b': 8},
+                        {'a': 1, 'b': 9},
+                    ],
+                },
+            ]
+        )
+
+    async def test_edgeql_group_free_object_06(self):
+        await self.assert_query_result(
+            '''
+            with N := (for n in { 8, 9 } select n)
+            group { a := 1, b := N } by .a;
+            ''',
+            [
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': [{'a': 1, 'b': {8, 9}}],
+                },
+            ]
+        )
+
     async def test_edgeql_group_duplicate_rejected_01(self):
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
@@ -1087,6 +1204,239 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     ]),
                 }
             ])
+        )
+
+    async def test_edgeql_group_binding_free_object_01(self):
+        await self.assert_query_result(
+            '''
+            with X := {a := 1, b := 2}
+            group X { a, b } by .a;
+            ''',
+            [
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': [{'a': 1, 'b': 2}],
+                },
+            ]
+        )
+
+    async def test_edgeql_group_binding_free_object_02(self):
+        await self.assert_query_result(
+            '''
+            with X := {a := 1, b := {2, 3, 4}, c := { d := 5 } }
+            group X { a, b, c: {*} } using d := .c.d by d;
+            ''',
+            [
+                {
+                    'key': {'d': 5},
+                    'grouping': {'d'},
+                    'elements': [{'a': 1, 'b': [2, 3, 4], 'c': {'d': 5}}],
+                },
+            ]
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_binding_free_object_03(self):
+        await self.assert_query_result(
+            '''
+            with X := (
+                for n in { 8, 9 }
+                    select { a := 1, b := n }
+            )
+            group X { a, b } by .a;
+            ''',
+            [
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': [
+                        {'a': 1, 'b': 8},
+                        {'a': 1, 'b': 9},
+                    ],
+                },
+            ]
+        )
+
+    async def test_edgeql_group_binding_free_object_04(self):
+        # Remove computed pointer from output shape
+        await self.assert_query_result(
+            '''
+            with X := (
+                for n in { 8, 9 }
+                    select { a := 1, b := n }
+            )
+            group X { a } by .a;
+            ''',
+            [
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': [
+                        {'a': 1},
+                        {'a': 1},
+                    ],
+                },
+            ]
+        )
+
+    async def test_edgeql_group_binding_free_object_05(self):
+        # Wrap subject in select
+        await self.assert_query_result(
+            '''
+            with X := (
+                for n in { 8, 9 }
+                    select { a := 1, b := n }
+            )
+            group (select X { a, b }) by .a;
+            ''',
+            [
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': [
+                        {'a': 1, 'b': 8},
+                        {'a': 1, 'b': 9},
+                    ],
+                },
+            ]
+        )
+
+    async def test_edgeql_group_binding_free_object_06(self):
+        # Use computed pointer only in by clause
+        await self.assert_query_result(
+            '''
+            with X := (
+                for n in { 8, 9 }
+                    select { a := 1, b := n }
+            )
+            group X { a } by .b;
+            ''',
+            [
+                {
+                    'key': {'b': 8},
+                    'grouping': {'b'},
+                    'elements': [{'a': 1}],
+                },
+                {
+                    'key': {'b': 9},
+                    'grouping': {'b'},
+                    'elements': [{'a': 1}],
+                },
+            ]
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_binding_free_object_07(self):
+        await self.assert_query_result(
+            '''
+            with X := {
+                a := 1,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group X { a, b: { c, d } } by .a;
+            ''',
+            [
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': [{'a': 1, 'b': {'c': 3, 'd': 9}}],
+                },
+            ]
+        )
+
+    async def test_edgeql_group_binding_free_object_08(self):
+        # Remove pointer from output shape
+        await self.assert_query_result(
+            '''
+            with X := {
+                a := 1,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group X { a, b: { c } } by .a;
+            ''',
+            [
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': [{'a': 1, 'b': {'c': 3}}],
+                },
+            ]
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_binding_free_object_09(self):
+        # Wrap subject in select
+        await self.assert_query_result(
+            '''
+            with X := {
+                a := 1,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group (select X { a, b: { c, d } }) by .a;
+            ''',
+            [
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': [{'a': 1, 'b': {'c': 3, 'd': 9}}],
+                },
+            ]
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_binding_free_object_10(self):
+        # Use computed pointer only in by clause
+        await self.assert_query_result(
+            '''
+            with X := {
+                a := 1,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group X { a, b: { c } } by .d;
+            ''',
+            [
+                {
+                    'key': {'d': 9},
+                    'grouping': {'d'},
+                    'elements': [{'a': 1, 'b': {'c': 3}}],
+                },
+            ]
+        )
+
+    async def test_edgeql_group_binding_free_object_11(self):
+        await self.assert_query_result(
+            '''
+            with X := {
+                a := 1,
+                b := (for n in { 8, 9 } select n),
+            }
+            group X { a, b } by .a;
+            ''',
+            [
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': [{'a': 1, 'b': {8, 9}}],
+                },
+            ]
+        )
+
+    async def test_edgeql_group_binding_free_object_12(self):
+        await self.assert_query_result(
+            '''
+            with
+                N := (for n in { 8, 9 } select n),
+                X := { a := 1, b := N }
+            group X { a, b } by .a;
+            ''',
+            [
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': [{'a': 1, 'b': {8, 9}}],
+                },
+            ]
         )
 
     async def test_edgeql_group_ordering_01(self):
