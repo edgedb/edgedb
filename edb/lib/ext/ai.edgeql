@@ -316,7 +316,98 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             ext::ai::text_gen_model_context_window := "128000";
     };
 
+    create abstract type ext::ai::OpenAI_O1_PreviewModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "o1-preview";
+        alter annotation
+            ext::ai::model_provider := "builtin::openai";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "128000";
+    };
+
+    create abstract type ext::ai::OpenAI_O1_MiniModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "o1-mini";
+        alter annotation
+            ext::ai::model_provider := "builtin::openai";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "128000";
+    };
+
     # Mistral models
+    create abstract type ext::ai::MistralLargeModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "mistral-large-latest";
+        alter annotation
+            ext::ai::model_provider := "builtin::mistral";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "128000";
+    };
+
+    create abstract type ext::ai::PixtralLargeModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "pixtral-large-latest";
+        alter annotation
+            ext::ai::model_provider := "builtin::mistral";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "128000";
+    };
+
+    create abstract type ext::ai::Ministral_3B_Model
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "ministral-3b-latest";
+        alter annotation
+            ext::ai::model_provider := "builtin::mistral";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "128000";
+    };
+
+    create abstract type ext::ai::Ministral_8B_Model
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "ministral-8b-latest";
+        alter annotation
+            ext::ai::model_provider := "builtin::mistral";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "128000";
+    };
+
+    create abstract type ext::ai::MistralSmallModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "mistral-small-latest";
+        alter annotation
+            ext::ai::model_provider := "builtin::mistral";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "32000";
+    };
+
+
+
+    create abstract type ext::ai::CodestralModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "codestral-latest";
+        alter annotation
+            ext::ai::model_provider := "builtin::mistral";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "32000";
+    };
+
+    # embedding model 
     create abstract type ext::ai::MistralEmbedModel
         extending ext::ai::EmbeddingModel
     {
@@ -332,76 +423,8 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             ext::ai::embedding_model_max_output_dimensions := "1024";
     };
 
-    create abstract type ext::ai::MistralSmallModel
-        extending ext::ai::TextGenerationModel
-    {
-        alter annotation
-            ext::ai::model_name := "mistral-small-latest";
-        alter annotation
-            ext::ai::model_provider := "builtin::mistral";
-        alter annotation
-            ext::ai::text_gen_model_context_window := "32000";
-    };
-
-    # going to be deprecated shortly
-    create abstract type ext::ai::MistralMediumModel
-        extending ext::ai::TextGenerationModel
-    {
-        alter annotation
-            ext::ai::model_name := "mistral-medium-latest";
-        alter annotation
-            ext::ai::model_provider := "builtin::mistral";
-        alter annotation
-            ext::ai::text_gen_model_context_window := "8192";
-    };
-
-    create abstract type ext::ai::MistralLargeModel
-        extending ext::ai::TextGenerationModel
-    {
-        alter annotation
-            ext::ai::model_name := "mistral-large-latest";
-        alter annotation
-            ext::ai::model_provider := "builtin::mistral";
-        alter annotation
-            ext::ai::text_gen_model_context_window := "128000";
-    };
-
-    create abstract type ext::ai::Ministral_8B
-        extending ext::ai::TextGenerationModel
-    {
-        alter annotation
-            ext::ai::model_name := "ministral-8b-latest";
-        alter annotation
-            ext::ai::model_provider := "builtin::mistral";
-        alter annotation
-            ext::ai::text_gen_model_context_window := "128000";
-    };
-
-    create abstract type ext::ai::Ministral_3B
-        extending ext::ai::TextGenerationModel
-    {
-        alter annotation
-            ext::ai::model_name := "ministral-3b-latest";
-        alter annotation
-            ext::ai::model_provider := "builtin::mistral";
-        alter annotation
-            ext::ai::text_gen_model_context_window := "128000";
-    };
-
-    create abstract type ext::ai::Codestral
-        extending ext::ai::TextGenerationModel
-    {
-        alter annotation
-            ext::ai::model_name := "codestral-latest";
-        alter annotation
-            ext::ai::model_provider := "builtin::mistral";
-        alter annotation
-            ext::ai::text_gen_model_context_window := "128000";
-    };
-
-
     # Mistral free models
-    create abstract type ext::ai::Pixtral
+    create abstract type ext::ai::PixtralModel
         extending ext::ai::TextGenerationModel
     {
         alter annotation
@@ -411,8 +434,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         alter annotation
             ext::ai::text_gen_model_context_window := "128000";
     };
-
-
+    
     create abstract type ext::ai::MistralNemo
         extending ext::ai::TextGenerationModel
     {
