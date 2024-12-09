@@ -29,17 +29,6 @@ except ImportError:
 
 class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
 
-    def setUp(self):
-        self.stran = self.scon.transaction()
-        self.loop.run_until_complete(self.stran.start())
-        super().setUp()
-
-    def tearDown(self):
-        try:
-            self.loop.run_until_complete(self.stran.rollback())
-        finally:
-            super().tearDown()
-
     SETUP = [
         """
         create type User;
