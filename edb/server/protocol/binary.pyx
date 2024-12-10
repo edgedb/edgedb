@@ -474,12 +474,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             else:
                 return edgeql.NormalizedSource.from_string(text)
         elif lang is LANG_SQL:
-            # FIXME: Temporarily disabled, due to #8099
-            return pgparser.Source.from_string(text)
-            # if debug.flags.edgeql_disable_normalization:
-            #     return pgparser.Source.from_string(text)
-            # else:
-            #     return pgparser.NormalizedSource.from_string(text)
+            if debug.flags.edgeql_disable_normalization:
+                return pgparser.Source.from_string(text)
+            else:
+                return pgparser.NormalizedSource.from_string(text)
         else:
             raise errors.UnsupportedFeatureError(
                 f"unsupported input language: {lang}")
