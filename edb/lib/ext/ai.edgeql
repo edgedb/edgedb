@@ -454,6 +454,18 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         alter annotation
             ext::ai::text_gen_model_context_window := "256000";
     };
+ 
+    #  Mistral legacy model
+    create abstract type ext::ai::MistralMediumModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "mistral-medium-latest";
+        alter annotation
+            ext::ai::model_provider := "builtin::mistral";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "32000";
+    };
 
     # Anthropic models
     # Anthropic most intelligent model
