@@ -459,6 +459,8 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
     create abstract type ext::ai::MistralMediumModel
         extending ext::ai::TextGenerationModel
     {
+        create annotation std::deprecated :=
+        "This model is noted as a legacy model in the Mistral docs.";
         alter annotation
             ext::ai::model_name := "mistral-medium-latest";
         alter annotation
