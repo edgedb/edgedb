@@ -131,6 +131,7 @@ class CompileContext:
     expect_rollback: bool = False
     json_parameters: bool = False
     schema_reflection_mode: bool = False
+    force_testmode: bool = False
     implicit_limit: int = 0
     inline_typeids: bool = False
     inline_typenames: bool = False
@@ -205,6 +206,11 @@ class CompileContext:
                 span=ql.span,
             )
         return mstate
+
+    def is_testmode(self) -> bool:
+        return (
+            self.force_testmode or _get_config_val(self, '__internal_testmode')
+        )
 
 
 DEFAULT_MODULE_ALIASES_MAP: immutables.Map[Optional[str], str] = (
@@ -290,6 +296,7 @@ def new_compiler_context(
     output_format: enums.OutputFormat = enums.OutputFormat.BINARY,
     bootstrap_mode: bool = False,
     internal_schema_mode: bool = False,
+    force_testmode: bool = False,
     protocol_version: defines.ProtocolVersion = defines.CURRENT_PROTOCOL,
     backend_runtime_params: Optional[pg_params.BackendRuntimeParams] = None,
     log_ddl_as_migrations: bool = True,
@@ -315,6 +322,7 @@ def new_compiler_context(
         schema_reflection_mode=schema_reflection_mode,
         bootstrap_mode=bootstrap_mode,
         internal_schema_mode=internal_schema_mode,
+        force_testmode=force_testmode,
         protocol_version=protocol_version,
         backend_runtime_params=(
             backend_runtime_params or pg_params.get_default_runtime_params()
@@ -1485,7 +1493,7 @@ def _get_compile_options(
         allow_user_specified_id=_get_config_val(
             ctx, 'allow_user_specified_id') or ctx.schema_reflection_mode,
         is_explain=is_explain,
-        testmode=_get_config_val(ctx, '__internal_testmode'),
+        testmode=ctx.is_testmode(),
         schema_reflection_mode=(
             ctx.schema_reflection_mode
             or _get_config_val(ctx, '__internal_query_reflschema')
@@ -1606,7 +1614,7 @@ def _compile_ql_administer(
     script_info: Optional[irast.ScriptInfo] = None,
 ) -> dbstate.BaseQuery:
     if ql.expr.func == 'statistics_update':
-        if not _get_config_val(ctx, '__internal_testmode'):
+        if not ctx.is_testmode():
             raise errors.QueryError(
                 'statistics_update() can only be executed in test mode',
                 span=ql.span)
@@ -2611,7 +2619,7 @@ def _try_compile(
     ctx: CompileContext,
     source: edgeql.Source,
 ) -> dbstate.QueryUnitGroup:
-    if _get_config_val(ctx, '__internal_testmode'):
+    if ctx.is_testmode():
         # This is a bad but simple way to emulate a slow compilation for tests.
         # Ideally, we should have a testmode function that is hooked to sleep
         # as `simple_special_case`, or wait for a notification from the test.
@@ -2630,7 +2638,7 @@ def _try_compile_ast(
     statements: list[qlast.Base],
     source: edgeql.Source,
 ) -> dbstate.QueryUnitGroup:
-    if _get_config_val(ctx, '__internal_testmode'):
+    if ctx.is_testmode():
         # This is a bad but simple way to emulate a slow compilation for tests.
         # Ideally, we should have a testmode function that is hooked to sleep
         # as `simple_special_case`, or wait for a notification from the test.
