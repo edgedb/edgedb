@@ -1012,7 +1012,7 @@ async def _generate_openai_embeddings(
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
-    user: Optional[int],
+    user: Optional[str],
     http_client: http.HttpClient,
 ) -> EmbeddingsResult:
 
