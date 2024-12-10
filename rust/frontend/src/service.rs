@@ -23,10 +23,10 @@ pub enum AuthTarget {
 pub enum BranchDB {
     /// Branch only.
     Branch(String),
-    /// DB only (legacy).
+    /// Database name (legacy).
     DB(String),
-    /// Branch and DB (advanced).
-    BranchDB(String, String),
+    /// Postgres database name.
+    PGDB(String),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -58,8 +58,28 @@ impl ConnectionIdentityBuilder {
         self
     }
 
-    pub fn set_branch(&self, branch: BranchDB) -> &Self {
-        *self.db.lock().unwrap() = Some(branch);
+    pub fn set_database(&self, database: String) -> &Self {
+        if !database.is_empty() {
+            // Only set if currently non-empty
+            let mut db = self.db.lock().unwrap();
+            if db.is_none() {
+                *db = Some(BranchDB::DB(database));
+            }
+        }
+        self
+    }
+
+    pub fn set_branch(&self, branch: String) -> &Self {
+        if !branch.is_empty() {
+            *self.db.lock().unwrap() = Some(BranchDB::Branch(branch));
+        }
+        self
+    }
+
+    pub fn set_pg_database(&self, database: String) -> &Self {
+        if !database.is_empty() {
+            *self.db.lock().unwrap() = Some(BranchDB::PGDB(database));
+        }
         self
     }
 
