@@ -531,7 +531,7 @@ class Compiler:
         reflection_cache: immutables.Map[str, Tuple[str, ...]],
         database_config: immutables.Map[str, config.SettingValue],
         system_config: immutables.Map[str, config.SettingValue],
-        query_str: str,
+        source: pg_parser.Source,
         tx_state: dbstate.SQLTransactionState,
         prepared_stmt_map: Mapping[str, str],
         current_database: str,
@@ -558,10 +558,8 @@ class Compiler:
         if setting and setting.value:
             apply_access_policies_pg = sql.is_setting_truthy(setting.value)
 
-        query_source = pg_parser.Source(query_str)
-
         return sql.compile_sql(
-            query_source,
+            source,
             schema=schema,
             tx_state=tx_state,
             prepared_stmt_map=prepared_stmt_map,

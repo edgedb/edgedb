@@ -2552,6 +2552,7 @@ select title, 'aaaaaaaaaaaaaaaaa', ('goo'::text::integer) from "Content";'''
             "SELECT 1 as a", [{"a": 1}]
         )
 
+
 class TestSQLQueryNonTransactional(tb.SQLQueryTestCase):
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'movies.esdl')
