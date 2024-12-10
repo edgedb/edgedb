@@ -405,6 +405,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
             ],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_igroup_returning_04(self):
         await self.assert_query_result(
             r'''
@@ -520,6 +521,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
             ],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_igroup_returning_07(self):
         await self.assert_query_result(
             r'''

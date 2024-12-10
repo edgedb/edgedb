@@ -279,6 +279,7 @@ class TestTriggers(tb.QueryTestCase):
 
     # MULTI!
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_triggers_multi_insert_01(self):
         await self.con.execute('''
             alter type InsertTest {
@@ -297,6 +298,7 @@ class TestTriggers(tb.QueryTestCase):
             {'name': "insert", 'notes': set("abcdef")},
         ])
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_triggers_multi_mixed_01(self):
         # Install triggers for everything
         await self.con.execute('''
@@ -333,6 +335,7 @@ class TestTriggers(tb.QueryTestCase):
             {'name': "update", 'notes': set(f'{x} -> {x}!' for x in "abcdef")},
         ])
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_triggers_multi_mixed_02(self):
         # Install double and triple triggers
         await self.con.execute('''
@@ -1283,6 +1286,7 @@ class TestTriggers(tb.QueryTestCase):
             tb.bag(['a!', 'b', 'b!', 'c', 'c!', 'd', 'd!', 'e', 'e!', 'f']),
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_triggers_when_02(self):
         await self.con.execute('''
             alter type InsertTest {

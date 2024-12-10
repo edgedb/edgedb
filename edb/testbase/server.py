@@ -963,6 +963,17 @@ class ClusterTestCase(BaseHTTPTestCase):
         return tls_context
 
 
+def ignore_warnings(warning_message=None):
+    def w(f):
+        async def wf(self, *args, **kwargs):
+            with self.ignore_warnings(warning_message):
+                return await f(self, *args, **kwargs)
+
+        return wf
+
+    return w
+
+
 class ConnectedTestCase(ClusterTestCase):
 
     BASE_TEST_CLASS = True
@@ -982,6 +993,21 @@ class ConnectedTestCase(ClusterTestCase):
             cls.loop.run_until_complete(cls.teardown_and_disconnect())
         finally:
             super().tearDownClass()
+
+    @contextlib.contextmanager
+    def ignore_warnings(self, warning_message=None):
+        old = self.con._capture_warnings
+        warnings = []
+        self.con._capture_warnings = warnings
+        try:
+            yield
+        finally:
+            self.con._capture_warnings = old
+
+        if warning_message is not None:
+            for warning in warnings:
+                with self.assertRaisesRegex(Exception, warning_message):
+                    raise warning
 
     @classmethod
     async def setup_and_connect(cls):

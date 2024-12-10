@@ -1295,6 +1295,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             }]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_json_cast_object_to_json_03(self):
         # Test that object-to-json cast works in tuples as well.
         await self.assert_query_result(
@@ -1321,6 +1322,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             [True],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_json_cast_object_to_json_04(self):
         # Test that object-to-json cast works in arrays as well.
         await self.assert_query_result(
