@@ -369,7 +369,8 @@ async fn handle_stream_edgedb_binary(
         trace!("UPDATE: {update:?}");
         match update {
             Auth(user, database, branch) => {
-                identity.set_branch(BranchDB::Branch(database));
+                identity.set_branch(branch);
+                identity.set_database(database);
                 identity.set_user(user);
                 auth_ready.store(true, Ordering::SeqCst);
             }
@@ -592,7 +593,7 @@ async fn handle_stream_postgres_initial(
         trace!("UPDATE: {update:?}");
         match update {
             Auth(user, database) => {
-                identity.set_branch(BranchDB::Branch(database));
+                identity.set_pg_database(database);
                 identity.set_user(user);
                 auth_ready.store(true, Ordering::SeqCst);
             }
@@ -1013,7 +1014,7 @@ mod tests {
             target: AuthTarget,
         ) -> impl Future<Output = Result<CredentialData, std::io::Error>> {
             self.log(format!("lookup_auth: {:?}", identity));
-            async { Ok(CredentialData::Deny) }
+            async { Ok(CredentialData::Trust) }
         }
 
         fn accept_stream(
@@ -1120,14 +1121,14 @@ mod tests {
                         value: "name",
                     },
                     StartupNameValue {
-                        name: "username",
+                        name: "user",
                         value: "me",
                     },
                 ],
             }
             .to_vec();
             stm.write_all(&msg).await.unwrap();
-            assert_eq!(stm.read_u8().await.unwrap(), b'S');
+            assert_eq!(stm.read_u8().await.unwrap(), b'R'); // AuthenticationOk
             Ok(())
         });
     }

@@ -14,6 +14,7 @@ pub mod tokio;
 
 pub use conn::Client;
 use dsn::HostType;
+use gel_auth::CredentialData;
 pub use raw_conn::connect_raw_ssl;
 
 macro_rules! __invalid_state {
@@ -85,7 +86,6 @@ pub enum SslError {
 #[derive(Clone, Default, derive_more::Debug)]
 pub struct Credentials {
     pub username: String,
-    #[debug(skip)]
     pub password: String,
     pub database: String,
     pub server_settings: HashMap<String, String>,
