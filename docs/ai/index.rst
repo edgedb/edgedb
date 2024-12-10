@@ -7,9 +7,11 @@ AI
 .. toctree::
     :hidden:
     :maxdepth: 3
-
+     
+    supported_llm_models
     javascript
     python
+    ai_provider_for_vercel_sdk
     reference
 
 :edb-alt-title: Using EdgeDB AI
@@ -53,20 +55,16 @@ The "Providers" tab must be configured for the API you want to use for
 embedding generation and querying. We currently support OpenAI, Mistral AI, and
 Anthropic.
 
-
 Configuring a provider
 ----------------------
 
-To configure a provider, you will first need to obtain an API key for your
-chosen provider, which you may do from their respective sites:
+To configure a provider, you need to provide an API key (``Secret``) for the choosen provider. You can also provide the ``Client ID``. And an ``API URL`` if you want to override the default provider's url.
+
+You can obtain an API key from your chosen provider's website:
 
 * `OpenAI API keys <https://platform.openai.com/account/api-keys>`__
 * `Mistral API keys <https://console.mistral.ai/api-keys/>`__
 * `Anthropic API keys <https://console.anthropic.com/settings/keys>`__
-
-With your API key, you may now configure in the UI by clickin the "Add
-Provider" button, selecting the appropriate API, and pasting your key in the
-"Secret" field.
 
 .. image:: images/ui-ai-add-provider.png
     :alt: The "Add Provider" form of the EdgeDB local development server UI.
@@ -90,9 +88,7 @@ You may alternatively configure a provider via EdgeQL:
       secret := 'sk-....',
     };
 
-This object has other properties as well, including ``client_id`` and
-``api_url``, which can be set as strings to override the defaults for the
-chosen provider.
+You can also update ``client_id`` and ``api_url``.
 
 We have provider config types for each of the three supported APIs:
 
@@ -105,7 +101,6 @@ Usage
 =====
 
 Using EdgeDB AI requires some changes to your schema.
-
 
 Add an index
 ------------
@@ -122,11 +117,10 @@ To start using EdgeDB AI on a type, create an index:
         }
       };
 
-In this example, we have added an AI index on the ``Astronomy`` type's
-``content`` property using the ``text-embedding-3-small`` model. Once you have
-the index in your schema, :ref:`create <ref_cli_edgedb_migration_create>` and
-:ref:`apply <ref_cli_edgedb_migration_apply>` your migration, and you're ready
-to start running queries!
+In this example, we add an AI index to the ``content`` property of the ``Astronomy`` type, using the ``text-embedding-3-small`` model. This will create
+embeddings for all Astronomy contents.
+
+Once you have the index in your schema, :ref:`create <ref_cli_edgedb_migration_create>` and :ref:`apply <ref_cli_edgedb_migration_apply>` your migration, and you're ready to start running queries!
 
 .. note::
 
@@ -150,6 +144,10 @@ can define an AI index on an expression:
             on (.climate ++ ' ' ++ .atmosphere);
         }
       };
+
+.. note:: 
+
+   Currently it is only possible to use immediate non-link and non-multi properties in the index expression.
 
 .. note:: When AI indexes aren't working…
 
@@ -197,9 +195,9 @@ super simple:
 
 .. code-block:: edgeql
 
-    select ext::ai::search(Astronomy, query)
+    select ext::ai::search(Astronomy, query_embeddings)
 
-Simple, but you'll still need to generate embeddings from your query or pass in
+Simple, but you'll still need to generate embeddings for your query or pass in
 existing embeddings. If your ultimate goal is retrieval-augmented generation
 (i.e., RAG), we've got you covered.
 
@@ -223,9 +221,8 @@ a deferred embedding index.
     $ curl --json '{
         "query": "What color is the sky on Mars?",
         "model": "gpt-4-turbo-preview",
-        "context": {"query":"select Astronomy"}
+        "context": {"query":"Astronomy"}
       }' https://<edgedb-host>:<port>/branch/<branch-name>/ai/rag
-    {"response": "The sky on Mars is red."}
 
 Since LLMs are often slow, it may be useful to stream the response. To do this,
 add ``"stream": true`` to your request JSON.
