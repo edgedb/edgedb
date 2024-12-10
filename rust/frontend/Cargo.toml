@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2018"
 
 [features]
-python_extension = ["pyo3/extension-module", "pyo3/serde"]
+python_extension = ["pyo3/serde"]
 
 [dependencies]
 pyo3.workspace = true
@@ -38,5 +38,6 @@ tracing-subscriber = "0"
 [dev-dependencies]
 rstest = "0.22.0"
 test-log = { version = "0", features = ["trace"] }
+pyo3 = { workspace = true }
 
 [lib]

@@ -139,7 +139,7 @@ mod tests {
                 username: "user".to_string(),
                 password: "password".to_string(),
                 database: "database".to_string(),
-                ..Default::default()
+                server_settings: Default::default(),
             },
             ConnectionSslRequirement::Disable,
         );
