@@ -222,7 +222,7 @@ cdef class Source:
         return self._serialized
 
     @classmethod
-    def from_serialized(cls, serialized: bytes) -> NormalizedSource:
+    def from_serialized(cls, serialized: bytes) -> Source:
         cdef ReadBuffer buf
 
         buf = _init_deserializer(serialized, cls._tag(), cls.__name__)
