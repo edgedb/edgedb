@@ -524,6 +524,7 @@ class EmbeddingsParams(rs.Params[EmbeddingsData]):
     inputs: list[tuple[PendingEmbedding, str]]
     token_count: int
     shortening: Optional[int]
+    user: Optional[str]
 
     def costs(self) -> dict[str, int]:
         return {
@@ -547,7 +548,8 @@ class EmbeddingsRequest(rs.Request[EmbeddingsData]):
                 self.params.model_name,
                 [input[1] for input in self.params.inputs],
                 self.params.shortening,
-                self.params.http_client
+                self.params.user,
+                self.params.http_client,
             )
             result.pgconn = self.params.pgconn
             result.pending_entries = [
@@ -983,6 +985,7 @@ async def _generate_embeddings(
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
+    user: Optional[str],
     http_client: http.HttpClient,
 ) -> EmbeddingsResult:
     task_name = _task_name.get()
@@ -995,7 +998,7 @@ async def _generate_embeddings(
 
     if provider.api_style == ApiStyle.OpenAI:
         return await _generate_openai_embeddings(
-            provider, model_name, inputs, shortening, http_client
+            provider, model_name, inputs, shortening, user, http_client
         )
     else:
         raise RuntimeError(
@@ -1009,6 +1012,7 @@ async def _generate_openai_embeddings(
     model_name: str,
     inputs: list[str],
     shortening: Optional[int],
+    user: Optional[int],
     http_client: http.HttpClient,
 ) -> EmbeddingsResult:
 
@@ -1029,6 +1033,9 @@ async def _generate_openai_embeddings(
     }
     if shortening is not None:
         params["dimensions"] = shortening
+
+    if user is not None:
+        params["user"] = user
 
     result = await client.post(
         "/embeddings",
@@ -2225,6 +2232,9 @@ async def _handle_embeddings_request(
             raise TypeError(
                 'missing or empty required "model" value in request')
 
+        shortening = body.get("dimensions")
+        user = body.get("user")
+
     except Exception as ex:
         raise BadRequestError(str(ex)) from None
 
@@ -2246,8 +2256,9 @@ async def _handle_embeddings_request(
         provider,
         model_name,
         inputs,
-        shortening=None,
-        http_client=tenant.get_http_client(originator="ai/embeddings")
+        shortening,
+        user,
+        http_client=tenant.get_http_client(originator="ai/embeddings"),
     )
     if isinstance(result.data, rs.Error):
         raise AIProviderError(result.data.message)
@@ -2507,8 +2518,13 @@ async def _generate_embeddings_for_type(
     else:
         shortening = None
     result = await _generate_embeddings(
-        provider, index["model"], [content], shortening=shortening,
-        http_client=http_client)
+        provider,
+        index["model"],
+        [content],
+        shortening,
+        None,
+        http_client,
+    )
     if isinstance(result.data, rs.Error):
         raise AIProviderError(result.data.message)
     return result.data.embeddings
