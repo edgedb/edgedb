@@ -1981,8 +1981,8 @@ cdef class PGConnection:
                     # remap parameter descriptions
 
                     # The "external" parameters (that are visible to the user)
-                    # are not in the same order as "internal" params and don't
-                    # include the internal params for globals.
+                    # don't include the internal params for globals and
+                    # extracted constants.
                     # This chunk of code remaps the descriptions of internal
                     # params into external ones.
                     self.buffer.read_int16()  # count_internal
