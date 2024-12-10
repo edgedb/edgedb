@@ -536,20 +536,12 @@ class Tenant(ha_base.ClusterProtocol):
             global_schema=global_schema,
             user_schema=s_schema.FlatSchema(),
             internal_schema_mode=True,
+            # Extension installation only works if stdmode or testmode is
+            # set.  Force testmode to be set, since we don't want to set
+            # stdmode, because we want any externally loaded extensions to
+            # be marked as *not* builtin.
+            force_testmode=True,
         )
-
-        # Extension installation only works if stdmode or testmode is
-        # set.  Force testmode to be set, since we don't want to set
-        # stdmode, because we want any externally loaded extensions to
-        # be marked as *not* builtin.
-        compilerctx.state.current_tx().update_session_config(immutables.Map({
-            '__internal_testmode': config.SettingValue(
-                name='__internal_testmode',
-                value=True,
-                source='hack',
-                scope=None,  # type: ignore
-            )
-        }))
 
         script = '\n'.join(scripts)
         _, sql_script = edbcompiler.compile_edgeql_script(compilerctx, script)
