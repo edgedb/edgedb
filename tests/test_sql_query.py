@@ -2543,6 +2543,21 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 select title, 'aaaaaaaaaaaaaaaaa', ('goo'::text::integer) from "Content";'''
             )
 
+    async def test_sql_native_query_21(self):
+        await self.assert_sql_query_result(
+            """
+                SELECT 1
+            """,
+            [{'col~1': 1}],
+        )
+
+        await self.assert_sql_query_result(
+            """
+                SELECT 'test'
+            """,
+            [{'col~1': 'test'}],
+        )
+
 
 class TestSQLQueryNonTransactional(tb.SQLQueryTestCase):
 
