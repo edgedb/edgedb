@@ -154,10 +154,6 @@ def _enum(
         ctx.has_fallback = outer_fallback
 
 
-def _build_any(node: Node, _: Context) -> Any:
-    return node
-
-
 def _build_str(node: Node, _: Context) -> str:
     node = _unwrap_string(node)
     return str(node)

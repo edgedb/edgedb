@@ -240,6 +240,8 @@ cdef class Source:
         if not self._cache_key:
             h = hashlib.blake2b(self._tag().to_bytes())
             h.update(bytes(self.text(), 'UTF-8'))
+            for extra_type_oid in self.extra_type_oids():
+                h.update(extra_type_oid.to_bytes(8, signed=True))
             self._cache_key = h.digest()
         return self._cache_key
 

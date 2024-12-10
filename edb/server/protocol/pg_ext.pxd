@@ -19,6 +19,14 @@
 
 from edb.server.pgproto.pgproto cimport WriteBuffer
 from edb.server.protocol cimport frontend
+from edb.server.pgcon.pgcon cimport PGMessage
+cimport edb.pgsql.parser.parser as pg_parser
+
+
+cdef class PreparedStmt:
+    cdef:
+        PGMessage parse_action
+        pg_parser.Source source
 
 
 cdef class ConnectionView:
