@@ -1540,3 +1540,199 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                 {"avg_cost": 2, "element": "Water"},
             ])
         )
+
+    async def test_edgeql_with_alias_simple_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE cards,
+                    C := Card
+                FOR GROUP C
+                USING e := .element
+                BY e
+                IN g
+                UNION
+                {
+                    key := e,
+                    names := g.name,
+                };
+            """,
+            tb.bag([
+                {'key': 'Water', 'names': ['Bog monster', 'Giant turtle']},
+                {'key': 'Fire', 'names': ['Imp', 'Dragon']},
+                {'key': 'Earth', 'names': ['Dwarf', 'Golem']},
+                {'key': 'Air', 'names': ['Sprite', 'Giant eagle', 'Djinn']},
+            ])
+        )
+
+    async def test_edgeql_with_alias_simple_02(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE cards,
+                    C := Card
+                FOR GROUP (select C)
+                USING e := .element
+                BY e
+                IN g
+                UNION
+                {
+                    key := e,
+                    names := g.name,
+                };
+            """,
+            tb.bag([
+                {'key': 'Water', 'names': ['Bog monster', 'Giant turtle']},
+                {'key': 'Fire', 'names': ['Imp', 'Dragon']},
+                {'key': 'Earth', 'names': ['Dwarf', 'Golem']},
+                {'key': 'Air', 'names': ['Sprite', 'Giant eagle', 'Djinn']},
+            ])
+        )
+
+    async def test_edgeql_with_alias_simple_03(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE cards,
+                    C := (select Card { name_lower := str_lower(.name)})
+                FOR GROUP C
+                USING e := .element
+                BY e
+                IN g
+                UNION
+                {
+                    key := e,
+                    names := g.name_lower,
+                };
+            """,
+            tb.bag([
+                {'key': 'Water', 'names': ['bog monster', 'giant turtle']},
+                {'key': 'Fire', 'names': ['imp', 'dragon']},
+                {'key': 'Earth', 'names': ['dwarf', 'golem']},
+                {'key': 'Air', 'names': ['sprite', 'giant eagle', 'djinn']},
+            ])
+        )
+
+    async def test_edgeql_with_alias_simple_04(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE cards,
+                    C := (select Card { number := 9 })
+                FOR GROUP C { number }
+                USING e := .element
+                BY e
+                IN g
+                UNION
+                {
+                    key := e,
+                    numbers := g.number,
+                };
+            """,
+            tb.bag([
+                {'key': 'Water', 'numbers': {9, 9}},
+                {'key': 'Fire', 'numbers': {9, 9}},
+                {'key': 'Earth', 'numbers': {9, 9}},
+                {'key': 'Air', 'numbers': {9, 9, 9}},
+            ])
+        )
+
+    async def test_edgeql_with_alias_for_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE cards,
+                    U := (for x in {8, 9} select User { a := x }),
+                FOR GROUP U { name, a }
+                USING e := .name
+                BY e
+                IN g
+                UNION 
+                { e_ := e, g_ := g} {
+                    key := .e_,
+                    numbers := .g_.a,
+                };
+            """,
+            tb.bag([
+                {'key': 'Alice', 'numbers': {8, 9}},
+                {'key': 'Bob', 'numbers': {8, 9}},
+                {'key': 'Carol', 'numbers': {8, 9}},
+                {'key': 'Dave', 'numbers': {8, 9}},
+            ])
+        )
+
+    async def test_edgeql_with_alias_for_02(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE cards,
+                    X := {8, 9},
+                    U := (for x in X select User { a := x }),
+                FOR GROUP U
+                USING e := .name
+                BY e
+                IN g
+                UNION
+                { e_ := e, g_ := g} {
+                    key := .e_,
+                    numbers := .g_.a,
+                };
+            """,
+            tb.bag([
+                {'key': 'Alice', 'numbers': {8, 9}},
+                {'key': 'Bob', 'numbers': {8, 9}},
+                {'key': 'Carol', 'numbers': {8, 9}},
+                {'key': 'Dave', 'numbers': {8, 9}},
+            ])
+        )
+
+    async def test_edgeql_with_alias_for_03(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE cards,
+                    X := {8, 9},
+                FOR GROUP (for x in X select User { a := x })
+                USING e := .name
+                BY e
+                IN g
+                UNION
+                { e_ := e, g_ := g} {
+                    key := .e_,
+                    numbers := .g_.a,
+                };
+            """,
+            tb.bag([
+                {'key': 'Alice', 'numbers': {8, 9}},
+                {'key': 'Bob', 'numbers': {8, 9}},
+                {'key': 'Carol', 'numbers': {8, 9}},
+                {'key': 'Dave', 'numbers': {8, 9}},
+            ])
+        )
+
+    async def test_edgeql_with_alias_for_04(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE cards,
+                    U := (
+                        for x in enumerate({8, 9})
+                            select User { a := x.0, b := x.1 }
+                    ),
+                FOR GROUP U
+                USING e := .name
+                BY e
+                IN g
+                UNION 
+                { e_ := e, g_ := g} {
+                    key := .e_,
+                    numbers := (.g_.a, .g_.b),
+                };
+            """,
+            tb.bag([
+                {'key': 'Alice', 'numbers': {(0, 8), (1, 9)}},
+                {'key': 'Bob', 'numbers': {(0, 8), (1, 9)}},
+                {'key': 'Carol', 'numbers': {(0, 8), (1, 9)}},
+                {'key': 'Dave', 'numbers': {(0, 8), (1, 9)}},
+            ])
+        )

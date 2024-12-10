@@ -1089,6 +1089,176 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ])
         )
 
+    async def test_edgeql_group_binding_02(self):
+        await self.assert_query_result(
+            '''
+                group (
+                    with X := {8, 9}
+                    for x in enumerate(X)
+                        select {a := 1, b := x.0, c := x.1}
+                ) by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': ['a'],
+                    'elements': [
+                        {'a': 1, 'b': 0, 'c': 8},
+                        {'a': 1, 'b': 1, 'c': 9},
+                    ]
+                }
+            ])
+        )
+
+    async def test_edgeql_group_binding_03(self):
+        await self.assert_query_result(
+            '''
+                group (
+                    with X := {random(), random()}
+                    for x in enumerate(X)
+                        select {a := 1, b := x.0, c := (x.1 <= 1)}
+                ) by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': ['a'],
+                    'elements': [
+                        {'a': 1, 'b': 0, 'c': True},
+                        {'a': 1, 'b': 1, 'c': True},
+                    ]
+                }
+            ])
+        )
+
+    async def test_edgeql_group_binding_04(self):
+        await self.assert_query_result(
+            '''
+                with X := {8, 9}
+                group (
+                    for x in enumerate(X)
+                        select {a := 1, b := x.0, c := x.1}
+                ) by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': ['a'],
+                    'elements': [
+                        {'a': 1, 'b': 0, 'c': 8},
+                        {'a': 1, 'b': 1, 'c': 9},
+                    ]
+                }
+            ])
+        )
+
+    async def test_edgeql_group_binding_05(self):
+        await self.assert_query_result(
+            '''
+                with X := {random(), random()}
+                group (
+                    for x in enumerate(X)
+                        select {a := 1, b := x.0, c := (x.1 <= 1)}
+                ) by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': ['a'],
+                    'elements': [
+                        {'a': 1, 'b': 0, 'c': True},
+                        {'a': 1, 'b': 1, 'c': True},
+                    ]
+                }
+            ])
+        )
+
+    async def test_edgeql_group_binding_06(self):
+        await self.assert_query_result(
+            '''
+                with X := {8, 9},
+                Y := (
+                    for x in enumerate(X)
+                        select {a := 1, b := x.0, c := x.1}
+                )
+                group Y { a, b, c } by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': ['a'],
+                    'elements': [
+                        {'a': 1, 'b': 0, 'c': 8},
+                        {'a': 1, 'b': 1, 'c': 9},
+                    ]
+                }
+            ])
+        )
+
+    async def test_edgeql_group_binding_07(self):
+        await self.assert_query_result(
+            '''
+                with X := {random(), random()},
+                Y := (
+                    for x in enumerate(X)
+                        select {a := 1, b := x.0, c := (x.1 <= 1)}
+                )
+                group Y { a, b, c } by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': ['a'],
+                    'elements': [
+                        {'a': 1, 'b': 0, 'c': True},
+                        {'a': 1, 'b': 1, 'c': True},
+                    ]
+                }
+            ])
+        )
+
+    async def test_edgeql_group_binding_08(self):
+        await self.assert_query_result(
+            '''
+                with Y := (
+                    for x in enumerate({8, 9})
+                        select {a := 1, b := x.0, c := x.1}
+                )
+                group Y { a, b, c } by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': ['a'],
+                    'elements': [
+                        {'a': 1, 'b': 0},
+                        {'a': 1, 'b': 1},
+                    ]
+                }
+            ])
+        )
+
+    async def test_edgeql_group_binding_09(self):
+        await self.assert_query_result(
+            '''
+                with Y := (
+                    for x in enumerate({random(), random()})
+                        select {a := 1, b := x.0, c := (x.1 <= 1)}
+                )
+                group Y { a, b, c } by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': ['a'],
+                    'elements': [
+                        {'a': 1, 'b': 0},
+                        {'a': 1, 'b': 1},
+                    ]
+                }
+            ])
+        )
+
     async def test_edgeql_group_ordering_01(self):
         res = [
             {
