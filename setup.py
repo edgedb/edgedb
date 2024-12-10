@@ -200,7 +200,8 @@ def _get_env_with_openssl_flags():
 def _compile_postgres(build_base, build_temp, *,
                       force_build=False, fresh_build=True,
                       run_configure=True, build_contrib=True,
-                      produce_compile_commands_json=False):
+                      produce_compile_commands_json=False,
+                      run_tests=False):
 
     proc = subprocess.run(
         ['git', 'submodule', 'status', 'postgres'],
@@ -269,17 +270,24 @@ def _compile_postgres(build_base, build_temp, *,
         else:
             make = ['make']
 
+        make_args = ['MAKELEVEL=0', '-j', str(max(os.cpu_count() - 1, 1))]
+
         subprocess.run(
-            make + ['MAKELEVEL=0', '-j', str(max(os.cpu_count() - 1, 1))],
+            make + make_args,
             cwd=str(build_dir), check=True)
 
         if build_contrib or fresh_build or is_outdated:
             subprocess.run(
-                make + [
-                    '-C', 'contrib', 'MAKELEVEL=0', '-j',
-                    str(max(os.cpu_count() - 1, 1))
-                ],
+                make + ['-C', 'contrib'] + make_args,
                 cwd=str(build_dir), check=True)
+
+        if run_tests:
+            subprocess.run(
+                make + ["check-world"],
+                cwd=str(build_dir),
+                check=True,
+                env=os.environ | {"MAKELEVEL": "0"},
+            )
 
         subprocess.run(
             ['make', 'MAKELEVEL=0', 'install'],
@@ -746,6 +754,7 @@ class build_postgres(setuptools.Command):
         ('build-contrib', None, 'build contrib'),
         ('fresh-build', None, 'rebuild from scratch'),
         ('compile-commands', None, 'produce compile-commands.json using bear'),
+        ('run-tests', None, 'run Postgres test suite after building'),
     ]
 
     editable_mode: bool
@@ -756,6 +765,7 @@ class build_postgres(setuptools.Command):
         self.build_contrib = False
         self.fresh_build = False
         self.compile_commands = False
+        self.run_tests = False
 
     def finalize_options(self):
         pass
@@ -772,6 +782,7 @@ class build_postgres(setuptools.Command):
             run_configure=self.configure,
             build_contrib=self.build_contrib,
             produce_compile_commands_json=self.compile_commands,
+            run_tests=self.run_tests,
         )
 
 

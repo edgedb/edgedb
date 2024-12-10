@@ -153,6 +153,7 @@ async def describe(
     *,
     query_cache_enabled: Optional[bool] = None,
     allow_capabilities: compiler.Capability = compiler.Capability.MODIFICATIONS,
+    query_tag: str | None = None,
 ) -> sertypes.TypeDesc:
     compiled, dbv = await _parse(
         db,
@@ -160,6 +161,8 @@ async def describe(
         query_cache_enabled=query_cache_enabled,
         allow_capabilities=allow_capabilities,
     )
+    if query_tag:
+        compiled.tag = query_tag
 
     try:
         desc = sertypes.parse(
@@ -728,6 +731,7 @@ async def parse_execute_json(
     cached_globally: bool = False,
     use_metrics: bool = True,
     tx_isolation: edbdef.TxIsolationLevel | None = None,
+    query_tag: str | None = None
 ) -> bytes:
     # WARNING: only set cached_globally to True when the query is
     # strictly referring to only shared stable objects in user schema
@@ -744,6 +748,8 @@ async def parse_execute_json(
         cached_globally=cached_globally,
         query_cache_enabled=query_cache_enabled,
     )
+    if query_tag:
+        compiled.tag = query_tag
 
     tenant = db.tenant
     async with tenant.with_pgcon(db.name) as pgcon:
