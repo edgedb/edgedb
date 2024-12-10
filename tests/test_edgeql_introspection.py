@@ -170,6 +170,8 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         )
 
+    # XXX: This warning is wrong
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_introspection_objtype_05(self):
         await self.assert_query_result(
             r"""
@@ -262,7 +264,7 @@ class TestIntrospection(tb.QueryTestCase):
                 FILTER
                     ObjectType.name LIKE 'default::%'
                     AND
-                    ObjectType.links.cardinality = <Cardinality>'Many'
+                    <Cardinality>'Many' IN ObjectType.links.cardinality
                 ORDER BY ObjectType.name;
             """,
             [
@@ -290,7 +292,7 @@ class TestIntrospection(tb.QueryTestCase):
                 FILTER
                     `ObjectType`.name LIKE 'default::%'
                     AND
-                    ObjectType.links.cardinality = <Cardinality>'Many'
+                    <Cardinality>'Many' IN ObjectType.links.cardinality
                 ORDER BY `ObjectType`.name;
             """,
             [
@@ -854,6 +856,7 @@ class TestIntrospection(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_introspection_volatility_02(self):
         await self.assert_query_result(
             r"""

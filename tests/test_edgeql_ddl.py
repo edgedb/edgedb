@@ -749,7 +749,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             r"""
                 SELECT schema::Link {
                     pnames := .properties.name
-                } FILTER .name = {"connected", '__type__'}
+                } FILTER .name IN {"connected", '__type__'}
                   AND .source.name = 'default::Alias2'
             """,
             [
@@ -6149,8 +6149,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 }
                 FILTER
                     .name = 'default::+++'
-                    AND .annotations.name = 'std::description'
-                    AND .annotations@value = 'my plus';
+                    AND any(
+                        .annotations.name = 'std::description'
+                        AND .annotations@value = 'my plus'
+                    );
             ''',
             [{
                 'name': 'default::+++',
@@ -12022,9 +12024,10 @@ type default::Foo {
             r"""
                 WITH MODULE schema
                 SELECT Constraint {name}
-                FILTER
+                FILTER any(
                     .annotations.name = 'std::description'
-                    AND .annotations@value = 'test_delta_drop_01_constraint';
+                    AND .annotations@value = 'test_delta_drop_01_constraint'
+                )
             """,
             [
                 {
@@ -12041,9 +12044,10 @@ type default::Foo {
             r"""
                 WITH MODULE schema
                 SELECT Constraint {name}
-                FILTER
+                FILTER any(
                     .annotations.name = 'std::description'
-                    AND .annotations@value = 'test_delta_drop_01_constraint';
+                    AND .annotations@value = 'test_delta_drop_01_constraint'
+                )
             """,
             []
         )
@@ -12063,9 +12067,10 @@ type default::Foo {
             r"""
                 WITH MODULE schema
                 SELECT Property {name}
-                FILTER
+                FILTER any(
                     .annotations.name = 'std::description'
-                    AND .annotations@value = 'test_delta_drop_02_link';
+                    AND .annotations@value = 'test_delta_drop_02_link'
+                )
             """,
             [
                 {
@@ -12082,9 +12087,10 @@ type default::Foo {
             r"""
                 WITH MODULE schema
                 SELECT Property {name}
-                FILTER
+                FILTER any(
                     .annotations.name = 'std::description'
-                    AND .annotations@value = 'test_delta_drop_02_link';
+                    AND .annotations@value = 'test_delta_drop_02_link'
+                )
             """,
             []
         )

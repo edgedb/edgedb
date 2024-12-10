@@ -1222,6 +1222,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             [9],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_scope_filter_01(self):
         await self.assert_query_result(
             r'''
@@ -1338,6 +1339,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_scope_filter_04(self):
         await self.assert_query_result(
             r'''
@@ -1361,6 +1363,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_scope_filter_05(self):
         await self.assert_query_result(
             r'''
@@ -1372,6 +1375,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             {'Alice', 'Bob', 'Carol', 'Dave'}
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_scope_filter_06(self):
         await self.assert_query_result(
             r'''
@@ -1383,6 +1387,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             {'Alice', 'Bob', 'Carol', 'Dave'}
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_scope_filter_07(self):
         await self.assert_query_result(
             r'''
@@ -1394,6 +1399,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             {'Alice', 'Bob', 'Carol', 'Dave'}
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_scope_filter_08(self):
         await self.assert_query_result(
             r'''
@@ -1450,6 +1456,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
     # NOTE: LIMIT tests are largely identical to OFFSET tests, any
     # time there is a new OFFSET test, there should be a corresponding
     # LIMIT one.
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_scope_offset_01(self):
         await self.assert_query_result(
             r'''
@@ -1539,6 +1546,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_scope_limit_01(self):
         await self.assert_query_result(
             r'''
@@ -1978,6 +1986,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 ).friends@nickname = 'Firefighter';
                 """)
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_scope_detached_05(self):
         await self.assert_query_result(
             r"""
@@ -2048,6 +2057,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_scope_detached_06(self):
         # this is very similar to test_edgeql_scope_filter_01
         await self.assert_query_result(
@@ -2351,6 +2361,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             sort=True
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_scope_union_02(self):
         await self.assert_query_result(
             r'''
@@ -2412,6 +2423,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_scope_computables_02(self):
         # Test that expressions in link computables
         # of the type variant do not leak out into the query.
@@ -3890,6 +3902,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ])
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_shape_intersection_semijoin_01(self):
         await self.assert_query_result(
             r'''
@@ -3936,6 +3949,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_scope_schema_computed_01(self):
         await self.con.execute('''
             alter type User

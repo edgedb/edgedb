@@ -1204,7 +1204,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             with module cards
             insert User {
                 name := 'Sully',
-                deck := (select Card filter .element = {'Water', 'Air'})
+                deck := (select Card filter .element IN {'Water', 'Air'})
             };
         ''')
 

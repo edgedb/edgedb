@@ -2912,7 +2912,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 property name -> str;
                 multi link tweets := (
                     WITH U := User
-                    SELECT Tweet FILTER .author = U
+                    SELECT Tweet FILTER .author IN U
                 );
             }
             type Tweet {
@@ -2948,7 +2948,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 property name -> str;
                 multi link tweets := (
                     WITH U := DETACHED User
-                    SELECT Tweet FILTER .author = U
+                    SELECT Tweet FILTER .author IN U
                 );
             }
             type Tweet {
@@ -3059,6 +3059,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_migration_computed_04(self):
         await self.migrate(r'''
             type User {

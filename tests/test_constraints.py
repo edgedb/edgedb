@@ -687,7 +687,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
         ):
             await self.con.execute("""
                 update UniqueName
-                filter .translated_labels_tgt.text = 'x'
+                filter 'x' in .translated_labels_tgt.text
                 set { translated_labels_tgt :=
                     .translated_labels_tgt { @lang := '!' }
                 }
@@ -695,7 +695,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
         await self.con.execute("""
             update UniqueName
-            filter .translated_labels_tgt.text = 'x'
+            filter 'x' in .translated_labels_tgt.text
             set { translated_labels_tgt :=
                 .translated_labels_tgt { @lang := @lang }
             }

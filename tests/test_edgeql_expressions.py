@@ -8832,6 +8832,7 @@ aa \
             [5],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_expr_alias_01(self):
         await self.assert_query_result(
             r"""
@@ -8844,6 +8845,7 @@ aa \
             [2],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_expr_alias_02(self):
         await self.assert_query_result(
             r"""
@@ -9566,9 +9568,9 @@ aa \
         await self.assert_query_result(
             """
                 SELECT assert_distinct((
-                    (SELECT Issue FILTER .references[IS File].name = "File 1")
+                    (SELECT Issue FILTER "File 1" IN .references[IS File].name)
                     UNION
-                    (SELECT Issue FILTER .references[IS File].name = "File 2")
+                    (SELECT Issue FILTER "File 2" IN .references[IS File].name)
                 )) {
                     number
                 }

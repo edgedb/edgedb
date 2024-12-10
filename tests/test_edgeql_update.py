@@ -550,6 +550,7 @@ class TestUpdate(tb.QueryTestCase):
                 UPDATE schema::Migration SET { script := 'foo'};
             ''')
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_update_filter_01(self):
         await self.assert_query_result(
             r"""
@@ -571,6 +572,7 @@ class TestUpdate(tb.QueryTestCase):
             ['bad test'] * 3,
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_update_filter_02(self):
         await self.assert_query_result(
             r"""
@@ -875,6 +877,7 @@ class TestUpdate(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_update_multiple_08(self):
         await self.con.execute("""
             INSERT UpdateTest {
@@ -3476,7 +3479,7 @@ class TestUpdate(tb.QueryTestCase):
             UPDATE UpdateTestSubType
             FILTER .name = "update-covariant"
             SET {
-                statuses := (SELECT Status FILTER .name = {
+                statuses := (SELECT Status FILTER .name IN {
                                  "Broke a Type System",
                                  "Downloaded a Car",
                              })
@@ -3492,7 +3495,7 @@ class TestUpdate(tb.QueryTestCase):
                 UPDATE UpdateTestSubType
                 FILTER .name = "update-covariant"
                 SET {
-                    statuses := (SELECT Status FILTER .name = {
+                    statuses := (SELECT Status FILTER .name IN {
                                      "Broke a Type System",
                                      "Downloaded a Car",
                                      "Open",

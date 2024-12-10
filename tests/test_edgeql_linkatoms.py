@@ -228,7 +228,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT Item {name}
-                FILTER 'plastic' = .tag_set1
+                FILTER 'plastic' IN .tag_set1
                 ORDER BY .name;
             ''',
             [
@@ -240,7 +240,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT Item {name}
-                FILTER 'plastic' = .tag_set2
+                FILTER 'plastic' IN .tag_set2
                 ORDER BY .name;
             ''',
             [
@@ -304,6 +304,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_links_set_04(self):
         await self.assert_query_result(
             r'''
@@ -329,6 +330,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_links_set_05(self):
         await self.assert_query_result(
             r'''
@@ -356,6 +358,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_links_set_06(self):
         await self.assert_query_result(
             r'''
@@ -645,6 +648,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             ],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_links_set_15(self):
         await self.assert_query_result(
             r'''
@@ -754,6 +758,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             ],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_links_array_04(self):
         await self.assert_query_result(
             r'''
@@ -904,6 +909,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             ],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_links_array_11(self):
         await self.assert_query_result(
             r'''

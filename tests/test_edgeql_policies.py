@@ -920,10 +920,10 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             alter type Issue {
                 create access policy foo_1 deny all using (
                     not exists (select .watchers { foo := .todo }
-                                filter .foo.name = "x"));
+                                filter "x" in .foo.name));
                 create access policy foo_2 deny all using (
                     not exists (select .watchers { todo }
-                                filter .todo.name = "x"));
+                                filter "x" in .todo.name));
              };
         ''')
 

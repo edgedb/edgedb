@@ -1219,6 +1219,19 @@ def _infer_stmt_cardinality(
         ir.where_card = infer_cardinality(
             ir.where, scope_tree=scope_tree, ctx=ctx,
         )
+
+        if (
+            ir.where_card.is_multi()
+            # Don't generate warnings against internally generated code
+            and ir.where.span
+        ):
+            ctx.env.warnings.append(errors.QueryError(
+                'possibly more than one element returned by an expression '
+                'in a FILTER clause',
+                hint='If this is intended, try using any()',
+                span=ir.where.span,
+            ))
+
         # Cross with AT_MOST_ONE to ensure result can be empty
         result_card = cartesian_cardinality([result_card, AT_MOST_ONE])
 

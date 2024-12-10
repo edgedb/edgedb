@@ -269,7 +269,7 @@ class TestDelete(tb.QueryTestCase):
                 SELECT DeleteTest2 {
                     name,
                     foo := 'bar'
-                } FILTER DeleteTest2.name LIKE D.name[:2] ++ '%';
+                } FILTER any(DeleteTest2.name LIKE D.name[:2] ++ '%');
             """,
             [{
                 'name': 'dt2.1',

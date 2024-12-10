@@ -103,22 +103,22 @@ alias EarthOrFireCard {
 
 alias AliceCard := (
     SELECT Card
-    FILTER Card.<deck[IS User].name = 'Alice'
+    FILTER 'Alice' IN Card.<deck[IS User].name
 );
 
 alias BobCard := (
     SELECT Card
-    FILTER Card.<deck[IS User].name = 'Bob'
+    FILTER 'Bob' IN Card.<deck[IS User].name
 );
 
 alias CarolCard := (
     SELECT Card
-    FILTER Card.<deck[IS User].name = 'Carol'
+    FILTER 'Carol' IN Card.<deck[IS User].name
 );
 
 alias DaveCard := (
     SELECT Card
-    FILTER Card.<deck[IS User].name = 'Dave'
+    FILTER 'Dave' IN Card.<deck[IS User].name
 );
 
 alias AliasedFriends := (
