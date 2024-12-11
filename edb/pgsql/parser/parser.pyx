@@ -222,7 +222,7 @@ cdef class Source:
         return self._serialized
 
     @classmethod
-    def from_serialized(cls, serialized: bytes) -> NormalizedSource:
+    def from_serialized(cls, serialized: bytes) -> Source:
         cdef ReadBuffer buf
 
         buf = _init_deserializer(serialized, cls._tag(), cls.__name__)
@@ -236,11 +236,14 @@ cdef class Source:
     def original_text(self) -> str:
         return self._text
 
+    def _compute_cache_key(self) -> bytes:
+        h = hashlib.blake2b(self._tag().to_bytes())
+        h.update(bytes(self.text(), 'UTF-8'))
+        return h.digest()
+
     def cache_key(self) -> bytes:
         if not self._cache_key:
-            h = hashlib.blake2b(self._tag().to_bytes())
-            h.update(bytes(self.text(), 'UTF-8'))
-            self._cache_key = h.digest()
+            self._cache_key = self._compute_cache_key()
         return self._cache_key
 
     def variables(self) -> dict[str, Any]:
@@ -345,6 +348,13 @@ cdef class NormalizedSource(Source):
                 raise AssertionError(f"unexpected literal token type: {token}")
 
         return oids
+
+    def _compute_cache_key(self) -> bytes:
+        h = hashlib.blake2b(super()._compute_cache_key())
+        # Include the types of the extracted constants
+        for oid in self.extra_type_oids():
+            h.update(oid.to_bytes(length=2))
+        return h.digest()
 
     @classmethod
     def from_string(cls, text: str) -> NormalizedSource:
