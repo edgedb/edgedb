@@ -759,6 +759,7 @@ async def _generate_embeddings_params(
                         inputs=inputs,
                         token_count=batch_token_count,
                         shortening=shortening,
+                        user=None,
                         http_client=http_client,
                     ))
 
@@ -776,6 +777,7 @@ async def _generate_embeddings_params(
                     inputs=inputs,
                     token_count=total_token_count,
                     shortening=shortening,
+                    user=None,
                     http_client=http_client,
                 ))
 
