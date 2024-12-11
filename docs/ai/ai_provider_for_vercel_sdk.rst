@@ -151,7 +151,7 @@ You can use EdgeDB Ai to generate text with the ``generateText`` function:
     prompt: "What color is the sky on Mars?",
   });
 
-EdgeDB AI can also be used with Vercel SDK's ``streamText`` function.
+EdgeDB AI can also be used with Vercel SDK's ``streamText``, ``generateObject``, ``streamObject`` and ``streamUI`` functions.
 
 Embedding models
 ================
