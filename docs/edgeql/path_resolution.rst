@@ -1,8 +1,191 @@
 .. _ref_eql_path_resolution:
 
-===============
-Path resolution
-===============
+============
+Path scoping
+============
+
+Beginning with EdgeDB 6.0, we are phasing out our historical (and
+somewhat notorious)
+:ref:`"path scoping" algorithm <ref_eql_old_path_resolution>`
+in favor of a much simpler algorithm that nevertheless behaves
+identically on *most* idiomatic EdgeQL queries.
+
+EdgeDB 6.0 will contain features to support migration to and testing
+of the new semantics.  We expect the migration to be relatively
+painless for most users.
+
+Discussion of rationale for this change is available in
+`the RFC <rfc_>`_.
+
+
+New path scoping
+----------------
+
+.. versionadded:: 6.0
+
+When applying a shape to a path (or to a path that has shapes applied
+to it already), the path will be be bound inside computed
+pointers in that shape:
+
+.. code-block:: edgeql-repl
+
+    db> select User {
+    ...   name := User.first_name ++ ' ' ++ User.last_name
+    ... }
+    {User {name: 'Peter Parker'}, User {name: 'Tony Stark'}}
+
+
+When doing ``SELECT``, ``UPDATE``, or ``DELETE``, if the subject is a
+path, optionally with shapes applied to it, the path will be
+bound in ``FILTER`` and ``ORDER BY`` clauses:
+
+.. code-block:: edgeql-repl
+
+    db> select User {
+    ...   name := User.first_name ++ ' ' ++ User.last_name
+    ... }
+    ... filter User.first_name = 'Peter'
+    {User {name: 'Peter Parker'}}
+
+
+However, when a path is used multiple times in "sibling" contexts,
+a cross-product will be computed:
+
+.. code-block:: edgeql-repl
+
+    db> select User.first_name ++ ' ' ++ User.last_name;
+    {'Peter Parker', 'Peter Stark', 'Tony Parker', 'Tony Stark'}
+
+
+If you want to produce one value per ``User``, you can rewrite the query
+with a ``FOR`` to make the intention explicit:
+
+.. code-block:: edgeql-repl
+
+    db> for u in User
+    ... select u.first_name ++ ' ' ++ u.last_name;
+    {'Peter Parker', 'Tony Stark'}
+
+The most idiomatic way to fetch such data in EdgeQL, however,
+remains:
+
+.. code-block:: edgeql-repl
+
+    db> select User { name := .first_name ++ ' ' ++ .last_name }
+    {User {name: 'Peter Parker'}, User {name: 'Tony Stark'}}
+
+(And, of course, you probably `shouldn't have first_name and last_name
+properties anyway
+<https://www.kalzumeus.com/2010/06/17/falsehoods-programmers-believe-about-names/>`_)
+
+
+Path scoping configuration
+--------------------------
+
+.. versionadded:: 6.0
+
+EdgeDB 6.0 introduces a new
+:ref:`future feature <ref_datamodel_future>`
+named ``simple_scoping`` alongside a
+configuration setting also named ``simple_scoping``.  The future
+feature presence will determine which behavior is used inside
+expressions within the schema, as well as serve as the default value
+if the configuration value is not set. The configuration setting will
+allow overriding the presence or absence of the feature.
+
+For concreteness, here are all of the posible combinations of whether
+``using future simple_scoping`` is set and the value of the
+configuration value ``simple_scoping``:
+
+.. list-table::
+   :widths: 25 25 25 25
+   :header-rows: 1
+
+   * - Future exists?
+     - Config value
+     - Query is simply scoped
+     - Schema is simply scoped
+   * - No
+     - ``{}``
+     - No
+     - No
+   * - No
+     - ``true``
+     - Yes
+     - No
+   * - No
+     - ``false``
+     - No
+     - No
+   * - Yes
+     - ``{}``
+     - Yes
+     - Yes
+   * - Yes
+     - ``true``
+     - Yes
+     - Yes
+   * - Yes
+     - ``false``
+     - No
+     - Yes
+
+Warning on old scoping
+----------------------
+
+.. versionadded:: 6.0
+
+To make the migration process safer, we have also introduced a
+``warn_old_scoping`` :ref:`future feature <ref_datamodel_future>` and
+config setting.
+
+When active, the server will emit a warning to the client when a query
+is detected to depend on the old scoping behavior.  The behavior of
+warnings can be configured in client bindings, but by default they are
+logged.
+
+The check is known to sometimes produce false positives, on queries
+that will not actually have changed behavior, but is intended to not
+have false negatives.
+
+Recommended upgrade plan
+------------------------
+
+.. versionadded:: 6.0
+
+The safest approach is to first get your entire schema and application
+working with ``warn_old_scoping`` without producing any warnings. Once
+that is done, it should be safe to switch to ``simple_scoping``
+without changes in behavior.
+
+If you are very confident in your test coverage, though, you can try
+skipping dealing with ``warn_old_scoping`` and go straight to
+``simple_scoping``.
+
+There are many different potential migration strategies. One that
+should work well:
+
+1. Run ``CONFIGURE CURRENT DATABASE SET warn_old_scoping := true``
+2. Try running all of your queries against the database.
+3. Fix any that produce warnings.
+4. Adjust your schema until setting ``using future warn_old_scoping`` works
+   without producing warnings.
+
+If you wish to proceed incrementally with steps 2 and 3, you can
+configure ``warn_old_scoping`` in your clients, having it enabled for
+queries that you have verified work with it and disabled for queries
+that have not yet been verified or updated.
+
+
+.. _ref_eql_old_path_resolution:
+
+===================
+Legacy path scoping
+===================
+
+This section describes the path scoping algorithm used exclusively
+until EdgeDB 5.0 and by default in EdgeDB 6.0.
+It will be removed in EdgeDB 7.0.
 
 Element-wise operations with multiple arguments in EdgeDB are generally applied
 to the :ref:`cartesian product <ref_reference_cardinality_cartesian>` of all
@@ -13,18 +196,7 @@ the input sets.
     db> select {'aaa', 'bbb'} ++ {'ccc', 'ddd'};
     {'aaaccc', 'aaaddd', 'bbbccc', 'bbbddd'}
 
-In some cases, this works out fine, but in others it doesn't make sense. Take
-this example:
-
-.. code-block:: edgeql
-
-    select User.first_name ++ ' ' ++ User.last_name;
-
-Should the result of this query be every ``first_name`` in your ``User``
-objects concatenated with every ``last_name``? That's probably not what you
-want.
-
-This is why, in cases where multiple element-wise arguments share a common path
+However, in cases where multiple element-wise arguments share a common path
 (``User.`` in this example), EdgeDB factors out the common path rather than
 using cartesian multiplication.
 
@@ -189,3 +361,5 @@ The :ref:`offset <ref_eql_select_pagination>` and
 :ref:`limit <ref_eql_select_pagination>` clauses are not nested in the scope
 because they need to be applied globally to the entire result set of your
 query.
+
+.. _rfc: https://github.com/edgedb/rfcs/blob/master/text/1027-no-factoring.rst
