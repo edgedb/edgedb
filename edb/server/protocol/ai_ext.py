@@ -781,6 +781,7 @@ async def _generate_embeddings_params(
 
     return embeddings_params
 
+
 @dataclass(frozen=True, kw_only=True)
 class PendingEmbedding:
     id: uuid.UUID
