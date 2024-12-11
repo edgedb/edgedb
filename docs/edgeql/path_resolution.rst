@@ -21,6 +21,8 @@ Discussion of rationale for this change is available in
 New path scoping
 ----------------
 
+.. versionadded:: 6.0
+
 When applying a shape to a path (or to a path that has shapes applied
 to it already), the path will be be bound inside computed
 pointers in that shape:
@@ -80,6 +82,8 @@ properties anyway
 Path scoping configuration
 --------------------------
 
+.. versionadded:: 6.0
+
 EdgeDB 6.0 introduces a new
 :ref:`future feature <ref_datamodel_future>`
 named ``simple_scoping`` alongside a
@@ -129,6 +133,8 @@ configuration value ``simple_scoping``:
 Warning on old scoping
 ----------------------
 
+.. versionadded:: 6.0
+
 To make the migration process safer, we have also introduced a
 ``warn_old_scoping`` :ref:`future feature <ref_datamodel_future>` and
 config setting.
@@ -144,6 +150,8 @@ have false negatives.
 
 Recommended upgrade plan
 ------------------------
+
+.. versionadded:: 6.0
 
 The safest approach is to first get your entire schema and application
 working with ``warn_old_scoping`` without producing any warnings. Once
@@ -171,9 +179,9 @@ that have not yet been verified or updated.
 
 .. _ref_eql_old_path_resolution:
 
-================
-Old path scoping
-================
+===================
+Legacy path scoping
+===================
 
 This section describes the path scoping algorithm used exclusively
 until EdgeDB 5.0 and by default in EdgeDB 6.0.
