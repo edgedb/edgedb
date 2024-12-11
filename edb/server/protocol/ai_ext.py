@@ -781,7 +781,6 @@ async def _generate_embeddings_params(
 
     return embeddings_params
 
-
 @dataclass(frozen=True, kw_only=True)
 class PendingEmbedding:
     id: uuid.UUID
@@ -2232,7 +2231,7 @@ async def _handle_embeddings_request(
             )
 
         if input is not None:
-            print("Warning: 'input' is deprecated. Use 'inputs' instead.")
+            logger.warning("'input' is deprecated, use 'inputs' instead")
             inputs = input
 
         if not inputs:
