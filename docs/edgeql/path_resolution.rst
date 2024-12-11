@@ -34,7 +34,7 @@ pointers in that shape:
 
 
 When doing ``SELECT``, ``UPDATE``, or ``DELETE``, if the subject is a
-path with zero or more shapes applied to it, the path will be
+path, optionally with shapes applied to it, the path will be
 bound in ``FILTER`` and ``ORDER BY`` clauses:
 
 .. code-block:: edgeql-repl
@@ -55,7 +55,7 @@ a cross-product will be computed:
     {'Peter Parker', 'Peter Stark', 'Tony Parker', 'Tony Stark'}
 
 
-If the old behavior is desired, you can typically rewrite the query
+If you want to produce one value per ``User``, you can rewrite the query
 with a ``FOR`` to make the intention explicit:
 
 .. code-block:: edgeql-repl
