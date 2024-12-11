@@ -1880,7 +1880,8 @@ def _build_cache_function(
                 returns_record = True
             else:
                 return_type = pg_types.pg_type_from_ir_typeref(
-                    ir.expr.typeref.base_type or ir.expr.typeref
+                    ir.expr.typeref.base_type or ir.expr.typeref,
+                    serialized=True,
                 )
                 if ir.stype.is_tuple(ir.schema):
                     returns_record = return_type == ('record',)
