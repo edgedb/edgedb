@@ -63,7 +63,6 @@ import time
 import unittest
 import urllib
 
-import asyncpg.transaction
 import edgedb
 
 from edb.edgeql import quote as qlquote
