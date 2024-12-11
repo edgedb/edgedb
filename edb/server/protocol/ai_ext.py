@@ -2222,10 +2222,26 @@ async def _handle_embeddings_request(
             raise TypeError(
                 'the body of the request must be a JSON object')
 
-        inputs = body.get("input")
-        if not inputs:
+        inputs = body.get("inputs")
+        input_value = body.get("input")
+
+        if inputs is not None and input_value is not None:
             raise TypeError(
-                'missing or empty required "input" value in request')
+                "You can not provide both 'inputs' and 'input'. Please provide 'inputs', 'input' has been deprecated. "
+            )
+
+        if inputs is not None:
+            return inputs
+        elif input_value is not None:
+            print("Warning: 'input' is deprecated. Use 'inputs' instead.")
+            return input_value
+        else:
+            raise TypeError("Neither 'inputs' nor 'input' is provided.")
+
+        # inputs = body.get("input")
+        # if not inputs:
+        #     raise TypeError(
+        #         'missing or empty required "input" value in request')
 
         model_name = body.get("model")
         if not model_name:
