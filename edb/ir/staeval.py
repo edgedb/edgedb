@@ -512,7 +512,8 @@ def python_cast_str(sval: str, pytype: type) -> Any:
             return False
         else:
             raise errors.InvalidValueError(
-                f"invalid input syntax for type bool: {sval!r}"
+                f"invalid input syntax for type bool: {sval!r}",
+                hint="bool value can only be one of: true, false"
             )
     else:
         return pytype(sval)

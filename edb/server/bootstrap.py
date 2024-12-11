@@ -2436,7 +2436,7 @@ async def _pg_ensure_database_not_connected(
             f'database {dbname!r} is being accessed by other users')
 
 
-async def _start(ctx: BootstrapContext) -> edbcompiler.CompilerState:
+async def _start(ctx: BootstrapContext) -> edbcompiler.Compiler:
     conn = await _check_catalog_compatibility(ctx)
 
     try:
@@ -2445,7 +2445,7 @@ async def _start(ctx: BootstrapContext) -> edbcompiler.CompilerState:
         ctx.cluster.overwrite_capabilities(struct.Struct('!Q').unpack(caps)[0])
         _check_capabilities(ctx)
 
-        return (await edbcompiler.new_compiler_from_pg(conn)).state
+        return await edbcompiler.new_compiler_from_pg(conn)
 
     finally:
         conn.terminate()
@@ -2473,7 +2473,7 @@ async def _bootstrap_edgedb_super_roles(ctx: BootstrapContext) -> uuid.UUID:
 async def _bootstrap(
     ctx: BootstrapContext,
     no_template: bool=False,
-) -> edbcompiler.CompilerState:
+) -> edbcompiler.Compiler:
     args = ctx.args
     cluster = ctx.cluster
     backend_params = cluster.get_runtime_params()
@@ -2690,13 +2690,13 @@ async def _bootstrap(
             args.default_database_user or edbdef.EDGEDB_SUPERUSER,
         )
 
-    return compiler.state
+    return compiler
 
 
 async def ensure_bootstrapped(
     cluster: pgcluster.BaseCluster,
     args: edbargs.ServerConfig,
-) -> tuple[bool, edbcompiler.CompilerState]:
+) -> tuple[bool, edbcompiler.Compiler]:
     """Bootstraps Gel instance if it hasn't been bootstrapped already.
 
     Returns True if bootstrap happened and False if the instance was already
@@ -2712,10 +2712,10 @@ async def ensure_bootstrapped(
         mode = await _get_cluster_mode(ctx)
         ctx = dataclasses.replace(ctx, mode=mode)
         if mode == ClusterMode.pristine:
-            state = await _bootstrap(ctx)
-            return True, state
+            compiler = await _bootstrap(ctx)
+            return True, compiler
         else:
-            state = await _start(ctx)
-            return False, state
+            compiler = await _start(ctx)
+            return False, compiler
     finally:
         pgconn.terminate()
