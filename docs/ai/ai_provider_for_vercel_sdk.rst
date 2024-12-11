@@ -1,10 +1,10 @@
 .. _ref_ai_provider_for_vercel_sdk:
 
-===========
-AI provider
-===========
+======================
+Vercel AI SDK provider
+======================
 
-:edb-alt-title: EdgeDB AI provider for Vercel AI SDK
+:edb-alt-title: EdgeDB provider for Vercel AI SDK
 
 The EdgeDB AI provider contains language model support for the EdgeDB chat API 
 and embedding model support for the EdgeDB embeddings API.
