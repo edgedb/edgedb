@@ -47,6 +47,10 @@ data types native to the driver.
     represent the input descriptor when a query does not receive any arguments,
     or the state descriptor for an empty/default state.
 
+.. versionadded:: 6.0
+
+   Added ``SQLRecordDescriptor``.
+
 
 Descriptor and type IDs
 =======================
@@ -547,8 +551,8 @@ SQL Record Descriptor
 .. code-block:: c
 
     struct SQLRecordDescriptor {
-        // Indicates that this is an
-        // Object Shape descriptor.
+        // Indicates that this is a
+        // SQL Record descriptor.
         uint8         tag = 13;
 
         // Descriptor ID.
