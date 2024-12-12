@@ -31,6 +31,7 @@ serde = "1"
 serde_derive = "1"
 percent-encoding = "2"
 uuid = "1"
+bytemuck = { version = "1", features = ["derive"] }
 
 [dependencies.derive_more]
 version = "1.0.0-beta.6"
@@ -38,19 +39,15 @@ features = ["full"]
 
 [dev-dependencies]
 tracing-subscriber.workspace = true
-scopeguard = "1"
+captive_postgres.workspace = true
 
+scopeguard = "1"
 pretty_assertions = "1.2.0"
 test-log = { version = "0", features = ["trace"] }
 rstest = "0"
 clap = "4"
 clap_derive = "4"
-tempfile = "3"
-socket2 = "0.5.7"
 libc = "0.2.158"
-
-[dev-dependencies.tokio]
-version = "1"
-features = ["macros", "rt-multi-thread", "time", "test-util"]
+hex-literal = "0.4.1"
 
 [lib]
