@@ -177,9 +177,9 @@ class TestSQLSys(tb.SQLQueryTestCase, TestQueryStatsMixin):
     async def _query_for_stats(self):
         self.assertEqual(
             await self.squery_values(
-                f"select {common.quote_literal(self.stats_magic_word)}"
+                f"select 1 as {common.quote_ident(self.stats_magic_word)}"
             ),
-            [[self.stats_magic_word]],
+            [[1]],
         )
 
     async def _configure_track(self, option: str):
