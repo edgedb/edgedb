@@ -300,17 +300,20 @@ construct is mapped to PostgreSQL schema:
 
 - Aliases are not mapped to PostgreSQL schema.
 
-- Globals are mapped to connection settings, prefixed with ``global``.
-  For example, a ``global default::username: str`` can be set using:
-  
-  .. code-block:: sql
+.. versionchanged:: 6.0
 
-      SET "global default::username" TO 'Tom'``.
+    - Globals are mapped to connection settings, prefixed with ``global``.
+      For example, a ``global default::username: str`` can be accessed using:
 
-- Access policies are applied to object type tables when setting
-  ``apply_access_policies_pg`` is set to ``true``.
+      .. code-block:: sql
 
-- Mutation rewrites and triggers are applied to all DML commands.
+          SET "global default::username" TO 'Tom'``;
+          SHOW "global default::username";
+
+    - Access policies are applied to object type tables when setting
+      ``apply_access_policies_pg`` is set to ``true``.
+
+    - Mutation rewrites and triggers are applied to all DML commands.
 
 
 DML commands
