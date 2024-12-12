@@ -381,7 +381,7 @@ jobs:
       with:
         path: ~/.cache/uv
         key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
-    
+
     - name: Download requirements.txt
       uses: actions/cache@v4
       with:
@@ -464,7 +464,7 @@ jobs:
       with:
         path: ~/.cache/uv
         key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
-    
+
     - name: Download requirements.txt
       uses: actions/cache@v4
       with:
@@ -593,6 +593,7 @@ jobs:
       env:
         SHARD: ${{ matrix.shard }}
         EDGEDB_TEST_REPEATS: 1
+        EDGEDB_DEBUG_SERVER: 1
       run: |
         mkdir -p results/
         cp shared-artifacts/time_stats.csv results/running_times_${SHARD}.csv
@@ -644,7 +645,7 @@ jobs:
       with:
         path: ~/.cache/uv
         key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
-    
+
     - name: Download requirements.txt
       uses: actions/cache@v4
       with:
