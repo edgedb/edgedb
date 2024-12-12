@@ -38,6 +38,11 @@ class TestQueryStatsMixin:
         raise NotImplementedError
 
     async def _test_sys_query_stats(self):
+        if self.backend_dsn:
+            self.skipTest(
+                "can't run query stats test when extension isn't present"
+            )
+
         stats_query = f'''
             with stats := (
                 select

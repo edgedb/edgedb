@@ -78,6 +78,7 @@ from edb.common import debug
 from edb.common import retryloop
 from edb.common import secretkey
 
+from edb import buildmeta
 from edb import protocol
 from edb.protocol import protocol as test_protocol
 from edb.testbase import serutils
@@ -1982,6 +1983,17 @@ class StablePGDumpTestCase(BaseQueryTestCase):
         # Run pg_dump to create the dump data for an existing Gel database.
         with tempfile.NamedTemporaryFile() as f:
             cls.run_pg_dump_on_connection(conargs, '-f', f.name)
+
+            # Skip the restore part of the test if the database
+            # backend is older than our pg_dump, since it won't work.
+            pg_ver_str = cls.loop.run_until_complete(
+                cls.backend.fetch('select version()')
+            )[0][0]
+            pg_ver = buildmeta.parse_pg_version(pg_ver_str)
+            bundled_ver = buildmeta.get_pg_version()
+            if pg_ver.major < bundled_ver.major:
+                raise unittest.SkipTest('pg_dump newer than backend')
+
             # Create a new Postgres database to be used for dump tests.
             db_exists = cls.loop.run_until_complete(
                 cls.backend.fetch(f'''

@@ -333,16 +333,19 @@ class BaseCluster:
         if self._pg_bin_dir is None:
             await self.lookup_postgres()
         pg_dump = self._find_pg_binary('pg_dump')
-        pg_restore = self._find_pg_binary('pg_restore')
+        # We actually just use psql to restore, because it is more
+        # tolerant of version differences.
+        # TODO: Maybe use pg_restore when we know we match the backend version?
+        pg_restore = self._find_pg_binary('psql')
 
         src_conn_args, src_env = self._dump_restore_conn_args(src_dbname)
         tgt_conn_args, _tgt_env = self._dump_restore_conn_args(tgt_dbname)
 
         dump_args = [
-            pg_dump, '--verbose', '--format=c', *src_conn_args, *src_args
+            pg_dump, '--verbose', *src_conn_args, *src_args
         ]
         restore_args = [
-            pg_restore, '--verbose', *tgt_conn_args, *tgt_args
+            pg_restore, *tgt_conn_args, *tgt_args
         ]
 
         rpipe, wpipe = os.pipe()
@@ -367,6 +370,8 @@ class BaseCluster:
                 stdin=rpipe,
                 capture_stdout=False,
                 capture_stderr=False,
+                log_stdout=True,
+                log_stderr=True,
                 env=src_env,
             )
         finally:
