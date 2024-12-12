@@ -112,8 +112,8 @@ class Constants:
 
 
 class TracebackPoint(BaseObject):
-    name = Field(str)
-    filename = Field(str)
+    name = Field(str, default=None)
+    filename = Field(str, default=None)
     lineno = Field(int, default=None)
     colno = Field(int, default=None)
     end_colno = Field(int, default=None)
