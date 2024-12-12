@@ -229,7 +229,13 @@ class Operation(NamedTuple):
             # the value has explicitly been set to {}.
             return b[4:] if b[:4] != b'\xff\xff\xff\xff' else None
 
-    def apply(self, spec: spec.Spec, storage: SettingsMap) -> SettingsMap:
+    def apply(
+        self,
+        spec: spec.Spec,
+        storage: SettingsMap,
+        *,
+        source: str | None = None,
+    ) -> SettingsMap:
 
         allow_missing = (
             self.opcode is OpCode.CONFIG_REM
@@ -245,7 +251,7 @@ class Operation(NamedTuple):
             value = self.coerce_global_value(allow_missing=allow_missing)
 
         if self.opcode is OpCode.CONFIG_SET:
-            storage = self._set_value(storage, value)
+            storage = self._set_value(storage, value, source=source)
 
         elif self.opcode is OpCode.CONFIG_RESET:
             try:
@@ -269,7 +275,7 @@ class Operation(NamedTuple):
 
             new_value = _check_object_set_uniqueness(
                 setting, list(exist_value) + [value])
-            storage = self._set_value(storage, new_value)
+            storage = self._set_value(storage, new_value, source=source)
 
         elif self.opcode is OpCode.CONFIG_REM:
             assert setting
@@ -285,7 +291,7 @@ class Operation(NamedTuple):
             else:
                 exist_value = setting.default
             new_value = exist_value - {value}
-            storage = self._set_value(storage, new_value)
+            storage = self._set_value(storage, new_value, source=source)
 
         return storage
 
@@ -293,18 +299,21 @@ class Operation(NamedTuple):
         self,
         storage: SettingsMap,
         value: Any,
+        *,
+        source: str | None = None,
     ) -> SettingsMap:
 
-        if self.scope is qltypes.ConfigScope.INSTANCE:
-            source = 'system override'
-        elif self.scope is qltypes.ConfigScope.DATABASE:
-            source = 'database'
-        elif self.scope is qltypes.ConfigScope.SESSION:
-            source = 'session'
-        elif self.scope is qltypes.ConfigScope.GLOBAL:
-            source = 'global'
-        else:
-            raise AssertionError(f'unexpected config scope: {self.scope}')
+        if source is None:
+            if self.scope is qltypes.ConfigScope.INSTANCE:
+                source = 'system override'
+            elif self.scope is qltypes.ConfigScope.DATABASE:
+                source = 'database'
+            elif self.scope is qltypes.ConfigScope.SESSION:
+                source = 'session'
+            elif self.scope is qltypes.ConfigScope.GLOBAL:
+                source = 'global'
+            else:
+                raise AssertionError(f'unexpected config scope: {self.scope}')
 
         return set_value(
             storage,

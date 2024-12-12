@@ -516,7 +516,7 @@ async def _upgrade_all(
 ) -> None:
     cluster = ctx.cluster
 
-    state = await bootstrap._bootstrap(ctx)
+    state = (await bootstrap._bootstrap(ctx)).state
     databases = await _get_databases(ctx)
 
     assert ctx.args.inplace_upgrade_prepare

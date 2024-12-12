@@ -96,6 +96,7 @@ from edb.pgsql import patches as pg_patches
 from edb.pgsql import types as pg_types
 from edb.pgsql import delta as pg_delta
 
+from . import config as config_compiler
 from . import dbstate
 from . import enums
 from . import explain
@@ -1288,6 +1289,26 @@ class Compiler:
             pickle.loads(schema_a),
             pickle.loads(schema_b),
             pickle.loads(global_schema),
+        )
+
+    def compile_structured_config(
+        self,
+        objects: Mapping[str, config_compiler.ConfigObject],
+        source: str | None = None,
+    ) -> dict[str, immutables.Map[str, config.SettingValue]]:
+        # XXX: only config in the stdlib is supported currently, so the only
+        # key allowed in objects is "cfg::Config". API for future compatibility
+        if list(objects) != ["cfg::Config"]:
+            difference = set(objects) - {"cfg::Config"}
+            raise NotImplementedError(
+                f"unsupported config: {', '.join(difference)}"
+            )
+
+        return config_compiler.compile_structured_config(
+            objects,
+            spec=self.state.config_spec,
+            schema=self.state.std_schema,
+            source=source,
         )
 
 
