@@ -175,7 +175,13 @@ def compile_ir_to_sql_tree(
             detached_params_idx = {
                 ctx.argmap[param.name].index: (
                     pgtypes.pg_type_from_ir_typeref(
-                        param.ir_type.base_type or param.ir_type))
+                        param.ir_type.base_type or param.ir_type,
+                        # Needs serialized=True so types without their own
+                        # binary encodings (like postgis::box2d) get mapped
+                        # to the real underlying type.
+                        serialized=True,
+                    )
+                )
                 for param in ctx.env.query_params
                 if not param.sub_params
             }
