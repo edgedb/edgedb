@@ -503,7 +503,7 @@ async def _store_static_bin_cache_conn(
         INSERT INTO edgedbinstdata_VER.instdata (key, bin)
         VALUES(
             {pg_common.quote_literal(key)},
-            {pg_common.quote_bytea_literal(data)}::bytea
+            {pg_common.quote_bytea_literal(data)}
         )
     """)
 
@@ -1060,7 +1060,7 @@ def prepare_patch(
         if k in bins:
             if k not in rawbin:
                 v = pickle.dumps(v, protocol=pickle.HIGHEST_PROTOCOL)
-            val = f'{pg_common.quote_bytea_literal(v)}::bytea'
+            val = f'{pg_common.quote_bytea_literal(v)}'
             sys_updates += (trampoline.fixup_query(f'''
                 INSERT INTO edgedbinstdata_VER.instdata (key, bin)
                 VALUES({key}, {val})

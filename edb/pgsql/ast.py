@@ -742,8 +742,17 @@ class NullConstant(BaseConstant):
     nullable: bool = True
 
 
+class BitStringConstant(BaseConstant):
+    """A bit string constant."""
+
+    # x or b
+    kind: str
+
+    val: str
+
+
 class ByteaConstant(BaseConstant):
-    """An bytea string."""
+    """A bytea string."""
 
     val: bytes
 
