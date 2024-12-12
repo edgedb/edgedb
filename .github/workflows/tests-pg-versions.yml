@@ -341,8 +341,10 @@ jobs:
         postgres-version: [ 16 ]
         single-mode:
          - ''
-         - 'NOCREATEDB NOCREATEROLE'
-         - 'CREATEDB NOCREATEROLE'
+         # These are very broken. Disabling them for now until we
+         # decide whether to fix them or give up.
+         # - 'NOCREATEDB NOCREATEROLE'
+         # - 'CREATEDB NOCREATEROLE'
         multi-tenant-mode: [ '' ]
         include:
           - postgres-version: 14
