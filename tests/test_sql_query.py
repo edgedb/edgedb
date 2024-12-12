@@ -772,9 +772,19 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         self.assertEqual(res, [[id]])
 
     async def test_sql_query_41(self):
-        # bytea literal
+        from asyncpg.types import BitString
+
+        # bit string literal
         res = await self.squery_values("SELECT x'00abcdef00';")
-        self.assertEqual(res, [[b'\x00\xab\xcd\xef\x00']])
+        self.assertEqual(res, [[BitString.frombytes(b'\x00\xab\xcd\xef\x00')]])
+
+        res = await self.squery_values("SELECT x'01001ab';")
+        self.assertEqual(
+            res, [[BitString.frombytes(b'\x01\x00\x1a\xb0', bitlength=28)]]
+        )
+
+        res = await self.squery_values("SELECT b'101';")
+        self.assertEqual(res, [[BitString.frombytes(b'\xa0', bitlength=3)]])
 
     async def test_sql_query_42(self):
         # params out of order

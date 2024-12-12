@@ -765,6 +765,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_StringConstant(self, node: pgast.StringConstant) -> None:
         self.write(common.quote_literal(node.val))
 
+    def visit_BitStringConstant(self, node: pgast.BitStringConstant) -> None:
+        self.write(f"{node.kind}'{node.val}'")
+
     def visit_ByteaConstant(self, node: pgast.ByteaConstant) -> None:
         self.write(common.quote_bytea_literal(node.val))
 
