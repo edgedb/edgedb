@@ -127,6 +127,11 @@ ALTER TYPE cfg::AbstractConfig {
         SET default := cfg::TestEnum.One;
     };
 
+    CREATE PROPERTY boolprop -> std::bool {
+        CREATE ANNOTATION cfg::internal := 'true';
+        SET default := true;
+    };
+
     CREATE PROPERTY __pg_max_connections -> std::int64 {
         CREATE ANNOTATION cfg::internal := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"max_connections"';
