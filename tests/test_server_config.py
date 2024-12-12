@@ -1066,6 +1066,45 @@ class TestServerConfig(tb.QueryTestCase):
                 CONFIGURE INSTANCE RESET _pg_prepared_statement_cache_size;
             ''')
 
+    async def test_server_proto_configure_09(self):
+        con2 = await self.connect(database=self.con.dbname)
+        default_value = await con2.query_single(
+            'SELECT assert_single(cfg::Config).boolprop'
+        )
+        try:
+            for value in [True, False, True, False]:
+                await self.con.execute(f'''
+                    CONFIGURE SESSION SET boolprop := <bool>'{value}';
+                ''')
+                # The first immediate query is likely NOT syncing in-memory
+                # state to the backend connection, so this will test that
+                # the state in the SQL temp table is correctly set.
+                await self.assert_query_result(
+                    '''
+                    SELECT cfg::Config.boolprop
+                    ''',
+                    [value],
+                )
+                # Now change the state on the backend connection, hopefully,
+                # by running a query with con2 with different state.
+                self.assertEqual(
+                    await con2.query_single(
+                        'SELECT assert_single(cfg::Config).boolprop'
+                    ),
+                    default_value,
+                )
+                # The second query shall sync in-memory state to the backend
+                # connection, so this tests if the statically evaluated bool
+                # value is correct.
+                await self.assert_query_result(
+                    '''
+                    SELECT cfg::Config.boolprop
+                    ''',
+                    [value],
+                )
+        finally:
+            await con2.aclose()
+
     async def test_server_proto_configure_describe_system_config(self):
         try:
             conf1 = "CONFIGURE INSTANCE SET singleprop := '1337';"

@@ -422,10 +422,14 @@ def cast_const_to_python(ir: irast.TypeCast, schema: s_schema.Schema) -> Any:
     sval = evaluate_to_python_val(ir.expr, schema=schema)
     if sval is None:
         return None
-    elif isinstance(sval, tuple):
-        return tuple(pytype(elem) for elem in sval)
+    if pytype is bool and isinstance(sval, str):
+        conv = lambda v: v.lower() == 'true'
     else:
-        return pytype(sval)
+        conv = pytype
+    if isinstance(sval, tuple):
+        return tuple(conv(elem) for elem in sval)
+    else:
+        return conv(sval)
 
 
 def schema_type_to_python_type(
