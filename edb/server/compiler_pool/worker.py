@@ -304,7 +304,7 @@ def compile_graphql(
         request=request,
     )
 
-    return unit_group, gql_op
+    return unit_group, gql_op  # type: ignore[return-value]
 
 
 def compile_sql(

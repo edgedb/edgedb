@@ -108,6 +108,11 @@ from . import sql
 
 if TYPE_CHECKING:
     from edb.pgsql import metaschema
+    SQLDescriptors = list[
+        tuple[
+            tuple[bytes, bytes, list[dbstate.Param], int], tuple[bytes, bytes]
+        ]
+    ]
 
 
 EMPTY_MAP: immutables.Map[Any, Any] = immutables.Map()
@@ -593,7 +598,8 @@ class Compiler:
         serialized_request: bytes,
         original_query: str,
     ) -> Tuple[
-        dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
+        dbstate.QueryUnitGroup | SQLDescriptors,
+        Optional[dbstate.CompilerConnectionState]
     ]:
         request = rpc.CompilationRequest.deserialize(
             serialized_request,
@@ -619,10 +625,11 @@ class Compiler:
         database_config: Optional[immutables.Map[str, config.SettingValue]],
         system_config: Optional[immutables.Map[str, config.SettingValue]],
         request: rpc.CompilationRequest,
-    ) -> Tuple[dbstate.QueryUnitGroup,
+    ) -> Tuple[dbstate.QueryUnitGroup | SQLDescriptors,
                Optional[dbstate.CompilerConnectionState]]:
 
         if request.input_language is enums.InputLanguage.SQL_PARAMS:
+            assert isinstance(request.source, rpc.SQLParamsSource)
             return (
                 self.compile_sql_descriptors(
                     user_schema,
@@ -706,7 +713,8 @@ class Compiler:
         original_query: str,
         expect_rollback: bool = False,
     ) -> Tuple[
-        dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
+        dbstate.QueryUnitGroup | SQLDescriptors,
+        Optional[dbstate.CompilerConnectionState]
     ]:
         request = rpc.CompilationRequest.deserialize(
             serialized_request,
@@ -728,10 +736,12 @@ class Compiler:
         request: rpc.CompilationRequest,
         expect_rollback: bool = False,
     ) -> Tuple[
-        dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
+        dbstate.QueryUnitGroup | SQLDescriptors,
+        Optional[dbstate.CompilerConnectionState]
     ]:
         if request.input_language is enums.InputLanguage.SQL_PARAMS:
             tx = state.current_tx()
+            assert isinstance(request.source, rpc.SQLParamsSource)
             return (
                 self.compile_sql_descriptors(
                     tx.get_user_schema(),
@@ -800,7 +810,7 @@ class Compiler:
         global_schema: s_schema.Schema,
         protocol_version: defines.ProtocolVersion,
         types_in_out: list[tuple[list[str], list[tuple[str, str]]]],
-    ):
+    ) -> SQLDescriptors:
         schema = s_schema.ChainedSchema(
             self.state.std_schema,
             user_schema,
@@ -817,6 +827,7 @@ class Compiler:
             for idx, id in enumerate(in_out[0]):
                 param_name = str(idx + 1)
                 param_type = schema.get_by_id(turbo_uuid.UUID(id))
+                assert isinstance(param_type, s_types.Type)
                 param_required = False  # SQL arguments can always be NULL
 
                 if isinstance(param_type, s_types.Array):
@@ -847,8 +858,11 @@ class Compiler:
                 protocol_version=protocol_version,
             )
 
-            t_out = {name: schema.get_by_id(turbo_uuid.UUID(id))
-                     for name, id in in_out[1]}
+            t_out = {
+                name: cast(s_types.Type, schema.get_by_id(turbo_uuid.UUID(id)))
+                for name, id in in_out[1]
+            }
+            assert all(isinstance(t, s_types.Type) for t in t_out.values())
 
             output_desc, output_desc_id = sertypes.describe_sql_result(
                 schema=schema, row=t_out,

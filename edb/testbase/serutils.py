@@ -98,6 +98,11 @@ def _enum(o: edgedb.EnumValue):
 
 
 @serialize.register
+def _record(o: edgedb.Record):
+    return {k: serialize(v) for k, v in o.as_dict().items()}
+
+
+@serialize.register
 def _range(o: edgedb.Range):
     return {
         'lower': serialize(o.lower),

@@ -113,7 +113,7 @@ cdef class SQLParamsSource:
 
     def __init__(
         self,
-        types_in_out: List[Tuple[List[Tuple[str, str]], List[str]]]
+        types_in_out: List[Tuple[List[str], List[Tuple[str, str]]]]
     ):
         self.types_in_out = types_in_out
         self._cached_key = None

@@ -1040,9 +1040,6 @@ def describe_sql_result(
     row: dict[str, s_types.Type],
     protocol_version: edbdef.ProtocolVersion,
 ) -> tuple[bytes, uuid.UUID]:
-    if not row:
-        return NULL_TYPE_DESC, NULL_TYPE_ID
-
     ctx = Context(
         schema=schema,
         protocol_version=protocol_version,
