@@ -17,7 +17,6 @@
 #
 
 import json
-import re
 import textwrap
 
 import edgedb
