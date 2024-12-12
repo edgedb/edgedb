@@ -4,12 +4,6 @@
 Type descriptors
 ================
 
-.. note::
-
-  This page describes the type descriptor formats as implemented in protocol
-  version 2.0 (EdgeDB 4.0 and later).  See :ref:`ref_proto_typedesc_1_0` for
-  type descriptor implementation in protocol versino 1.0 and earlier.
-
 This section describes how type information for query input and results
 is encoded.  Specifically, this is needed to decode the server response to
 the :ref:`ref_protocol_msg_command_data_description` message.
