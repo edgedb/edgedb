@@ -15,7 +15,6 @@ clients and servers.  The protocol is supported over TCP/IP.
     messages
     errors
     typedesc
-    typedesc_1_0
     dataformats
 
 
