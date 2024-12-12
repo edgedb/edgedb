@@ -554,7 +554,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     )
             finally:
                 if suppress_timeout:
-                    await self._restore_tx_timeout(dbv)
+                    # Some failure modes abort the transaction
+                    try:
+                        await self._restore_tx_timeout(dbv)
+                    except pgerror.BackendError:
+                        pass
         else:
             return dbv.as_compiled(query_req, query_unit_group)
 
