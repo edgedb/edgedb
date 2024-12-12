@@ -711,6 +711,17 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             ],
         )
 
+    async def test_sql_query_38a(self):
+        res = await self.squery_values(
+            'VALUES (1), (NULL)'
+        )
+        self.assertEqual(res, [[1], [None]])
+
+        res = await self.squery_values(
+            'VALUES (NULL), (1)'
+        )
+        self.assertEqual(res, [[None], [1]])
+
     async def test_sql_query_39(self):
         res = await self.squery_values(
             '''
