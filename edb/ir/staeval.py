@@ -420,16 +420,37 @@ def cast_const_to_python(ir: irast.TypeCast, schema: s_schema.Schema) -> Any:
     schema, stype = irtyputils.ir_typeref_to_type(schema, ir.to_type)
     pytype = scalar_type_to_python_type(stype, schema)
     sval = evaluate_to_python_val(ir.expr, schema=schema)
-    if sval is None:
-        return None
-    if pytype is bool and isinstance(sval, str):
-        conv = lambda v: v.lower() == 'true'
+    return python_cast(sval, pytype)
+
+
+@functools.singledispatch
+def python_cast(sval: Any, pytype: type) -> Any:
+    return pytype(sval)
+
+
+@python_cast.register(type(None))
+def python_cast_none(sval: None, pytype: type) -> None:
+    return None
+
+
+@python_cast.register(tuple)
+def python_cast_tuple(sval: Tuple[Any, ...], pytype: type) -> Any:
+    return tuple(python_cast(elem, pytype) for elem in sval)
+
+
+@python_cast.register(str)
+def python_cast_str(sval: str, pytype: type) -> Any:
+    if pytype is bool:
+        if sval.lower() == 'true':
+            return True
+        elif sval.lower() == 'false':
+            return False
+        else:
+            raise errors.InvalidValueError(
+                f"invalid input syntax for type bool: {sval!r}"
+            )
     else:
-        conv = pytype
-    if isinstance(sval, tuple):
-        return tuple(conv(elem) for elem in sval)
-    else:
-        return conv(sval)
+        return pytype(sval)
 
 
 def schema_type_to_python_type(
