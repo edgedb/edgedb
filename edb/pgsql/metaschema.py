@@ -3116,6 +3116,7 @@ class SysConfigSourceType(dbops.Enum):
                 'postgres environment variable',
                 'postgres configuration file',
                 'environment variable',
+                'configuration file',
                 'command line',
                 'postgres command line',
                 'postgres global',
@@ -3612,6 +3613,7 @@ class SysConfigFullFunction(trampoline.VersionedFunction):
                 (CASE
                     WHEN s.type = 'A' THEN 'command line'
                     WHEN s.type = 'E' THEN 'environment variable'
+                    WHEN s.type = 'F' THEN 'configuration file'
                     ELSE 'session'
                 END) AS source,
                 FALSE AS from_backend  -- only 'B' is for backend settings

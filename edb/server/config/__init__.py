@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping, TypedDict
 
 import immutables
 
@@ -29,12 +29,13 @@ from .ops import OpCode, Operation, SettingValue
 from .ops import (
     spec_to_json, to_json_obj, to_json, from_json, set_value, to_edgeql
 )
-from .ops import value_from_json, value_to_json_value, coerce_single_value
+from .ops import value_from_json, value_to_json_value, coerce_value
 from .spec import (
     Spec, FlatSpec, ChainedSpec, Setting,
     load_spec_from_schema, load_ext_spec_from_schema,
     load_ext_settings_from_schema,
 )
+from .toml import parse_config_file
 from .types import ConfigType, CompositeConfigType
 from .types import QueryCacheMode
 
@@ -49,9 +50,21 @@ __all__ = (
     'load_spec_from_schema', 'load_ext_spec_from_schema',
     'load_ext_settings_from_schema',
     'get_compilation_config',
-    'coerce_single_value',
+    'coerce_value',
     'QueryCacheMode',
+    'ConState', 'ConStateType',
+    'parse_config_file',
 )
+
+
+# See edb/server/pgcon/connect.py for documentation of the types
+ConStateType = Literal['C', 'B', 'A', 'E', 'F']
+
+
+class ConState(TypedDict):
+    name: str
+    value: Any
+    type: ConStateType
 
 
 def lookup(
