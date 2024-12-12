@@ -539,3 +539,32 @@ Type Annotation Text Descriptor
         // Annotation value.
         string  value;
     };
+
+
+SQL Record Descriptor
+=====================
+
+.. code-block:: c
+
+    struct SQLRecordDescriptor {
+        // Indicates that this is an
+        // Object Shape descriptor.
+        uint8         tag = 13;
+
+        // Descriptor ID.
+        uuid          id;
+
+        // Number of elements in record.
+        uint16        element_count;
+
+        // Array of shape elements.
+        SQLRecordElement  elements[element_count];
+    };
+
+    struct SQLRecordElement {
+        // Element name.
+        string              name;
+
+        // Element type descriptor index.
+        uint16              type;
+    };
