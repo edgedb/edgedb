@@ -290,6 +290,17 @@ sys::_sleep(duration: std::duration) -> std::bool
 
 
 CREATE FUNCTION
+sys::_postgres_version() -> std::str
+{
+    CREATE ANNOTATION std::description :=
+        'Get the postgres version string';
+    USING SQL $$
+    SELECT version()
+    $$;
+};
+
+
+CREATE FUNCTION
 sys::_advisory_lock(key: std::int64) -> std::bool
 {
     CREATE ANNOTATION std::description :=

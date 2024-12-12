@@ -17,10 +17,12 @@
 #
 
 import json
+import re
 import textwrap
 
 import edgedb
 
+import edb.buildmeta
 from edb.testbase import server as tb
 
 
@@ -112,6 +114,13 @@ class TestDDLExtensions(tb.DDLTestCase):
         ''')
 
     async def test_edgeql_extensions_01(self):
+        pg_ver = edb.buildmeta.parse_pg_version(await self.con.query_single('''
+            select sys::_postgres_version();
+        '''))
+        # Skip if postgres is old, since it doesn't have ltree 1.3
+        if pg_ver.major < 17:
+            self.skipTest('Postgres version too old')
+
         # Make an extension that wraps a tiny bit of the ltree package.
         await self.con.execute('''
         create extension package ltree VERSION '1.0' {
