@@ -17,9 +17,7 @@
 #
 
 from typing import (
-    List,
     Mapping,
-    Tuple,
 )
 
 import pickle
@@ -113,7 +111,7 @@ cdef class SQLParamsSource:
 
     def __init__(
         self,
-        types_in_out: List[Tuple[List[str], List[Tuple[str, str]]]]
+        types_in_out: list[tuple[list[str], list[tuple[str, str]]]]
     ):
         self.types_in_out = types_in_out
         self._cached_key = None
