@@ -176,11 +176,12 @@ cdef class Database:
         self.reflection_cache = reflection_cache
         self.backend_ids = backend_ids
         if backend_ids is not None:
-            self.backend_id_to_name = {
-                v[0]: v[1] for k, v in backend_ids.items()
+            self.backend_oid_to_id = {
+                v[0]: k for k, v in backend_ids.items()
+                if v[0] is not None
             }
         else:
-            self.backend_id_to_name = {}
+            self.backend_oid_to_id = {}
         self.extensions = set()
         self._set_extensions(extensions)
         self._observe_auth_ext_config()
@@ -388,8 +389,9 @@ cdef class Database:
 
         if backend_ids is not None:
             self.backend_ids = backend_ids
-            self.backend_id_to_name = {
-                v[0]: v[1] for k, v in backend_ids.items()
+            self.backend_oid_to_id = {
+                v[0]: k for k, v in backend_ids.items()
+                if v[0] is not None
             }
         if reflection_cache is not None:
             self.reflection_cache = reflection_cache
@@ -426,8 +428,9 @@ cdef class Database:
 
     cdef _update_backend_ids(self, new_types):
         self.backend_ids.update(new_types)
-        self.backend_id_to_name.update({
-            v[0]: v[1] for k, v in new_types.items()
+        self.backend_oid_to_id.update({
+            v[0]: k for k, v in new_types.items()
+            if v[0] is not None
         })
 
     cdef _invalidate_caches(self):
@@ -1459,71 +1462,55 @@ cdef class DatabaseConnectionView:
                 intro_sql, all_type_oids)
             result_types = []
             for col, toid in result_desc:
-                edb_type_expr = self._db.backend_id_to_name.get(toid)
-                if edb_type_expr is None:
+                edb_type_id = self._db.backend_oid_to_id.get(toid)
+                if edb_type_id is None:
                     raise errors.UnsupportedFeatureError(
                         f"unsupported SQL type in column \"{col}\" "
                         f"with type OID {toid}"
                     )
 
-                result_types.append(
-                    f"{edgeql.quote_ident(col)} := <{edb_type_expr}>{{}}"
-                )
+                result_types.append((col, edb_type_id))
             params = []
             if num_injected_params:
                 param_desc = param_desc[:-num_injected_params]
             for pi, toid in enumerate(param_desc):
-                edb_type_expr = self._db.backend_id_to_name.get(toid)
-                if edb_type_expr is None:
+                edb_type_id = self._db.backend_oid_to_id.get(toid)
+                if edb_type_id is None:
                     raise errors.UnsupportedFeatureError(
                         f"unsupported type in SQL parameter ${pi} "
                         f"with type OID {toid}"
                     )
 
-                params.append(
-                    f"_p{pi} := <{edb_type_expr}>${pi}"
-                )
+                params.append(edb_type_id)
 
-            intro_qry = ""
-            if params:
-                intro_qry += "with _p := {" + ", ".join(params) + "} "
-
-            if result_types:
-                intro_qry += "select {" + ", ".join(result_types) + "}"
-            else:
-                # No direct syntactic way of constructing an empty shape,
-                # so we have to do it this way.
-                intro_qry += "select {foo := 1}{}"
-            to_describe.append(intro_qry)
-
+            to_describe.append((params, result_types))
             desc_map[len(to_describe) - 1] = i
 
         if to_describe:
-            desc_req = rpc.CompilationRequest(
-                source=edgeql.Source.from_string(";\n".join(to_describe)),
-                protocol_version=query_req.protocol_version,
-                schema_version=query_req.schema_version,
-                compilation_config_serializer=query_req.serializer,
-            )
-
-            desc_qug = await self._compile(desc_req)
+            desc_qug = await self._compile_sql_descriptors(
+                query_req, to_describe)
 
             for i, desc_qu in enumerate(desc_qug):
                 qu_i = desc_map[i]
-                qug[qu_i].out_type_data = desc_qu.out_type_data
-                qug[qu_i].out_type_id = desc_qu.out_type_id
-                qug[qu_i].in_type_data = desc_qu.in_type_data
-                qug[qu_i].in_type_id = desc_qu.in_type_id
-                qug[qu_i].in_type_args = desc_qu.in_type_args
-                qug[qu_i].in_type_args_real_count = (
-                    desc_qu.in_type_args_real_count)
+                qug[qu_i].out_type_data = desc_qu[1][0]
+                qug[qu_i].out_type_id = desc_qu[1][1]
+                qug[qu_i].in_type_data = desc_qu[0][0]
+                qug[qu_i].in_type_id = desc_qu[0][1]
+                qug[qu_i].in_type_args = desc_qu[0][2]
+                qug[qu_i].in_type_args_real_count = desc_qu[0][3]
 
-            qug.out_type_data = desc_qug.out_type_data
-            qug.out_type_id = desc_qug.out_type_id
-            qug.in_type_data = desc_qug.in_type_data
-            qug.in_type_id = desc_qug.in_type_id
-            qug.in_type_args = desc_qug.in_type_args
-            qug.in_type_args_real_count = desc_qug.in_type_args_real_count
+            # XXX We don't support SQL scripts just yet, so for now
+            # we can just copy the last QU's descriptors and
+            # apply them to the whole group (IOW a group is really
+            # a group of ONE now.)
+            # In near future we'll need to properly implement arg
+            # remap.
+            qug.out_type_data = desc_qug[-1][1][0]
+            qug.out_type_id = desc_qug[-1][1][1]
+            qug.in_type_data = desc_qug[-1][0][0]
+            qug.in_type_id = desc_qug[-1][0][1]
+            qug.in_type_args = desc_qug[-1][0][2]
+            qug.in_type_args_real_count = desc_qug[-1][0][3]
 
     cdef inline _check_in_tx_error(self, query_unit_group):
         if self.in_tx_error():
@@ -1610,6 +1597,24 @@ cdef class DatabaseConnectionView:
         unit_group, self._last_comp_state, self._last_comp_state_id = result
 
         return unit_group
+
+    async def _compile_sql_descriptors(
+        self,
+        query_req: rpc.CompilationRequest,
+        types_in_out: defines.ProtocolVersion,
+    ) -> dbstate.QueryUnitGroup:
+        compiler_pool = self._db._index._server.get_compiler_pool()
+
+        cfg_ser = self.server.compilation_config_serializer
+        req = rpc.CompilationRequest(
+            source=rpc.SQLParamsSource(types_in_out),
+            protocol_version=query_req.protocol_version,
+            schema_version=query_req.schema_version,
+            input_language=enums.InputLanguage.SQL_PARAMS,
+            compilation_config_serializer=cfg_ser,
+        )
+
+        return await self._compile(req)
 
     cdef check_capabilities(
         self,

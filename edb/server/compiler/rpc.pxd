@@ -23,6 +23,15 @@ cdef deserialize_output_format(char mode)
 cdef char serialize_input_language(val)
 cdef deserialize_input_language(char mode)
 
+
+@cython.final
+cdef class SQLParamsSource:
+    cdef:
+        object _cached_key
+        object _serialized
+        readonly object types_in_out
+
+
 @cython.final
 cdef class CompilationRequest:
     cdef:
