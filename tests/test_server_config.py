@@ -2248,7 +2248,7 @@ class TestStaticServerConfig(tb.TestCase):
         }
         with self.assertRaisesRegex(
             cluster.ClusterError,
-            "can only be one of: AlwaysAllow, NeverAllow"
+            "'cfg::AllowBareDDL' enum has no member called 'illegal_input'"
         ):
             async with tb.start_edgedb_server(env=env):
                 pass

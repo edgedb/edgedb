@@ -77,6 +77,7 @@ from edb import errors
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as so
+from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
@@ -1400,3 +1401,61 @@ class FTSDocument(ImmutableExpr):
     weight: typing.Optional[str]
 
     typeref: TypeRef
+
+
+# StaticIntrospection is only used in static evaluation (staeval.py),
+# but unfortunately the IR AST node can only be defined here.
+class StaticIntrospection(Tuple):
+
+    ir: TypeIntrospection
+    schema: s_schema.Schema
+
+    @property
+    def meta_type(self) -> s_objtypes.ObjectType:
+        return self.schema.get_by_id(
+            self.ir.typeref.id, type=s_objtypes.ObjectType
+        )
+
+    @property
+    def output_type(self) -> s_types.Type:
+        return self.schema.get_by_id(
+            self.ir.output_typeref.id, type=s_types.Type
+        )
+
+    @property
+    def elements(self) -> typing.List[TupleElement]:
+        from . import staeval
+
+        rv = []
+        schema = self.schema
+        output_type = self.output_type
+        for ptr in self.meta_type.get_pointers(schema).objects(schema):
+            field_sn = ptr.get_shortname(schema)
+            field_name = field_sn.name
+            field_type = ptr.get_target(schema)
+            assert field_type is not None
+            try:
+                field_value = output_type.get_field_value(schema, field_name)
+            except LookupError:
+                continue
+            try:
+                val = staeval.coerce_py_const(field_type.id, field_value)
+            except staeval.UnsupportedExpressionError:
+                continue
+            ref = TypeRef(id=field_type.id, name_hint=field_sn)
+            vset = Set(expr=val, typeref=ref, path_id=PathId.from_typeref(ref))
+            rv.append(TupleElement(name=field_name, val=vset))
+        return rv
+
+    @elements.setter
+    def elements(self, elements: typing.List[TupleElement]) -> None:
+        pass
+
+    def get_field_value(self, name: sn.QualName) -> ConstExpr | TypeCast:
+        from . import staeval
+
+        ptr = self.meta_type.getptr(self.schema, name.get_local_name())
+        rv_type = ptr.get_target(self.schema)
+        assert rv_type is not None
+        rv_value = self.output_type.get_field_value(self.schema, name.name)
+        return staeval.coerce_py_const(rv_type.id, rv_value)
