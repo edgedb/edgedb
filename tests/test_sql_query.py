@@ -1583,108 +1583,98 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
     async def test_sql_query_error_01(self):
         with self.assertRaisesRegex(
-            asyncpg.InvalidTextRepresentationError,
-            "type integer",
-            # TODO
-            # position="12",
+            asyncpg.UndefinedFunctionError,
+            "does not exist",
+            position="12",
         ):
-            await self.scon.execute("SELECT 1 + 'foo'")
+            await self.scon.execute("SELECT 1 + asdf()")
 
     async def test_sql_query_error_02(self):
         with self.assertRaisesRegex(
-            asyncpg.InvalidTextRepresentationError,
-            "type integer",
-            # TODO
-            # position="10",
+            asyncpg.UndefinedFunctionError,
+            "does not exist",
+            position="10",
         ):
-            await self.scon.execute("SELECT 1+'foo'")
+            await self.scon.execute("SELECT 1+asdf()")
 
     async def test_sql_query_error_03(self):
         with self.assertRaisesRegex(
-            asyncpg.InvalidTextRepresentationError,
-            "type integer",
-            # TODO
-            # position="28",
+            asyncpg.UndefinedFunctionError,
+            "does not exist",
+            position="28",
         ):
             await self.scon.execute(
                 """SELECT 1 +
-                'foo'"""
+                asdf()"""
             )
 
     async def test_sql_query_error_04(self):
         with self.assertRaisesRegex(
-            asyncpg.InvalidTextRepresentationError,
-            "type integer",
-            # TODO
-            # position="12",
+            asyncpg.UndefinedFunctionError,
+            "does not exist",
+            position="12",
         ):
             await self.scon.execute(
-                '''SELECT 1 + 'foo' FROM "Movie" ORDER BY id'''
+                '''SELECT 1 + asdf() FROM "Movie" ORDER BY id'''
             )
 
     async def test_sql_query_error_05(self):
         with self.assertRaisesRegex(
-            asyncpg.InvalidTextRepresentationError,
-            "type integer",
-            # TODO
-            # position="28",
+            asyncpg.UndefinedFunctionError,
+            "does not exist",
+            position="28",
         ):
             await self.scon.execute(
                 '''SELECT 1 +
-                'foo' FROM "Movie" ORDER BY id'''
+                asdf() FROM "Movie" ORDER BY id'''
             )
 
     async def test_sql_query_error_06(self):
         with self.assertRaisesRegex(
-            asyncpg.InvalidTextRepresentationError,
-            "type integer",
-            # TODO
-            # position="12",
+            asyncpg.UndefinedFunctionError,
+            "does not exist",
+            position="12",
         ):
-            await self.scon.fetch("SELECT 1 + 'foo'")
+            await self.scon.fetch("SELECT 1 + asdf()")
 
     async def test_sql_query_error_07(self):
         with self.assertRaisesRegex(
-            asyncpg.InvalidTextRepresentationError,
-            "type integer",
-            # TODO
-            # position="10",
+            asyncpg.UndefinedFunctionError,
+            "does not exist",
+            position="10",
         ):
-            await self.scon.fetch("SELECT 1+'foo'")
+            await self.scon.fetch("SELECT 1+asdf()")
 
     async def test_sql_query_error_08(self):
         with self.assertRaisesRegex(
-            asyncpg.InvalidTextRepresentationError,
-            "type integer",
-            # TODO
-            # position="28",
+            asyncpg.UndefinedFunctionError,
+            "does not exist",
+            position="28",
         ):
             await self.scon.fetch(
                 """SELECT 1 +
-                'foo'"""
+                asdf()"""
             )
 
     async def test_sql_query_error_09(self):
         with self.assertRaisesRegex(
-            asyncpg.InvalidTextRepresentationError,
-            "type integer",
-            # TODO
-            # position="12",
+            asyncpg.UndefinedFunctionError,
+            "does not exist",
+            position="12",
         ):
             await self.scon.fetch(
-                '''SELECT 1 + 'foo' FROM "Movie" ORDER BY id'''
+                '''SELECT 1 + asdf() FROM "Movie" ORDER BY id'''
             )
 
     async def test_sql_query_error_10(self):
         with self.assertRaisesRegex(
-            asyncpg.InvalidTextRepresentationError,
-            "type integer",
-            # TODO
-            # position="28",
+            asyncpg.UndefinedFunctionError,
+            "does not exist",
+            position="28",
         ):
             await self.scon.fetch(
                 '''SELECT 1 +
-                'foo' FROM "Movie" ORDER BY id'''
+                asdf() FROM "Movie" ORDER BY id'''
             )
 
     @unittest.skip("this test flakes: #5783")
