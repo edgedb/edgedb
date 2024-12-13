@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        postgres-version: [ 16 ]
+        postgres-version: [ 17 ]
         single-mode:
          - ''
          # These are very broken. Disabling them for now until we
@@ -45,8 +45,11 @@ jobs:
             multi-tenant-mode: ''
           - postgres-version: 16
             single-mode: ''
+            multi-tenant-mode: ''
+          - postgres-version: 17
+            single-mode: ''
             multi-tenant-mode: 'remote-compiler'
-          - postgres-version: 16
+          - postgres-version: 17
             single-mode: ''
             multi-tenant-mode: 'multi-tenant'
     services:

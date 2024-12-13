@@ -338,7 +338,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        postgres-version: [ 16 ]
+        postgres-version: [ 17 ]
         single-mode:
          - ''
          # These are very broken. Disabling them for now until we
@@ -355,8 +355,11 @@ jobs:
             multi-tenant-mode: ''
           - postgres-version: 16
             single-mode: ''
+            multi-tenant-mode: ''
+          - postgres-version: 17
+            single-mode: ''
             multi-tenant-mode: 'remote-compiler'
-          - postgres-version: 16
+          - postgres-version: 17
             single-mode: ''
             multi-tenant-mode: 'multi-tenant'
     services:
@@ -410,7 +413,7 @@ jobs:
       with:
         path: ~/.cache/uv
         key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
-    
+
     - name: Download requirements.txt
       uses: actions/cache@v4
       with:
