@@ -17,6 +17,7 @@
 #
 
 import csv
+import decimal
 import io
 import os.path
 from typing import Coroutine, Optional, Tuple
@@ -1028,6 +1029,31 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ''',
                 'hello',
             )
+
+    async def test_sql_query_55(self):
+        res = await self.squery_values(
+            '''
+            SELECT ROW(TRUE, 1, 1.1, 'hello', x'012', b'001')
+            ''',
+        )
+        self.assertEqual(res, [[
+            (
+                True,
+                1,
+                decimal.Decimal('1.1'),
+                'hello',
+                asyncpg.BitString.frombytes(b'\x01\x20', 12),
+                asyncpg.BitString.frombytes(b'\x20', 3),
+            )
+        ]])
+
+    async def test_sql_query_56(self):
+        res = await self.squery_values(
+            '''
+            SELECT to_json('three') as c
+            ''',
+        )
+        self.assertEqual(res, [['"three"']])
 
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
@@ -2159,7 +2185,8 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                     date '0001-01-01 AD' AS f,
                     interval '2000 years' AS g,
                     ARRAY[1, 2, 3] AS h,
-                    FALSE AS i
+                    FALSE AS i,
+                    3.4 AS j
             """,
             [
                 {
@@ -2172,6 +2199,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                     "g": edgedb.RelativeDuration(months=2000 * 12),
                     "h": [1, 2, 3],
                     "i": False,
+                    "j": 3.4,
                 }
             ],
         )
@@ -2615,7 +2643,6 @@ select title, 'aaaaaaaaaaaaaaaaa', ('goo'::text::integer) from "Content";'''
             """,
             [{'col~1': 'test'}],
         )
-
 
 
 class TestSQLQueryNonTransactional(tb.SQLQueryTestCase):

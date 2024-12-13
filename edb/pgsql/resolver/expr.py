@@ -596,7 +596,7 @@ def resolve_FuncCall(
     # Effectively, this exposes all non-remapped functions.
     name = func_calls_remapping.get(call.name, call.name)
 
-    return pgast.FuncCall(
+    res = pgast.FuncCall(
         name=name,
         args=dispatch.resolve_list(call.args, ctx=ctx),
         agg_order=dispatch.resolve_opt_list(call.agg_order, ctx=ctx),
@@ -606,6 +606,13 @@ def resolve_FuncCall(
         over=dispatch.resolve_opt(call.over, ctx=ctx),
         with_ordinality=call.with_ordinality,
     )
+
+    # HACK: for polymorphic functions that take params that have been
+    # extracted from string constants, we need to type-annotate the param.
+    if name[-1] == 'to_json' and len(res.args) >= 1:
+        res.args[0] = maybe_annotate_param(res.args[0], ctx=ctx)
+
+    return res
 
 
 @dispatch._resolve.register

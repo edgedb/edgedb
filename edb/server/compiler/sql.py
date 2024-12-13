@@ -64,7 +64,6 @@ class DisableNormalization(BaseException):
     pass
 
 
-
 def compile_sql(
     source: pg_parser.Source,
     *,
@@ -81,7 +80,9 @@ def compile_sql(
     backend_runtime_params: pg_params.BackendRuntimeParams,
     protocol_version: defines.ProtocolVersion,
 ) -> List[dbstate.SQLQueryUnit]:
-    def _try(q: str, normalized_params: List[int]) -> List[dbstate.SQLQueryUnit]:
+    def _try(
+        q: str, normalized_params: List[int]
+    ) -> List[dbstate.SQLQueryUnit]:
         return _compile_sql(
             q,
             schema=schema,
