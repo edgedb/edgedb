@@ -1047,14 +1047,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             )
         ]])
 
-    async def test_sql_query_56(self):
-        res = await self.squery_values(
-            '''
-            SELECT to_json('three') as c
-            ''',
-        )
-        self.assertEqual(res, [['"three"']])
-
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
@@ -2180,7 +2172,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 SELECT
                     1 AS a,
                     'two' AS b,
-                    to_json('three') AS c,
+                    to_json('three'::text) AS c,
                     timestamp '2000-12-16 12:21:13' AS d,
                     timestamp with time zone '2000-12-16 12:21:13' AS e,
                     date '0001-01-01 AD' AS f,

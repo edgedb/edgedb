@@ -607,11 +607,6 @@ def resolve_FuncCall(
         with_ordinality=call.with_ordinality,
     )
 
-    # HACK: for polymorphic functions that take params that have been
-    # extracted from string constants, we need to type-annotate the param.
-    if name[-1] == 'to_json' and len(res.args) >= 1:
-        res.args[0] = maybe_annotate_param(res.args[0], ctx=ctx)
-
     return res
 
 
