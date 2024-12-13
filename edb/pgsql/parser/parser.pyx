@@ -236,11 +236,6 @@ cdef class Source:
     def original_text(self) -> str:
         return self._text
 
-    def _compute_cache_key(self) -> bytes:
-        h = hashlib.blake2b(self._tag().to_bytes())
-        h.update(bytes(self.text(), 'UTF-8'))
-        return h.digest()
-
     def cache_key(self) -> bytes:
         if not self._cache_key:
             h = hashlib.blake2b(self._tag().to_bytes())
