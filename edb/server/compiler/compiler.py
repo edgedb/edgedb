@@ -2672,6 +2672,7 @@ def compile_sql_as_unit_group(
                 f"unexpected SQLQueryUnit.command_complete_tag type: "
                 f"{sql_unit.command_complete_tag}"
             )
+
         unit = dbstate.QueryUnit(
             sql=value_sql,
             introspection_sql=intro_sql,
@@ -2687,6 +2688,8 @@ def compile_sql_as_unit_group(
                 if sql_unit.cardinality is enums.Cardinality.NO_RESULT
                 else enums.OutputFormat.BINARY
             ),
+            translation_data=sql_unit.translation_data,
+            sql_prefix_len=sql_unit.prefix_len,
         )
         match sql_unit.tx_action:
             case dbstate.TxAction.START:
