@@ -38,6 +38,7 @@ from edb.ir import ast as irast
 from edb.edgeql import compiler as qlcompiler
 
 from edb.server.pgcon import errors as pgerror
+from edb.server.compiler import dbstate
 
 from . import dispatch
 from . import context
@@ -674,6 +675,16 @@ def resolve_ParamRef(
     ctx: Context,
 ) -> pgast.ParamRef:
     # external params map one-to-one to internal params
+    if expr.number < 1:
+        raise errors.QueryError(
+            f'there is no parameter ${expr.number}',
+            pgext_code=pgerror.ERROR_UNDEFINED_PARAMETER,
+        )
+
+    param = ctx.query_params[expr.number - 1]
+    assert isinstance(param, dbstate.SQLParamExternal)
+    param.used = True
+
     return expr
 
 

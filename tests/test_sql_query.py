@@ -1370,6 +1370,20 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [[None]])
 
+    @test.xerror('TODO')
+    async def test_sql_query_static_eval_05a(self):
+        # This fails becuase params are not in the compiled query and postgres
+        # cannot infer the type of params.
+
+        res = await self.squery_values(
+            '''
+            SELECT pg_catalog.pg_get_serial_sequence($1, $2)
+            ''',
+            'a',
+            'b',
+        )
+        self.assertEqual(res, [[None]])
+
     async def test_sql_query_static_eval_06(self):
         # pg_relation_size requires regclass argument
 

@@ -113,6 +113,7 @@ class LiteralTokenType(enum.StrEnum):
 class PgLiteralTypeOID(enum.IntEnum):
     BOOL = 16
     INT4 = 23
+    TEXT = 25
     UNKNOWN = 705
     VARBIT = 1562
     NUMERIC = 1700

@@ -1587,7 +1587,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 self.tenant.get_instance_name(),
                 "sql",
                 )
-        inject_extracted_params(source, result[0])
+        inject_normalization_params(source, result[0])
         self.database.cache_compiled_sql(key, result, schema_version)
         metrics.sql_compilations.inc(
             len(result), self.tenant.get_instance_name()
@@ -1646,7 +1646,7 @@ def compute_cache_key(
     return h.digest()
 
 
-cdef void inject_extracted_params(
+cdef void inject_normalization_params(
     source: pg_parser.Source,
     query_unit: dbstate.SQLQueryUnit,
 ):
@@ -1659,12 +1659,20 @@ cdef void inject_extracted_params(
     for (e, type_oid) in enumerate(source.extra_type_oids()):
         p = e + source.first_extra()
         
-        # if compiler has decided not to use normalized query, don't inject
+        # if compiler has decided not to use params, don't inject
         if (
             p >= len(query_unit.params)
             or not isinstance(query_unit.params[p], dbstate.SQLParamExternal)
         ):
             break
+
+        # special case for unused params of `unknown` type (string constants)
+        if (
+            not query_unit.params[p].used
+            and type_oid == pg_parser.PgLiteralTypeOID.UNKNOWN
+        ):
+            type_oid = pg_parser.PgLiteralTypeOID.TEXT
+
 
         query_unit.params[p] = dbstate.SQLParamExtractedConst(
             type_oid=<int32_t> type_oid,

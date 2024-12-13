@@ -604,7 +604,9 @@ class SQLParamExternal(SQLParam):
     # So a user-visible param.
 
     # External params share the index with internal params
-    pass
+
+    # True for params that are actually used in the compiled query.
+    used = False
 
 
 @dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)
