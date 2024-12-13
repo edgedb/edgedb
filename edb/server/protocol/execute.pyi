@@ -36,6 +36,7 @@ async def describe(
     query_cache_enabled: Optional[bool] = None,
     allow_capabilities: compiler.Capability = (
         compiler.Capability.MODIFICATIONS),
+    query_tag: str | None = None,
 ) -> sertypes.TypeDesc:
     ...
 
@@ -50,6 +51,7 @@ async def parse_execute_json(
     cached_globally: bool = False,
     use_metrics: bool = True,
     tx_isolation: edbdef.TxIsolationLevel | None = None,
+    query_tag: str | None = None,
 ) -> bytes:
     ...
 

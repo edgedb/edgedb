@@ -222,7 +222,7 @@ cdef class Source:
         return self._serialized
 
     @classmethod
-    def from_serialized(cls, serialized: bytes) -> NormalizedSource:
+    def from_serialized(cls, serialized: bytes) -> Source:
         cdef ReadBuffer buf
 
         buf = _init_deserializer(serialized, cls._tag(), cls.__name__)
@@ -240,7 +240,12 @@ cdef class Source:
         if not self._cache_key:
             h = hashlib.blake2b(self._tag().to_bytes())
             h.update(bytes(self.text(), 'UTF-8'))
+
+            # Include types of extracted constants
+            for extra_type_oid in self.extra_type_oids():
+                h.update(extra_type_oid.to_bytes(8, signed=True))
             self._cache_key = h.digest()
+
         return self._cache_key
 
     def variables(self) -> dict[str, Any]:

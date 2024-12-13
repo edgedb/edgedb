@@ -249,8 +249,17 @@ class Tenant(ha_base.ClusterProtocol):
         self._server = server
         self.__loop = server.get_loop()
 
-    def set_sidechannel_configs(self, configs: list[Any]) -> None:
-        self._sidechannel_email_configs = configs
+    async def load_sidechannel_configs(
+        self, value: Any, *, compiler: edbcompiler.Compiler | None = None
+    ) -> None:
+        if compiler is None:
+            compiler = self._server.get_compiler_pool()
+        result = compiler.compile_structured_config(
+            {"cfg::Config": {"email_providers": value}}, source="magic",
+            allow_nested=True,
+        )
+        email_providers = result["cfg::Config"]["email_providers"]
+        self._sidechannel_email_configs = list(email_providers.value)
 
     def get_http_client(self, *, originator: str) -> HttpClient:
         if self._http_client is None:
@@ -536,20 +545,12 @@ class Tenant(ha_base.ClusterProtocol):
             global_schema=global_schema,
             user_schema=s_schema.FlatSchema(),
             internal_schema_mode=True,
+            # Extension installation only works if stdmode or testmode is
+            # set.  Force testmode to be set, since we don't want to set
+            # stdmode, because we want any externally loaded extensions to
+            # be marked as *not* builtin.
+            force_testmode=True,
         )
-
-        # Extension installation only works if stdmode or testmode is
-        # set.  Force testmode to be set, since we don't want to set
-        # stdmode, because we want any externally loaded extensions to
-        # be marked as *not* builtin.
-        compilerctx.state.current_tx().update_session_config(immutables.Map({
-            '__internal_testmode': config.SettingValue(
-                name='__internal_testmode',
-                value=True,
-                source='hack',
-                scope=None,  # type: ignore
-            )
-        }))
 
         script = '\n'.join(scripts)
         _, sql_script = edbcompiler.compile_edgeql_script(compilerctx, script)

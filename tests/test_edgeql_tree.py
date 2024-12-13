@@ -373,7 +373,7 @@ class TestTree(tb.QueryTestCase):
             r"""
                 SELECT Tree {val}
                 FILTER
-                    .children.children.val = '000'
+                    any(.children.children.val = '000')
                 ORDER BY .val;
             """,
             [{'val': '0'}],
@@ -384,7 +384,7 @@ class TestTree(tb.QueryTestCase):
             r"""
                 SELECT Eert {val}
                 FILTER
-                    .children.children.val = '000'
+                    any(.children.children.val = '000')
                 ORDER BY .val;
             """,
             [{'val': '0'}],
@@ -1082,7 +1082,7 @@ class TestTree(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                select (
-                    update Tree filter .val = {"0", "00"}
+                    update Tree filter .val IN {"0", "00"}
                     set { parent := {} }
                ) {
                    val, children: {val} order by .val

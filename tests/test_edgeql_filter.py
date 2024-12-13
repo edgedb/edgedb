@@ -32,6 +32,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'issues_filter_setup.edgeql')
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_filter_two_scalar_conditions01(self):
         await self.assert_query_result(
             r'''
@@ -105,6 +106,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [{'name': 'Yury'}],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_filter_two_scalar_conditions04(self):
         await self.assert_query_result(
             r'''
@@ -159,6 +161,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [{'name': 'Elvis'}, {'name': 'Yury'}],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_filter_not_exists03(self):
         await self.assert_query_result(
             r'''
@@ -177,6 +180,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [{'name': 'Elvis'}, {'name': 'Yury'}],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_filter_not_exists04(self):
         await self.assert_query_result(
             r'''
@@ -245,6 +249,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [{'name': 'Yury'}],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_filter_two_scalar_exists03(self):
         await self.assert_query_result(
             r'''
@@ -321,6 +326,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [{}],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_filter_flow01(self):
         await self.assert_query_result(
             r'''
@@ -341,6 +347,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             ['1', '2', '3', '4'],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_filter_flow02(self):
         await self.assert_query_result(
             r'''
@@ -361,6 +368,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_filter_flow03(self):
         await self.assert_query_result(
             r'''
@@ -448,6 +456,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             [4],
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_filter_aggregate04(self):
         await self.assert_query_result(
             r'''

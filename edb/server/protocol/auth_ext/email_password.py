@@ -82,6 +82,7 @@ class Client(local.Client):
                     "password_hash": ph.hash(password),
                 },
                 cached_globally=True,
+                query_tag='gel/auth',
             )
         except Exception as e:
             exc = await execute.interpret_error(e, self.db)
@@ -108,6 +109,7 @@ filter .email = email;""",
                 "email": email,
             },
             cached_globally=True,
+            query_tag='gel/auth',
         )
 
         password_credential_dicts = json.loads(r.decode())
@@ -142,6 +144,7 @@ set { password_hash := new_hash };""",
                     "new_hash": new_hash,
                 },
                 cached_globally=True,
+                query_tag='gel/auth',
             )
 
         return local_identity
@@ -160,6 +163,7 @@ select ext::auth::EmailPasswordFactor { ** } filter .email = email""",
                 "email": email,
             },
             cached_globally=True,
+            query_tag='gel/auth',
         )
 
         result_json = json.loads(r.decode())
@@ -192,6 +196,7 @@ filter .identity.id = identity_id;""",
                 "identity_id": identity_id,
             },
             cached_globally=True,
+            query_tag='gel/auth',
         )
 
         result_json = json.loads(r.decode())
@@ -234,6 +239,7 @@ set {
                 'new_hash': ph.hash(password),
             },
             cached_globally=True,
+            query_tag='gel/auth',
         )
 
         return local_identity

@@ -145,6 +145,7 @@ select {
                 "subject": user_info.sub,
             },
             cached_globally=True,
+            query_tag='gel/auth',
         )
         result_json = json.loads(r.decode())
         assert len(result_json) == 1

@@ -249,7 +249,7 @@ class DumpTestCaseMixin:
                         FILTER EXISTS .annotations
                         ORDER BY .name,
                     } # keep only links with user-annotated props
-                    FILTER .properties.annotations.name = 'std::title'
+                    FILTER 'std::title' IN .properties.annotations.name
                     ORDER BY .name,
                 }
                 FILTER

@@ -132,6 +132,11 @@ ALTER TYPE cfg::AbstractConfig {
         SET default := cfg::TestEnum.One;
     };
 
+    CREATE PROPERTY boolprop -> std::bool {
+        CREATE ANNOTATION cfg::internal := 'true';
+        SET default := true;
+    };
+
     CREATE PROPERTY __pg_max_connections -> std::int64 {
         CREATE ANNOTATION cfg::internal := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"max_connections"';
@@ -285,6 +290,17 @@ sys::_sleep(duration: std::duration) -> std::bool
     SET volatility := 'Volatile';
     USING SQL $$
     SELECT pg_sleep_for("duration") IS NOT NULL;
+    $$;
+};
+
+
+CREATE FUNCTION
+sys::_postgres_version() -> std::str
+{
+    CREATE ANNOTATION std::description :=
+        'Get the postgres version string';
+    USING SQL $$
+    SELECT version()
     $$;
 };
 

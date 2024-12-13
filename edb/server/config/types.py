@@ -193,9 +193,15 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
 
                 value = cls.from_pyvalue(value, tspec=actual_f_type, spec=spec)
 
-            elif _issubclass(f_type, statypes.Duration):
+            elif (
+                _issubclass(f_type, statypes.Duration)
+                and isinstance(value, str)
+            ):
                 value = statypes.Duration.from_iso8601(value)
-            elif _issubclass(f_type, statypes.ConfigMemory):
+            elif (
+                _issubclass(f_type, statypes.ConfigMemory)
+                and isinstance(value, str | int)
+            ):
                 value = statypes.ConfigMemory(value)
 
             elif not isinstance(f_type, type) or not isinstance(value, f_type):

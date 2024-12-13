@@ -1829,6 +1829,13 @@ class TestPGExtensions(tb.TestCase):
                     'make',
                     f'PG_CONFIG={pg_config}',
                     'installcheck',
-                ], cwd=str(ext_home), env=env)
+                ], cwd=str(ext_home), env=env, text=True)
+            except subprocess.CalledProcessError as e:
+                output = ext_home / "regression.out"
+                if output.exists():
+                    regression_out = output.read_text()
+                else:
+                    regression_out = ""
+                raise AssertionError(f"{e}:\n{regression_out}") from e
             finally:
                 await cluster.stop()

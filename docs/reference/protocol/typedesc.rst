@@ -4,12 +4,6 @@
 Type descriptors
 ================
 
-.. note::
-
-  This page describes the type descriptor formats as implemented in protocol
-  version 2.0 (EdgeDB 4.0 and later).  See :ref:`ref_proto_typedesc_1_0` for
-  type descriptor implementation in protocol versino 1.0 and earlier.
-
 This section describes how type information for query input and results
 is encoded.  Specifically, this is needed to decode the server response to
 the :ref:`ref_protocol_msg_command_data_description` message.
@@ -46,6 +40,10 @@ data types native to the driver.
     results, e.g. the ``CREATE BRANCH example`` statement.  It is also used to
     represent the input descriptor when a query does not receive any arguments,
     or the state descriptor for an empty/default state.
+
+.. versionadded:: 6.0
+
+   Added ``SQLRecordDescriptor``.
 
 
 Descriptor and type IDs
@@ -538,4 +536,33 @@ Type Annotation Text Descriptor
 
         // Annotation value.
         string  value;
+    };
+
+
+SQL Record Descriptor
+=====================
+
+.. code-block:: c
+
+    struct SQLRecordDescriptor {
+        // Indicates that this is a
+        // SQL Record descriptor.
+        uint8         tag = 13;
+
+        // Descriptor ID.
+        uuid          id;
+
+        // Number of elements in record.
+        uint16        element_count;
+
+        // Array of shape elements.
+        SQLRecordElement  elements[element_count];
+    };
+
+    struct SQLRecordElement {
+        // Element name.
+        string              name;
+
+        // Element type descriptor index.
+        uint16              type;
     };

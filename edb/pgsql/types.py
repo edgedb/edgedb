@@ -446,6 +446,8 @@ def pg_type_from_ir_typeref(
                 return ('uuid',)
         elif irtyputils.is_abstract(material):
             return ('anynonarray',)
+        elif material.custom_sql_serialization and serialized:
+            return tuple(material.custom_sql_serialization.split('.'))
         elif material.sql_type:
             return tuple(material.sql_type.split('.'))
         else:

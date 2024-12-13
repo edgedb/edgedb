@@ -25,6 +25,22 @@ from edb import edgeql
 from edb.server import defines, config
 from edb.server.compiler import sertypes, enums
 
+class SQLParamsSource:
+    types_in_out: list[tuple[list[str], list[tuple[str, str]]]]
+
+    def cache_key(self) -> bytes:
+        ...
+
+    def serialize(self) -> bytes:
+        ...
+
+    @staticmethod
+    def deserialize(data: bytes) -> SQLParamsSource:
+        ...
+
+    def text(self) -> str:
+        ...
+
 class CompilationRequest:
     source: edgeql.Source
     protocol_version: defines.ProtocolVersion
