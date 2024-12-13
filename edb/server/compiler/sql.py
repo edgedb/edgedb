@@ -112,7 +112,13 @@ def compile_sql(
             # evaluation)
             try:
                 if isinstance(source, pg_parser.NormalizedSource):
-                    return _try(source.original_text(), [])
+                    units = _try(source.original_text(), [])
+                    # Unit isn't cacheable, since the key is the
+                    # extracted version.
+                    # TODO: Can we tell the server to cache using non-extracted?
+                    for unit in units:
+                        unit.cacheable = False
+                    return units
             except DisableNormalization:
                 pass
 

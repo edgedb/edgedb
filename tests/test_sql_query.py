@@ -1323,6 +1323,10 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         res = await self.squery_values('select current_catalog;')
         self.assertEqual(res, [[self.con.dbname]])
 
+        res = await self.squery_values('select current_schemas(false);')
+        self.assertEqual(res, [[['blah', 'foo']]])
+
+        # Make sure the static evaluation doesn't get cached incorrectly.
         res = await self.squery_values('select current_schemas(true);')
         self.assertEqual(res, [[['pg_catalog', 'blah', 'foo']]])
 
@@ -1429,6 +1433,16 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ["novel", 8192],
                 ["novel.chapters", 0],
             ],
+        )
+
+    async def test_sql_native_query_static_eval_01(self):
+        await self.assert_sql_query_result(
+            'select current_schemas(false);',
+            [{'current_schemas': ['public']}],
+        )
+        await self.assert_sql_query_result(
+            'select current_schemas(true);',
+            [{'current_schemas': ['pg_catalog', 'public']}],
         )
 
     async def test_sql_query_be_state(self):

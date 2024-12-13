@@ -2738,7 +2738,7 @@ def compile_sql_as_unit_group(
                 tx_state.release_savepoint(sql_unit.sp_name)
                 unit.sp_name = sql_unit.sp_name
             case None:
-                unit.cacheable = True
+                unit.cacheable = sql_unit.cacheable
             case _:
                 raise AssertionError(
                     f"unexpected SQLQueryUnit.tx_action: {sql_unit.tx_action}"

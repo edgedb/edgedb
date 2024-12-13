@@ -533,6 +533,9 @@ class SQLQueryUnit:
     orig_query: str = dataclasses.field(repr=False)
     """Original query text before translation."""
 
+    # True if it is safe to cache this unit.
+    cacheable: bool = True
+
     cardinality: enums.Cardinality = enums.Cardinality.NO_RESULT
 
     capabilities: enums.Capability = enums.Capability.NONE
