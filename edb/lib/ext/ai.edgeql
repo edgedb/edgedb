@@ -339,6 +339,46 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
     };
 
     # Mistral models
+    create abstract type ext::ai::MistralEmbedModel
+        extending ext::ai::EmbeddingModel
+    {
+        alter annotation
+            ext::ai::model_name := "mistral-embed";
+        alter annotation
+            ext::ai::model_provider := "builtin::mistral";
+        alter annotation
+            ext::ai::embedding_model_max_input_tokens := "8192";
+        alter annotation
+            ext::ai::embedding_model_max_batch_tokens := "16384";
+        alter annotation
+            ext::ai::embedding_model_max_output_dimensions := "1024";
+    };
+
+    create abstract type ext::ai::MistralSmallModel
+        extending ext::ai::TextGenerationModel
+    {
+        alter annotation
+            ext::ai::model_name := "mistral-small-latest";
+        alter annotation
+            ext::ai::model_provider := "builtin::mistral";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "32000";
+    };
+
+    # Mistral legacy model
+    create abstract type ext::ai::MistralMediumModel
+        extending ext::ai::TextGenerationModel
+    {
+        create annotation std::deprecated :=
+        "This model is noted as a legacy model in the Mistral docs.";
+        alter annotation
+            ext::ai::model_name := "mistral-medium-latest";
+        alter annotation
+            ext::ai::model_provider := "builtin::mistral";
+        alter annotation
+            ext::ai::text_gen_model_context_window := "32000";
+    };
+
     create abstract type ext::ai::MistralLargeModel
         extending ext::ai::TextGenerationModel
     {
@@ -383,17 +423,6 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             ext::ai::text_gen_model_context_window := "128000";
     };
 
-    create abstract type ext::ai::MistralSmallModel
-        extending ext::ai::TextGenerationModel
-    {
-        alter annotation
-            ext::ai::model_name := "mistral-small-latest";
-        alter annotation
-            ext::ai::model_provider := "builtin::mistral";
-        alter annotation
-            ext::ai::text_gen_model_context_window := "32000";
-    };
-
     create abstract type ext::ai::CodestralModel
         extending ext::ai::TextGenerationModel
     {
@@ -403,22 +432,6 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             ext::ai::model_provider := "builtin::mistral";
         alter annotation
             ext::ai::text_gen_model_context_window := "32000";
-    };
-
-    # Mistral embedding model 
-    create abstract type ext::ai::MistralEmbedModel
-        extending ext::ai::EmbeddingModel
-    {
-        alter annotation
-            ext::ai::model_name := "mistral-embed";
-        alter annotation
-            ext::ai::model_provider := "builtin::mistral";
-        alter annotation
-            ext::ai::embedding_model_max_input_tokens := "8192";
-        alter annotation
-            ext::ai::embedding_model_max_batch_tokens := "16384";
-        alter annotation
-            ext::ai::embedding_model_max_output_dimensions := "1024";
     };
 
     # Mistral free models
@@ -432,7 +445,7 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
         alter annotation
             ext::ai::text_gen_model_context_window := "128000";
     };
-    
+
     create abstract type ext::ai::MistralNemo
         extending ext::ai::TextGenerationModel
     {
@@ -453,20 +466,6 @@ CREATE EXTENSION PACKAGE ai VERSION '1.0' {
             ext::ai::model_provider := "builtin::mistral";
         alter annotation
             ext::ai::text_gen_model_context_window := "256000";
-    };
- 
-    #  Mistral legacy model
-    create abstract type ext::ai::MistralMediumModel
-        extending ext::ai::TextGenerationModel
-    {
-        create annotation std::deprecated :=
-        "This model is noted as a legacy model in the Mistral docs.";
-        alter annotation
-            ext::ai::model_name := "mistral-medium-latest";
-        alter annotation
-            ext::ai::model_provider := "builtin::mistral";
-        alter annotation
-            ext::ai::text_gen_model_context_window := "32000";
     };
 
     # Anthropic models
