@@ -1468,8 +1468,8 @@ cdef class DatabaseConnectionView:
                     ex.fields['P'] = str(
                         int(ex.fields['P']) - query_unit.sql_prefix_len
                     )
-                if query_unit.translation_data:
-                    ex._translation_data = query_unit.translation_data
+                if query_unit.source_map:
+                    ex._source_map = query_unit.source_map
 
                 raise
 

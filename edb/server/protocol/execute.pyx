@@ -380,7 +380,7 @@ async def execute(
         if query_unit.user_schema:
             if isinstance(ex, pgerror.BackendError):
                 ex._user_schema = query_unit.user_schema
-        if query_unit.translation_data:
+        if query_unit.source_map:
             ex._from_sql = True
 
         dbv.on_error()
@@ -574,7 +574,7 @@ async def execute_script(
         if isinstance(e, pgerror.BackendError):
             e._user_schema = dbv.get_user_schema_pickle()
 
-        if query_unit and query_unit.translation_data:
+        if query_unit and query_unit.source_map:
             e._from_sql = True
 
         if not in_tx and dbv.in_tx():
@@ -939,7 +939,7 @@ async def interpret_error(
     elif isinstance(exc, pgerror.BackendError):
         try:
             from_sql = getattr(exc, '_from_sql', False)
-            translation_data = getattr(exc, '_translation_data', None)
+            source_map = getattr(exc, '_source_map', None)
             fields = exc.fields
 
             static_exc = errormech.static_interpret_backend_error(
@@ -978,12 +978,12 @@ async def interpret_error(
                 exc = errors.ExecutionError(*exc.args)
 
             # Translate error position for SQL queries if we can
-            if translation_data and isinstance(exc, errors.EdgeDBError):
+            if source_map and isinstance(exc, errors.EdgeDBError):
                 if 'P' in fields:
                     exc.set_position(
                         0,
                         0,
-                        translation_data.translate(int(fields['P'])),
+                        source_map.translate(int(fields['P'])),
                         None,
                     )
 

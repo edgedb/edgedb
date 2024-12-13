@@ -346,7 +346,7 @@ class QueryUnit:
     append_tx_op: bool = False
 
     # Translation source map.
-    translation_data: Optional[pgcodegen.TranslationData] = None
+    source_map: Optional[pgcodegen.SourceMap] = None
     # For SQL queries, the length of the query prefix applied
     # after translation.
     sql_prefix_len: int = 0
@@ -499,7 +499,7 @@ class PrepareData(PreparedStmtOpData):
 
     query: str
     """Translated query string"""
-    translation_data: Optional[pgcodegen.TranslationData] = None
+    source_map: Optional[pgcodegen.SourceMap] = None
     """Translation source map"""
 
 
@@ -523,7 +523,7 @@ class SQLQueryUnit:
     """Translated query text."""
 
     prefix_len: int = 0
-    translation_data: Optional[pgcodegen.TranslationData] = None
+    source_map: Optional[pgcodegen.SourceMap] = None
     """Translation source map."""
 
     eql_format_query: Optional[str] = dataclasses.field(
