@@ -2110,12 +2110,14 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         )
 
     async def test_sql_native_query_00(self):
+        # to_json fails when we *don't* have constant extraction turned on.
+        # It also fails normally in postgres.
         await self.assert_sql_query_result(
             """
                 SELECT
                     1 AS a,
                     'two' AS b,
-                    to_json('three') AS c,
+                    -- to_json('three') AS c,
                     timestamp '2000-12-16 12:21:13' AS d,
                     timestamp with time zone '2000-12-16 12:21:13' AS e,
                     date '0001-01-01 AD' AS f,
@@ -2127,7 +2129,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 {
                     "a": 1,
                     "b": "two",
-                    "c": '"three"',
+                    # "c": '"three"',
                     "d": "2000-12-16T12:21:13",
                     "e": "2000-12-16T12:21:13+00:00",
                     "f": "0001-01-01",
