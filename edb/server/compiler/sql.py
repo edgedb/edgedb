@@ -114,7 +114,7 @@ def compile_sql(
 def _build_constant_extraction_map(
     src: pgast.Base,
     out: pgast.Base,
-) -> pg_codegen.BaseTranslationData:
+) -> pg_codegen.BaseSourceMap:
     """Traverse two ASTs in parallel and build a source map between them.
 
     The ASTs should *mostly* line up. When they don't, that is
@@ -127,7 +127,7 @@ def _build_constant_extraction_map(
     "parse" phase, so we don't need to worry about it being reused
     with different constants.
     """
-    tdata = pg_codegen.BaseTranslationData(
+    tdata = pg_codegen.BaseSourceMap(
         source_start=src.span.start if src.span else 0,
         # HACK: I don't know why, but this - 1 helps a lot.
         output_start=out.span.start - 1 if out.span else 0,
@@ -350,7 +350,7 @@ def _compile_sql(
                 stmt_name=stmt.name,
                 be_stmt_name=mangled_stmt_name.encode("utf-8"),
                 query=stmt_source.text,
-                translation_data=stmt_source.translation_data,
+                source_map=stmt_source.source_map,
             )
             unit.command_complete_tag = dbstate.TagPlain(tag=b"PREPARE")
             track_stats = True
@@ -409,11 +409,11 @@ def _compile_sql(
                 stmt, schema, tx_state, opts
             )
             unit.query = stmt_source.text
-            unit.translation_data = stmt_source.translation_data
-            if stmt_source.translation_data:
-                unit.translation_data = (
-                    pg_codegen.ChainedTranslationData([
-                        stmt_source.translation_data,
+            unit.source_map = stmt_source.source_map
+            if stmt_source.source_map:
+                unit.source_map = (
+                    pg_codegen.ChainedSourceMap([
+                        stmt_source.source_map,
                         extract_data,
                     ])
                 )
@@ -562,11 +562,11 @@ def resolve_query(
         disambiguate_column_names=opts.disambiguate_column_names,
     )
     resolved = pg_resolver.resolve(stmt, schema, options)
-    source = pg_codegen.generate(resolved.ast, with_translation_data=True)
+    source = pg_codegen.generate(resolved.ast, with_source_map=True)
     if resolved.edgeql_output_format_ast is not None:
         edgeql_format_source = pg_codegen.generate(
             resolved.edgeql_output_format_ast,
-            with_translation_data=True,
+            with_source_map=True,
         )
     else:
         edgeql_format_source = None

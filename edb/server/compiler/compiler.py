@@ -2711,7 +2711,7 @@ def compile_sql_as_unit_group(
                 if sql_unit.cardinality is enums.Cardinality.NO_RESULT
                 else enums.OutputFormat.BINARY
             ),
-            translation_data=sql_unit.translation_data,
+            source_map=sql_unit.source_map,
             sql_prefix_len=sql_unit.prefix_len,
         )
         match sql_unit.tx_action:

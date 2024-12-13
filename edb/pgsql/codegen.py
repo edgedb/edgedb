@@ -41,7 +41,7 @@ def generate(
     add_line_information: bool = False,
     pretty: bool = True,
     reordered: bool = False,
-    with_translation_data: bool = False,
+    with_source_map: bool = False,
 ) -> SQLSource:
     # Main entrypoint
 
@@ -52,7 +52,7 @@ def generate(
             pretty=pretty,
         ),
         reordered=reordered,
-        with_translation_data=with_translation_data,
+        with_source_map=with_source_map,
     )
 
     try:
@@ -72,12 +72,12 @@ def generate(
         exceptions.add_context(err, ctx)
         raise err from error
 
-    if with_translation_data:
-        assert generator.translation_data
+    if with_source_map:
+        assert generator.source_map
 
     return SQLSource(
         text=generator.finish(),
-        translation_data=generator.translation_data,
+        source_map=generator.source_map,
         param_index=generator.param_index,
     )
 
@@ -113,18 +113,18 @@ def generate_ctes_source(
     return generator.finish()
 
 
-class TranslationData:
+class SourceMap:
     @abc.abstractmethod
     def translate(self, pos: int) -> int:
         ...
 
 
 @dataclasses.dataclass(kw_only=True)
-class BaseTranslationData(TranslationData):
+class BaseSourceMap(SourceMap):
     source_start: int
     output_start: int
     output_end: int | None = None
-    children: List[BaseTranslationData] = (
+    children: List[BaseSourceMap] = (
         dataclasses.field(default_factory=list))
 
     def translate(self, pos: int) -> int:
@@ -139,8 +139,8 @@ class BaseTranslationData(TranslationData):
 
 
 @dataclasses.dataclass
-class ChainedTranslationData(TranslationData):
-    parts: List[TranslationData] = (
+class ChainedSourceMap(SourceMap):
+    parts: List[SourceMap] = (
         dataclasses.field(default_factory=list))
 
     def translate(self, pos: int) -> int:
@@ -153,7 +153,7 @@ class ChainedTranslationData(TranslationData):
 class SQLSource:
     text: str
     param_index: dict[int, list[int]]
-    translation_data: Optional[TranslationData] = None
+    source_map: Optional[SourceMap] = None
 
 
 class SQLSourceGenerator(codegen.SourceGenerator):
@@ -161,7 +161,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self,
         opts: codegen.Options,
         *,
-        with_translation_data: bool = False,
+        with_source_map: bool = False,
         reordered: bool = False,
     ):
         super().__init__(
@@ -170,14 +170,14 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             pretty=opts.pretty,
         )
         # params
-        self.with_translation_data: bool = with_translation_data
+        self.with_source_map: bool = with_source_map
         self.reordered = reordered
 
         # state
         self.param_index: collections.defaultdict[int, list[int]] = (
             collections.defaultdict(list))
         self.write_index: int = 0
-        self.translation_data: Optional[BaseTranslationData] = None
+        self.source_map: Optional[BaseSourceMap] = None
 
     def write(
         self,
@@ -190,20 +190,20 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write_index += len(self.result[new])
 
     def visit(self, node):  # type: ignore
-        if self.with_translation_data:
-            translation_data = BaseTranslationData(
+        if self.with_source_map:
+            source_map = BaseSourceMap(
                 source_start=node.span.start if node.span else 0,
                 output_start=self.write_index,
             )
-            old_top = self.translation_data
-            self.translation_data = translation_data
+            old_top = self.source_map
+            self.source_map = source_map
         super().visit(node)
-        if self.with_translation_data:
-            assert self.translation_data == translation_data
-            self.translation_data.output_end = self.write_index
+        if self.with_source_map:
+            assert self.source_map == source_map
+            self.source_map.output_end = self.write_index
             if old_top:
-                old_top.children.append(self.translation_data)
-                self.translation_data = old_top
+                old_top.children.append(self.source_map)
+                self.source_map = old_top
 
     def generic_visit(self, node):  # type: ignore
         raise GeneratorError(
