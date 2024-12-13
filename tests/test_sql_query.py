@@ -2554,9 +2554,10 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 '''select title, 'aaaaaaaaaaaaaaaaa', asdf from "Content";'''
             )
 
+    @test.xerror('this gives ISE instead of QueryError')
     async def test_sql_native_query_19a(self):
         with self.assertRaisesRegex(
-            Exception,
+            edgedb.errors.QueryError,
             'does not exist',
         ):
             await self.con.query_sql(
