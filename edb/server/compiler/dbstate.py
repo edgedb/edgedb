@@ -345,6 +345,12 @@ class QueryUnit:
     run_and_rollback: bool = False
     append_tx_op: bool = False
 
+    # Translation source map.
+    translation_data: Optional[pgcodegen.TranslationData] = None
+    # For SQL queries, the length of the query prefix applied
+    # after translation.
+    sql_prefix_len: int = 0
+
     @property
     def has_ddl(self) -> bool:
         return bool(self.capabilities & enums.Capability.DDL)
@@ -523,9 +529,6 @@ class SQLQueryUnit:
     eql_format_query: Optional[str] = dataclasses.field(
         repr=False, default=None)
     """Translated query text returning data in single-column format."""
-
-    eql_format_translation_data: Optional[pgcodegen.TranslationData] = None
-    """Translation source map for single-column format query."""
 
     orig_query: str = dataclasses.field(repr=False)
     """Original query text before translation."""

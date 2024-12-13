@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence, List
 
+import abc
 import collections
 import dataclasses
 
@@ -113,21 +114,18 @@ def generate_ctes_source(
 
 
 class TranslationData:
+    @abc.abstractmethod
+    def translate(self, pos: int) -> int:
+        ...
+
+
+@dataclasses.dataclass(kw_only=True)
+class BaseTranslationData(TranslationData):
     source_start: int
     output_start: int
-    output_end: int
-    children: List[TranslationData]
-
-    def __init__(
-        self,
-        *,
-        source_start: int,
-        output_start: int,
-    ):
-        self.source_start = source_start
-        self.output_start = output_start
-        self.output_end = -1
-        self.children = []
+    output_end: int | None = None
+    children: List[BaseTranslationData] = (
+        dataclasses.field(default_factory=list))
 
     def translate(self, pos: int) -> int:
         bu = None
@@ -135,9 +133,20 @@ class TranslationData:
             if u.output_start >= pos:
                 break
             bu = u
-        if bu and bu.output_end > pos:
+        if bu and (bu.output_end is None or bu.output_end > pos):
             return bu.translate(pos)
         return self.source_start
+
+
+@dataclasses.dataclass
+class ChainedTranslationData(TranslationData):
+    parts: List[TranslationData] = (
+        dataclasses.field(default_factory=list))
+
+    def translate(self, pos: int) -> int:
+        for part in self.parts:
+            pos = part.translate(pos)
+        return pos
 
 
 @dataclasses.dataclass(frozen=True)
@@ -168,7 +177,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.param_index: collections.defaultdict[int, list[int]] = (
             collections.defaultdict(list))
         self.write_index: int = 0
-        self.translation_data: Optional[TranslationData] = None
+        self.translation_data: Optional[BaseTranslationData] = None
 
     def write(
         self,
@@ -182,7 +191,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit(self, node):  # type: ignore
         if self.with_translation_data:
-            translation_data = TranslationData(
+            translation_data = BaseTranslationData(
                 source_start=node.span.start if node.span else 0,
                 output_start=self.write_index,
             )
