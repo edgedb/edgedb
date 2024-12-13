@@ -79,7 +79,7 @@ Module alias
 
 
 Another use of ``with`` is to provide aliases for modules. This can be useful
-for long queries which reuse many functions from the same module.
+for long queries which reuse many objects or functions from the same module.
 
 .. code-block:: edgeql
 
