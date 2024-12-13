@@ -56,6 +56,7 @@ from edb.server import instdata
 
 from edb import edgeql
 from edb.common import debug
+from edb.common import turbo_uuid
 from edb.common import verutils
 from edb.common import uuidgen
 
@@ -107,6 +108,11 @@ from . import sql
 
 if TYPE_CHECKING:
     from edb.pgsql import metaschema
+    SQLDescriptors = list[
+        tuple[
+            tuple[bytes, bytes, list[dbstate.Param], int], tuple[bytes, bytes]
+        ]
+    ]
 
 
 EMPTY_MAP: immutables.Map[Any, Any] = immutables.Map()
@@ -592,7 +598,8 @@ class Compiler:
         serialized_request: bytes,
         original_query: str,
     ) -> Tuple[
-        dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
+        dbstate.QueryUnitGroup | SQLDescriptors,
+        Optional[dbstate.CompilerConnectionState]
     ]:
         request = rpc.CompilationRequest.deserialize(
             serialized_request,
@@ -618,8 +625,23 @@ class Compiler:
         database_config: Optional[immutables.Map[str, config.SettingValue]],
         system_config: Optional[immutables.Map[str, config.SettingValue]],
         request: rpc.CompilationRequest,
-    ) -> Tuple[dbstate.QueryUnitGroup,
+    ) -> Tuple[dbstate.QueryUnitGroup | SQLDescriptors,
                Optional[dbstate.CompilerConnectionState]]:
+
+        if request.input_language is enums.InputLanguage.SQL_PARAMS:
+            assert isinstance(request.source, rpc.SQLParamsSource)
+            return (
+                self.compile_sql_descriptors(
+                    user_schema,
+                    global_schema,
+                    request.protocol_version,
+                    request.source.types_in_out,
+                ),
+                # state is None -- we know we're not
+                # in a transaction and compilation of params
+                # couldn't have started it.
+                None,
+            )
 
         sess_config = request.session_config
         if sess_config is None:
@@ -691,7 +713,8 @@ class Compiler:
         original_query: str,
         expect_rollback: bool = False,
     ) -> Tuple[
-        dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
+        dbstate.QueryUnitGroup | SQLDescriptors,
+        Optional[dbstate.CompilerConnectionState]
     ]:
         request = rpc.CompilationRequest.deserialize(
             serialized_request,
@@ -713,8 +736,23 @@ class Compiler:
         request: rpc.CompilationRequest,
         expect_rollback: bool = False,
     ) -> Tuple[
-        dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
+        dbstate.QueryUnitGroup | SQLDescriptors,
+        Optional[dbstate.CompilerConnectionState]
     ]:
+        if request.input_language is enums.InputLanguage.SQL_PARAMS:
+            tx = state.current_tx()
+            assert isinstance(request.source, rpc.SQLParamsSource)
+            return (
+                self.compile_sql_descriptors(
+                    tx.get_user_schema(),
+                    tx.get_global_schema(),
+                    request.protocol_version,
+                    request.source.types_in_out,
+                ),
+                # state is the same.
+                state,
+            )
+
         # Apply session differences if any
         if (
             request.modaliases is not None
@@ -765,6 +803,78 @@ class Compiler:
                     f"unnsupported input language: {request.input_language}")
 
         return unit_group, ctx.state
+
+    def compile_sql_descriptors(
+        self,
+        user_schema: s_schema.Schema,
+        global_schema: s_schema.Schema,
+        protocol_version: defines.ProtocolVersion,
+        types_in_out: list[tuple[list[str], list[tuple[str, str]]]],
+    ) -> SQLDescriptors:
+        schema = s_schema.ChainedSchema(
+            self.state.std_schema,
+            user_schema,
+            global_schema,
+        )
+
+        result = []
+
+        for in_out in types_in_out:
+            assert isinstance(in_out, tuple) and len(in_out) == 2
+
+            t_in = []
+            params = []
+            for idx, id in enumerate(in_out[0]):
+                param_name = str(idx + 1)
+                param_type = schema.get_by_id(turbo_uuid.UUID(id))
+                assert isinstance(param_type, s_types.Type)
+                param_required = False  # SQL arguments can always be NULL
+
+                if isinstance(param_type, s_types.Array):
+                    array_type_id = param_type.get_element_type(schema).id
+                else:
+                    array_type_id = None
+
+                t_in.append(
+                    (
+                        param_name,
+                        param_type,
+                        param_required,
+                    )
+                )
+
+                params.append(
+                    dbstate.Param(
+                        name=param_name,
+                        required=param_required,
+                        array_type_id=array_type_id,
+                        outer_idx=None,  # no script support for SQL
+                        sub_params=None,  # no tuple args support for SQL
+                    )
+                )
+
+            input_desc, input_desc_id = sertypes.describe_params(
+                schema=schema, params=t_in,
+                protocol_version=protocol_version,
+            )
+
+            t_out = {
+                name: cast(s_types.Type, schema.get_by_id(turbo_uuid.UUID(id)))
+                for name, id in in_out[1]
+            }
+            assert all(isinstance(t, s_types.Type) for t in t_out.values())
+
+            output_desc, output_desc_id = sertypes.describe_sql_result(
+                schema=schema, row=t_out,
+                protocol_version=protocol_version,
+            )
+
+            result.append((
+                (input_desc, input_desc_id.bytes, params, len(params)),
+                (output_desc, output_desc_id.bytes)
+            ))
+
+        return result
 
     def interpret_backend_error(
         self,

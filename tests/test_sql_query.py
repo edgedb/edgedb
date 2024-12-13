@@ -2189,8 +2189,8 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 }
             ],
             variables={
-                "0": "Drama",
-                "1": 14,
+                "1": "Drama",
+                "2": 14,
             },
             apply_access_policies=False,
         )
@@ -2452,8 +2452,8 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             """SELECT $1::text as t, $2::int as i""",
             [{"t": "Hello", "i": 42}],
             variables={
-                "0": "Hello",
-                "1": 42,
+                "1": "Hello",
+                "2": 42,
             },
             apply_access_policies=False,
         )
@@ -2482,7 +2482,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 """,
                 [],
                 variables={
-                    "0": 42,
+                    "1": 42,
                 },
                 apply_access_policies=False,
             )
@@ -2498,7 +2498,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 """,
                 [],
                 variables={
-                    "0": "Hello",
+                    "1": "Hello",
                 },
                 apply_access_policies=False,
             )
@@ -2514,8 +2514,8 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 """,
                 [],
                 variables={
-                    "0": "Hello",
-                    "1": 42,
+                    "1": "Hello",
+                    "2": 42,
                 },
                 apply_access_policies=False,
             )
