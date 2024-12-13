@@ -104,8 +104,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             await con2.aclose()
 
             with self.assertRaises(
-                (ConnectionError, edgedb.ClientConnectionError)
-            ):
+                    (ConnectionError, edgedb.ClientConnectionError)):
                 # Since both con1 and con2 are now disconnected and
                 # the cluster was started with an "--auto-shutdown-after=0"
                 # option, we expect this connection to be rejected
@@ -119,8 +118,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             await asyncio.sleep(2)
 
             with self.assertRaises(
-                (ConnectionError, edgedb.ClientConnectionError)
-            ):
+                    (ConnectionError, edgedb.ClientConnectionError)):
                 await sd.connect(wait_until_available=0)
 
     @unittest.skipIf(
@@ -135,18 +133,14 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
         # * "--bootstrap-command"
 
         cmd = [
-            sys.executable,
-            '-m',
-            'edb.server.main',
-            '--port',
-            'auto',
+            sys.executable, '-m', 'edb.server.main',
+            '--port', 'auto',
             '--testmode',
             '--temp-dir',
             '--bootstrap-command=CREATE SUPERUSER ROLE test_bootstrap;',
             '--bootstrap-only',
             '--log-level=error',
-            '--max-backend-connections',
-            '10',
+            '--max-backend-connections', '10',
             '--tls-cert-mode=generate_self_signed',
         ]
 
@@ -158,7 +152,8 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
         )
 
         try:
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=240)
+            _, stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=240)
         except asyncio.TimeoutError:
             if proc.returncode is None:
                 proc.terminate()
@@ -182,7 +177,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
         async with tb.start_edgedb_server(
             bootstrap_command='CREATE SUPERUSER ROLE test_bootstrap2 '
-            '{ SET password := "tbs2" };'
+                              '{ SET password := "tbs2" };'
         ) as sd:
             con = await sd.connect(user='test_bootstrap2', password='tbs2')
             try:
@@ -192,11 +187,11 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
     @unittest.skipIf(
         platform.system() == "Darwin",
-        "https://github.com/edgedb/edgedb/issues/7789",
+        "https://github.com/edgedb/edgedb/issues/7789"
     )
     @unittest.skipIf(
         "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
-        "--background is not supported in multi-tenante mode",
+        "--background is not supported in multi-tenante mode"
     )
     async def test_server_ops_background(self) -> None:
         # Test that "edgedb-server" works as expected with the
@@ -209,17 +204,13 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
         os.close(status_fd)
 
         cmd = [
-            sys.executable,
-            '-m',
-            'edb.server.main',
-            '--port',
-            'auto',
+            sys.executable, '-m', 'edb.server.main',
+            '--port', 'auto',
             '--testmode',
             '--temp-dir',
             '--log-level=debug',
             '--background',
-            '--emit-server-status',
-            status_file,
+            '--emit-server-status', status_file,
             '--tls-cert-mode=generate_self_signed',
             '--jose-key-mode=generate',
         ]
@@ -277,28 +268,20 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
         os.close(status_fd)
 
         cmd = [
-            sys.executable,
-            '-m',
-            'edb.server.main',
-            '--port',
-            'auto',
+            sys.executable, '-m', 'edb.server.main',
+            '--port', 'auto',
             '--testmode',
             '--log-level=debug',
-            '--emit-server-status',
-            status_file,
-            '--emit-server-status',
-            status_file_2,
+            '--emit-server-status', status_file,
+            '--emit-server-status', status_file_2,
             '--tls-cert-mode=generate_self_signed',
             '--jose-key-mode=generate',
         ]
         if "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" not in os.environ:
-            cmd.extend(
-                [
-                    '--temp-dir',
-                    '--max-backend-connections',
-                    '10',
-                ]
-            )
+            cmd.extend([
+                '--temp-dir',
+                '--max-backend-connections', '10',
+            ])
 
         proc = None
 
@@ -416,7 +399,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             async with tb.start_edgedb_server(
                 data_dir=temp_dir,
                 default_auth_method=args.ServerAuthMethod.Scram,
-                bootstrap_command='ALTER ROLE admin SET password := "first";',
+                bootstrap_command='ALTER ROLE admin SET password := "first";'
             ) as sd:
                 con = await sd.connect(password='first')
                 try:
@@ -424,11 +407,11 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 finally:
                     await con.aclose()
 
-            # The bootstrap command should not be run on subsequent server starts.
+        # The bootstrap command should not be run on subsequent server starts.
             async with tb.start_edgedb_server(
                 data_dir=temp_dir,
                 default_auth_method=args.ServerAuthMethod.Scram,
-                bootstrap_command='ALTER ROLE admin SET password := "second";',
+                bootstrap_command='ALTER ROLE admin SET password := "second";'
             ) as sd:
                 con = await sd.connect(password='first')
                 try:
@@ -441,7 +424,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             async with tb.start_edgedb_server(
                 data_dir=temp_dir,
                 default_auth_method=args.ServerAuthMethod.Scram,
-                bootstrap_command='ALTER ROLE edgedb SET password := "first";',
+                bootstrap_command='ALTER ROLE edgedb SET password := "first";'
             ) as sd:
                 con = await sd.connect(password='first')
                 try:
@@ -451,10 +434,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
     async def test_server_ops_bogus_bind_addr_in_mix(self):
         async with tb.start_edgedb_server(
-            bind_addrs=(
-                'host.invalid',
-                '127.0.0.1',
-            ),
+            bind_addrs=('host.invalid', '127.0.0.1',),
         ) as sd:
             con = await sd.connect()
             try:
@@ -514,8 +494,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
         with tempfile.TemporaryDirectory() as td:
             cluster = await pgcluster.get_local_pg_cluster(
-                td, max_connections=actual, log_level='s'
-            )
+                td, max_connections=actual, log_level='s')
             cluster.update_connection_params(
                 user='postgres',
                 database='template1',
@@ -674,7 +653,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
             await cluster.start()
             try:
-                await self._test_server_ops_ignore_other_tenants(td, 'postgres')
+                await self._test_server_ops_ignore_other_tenants(
+                    td, 'postgres'
+                )
             finally:
                 await cluster.stop()
 
@@ -728,7 +709,10 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             ),
             protocol.Sync(),
         )
-        await con.recv_match(protocol.CommandComplete, status='SELECT')
+        await con.recv_match(
+            protocol.CommandComplete,
+            status='SELECT'
+        )
         await con.recv_match(
             protocol.ReadyForCommand,
             transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
@@ -736,26 +720,20 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
     async def test_server_ops_cache_recompile_01(self):
         def measure_compilations(
-            sd: tb._EdgeDBServerData,
+            sd: tb._EdgeDBServerData
         ) -> Callable[[], float | int]:
-            return (
-                lambda: tb.parse_metrics(sd.fetch_metrics()).get(
-                    'edgedb_server_edgeql_query_compilations_total'
-                    '{tenant="localtest",path="compiler"}'
-                )
-                or 0
-            )
+            return lambda: tb.parse_metrics(sd.fetch_metrics()).get(
+                'edgedb_server_edgeql_query_compilations_total'
+                '{tenant="localtest",path="compiler"}'
+            ) or 0
 
         def measure_sql_compilations(
-            sd: tb._EdgeDBServerData,
+            sd: tb._EdgeDBServerData
         ) -> Callable[[], float | int]:
-            return (
-                lambda: tb.parse_metrics(sd.fetch_metrics()).get(
-                    'edgedb_server_sql_compilations_total'
-                    '{tenant="localtest"}'
-                )
-                or 0
-            )
+            return lambda: tb.parse_metrics(sd.fetch_metrics()).get(
+                'edgedb_server_sql_compilations_total'
+                '{tenant="localtest"}'
+            ) or 0
 
         with tempfile.TemporaryDirectory() as temp_dir:
             async with tb.start_edgedb_server(
@@ -773,11 +751,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     with self.assertChange(measure_compilations(sd), 0):
                         await con.query(qry)
 
-                    await con.query(
-                        '''
+                    await con.query('''
                         create type X
-                    '''
-                    )
+                    ''')
 
                     # We should have recompiled the cache when we created
                     # the type, so doing the query shouldn't cause another
@@ -808,16 +784,12 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                         "<duration>'2ms'"
                     )
 
-                    await con.query(
-                        '''
+                    await con.query('''
                         drop type X
-                    '''
-                    )
-                    await con.query(
-                        '''
+                    ''')
+                    await con.query('''
                         create global g: str;
-                    '''
-                    )
+                    ''')
 
                     with self.assertChange(measure_compilations(sd), 1):
                         await con.query(qry)
@@ -877,12 +849,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                         with self.assertChange(measure_sql_compilations(sd), 0):
                             await scon.fetch('select 1')
 
-                        # cache bit because query normalization
-                        with self.assertChange(measure_sql_compilations(sd), 0):
+                        # TODO: normalization & constant extraction
+                        with self.assertChange(measure_sql_compilations(sd), 2):
                             await scon.fetch('select 2')
-
-                        # TODO: better normalization
-                        with self.assertChange(measure_sql_compilations(sd), 1):
                             await scon.fetch('sELEcT  1')
 
                         # cache hit, even after global has been changed
@@ -999,11 +968,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 self.assertEqual(metrics.get(_featkey('index'), 0), 0)
                 self.assertEqual(metrics.get(_featkey('constraint'), 0), 0)
 
-                await con.execute(
-                    '''
+                await con.execute('''
                     alter type Foo create constraint expression on (true)
-                '''
-                )
+                ''')
 
                 metrics = tb.parse_metrics(sd.fetch_metrics())
                 self.assertEqual(metrics.get(_featkey('index'), 0), 0)
@@ -1016,8 +983,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 self.assertEqual(metrics.get(_featkey('enum'), 0), 0)
                 self.assertEqual(metrics.get(_featkey('link_property'), 0), 0)
 
-                await con.execute(
-                    '''
+                await con.execute('''
                     create type Bar;
                     create type Baz extending Foo, Bar;
                     create scalar type EnumType02 extending enum<foo, bar>;
@@ -1025,8 +991,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     create type Lol { create multi link foo -> Bar {
                         create property x -> str;
                     } };
-                '''
-                )
+                ''')
 
                 metrics = tb.parse_metrics(sd.fetch_metrics())
                 self.assertEqual(
@@ -1062,21 +1027,23 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             con = http.client.HTTPConnection(sd.host, sd.port)
             con.connect()
             try:
-                con.request('GET', f'http://{sd.host}:{sd.port}/blah404')
+                con.request(
+                    'GET',
+                    f'http://{sd.host}:{sd.port}/blah404'
+                )
                 resp = con.getresponse()
                 self.assertEqual(resp.status, 301)
-                resp_headers = {
-                    k.lower(): v.lower() for k, v in resp.getheaders()
-                }
+                resp_headers = {k.lower(): v.lower()
+                                for k, v in resp.getheaders()}
                 self.assertIn('location', resp_headers)
-                self.assertTrue(resp_headers['location'].startswith('https://'))
+                self.assertTrue(
+                    resp_headers['location'].startswith('https://'))
 
                 self.assertIn('strict-transport-security', resp_headers)
                 # By default we enforce HTTPS via HSTS on all routes.
                 self.assertEqual(
                     resp_headers['strict-transport-security'],
-                    'max-age=31536000',
-                )
+                    'max-age=31536000')
             finally:
                 con.close()
 
@@ -1106,7 +1073,10 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             con = http.client.HTTPConnection(sd.host, sd.port)
             con.connect()
             try:
-                con.request('GET', f'http://{sd.host}:{sd.port}/blah404')
+                con.request(
+                    'GET',
+                    f'http://{sd.host}:{sd.port}/blah404'
+                )
                 resp = con.getresponse()
                 self.assertEqual(resp.status, 404)
             finally:
@@ -1118,24 +1088,24 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             )
             tls_context.check_hostname = False
             con = http.client.HTTPSConnection(
-                sd.host, sd.port, context=tls_context
-            )
+                sd.host, sd.port, context=tls_context)
             con.connect()
             try:
-                con.request('GET', f'http://{sd.host}:{sd.port}/blah404')
+                con.request(
+                    'GET',
+                    f'http://{sd.host}:{sd.port}/blah404'
+                )
                 resp = con.getresponse()
                 self.assertEqual(resp.status, 404)
-                resp_headers = {
-                    k.lower(): v.lower() for k, v in resp.getheaders()
-                }
+                resp_headers = {k.lower(): v.lower()
+                                for k, v in resp.getheaders()}
 
                 self.assertIn('strict-transport-security', resp_headers)
                 # When --allow-insecure-http-clients is passed, we set
                 # max-age to 0, to let browsers know that it's safe
                 # for the user to open http://
                 self.assertEqual(
-                    resp_headers['strict-transport-security'], 'max-age=0'
-                )
+                    resp_headers['strict-transport-security'], 'max-age=0')
             finally:
                 con.close()
 
@@ -1157,7 +1127,6 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             tls_client_ca_file=client_ca_cert_file,
             security=args.ServerSecurityMode.Strict,
         ) as sd:
-
             def test(url):
                 # Connection without the client cert fails
                 tls_context = ssl.create_default_context(
@@ -1207,8 +1176,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     )
 
                     self.assertEqual(
-                        status, http.HTTPStatus.SERVICE_UNAVAILABLE
-                    )
+                        status, http.HTTPStatus.SERVICE_UNAVAILABLE)
 
                 # It is alive though.
                 with self.http_con(server=sd) as http_con:
@@ -1257,8 +1225,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     )
 
                     self.assertEqual(
-                        status, http.HTTPStatus.SERVICE_UNAVAILABLE
-                    )
+                        status, http.HTTPStatus.SERVICE_UNAVAILABLE)
 
                 # Make ready by removing the file
                 rf.close()
@@ -1293,8 +1260,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                                 path='/server/status/ready',
                             )
                             self.assertEqual(
-                                status, http.HTTPStatus.SERVICE_UNAVAILABLE
-                            )
+                                status, http.HTTPStatus.SERVICE_UNAVAILABLE)
         finally:
             if os.path.exists(rf_name):
                 rf.close()
@@ -1432,7 +1398,8 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 await asyncio.sleep(0.01)
 
                 with self.assertRaisesRegex(
-                    edgedb.AvailabilityError, "quota exceeded"
+                    edgedb.AvailabilityError,
+                    "quota exceeded"
                 ):
                     await conn.execute("select 1")
 
@@ -1444,7 +1411,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 os.unlink(rf_name)
                 await asyncio.sleep(0.05)
                 async for tr in self.try_until_succeeds(
-                    ignore=(edgedb.AvailabilityError,),
+                    ignore=(
+                        edgedb.AvailabilityError,
+                    ),
                 ):
                     async with tr:
                         await conn.execute("select 1")
@@ -1518,7 +1487,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     "-d",
                     "restore_signal",
                     "restore",
-                    fname,
+                    fname
                 )
 
             # The re-introspection has a delay, but should eventually happen
@@ -1628,12 +1597,15 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
 
     async def _test_server_ops_multi_tenant_3(self, mtargs: MultiTenantArgs):
         data = mtargs.sd.fetch_metrics()
-        self.assertIn('\nedgedb_server_mt_tenants_current 2.0\n', data)
+        self.assertIn(
+            '\nedgedb_server_mt_tenants_current 2.0\n', data
+        )
         self.assertIn(
             '\nedgedb_server_mt_config_reload_errors_total 0.0\n', data
         )
         self.assertIn(
-            '\nedgedb_server_mt_tenant_add_total' '{tenant="localtest1"} 1.0\n',
+            '\nedgedb_server_mt_tenant_add_total'
+            '{tenant="localtest1"} 1.0\n',
             data,
         )
         self.assertNotIn(
@@ -1645,7 +1617,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
         conf1 = mtargs.conf.pop("1.localhost")
         mtargs.reload_server()
 
-        async for tr in self.try_until_fails(wait_for=edgedb.AvailabilityError):
+        async for tr in self.try_until_fails(
+            wait_for=edgedb.AvailabilityError
+        ):
             async with tr:
                 await self._test_server_ops_multi_tenant_1(mtargs)
 
@@ -1661,7 +1635,8 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             data,
         )
         self.assertIn(
-            '\nedgedb_server_mt_tenant_add_total' '{tenant="localtest1"} 1.0\n',
+            '\nedgedb_server_mt_tenant_add_total'
+            '{tenant="localtest1"} 1.0\n',
             data,
         )
         self.assertIn(
@@ -1691,7 +1666,8 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             data,
         )
         self.assertIn(
-            '\nedgedb_server_mt_tenant_add_total' '{tenant="localtest1"} 2.0\n',
+            '\nedgedb_server_mt_tenant_add_total'
+            '{tenant="localtest1"} 2.0\n',
             data,
         )
         self.assertIn(
@@ -1732,7 +1708,9 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
         mtargs.rd1.file.write("blocked:test")
         mtargs.rd1.file.flush()
 
-        async for tr in self.try_until_fails(wait_for=edgedb.AvailabilityError):
+        async for tr in self.try_until_fails(
+            wait_for=edgedb.AvailabilityError
+        ):
             async with tr:
                 await self._test_server_ops_multi_tenant_1(
                     mtargs,
@@ -1758,8 +1736,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             await conn.execute(ddl)
             await conn.execute('create extension pgcrypto')
             await conn.execute('create extension auth')
-            await conn.execute(
-                f'''
+            await conn.execute(f'''
                 configure current database set
                 ext::auth::AuthConfig::auth_signing_key := '{"a" * 32}';
 
@@ -1767,8 +1744,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                 insert ext::auth::EmailPasswordProviderConfig {{
                     require_verification := false,
                 }};
-            '''
-            )
+            ''')
         finally:
             await conn.aclose()
 
@@ -1836,13 +1812,11 @@ class TestPGExtensions(tb.TestCase):
                 database='template1',
             )
             self.assertTrue(await cluster.ensure_initialized())
-            await cluster.start(
-                server_settings={
-                    'edb_stat_statements.track_planning': 'false',
-                    'edb_stat_statements.track': 'dev',
-                    'max_prepared_transactions': '5',
-                }
-            )
+            await cluster.start(server_settings={
+                'edb_stat_statements.track_planning': 'false',
+                'edb_stat_statements.track': 'dev',
+                'max_prepared_transactions': '5',
+            })
             try:
                 pg_config = buildmeta.get_pg_config_path()
                 env = os.environ.copy()
@@ -1851,16 +1825,11 @@ class TestPGExtensions(tb.TestCase):
                 env['PGPORT'] = params.port
                 env['PGUSER'] = params.user
                 env['PGDATABASE'] = params.database
-                subprocess.check_output(
-                    [
-                        'make',
-                        f'PG_CONFIG={pg_config}',
-                        'installcheck',
-                    ],
-                    cwd=str(ext_home),
-                    env=env,
-                    text=True,
-                )
+                subprocess.check_output([
+                    'make',
+                    f'PG_CONFIG={pg_config}',
+                    'installcheck',
+                ], cwd=str(ext_home), env=env, text=True)
             except subprocess.CalledProcessError as e:
                 output = ext_home / "regression.out"
                 if output.exists():
