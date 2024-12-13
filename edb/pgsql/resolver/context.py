@@ -58,9 +58,11 @@ class Options:
     # makes sure that output does not contain duplicated column names
     disambiguate_column_names: bool
 
-    # true when the query has been normalized before compilation
-    # This means that the resolver is allowed to raise DisableNormalization
-    is_normalized: bool
+    # Type oids of parameters that have taken place of constants during query
+    # normalization.
+    # When this is non-empty, the resolver is allowed to raise
+    # DisableNormalization to recompile the query without normalization.
+    normalized_params: List[int]
 
 
 @dataclass(kw_only=True)

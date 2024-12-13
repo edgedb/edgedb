@@ -79,6 +79,8 @@ def resolve(
 
     resolved = dispatch.resolve(query, ctx=ctx)
 
+    command.fini_external_params(ctx)
+
     if top_level_ctes:
         assert isinstance(resolved, pgast.Query)
         if not resolved.ctes:
@@ -120,11 +122,9 @@ def resolve(
         if isinstance(edgeql_output_format_ast, pgast.SelectStmt):
             edgeql_output_format_ast.target_list = [
                 pgast.ResTarget(
-                    val=pgast.RowExpr(
-                        args=[
-                            rt.val
-                            for rt in edgeql_output_format_ast.target_list
-                        ]
+                    val=expr.construct_row_expr(
+                        (rt.val for rt in edgeql_output_format_ast.target_list),
+                        ctx=ctx,
                     )
                 )
             ]

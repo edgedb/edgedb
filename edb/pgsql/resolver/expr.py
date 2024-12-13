@@ -20,13 +20,24 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import Optional, Tuple, Iterator, Sequence, Dict, List, cast, Set
+from typing import (
+    Iterable,
+    Optional,
+    Tuple,
+    Iterator,
+    Sequence,
+    Dict,
+    List,
+    cast,
+    Set,
+)
 import uuid
 
 from edb import errors
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common
+from edb.pgsql.parser import parser as pg_parser
 from edb.pgsql.common import quote_ident as qi
 from edb.pgsql import compiler as pgcompiler
 from edb.pgsql.compiler import enums as pgce
@@ -663,9 +674,34 @@ def resolve_RowExpr(
     *,
     ctx: Context,
 ) -> pgast.RowExpr:
-    return pgast.RowExpr(
-        args=dispatch.resolve_list(expr.args, ctx=ctx),
+    return construct_row_expr(
+        dispatch.resolve_list(expr.args, ctx=ctx),
+        ctx=ctx,
     )
+
+
+def construct_row_expr(
+    args: Iterable[pgast.BaseExpr], *, ctx: Context
+) -> pgast.RowExpr:
+    # Constructs a ROW and maybe injects type casts for params.
+
+    return pgast.RowExpr(args=[maybe_annotate_param(a, ctx=ctx) for a in args])
+
+
+def maybe_annotate_param(expr: pgast.BaseExpr, *, ctx: Context):
+    # If the expression is a param whose type is `unknown` we inject a type cast
+    # saying it is actually text.
+
+    if isinstance(expr, pgast.ParamRef):
+        param = ctx.query_params[expr.number - 1]
+        if (
+            isinstance(param, dbstate.SQLParamExtractedConst)
+            and param.type_oid == pg_parser.PgLiteralTypeOID.UNKNOWN
+        ):
+            return pgast.TypeCast(
+                arg=expr, type_name=pgast.TypeName(name=('text',))
+            )
+    return expr
 
 
 @dispatch._resolve.register
@@ -682,7 +718,6 @@ def resolve_ParamRef(
         )
 
     param = ctx.query_params[expr.number - 1]
-    assert isinstance(param, dbstate.SQLParamExternal)
     param.used = True
 
     return expr

@@ -601,7 +601,7 @@ def eval_ParamRef(
     *,
     ctx: Context,
 ) -> Optional[pgast.BaseExpr]:
-    if ctx.options.is_normalized:
+    if len(ctx.options.normalized_params) > 0:
         raise DisableNormalization()
     else:
         return None

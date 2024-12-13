@@ -595,7 +595,9 @@ class TagUnpackRow(CommandCompleteTag):
 class SQLParam:
     # Internal query param. Represents params in the compiled SQL, so the params
     # that are sent to PostgreSQL.
-    pass
+
+    # True for params that are actually used in the compiled query.
+    used: bool = False
 
 
 @dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)
@@ -604,9 +606,7 @@ class SQLParamExternal(SQLParam):
     # So a user-visible param.
 
     # External params share the index with internal params
-
-    # True for params that are actually used in the compiled query.
-    used = False
+    pass
 
 
 @dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)
@@ -614,7 +614,7 @@ class SQLParamExtractedConst(SQLParam):
     # An internal query param whose value is a constant that this param has
     # replaced during query normalization.
 
-    type_oid: bytes
+    type_oid: int
 
 
 @dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)

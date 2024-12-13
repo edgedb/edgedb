@@ -81,7 +81,7 @@ def compile_sql(
     backend_runtime_params: pg_params.BackendRuntimeParams,
     protocol_version: defines.ProtocolVersion,
 ) -> List[dbstate.SQLQueryUnit]:
-    def _try(q: str, is_normalized: bool) -> List[dbstate.SQLQueryUnit]:
+    def _try(q: str, normalized_params: List[int]) -> List[dbstate.SQLQueryUnit]:
         return _compile_sql(
             q,
             schema=schema,
@@ -97,19 +97,19 @@ def compile_sql(
             disambiguate_column_names=disambiguate_column_names,
             backend_runtime_params=backend_runtime_params,
             protocol_version=protocol_version,
-            is_normalized=is_normalized,
+            normalized_params=normalized_params,
         )
 
-    is_normalized = isinstance(source, pg_parser.NormalizedSource)
+    normalized_params = list(source.extra_type_oids())
     try:
         try:
-            return _try(source.text(), is_normalized)
+            return _try(source.text(), normalized_params)
         except DisableNormalization:
             # compiler requested non-normalized query (it needs it for static
             # evaluation)
             try:
-                if is_normalized:
-                    return _try(source.original_text(), False)
+                if isinstance(source, pg_parser.NormalizedSource):
+                    return _try(source.original_text(), [])
             except DisableNormalization:
                 pass
 
@@ -118,10 +118,10 @@ def compile_sql(
                 "but it already is disabled"
             )
     except errors.EdgeDBError as original_err:
-        if is_normalized:
+        if isinstance(source, pg_parser.NormalizedSource):
             # try non-normalized source
             try:
-                _try(source.original_text(), False)
+                _try(source.original_text(), [])
             except errors.EdgeDBError as denormalized_err:
                 raise denormalized_err
             except Exception:
@@ -148,7 +148,7 @@ def _compile_sql(
     disambiguate_column_names: bool,
     backend_runtime_params: pg_params.BackendRuntimeParams,
     protocol_version: defines.ProtocolVersion,
-    is_normalized: bool,
+    normalized_params: List[int],
 ) -> List[dbstate.SQLQueryUnit]:
     opts = ResolverOptionsPartial(
         query_str=query_str,
@@ -160,7 +160,7 @@ def _compile_sql(
             include_edgeql_io_format_alternative
         ),
         disambiguate_column_names=disambiguate_column_names,
-        is_normalized=is_normalized,
+        normalized_params=normalized_params,
     )
 
     stmts = pg_parser.parse(query_str, propagate_spans=True)
@@ -470,7 +470,7 @@ class ResolverOptionsPartial:
     apply_access_policies: Optional[bool]
     include_edgeql_io_format_alternative: Optional[bool]
     disambiguate_column_names: bool
-    is_normalized: bool
+    normalized_params: List[int]
 
 
 def resolve_query(
@@ -519,7 +519,7 @@ def resolve_query(
             opts.include_edgeql_io_format_alternative
         ),
         disambiguate_column_names=opts.disambiguate_column_names,
-        is_normalized=opts.is_normalized,
+        normalized_params=opts.normalized_params,
     )
     resolved = pg_resolver.resolve(stmt, schema, options)
     source = pg_codegen.generate(resolved.ast, with_translation_data=True)
