@@ -255,12 +255,8 @@ async def _run_server(
         )
         magic_smtp = os.getenv('EDGEDB_MAGIC_SMTP_CONFIG')
         if magic_smtp:
-            magic_smtp = json.loads(magic_smtp)
-            if isinstance(magic_smtp, dict):
-                # for backward compatibility
-                magic_smtp = [magic_smtp]
             await tenant.load_sidechannel_configs(
-                magic_smtp, compiler=compiler
+                json.loads(magic_smtp), compiler=compiler
             )
         # This coroutine runs as long as the server,
         # and compiler(.state) is *heavy*, so make sure we don't
