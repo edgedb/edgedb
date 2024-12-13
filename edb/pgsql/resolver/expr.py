@@ -20,13 +20,25 @@
 """SQL resolver that compiles public SQL to internal SQL which is executable
 in our internal Postgres instance."""
 
-from typing import Optional, Tuple, Iterator, Sequence, Dict, List, cast, Set
+from typing import (
+    Iterable,
+    Optional,
+    Tuple,
+    Iterator,
+    Sequence,
+    Dict,
+    List,
+    cast,
+    Set,
+)
 import uuid
 
 from edb import errors
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common
+from edb.pgsql.parser import parser as pg_parser
+from edb.pgsql.common import quote_ident as qi
 from edb.pgsql import compiler as pgcompiler
 from edb.pgsql.compiler import enums as pgce
 
@@ -37,6 +49,7 @@ from edb.ir import ast as irast
 from edb.edgeql import compiler as qlcompiler
 
 from edb.server.pgcon import errors as pgerror
+from edb.server.compiler import dbstate
 
 from . import dispatch
 from . import context
@@ -117,7 +130,7 @@ def _resolve_ResTarget(
                     raise errors.QueryError(
                         f'duplicate column name: `{nam}`',
                         span=res_target.span,
-                        pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
+                        pgext_code=pgerror.ERROR_UNDEFINED_COLUMN,
                     )
             existing_names.add(nam)
 
@@ -156,7 +169,7 @@ def _resolve_ResTarget(
                 raise errors.QueryError(
                     f'duplicate column name: `{alias}`',
                     span=res_target.span,
-                    pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
+                    pgext_code=pgerror.ERROR_UNDEFINED_COLUMN,
                 )
         else:
             # inferred duplicate name: use generated alias instead
@@ -316,9 +329,9 @@ def _lookup_column(
 
     if not matched_columns:
         raise errors.QueryError(
-            f'cannot find column `{col_name}`',
+            f'column {qi(col_name, force=True)} does not exist',
             span=column_ref.span,
-            pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
+            pgext_code=pgerror.ERROR_UNDEFINED_COLUMN,
         )
 
     # apply precedence
@@ -447,8 +460,11 @@ def resolve_TypeCast(
     *,
     ctx: Context,
 ) -> pgast.BaseExpr:
-    if res := static.eval_TypeCast(expr, ctx=ctx):
-        return res
+
+    pg_catalog_name = static.name_in_pg_catalog(expr.type_name.name)
+    if pg_catalog_name == 'regclass' and not expr.type_name.array_bounds:
+        return static.cast_to_regclass(expr.arg, ctx)
+
     return pgast.TypeCast(
         arg=dispatch.resolve(expr.arg, ctx=ctx),
         type_name=expr.type_name,
@@ -580,7 +596,7 @@ def resolve_FuncCall(
     # Effectively, this exposes all non-remapped functions.
     name = func_calls_remapping.get(call.name, call.name)
 
-    return pgast.FuncCall(
+    res = pgast.FuncCall(
         name=name,
         args=dispatch.resolve_list(call.args, ctx=ctx),
         agg_order=dispatch.resolve_opt_list(call.agg_order, ctx=ctx),
@@ -590,6 +606,8 @@ def resolve_FuncCall(
         over=dispatch.resolve_opt(call.over, ctx=ctx),
         with_ordinality=call.with_ordinality,
     )
+
+    return res
 
 
 @dispatch._resolve.register
@@ -658,9 +676,34 @@ def resolve_RowExpr(
     *,
     ctx: Context,
 ) -> pgast.RowExpr:
-    return pgast.RowExpr(
-        args=dispatch.resolve_list(expr.args, ctx=ctx),
+    return construct_row_expr(
+        dispatch.resolve_list(expr.args, ctx=ctx),
+        ctx=ctx,
     )
+
+
+def construct_row_expr(
+    args: Iterable[pgast.BaseExpr], *, ctx: Context
+) -> pgast.RowExpr:
+    # Constructs a ROW and maybe injects type casts for params.
+
+    return pgast.RowExpr(args=[maybe_annotate_param(a, ctx=ctx) for a in args])
+
+
+def maybe_annotate_param(expr: pgast.BaseExpr, *, ctx: Context):
+    # If the expression is a param whose type is `unknown` we inject a type cast
+    # saying it is actually text.
+
+    if isinstance(expr, pgast.ParamRef):
+        param = ctx.query_params[expr.number - 1]
+        if (
+            isinstance(param, dbstate.SQLParamExtractedConst)
+            and param.type_oid == pg_parser.PgLiteralTypeOID.UNKNOWN
+        ):
+            return pgast.TypeCast(
+                arg=expr, type_name=pgast.TypeName(name=('text',))
+            )
+    return expr
 
 
 @dispatch._resolve.register
@@ -670,6 +713,15 @@ def resolve_ParamRef(
     ctx: Context,
 ) -> pgast.ParamRef:
     # external params map one-to-one to internal params
+    if expr.number < 1:
+        raise errors.QueryError(
+            f'there is no parameter ${expr.number}',
+            pgext_code=pgerror.ERROR_UNDEFINED_PARAMETER,
+        )
+
+    param = ctx.query_params[expr.number - 1]
+    param.used = True
+
     return expr
 
 

@@ -32,6 +32,7 @@ from edb.common.typeutils import not_none
 
 from edb import errors
 from edb.pgsql import ast as pgast
+from edb.pgsql.parser import parser as pg_parser
 from edb.pgsql import compiler as pgcompiler
 from edb.pgsql import types as pgtypes
 from edb.pgsql.compiler import enums as pgce
@@ -2043,7 +2044,7 @@ def _try_inject_type_cast(
     """
     If a relation is simple, injects type annotation for a column.
     This is needed for Postgres to correctly infer the type so it will be able
-    to bind to correct paramater types. For example:
+    to bind to correct parameter types. For example:
 
     INSERT x (a, b) VALUES ($1, $2)
 
@@ -2128,8 +2129,12 @@ class ParamMapper(ast.NodeVisitor):
 def init_external_params(query: pgast.Base, ctx: Context):
     counter = ParamCounter()
     counter.node_visit(query)
-    for _ in range(counter.param_count):
+    for _ in range(0, counter.param_count - len(ctx.options.normalized_params)):
         ctx.query_params.append(dbstate.SQLParamExternal())
+    for param_type_oid in ctx.options.normalized_params:
+        ctx.query_params.append(dbstate.SQLParamExtractedConst(
+            type_oid=param_type_oid
+        ))
 
 
 class ParamCounter(ast.NodeVisitor):
@@ -2140,3 +2145,13 @@ class ParamCounter(ast.NodeVisitor):
     def visit_ParamRef(self, p: pgast.ParamRef) -> None:
         if self.param_count < p.number:
             self.param_count = p.number
+
+
+def fini_external_params(ctx: Context):
+    for param in ctx.query_params:
+        if (
+            not param.used
+            and isinstance(param, dbstate.SQLParamExtractedConst)
+            and param.type_oid == pg_parser.PgLiteralTypeOID.UNKNOWN
+        ):
+            param.type_oid = pg_parser.PgLiteralTypeOID.TEXT

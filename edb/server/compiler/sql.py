@@ -58,6 +58,13 @@ FE_SETTINGS_MUTABLE: immutables.Map[str, bool] = immutables.Map(
 )
 
 
+class DisableNormalization(BaseException):
+    # An exception that indicates that the compiler cannot work with this query
+    # because the constants have been extracted and replaced with parameters.
+    # When raised, the query will be recompiled without normalization.
+    pass
+
+
 def compile_sql(
     source: pg_parser.Source,
     *,
@@ -74,7 +81,9 @@ def compile_sql(
     backend_runtime_params: pg_params.BackendRuntimeParams,
     protocol_version: defines.ProtocolVersion,
 ) -> List[dbstate.SQLQueryUnit]:
-    def _try(q: str) -> List[dbstate.SQLQueryUnit]:
+    def _try(
+        q: str, normalized_params: List[int]
+    ) -> List[dbstate.SQLQueryUnit]:
         return _compile_sql(
             q,
             orig_query_str=source.original_text(),
@@ -91,15 +100,37 @@ def compile_sql(
             disambiguate_column_names=disambiguate_column_names,
             backend_runtime_params=backend_runtime_params,
             protocol_version=protocol_version,
+            normalized_params=normalized_params,
         )
 
+    normalized_params = list(source.extra_type_oids())
     try:
-        return _try(source.text())
+        try:
+            return _try(source.text(), normalized_params)
+        except DisableNormalization:
+            # compiler requested non-normalized query (it needs it for static
+            # evaluation)
+            try:
+                if isinstance(source, pg_parser.NormalizedSource):
+                    units = _try(source.original_text(), [])
+                    # Unit isn't cacheable, since the key is the
+                    # extracted version.
+                    # TODO: Can we tell the server to cache using non-extracted?
+                    for unit in units:
+                        unit.cacheable = False
+                    return units
+            except DisableNormalization:
+                pass
+
+            raise AssertionError(
+                "compiler is requesting query normalization to be disabled,"
+                "but it already is disabled"
+            )
     except errors.EdgeDBError as original_err:
         if isinstance(source, pg_parser.NormalizedSource):
             # try non-normalized source
             try:
-                _try(source.original_text())
+                _try(source.original_text(), [])
             except errors.EdgeDBError as denormalized_err:
                 raise denormalized_err
             except Exception:
@@ -175,6 +206,7 @@ def _compile_sql(
     disambiguate_column_names: bool,
     backend_runtime_params: pg_params.BackendRuntimeParams,
     protocol_version: defines.ProtocolVersion,
+    normalized_params: List[int],
 ) -> List[dbstate.SQLQueryUnit]:
     opts = ResolverOptionsPartial(
         query_str=query_str,
@@ -186,6 +218,7 @@ def _compile_sql(
             include_edgeql_io_format_alternative
         ),
         disambiguate_column_names=disambiguate_column_names,
+        normalized_params=normalized_params,
     )
 
     # orig_stmts are the statements prior to constant extraction
@@ -512,6 +545,7 @@ class ResolverOptionsPartial:
     apply_access_policies: Optional[bool]
     include_edgeql_io_format_alternative: Optional[bool]
     disambiguate_column_names: bool
+    normalized_params: List[int]
 
 
 def resolve_query(
@@ -560,6 +594,7 @@ def resolve_query(
             opts.include_edgeql_io_format_alternative
         ),
         disambiguate_column_names=opts.disambiguate_column_names,
+        normalized_params=opts.normalized_params,
     )
     resolved = pg_resolver.resolve(stmt, schema, options)
     source = pg_codegen.generate(resolved.ast, with_source_map=True)

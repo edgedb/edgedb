@@ -456,6 +456,8 @@ cdef class Database:
         if existing is not None and ver == self.schema_version:
             # We already have a cached query for a more recent DB version.
             return
+        if not all(unit.cacheable for unit in compiled):
+            return
 
         # Store the matching schema version, see also the comments at origin
         self._sql_to_compiled[key] = compiled, schema_version

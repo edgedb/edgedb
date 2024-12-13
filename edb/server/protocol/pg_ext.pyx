@@ -39,6 +39,8 @@ from edb import errors
 from edb.common import debug
 from edb.common.log import current_tenant
 from edb.pgsql.parser import exceptions as parser_errors
+import edb.pgsql.parser.parser as pg_parser
+cimport edb.pgsql.parser.parser as pg_parser
 from edb.server import args as srvargs
 from edb.server import defines, metrics
 from edb.server import tenant as edbtenant
@@ -66,6 +68,15 @@ def managed_error():
         yield
     except Exception as e:
         raise ExtendedQueryError(e)
+
+
+@cython.final
+cdef class PreparedStmt:
+
+    def __init__(self, PGMessage parse_action, pg_parser.Source source):
+        self.parse_action = parse_action
+        self.source = source
+
 
 
 @cython.final
@@ -769,6 +780,9 @@ cdef class PgConnection(frontend.FrontendConnection):
         return msg_buf.end_message()
 
     def on_success(self, query_unit):
+        cdef:
+            PreparedStmt stmt
+
         if query_unit.deallocate is not None:
             stmt_name = query_unit.deallocate.stmt_name
             self.sql_prepared_stmts.pop(stmt_name, None)
@@ -777,11 +791,14 @@ cdef class PgConnection(frontend.FrontendConnection):
             # If any wrapping prepared statements referred to this
             # prepared statement, invalidate them.
             for wrapping_ps in self.wrapping_prepared_stmts.pop(stmt_name, []):
-                action = self.prepared_stmts.get(wrapping_ps)
-                if action is not None:
-                    action.invalidate()
+                stmt = self.prepared_stmts.get(wrapping_ps)
+                if stmt is not None:
+                    stmt.parse_action.invalidate()
 
     def on_error(self, query_unit):
+        cdef:
+            PreparedStmt stmt
+
         if query_unit.prepare is not None:
             stmt_name = query_unit.prepare.stmt_name
             self.sql_prepared_stmts.pop(stmt_name, None)
@@ -790,9 +807,9 @@ cdef class PgConnection(frontend.FrontendConnection):
             # If any wrapping prepared statements referred to this
             # prepared statement, invalidate them.
             for wrapping_ps in self.wrapping_prepared_stmts.pop(stmt_name, []):
-                action = self.prepared_stmts.get(wrapping_ps)
-                if action is not None:
-                    action.invalidate()
+                stmt = self.prepared_stmts.get(wrapping_ps)
+                if stmt is not None:
+                    stmt.parse_action.invalidate()
 
     async def main_step(self, char mtype):
         try:
@@ -917,11 +934,21 @@ cdef class PgConnection(frontend.FrontendConnection):
 
     async def simple_query(self, query_str: str) -> list[PGMessage]:
         cdef:
-            PGMessage parse_action
+            PreparedStmt stmt
 
         actions = []
         dbv = self._dbview
-        query_units = await self.compile(query_str, dbv)
+
+        source = pg_parser.NormalizedSource.from_string(query_str)
+        query_units = await self.compile(source, dbv)
+
+        # TODO: currently, normalization does not work with multiple queries
+        # so we must re-run the compilation with non-normalized query.
+        # Ideally we could detect this before compilation.
+        if len(query_units) > 1:
+            source = pg_parser.Source.from_string(query_str)
+            query_units = await self.compile(source, dbv)
+
         already_in_implicit_tx = dbv._in_tx_implicit
         metrics.sql_queries.inc(
             len(query_units), self.tenant.get_instance_name()
@@ -945,7 +972,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             else:
                 recompile = False
             if recompile:
-                parse_action, new_stmts = await self._parse_statement(
+                stmt, new_stmts = await self._parse_statement(
                     stmt_name=None,
                     query_str=qu.orig_query,
                     parse_data=b"\x00\x00",
@@ -954,15 +981,16 @@ cdef class PgConnection(frontend.FrontendConnection):
                     injected_action=True,
                 )
             else:
-                parse_action, new_stmts = await self._parse_unit(
+                stmt, new_stmts = await self._parse_unit(
                     stmt_name=None,
                     unit=qu,
+                    source=source,
                     parse_data=b"\x00\x00",
                     dbv=dbv,
                     injected_action=True,
                 )
-            parse_unit = parse_action.query_unit
-            actions.append(parse_action)
+            parse_unit = stmt.parse_action.query_unit
+            actions.append(stmt.parse_action)
 
             # 2 bytes: number of format codes (1)
             # 2 bytes: first format code (1) is binary
@@ -972,10 +1000,11 @@ cdef class PgConnection(frontend.FrontendConnection):
             #          (this implies that )
             bind_data = b"\x00\x01\x00\x01\x00\x00\x00\x00"
             # remap argumnets, which will inject globals
-            bind_data = bytes(
-                remap_arguments(
-                    bind_data, parse_unit.params, dbv.current_fe_settings(),
-                )
+            bind_data = remap_arguments(
+                bind_data,
+                parse_unit.params,
+                dbv.current_fe_settings(),
+                source,
             )
             actions.append(
                 PGMessage(
@@ -1023,7 +1052,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             int16_t i
             bytes data
             bint in_implicit
-            PGMessage parse_action
+            PreparedStmt stmt
             ConnectionView dbv
 
         # Extended-query pre-plays on a deeply-cloned temporary dbview so as to
@@ -1072,17 +1101,18 @@ cdef class PgConnection(frontend.FrontendConnection):
                             f"exists",
                         )
 
-                    parse_action, new_stmts = await self._parse_statement(
-                        stmt_name, query_str, data, dbv)
-                    if parse_action.query_unit.execute is not None:
+                    stmt, new_stmts = await self._parse_statement(
+                        stmt_name, query_str, data, dbv
+                    )
+                    if stmt.parse_action.query_unit.execute is not None:
                         actions.extend(
                             await self._ensure_nested_ps_exists(
                                 dbv,
-                                parse_action.query_unit,
+                                stmt.parse_action.query_unit,
                             )
                         )
                     fresh_stmts.update(new_stmts)
-                    actions.append(parse_action)
+                    actions.append(stmt.parse_action)
 
             elif mtype == b'B':  # Bind
                 portal_name = self.buffer.read_null_str().decode("utf8")
@@ -1094,7 +1124,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                     )
 
                 with managed_error():
-                    parse_action = await self._ensure_ps_locality(
+                    stmt = await self._ensure_ps_locality(
                         dbv,
                         stmt_name,
                         fresh_stmts,
@@ -1102,9 +1132,11 @@ cdef class PgConnection(frontend.FrontendConnection):
                     )
 
                     try:
-                        params = parse_action.query_unit.params
+                        params = stmt.parse_action.query_unit.params
                         fe_settings = dbv.current_fe_settings()
-                        data = bytes(remap_arguments(data, params, fe_settings))
+                        data = remap_arguments(
+                            data, params, fe_settings, stmt.source
+                        )
                     except Exception as e:
                         # we return here instead of raising the exception
                         # because we want to also return the previous actions
@@ -1113,13 +1145,13 @@ cdef class PgConnection(frontend.FrontendConnection):
                     actions.append(
                         PGMessage(
                             PGAction.BIND,
-                            stmt_name=parse_action.stmt_name,
+                            stmt_name=stmt.parse_action.stmt_name,
                             portal_name=portal_name,
                             args=data,
-                            query_unit=parse_action.query_unit,
+                            query_unit=stmt.parse_action.query_unit,
                         )
                     )
-                    dbv.create_portal(portal_name, parse_action.query_unit)
+                    dbv.create_portal(portal_name, stmt.parse_action.query_unit)
 
             elif mtype == b'D':  # Describe
                 kind = self.buffer.read_byte()
@@ -1130,7 +1162,7 @@ cdef class PgConnection(frontend.FrontendConnection):
 
                 with managed_error():
                     if kind == b'S':  # prepared statement
-                        parse_action = await self._ensure_ps_locality(
+                        stmt = await self._ensure_ps_locality(
                             dbv,
                             name,
                             fresh_stmts,
@@ -1139,8 +1171,8 @@ cdef class PgConnection(frontend.FrontendConnection):
                         actions.append(
                             PGMessage(
                                 PGAction.DESCRIBE_STMT,
-                                stmt_name=parse_action.stmt_name,
-                                query_unit=parse_action.query_unit,
+                                stmt_name=stmt.parse_action.stmt_name,
+                                query_unit=stmt.parse_action.query_unit,
                             )
                         )
 
@@ -1248,7 +1280,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         stmt_name: str,
         local_stmts: set[str],
         actions
-    ) -> PGMessage:
+    ) -> PreparedStmt:
         """Make sure given *stmt_name* is known by Postgres
 
         Frontend SQL connections do not normally own Postgres connections,
@@ -1261,10 +1293,10 @@ cdef class PgConnection(frontend.FrontendConnection):
         NB: this method mutates *local_stmts* and *actions*.
         """
         cdef:
-            PGMessage parse_action
+            PreparedStmt stmt
 
-        parse_action = self.prepared_stmts.get(stmt_name)
-        if parse_action is None:
+        stmt = self.prepared_stmts.get(stmt_name)
+        if stmt is None:
             raise pgerror.new(
                 pgerror.ERROR_INVALID_SQL_STATEMENT_NAME,
                 f"prepared statement \"{stmt_name}\" does not "
@@ -1274,14 +1306,14 @@ cdef class PgConnection(frontend.FrontendConnection):
         if stmt_name not in local_stmts:
             # Non-local statement, so inject its Parse.
             fe_settings = dbv.current_fe_settings()
-            qu = parse_action.query_unit
+            qu = stmt.parse_action.query_unit
             assert qu is not None
-            if parse_action.fe_settings != fe_settings:
+            if stmt.parse_action.fe_settings != fe_settings:
                 # Some of the statically compiler-evaluated
                 # queries like `current_schema` depend on the
                 # fe_settings, we need to re-compile if the
                 # fe_settings have changed.
-                parse_action.invalidate()
+                stmt.parse_action.invalidate()
 
             if (
                 qu.execute is not None
@@ -1295,22 +1327,22 @@ cdef class PgConnection(frontend.FrontendConnection):
                 # and the translated name of the prepared statement
                 # has changed (e.g. due to it having been deallocated
                 # and prepared with a different query).
-                parse_action.invalidate()
+                stmt.parse_action.invalidate()
 
-            if not parse_action.is_valid():
+            if not stmt.parse_action.is_valid():
                 parse_actions, new_stmts = await self._reparse(
                     stmt_name,
-                    parse_action,
+                    stmt.parse_action,
                     dbv,
                 )
                 local_stmts.update(new_stmts)
                 actions.extend(parse_actions)
-                parse_action = self.prepared_stmts[stmt_name]
+                stmt = self.prepared_stmts[stmt_name]
             else:
-                actions.append(parse_action.as_injected())
+                actions.append(stmt.parse_action.as_injected())
                 local_stmts.add(stmt_name)
 
-        return parse_action
+        return stmt
 
     async def _reparse(
         self,
@@ -1318,6 +1350,8 @@ cdef class PgConnection(frontend.FrontendConnection):
         PGMessage parse_action,
         ConnectionView dbv,
     ):
+        cdef:
+            PreparedStmt outer_stmt
         actions = []
         qu = parse_action.query_unit
         assert qu is not None
@@ -1337,7 +1371,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 ),
             )
 
-        outer_parse_action, new_stmts = await self._parse_statement(
+        outer_stmt, new_stmts = await self._parse_statement(
             stmt_name,
             qu.orig_query,
             parse_action.args[1],
@@ -1346,7 +1380,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             injected_action=True,
         )
 
-        actions.append(outer_parse_action)
+        actions.append(outer_stmt.parse_action)
 
         return actions, new_stmts
 
@@ -1357,7 +1391,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         force_recompilation: bool = False,
     ) -> list[PGMessage]:
         cdef:
-            PGMessage sql_parse_action
+            PreparedStmt sql_stmt
 
         exec_data = execute_unit.execute
         prep_qu = self.sql_prepared_stmts.pop(exec_data.stmt_name, None)
@@ -1371,7 +1405,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 f"exist",
             )
 
-        sql_parse_action, _ = await self._parse_statement(
+        sql_stmt, _ = await self._parse_statement(
             prep_qu.stmt_name.decode("utf-8"),
             prep_qu.orig_query,
             b"\x00\x00",
@@ -1379,10 +1413,10 @@ cdef class PgConnection(frontend.FrontendConnection):
             injected_action=True,
             force_recompilation=force_recompilation,
         )
-        actions.append(sql_parse_action)
-        parse_stmt_name = sql_parse_action.stmt_name
+        actions.append(sql_stmt.parse_action)
+        parse_stmt_name = sql_stmt.parse_action.stmt_name
         portal_name = parse_stmt_name.decode("utf-8")
-        parse_query_unit = sql_parse_action.query_unit
+        parse_query_unit = sql_stmt.parse_action.query_unit
         actions.append(
             PGMessage(
                 PGAction.BIND,
@@ -1420,15 +1454,18 @@ cdef class PgConnection(frontend.FrontendConnection):
         dbv: ConnectionView,
         force_recompilation: bool = False,
         injected_action: bool = False,
-    ):
+    ) -> Tuple[PreparedStmt, set[str]]:
         """Generate a PARSE action for *query_str*.
 
         The *query_str* string must contain exactly one SQL statement.
         """
         stmts = set()
 
+        source = pg_parser.NormalizedSource.from_string(query_str)
+
         query_units = await self.compile(
-            query_str, dbv, ignore_cache=force_recompilation)
+            source, dbv, ignore_cache=force_recompilation
+        )
         if len(query_units) > 1:
             raise pgerror.new(
                 pgerror.ERROR_SYNTAX_ERROR,
@@ -1439,6 +1476,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         return await self._parse_unit(
             stmt_name,
             query_units[0],
+            source,
             parse_data,
             dbv,
             injected_action=injected_action,
@@ -1448,10 +1486,11 @@ cdef class PgConnection(frontend.FrontendConnection):
         self,
         stmt_name: str | None,
         unit: dbstate.SQLQueryUnit,
+        source: pg_parser.Source,
         parse_data: bytes,
         dbv: ConnectionView,
         injected_action: bool = False,
-    ):
+    ) -> Tuple[PreparedStmt, set[str]]:
         stmts = set()
 
         fe_settings = dbv.current_fe_settings()
@@ -1473,6 +1512,8 @@ cdef class PgConnection(frontend.FrontendConnection):
             nested_ps_name = unit.deallocate.stmt_name
             unit = self._validate_deallocate_stmt(unit)
 
+        parse_data = remap_parameters(parse_data, unit.params)
+
         action = PGMessage(
             PGAction.PARSE,
             stmt_name=unit.stmt_name,
@@ -1491,20 +1532,29 @@ cdef class PgConnection(frontend.FrontendConnection):
             except KeyError:
                 self.wrapping_prepared_stmts[nested_ps_name] = set([stmt_name])
 
+        stmt = PreparedStmt(
+            parse_action=action,
+            source=source,
+        )
+
         if stmt_name is not None:
-            self.prepared_stmts[stmt_name] = action
+            self.prepared_stmts[stmt_name] = stmt
             stmts.add(stmt_name)
 
-        return action, stmts
+        return stmt, stmts
 
-    async def compile(self, query_str, ConnectionView dbv, ignore_cache=False):
+    async def compile(
+        self, source: pg_parser.Source, ConnectionView dbv, ignore_cache=False
+    ) -> List[dbstate.SQLQueryUnit]:
         if self.debug:
-            self.debug_print("Compile", query_str)
+            self.debug_print("Compile", source.text())
+
         fe_settings = dbv.current_fe_settings()
-        key = compute_cache_key(query_str, fe_settings)
+        key = compute_cache_key(source, fe_settings)
 
         ignore_cache |= self._disable_cache
 
+        result: List[dbstate.SQLQueryUnit]
         if not ignore_cache:
             result = self.database.lookup_compiled_sql(key)
             if result is not None:
@@ -1524,7 +1574,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 self.database.reflection_cache,
                 self.database.db_config,
                 self.database._index.get_compilation_system_config(),
-                query_str,
+                source,
                 dbv.fe_transaction_state(),
                 self.sql_prepared_stmts_map,
                 self.dbname,
@@ -1585,9 +1635,9 @@ cdef class PgConnection(frontend.FrontendConnection):
 
 
 def compute_cache_key(
-    query_str: str, fe_settings: dbstate.SQLSettings
+    source: pg_parser.Source, fe_settings: dbstate.SQLSettings
 ) -> bytes:
-    h = hashlib.blake2b(query_str.encode("utf-8"))
+    h = hashlib.blake2b(source.cache_key())
     for key, value in fe_settings.items():
         if key.startswith('global '):
             continue
@@ -1595,10 +1645,11 @@ def compute_cache_key(
     return h.digest()
 
 
-cdef WriteBuffer remap_arguments(
+cdef bytes remap_arguments(
     data: bytes,
     params: list[dbstate.SQLParam] | None,
-    fe_settings: dbstate.SQLSettings
+    fe_settings: dbstate.SQLSettings,
+    source: pg_parser.Source,
 ):
     cdef:
         int16_t param_format_count
@@ -1608,8 +1659,7 @@ cdef WriteBuffer remap_arguments(
         int32_t size
 
     # The "external" parameters (that are visible to the user)
-    # are not in the same order as "internal" params and don't
-    # include the internal params for globals.
+    # don't include the internal params for globals and extracted constants.
 
     # So when we send external params to postgres, we remap them
     # to correct positions and add the globals.
@@ -1632,6 +1682,8 @@ cdef WriteBuffer remap_arguments(
                 else:
                     o = offset + i * 2
                     buf.write_bytes(data[o:o+2])
+            elif isinstance(param, dbstate.SQLParamExtractedConst):
+                buf.write_int16(0) # text
             else:
                 # this is for globals
                 buf.write_int16(1) # binary
@@ -1671,9 +1723,12 @@ cdef WriteBuffer remap_arguments(
         if arg_offset_external < offset:
             buf.write_bytes(data[arg_offset_external:offset])
 
-        # write global's args
-        for param in params[param_count_external:]:
-            if isinstance(param, dbstate.SQLParamGlobal):
+        # write non-external args
+        extracted_consts = list(source.variables().values())
+        for (e, param) in enumerate(params[param_count_external:]):
+            if isinstance(param, dbstate.SQLParamExtractedConst):
+                buf.write_len_prefixed_bytes(extracted_consts[e])
+            elif isinstance(param, dbstate.SQLParamGlobal):
                 name = param.global_name
                 setting_name = f'global {name.module}::{name.name}'
                 values = fe_settings.get(setting_name, None)
@@ -1687,7 +1742,40 @@ cdef WriteBuffer remap_arguments(
 
     # result format codes
     buf.write_bytes(data[offset:])
-    return buf
+    return bytes(buf)
+
+
+cdef bytes remap_parameters(
+    data: bytes,
+    params: list[dbstate.SQLParam] | None
+):
+    # Inject parameter type descriptions in parse message for parameters for
+    # globals and extracted constants.
+
+    if not params:
+        return b"\x00\x00"
+
+    buf = WriteBuffer.new()
+    buf.write_int16(len(params))
+
+    # copy the params specified by user
+    specified_ext = read_int16(data[0:2])
+    buf.write_bytes(data[2:2 + specified_ext*4])
+
+    for index, param in enumerate(params):
+
+        # already written
+        if index < specified_ext:
+            continue
+
+        if isinstance(param, dbstate.SQLParamExternal):
+            buf.write_int32(0)  # unspecified
+        elif isinstance(param, dbstate.SQLParamExtractedConst):
+            buf.write_int32(param.type_oid)
+        elif isinstance(param, dbstate.SQLParamGlobal):
+            buf.write_int32(0)  # unspecified
+    assert len(bytes(buf)) == 2 + 4 * len(params)
+    return bytes(buf)
 
 
 cdef write_arg(

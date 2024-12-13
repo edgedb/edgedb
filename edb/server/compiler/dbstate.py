@@ -533,6 +533,9 @@ class SQLQueryUnit:
     orig_query: str = dataclasses.field(repr=False)
     """Original query text before translation."""
 
+    # True if it is safe to cache this unit.
+    cacheable: bool = True
+
     cardinality: enums.Cardinality = enums.Cardinality.NO_RESULT
 
     capabilities: enums.Capability = enums.Capability.NONE
@@ -598,7 +601,9 @@ class TagUnpackRow(CommandCompleteTag):
 class SQLParam:
     # Internal query param. Represents params in the compiled SQL, so the params
     # that are sent to PostgreSQL.
-    pass
+
+    # True for params that are actually used in the compiled query.
+    used: bool = False
 
 
 @dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)
@@ -608,6 +613,14 @@ class SQLParamExternal(SQLParam):
 
     # External params share the index with internal params
     pass
+
+
+@dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)
+class SQLParamExtractedConst(SQLParam):
+    # An internal query param whose value is a constant that this param has
+    # replaced during query normalization.
+
+    type_oid: int
 
 
 @dataclasses.dataclass(kw_only=True, eq=False, slots=True, repr=False)

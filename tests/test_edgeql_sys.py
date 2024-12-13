@@ -177,9 +177,9 @@ class TestSQLSys(tb.SQLQueryTestCase, TestQueryStatsMixin):
     async def _query_for_stats(self):
         self.assertEqual(
             await self.squery_values(
-                f"select {common.quote_literal(self.stats_magic_word)}"
+                f"select 1 as {common.quote_ident(self.stats_magic_word)}"
             ),
-            [[self.stats_magic_word]],
+            [[1]],
         )
 
     async def _configure_track(self, option: str):
@@ -193,7 +193,7 @@ class TestSQLSys(tb.SQLQueryTestCase, TestQueryStatsMixin):
         import asyncpg
 
         with self.assertRaisesRegex(
-            asyncpg.InvalidColumnReferenceError, "cannot find column"
+            asyncpg.UndefinedColumnError, "does not exist"
         ):
             await self.squery_values(
                 f'select {self.stats_magic_word}_NoSuchType'

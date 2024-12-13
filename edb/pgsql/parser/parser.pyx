@@ -114,6 +114,7 @@ class PgLiteralTypeOID(enum.IntEnum):
     BOOL = 16
     INT4 = 23
     TEXT = 25
+    UNKNOWN = 705
     VARBIT = 1562
     NUMERIC = 1700
 
@@ -340,7 +341,7 @@ cdef class NormalizedSource(Source):
             ):
                 oids.append(PgLiteralTypeOID.BOOL)
             elif token is LiteralTokenType.SCONST:
-                oids.append(PgLiteralTypeOID.TEXT)
+                oids.append(PgLiteralTypeOID.UNKNOWN)
             elif (
                 token is LiteralTokenType.XCONST
                 or token is LiteralTokenType.BCONST
