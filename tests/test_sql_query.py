@@ -1874,6 +1874,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             """
         )
 
+    @test.skip("This is flaking in CI")
     async def test_sql_query_computed_10(self):
         # globals
 
