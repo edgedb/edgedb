@@ -46,6 +46,7 @@ from edb.server.compiler import dbstate, enums, sertypes
 from edb.server.protocol import execute
 from edb.pgsql import dbops
 from edb.server.compiler_pool import state as compiler_state_mod
+from edb.server.pgcon import errors as pgerror
 
 from edb.server.protocol import ai_ext
 
@@ -1457,9 +1458,21 @@ cdef class DatabaseConnectionView:
 
             intro_sql = query_unit.introspection_sql
             if intro_sql is None:
-                intro_sql = query_unit.sql[0]
-            param_desc, result_desc = await pgcon.sql_describe(
-                intro_sql, all_type_oids)
+                intro_sql = query_unit.sql
+            try:
+                param_desc, result_desc = await pgcon.sql_describe(
+                    intro_sql, all_type_oids)
+            except pgerror.BackendError as ex:
+                ex._from_sql = True
+                if 'P' in ex.fields:
+                    ex.fields['P'] = str(
+                        int(ex.fields['P']) - query_unit.sql_prefix_len
+                    )
+                if query_unit.source_map:
+                    ex._source_map = query_unit.source_map
+
+                raise
+
             result_types = []
             for col, toid in result_desc:
                 edb_type_id = self._db.backend_oid_to_id.get(toid)

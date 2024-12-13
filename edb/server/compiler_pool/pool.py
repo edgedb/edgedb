@@ -607,6 +607,10 @@ class AbstractPool:
         return await self._simple_call(
             'validate_schema_equivalence', *args, **kwargs)
 
+    async def compile_structured_config(self, *args, **kwargs):
+        return await self._simple_call(
+            'compile_structured_config', *args, **kwargs)
+
     def get_debug_info(self):
         return {}
 

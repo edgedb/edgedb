@@ -901,6 +901,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
         async with tb.start_edgedb_server(
             default_auth_method=args.ServerAuthMethod.Trust,
             net_worker_mode='disabled',
+            force_new=True,
         ) as sd:
             con = await sd.connect()
             con2 = None

@@ -43,6 +43,7 @@ from edb.server import compiler
 from edb.server import config
 from edb.server import defines as edbdef
 from edb.server import metrics
+from edb.server.compiler import dbstate
 from edb.server.compiler import errormech
 from edb.server.compiler cimport rpc
 from edb.server.compiler import sertypes
@@ -379,6 +380,8 @@ async def execute(
         if query_unit.user_schema:
             if isinstance(ex, pgerror.BackendError):
                 ex._user_schema = query_unit.user_schema
+        if query_unit.source_map:
+            ex._from_sql = True
 
         dbv.on_error()
 
@@ -439,6 +442,7 @@ async def execute_script(
     global_schema = roles = None
     unit_group = compiled.query_unit_group
     query_prefix = compiled.make_query_prefix()
+    query_unit = None
 
     sync = False
     no_sync = False
@@ -569,6 +573,9 @@ async def execute_script(
         # used when interpreting.
         if isinstance(e, pgerror.BackendError):
             e._user_schema = dbv.get_user_schema_pickle()
+
+        if query_unit and query_unit.source_map:
+            e._from_sql = True
 
         if not in_tx and dbv.in_tx():
             # Abort the implicit transaction
@@ -931,8 +938,12 @@ async def interpret_error(
 
     elif isinstance(exc, pgerror.BackendError):
         try:
+            from_sql = getattr(exc, '_from_sql', False)
+            source_map = getattr(exc, '_source_map', None)
+            fields = exc.fields
+
             static_exc = errormech.static_interpret_backend_error(
-                exc.fields, from_graphql=from_graphql
+                fields, from_graphql=from_graphql
             )
 
             # only use the backend if schema is required
@@ -950,7 +961,7 @@ async def interpret_error(
                 exc = await compiler_pool.interpret_backend_error(
                     user_schema_pickle,
                     global_schema_pickle,
-                    exc.fields,
+                    fields,
                     from_graphql,
                 )
 
@@ -962,6 +973,32 @@ async def interpret_error(
                 exc = type(static_exc)(message)
             else:
                 exc = static_exc
+
+            if from_sql and isinstance(exc, errors.InternalServerError):
+                exc = errors.ExecutionError(*exc.args)
+
+            # Translate error position for SQL queries if we can
+            if source_map and isinstance(exc, errors.EdgeDBError):
+                if 'P' in fields:
+                    exc.set_position(
+                        0,
+                        0,
+                        source_map.translate(int(fields['P'])),
+                        None,
+                    )
+
+            # Include hint/detail from SQL queries also, if we haven't
+            # produced our own.
+            if from_sql and isinstance(exc, errors.EdgeDBError):
+                if 'H' in fields or 'D' in fields:
+                    hint = exc.hint or fields.get('H')
+                    details = exc.details or fields.get('D')
+                    # ... there is some sort of cython bug/"feature"
+                    # involving the type annotation above which causes
+                    # exc.set_hint_and_details to fail, so we copy it
+                    # to a new variable.
+                    exc2: object = exc
+                    exc2.set_hint_and_details(hint, details)
 
         except Exception as e:
             from edb.common import debug

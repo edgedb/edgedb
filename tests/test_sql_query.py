@@ -2597,52 +2597,40 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 '''select title, 'aaaaaaaaaaaaaaaaa', asdf from "Content";'''
             )
 
-    @test.xerror('this gives ISE instead of QueryError')
-    async def test_sql_native_query_19a(self):
+    async def test_sql_native_query_19(self):
         with self.assertRaisesRegex(
-            edgedb.errors.QueryError,
+            edgedb.errors.ExecutionError,
             'does not exist',
+            _position=35,
+            _hint=(
+                'No function matches the given name and argument types. '
+                'You might need to add explicit type casts.'
+            ),
         ):
             await self.con.query_sql(
                 '''select title, 'aaaaaaaaaaaaaaaaa', asdf() from "Content";'''
             )
 
-    @test.xerror('See #8077')
-    async def test_sql_native_query_19b(self):
-        with self.assertRaisesRegex(
-            edgedb.errors.QueryError,
-            '',
-            _position=37,
-        ):
-            await self.con.query_sql(
-                '''select title, 'aaaaaaaaaaaaaaaaa', asdf() from "Content";'''
-            )
-
-    @test.xfail('See #8077')
+    @test.xfail('We translate the type name to std::int32')
     async def test_sql_native_query_20(self):
+        # This test was originally added to test the position is
+        # right, but it turns out that postgres doesn't report a
+        # position here.
         with self.assertRaisesRegex(
             edgedb.errors.InvalidValueError,
             'invalid input syntax for type integer',
-            _position=35,
         ):
-            await self.con.query_sql(
-                '''\
-select title, 'aaaaaaaaaaaaaaaaa', ('goo'::text::integer) from "Content";'''
-            )
+            await self.con.query_sql('''
+                select 'aaaaaaaaaaaaaaaaa', ('goo'::text::integer);
+            ''')
 
     async def test_sql_native_query_21(self):
         await self.assert_sql_query_result(
-            """
-                SELECT 1
-            """,
-            [{'col~1': 1}],
+            "SELECT 1 as a", [{"a": 1}]
         )
 
         await self.assert_sql_query_result(
-            """
-                SELECT 'test'
-            """,
-            [{'col~1': 'test'}],
+            "SELECT 'test' as a", [{"a": "test"}]
         )
 
 

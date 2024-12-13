@@ -2385,6 +2385,7 @@ class _EdgeDBServer:
         env: Optional[Dict[str, str]] = None,
         extra_args: Optional[List[str]] = None,
         net_worker_mode: Optional[str] = None,
+        password: Optional[str] = None,
     ) -> None:
         self.bind_addrs = bind_addrs
         self.auto_shutdown_after = auto_shutdown_after
@@ -2420,6 +2421,7 @@ class _EdgeDBServer:
         self.env = env
         self.extra_args = extra_args
         self.net_worker_mode = net_worker_mode
+        self.password = password
 
     async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
         while True:
@@ -2512,7 +2514,7 @@ class _EdgeDBServer:
                 reset_auth = True
 
         if not reset_auth:
-            password = None
+            password = self.password
             bootstrap_command = ''
         else:
             password = secrets.token_urlsafe()
@@ -2747,6 +2749,7 @@ def start_edgedb_server(
     extra_args: Optional[List[str]] = None,
     default_branch: Optional[str] = None,
     net_worker_mode: Optional[str] = None,
+    force_new: bool = False,  # True for ignoring multitenant config env
 ):
     if (not devmode.is_in_dev_mode() or adjacent_to) and not runstate_dir:
         if backend_dsn or adjacent_to:
@@ -2757,13 +2760,22 @@ def start_edgedb_server(
                   'Consider specifying the runstate_dir parameter.')
             print('\n'.join(traceback.format_stack(limit=5)))
 
+    password = None
     if mt_conf := os.environ.get("EDGEDB_SERVER_MULTITENANT_CONFIG_FILE"):
         if multitenant_config is None and max_allowed_connections == 10:
             if not any(
-                (adjacent_to, data_dir, backend_dsn, compiler_pool_mode)
+                (
+                    adjacent_to,
+                    data_dir,
+                    backend_dsn,
+                    compiler_pool_mode,
+                    default_branch,
+                    force_new,
+                )
             ):
                 multitenant_config = mt_conf
                 max_allowed_connections = None
+                password = 'test'  # set in init_cluster() by test/runner.py
 
     params = locals()
     exclusives = [
@@ -2817,6 +2829,7 @@ def start_edgedb_server(
         extra_args=extra_args,
         default_branch=default_branch,
         net_worker_mode=net_worker_mode,
+        password=password,
     )
 
 
