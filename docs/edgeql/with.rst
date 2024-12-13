@@ -73,6 +73,30 @@ parameters <ref_eql_params>`.
 For a full reference on using query parameters, see :ref:`EdgeQL > Parameters
 <ref_eql_params>`.
 
+
+Module alias
+^^^^^^^^^^^^
+
+
+Another use of ``with`` is to provide aliases for modules. This can be useful
+for long queries which reuse many objects or functions from the same module.
+
+.. code-block:: edgeql
+
+  with http as module std::net::http
+  select http::ScheduledRequest
+  filter .method = http::Method.POST;
+
+If the aliased module does not exist at the top level, but does exists as a
+part of the ``std`` module, that will be used automatically.
+
+.. code-block:: edgeql
+
+  with http as module net::http # <- omitting std
+  select http::ScheduledRequest
+  filter .method = http::Method.POST;
+
+
 Module selection
 ^^^^^^^^^^^^^^^^
 
@@ -93,6 +117,14 @@ module* on a per-query basis.
 This ``with module`` clause changes the default module to schema, so we can
 refer to ``schema::ObjectType`` (a built-in EdgeDB type) as simply
 ``ObjectType``.
+
+As with module aliases, if the active module does not exist at the top level,
+but does exist as part of the ``std`` module, that will be used automatically.
+
+.. code-block:: edgeql-repl
+
+  db> with module math select abs(-1);
+  {1}
 
 
 .. list-table::
