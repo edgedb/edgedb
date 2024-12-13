@@ -1512,7 +1512,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             nested_ps_name = unit.deallocate.stmt_name
             unit = self._validate_deallocate_stmt(unit)
 
-        parse_data = remap_paramaters(parse_data, unit.params)
+        parse_data = remap_parameters(parse_data, unit.params)
 
         action = PGMessage(
             PGAction.PARSE,
@@ -1745,11 +1745,11 @@ cdef bytes remap_arguments(
     return bytes(buf)
 
 
-cdef bytes remap_paramaters(
+cdef bytes remap_parameters(
     data: bytes,
     params: list[dbstate.SQLParam] | None
 ):
-    # Inject parameter type descriptions in parse message for paramaters for
+    # Inject parameter type descriptions in parse message for parameters for
     # globals and extracted constants.
 
     if not params:
@@ -1758,12 +1758,12 @@ cdef bytes remap_paramaters(
     buf = WriteBuffer.new()
     buf.write_int16(len(params))
 
-    # copy the params sepcified by user
+    # copy the params specified by user
     specified_ext = read_int16(data[0:2])
     buf.write_bytes(data[2:2 + specified_ext*4])
 
     for index, param in enumerate(params):
-        
+
         # already written
         if index < specified_ext:
             continue

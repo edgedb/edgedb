@@ -2044,7 +2044,7 @@ def _try_inject_type_cast(
     """
     If a relation is simple, injects type annotation for a column.
     This is needed for Postgres to correctly infer the type so it will be able
-    to bind to correct paramater types. For example:
+    to bind to correct parameter types. For example:
 
     INSERT x (a, b) VALUES ($1, $2)
 
