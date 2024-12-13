@@ -37,6 +37,7 @@ early_setup()
 import asyncio
 import contextlib
 import enum
+import json
 import logging
 import os
 import os.path
@@ -197,7 +198,7 @@ async def _run_server(
     *,
     do_setproctitle: bool,
     new_instance: bool,
-    compiler_state: edbcompiler.CompilerState,
+    compiler: edbcompiler.Compiler,
 ):
 
     sockets = service_manager.get_activation_listen_sockets()
@@ -244,7 +245,7 @@ async def _run_server(
             new_instance=new_instance,
             admin_ui=args.admin_ui,
             disable_dynamic_system_config=args.disable_dynamic_system_config,
-            compiler_state=compiler_state,
+            compiler_state=compiler.state,
             tenant=tenant,
             use_monitor_fs=args.reload_config_files in [
                 srvargs.ReloadTrigger.Default,
@@ -252,10 +253,19 @@ async def _run_server(
             ],
             net_worker_mode=args.net_worker_mode,
         )
+        magic_smtp = os.getenv('EDGEDB_MAGIC_SMTP_CONFIG')
+        if magic_smtp:
+            magic_smtp = json.loads(magic_smtp)
+            if isinstance(magic_smtp, dict):
+                # for backward compatibility
+                magic_smtp = [magic_smtp]
+            await tenant.load_sidechannel_configs(
+                magic_smtp, compiler=compiler
+            )
         # This coroutine runs as long as the server,
-        # and compiler_state is *heavy*, so make sure we don't
+        # and compiler(.state) is *heavy*, so make sure we don't
         # keep a reference to it.
-        del compiler_state
+        del compiler
         await sc.wait_for(ss.init())
 
         (
@@ -666,7 +676,7 @@ async def run_server(
                     int_runstate_dir,
                     do_setproctitle=do_setproctitle,
                     new_instance=new_instance,
-                    compiler_state=compiler.state,
+                    compiler=compiler,
                 )
 
     except server.StartupError as e:
