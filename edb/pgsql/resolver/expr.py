@@ -27,6 +27,7 @@ from edb import errors
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common
+from edb.pgsql.common import quote_ident as qi
 from edb.pgsql import compiler as pgcompiler
 from edb.pgsql.compiler import enums as pgce
 
@@ -117,7 +118,7 @@ def _resolve_ResTarget(
                     raise errors.QueryError(
                         f'duplicate column name: `{nam}`',
                         span=res_target.span,
-                        pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
+                        pgext_code=pgerror.ERROR_UNDEFINED_COLUMN,
                     )
             existing_names.add(nam)
 
@@ -156,7 +157,7 @@ def _resolve_ResTarget(
                 raise errors.QueryError(
                     f'duplicate column name: `{alias}`',
                     span=res_target.span,
-                    pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
+                    pgext_code=pgerror.ERROR_UNDEFINED_COLUMN,
                 )
         else:
             # inferred duplicate name: use generated alias instead
@@ -316,9 +317,9 @@ def _lookup_column(
 
     if not matched_columns:
         raise errors.QueryError(
-            f'cannot find column `{col_name}`',
+            f'column {qi(col_name, force=True)} does not exist',
             span=column_ref.span,
-            pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
+            pgext_code=pgerror.ERROR_UNDEFINED_COLUMN,
         )
 
     # apply precedence
@@ -447,8 +448,11 @@ def resolve_TypeCast(
     *,
     ctx: Context,
 ) -> pgast.BaseExpr:
-    if res := static.eval_TypeCast(expr, ctx=ctx):
-        return res
+
+    pg_catalog_name = static.name_in_pg_catalog(expr.type_name.name)
+    if pg_catalog_name == 'regclass' and not expr.type_name.array_bounds:
+        return static.cast_to_regclass(expr.arg, ctx)
+
     return pgast.TypeCast(
         arg=dispatch.resolve(expr.arg, ctx=ctx),
         type_name=expr.type_name,

@@ -893,7 +893,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         # we'd ideally want a message that hints that it should use quotes
 
         with self.assertRaisesRegex(
-            asyncpg.InvalidColumnReferenceError, 'cannot find column `name`'
+            asyncpg.UndefinedColumnError, 'column \"name\" does not exist'
         ):
             await self.squery_values('SELECT name FROM User')
 
@@ -1307,6 +1307,9 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         res = await self.squery_values('select current_schemas(true);')
         self.assertEqual(res, [[['pg_catalog', 'blah', 'foo']]])
+
+        with self.assertRaises(asyncpg.UndefinedFunctionError):
+            await self.squery_values('select current_schemas($1);')
 
     async def test_sql_query_static_eval_02(self):
         await self.scon.execute(
@@ -1737,7 +1740,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
     async def test_sql_query_computed_02(self):
         # computeds can only be accessed on the table, not rel vars
         with self.assertRaisesRegex(
-            asyncpg.PostgresError, "cannot find column `full_name`"
+            asyncpg.UndefinedColumnError, "column \"full_name\" does not exist"
         ):
             await self.squery_values(
                 """
@@ -2544,7 +2547,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
     async def test_sql_native_query_18(self):
         with self.assertRaisesRegex(
             edgedb.errors.QueryError,
-            'cannot find column `asdf`',
+            'column \"asdf\" does not exist',
             _position=35,
         ):
             await self.con.query_sql(

@@ -193,7 +193,7 @@ class TestSQLSys(tb.SQLQueryTestCase, TestQueryStatsMixin):
         import asyncpg
 
         with self.assertRaisesRegex(
-            asyncpg.InvalidColumnReferenceError, "cannot find column"
+            asyncpg.UndefinedColumnError, "does not exist"
         ):
             await self.squery_values(
                 f'select {self.stats_magic_word}_NoSuchType'

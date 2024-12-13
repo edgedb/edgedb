@@ -1650,14 +1650,22 @@ cdef void inject_extracted_params(
     source: pg_parser.Source,
     query_unit: dbstate.SQLQueryUnit,
 ):
+    cdef:
+        int32_t p
+
     if source.first_extra() == None:
         return
 
     for (e, type_oid) in enumerate(source.extra_type_oids()):
-        if e >= len(query_unit.params):
+        p = e + source.first_extra()
+        
+        # if compiler has decided not to use normalized query, don't inject
+        if (
+            p >= len(query_unit.params)
+            or not isinstance(query_unit.params[p], dbstate.SQLParamExternal)
+        ):
             break
 
-        p = e + source.first_extra()
         query_unit.params[p] = dbstate.SQLParamExtractedConst(
             type_oid=<int32_t> type_oid,
         )

@@ -58,6 +58,10 @@ class Options:
     # makes sure that output does not contain duplicated column names
     disambiguate_column_names: bool
 
+    # true when the query has been normalized before compilation
+    # This means that the resolver is allowed to raise DisableNormalization
+    is_normalized: bool
+
 
 @dataclass(kw_only=True)
 class Scope:
