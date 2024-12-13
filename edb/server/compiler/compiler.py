@@ -1295,6 +1295,7 @@ class Compiler:
         self,
         objects: Mapping[str, config_compiler.ConfigObject],
         source: str | None = None,
+        allow_nested: bool = False,
     ) -> dict[str, immutables.Map[str, config.SettingValue]]:
         # XXX: only config in the stdlib is supported currently, so the only
         # key allowed in objects is "cfg::Config". API for future compatibility
@@ -1309,6 +1310,7 @@ class Compiler:
             spec=self.state.config_spec,
             schema=self.state.std_schema,
             source=source,
+            allow_nested=allow_nested,
         )
 
 

@@ -92,7 +92,7 @@ class TestServerCompiler(tb.BaseSchemaLoadTest):
         **expected: Any,
     ) -> dict[str, config.SettingValue]:
         result = self.compiler.compile_structured_config(
-            {"cfg::Config": values}, source=source
+            {"cfg::Config": values}, source=source, allow_nested=True
         )
         rv = dict(result["cfg::Config"])
         for name, setting in rv.items():

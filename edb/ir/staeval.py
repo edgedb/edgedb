@@ -107,24 +107,36 @@ def evaluate_SelectStmt(
 def evaluate_InsertStmt(
     ir: irast.InsertStmt, schema: s_schema.Schema
 ) -> EvaluationResult:
-    # XXX: raise for unsupported InsertStmt?
+    # InsertStmt should NOT be statically evaluated in general;
+    # This is a special case for inserting nested cfg::ConfigObject
+    # when it's evaluated into a named tuple and then squashed into
+    # a Python dict to be used in compile_structured_config().
+    tmp_schema, subject_type = irtyputils.ir_typeref_to_type(
+        schema, ir.subject.expr.typeref
+    )
+    config_obj = schema.get("cfg::ConfigObject")
+    assert isinstance(config_obj, s_obj.SubclassableObject)
+    if subject_type.issubclass(tmp_schema, config_obj):
+        return irast.Tuple(
+            named=True,
+            typeref=ir.subject.typeref,
+            elements=[
+                irast.TupleElement(
+                    name=ptr_set.expr.ptrref.shortname.name,
+                    val=irast.Set(
+                        expr=evaluate(ptr_set.expr.expr, schema),
+                        typeref=ptr_set.typeref,
+                        path_id=ptr_set.path_id,
+                    ),
+                )
+                for ptr_set, _ in ir.subject.shape
+                if ptr_set.expr.ptrref.shortname.name != "id"
+                and ptr_set.expr.expr is not None
+            ],
+        )
 
-    return irast.Tuple(
-        named=True,
-        typeref=ir.subject.typeref,
-        elements=[
-            irast.TupleElement(
-                name=ptr_set.expr.ptrref.shortname.name,
-                val=irast.Set(
-                    expr=evaluate(ptr_set.expr.expr, schema),
-                    typeref=ptr_set.typeref,
-                    path_id=ptr_set.path_id,
-                ),
-            )
-            for ptr_set, _ in ir.subject.shape
-            if ptr_set.expr.ptrref.shortname.name != "id"
-            and ptr_set.expr.expr is not None
-        ],
+    raise UnsupportedExpressionError(
+        f'no static IR evaluation handler for general {ir.__class__}'
     )
 
 

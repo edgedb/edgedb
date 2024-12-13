@@ -210,9 +210,14 @@ def compile_ast_to_operation(
     *,
     schema: s_schema.Schema,
     options: qlcompiler.CompilerOptions,
+    allow_nested: bool = True,
 ) -> config.Operation:
     cmd: qlast.ConfigOp
     if isinstance(expr, qlast.InsertQuery):
+        if not allow_nested:
+            raise errors.ConfigurationError(
+                "nested config object is not allowed"
+            )
         cmd = qlast.ConfigInsert(
             name=expr.subject,
             scope=qltypes.ConfigScope.INSTANCE,
@@ -244,6 +249,7 @@ def compile_structured_config(
     spec: config.Spec,
     schema: s_schema.Schema,
     source: str | None = None,
+    allow_nested: bool = True,
 ) -> dict[str, immutables.Map[str, config.SettingValue]]:
     options = qlcompiler.CompilerOptions(
         modaliases={None: "cfg"},
@@ -273,6 +279,7 @@ def compile_structured_config(
                             ast,
                             schema=schema,
                             options=options,
+                            allow_nested=allow_nested,
                         )
                         storage = op.apply(spec, storage, source=source)
                     continue
@@ -284,6 +291,7 @@ def compile_structured_config(
                 shape_el.compexpr,
                 schema=schema,
                 options=options,
+                allow_nested=allow_nested,
             )
             storage = op.apply(spec, storage, source=source)
 
