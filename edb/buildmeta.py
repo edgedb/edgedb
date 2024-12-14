@@ -618,3 +618,8 @@ def get_version_line() -> str:
         extras.append(f"for {ver_meta['target']}")
 
     return get_version_string() + " ".join(extras)
+
+
+# Belt and suspenders check to prevent accidental changes.
+# DO NOT EVER CHANGE THIS.
+assert EDGEDB_CATALOG_VERSION == 2024_12_13_00_00  # Friday the 13th.
