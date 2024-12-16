@@ -7,6 +7,7 @@ const STUB_ATTR: &str = "stub";
 const LIST_ATTR: &str = "list";
 const LIST_SEPARATOR_PATH: &str = "separator";
 const LIST_TRAILING_PATH: &str = "trailing";
+const LIST_NAME_PATH: &str = "name";
 
 /// Implements [edgeql_parser::grammar::Reduce] for conversion from CST nodes to
 /// AST nodes.
@@ -25,12 +26,14 @@ const LIST_TRAILING_PATH: &str = "trailing";
 /// If `#[stub()]` attribute is present, the `From` trait is automatically
 /// derived, filled with `todo!()`.
 ///
-/// If `#[list(separator=..., trailing=...)]` attribute is present,
+/// If `#[list(name=..., separator=..., trailing=...)]` attribute is present,
 /// a `*List` enum is automatically generated with the
 /// [edgeql_parser::grammar::Reduce] implementation for that enum,
 /// where the `separator` path value will be used to separate list items.
 /// If the optional `trailing` path is set to `true`, a `*ListInner` enum
 /// is also generated to allow the use of trailing separators.
+/// If the optional `name` path is set, then the list enum will have a non default
+/// name.
 #[proc_macro_derive(Reduce, attributes(output, stub, list))]
 pub fn grammar_non_terminal(input: TokenStream) -> TokenStream {
     let item = parse_macro_input!(input as syn::Item);
@@ -164,10 +167,12 @@ fn path_eq(path: &syn::Path, name: &str) -> bool {
 }
 
 fn iter_non_terminals(variant_name: &str) -> impl Iterator<Item = (usize, &str)> {
-    variant_name
-        .split('_')
-        .enumerate()
-        .filter(|c| c.1 != "epsilon" && c.1 != c.1.to_ascii_uppercase())
+    variant_name.split('_').enumerate().filter(|c| {
+        c.1 != "epsilon"
+            && c.1 != "Semicolons"
+            && c.1 != "OptSemicolons"
+            && c.1 != c.1.to_ascii_uppercase()
+    })
 }
 
 fn generate_list(
@@ -178,12 +183,15 @@ fn generate_list(
 ) {
     let mut separator = None;
     let mut allow_trailing_list = false;
+    let mut list_name = format_ident!("{element}List");
 
     attr.parse_nested_meta(|m| {
         if path_eq(&m.path, LIST_SEPARATOR_PATH) {
             separator = m.value()?.parse::<Option<syn::Ident>>()?;
         } else if path_eq(&m.path, LIST_TRAILING_PATH) {
             allow_trailing_list = m.value()?.parse::<syn::LitBool>()?.value;
+        } else if path_eq(&m.path, LIST_NAME_PATH) {
+            list_name = m.value()?.parse::<syn::Ident>()?;
         }
 
         Ok(())
@@ -199,8 +207,8 @@ fn generate_list(
     if allow_trailing_list {
         let mut list_inner_stream = proc_macro2::TokenStream::new();
 
-        let list_inner = format_ident!("{element}ListInner");
-        let list_inner_node = format_ident!("{element}ListInnerNode");
+        let list_inner = format_ident!("{list_name}Inner");
+        let list_inner_node = format_ident!("{list_inner}Node");
         let inner_sep_elem = format_ident!("{list_inner}_{separator}_{element}");
 
         list_inner_stream.extend(quote! {
@@ -226,14 +234,13 @@ fn generate_list(
             }
         });
 
-        let list = format_ident!("{element}List");
-        let list_node = format_ident!("{element}ListNode");
+        let list_node = format_ident!("{list_name}Node");
         let list_inner_sep = format_ident!("{list_inner}_{separator}");
 
         list_stream.extend(quote! {
             #[derive(edgeql_parser_derive::Reduce)]
             #[output(Vec::<#output_ty>)]
-            pub enum #list {
+            pub enum #list_name {
                 #list_inner,
                 #list_inner_sep,
             }
@@ -250,14 +257,13 @@ fn generate_list(
             #list_inner_stream
         });
     } else {
-        let list = format_ident!("{element}List");
-        let list_node = format_ident!("{element}ListNode");
-        let list_sep_elem = format_ident!("{list}_{separator}_{element}");
+        let list_node = format_ident!("{list_name}Node");
+        let list_sep_elem = format_ident!("{list_name}_{separator}_{element}");
 
         list_stream.extend(quote! {
             #[derive(edgeql_parser_derive::Reduce)]
             #[output(Vec::<#output_ty>)]
-            pub enum #list {
+            pub enum #list_name {
                 #element,
                 #list_sep_elem,
             }

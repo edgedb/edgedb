@@ -27,6 +27,17 @@ class ASTUnion:
     variants: typing.Sequence[typing.Type | str]
     for_composition: bool
 
+@dataclasses.dataclass()
+class NonTerm:
+    name: str
+    type_: typing.Optional[str]
+
+    reductions: typing.List[str] = dataclasses.field(default_factory=list)
+
+    has_list: bool = False
+    list_is_trailing: bool = False
+    list_name: typing.Optional[str] = None
+    list_separator: typing.Optional[str] = None
 
 # a queue for union types that are to be generated
 union_types: typing.List[ASTUnion] = []
@@ -121,6 +132,8 @@ def gen_rust_from_id() -> None:
 
 
 def gen_rust_grammar_stub() -> None:
+    impls = open('edb/edgeql-parser/src/grammar/non_terminals.rs').read()
+
     f = open('edb/edgeql-parser/src/grammar/stub.rs', 'w')
 
     f.write('use super::*;\n')
@@ -130,25 +143,65 @@ def gen_rust_grammar_stub() -> None:
     parser.preload_spec()
     productions = rust_parser.get_productions()
 
-    prod_to_reductions = {}
+    prods: typing.Mapping[str, NonTerm] = {}
     for prod, reduction_method in productions:
         if reduction_method.__doc__ is None:
             continue
 
         prod_name = prod.__name__
-        if prod_name not in prod_to_reductions:
+        if prod_name not in prods:
             val_ty = (
                 reduction_method.val_ty
                 if hasattr(reduction_method, 'val_ty')
                 else None
             )
-            prod_to_reductions[prod_name] = (val_ty, [])
+
+            prods[prod_name] = NonTerm(prod_name, val_ty)
 
         reduction_name = get_reduction_name(reduction_method.__doc__)
-        prod_to_reductions[prod_name][1].append(reduction_name)
+        prods[prod_name].reductions.append(reduction_name)
 
-    for prod in sorted(prod_to_reductions.keys()):
-        f.write(codegen_grammar_non_term(prod, prod_to_reductions[prod]))
+    # handle lists
+    for prod in prods.copy().values():
+        skip_prod = (
+            not prod.name.endswith('List') or
+            prod.name.startswith('Opt') or
+            prod.name.endswith('ListInner') or
+            len(prod.reductions) != 2
+        )
+        if skip_prod:
+            continue
+
+        has_inner = False
+        separator = "COMMA"
+
+        if inner := prods.get(f'{prod.name}Inner', None):
+            has_inner = True
+            reductions = inner.reductions
+        else:
+            reductions = prod.reductions
+
+        for reduction in reductions:
+            parts = reduction.split('_')
+            if len(parts) == 3:
+                separator = parts[1]
+                element_prod = prods.get(parts[2])
+
+        prods.pop(prod.name)
+        prods.pop(f'{prod.name}Inner', None)
+
+        element_prod.has_list = True
+        element_prod.list_is_trailing = has_inner
+        element_prod.list_separator = separator
+
+        if f'{element_prod.name}List' != prod.name:
+            element_prod.list_name = prod.name
+
+    for prod_name in sorted(prods.keys()):
+        if f'impl From<{prod_name}Node>' in impls:
+            continue
+
+        f.write(codegen_grammar_non_term(prods[prod_name]))
 
 
 def codegen_struct(cls: ASTClass) -> str:
@@ -328,13 +381,10 @@ SKIP_REDUCTIONS = {
 }
 
 
-def codegen_grammar_non_term(
-    non_term_name: str,
-    non_term: typing.Tuple[str, typing.List[str]],
-) -> str:
+def codegen_grammar_non_term(non_term: NonTerm) -> str:
     r = '\n'
 
-    output_ty = non_term[0]
+    output_ty = non_term.type_
 
     if output_ty == None:
         output_ty_str = 'TodoAst'
@@ -347,9 +397,23 @@ def codegen_grammar_non_term(
 
     r += '#[derive(edgeql_parser_derive::Reduce)]\n'
     r += f'#[output({output_ty_str})]\n'
+
+    if non_term.has_list:
+        list_paths = []
+
+        if non_term.list_name is not None:
+            list_paths.append(f'name={non_term.list_name}')
+
+        list_paths.append(f'separator={non_term.list_separator}')
+
+        if non_term.list_is_trailing:
+            list_paths.append('trailing=true')
+
+        r += f'#[list({', '.join(list_paths)})]\n'
+
     r += '#[stub()]\n'
-    r += f'pub enum {non_term_name} {"{"}\n'
-    for reduction in non_term[1]:
+    r += f'pub enum {non_term.name} {"{"}\n'
+    for reduction in non_term.reductions:
         if reduction in SKIP_REDUCTIONS:
             continue
         r += f'    {reduction},\n'

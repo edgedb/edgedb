@@ -13,22 +13,21 @@ pub enum EdgeQLGrammar {
     STARTSDLDOCUMENT_SDLDocument_EOI,
 }
 
-impl Into<ast::GrammarEntryPoint> for EdgeQLGrammarNode {
-    fn into(self) -> ast::GrammarEntryPoint {
-        match self {
-            Self::STARTBLOCK_EdgeQLBlock_EOI(_) => todo!(),
-            Self::STARTEXTENSION_CreateExtensionPackageCommandsBlock_EOI(_) => todo!(),
-            Self::STARTFRAGMENT_ExprStmt_EOI(x) => ast::GrammarEntryPoint::Query(x),
-            Self::STARTFRAGMENT_Expr_EOI(x) => ast::GrammarEntryPoint::Expr(x),
-            Self::STARTMIGRATION_CreateMigrationCommandsBlock_EOI(_) => todo!(),
-            Self::STARTSDLDOCUMENT_SDLDocument_EOI(_) => todo!(),
+impl From<EdgeQLGrammarNode> for ast::GrammarEntryPoint  {
+    fn from(value: EdgeQLGrammarNode) -> Self {
+        match value {
+            EdgeQLGrammarNode::STARTBLOCK_EdgeQLBlock_EOI(_) => todo!(),
+            EdgeQLGrammarNode::STARTEXTENSION_CreateExtensionPackageCommandsBlock_EOI(_) => todo!(),
+            EdgeQLGrammarNode::STARTFRAGMENT_ExprStmt_EOI(x) => ast::GrammarEntryPoint::Query(x),
+            EdgeQLGrammarNode::STARTFRAGMENT_Expr_EOI(x) => ast::GrammarEntryPoint::Expr(x),
+            EdgeQLGrammarNode::STARTMIGRATION_CreateMigrationCommandsBlock_EOI(_) => todo!(),
+            EdgeQLGrammarNode::STARTSDLDOCUMENT_SDLDocument_EOI(_) => todo!(),
         }
     }
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(Box::<ast::Expr>)]
-#[stub()]
 #[list(separator=COMMA, trailing=true)]
 pub enum Expr {
     BaseAtomicExpr,
@@ -71,6 +70,12 @@ pub enum Expr {
     NOT_Expr,
     PLUS_Expr_P_UMINUS,
     Path,
+}
+
+impl From<ExprNode> for Box::<ast::Expr> {
+    fn from(_value: ExprNode) -> Self {
+        todo!()
+    }
 }
 
 #[derive(edgeql_parser_derive::Reduce)]

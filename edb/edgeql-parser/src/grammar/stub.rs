@@ -88,25 +88,10 @@ pub enum AliasDeclarationShort {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(ast::AliasedExpr)]
+#[list(separator=COMMA, trailing=true)]
 #[stub()]
 pub enum AliasedExpr {
     Identifier_ASSIGN_Expr,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(Vec::<ast::AliasedExpr>)]
-#[stub()]
-pub enum AliasedExprList {
-    AliasedExprListInner,
-    AliasedExprListInner_COMMA,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum AliasedExprListInner {
-    AliasedExpr,
-    AliasedExprListInner_COMMA_AliasedExpr,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -121,6 +106,7 @@ pub enum AlterAbstract {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterAccessPolicyCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterAccessPolicyCommand {
     AccessPermStmt,
@@ -147,20 +133,13 @@ pub enum AlterAccessPolicyCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterAccessPolicyCommandsList {
-    AlterAccessPolicyCommand,
-    AlterAccessPolicyCommandsList_Semicolons_AlterAccessPolicyCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterAccessPolicyStmt {
     ALTER_ACCESS_POLICY_UnqualifiedPointerName_AlterAccessPolicyCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterAliasCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterAliasCommand {
     AlterAnnotationValueStmt,
@@ -185,20 +164,13 @@ pub enum AlterAliasCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterAliasCommandsList {
-    AlterAliasCommand,
-    AlterAliasCommandsList_Semicolons_AlterAliasCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterAliasStmt {
     ALTER_ALIAS_NodeName_AlterAliasCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterAnnotationCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterAnnotationCommand {
     AlterAnnotationValueStmt,
@@ -220,14 +192,6 @@ pub enum AlterAnnotationCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterAnnotationCommandsList {
-    AlterAnnotationCommand,
-    AlterAnnotationCommandsList_Semicolons_AlterAnnotationCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterAnnotationStmt {
     ALTER_ABSTRACT_ANNOTATION_NodeName_AlterAnnotationCommandsBlock,
 }
@@ -242,6 +206,7 @@ pub enum AlterAnnotationValueStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterBranchCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterBranchCommand {
     RenameStmt,
@@ -260,20 +225,13 @@ pub enum AlterBranchCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterBranchCommandsList {
-    AlterBranchCommand,
-    AlterBranchCommandsList_Semicolons_AlterBranchCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterBranchStmt {
     ALTER_BRANCH_DatabaseName_BranchOptions_AlterBranchCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterCastCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterCastCommand {
     AlterAnnotationValueStmt,
@@ -296,20 +254,13 @@ pub enum AlterCastCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterCastCommandsList {
-    AlterCastCommand,
-    AlterCastCommandsList_Semicolons_AlterCastCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterCastStmt {
     ALTER_CAST_FROM_TypeName_TO_TypeName_AlterCastCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterCommand {
     AlterAnnotationValueStmt,
@@ -333,14 +284,7 @@ pub enum AlterCommandsBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
-#[stub()]
-pub enum AlterCommandsList {
-    AlterCommand,
-    AlterCommandsList_Semicolons_AlterCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[list(name=AlterConcreteConstraintCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterConcreteConstraintCommand {
     AlterAbstract,
@@ -366,20 +310,13 @@ pub enum AlterConcreteConstraintCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterConcreteConstraintCommandsList {
-    AlterConcreteConstraintCommand,
-    AlterConcreteConstraintCommandsList_Semicolons_AlterConcreteConstraintCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterConcreteConstraintStmt {
     ALTER_CONSTRAINT_NodeName_OptConcreteConstraintArgList_OptOnExpr_OptExceptExpr_AlterConcreteConstraintCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterConcreteIndexCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterConcreteIndexCommand {
     AlterAnnotationValueStmt,
@@ -404,14 +341,6 @@ pub enum AlterConcreteIndexCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterConcreteIndexCommandsList {
-    AlterConcreteIndexCommand,
-    AlterConcreteIndexCommandsList_Semicolons_AlterConcreteIndexCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterConcreteIndexStmt {
     ALTER_INDEX_OnExpr_OptExceptExpr_AlterConcreteIndexCommandsBlock,
     ALTER_INDEX_NodeName_OptIndexExtArgList_OnExpr_OptExceptExpr_AlterConcreteIndexCommandsBlock,
@@ -419,6 +348,7 @@ pub enum AlterConcreteIndexStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterConcreteLinkCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterConcreteLinkCommand {
     AlterAnnotationValueStmt,
@@ -464,20 +394,13 @@ pub enum AlterConcreteLinkCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterConcreteLinkCommandsList {
-    AlterConcreteLinkCommand,
-    AlterConcreteLinkCommandsList_Semicolons_AlterConcreteLinkCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterConcreteLinkStmt {
     ALTER_LINK_UnqualifiedPointerName_AlterConcreteLinkCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterConcretePropertyCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterConcretePropertyCommand {
     AlterAnnotationValueStmt,
@@ -513,14 +436,6 @@ pub enum AlterConcretePropertyCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterConcretePropertyCommandsList {
-    AlterConcretePropertyCommand,
-    AlterConcretePropertyCommandsList_Semicolons_AlterConcretePropertyCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterConcretePropertyStmt {
     ALTER_PROPERTY_UnqualifiedPointerName_AlterConcretePropertyCommandsBlock,
 }
@@ -541,6 +456,7 @@ pub enum AlterCurrentMigrationStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterDatabaseCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterDatabaseCommand {
     RenameStmt,
@@ -554,14 +470,6 @@ pub enum AlterDatabaseCommandsBlock {
     LBRACE_AlterDatabaseCommandsList_OptSemicolons_RBRACE,
     LBRACE_OptSemicolons_RBRACE,
     LBRACE_Semicolons_AlterDatabaseCommandsList_OptSemicolons_RBRACE,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum AlterDatabaseCommandsList {
-    AlterDatabaseCommand,
-    AlterDatabaseCommandsList_Semicolons_AlterDatabaseCommand,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -597,6 +505,7 @@ pub enum AlterExtensionStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterFunctionCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterFunctionCommand {
     AlterAnnotationValueStmt,
@@ -621,20 +530,13 @@ pub enum AlterFunctionCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterFunctionCommandsList {
-    AlterFunctionCommand,
-    AlterFunctionCommandsList_Semicolons_AlterFunctionCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterFunctionStmt {
     ALTER_FUNCTION_NodeName_CreateFunctionArgs_AlterFunctionCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterGlobalCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterGlobalCommand {
     AlterAnnotationValueStmt,
@@ -662,20 +564,13 @@ pub enum AlterGlobalCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterGlobalCommandsList {
-    AlterGlobalCommand,
-    AlterGlobalCommandsList_Semicolons_AlterGlobalCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterGlobalStmt {
     ALTER_GLOBAL_NodeName_AlterGlobalCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterIndexCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterIndexCommand {
     AlterAnnotationValueStmt,
@@ -700,20 +595,13 @@ pub enum AlterIndexCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterIndexCommandsList {
-    AlterIndexCommand,
-    AlterIndexCommandsList_Semicolons_AlterIndexCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterIndexStmt {
     ALTER_ABSTRACT_INDEX_NodeName_AlterIndexCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterLinkCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterLinkCommand {
     AlterAnnotationValueStmt,
@@ -750,20 +638,13 @@ pub enum AlterLinkCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterLinkCommandsList {
-    AlterLinkCommand,
-    AlterLinkCommandsList_Semicolons_AlterLinkCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterLinkStmt {
     ALTER_ABSTRACT_LINK_PtrNodeName_AlterLinkCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterMigrationCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterMigrationCommand {
     ResetFieldStmt,
@@ -783,14 +664,6 @@ pub enum AlterMigrationCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterMigrationCommandsList {
-    AlterMigrationCommand,
-    AlterMigrationCommandsList_Semicolons_AlterMigrationCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterMigrationStmt {
     ALTER_MIGRATION_NodeName_AlterMigrationCommandsBlock,
 }
@@ -804,6 +677,7 @@ pub enum AlterModuleStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterObjectTypeCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterObjectTypeCommand {
     AlterAccessPolicyStmt,
@@ -846,20 +720,13 @@ pub enum AlterObjectTypeCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterObjectTypeCommandsList {
-    AlterObjectTypeCommand,
-    AlterObjectTypeCommandsList_Semicolons_AlterObjectTypeCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterObjectTypeStmt {
     ALTER_TYPE_NodeName_AlterObjectTypeCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterOperatorCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterOperatorCommand {
     AlterAnnotationValueStmt,
@@ -882,14 +749,6 @@ pub enum AlterOperatorCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterOperatorCommandsList {
-    AlterOperatorCommand,
-    AlterOperatorCommandsList_Semicolons_AlterOperatorCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterOperatorStmt {
     ALTER_OperatorKind_OPERATOR_NodeName_CreateFunctionArgs_AlterOperatorCommandsBlock,
 }
@@ -904,6 +763,7 @@ pub enum AlterOwnedStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterPropertyCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterPropertyCommand {
     AlterAnnotationValueStmt,
@@ -930,20 +790,13 @@ pub enum AlterPropertyCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterPropertyCommandsList {
-    AlterPropertyCommand,
-    AlterPropertyCommandsList_Semicolons_AlterPropertyCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterPropertyStmt {
     ALTER_ABSTRACT_PROPERTY_PtrNodeName_AlterPropertyCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterRewriteCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterRewriteCommand {
     AlterAnnotationValueStmt,
@@ -967,20 +820,13 @@ pub enum AlterRewriteCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterRewriteCommandsList {
-    AlterRewriteCommand,
-    AlterRewriteCommandsList_Semicolons_AlterRewriteCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterRewriteStmt {
     ALTER_REWRITE_RewriteKindList_AlterRewriteCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterRoleCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterRoleCommand {
     AlterRoleExtending,
@@ -1002,14 +848,6 @@ pub enum AlterRoleCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterRoleCommandsList {
-    AlterRoleCommand,
-    AlterRoleCommandsList_Semicolons_AlterRoleCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterRoleExtending {
     DROP_EXTENDING_ShortNodeNameList,
     EXTENDING_ShortNodeNameList_OptPosition,
@@ -1024,6 +862,7 @@ pub enum AlterRoleStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterScalarTypeCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterScalarTypeCommand {
     AlterAnnotationValueStmt,
@@ -1051,14 +890,6 @@ pub enum AlterScalarTypeCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum AlterScalarTypeCommandsList {
-    AlterScalarTypeCommand,
-    AlterScalarTypeCommandsList_Semicolons_AlterScalarTypeCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum AlterScalarTypeStmt {
     ALTER_SCALAR_TYPE_NodeName_AlterScalarTypeCommandsBlock,
 }
@@ -1074,6 +905,7 @@ pub enum AlterSimpleExtending {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=AlterTriggerCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum AlterTriggerCommand {
     AccessWhenStmt,
@@ -1094,14 +926,6 @@ pub enum AlterTriggerCommandsBlock {
     LBRACE_AlterTriggerCommandsList_OptSemicolons_RBRACE,
     LBRACE_OptSemicolons_RBRACE,
     LBRACE_Semicolons_AlterTriggerCommandsList_OptSemicolons_RBRACE,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum AlterTriggerCommandsList {
-    AlterTriggerCommand,
-    AlterTriggerCommandsList_Semicolons_AlterTriggerCommand,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -1505,6 +1329,7 @@ pub enum ConstraintDeclarationShort {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateAccessPolicyCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateAccessPolicyCommand {
     CreateAnnotationValueStmt,
@@ -1522,14 +1347,7 @@ pub enum CreateAccessPolicyCommandsBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
-#[stub()]
-pub enum CreateAccessPolicyCommandsList {
-    CreateAccessPolicyCommand,
-    CreateAccessPolicyCommandsList_Semicolons_CreateAccessPolicyCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[list(name=CreateAccessPolicySDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreateAccessPolicySDLCommandFull {
     CreateAccessPolicySDLCommandShort_SEMICOLON,
@@ -1556,20 +1374,13 @@ pub enum CreateAccessPolicySDLCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateAccessPolicySDLCommandsList {
-    CreateAccessPolicySDLCommandFull,
-    CreateAccessPolicySDLCommandsList_OptSemicolons_CreateAccessPolicySDLCommandFull,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateAccessPolicyStmt {
     CREATE_ACCESS_POLICY_UnqualifiedPointerName_OptWhenBlock_AccessPolicyAction_AccessKindList_OptUsingBlock_OptCreateAccessPolicyCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateAliasCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateAliasCommand {
     AlterAnnotationValueStmt,
@@ -1590,14 +1401,7 @@ pub enum CreateAliasCommandsBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
-#[stub()]
-pub enum CreateAliasCommandsList {
-    CreateAliasCommand,
-    CreateAliasCommandsList_Semicolons_CreateAliasCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[list(name=CreateAliasSDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreateAliasSDLCommandFull {
     CreateAliasSDLCommandShort_SEMICOLON,
@@ -1625,14 +1429,6 @@ pub enum CreateAliasSDLCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateAliasSDLCommandsList {
-    CreateAliasSDLCommandFull,
-    CreateAliasSDLCommandsList_OptSemicolons_CreateAliasSDLCommandFull,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateAliasSingleSDLCommandBlock {
     CreateAliasSDLCommandShort,
 }
@@ -1647,6 +1443,7 @@ pub enum CreateAliasStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateAnnotationCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateAnnotationCommand {
     CreateAnnotationValueStmt,
@@ -1659,14 +1456,6 @@ pub enum CreateAnnotationCommandsBlock {
     LBRACE_CreateAnnotationCommandsList_OptSemicolons_RBRACE,
     LBRACE_OptSemicolons_RBRACE,
     LBRACE_Semicolons_CreateAnnotationCommandsList_OptSemicolons_RBRACE,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum CreateAnnotationCommandsList {
-    CreateAnnotationCommand,
-    CreateAnnotationCommandsList_Semicolons_CreateAnnotationCommand,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -1696,6 +1485,7 @@ pub enum CreateBranchStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateCastCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateCastCommand {
     AlterAnnotationValueStmt,
@@ -1718,20 +1508,13 @@ pub enum CreateCastCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateCastCommandsList {
-    CreateCastCommand,
-    CreateCastCommandsList_Semicolons_CreateCastCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateCastStmt {
     CREATE_CAST_FROM_TypeName_TO_TypeName_CreateCastCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateCommand {
     AlterAnnotationValueStmt,
@@ -1752,20 +1535,13 @@ pub enum CreateCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateCommandsList {
-    CreateCommand,
-    CreateCommandsList_Semicolons_CreateCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateConcreteConstraintStmt {
     CREATE_OptDelegated_CONSTRAINT_NodeName_OptConcreteConstraintArgList_OptOnExpr_OptExceptExpr_OptCreateCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateConcreteIndexSDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreateConcreteIndexSDLCommandFull {
     CreateConcreteIndexSDLCommandShort_SEMICOLON,
@@ -1792,14 +1568,6 @@ pub enum CreateConcreteIndexSDLCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateConcreteIndexSDLCommandsList {
-    CreateConcreteIndexSDLCommandFull,
-    CreateConcreteIndexSDLCommandsList_OptSemicolons_CreateConcreteIndexSDLCommandFull,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateConcreteIndexStmt {
     CREATE_OptDeferred_INDEX_OnExpr_OptExceptExpr_OptCreateCommandsBlock,
     CREATE_OptDeferred_INDEX_NodeName_OptIndexExtArgList_OnExpr_OptExceptExpr_OptCreateCommandsBlock,
@@ -1807,6 +1575,7 @@ pub enum CreateConcreteIndexStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateConcreteLinkCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateConcreteLinkCommand {
     AlterAnnotationValueStmt,
@@ -1835,14 +1604,6 @@ pub enum CreateConcreteLinkCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateConcreteLinkCommandsList {
-    CreateConcreteLinkCommand,
-    CreateConcreteLinkCommandsList_Semicolons_CreateConcreteLinkCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateConcreteLinkSDLCommandBlock {
     ConcreteConstraintBlock,
     ConcreteIndexDeclarationBlock,
@@ -1853,6 +1614,7 @@ pub enum CreateConcreteLinkSDLCommandBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateConcreteLinkSDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreateConcreteLinkSDLCommandFull {
     CreateConcreteLinkSDLCommandBlock,
@@ -1889,14 +1651,6 @@ pub enum CreateConcreteLinkSDLCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateConcreteLinkSDLCommandsList {
-    CreateConcreteLinkSDLCommandFull,
-    CreateConcreteLinkSDLCommandsList_OptSemicolons_CreateConcreteLinkSDLCommandFull,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateConcreteLinkStmt {
     CREATE_OptPtrQuals_LINK_UnqualifiedPointerName_ASSIGN_Expr,
     CREATE_OptPtrQuals_LINK_UnqualifiedPointerName_OptCreateConcreteLinkCommandsBlock,
@@ -1906,6 +1660,7 @@ pub enum CreateConcreteLinkStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateConcretePropertyCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateConcretePropertyCommand {
     AlterAnnotationValueStmt,
@@ -1930,14 +1685,6 @@ pub enum CreateConcretePropertyCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateConcretePropertyCommandsList {
-    CreateConcretePropertyCommand,
-    CreateConcretePropertyCommandsList_Semicolons_CreateConcretePropertyCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateConcretePropertySDLCommandBlock {
     ConcreteConstraintBlock,
     RewriteDeclarationBlock,
@@ -1945,6 +1692,7 @@ pub enum CreateConcretePropertySDLCommandBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateConcretePropertySDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreateConcretePropertySDLCommandFull {
     CreateConcretePropertySDLCommandBlock,
@@ -1976,14 +1724,6 @@ pub enum CreateConcretePropertySDLCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateConcretePropertySDLCommandsList {
-    CreateConcretePropertySDLCommandFull,
-    CreateConcretePropertySDLCommandsList_OptSemicolons_CreateConcretePropertySDLCommandFull,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateConcretePropertyStmt {
     CREATE_OptPtrQuals_PROPERTY_UnqualifiedPointerName_ASSIGN_Expr,
     CREATE_OptPtrQuals_PROPERTY_UnqualifiedPointerName_OptCreateConcretePropertyCommandsBlock,
@@ -2001,6 +1741,7 @@ pub enum CreateConstraintStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateDatabaseCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateDatabaseCommand {
     SetFieldStmt,
@@ -2018,14 +1759,6 @@ pub enum CreateDatabaseCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateDatabaseCommandsList {
-    CreateDatabaseCommand,
-    CreateDatabaseCommandsList_Semicolons_CreateDatabaseCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateDatabaseStmt {
     CREATE_DATABASE_DatabaseName_FROM_AnyNodeName_OptCreateDatabaseCommandsBlock,
     CREATE_DATABASE_DatabaseName_OptCreateDatabaseCommandsBlock,
@@ -2033,6 +1766,7 @@ pub enum CreateDatabaseStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateExtensionCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateExtensionCommand {
     SetFieldStmt,
@@ -2049,14 +1783,7 @@ pub enum CreateExtensionCommandsBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
-#[stub()]
-pub enum CreateExtensionCommandsList {
-    CreateExtensionCommand,
-    CreateExtensionCommandsList_Semicolons_CreateExtensionCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[list(name=CreateExtensionPackageCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateExtensionPackageCommand {
     NestedQLBlockStmt,
@@ -2069,14 +1796,6 @@ pub enum CreateExtensionPackageCommandsBlock {
     LBRACE_CreateExtensionPackageCommandsList_OptSemicolons_RBRACE,
     LBRACE_OptSemicolons_RBRACE,
     LBRACE_Semicolons_CreateExtensionPackageCommandsList_OptSemicolons_RBRACE,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum CreateExtensionPackageCommandsList {
-    CreateExtensionPackageCommand,
-    CreateExtensionPackageCommandsList_Semicolons_CreateExtensionPackageCommand,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -2110,6 +1829,7 @@ pub enum CreateFunctionArgs {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateFunctionCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateFunctionCommand {
     AlterAnnotationValueStmt,
@@ -2130,14 +1850,7 @@ pub enum CreateFunctionCommandsBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
-#[stub()]
-pub enum CreateFunctionCommandsList {
-    CreateFunctionCommand,
-    CreateFunctionCommandsList_Semicolons_CreateFunctionCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[list(name=CreateFunctionSDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreateFunctionSDLCommandFull {
     CreateFunctionSDLCommandShort_SEMICOLON,
@@ -2165,14 +1878,6 @@ pub enum CreateFunctionSDLCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateFunctionSDLCommandsList {
-    CreateFunctionSDLCommandFull,
-    CreateFunctionSDLCommandsList_OptSemicolons_CreateFunctionSDLCommandFull,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateFunctionSingleSDLCommandBlock {
     CreateFunctionSDLCommandShort,
 }
@@ -2193,6 +1898,7 @@ pub enum CreateFutureStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateGlobalCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateGlobalCommand {
     CreateAnnotationValueStmt,
@@ -2211,14 +1917,7 @@ pub enum CreateGlobalCommandsBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
-#[stub()]
-pub enum CreateGlobalCommandsList {
-    CreateGlobalCommand,
-    CreateGlobalCommandsList_Semicolons_CreateGlobalCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[list(name=CreateGlobalSDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreateGlobalSDLCommandFull {
     CreateGlobalSDLCommandShort_SEMICOLON,
@@ -2246,14 +1945,6 @@ pub enum CreateGlobalSDLCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateGlobalSDLCommandsList {
-    CreateGlobalSDLCommandFull,
-    CreateGlobalSDLCommandsList_OptSemicolons_CreateGlobalSDLCommandFull,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateGlobalStmt {
     CREATE_OptPtrQuals_GLOBAL_NodeName_ASSIGN_Expr,
     CREATE_OptPtrQuals_GLOBAL_NodeName_OptCreateConcretePropertyCommandsBlock,
@@ -2263,6 +1954,7 @@ pub enum CreateGlobalStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateIndexCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateIndexCommand {
     AlterAnnotationValueStmt,
@@ -2282,14 +1974,7 @@ pub enum CreateIndexCommandsBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
-#[stub()]
-pub enum CreateIndexCommandsList {
-    CreateIndexCommand,
-    CreateIndexCommandsList_Semicolons_CreateIndexCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[list(name=CreateIndexMatchCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateIndexMatchCommand {
     CreateAnnotationValueStmt,
@@ -2307,20 +1992,13 @@ pub enum CreateIndexMatchCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateIndexMatchCommandsList {
-    CreateIndexMatchCommand,
-    CreateIndexMatchCommandsList_Semicolons_CreateIndexMatchCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateIndexMatchStmt {
     CREATE_INDEX_MATCH_FOR_TypeName_USING_NodeName_OptCreateIndexMatchCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateIndexSDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreateIndexSDLCommandFull {
     CreateIndexSDLCommandShort_SEMICOLON,
@@ -2348,14 +2026,6 @@ pub enum CreateIndexSDLCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateIndexSDLCommandsList {
-    CreateIndexSDLCommandFull,
-    CreateIndexSDLCommandsList_OptSemicolons_CreateIndexSDLCommandFull,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateIndexStmt {
     CREATE_ABSTRACT_INDEX_NodeName_OptExtendingSimple_OptCreateIndexCommandsBlock,
     CREATE_ABSTRACT_INDEX_NodeName_IndexExtArgList_OptExtendingSimple_OptCreateIndexCommandsBlock,
@@ -2363,6 +2033,7 @@ pub enum CreateIndexStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateLinkCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateLinkCommand {
     AlterAnnotationValueStmt,
@@ -2387,14 +2058,6 @@ pub enum CreateLinkCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateLinkCommandsList {
-    CreateLinkCommand,
-    CreateLinkCommandsList_Semicolons_CreateLinkCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateLinkSDLCommandBlock {
     ConcreteConstraintBlock,
     ConcreteIndexDeclarationBlock,
@@ -2405,6 +2068,7 @@ pub enum CreateLinkSDLCommandBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateLinkSDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreateLinkSDLCommandFull {
     CreateLinkSDLCommandBlock,
@@ -2438,20 +2102,13 @@ pub enum CreateLinkSDLCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateLinkSDLCommandsList {
-    CreateLinkSDLCommandFull,
-    CreateLinkSDLCommandsList_OptSemicolons_CreateLinkSDLCommandFull,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateLinkStmt {
     CREATE_ABSTRACT_LINK_PtrNodeName_OptExtendingSimple_OptCreateLinkCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateMigrationCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateMigrationCommand {
     NestedQLBlockStmt,
@@ -2464,14 +2121,6 @@ pub enum CreateMigrationCommandsBlock {
     LBRACE_CreateMigrationCommandsList_OptSemicolons_RBRACE,
     LBRACE_OptSemicolons_RBRACE,
     LBRACE_Semicolons_CreateMigrationCommandsList_OptSemicolons_RBRACE,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum CreateMigrationCommandsList {
-    CreateMigrationCommand,
-    CreateMigrationCommandsList_Semicolons_CreateMigrationCommand,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -2491,6 +2140,7 @@ pub enum CreateModuleStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateObjectTypeCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateObjectTypeCommand {
     AlterAccessPolicyStmt,
@@ -2522,14 +2172,6 @@ pub enum CreateObjectTypeCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateObjectTypeCommandsList {
-    CreateObjectTypeCommand,
-    CreateObjectTypeCommandsList_Semicolons_CreateObjectTypeCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateObjectTypeSDLCommandBlock {
     AccessPolicyDeclarationBlock,
     ConcreteConstraintBlock,
@@ -2542,6 +2184,7 @@ pub enum CreateObjectTypeSDLCommandBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateObjectTypeSDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreateObjectTypeSDLCommandFull {
     CreateObjectTypeSDLCommandBlock,
@@ -2576,14 +2219,6 @@ pub enum CreateObjectTypeSDLCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateObjectTypeSDLCommandsList {
-    CreateObjectTypeSDLCommandFull,
-    CreateObjectTypeSDLCommandsList_OptSemicolons_CreateObjectTypeSDLCommandFull,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateObjectTypeStmt {
     CREATE_ABSTRACT_TYPE_NodeName_OptExtendingSimple_OptCreateObjectTypeCommandsBlock,
     CREATE_TYPE_NodeName_OptExtendingSimple_OptCreateObjectTypeCommandsBlock,
@@ -2591,6 +2226,7 @@ pub enum CreateObjectTypeStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateOperatorCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateOperatorCommand {
     AlterAnnotationValueStmt,
@@ -2612,14 +2248,6 @@ pub enum CreateOperatorCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateOperatorCommandsList {
-    CreateOperatorCommand,
-    CreateOperatorCommandsList_Semicolons_CreateOperatorCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateOperatorStmt {
     CREATE_ABSTRACT_OperatorKind_OPERATOR_NodeName_CreateFunctionArgs_ARROW_OptTypeQualifier_FunctionType_OptCreateOperatorCommandsBlock,
     CREATE_OperatorKind_OPERATOR_NodeName_CreateFunctionArgs_ARROW_OptTypeQualifier_FunctionType_CreateOperatorCommandsBlock,
@@ -2627,6 +2255,7 @@ pub enum CreateOperatorStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreatePropertyCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreatePropertyCommand {
     AlterAnnotationValueStmt,
@@ -2647,14 +2276,7 @@ pub enum CreatePropertyCommandsBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
-#[stub()]
-pub enum CreatePropertyCommandsList {
-    CreatePropertyCommand,
-    CreatePropertyCommandsList_Semicolons_CreatePropertyCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[list(name=CreatePropertySDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreatePropertySDLCommandFull {
     CreatePropertySDLCommandShort_SEMICOLON,
@@ -2683,20 +2305,13 @@ pub enum CreatePropertySDLCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreatePropertySDLCommandsList {
-    CreatePropertySDLCommandFull,
-    CreatePropertySDLCommandsList_OptSemicolons_CreatePropertySDLCommandFull,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreatePropertyStmt {
     CREATE_ABSTRACT_PROPERTY_PtrNodeName_OptExtendingSimple_OptCreatePropertyCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreatePseudoTypeCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreatePseudoTypeCommand {
     AlterAnnotationValueStmt,
@@ -2716,20 +2331,13 @@ pub enum CreatePseudoTypeCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreatePseudoTypeCommandsList {
-    CreatePseudoTypeCommand,
-    CreatePseudoTypeCommandsList_Semicolons_CreatePseudoTypeCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreatePseudoTypeStmt {
     CREATE_PSEUDO_TYPE_NodeName_OptCreatePseudoTypeCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateRewriteCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateRewriteCommand {
     CreateAnnotationValueStmt,
@@ -2747,14 +2355,7 @@ pub enum CreateRewriteCommandsBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
-#[stub()]
-pub enum CreateRewriteCommandsList {
-    CreateRewriteCommand,
-    CreateRewriteCommandsList_Semicolons_CreateRewriteCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[list(name=CreateRewriteSDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreateRewriteSDLCommandFull {
     CreateRewriteSDLCommandShort_SEMICOLON,
@@ -2781,20 +2382,13 @@ pub enum CreateRewriteSDLCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateRewriteSDLCommandsList {
-    CreateRewriteSDLCommandFull,
-    CreateRewriteSDLCommandsList_OptSemicolons_CreateRewriteSDLCommandFull,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateRewriteStmt {
     CREATE_REWRITE_RewriteKindList_USING_ParenExpr_OptCreateRewriteCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateRoleCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateRoleCommand {
     SetFieldStmt,
@@ -2812,20 +2406,13 @@ pub enum CreateRoleCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateRoleCommandsList {
-    CreateRoleCommand,
-    CreateRoleCommandsList_Semicolons_CreateRoleCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateRoleStmt {
     CREATE_OptSuperuser_ROLE_ShortNodeName_OptShortExtending_OptIfNotExists_OptCreateRoleCommandsBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateSDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreateSDLCommandFull {
     CreateSDLCommandShort_SEMICOLON,
@@ -2852,14 +2439,7 @@ pub enum CreateSDLCommandsBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
-#[stub()]
-pub enum CreateSDLCommandsList {
-    CreateSDLCommandFull,
-    CreateSDLCommandsList_OptSemicolons_CreateSDLCommandFull,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[list(name=CreateScalarTypeCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateScalarTypeCommand {
     AlterAnnotationValueStmt,
@@ -2880,20 +2460,13 @@ pub enum CreateScalarTypeCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateScalarTypeCommandsList {
-    CreateScalarTypeCommand,
-    CreateScalarTypeCommandsList_Semicolons_CreateScalarTypeCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateScalarTypeSDLCommandBlock {
     ConcreteConstraintBlock,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateScalarTypeSDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreateScalarTypeSDLCommandFull {
     CreateScalarTypeSDLCommandBlock,
@@ -2922,14 +2495,6 @@ pub enum CreateScalarTypeSDLCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum CreateScalarTypeSDLCommandsList {
-    CreateScalarTypeSDLCommandFull,
-    CreateScalarTypeSDLCommandsList_OptSemicolons_CreateScalarTypeSDLCommandFull,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum CreateScalarTypeStmt {
     CREATE_ABSTRACT_SCALAR_TYPE_NodeName_OptExtending_OptCreateScalarTypeCommandsBlock,
     CREATE_FINAL_SCALAR_TYPE_NodeName_OptExtending_OptCreateScalarTypeCommandsBlock,
@@ -2945,6 +2510,7 @@ pub enum CreateSimpleExtending {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=CreateTriggerCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum CreateTriggerCommand {
     CreateAnnotationValueStmt,
@@ -2962,14 +2528,7 @@ pub enum CreateTriggerCommandsBlock {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
-#[stub()]
-pub enum CreateTriggerCommandsList {
-    CreateTriggerCommand,
-    CreateTriggerCommandsList_Semicolons_CreateTriggerCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[list(name=CreateTriggerSDLCommandsList, separator=OptSemicolons)]
 #[stub()]
 pub enum CreateTriggerSDLCommandFull {
     CreateTriggerSDLCommandShort_SEMICOLON,
@@ -2991,14 +2550,6 @@ pub enum CreateTriggerSDLCommandsBlock {
     LBRACE_OptSemicolons_CreateTriggerSDLCommandsList_OptSemicolons_CreateTriggerSDLCommandShort_RBRACE,
     LBRACE_OptSemicolons_CreateTriggerSDLCommandsList_OptSemicolons_RBRACE,
     LBRACE_OptSemicolons_RBRACE,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum CreateTriggerSDLCommandsList {
-    CreateTriggerSDLCommandFull,
-    CreateTriggerSDLCommandsList_OptSemicolons_CreateTriggerSDLCommandFull,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -3137,6 +2688,7 @@ pub enum DropConcreteConstraintStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=DropConcreteIndexCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum DropConcreteIndexCommand {
     SetFieldStmt,
@@ -3154,14 +2706,6 @@ pub enum DropConcreteIndexCommandsBlock {
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
 #[stub()]
-pub enum DropConcreteIndexCommandsList {
-    DropConcreteIndexCommand,
-    DropConcreteIndexCommandsList_Semicolons_DropConcreteIndexCommand,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
 pub enum DropConcreteIndexStmt {
     DROP_INDEX_OnExpr_OptExceptExpr_OptDropConcreteIndexCommandsBlock,
     DROP_INDEX_NodeName_OptIndexExtArgList_OnExpr_OptExceptExpr_OptDropConcreteIndexCommandsBlock,
@@ -3169,6 +2713,7 @@ pub enum DropConcreteIndexStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=DropConcreteLinkCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum DropConcreteLinkCommand {
     DropConcreteConstraintStmt,
@@ -3183,14 +2728,6 @@ pub enum DropConcreteLinkCommandsBlock {
     LBRACE_DropConcreteLinkCommandsList_OptSemicolons_RBRACE,
     LBRACE_OptSemicolons_RBRACE,
     LBRACE_Semicolons_DropConcreteLinkCommandsList_OptSemicolons_RBRACE,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum DropConcreteLinkCommandsList {
-    DropConcreteLinkCommand,
-    DropConcreteLinkCommandsList_Semicolons_DropConcreteLinkCommand,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -3279,6 +2816,7 @@ pub enum DropIndexStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=DropLinkCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum DropLinkCommand {
     DropConcreteConstraintStmt,
@@ -3293,14 +2831,6 @@ pub enum DropLinkCommandsBlock {
     LBRACE_DropLinkCommandsList_OptSemicolons_RBRACE,
     LBRACE_OptSemicolons_RBRACE,
     LBRACE_Semicolons_DropLinkCommandsList_OptSemicolons_RBRACE,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum DropLinkCommandsList {
-    DropLinkCommand,
-    DropLinkCommandsList_Semicolons_DropLinkCommand,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -3326,6 +2856,7 @@ pub enum DropModuleStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=DropObjectTypeCommandsList, separator=Semicolons)]
 #[stub()]
 pub enum DropObjectTypeCommand {
     DropConcreteConstraintStmt,
@@ -3341,14 +2872,6 @@ pub enum DropObjectTypeCommandsBlock {
     LBRACE_DropObjectTypeCommandsList_OptSemicolons_RBRACE,
     LBRACE_OptSemicolons_RBRACE,
     LBRACE_Semicolons_DropObjectTypeCommandsList_OptSemicolons_RBRACE,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum DropObjectTypeCommandsList {
-    DropObjectTypeCommand,
-    DropObjectTypeCommandsList_Semicolons_DropObjectTypeCommand,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -3485,6 +3008,7 @@ pub enum FilterClause {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(separator=COMMA, trailing=true)]
 #[stub()]
 pub enum FreeComputableShapePointer {
     FreeSimpleShapePointer_ASSIGN_Expr,
@@ -3496,22 +3020,6 @@ pub enum FreeComputableShapePointer {
     REQUIRED_MULTI_FreeSimpleShapePointer_ASSIGN_Expr,
     REQUIRED_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr,
     SINGLE_FreeSimpleShapePointer_ASSIGN_Expr,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum FreeComputableShapePointerList {
-    FreeComputableShapePointerListInner,
-    FreeComputableShapePointerListInner_COMMA,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum FreeComputableShapePointerListInner {
-    FreeComputableShapePointer,
-    FreeComputableShapePointerListInner_COMMA_FreeComputableShapePointer,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -3566,22 +3074,7 @@ pub enum FuncApplication {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
-#[stub()]
-pub enum FuncArgList {
-    FuncArgListInner,
-    FuncArgListInner_COMMA,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum FuncArgListInner {
-    FuncArgListInner_COMMA_FuncCallArg,
-    FuncCallArg,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[list(name=FuncArgList, separator=COMMA, trailing=true)]
 #[stub()]
 pub enum FuncCallArg {
     FuncCallArgExpr_OptFilterClause_OptSortClause,
@@ -3598,26 +3091,11 @@ pub enum FuncCallArgExpr {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(separator=COMMA, trailing=true)]
 #[stub()]
 pub enum FuncDeclArg {
     OptParameterKind_FuncDeclArgName_OptDefault,
     OptParameterKind_FuncDeclArgName_COLON_OptTypeQualifier_FullTypeExpr_OptDefault,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum FuncDeclArgList {
-    FuncDeclArgListInner,
-    FuncDeclArgListInner_COMMA,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum FuncDeclArgListInner {
-    FuncDeclArg,
-    FuncDeclArgListInner_COMMA_FuncDeclArg,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -3698,6 +3176,7 @@ pub enum GlobalDeclarationShort {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(ast::GroupingAtom)]
+#[list(separator=COMMA, trailing=true)]
 #[stub()]
 pub enum GroupingAtom {
     GroupingIdent,
@@ -3705,23 +3184,8 @@ pub enum GroupingAtom {
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
-#[output(Vec::<ast::GroupingAtom>)]
-#[stub()]
-pub enum GroupingAtomList {
-    GroupingAtomListInner,
-    GroupingAtomListInner_COMMA,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum GroupingAtomListInner {
-    GroupingAtom,
-    GroupingAtomListInner_COMMA_GroupingAtom,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
 #[output(ast::GroupingElement)]
+#[list(separator=COMMA, trailing=true)]
 #[stub()]
 pub enum GroupingElement {
     CUBE_LPAREN_GroupingAtomList_RPAREN,
@@ -3731,36 +3195,13 @@ pub enum GroupingElement {
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
-#[output(Vec::<ast::GroupingElement>)]
-#[stub()]
-pub enum GroupingElementList {
-    GroupingElementListInner,
-    GroupingElementListInner_COMMA,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum GroupingElementListInner {
-    GroupingElement,
-    GroupingElementListInner_COMMA_GroupingElement,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
 #[output(ast::GroupingAtom)]
+#[list(separator=COMMA)]
 #[stub()]
 pub enum GroupingIdent {
     AT_Identifier,
     DOT_Identifier,
     Identifier,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(Vec::<ast::GroupingAtom>)]
-#[stub()]
-pub enum GroupingIdentList {
-    GroupingIdent,
-    GroupingIdentList_COMMA_GroupingIdent,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -3780,28 +3221,13 @@ pub enum IfThenElseExpr {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(separator=COMMA, trailing=true)]
 #[stub()]
 pub enum IndexArg {
     AnyIdentifier_ASSIGN_Expr,
     FuncDeclArgName_OptDefault,
     FuncDeclArgName_COLON_OptTypeQualifier_FullTypeExpr_OptDefault,
     ParameterKind_FuncDeclArgName_COLON_OptTypeQualifier_FullTypeExpr_OptDefault,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum IndexArgList {
-    IndexArgListInner,
-    IndexArgListInner_COMMA,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum IndexArgListInner {
-    IndexArg,
-    IndexArgListInner_COMMA_IndexArg,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -3954,25 +3380,10 @@ pub enum NamedTuple {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(separator=COMMA, trailing=true)]
 #[stub()]
 pub enum NamedTupleElement {
     ShortNodeName_ASSIGN_Expr,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum NamedTupleElementList {
-    NamedTupleElementListInner,
-    NamedTupleElementListInner_COMMA,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum NamedTupleElementListInner {
-    NamedTupleElement,
-    NamedTupleElementListInner_COMMA_NamedTupleElement,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -4621,17 +4032,10 @@ pub enum OptionallyAliasedExpr {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(name=OrderbyList, separator=THEN)]
 #[stub()]
 pub enum OrderbyExpr {
     Expr_OptDirection_OptNonesOrder,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum OrderbyList {
-    OrderbyExpr,
-    OrderbyList_THEN_OrderbyExpr,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -4716,17 +4120,10 @@ pub enum PopulateMigrationStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(separator=COMMA)]
 #[stub()]
 pub enum PosCallArg {
     Expr_OptFilterClause_OptSortClause,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum PosCallArgList {
-    PosCallArg,
-    PosCallArgList_COMMA_PosCallArg,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -4942,18 +4339,11 @@ pub enum RewriteDeclarationShort {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(separator=COMMA)]
 #[stub()]
 pub enum RewriteKind {
     INSERT,
     UPDATE,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum RewriteKindList {
-    RewriteKind,
-    RewriteKindList_COMMA_RewriteKind,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -5201,26 +4591,11 @@ pub enum Shape {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(separator=COMMA, trailing=true)]
 #[stub()]
 pub enum ShapeElement {
     ComputableShapePointer,
     ShapePointer_OptAnySubShape_OptFilterClause_OptSortClause_OptSelectLimit,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum ShapeElementList {
-    ShapeElementListInner,
-    ShapeElementListInner_COMMA,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum ShapeElementListInner {
-    ShapeElement,
-    ShapeElementListInner_COMMA_ShapeElement,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -5249,17 +4624,10 @@ pub enum ShortExtending {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(separator=COMMA)]
 #[stub()]
 pub enum ShortNodeName {
     Identifier,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum ShortNodeNameList {
-    ShortNodeName,
-    ShortNodeNameList_COMMA_ShortNodeName,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -5315,20 +4683,13 @@ pub enum SimpleShapePointer {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(separator=COMMA)]
 #[stub()]
 pub enum SimpleTypeName {
     ANYOBJECT,
     ANYTUPLE,
     ANYTYPE,
     PtrNodeName,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum SimpleTypeNameList {
-    SimpleTypeName,
-    SimpleTypeNameList_COMMA_SimpleTypeName,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -5408,6 +4769,7 @@ pub enum Stmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(separator=COMMA, trailing=true)]
 #[stub()]
 pub enum Subtype {
     BaseNumberConstant,
@@ -5418,22 +4780,7 @@ pub enum Subtype {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
-#[stub()]
-pub enum SubtypeList {
-    SubtypeListInner,
-    SubtypeListInner_COMMA,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum SubtypeListInner {
-    Subtype,
-    SubtypeListInner_COMMA_Subtype,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
+#[list(separator=COMMA)]
 #[stub()]
 pub enum TransactionMode {
     DEFERRABLE,
@@ -5441,14 +4788,6 @@ pub enum TransactionMode {
     NOT_DEFERRABLE,
     READ_ONLY,
     READ_WRITE,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum TransactionModeList {
-    TransactionMode,
-    TransactionModeList_COMMA_TransactionMode,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -5479,19 +4818,12 @@ pub enum TriggerDeclarationShort {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(separator=COMMA)]
 #[stub()]
 pub enum TriggerKind {
     DELETE,
     INSERT,
     UPDATE,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum TriggerKindList {
-    TriggerKind,
-    TriggerKindList_COMMA_TriggerKind,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -5535,18 +4867,11 @@ pub enum TypeIntersection {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(separator=COMMA)]
 #[stub()]
 pub enum TypeName {
     CollectionTypeName,
     SimpleTypeName,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum TypeNameList {
-    TypeName,
-    TypeNameList_COMMA_TypeName,
 }
 
 #[derive(edgeql_parser_derive::Reduce)]
@@ -5725,23 +5050,8 @@ pub enum WithDDLStmt {
 
 #[derive(edgeql_parser_derive::Reduce)]
 #[output(TodoAst)]
+#[list(separator=COMMA, trailing=true)]
 #[stub()]
 pub enum WithDecl {
     AliasDecl,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum WithDeclList {
-    WithDeclListInner,
-    WithDeclListInner_COMMA,
-}
-
-#[derive(edgeql_parser_derive::Reduce)]
-#[output(TodoAst)]
-#[stub()]
-pub enum WithDeclListInner {
-    WithDecl,
-    WithDeclListInner_COMMA_WithDecl,
 }
