@@ -93,6 +93,7 @@ jobs:
       env:
         SHARD: ${{ matrix.shard }}
         EDGEDB_TEST_REPEATS: 1
+        EDGEDB_DEBUG_SERVER: 1
       run: |
         mkdir -p results/
         cp shared-artifacts/time_stats.csv results/running_times_${SHARD}.csv
