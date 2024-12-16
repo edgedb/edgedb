@@ -104,7 +104,7 @@ jobs:
       id: cli-cache
       with:
         path: build/cli
-        key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
+        key: edb-cli-v4-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Handle cached Rust extensions
       uses: actions/cache@v4
@@ -413,7 +413,7 @@ jobs:
       with:
         path: ~/.cache/uv
         key: uv-cache-${{ runner.os }}-py-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
-
+    
     - name: Download requirements.txt
       uses: actions/cache@v4
       with:
@@ -446,7 +446,7 @@ jobs:
       id: cli-cache
       with:
         path: build/cli
-        key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
+        key: edb-cli-v4-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
       uses: actions/cache@v4
