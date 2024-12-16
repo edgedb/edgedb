@@ -20,6 +20,7 @@ from typing import (
     Mapping,
 )
 
+import pickle
 import hashlib
 import uuid
 
@@ -46,6 +47,7 @@ cdef object IN_FMT_JSON = enums.InputFormat.JSON
 
 cdef object IN_LANG_EDGEQL = enums.InputLanguage.EDGEQL
 cdef object IN_LANG_SQL = enums.InputLanguage.SQL
+cdef object IN_LANG_SQL_PARAMS = enums.InputLanguage.SQL_PARAMS
 
 cdef char MASK_JSON_PARAMETERS  = 1 << 0
 cdef char MASK_EXPECT_ONE       = 1 << 1
@@ -86,8 +88,10 @@ cdef char serialize_input_language(val):
         return b'E'
     elif val is IN_LANG_SQL:
         return b'S'
+    elif val is IN_LANG_SQL_PARAMS:
+        return b'P'
     else:
-        raise AssertionError("unreachable")
+        raise errors.BinaryProtocolError(f'unknown input language {val!r}')
 
 
 cdef deserialize_input_language(char lang):
@@ -95,9 +99,47 @@ cdef deserialize_input_language(char lang):
         return IN_LANG_EDGEQL
     elif lang == b'S':
         return IN_LANG_SQL
+    elif lang == b'P':
+        return IN_LANG_SQL_PARAMS
     else:
         raise errors.BinaryProtocolError(
             f'unknown input language {lang.to_bytes(1, "big")!r}')
+
+
+@cython.final
+cdef class SQLParamsSource:
+
+    def __init__(
+        self,
+        types_in_out: list[tuple[list[str], list[tuple[str, str]]]]
+    ):
+        self.types_in_out = types_in_out
+        self._cached_key = None
+        self._serialized = None
+
+    def cache_key(self):
+        if self._cached_key is not None:
+            return self._cached_key
+
+        if self._serialized is None:
+            self.serialize()
+
+        self._cached_key = hashlib.blake2b(self._serialized).digest()
+        return self._cached_key
+
+    def text(self):
+        return '<unknown>'
+
+    def serialize(self):
+        if self._serialized is not None:
+            return self._serialized
+        self._serialized = pickle.dumps(self.types_in_out, -1)
+        return self._serialized
+
+    @staticmethod
+    def deserialize(data: bytes):
+        types_in_out = pickle.loads(data)
+        return SQLParamsSource(types_in_out)
 
 
 @cython.final
@@ -378,6 +420,8 @@ cdef _deserialize_comp_req_v1(
         source = tokenizer.deserialize(serialized_source, query_text)
     elif input_language is enums.InputLanguage.SQL:
         source = pgparser.deserialize(serialized_source)
+    elif input_language is enums.InputLanguage.SQL_PARAMS:
+        source = SQLParamsSource.deserialize(serialized_source)
     else:
         raise AssertionError(
             f"unexpected source language in serialized "

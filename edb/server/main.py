@@ -36,6 +36,8 @@ early_setup()
 
 import asyncio
 import contextlib
+import enum
+import json
 import logging
 import os
 import os.path
@@ -171,7 +173,7 @@ def _internal_state_dir(
 
 async def _init_cluster(
     cluster, args: srvargs.ServerConfig
-) -> tuple[bool, edbcompiler.CompilerState]:
+) -> tuple[bool, edbcompiler.Compiler]:
     from edb.server import bootstrap
 
     new_instance = await bootstrap.ensure_bootstrapped(cluster, args)
@@ -196,7 +198,7 @@ async def _run_server(
     *,
     do_setproctitle: bool,
     new_instance: bool,
-    compiler_state: edbcompiler.CompilerState,
+    compiler: edbcompiler.Compiler,
 ):
 
     sockets = service_manager.get_activation_listen_sockets()
@@ -243,7 +245,7 @@ async def _run_server(
             new_instance=new_instance,
             admin_ui=args.admin_ui,
             disable_dynamic_system_config=args.disable_dynamic_system_config,
-            compiler_state=compiler_state,
+            compiler_state=compiler.state,
             tenant=tenant,
             use_monitor_fs=args.reload_config_files in [
                 srvargs.ReloadTrigger.Default,
@@ -251,10 +253,15 @@ async def _run_server(
             ],
             net_worker_mode=args.net_worker_mode,
         )
+        magic_smtp = os.getenv('EDGEDB_MAGIC_SMTP_CONFIG')
+        if magic_smtp:
+            await tenant.load_sidechannel_configs(
+                json.loads(magic_smtp), compiler=compiler
+            )
         # This coroutine runs as long as the server,
-        # and compiler_state is *heavy*, so make sure we don't
+        # and compiler(.state) is *heavy*, so make sure we don't
         # keep a reference to it.
-        del compiler_state
+        del compiler
         await sc.wait_for(ss.init())
 
         (
@@ -501,6 +508,7 @@ async def run_server(
                 user_schema=stdlib.reflschema,
                 reflection=reflection,
             )
+            del reflection
             compiler_state = edbcompiler.CompilerState(
                 std_schema=compiler.state.std_schema,
                 refl_schema=compiler.state.refl_schema,
@@ -512,6 +520,7 @@ async def run_server(
                 local_intro_query=local_intro_sql,
                 global_intro_query=global_intro_sql,
             )
+            del local_intro_sql, global_intro_sql
             (
                 sys_queries,
                 report_configs_typedesc_1_0,
@@ -525,8 +534,9 @@ async def run_server(
             sys_config, backend_settings = initialize_static_cfg(
                 args,
                 is_remote_cluster=True,
-                config_spec=compiler_state.config_spec,
+                compiler=compiler,
             )
+            del compiler
             with _internal_state_dir(runstate_dir, args) as (
                 int_runstate_dir,
                 args,
@@ -604,12 +614,12 @@ async def run_server(
             await inplace_upgrade.inplace_upgrade(cluster, args)
             return
 
-        new_instance, compiler_state = await _init_cluster(cluster, args)
+        new_instance, compiler = await _init_cluster(cluster, args)
 
         _, backend_settings = initialize_static_cfg(
             args,
             is_remote_cluster=not is_local_cluster,
-            config_spec=compiler_state.config_spec,
+            compiler=compiler,
         )
 
         if is_local_cluster and (new_instance or backend_settings):
@@ -662,7 +672,7 @@ async def run_server(
                     int_runstate_dir,
                     do_setproctitle=do_setproctitle,
                     new_instance=new_instance,
-                    compiler_state=compiler_state,
+                    compiler=compiler,
                 )
 
     except server.StartupError as e:
@@ -797,108 +807,84 @@ def main_dev():
     main()
 
 
-def _coerce_cfg_value(setting: config.Setting, value):
-    if setting.set_of:
-        return frozenset(
-            config.coerce_single_value(setting, v) for v in value
-        )
-    else:
-        return config.coerce_single_value(setting, value)
+class Source(enum.StrEnum):
+    command_line_argument = "A"
+    environment_variable = "E"
+
+
+sources = {
+    Source.command_line_argument: "command line argument",
+    Source.environment_variable: "environment variable",
+}
 
 
 def initialize_static_cfg(
     args: srvargs.ServerConfig,
     is_remote_cluster: bool,
-    config_spec: config.Spec
+    compiler: edbcompiler.Compiler,
 ) -> Tuple[Mapping[str, config.SettingValue], Dict[str, str]]:
     result = {}
     init_con_script_data = []
     backend_settings = {}
-    command_line_argument = "A"
-    environment_variable = "E"
-    sources = {
-        command_line_argument: "command line argument",
-        environment_variable: "environment variable",
+    config_spec = compiler.state.config_spec
+
+    def add_config_values(obj: dict[str, Any], source: Source):
+        settings = compiler.compile_structured_config(
+            {"cfg::Config": obj}, source=sources[source]
+        )["cfg::Config"]
+        for name, value in settings.items():
+            setting = config_spec[name]
+
+            if is_remote_cluster:
+                if setting.backend_setting and setting.requires_restart:
+                    if source == Source.command_line_argument:
+                        where = "on command line"
+                    else:
+                        where = "as an environment variable"
+                    raise server.StartupError(
+                        f"Can't set config {name!r} {where} when using "
+                        f"a remote Postgres cluster"
+                    )
+            init_con_script_data.append({
+                "name": name,
+                "value": config.value_to_json_value(setting, value.value),
+                "type": source,
+            })
+            result[name] = value
+            if setting.backend_setting:
+                backend_val = value.value
+                if isinstance(backend_val, statypes.ScalarType):
+                    backend_val = backend_val.to_backend_str()
+                backend_settings[setting.backend_setting] = str(backend_val)
+
+    values: dict[str, Any] = {}
+    translate_env = {
+        "EDGEDB_SERVER_BIND_ADDRESS": "listen_addresses",
+        "EDGEDB_SERVER_PORT": "listen_port",
+        "GEL_SERVER_BIND_ADDRESS": "listen_addresses",
+        "GEL_SERVER_PORT": "listen_port",
     }
-
-    def add_config(name, value, type_):
-        setting = config_spec[name]
-        if is_remote_cluster:
-            if setting.backend_setting and setting.requires_restart:
-                if type_ == command_line_argument:
-                    where = "on command line"
-                else:
-                    where = "as an environment variable"
-                raise server.StartupError(
-                    f"Can't set config {name!r} {where} when using "
-                    f"a remote Postgres cluster"
-                )
-        value = _coerce_cfg_value(setting, value)
-        init_con_script_data.append({
-            "name": name,
-            "value": config.value_to_json_value(setting, value),
-            "type": type_,
-        })
-        result[name] = config.SettingValue(
-            name=name,
-            value=value,
-            source=sources[type_],
-            scope=config.ConfigScope.INSTANCE,
-        )
-        if setting.backend_setting:
-            if isinstance(value, statypes.ScalarType):
-                value = value.to_backend_str()
-            backend_settings[setting.backend_setting] = str(value)
-
-    def iter_environ():
-        translate_env = {
-            "EDGEDB_SERVER_BIND_ADDRESS": "listen_addresses",
-            "EDGEDB_SERVER_PORT": "listen_port",
-            "GEL_SERVER_BIND_ADDRESS": "listen_addresses",
-            "GEL_SERVER_PORT": "listen_port",
-        }
-        for name, value in os.environ.items():
-            if cfg := translate_env.get(name):
-                yield name, value, cfg
+    for name, value in os.environ.items():
+        if cfg := translate_env.get(name):
+            values[cfg] = value
+        else:
+            cfg = name.removeprefix("EDGEDB_SERVER_CONFIG_cfg::")
+            if cfg != name:
+                values[cfg] = value
             else:
-                cfg = name.removeprefix("EDGEDB_SERVER_CONFIG_cfg::")
+                cfg = name.removeprefix("GEL_SERVER_CONFIG_cfg::")
                 if cfg != name:
-                    yield name, value, cfg
-                else:
-                    cfg = name.removeprefix("GEL_SERVER_CONFIG_cfg::")
-                    if cfg != name:
-                        yield name, value, cfg
+                    values[cfg] = value
+    if values:
+        add_config_values(values, Source.environment_variable)
 
-    env_value: Any
-    setting: config.Setting
-    for env_name, env_value, cfg_name in iter_environ():
-        try:
-            setting = config_spec[cfg_name]
-        except KeyError:
-            continue
-        choices = setting.enum_values
-        if setting.type is bool:
-            choices = ['true', 'false']
-            env_value = env_value.lower()
-        if choices is not None and env_value not in choices:
-            raise server.StartupError(
-                f"Environment variable {env_name!r} can only be one of: " +
-                ", ".join(choices)
-            )
-        if setting.type is bool:
-            env_value = env_value == 'true'
-        elif not issubclass(setting.type, statypes.ScalarType):  # type: ignore
-            env_value = setting.type(env_value)  # type: ignore
-        if setting.set_of:
-            env_value = (env_value,)
-        add_config(cfg_name, env_value, environment_variable)
-
+    values = {}
     if args.bind_addresses:
-        add_config(
-            "listen_addresses", args.bind_addresses, command_line_argument
-        )
+        values["listen_addresses"] = args.bind_addresses
     if args.port:
-        add_config("listen_port", args.port, command_line_argument)
+        values["listen_port"] = args.port
+    if values:
+        add_config_values(values, Source.command_line_argument)
 
     if init_con_script_data:
         from . import pgcon

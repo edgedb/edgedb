@@ -56,6 +56,7 @@ from edb.server import instdata
 
 from edb import edgeql
 from edb.common import debug
+from edb.common import turbo_uuid
 from edb.common import verutils
 from edb.common import uuidgen
 
@@ -96,6 +97,7 @@ from edb.pgsql import patches as pg_patches
 from edb.pgsql import types as pg_types
 from edb.pgsql import delta as pg_delta
 
+from . import config as config_compiler
 from . import dbstate
 from . import enums
 from . import explain
@@ -107,6 +109,11 @@ from . import sql
 
 if TYPE_CHECKING:
     from edb.pgsql import metaschema
+    SQLDescriptors = list[
+        tuple[
+            tuple[bytes, bytes, list[dbstate.Param], int], tuple[bytes, bytes]
+        ]
+    ]
 
 
 EMPTY_MAP: immutables.Map[Any, Any] = immutables.Map()
@@ -131,6 +138,7 @@ class CompileContext:
     expect_rollback: bool = False
     json_parameters: bool = False
     schema_reflection_mode: bool = False
+    force_testmode: bool = False
     implicit_limit: int = 0
     inline_typeids: bool = False
     inline_typenames: bool = False
@@ -205,6 +213,11 @@ class CompileContext:
                 span=ql.span,
             )
         return mstate
+
+    def is_testmode(self) -> bool:
+        return (
+            self.force_testmode or _get_config_val(self, '__internal_testmode')
+        )
 
 
 DEFAULT_MODULE_ALIASES_MAP: immutables.Map[Optional[str], str] = (
@@ -290,6 +303,7 @@ def new_compiler_context(
     output_format: enums.OutputFormat = enums.OutputFormat.BINARY,
     bootstrap_mode: bool = False,
     internal_schema_mode: bool = False,
+    force_testmode: bool = False,
     protocol_version: defines.ProtocolVersion = defines.CURRENT_PROTOCOL,
     backend_runtime_params: Optional[pg_params.BackendRuntimeParams] = None,
     log_ddl_as_migrations: bool = True,
@@ -315,6 +329,7 @@ def new_compiler_context(
         schema_reflection_mode=schema_reflection_mode,
         bootstrap_mode=bootstrap_mode,
         internal_schema_mode=internal_schema_mode,
+        force_testmode=force_testmode,
         protocol_version=protocol_version,
         backend_runtime_params=(
             backend_runtime_params or pg_params.get_default_runtime_params()
@@ -531,7 +546,7 @@ class Compiler:
         reflection_cache: immutables.Map[str, Tuple[str, ...]],
         database_config: immutables.Map[str, config.SettingValue],
         system_config: immutables.Map[str, config.SettingValue],
-        query_str: str,
+        source: pg_parser.Source,
         tx_state: dbstate.SQLTransactionState,
         prepared_stmt_map: Mapping[str, str],
         current_database: str,
@@ -558,10 +573,8 @@ class Compiler:
         if setting and setting.value:
             apply_access_policies_pg = sql.is_setting_truthy(setting.value)
 
-        query_source = pg_parser.Source(query_str)
-
         return sql.compile_sql(
-            query_source,
+            source,
             schema=schema,
             tx_state=tx_state,
             prepared_stmt_map=prepared_stmt_map,
@@ -584,7 +597,8 @@ class Compiler:
         serialized_request: bytes,
         original_query: str,
     ) -> Tuple[
-        dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
+        dbstate.QueryUnitGroup | SQLDescriptors,
+        Optional[dbstate.CompilerConnectionState]
     ]:
         request = rpc.CompilationRequest.deserialize(
             serialized_request,
@@ -610,8 +624,23 @@ class Compiler:
         database_config: Optional[immutables.Map[str, config.SettingValue]],
         system_config: Optional[immutables.Map[str, config.SettingValue]],
         request: rpc.CompilationRequest,
-    ) -> Tuple[dbstate.QueryUnitGroup,
+    ) -> Tuple[dbstate.QueryUnitGroup | SQLDescriptors,
                Optional[dbstate.CompilerConnectionState]]:
+
+        if request.input_language is enums.InputLanguage.SQL_PARAMS:
+            assert isinstance(request.source, rpc.SQLParamsSource)
+            return (
+                self.compile_sql_descriptors(
+                    user_schema,
+                    global_schema,
+                    request.protocol_version,
+                    request.source.types_in_out,
+                ),
+                # state is None -- we know we're not
+                # in a transaction and compilation of params
+                # couldn't have started it.
+                None,
+            )
 
         sess_config = request.session_config
         if sess_config is None:
@@ -683,7 +712,8 @@ class Compiler:
         original_query: str,
         expect_rollback: bool = False,
     ) -> Tuple[
-        dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
+        dbstate.QueryUnitGroup | SQLDescriptors,
+        Optional[dbstate.CompilerConnectionState]
     ]:
         request = rpc.CompilationRequest.deserialize(
             serialized_request,
@@ -705,8 +735,23 @@ class Compiler:
         request: rpc.CompilationRequest,
         expect_rollback: bool = False,
     ) -> Tuple[
-        dbstate.QueryUnitGroup, Optional[dbstate.CompilerConnectionState]
+        dbstate.QueryUnitGroup | SQLDescriptors,
+        Optional[dbstate.CompilerConnectionState]
     ]:
+        if request.input_language is enums.InputLanguage.SQL_PARAMS:
+            tx = state.current_tx()
+            assert isinstance(request.source, rpc.SQLParamsSource)
+            return (
+                self.compile_sql_descriptors(
+                    tx.get_user_schema(),
+                    tx.get_global_schema(),
+                    request.protocol_version,
+                    request.source.types_in_out,
+                ),
+                # state is the same.
+                state,
+            )
+
         # Apply session differences if any
         if (
             request.modaliases is not None
@@ -757,6 +802,78 @@ class Compiler:
                     f"unnsupported input language: {request.input_language}")
 
         return unit_group, ctx.state
+
+    def compile_sql_descriptors(
+        self,
+        user_schema: s_schema.Schema,
+        global_schema: s_schema.Schema,
+        protocol_version: defines.ProtocolVersion,
+        types_in_out: list[tuple[list[str], list[tuple[str, str]]]],
+    ) -> SQLDescriptors:
+        schema = s_schema.ChainedSchema(
+            self.state.std_schema,
+            user_schema,
+            global_schema,
+        )
+
+        result = []
+
+        for in_out in types_in_out:
+            assert isinstance(in_out, tuple) and len(in_out) == 2
+
+            t_in = []
+            params = []
+            for idx, id in enumerate(in_out[0]):
+                param_name = str(idx + 1)
+                param_type = schema.get_by_id(turbo_uuid.UUID(id))
+                assert isinstance(param_type, s_types.Type)
+                param_required = False  # SQL arguments can always be NULL
+
+                if isinstance(param_type, s_types.Array):
+                    array_type_id = param_type.get_element_type(schema).id
+                else:
+                    array_type_id = None
+
+                t_in.append(
+                    (
+                        param_name,
+                        param_type,
+                        param_required,
+                    )
+                )
+
+                params.append(
+                    dbstate.Param(
+                        name=param_name,
+                        required=param_required,
+                        array_type_id=array_type_id,
+                        outer_idx=None,  # no script support for SQL
+                        sub_params=None,  # no tuple args support for SQL
+                    )
+                )
+
+            input_desc, input_desc_id = sertypes.describe_params(
+                schema=schema, params=t_in,
+                protocol_version=protocol_version,
+            )
+
+            t_out = {
+                name: cast(s_types.Type, schema.get_by_id(turbo_uuid.UUID(id)))
+                for name, id in in_out[1]
+            }
+            assert all(isinstance(t, s_types.Type) for t in t_out.values())
+
+            output_desc, output_desc_id = sertypes.describe_sql_result(
+                schema=schema, row=t_out,
+                protocol_version=protocol_version,
+            )
+
+            result.append((
+                (input_desc, input_desc_id.bytes, params, len(params)),
+                (output_desc, output_desc_id.bytes)
+            ))
+
+        return result
 
     def interpret_backend_error(
         self,
@@ -1282,6 +1399,28 @@ class Compiler:
             pickle.loads(global_schema),
         )
 
+    def compile_structured_config(
+        self,
+        objects: Mapping[str, config_compiler.ConfigObject],
+        source: str | None = None,
+        allow_nested: bool = False,
+    ) -> dict[str, immutables.Map[str, config.SettingValue]]:
+        # XXX: only config in the stdlib is supported currently, so the only
+        # key allowed in objects is "cfg::Config". API for future compatibility
+        if list(objects) != ["cfg::Config"]:
+            difference = set(objects) - {"cfg::Config"}
+            raise NotImplementedError(
+                f"unsupported config: {', '.join(difference)}"
+            )
+
+        return config_compiler.compile_structured_config(
+            objects,
+            spec=self.state.config_spec,
+            schema=self.state.std_schema,
+            source=source,
+            allow_nested=allow_nested,
+        )
+
 
 def compile_schema_storage_in_delta(
     ctx: CompileContext,
@@ -1485,7 +1624,7 @@ def _get_compile_options(
         allow_user_specified_id=_get_config_val(
             ctx, 'allow_user_specified_id') or ctx.schema_reflection_mode,
         is_explain=is_explain,
-        testmode=_get_config_val(ctx, '__internal_testmode'),
+        testmode=ctx.is_testmode(),
         schema_reflection_mode=(
             ctx.schema_reflection_mode
             or _get_config_val(ctx, '__internal_query_reflschema')
@@ -1606,7 +1745,7 @@ def _compile_ql_administer(
     script_info: Optional[irast.ScriptInfo] = None,
 ) -> dbstate.BaseQuery:
     if ql.expr.func == 'statistics_update':
-        if not _get_config_val(ctx, '__internal_testmode'):
+        if not ctx.is_testmode():
             raise errors.QueryError(
                 'statistics_update() can only be executed in test mode',
                 span=ql.span)
@@ -1872,7 +2011,8 @@ def _build_cache_function(
                 returns_record = True
             else:
                 return_type = pg_types.pg_type_from_ir_typeref(
-                    ir.expr.typeref.base_type or ir.expr.typeref
+                    ir.expr.typeref.base_type or ir.expr.typeref,
+                    serialized=True,
                 )
                 if ir.stype.is_tuple(ir.schema):
                     returns_record = return_type == ('record',)
@@ -2553,6 +2693,7 @@ def compile_sql_as_unit_group(
                 f"unexpected SQLQueryUnit.command_complete_tag type: "
                 f"{sql_unit.command_complete_tag}"
             )
+
         unit = dbstate.QueryUnit(
             sql=value_sql,
             introspection_sql=intro_sql,
@@ -2568,6 +2709,8 @@ def compile_sql_as_unit_group(
                 if sql_unit.cardinality is enums.Cardinality.NO_RESULT
                 else enums.OutputFormat.BINARY
             ),
+            source_map=sql_unit.source_map,
+            sql_prefix_len=sql_unit.prefix_len,
         )
         match sql_unit.tx_action:
             case dbstate.TxAction.START:
@@ -2595,7 +2738,7 @@ def compile_sql_as_unit_group(
                 tx_state.release_savepoint(sql_unit.sp_name)
                 unit.sp_name = sql_unit.sp_name
             case None:
-                unit.cacheable = True
+                unit.cacheable = sql_unit.cacheable
             case _:
                 raise AssertionError(
                     f"unexpected SQLQueryUnit.tx_action: {sql_unit.tx_action}"
@@ -2611,7 +2754,7 @@ def _try_compile(
     ctx: CompileContext,
     source: edgeql.Source,
 ) -> dbstate.QueryUnitGroup:
-    if _get_config_val(ctx, '__internal_testmode'):
+    if ctx.is_testmode():
         # This is a bad but simple way to emulate a slow compilation for tests.
         # Ideally, we should have a testmode function that is hooked to sleep
         # as `simple_special_case`, or wait for a notification from the test.
@@ -2630,7 +2773,7 @@ def _try_compile_ast(
     statements: list[qlast.Base],
     source: edgeql.Source,
 ) -> dbstate.QueryUnitGroup:
-    if _get_config_val(ctx, '__internal_testmode'):
+    if ctx.is_testmode():
         # This is a bad but simple way to emulate a slow compilation for tests.
         # Ideally, we should have a testmode function that is hooked to sleep
         # as `simple_special_case`, or wait for a notification from the test.

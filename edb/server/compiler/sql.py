@@ -27,6 +27,7 @@ import immutables
 import json
 
 from edb import errors
+from edb.common import ast
 from edb.common import uuidgen
 from edb.server import defines
 
@@ -57,6 +58,13 @@ FE_SETTINGS_MUTABLE: immutables.Map[str, bool] = immutables.Map(
 )
 
 
+class DisableNormalization(BaseException):
+    # An exception that indicates that the compiler cannot work with this query
+    # because the constants have been extracted and replaced with parameters.
+    # When raised, the query will be recompiled without normalization.
+    pass
+
+
 def compile_sql(
     source: pg_parser.Source,
     *,
@@ -73,9 +81,12 @@ def compile_sql(
     backend_runtime_params: pg_params.BackendRuntimeParams,
     protocol_version: defines.ProtocolVersion,
 ) -> List[dbstate.SQLQueryUnit]:
-    def _try(q: str) -> List[dbstate.SQLQueryUnit]:
+    def _try(
+        q: str, normalized_params: List[int]
+    ) -> List[dbstate.SQLQueryUnit]:
         return _compile_sql(
             q,
+            orig_query_str=source.original_text(),
             schema=schema,
             tx_state=tx_state,
             prepared_stmt_map=prepared_stmt_map,
@@ -89,15 +100,37 @@ def compile_sql(
             disambiguate_column_names=disambiguate_column_names,
             backend_runtime_params=backend_runtime_params,
             protocol_version=protocol_version,
+            normalized_params=normalized_params,
         )
 
+    normalized_params = list(source.extra_type_oids())
     try:
-        return _try(source.text())
+        try:
+            return _try(source.text(), normalized_params)
+        except DisableNormalization:
+            # compiler requested non-normalized query (it needs it for static
+            # evaluation)
+            try:
+                if isinstance(source, pg_parser.NormalizedSource):
+                    units = _try(source.original_text(), [])
+                    # Unit isn't cacheable, since the key is the
+                    # extracted version.
+                    # TODO: Can we tell the server to cache using non-extracted?
+                    for unit in units:
+                        unit.cacheable = False
+                    return units
+            except DisableNormalization:
+                pass
+
+            raise AssertionError(
+                "compiler is requesting query normalization to be disabled,"
+                "but it already is disabled"
+            )
     except errors.EdgeDBError as original_err:
         if isinstance(source, pg_parser.NormalizedSource):
             # try non-normalized source
             try:
-                _try(source.original_text())
+                _try(source.original_text(), [])
             except errors.EdgeDBError as denormalized_err:
                 raise denormalized_err
             except Exception:
@@ -109,9 +142,58 @@ def compile_sql(
             raise original_err
 
 
+def _build_constant_extraction_map(
+    src: pgast.Base,
+    out: pgast.Base,
+) -> pg_codegen.BaseSourceMap:
+    """Traverse two ASTs in parallel and build a source map between them.
+
+    The ASTs should *mostly* line up. When they don't, that is
+    considered a leaf.
+
+    This is used to translate SQL spans reported on a normalized query
+    to ones that make sense on the pre-normalization version.
+
+    Note that we only use this map for errors reported during the
+    "parse" phase, so we don't need to worry about it being reused
+    with different constants.
+    """
+    tdata = pg_codegen.BaseSourceMap(
+        source_start=src.span.start if src.span else 0,
+        # HACK: I don't know why, but this - 1 helps a lot.
+        output_start=out.span.start - 1 if out.span else 0,
+    )
+    if type(src) != type(out):
+        return tdata
+    children = tdata.children
+    for (k1, v1), (k2, v2) in zip(ast.iter_fields(src), ast.iter_fields(out)):
+        assert k1 == k2
+
+        if isinstance(v1, pgast.Base) and isinstance(v2, pgast.Base):
+            children.append(_build_constant_extraction_map(v1, v2))
+        elif (
+            isinstance(v1, (tuple, list)) and isinstance(v2, (tuple, list))
+        ):
+            for v1e, v2e in zip(v1, v2):
+                if isinstance(v1e, pgast.Base) and isinstance(v2e, pgast.Base):
+                    children.append(_build_constant_extraction_map(v1e, v2e))
+        elif (
+            isinstance(v1, dict) and isinstance(v2, dict)
+        ):
+            for k, v1e in v1.items():
+                v2e = v2.get(k)
+                if isinstance(v1e, pgast.Base) and isinstance(v2e, pgast.Base):
+                    children.append(_build_constant_extraction_map(v1e, v2e))
+
+    children.sort(key=lambda k: k.output_start)
+
+    return tdata
+
+
 def _compile_sql(
     query_str: str,
     *,
+    orig_query_str: Optional[str] = None,
     schema: s_schema.Schema,
     tx_state: dbstate.SQLTransactionState,
     prepared_stmt_map: Mapping[str, str],
@@ -124,6 +206,7 @@ def _compile_sql(
     disambiguate_column_names: bool,
     backend_runtime_params: pg_params.BackendRuntimeParams,
     protocol_version: defines.ProtocolVersion,
+    normalized_params: List[int],
 ) -> List[dbstate.SQLQueryUnit]:
     opts = ResolverOptionsPartial(
         query_str=query_str,
@@ -135,14 +218,23 @@ def _compile_sql(
             include_edgeql_io_format_alternative
         ),
         disambiguate_column_names=disambiguate_column_names,
+        normalized_params=normalized_params,
     )
 
+    # orig_stmts are the statements prior to constant extraction
     stmts = pg_parser.parse(query_str, propagate_spans=True)
+    if orig_query_str and orig_query_str != query_str:
+        orig_stmts = pg_parser.parse(orig_query_str, propagate_spans=True)
+    else:
+        orig_stmts = stmts
+
     sql_units = []
-    for stmt in stmts:
+    for stmt, orig_stmt in zip(stmts, orig_stmts):
         orig_text = pg_codegen.generate_source(stmt)
         fe_settings = tx_state.current_fe_settings()
         track_stats = False
+
+        extract_data = _build_constant_extraction_map(orig_stmt, stmt)
 
         unit = dbstate.SQLQueryUnit(
             orig_query=orig_text,
@@ -291,7 +383,7 @@ def _compile_sql(
                 stmt_name=stmt.name,
                 be_stmt_name=mangled_stmt_name.encode("utf-8"),
                 query=stmt_source.text,
-                translation_data=stmt_source.translation_data,
+                source_map=stmt_source.source_map,
             )
             unit.command_complete_tag = dbstate.TagPlain(tag=b"PREPARE")
             track_stats = True
@@ -350,12 +442,21 @@ def _compile_sql(
                 stmt, schema, tx_state, opts
             )
             unit.query = stmt_source.text
-            unit.translation_data = stmt_source.translation_data
+            unit.source_map = stmt_source.source_map
+            if stmt_source.source_map:
+                unit.source_map = (
+                    pg_codegen.ChainedSourceMap([
+                        stmt_source.source_map,
+                        extract_data,
+                    ])
+                )
+
             if edgeql_fmt_src is not None:
                 unit.eql_format_query = edgeql_fmt_src.text
-                unit.eql_format_translation_data = (
-                    edgeql_fmt_src.translation_data
-                )
+                # We don't do anything with the translation data for
+                # this query, since postgres typically doesn't report
+                # out error positions that didn't get reported during
+                # the "parse" phase.
             unit.command_complete_tag = stmt_resolved.command_complete_tag
             unit.params = stmt_resolved.params
             if isinstance(stmt, pgast.DMLQuery) and not stmt.returning_list:
@@ -444,6 +545,7 @@ class ResolverOptionsPartial:
     apply_access_policies: Optional[bool]
     include_edgeql_io_format_alternative: Optional[bool]
     disambiguate_column_names: bool
+    normalized_params: List[int]
 
 
 def resolve_query(
@@ -492,13 +594,14 @@ def resolve_query(
             opts.include_edgeql_io_format_alternative
         ),
         disambiguate_column_names=opts.disambiguate_column_names,
+        normalized_params=opts.normalized_params,
     )
     resolved = pg_resolver.resolve(stmt, schema, options)
-    source = pg_codegen.generate(resolved.ast, with_translation_data=True)
+    source = pg_codegen.generate(resolved.ast, with_source_map=True)
     if resolved.edgeql_output_format_ast is not None:
         edgeql_format_source = pg_codegen.generate(
             resolved.edgeql_output_format_ast,
-            with_translation_data=True,
+            with_source_map=True,
         )
     else:
         edgeql_format_source = None

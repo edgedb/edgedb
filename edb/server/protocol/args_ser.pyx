@@ -169,8 +169,9 @@ cdef WriteBuffer recode_bind_args(
             for _ in range(recv_args):
                 out_buf.write_int16(0x0001)
             # and extracted SQL constants are in text
-            for _ in range(compiled.extra_counts[0]):
-                out_buf.write_int16(0x0000)
+            if compiled.extra_counts:
+                for _ in range(compiled.extra_counts[0]):
+                    out_buf.write_int16(0x0000)
             # and injected globals are binary again
             for _ in range(num_globals):
                 out_buf.write_int16(0x0001)

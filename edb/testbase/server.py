@@ -78,6 +78,7 @@ from edb.common import debug
 from edb.common import retryloop
 from edb.common import secretkey
 
+from edb import buildmeta
 from edb import protocol
 from edb.protocol import protocol as test_protocol
 from edb.testbase import serutils
@@ -962,13 +963,24 @@ class ClusterTestCase(BaseHTTPTestCase):
         return tls_context
 
 
+def ignore_warnings(warning_message=None):
+    def w(f):
+        async def wf(self, *args, **kwargs):
+            with self.ignore_warnings(warning_message):
+                return await f(self, *args, **kwargs)
+
+        return wf
+
+    return w
+
+
 class ConnectedTestCase(ClusterTestCase):
 
     BASE_TEST_CLASS = True
     NO_FACTOR = False
     WARN_FACTOR = False
 
-    con: Any  # XXX: the real type?
+    con: tconn.Connection
 
     @classmethod
     def setUpClass(cls):
@@ -981,6 +993,21 @@ class ConnectedTestCase(ClusterTestCase):
             cls.loop.run_until_complete(cls.teardown_and_disconnect())
         finally:
             super().tearDownClass()
+
+    @contextlib.contextmanager
+    def ignore_warnings(self, warning_message=None):
+        old = self.con._capture_warnings
+        warnings = []
+        self.con._capture_warnings = warnings
+        try:
+            yield
+        finally:
+            self.con._capture_warnings = old
+
+        if warning_message is not None:
+            for warning in warnings:
+                with self.assertRaisesRegex(Exception, warning_message):
+                    raise warning
 
     @classmethod
     async def setup_and_connect(cls):
@@ -1061,7 +1088,7 @@ class ConnectedTestCase(ClusterTestCase):
         user=edgedb_defines.EDGEDB_SUPERUSER,
         password=None,
         secret_key=None,
-    ):
+    ) -> tconn.Connection:
         conargs = cls.get_connect_args(
             cluster=cluster,
             database=database,
@@ -1307,12 +1334,19 @@ class ConnectedTestCase(ClusterTestCase):
     @contextlib.asynccontextmanager
     async def without_access_policies(self):
         await self.con.execute(
-            'CONFIGURE SESSION SET apply_access_policies := false')
+            'CONFIGURE SESSION SET apply_access_policies := false'
+        )
+        raised_an_execption = False
         try:
             yield
+        except BaseException:
+            raised_an_execption = True
+            raise
         finally:
-            await self.con.execute(
-                'CONFIGURE SESSION RESET apply_access_policies')
+            if not (raised_an_execption and self.con.is_in_transaction()):
+                await self.con.execute(
+                    'CONFIGURE SESSION RESET apply_access_policies'
+                )
 
 
 class DatabaseTestCase(ConnectedTestCase):
@@ -1618,8 +1652,16 @@ class SQLQueryTestCase(BaseQueryTestCase):
         finally:
             super().tearDownClass()
 
+    def setUp(self):
+        if self.TRANSACTION_ISOLATION:
+            self.stran = self.scon.transaction()
+            self.loop.run_until_complete(self.stran.start())
+        super().setUp()
+
     def tearDown(self):
         try:
+            if self.TRANSACTION_ISOLATION:
+                self.loop.run_until_complete(self.stran.rollback())
             self.loop.run_until_complete(self.scon.execute('RESET ALL'))
         finally:
             super().tearDown()
@@ -1941,6 +1983,17 @@ class StablePGDumpTestCase(BaseQueryTestCase):
         # Run pg_dump to create the dump data for an existing Gel database.
         with tempfile.NamedTemporaryFile() as f:
             cls.run_pg_dump_on_connection(conargs, '-f', f.name)
+
+            # Skip the restore part of the test if the database
+            # backend is older than our pg_dump, since it won't work.
+            pg_ver_str = cls.loop.run_until_complete(
+                cls.backend.fetch('select version()')
+            )[0][0]
+            pg_ver = buildmeta.parse_pg_version(pg_ver_str)
+            bundled_ver = buildmeta.get_pg_version()
+            if pg_ver.major < bundled_ver.major:
+                raise unittest.SkipTest('pg_dump newer than backend')
+
             # Create a new Postgres database to be used for dump tests.
             db_exists = cls.loop.run_until_complete(
                 cls.backend.fetch(f'''
@@ -2332,6 +2385,7 @@ class _EdgeDBServer:
         env: Optional[Dict[str, str]] = None,
         extra_args: Optional[List[str]] = None,
         net_worker_mode: Optional[str] = None,
+        password: Optional[str] = None,
     ) -> None:
         self.bind_addrs = bind_addrs
         self.auto_shutdown_after = auto_shutdown_after
@@ -2367,6 +2421,7 @@ class _EdgeDBServer:
         self.env = env
         self.extra_args = extra_args
         self.net_worker_mode = net_worker_mode
+        self.password = password
 
     async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
         while True:
@@ -2459,7 +2514,7 @@ class _EdgeDBServer:
                 reset_auth = True
 
         if not reset_auth:
-            password = None
+            password = self.password
             bootstrap_command = ''
         else:
             password = secrets.token_urlsafe()
@@ -2694,6 +2749,7 @@ def start_edgedb_server(
     extra_args: Optional[List[str]] = None,
     default_branch: Optional[str] = None,
     net_worker_mode: Optional[str] = None,
+    force_new: bool = False,  # True for ignoring multitenant config env
 ):
     if (not devmode.is_in_dev_mode() or adjacent_to) and not runstate_dir:
         if backend_dsn or adjacent_to:
@@ -2704,13 +2760,22 @@ def start_edgedb_server(
                   'Consider specifying the runstate_dir parameter.')
             print('\n'.join(traceback.format_stack(limit=5)))
 
+    password = None
     if mt_conf := os.environ.get("EDGEDB_SERVER_MULTITENANT_CONFIG_FILE"):
         if multitenant_config is None and max_allowed_connections == 10:
             if not any(
-                (adjacent_to, data_dir, backend_dsn, compiler_pool_mode)
+                (
+                    adjacent_to,
+                    data_dir,
+                    backend_dsn,
+                    compiler_pool_mode,
+                    default_branch,
+                    force_new,
+                )
             ):
                 multitenant_config = mt_conf
                 max_allowed_connections = None
+                password = 'test'  # set in init_cluster() by test/runner.py
 
     params = locals()
     exclusives = [
@@ -2764,6 +2829,7 @@ def start_edgedb_server(
         extra_args=extra_args,
         default_branch=default_branch,
         net_worker_mode=net_worker_mode,
+        password=password,
     )
 
 

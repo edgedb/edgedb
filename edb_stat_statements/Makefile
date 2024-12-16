@@ -13,49 +13,33 @@ REGRESS = select dml cursors utility level_tracking planning \
 	user_activity wal entry_timestamp privileges \
 	parallel cleanup oldextversions
 
+PG_CONFIG ?= pg_config
+
 TAP_TESTS = 1
 PG_MAJOR = $(shell $(PG_CONFIG) --version | grep -oE '[0-9]+' | head -1)
+PG_MAJOR_SPLIT_17 = $(shell test $(PG_MAJOR) -ge 17 && echo 17 || echo 16)
+PG_MAJOR_SPLIT_18 = $(shell test $(PG_MAJOR) -ge 18 && echo 18 || echo 17)
 
-ifeq ($(shell test $(PG_MAJOR) -ge 18 && echo true), true)
+ifeq ($(PG_MAJOR_SPLIT_18), 18)
 	REGRESS += extended
 endif
 
 all:
 
-expected/dml.out:
-	if [ $(PG_MAJOR) -ge 18 ]; then \
-		cp expected/dml.out.18 expected/dml.out; \
-	else \
-		cp expected/dml.out.17 expected/dml.out; \
-	fi
+expected/dml.out: expected/dml.out.$(PG_MAJOR_SPLIT_18)
+	cp $< $@
 
-expected/level_tracking.out:
-	if [ $(PG_MAJOR) -ge 18 ]; then \
-		cp expected/level_tracking.out.18 expected/level_tracking.out; \
-	else \
-		cp expected/level_tracking.out.17 expected/level_tracking.out; \
-	fi
+expected/level_tracking.out: expected/level_tracking.out.$(PG_MAJOR_SPLIT_18)
+	cp $< $@
 
-expected/parallel.out:
-	if [ $(PG_MAJOR) -ge 18 ]; then \
-		cp expected/parallel.out.18 expected/parallel.out; \
-	else \
-		cp expected/parallel.out.17 expected/parallel.out; \
-	fi
+expected/parallel.out: expected/parallel.out.$(PG_MAJOR_SPLIT_18)
+	cp $< $@
 
-expected/utility.out:
-	if [ $(PG_MAJOR) -ge 17 ]; then \
-		cp expected/utility.out.17 expected/utility.out; \
-	else \
-		cp expected/utility.out.16 expected/utility.out; \
-	fi
+expected/utility.out: expected/utility.out.$(PG_MAJOR_SPLIT_17)
+	cp $< $@
 
-expected/wal.out:
-	if [ $(PG_MAJOR) -ge 18 ]; then \
-		cp expected/wal.out.18 expected/wal.out; \
-	else \
-		cp expected/wal.out.17 expected/wal.out; \
-	fi
+expected/wal.out: expected/wal.out.$(PG_MAJOR_SPLIT_18)
+	cp $< $@
 
 installcheck: \
 	expected/dml.out \
@@ -64,6 +48,5 @@ installcheck: \
 	expected/utility.out \
 	expected/wal.out
 
-PG_CONFIG ?= pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)

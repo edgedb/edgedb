@@ -31,6 +31,7 @@ from edb.pgsql import parser as pgparser
 
 from edb.server import defines
 from edb.server.pgcon import errors as pgerror
+from edb.server.compiler.sql import DisableNormalization
 
 from . import context
 from . import dispatch
@@ -55,6 +56,7 @@ def eval_list(
     """
     Tries to statically evaluate exprs, recursing into sub-expressions.
     Returns None if that is not possible.
+    Raises DisableNormalization if param refs are encountered.
     """
     res = []
     for expr in exprs:
@@ -318,7 +320,7 @@ def eval_FuncCall(
         )
 
     if fn_name == 'current_setting':
-        arg = require_a_string_literal(expr, fn_name, ctx)
+        arg = require_string_param(expr, ctx)
 
         val = None
         if arg == 'search_path':
@@ -339,7 +341,7 @@ def eval_FuncCall(
         return pgast.NullConstant()
 
     if fn_name == "to_regclass":
-        arg = require_a_string_literal(expr, fn_name, ctx)
+        arg = require_string_param(expr, ctx)
         return to_regclass(arg, ctx=ctx)
 
     cast_arg_to_regclass = {
@@ -398,19 +400,36 @@ def eval_FuncCall(
     return None
 
 
-def require_a_string_literal(
-    expr: pgast.FuncCall, fn_name: str, ctx: Context
+def require_string_param(
+    expr: pgast.FuncCall, ctx: Context
 ) -> str:
     args = eval_list(expr.args, ctx=ctx)
-    if not (
-        args and len(args) == 1 and isinstance(args[0], pgast.StringConstant)
-    ):
+
+    arg = args[0] if args and len(args) == 1 else None
+    if not isinstance(arg, pgast.StringConstant):
         raise errors.QueryError(
-            f"function pg_catalog.{fn_name} requires a string literal",
+            f"function pg_catalog.{expr.name[-1]} requires a string literal",
             span=expr.span,
+            pgext_code=pgerror.ERROR_UNDEFINED_FUNCTION
         )
 
-    return args[0].val
+    return arg.val
+
+
+def require_bool_param(
+    expr: pgast.FuncCall, ctx: Context
+) -> bool:
+    args = eval_list(expr.args, ctx=ctx)
+
+    arg = args[0] if args and len(args) == 1 else None
+    if not isinstance(arg, pgast.BooleanConstant):
+        raise errors.QueryError(
+            f"function pg_catalog.{expr.name[-1]} requires a boolean literal",
+            span=expr.span,
+            pgext_code=pgerror.ERROR_UNDEFINED_FUNCTION
+        )
+
+    return arg.val
 
 
 def cast_to_regclass(param: pgast.BaseExpr, ctx: Context) -> pgast.BaseExpr:
@@ -518,17 +537,9 @@ def to_regclass(reg_class_name: str, ctx: Context) -> pgast.BaseExpr:
 def eval_current_schemas(
     expr: pgast.FuncCall, ctx: Context
 ) -> Optional[pgast.BaseExpr]:
-    args = eval_list(expr.args, ctx=ctx)
-    if not args:
-        return None
-
-    if isinstance(args[0], pgast.BooleanConstant):
-        include_implicit = args[0].val
-    else:
-        return None
+    include_implicit = require_bool_param(expr, ctx)
 
     res = []
-
     if include_implicit:
         # if any temporary object has been created in current session,
         # here we should also append res.append('pg_temp_xxx') were xxx is
@@ -582,3 +593,15 @@ def eval_SQLValueFunction(
 
     # this should never happen
     raise NotImplementedError()
+
+
+@eval.register
+def eval_ParamRef(
+    _expr: pgast.ParamRef,
+    *,
+    ctx: Context,
+) -> Optional[pgast.BaseExpr]:
+    if len(ctx.options.normalized_params) > 0:
+        raise DisableNormalization()
+    else:
+        return None

@@ -1,6 +1,6 @@
 [submodule "postgres"]
 	path = postgres
-	url = https://github.com/postgres/postgres.git
+	url = https://github.com/edgedb/postgres.git
 	ignore = untracked
 [submodule "edb/server/pgproto"]
 	path = edb/server/pgproto

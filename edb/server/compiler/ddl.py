@@ -348,7 +348,7 @@ def _get_delta_context_args(ctx: compiler.CompileContext) -> dict[str, Any]:
     """Get the args needed for delta_and_schema_from_ddl"""
     return dict(
         stdmode=ctx.bootstrap_mode,
-        testmode=compiler._get_config_val(ctx, '__internal_testmode'),
+        testmode=ctx.is_testmode(),
         store_migration_sdl=(
             compiler._get_config_val(ctx, 'store_migration_sdl')
         ) == 'AlwaysStore',
@@ -510,7 +510,7 @@ def _start_migration(
             ql.target,
             base_schema=base_schema,
             current_schema=schema,
-            testmode=(compiler._get_config_val(ctx, '__internal_testmode')),
+            testmode=ctx.is_testmode(),
         )
         query = dataclasses.replace(query, warnings=tuple(warnings))
 
@@ -551,7 +551,7 @@ def _populate_migration(
             schema,
             mstate.target_schema,
             diff,
-            testmode=compiler._get_config_val(ctx, '__internal_testmode'),
+            testmode=ctx.is_testmode(),
         ),
     )
     all_ddl = mstate.accepted_cmds + new_ddl

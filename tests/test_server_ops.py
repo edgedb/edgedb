@@ -849,9 +849,12 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                         with self.assertChange(measure_sql_compilations(sd), 0):
                             await scon.fetch('select 1')
 
-                        # TODO: normalization & constant extraction
-                        with self.assertChange(measure_sql_compilations(sd), 2):
+                        # cache hit because of query normalization
+                        with self.assertChange(measure_sql_compilations(sd), 0):
                             await scon.fetch('select 2')
+
+                        # TODO: better normalization
+                        with self.assertChange(measure_sql_compilations(sd), 1):
                             await scon.fetch('sELEcT  1')
 
                         # cache hit, even after global has been changed
@@ -898,6 +901,7 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
         async with tb.start_edgedb_server(
             default_auth_method=args.ServerAuthMethod.Trust,
             net_worker_mode='disabled',
+            force_new=True,
         ) as sd:
             con = await sd.connect()
             con2 = None
@@ -1829,6 +1833,13 @@ class TestPGExtensions(tb.TestCase):
                     'make',
                     f'PG_CONFIG={pg_config}',
                     'installcheck',
-                ], cwd=str(ext_home), env=env)
+                ], cwd=str(ext_home), env=env, text=True)
+            except subprocess.CalledProcessError as e:
+                output = ext_home / "regression.out"
+                if output.exists():
+                    regression_out = output.read_text()
+                else:
+                    regression_out = ""
+                raise AssertionError(f"{e}:\n{regression_out}") from e
             finally:
                 await cluster.stop()

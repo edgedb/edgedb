@@ -154,10 +154,6 @@ def _enum(
         ctx.has_fallback = outer_fallback
 
 
-def _build_any(node: Node, _: Context) -> Any:
-    return node
-
-
 def _build_str(node: Node, _: Context) -> str:
     node = _unwrap_string(node)
     return str(node)
@@ -900,8 +896,7 @@ def _build_const(n: Node, c: Context) -> pgast.BaseConstant:
         n = _unwrap(n, 'str')
         n = _unwrap(n, 'bsval')
         n = _unwrap(n, 'bsval')
-        val = bytes.fromhex(n[1:])
-        return pgast.ByteaConstant(val=val, span=span)
+        return pgast.BitStringConstant(kind=n[0], val=n[1:], span=span)
     raise PSqlUnsupportedError(n)
 
 

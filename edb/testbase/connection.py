@@ -53,10 +53,6 @@ class TransactionState(enum.Enum):
     FAILED = 4
 
 
-def raise_first_warning(warnings, res):
-    raise warnings[0]
-
-
 InputLanguage = protocol.InputLanguage
 
 
@@ -300,7 +296,7 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
         return self._connection._get_state()
 
     def _get_warning_handler(self) -> options.WarningHandler:
-        return raise_first_warning
+        return self._connection._get_warning_handler()
 
 
 class Retry:
@@ -355,6 +351,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         self._params = None
         self._server_hostname = server_hostname
         self._log_listeners = set()
+        self._capture_warnings = None
 
     def add_log_listener(self, callback):
         self._log_listeners.add(callback)
@@ -365,8 +362,15 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
     def _get_state(self):
         return self._options.state
 
+    def _warning_handler(self, warnings, res):
+        if self._capture_warnings is not None:
+            self._capture_warnings.extend(warnings)
+            return res
+        else:
+            raise warnings[0]
+
     def _get_warning_handler(self) -> options.WarningHandler:
-        return raise_first_warning
+        return self._warning_handler
 
     def _on_log_message(self, msg):
         if self._log_listeners:

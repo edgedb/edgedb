@@ -1981,8 +1981,8 @@ cdef class PGConnection:
                     # remap parameter descriptions
 
                     # The "external" parameters (that are visible to the user)
-                    # are not in the same order as "internal" params and don't
-                    # include the internal params for globals.
+                    # don't include the internal params for globals and
+                    # extracted constants.
                     # This chunk of code remaps the descriptions of internal
                     # params into external ones.
                     self.buffer.read_int16()  # count_internal
@@ -2154,14 +2154,14 @@ cdef class PGConnection:
         msg_buf: WriteBuffer,
         query: bytes,
         pos_bytes: bytes,
-        translation_data: Optional[pg_codegen.TranslationData],
+        source_map: Optional[pg_codegen.SourceMap],
         offset: int = 0,
     ):
-        if translation_data:
+        if source_map:
             pos = int(pos_bytes.decode('utf8'))
             if offset > 0 or pos + offset > 0:
                 pos += offset
-            pos = translation_data.translate(pos)
+            pos = source_map.translate(pos)
             # pg uses 1-based indexes
             pos += 1
             pos_bytes = str(pos).encode('utf8')
@@ -2181,17 +2181,17 @@ cdef class PGConnection:
                 field_type = self.buffer.read_byte()
                 if field_type == b'P':  # Position
                     if action.query_unit is None:
-                        translation_data = None
+                        source_map = None
                         offset = 0
                     else:
                         qu = action.query_unit
-                        translation_data = qu.translation_data
+                        source_map = qu.source_map
                         offset = -qu.prefix_len
                     self._write_error_position(
                         msg_buf,
                         action.args[0],
                         self.buffer.read_null_str(),
-                        translation_data,
+                        source_map,
                         offset,
                     )
                     continue
@@ -2234,21 +2234,21 @@ cdef class PGConnection:
                         query_text = qu.query.encode("utf-8")
                         if qu.prepare is not None:
                             offset = -55
-                            translation_data = qu.prepare.translation_data
+                            source_map = qu.prepare.source_map
                         else:
                             offset = 0
-                            translation_data = qu.translation_data
+                            source_map = qu.source_map
                         offset -= qu.prefix_len
                     else:
                         query_text = b""
-                        translation_data = None
+                        source_map = None
                         offset = 0
 
                     self._write_error_position(
                         msg_buf,
                         query_text,
                         self.buffer.read_null_str(),
-                        translation_data,
+                        source_map,
                         offset,
                     )
                 else:

@@ -259,6 +259,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_props_basic_03(self):
         await self.assert_query_result(
             r'''
@@ -347,7 +348,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     cost
                 }
                 FILTER
-                    .cost = .<deck[IS User]@count
+                    .cost IN .<deck[IS User]@count
                 ORDER BY .name;
             ''',
             [
@@ -415,6 +416,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_props_cross_01(self):
         await self.assert_query_result(
             r'''
@@ -431,6 +433,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_props_cross_02(self):
         await self.assert_query_result(
             r'''
@@ -459,6 +462,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_props_cross_03(self):
         await self.assert_query_result(
             r'''
@@ -514,6 +518,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_props_implication_01(self):
         await self.assert_query_result(
             r'''
@@ -593,6 +598,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_props_implication_02(self):
         await self.assert_query_result(
             r'''
@@ -614,6 +620,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_props_implication_03(self):
         await self.assert_query_result(
             r'''

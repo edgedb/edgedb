@@ -212,6 +212,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
             implicit_limit=100,
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_for_filter_02(self):
         await self.assert_query_result(
             r'''
@@ -235,6 +236,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
             }
         )
 
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_for_filter_03(self):
         await self.assert_query_result(
             r'''
@@ -1076,6 +1078,8 @@ class TestEdgeQLFor(tb.QueryTestCase):
             [{"key": {"element": "Earth"}}, {"key": {"element": "Water"}}]
         )
 
+    # XXX: This is *wrong*, I think
+    @tb.ignore_warnings('more than one.* in a FILTER clause')
     async def test_edgeql_for_fake_group_01c(self):
         await self.assert_query_result(
             r'''

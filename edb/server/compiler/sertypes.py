@@ -103,6 +103,7 @@ class DescriptorTag(bytes, enum.Enum):
     OBJECT = b'\x0a'
     COMPOUND = b'\x0b'
     MULTIRANGE = b'\x0c'
+    SQL_ROW = b'\x0d'
 
     ANNO_TYPENAME = b'\xff'
 
@@ -1031,6 +1032,53 @@ def describe_params(
     ])
 
     return full_params, params_id
+
+
+def describe_sql_result(
+    *,
+    schema: s_schema.Schema,
+    row: dict[str, s_types.Type],
+    protocol_version: edbdef.ProtocolVersion,
+) -> tuple[bytes, uuid.UUID]:
+    ctx = Context(
+        schema=schema,
+        protocol_version=protocol_version,
+    )
+
+    params_buf = []
+
+    subtypes = []
+    element_names = []
+
+    for rel_name, rel_t in row.items():
+        rel_type_id = _describe_type(rel_t, ctx=ctx)
+        # SQLRecordElement.name
+        params_buf.append(_string_packer(rel_name))
+        element_names.append(rel_name)
+        # SQLRecordElement.type
+        params_buf.append(_type_ref_id_packer(rel_type_id, ctx=ctx))
+        subtypes.append(rel_type_id)
+
+    rec_id = _get_object_shape_id("SQLRow", subtypes, element_names)
+
+    record_body_bytes = [
+        DescriptorTag.SQL_ROW._value_,
+        rec_id.bytes,
+    ]
+
+    record_body_bytes.extend([
+        _uint16_packer(len(row)),
+        *params_buf,
+    ])
+
+    _finish_typedesc(rec_id, record_body_bytes, ctx=ctx)
+
+    record = b''.join([
+        *ctx.buffer,
+        *ctx.anno_buffer,
+    ])
+
+    return record, rec_id
 
 
 def describe(

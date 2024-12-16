@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+from typing import Any
+
 import asyncio
 import contextlib
 import os
@@ -31,6 +33,8 @@ import uuid
 import immutables
 
 from edb import edgeql
+from edb import errors
+from edb.ir import statypes
 from edb.testbase import lang as tb
 from edb.testbase import server as tbs
 from edb.pgsql import params as pg_params
@@ -60,10 +64,13 @@ class TestServerCompiler(tb.BaseSchemaLoadTest):
         super().setUpClass()
         cls._std_schema = tb._load_std_schema()
 
+    def setUp(self):
+        super().setUp()
+        self.compiler = tb.new_compiler()
+
     def test_server_compiler_compile_edgeql_script(self):
-        compiler = tb.new_compiler()
         context = edbcompiler.new_compiler_context(
-            compiler_state=compiler.state,
+            compiler_state=self.compiler.state,
             user_schema=self.schema,
             modaliases={None: 'default'},
         )
@@ -76,6 +83,142 @@ class TestServerCompiler(tb.BaseSchemaLoadTest):
                 }
             ''',
         )
+
+    def _test_compile_structured_config(
+        self,
+        values: dict[str, Any],
+        *,
+        source: str = "config file",
+        **expected: Any,
+    ) -> dict[str, config.SettingValue]:
+        result = self.compiler.compile_structured_config(
+            {"cfg::Config": values}, source=source, allow_nested=True
+        )
+        rv = dict(result["cfg::Config"])
+        for name, setting in rv.items():
+            self.assertEqual(setting.name, name)
+            self.assertEqual(setting.scope, config.ConfigScope.INSTANCE)
+            self.assertEqual(setting.source, source)
+        self.assertDictEqual({k: v.value for k, v in rv.items()}, expected)
+        return rv
+
+    def composite_obj(self, _type_name, **values):
+        return config.CompositeConfigType(
+            self.compiler.state.config_spec.get_type_by_name(_type_name),
+            **values,
+        )
+
+    def test_server_compiler_compile_structured_config_01(self):
+        self._test_compile_structured_config(
+            {
+                "singleprop": "value",
+                "memprop": 512,
+                "durprop": "16 seconds",
+                "enumprop": "One",
+                "multiprop": ["v1", "v2", "v3"],
+                "listen_port": 5,
+                "sysobj": [
+                    {
+                        "name": "1",
+                        "obj": {
+                            "_tname": "cfg::Subclass1",
+                            "name": "aa",
+                            "sub1": "bb",
+                        },
+                    },
+                    {
+                        "name": "2",
+                        "_tname": "cfg::TestInstanceConfigStatTypes",
+                        "memprop": 128,
+                    },
+                ],
+            },
+            singleprop="value",
+            memprop=statypes.ConfigMemory(512),
+            durprop=statypes.Duration.from_microseconds(16 * 1_000_000),
+            enumprop="One",
+            multiprop=frozenset(["v1", "v2", "v3"]),
+            listen_port=5,
+            sysobj=frozenset([
+                self.composite_obj(
+                    "cfg::TestInstanceConfig",
+                    name="1",
+                    obj=self.composite_obj(
+                        "cfg::Subclass1", name="aa", sub1="bb",
+                    ),
+                ),
+                self.composite_obj(
+                    "cfg::TestInstanceConfigStatTypes",
+                    name="2",
+                    memprop=statypes.ConfigMemory(128),
+                ),
+            ])
+        )
+
+    def test_server_compiler_compile_structured_config_02(self):
+        self._test_compile_structured_config(
+            {"singleprop": 42}, singleprop="42"
+        )
+
+    def test_server_compiler_compile_structured_config_03(self):
+        self._test_compile_structured_config(
+            {"singleprop": "{{'4' ++ <str>2}}"}, singleprop="42"
+        )
+
+    def test_server_compiler_compile_structured_config_04(self):
+        with self.assertRaisesRegex(
+            errors.ConfigurationError, "unsupported input type"
+        ):
+            self._test_compile_structured_config({"singleprop": ["1", "2"]})
+
+    def test_server_compiler_compile_structured_config_05(self):
+        with self.assertRaisesRegex(
+            errors.ConfigurationError, "unsupported input type"
+        ):
+            self._test_compile_structured_config({"singleprop": {"a": "x"}})
+
+    def test_server_compiler_compile_structured_config_06(self):
+        self._test_compile_structured_config(
+            {"listen_port": "8080"}, listen_port=8080
+        )
+
+    def test_server_compiler_compile_structured_config_07(self):
+        self._test_compile_structured_config(
+            {"multiprop": "single"}, multiprop=frozenset(["single"])
+        )
+
+    def test_server_compiler_compile_structured_config_08(self):
+        with self.assertRaisesRegex(
+            errors.ConfigurationError, "must be a sequence"
+        ):
+            self._test_compile_structured_config({"multiprop": {"a": 1}})
+
+    def test_server_compiler_compile_structured_config_09(self):
+        with self.assertRaisesRegex(
+            errors.InvalidReferenceError, "has no member"
+        ):
+            self._test_compile_structured_config({"enumprop": "non_exist"})
+
+    def test_server_compiler_compile_structured_config_10(self):
+        with self.assertRaisesRegex(
+            errors.ConfigurationError, "does not have field"
+        ):
+            self._test_compile_structured_config({"non_exist": 123})
+
+    def test_server_compiler_compile_structured_config_11(self):
+        with self.assertRaisesRegex(
+            errors.ConfigurationError, "type of `_tname` must be str"
+        ):
+            self._test_compile_structured_config({"sysobj": [{"_tname": 123}]})
+
+    def test_server_compiler_compile_structured_config_12(self):
+        with self.assertRaisesRegex(
+            errors.ConstraintViolationError,
+            "name violates exclusivity constraint",
+        ):
+            self._test_compile_structured_config(
+                {"sysobj": [{"name": "same"}, {"name": "same"}]}
+            )
 
 
 class ServerProtocol(amsg.ServerProtocol):
