@@ -149,6 +149,7 @@
       run: |
         if [[ "$CACHE_HIT" == "true" ]]; then
           cp -v build/cli/bin/edgedb edb/cli/edgedb
+          cp -v build/cli/bin/edgedb edb/cli/gel
         else
           python setup.py -v build_cli
         fi
