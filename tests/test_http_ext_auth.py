@@ -2589,13 +2589,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
                 # Test Webhook side effect
                 async for tr in self.try_until_succeeds(
-                    delay=2, timeout=120, ignore=(KeyError,)
+                    delay=2, timeout=120, ignore=(KeyError, AssertionError)
                 ):
                     async with tr:
                         requests_for_webhook = self.mock_net_server.requests[
                             webhook_request
                         ]
-                self.assertEqual(len(requests_for_webhook), 3)
+                        self.assertEqual(len(requests_for_webhook), 3)
+
                 event_types: dict[str, dict | None] = {
                     "IdentityCreated": None,
                     "EmailFactorCreated": None,
@@ -2621,14 +2622,13 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
 
                 # Test for alt_url webhook
                 async for tr in self.try_until_succeeds(
-                    delay=2, timeout=120, ignore=(KeyError,)
+                    delay=2, timeout=120, ignore=(KeyError, AssertionError)
                 ):
                     async with tr:
                         requests_for_alt_webhook = (
                             self.mock_net_server.requests[alt_webhook_request]
                         )
-
-                self.assertEqual(len(requests_for_alt_webhook), 1)
+                        self.assertEqual(len(requests_for_alt_webhook), 1)
 
                 # Try to register the same user again (no redirect_to)
                 _, _, conflict_status = self.http_con_request(
@@ -3560,14 +3560,14 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                     },
                 )
                 async for tr in self.try_until_succeeds(
-                    delay=2, timeout=120, ignore=(KeyError,)
+                    delay=2, timeout=120, ignore=(KeyError, AssertionError)
                 ):
                     async with tr:
                         requests_for_webhook = self.mock_net_server.requests[
                             webhook_request
                         ]
+                        self.assertEqual(len(requests_for_webhook), 1)
 
-                self.assertEqual(len(requests_for_webhook), 1)
                 webhook_request = requests_for_webhook[0]
                 maybe_json_body = webhook_request.body
                 self.assertIsNotNone(maybe_json_body)
