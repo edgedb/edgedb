@@ -91,7 +91,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         };
 
         create global glob_mod::a: str;
-        create global glob_mod::b: str;
+        create global glob_mod::b: bool;
         create type glob_mod::Computed {
             create property a := global glob_mod::a;
             create property b := global glob_mod::b;
@@ -1949,7 +1949,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         await self.scon.execute(
             f"""
             SET LOCAL "global glob_mod::a" TO hello;
-            SET LOCAL "global glob_mod::b" TO world;
+            SET LOCAL "global glob_mod::b" TO no;
             """
         )
 
@@ -1958,7 +1958,51 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             SELECT a, b FROM glob_mod."Computed"
             '''
         )
-        self.assertEqual(res, [["hello", "world"]])
+        self.assertEqual(res, [["hello", False]])
+
+    async def test_sql_query_computed_13(self):
+        # globals bool values
+
+        async def query_glob_bool(value: str) -> bool:
+            await self.scon.execute(
+                f"""
+                SET LOCAL "global glob_mod::b" TO {value};
+                """
+            )
+            res = await self.squery_values(
+                '''
+                SELECT b FROM glob_mod."Computed"
+                '''
+            )
+            return res[0][0]
+
+        self.assertEqual(await query_glob_bool('on'), True)
+        self.assertEqual(await query_glob_bool('off'), False)
+        self.assertEqual(await query_glob_bool('o'), None)
+        self.assertEqual(await query_glob_bool('of'), False)
+        self.assertEqual(await query_glob_bool('true'), True)
+        self.assertEqual(await query_glob_bool('tru'), True)
+        self.assertEqual(await query_glob_bool('tr'), True)
+        self.assertEqual(await query_glob_bool('t'), True)
+        self.assertEqual(await query_glob_bool('false'), False)
+        self.assertEqual(await query_glob_bool('fals'), False)
+        self.assertEqual(await query_glob_bool('fal'), False)
+        self.assertEqual(await query_glob_bool('fa'), False)
+        self.assertEqual(await query_glob_bool('f'), False)
+        self.assertEqual(await query_glob_bool('yes'), True)
+        self.assertEqual(await query_glob_bool('ye'), True)
+        self.assertEqual(await query_glob_bool('y'), True)
+        self.assertEqual(await query_glob_bool('no'), False)
+        self.assertEqual(await query_glob_bool('n'), False)
+        self.assertEqual(await query_glob_bool('"1"'), True)
+        self.assertEqual(await query_glob_bool('"0"'), False)
+        self.assertEqual(await query_glob_bool('1'), True)
+        self.assertEqual(await query_glob_bool('0'), False)
+        self.assertEqual(await query_glob_bool('1231231'), True)
+        self.assertEqual(await query_glob_bool('hello'), None)
+        self.assertEqual(await query_glob_bool("'ON'"), True)
+        self.assertEqual(await query_glob_bool("'OFF'"), False)
+        self.assertEqual(await query_glob_bool("'HELLO'"), None)
 
     async def test_sql_query_access_policy_01(self):
         # no access policies
