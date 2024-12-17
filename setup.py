@@ -550,7 +550,6 @@ def _compile_cli(build_base, build_temp):
         check=True,
     )
 
-
     for dest in ('gel', 'edgedb'):
         cli_dest = ROOT_PATH / 'edb' / 'cli' / dest
         # Delete the target first, to avoid "Text file busy" errors during
