@@ -1781,33 +1781,63 @@ cdef bytes remap_parameters(
 cdef write_arg(
     buf: WriteBuffer, pg_type: tuple, values: dbstate.SQLSetting
 ):
-    if pg_type == ('text',) and isinstance(values[0], str):
-        val = str(values[0]).encode('UTF-8')
+    value = values[0]
+
+    if pg_type == ('text',) and isinstance(value, str):
+        val = str(value).encode('UTF-8')
         buf.write_len_prefixed_bytes(val)
-    if pg_type == ('uuid',) and isinstance(values[0], str):
+    elif pg_type == ('uuid',) and isinstance(value, str):
         try:
-            id = uuid.UUID(values[0])
+            id = uuid.UUID(value)
             buf.write_len_prefixed_bytes(id.bytes)
         except ValueError:
-            buf.write_int32(-1) # NULL
-    elif pg_type == ('int8',) and isinstance(values[0], int):
+            buf.write_int32(-1)  # NULL
+    elif pg_type == ('int8',) and isinstance(value, int):
         buf.write_int32(8)
-        buf.write_int64(values[0])
-    elif pg_type == ('int4',) and isinstance(values[0], int):
+        buf.write_int64(value)
+    elif pg_type == ('int4',) and isinstance(value, int):
         buf.write_int32(4)
-        buf.write_int32(values[0])
-    elif pg_type == ('int2',) and isinstance(values[0], int):
+        buf.write_int32(value)
+    elif pg_type == ('int2',) and isinstance(value, int):
         buf.write_int32(2)
-        buf.write_int16(values[0])
-    elif pg_type == ('bool',) and isinstance(values[0], int):
-        buf.write_int32(1)
-        buf.write_byte(0 if values[0] == 0 else 1)
-    elif pg_type == ('float8',) and isinstance(values[0], float):
+        buf.write_int16(value)
+    elif pg_type == ('bool',):
+        is_truthy = is_setting_truthy(value)
+        if is_truthy == None:
+            buf.write_int32(-1)    
+        else:
+            buf.write_int32(1)
+            buf.write_byte(1 if is_truthy else 0)
+    elif pg_type == ('float8',) and isinstance(value, float):
         buf.write_int32(8)
-        buf.write_double(values[0])
-    elif pg_type == ('float4',) and isinstance(values[0], float):
+        buf.write_double(value)
+    elif pg_type == ('float4',) and isinstance(value, float):
         buf.write_int32(4)
-        buf.write_float(values[0])
+        buf.write_float(value)
+    else:
+        buf.write_int32(-1)  # NULL
+        raise RuntimeError(
+            f"unimplemented glob type={pg_type}, value={type(value)}"
+        )
+
+
+def is_setting_truthy(value: str | int | float) -> bool | None:
+    if isinstance(value, int):
+        return value != 0
+    if isinstance(value, str):
+        value = value.lower()
+        if value == 'o':
+            # ambigious
+            return None
+
+        truthy_values = ('on', 'true', 'yes', '1')
+        if any(t.startswith(value) for t in truthy_values):
+            return True
+
+        falsy_values = ('off', 'false', 'no', '0')
+        if any(t.startswith(value) for t in falsy_values):
+            return False
+    return None
 
 
 cdef inline int16_t read_int16(data: bytes):
