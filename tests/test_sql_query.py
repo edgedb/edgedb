@@ -1949,7 +1949,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         await self.scon.execute(
             f"""
             SET LOCAL "global glob_mod::a" TO hello;
-            SET LOCAL "global glob_mod::b" TO world;
+            SET LOCAL "global glob_mod::b" TO no;
             """
         )
 
@@ -1958,7 +1958,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             SELECT a, b FROM glob_mod."Computed"
             '''
         )
-        self.assertEqual(res, [["hello", "world"]])
+        self.assertEqual(res, [["hello", False]])
 
     async def test_sql_query_computed_13(self):
         # globals bool values
@@ -1999,6 +1999,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         self.assertEqual(await query_glob_bool('1'), True)
         self.assertEqual(await query_glob_bool('0'), False)
         self.assertEqual(await query_glob_bool('1231231'), True)
+        self.assertEqual(await query_glob_bool('hello'), None)
 
     async def test_sql_query_access_policy_01(self):
         # no access policies

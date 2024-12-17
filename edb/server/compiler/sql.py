@@ -629,7 +629,12 @@ def is_setting_truthy(value: str | int | float) -> bool:
             return None
 
         truthy_values = ('on', 'true', 'yes', '1')
-        return any(t.startswith(value) for t in truthy_values)
+        if any(t.startswith(value) for t in truthy_values):
+            return True
+
+        falsy_values = ('off', 'false', 'no', '0')
+        if any(t.startswith(value) for t in falsy_values):
+            return False
     return None
 
 
