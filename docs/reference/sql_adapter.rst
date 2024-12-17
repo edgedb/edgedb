@@ -366,17 +366,29 @@ SQL adapter supports most of PostgreSQL connection settings
     In addition, there are the following EdgeDB-specific settings:
 
     - settings prefixed with ``"global "`` set the values of globals.
+
       Because SQL syntax allows only string, integer and float constants in
       ``SET`` command, globals of other types such as ``datetime`` cannot be set
-      this way. Special handling is in place to enable setting UUID globals via
-      hex-encoded strings. To set globals of other types via SQL, it is
-      recommended to change the global to use one of the simple types instead,
-      and use appropriate casts where the global is used.
-      
+      this way.
+
+      .. code-block:: sql
+
+          SET "global my_module::hello" TO 'world';
+
+      Special handling is in place to enable setting:
+        - ``bool`` types via integers 0 or 1),
+        - ``uuid`` types via hex-encoded strings.
+
       .. code-block:: sql
 
           SET "global my_module::current_user_id"
            TO "592c62c6-73dd-4b7b-87ba-46e6d34ec171";
+          SET "global my_module::is_admin" TO 1;
+
+      To set globals of other types via SQL, it is recommended to change the
+      global to use one of the simple types instead, and use appropriate casts
+      where the global is used.
+
 
     - ``allow_user_specified_id`` (default ``false``),
 
