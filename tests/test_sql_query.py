@@ -1047,6 +1047,101 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             )
         ]])
 
+    async def test_sql_query_56(self):
+        # recursive
+
+        res = await self.squery_values(
+            '''
+            WITH RECURSIVE
+              integers(n) AS (
+                  SELECT 0
+                UNION ALL
+                  SELECT n + 1 FROM integers
+                  WHERE n + 1 < 5
+              )
+            SELECT n FROM integers
+            ''',
+        )
+        self.assertEqual(res, [
+            [0],
+            [1],
+            [2],
+            [3],
+            [4],
+        ])
+
+        res = await self.squery_values(
+            '''
+            WITH RECURSIVE
+              fibonacci(n, prev, val) AS (
+                  SELECT 1, 0, 1
+                UNION ALL
+                  SELECT n + 1, val, prev + val
+                  FROM fibonacci
+                  WHERE n + 1 < 10
+              )
+            SELECT n, val FROM fibonacci;
+            '''
+        )
+        self.assertEqual(res, [
+            [1, 1],
+            [2, 1],
+            [3, 2],
+            [4, 3],
+            [5, 5],
+            [6, 8],
+            [7, 13],
+            [8, 21],
+            [9, 34],
+        ])
+
+        res = await self.squery_values(
+            '''
+            WITH RECURSIVE
+              fibonacci(n, prev, val) AS (
+                  SELECT 1, 0, 1
+                UNION ALL
+                  SELECT n + 1, val, prev + val
+                  FROM fibonacci
+                  WHERE n + 1 < 8
+              ),
+              integers(n) AS (
+                  SELECT 0
+                UNION ALL
+                  SELECT n + 1 FROM integers
+                  WHERE n + 1 < 5
+              )
+            SELECT f.n, f.val FROM fibonacci f, integers i where f.n = i.n;
+            '''
+        )
+        self.assertEqual(res, [
+            [1, 1],
+            [2, 1],
+            [3, 2],
+            [4, 3],
+        ])
+
+        res = await self.squery_values(
+            '''
+            WITH RECURSIVE
+              a as (SELECT 12 as n),
+              integers(n) AS (
+                  SELECT 0
+                UNION ALL
+                  SELECT n + 1 FROM integers
+                  WHERE n + 1 < 5
+              )
+            SELECT * FROM a, integers;
+            '''
+        )
+        self.assertEqual(res, [
+            [12, 0],
+            [12, 1],
+            [12, 2],
+            [12, 3],
+            [12, 4],
+        ])
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(

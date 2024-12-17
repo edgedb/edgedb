@@ -648,7 +648,12 @@ def _build_record_indirection_op(
 
 
 def _build_ctes(n: Node, c: Context) -> List[pgast.CommonTableExpr]:
-    return _list(n, c, "ctes", _build_cte)
+    is_recursive = _maybe(n, c, 'recursive', lambda x, _: bool(x)) or False
+
+    ctes: List[pgast.CommonTableExpr] = _list(n, c, "ctes", _build_cte)
+    for cte in ctes:
+        cte.recursive = is_recursive
+    return ctes
 
 
 def _build_cte(n: Node, c: Context) -> pgast.CommonTableExpr:
@@ -660,18 +665,10 @@ def _build_cte(n: Node, c: Context) -> pgast.CommonTableExpr:
     elif n["ctematerialized"] == "CTEMaterializeNever":
         materialized = False
 
-    recursive = _bool_or_false(n, "cterecursive")
-
-    # workaround because libpg_query does not actually emit cterecursive
-    if "cterecursive" not in n:
-        location = n["location"]
-        if 'RECURSIVE' in c.source_sql[:location][-15:].upper():
-            recursive = True
-
     return pgast.CommonTableExpr(
         name=n["ctename"],
         query=_build_query(n["ctequery"], c),
-        recursive=recursive,
+        recursive=False,
         aliascolnames=_maybe_list(n, c, "aliascolnames", _build_str),
         materialized=materialized,
         span=_build_span(n, c),
