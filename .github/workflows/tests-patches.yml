@@ -106,7 +106,7 @@ jobs:
       id: cli-cache
       with:
         path: build/cli
-        key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
+        key: edb-cli-v4-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Handle cached Rust extensions
       uses: actions/cache@v4
@@ -417,7 +417,7 @@ jobs:
       id: cli-cache
       with:
         path: build/cli
-        key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
+        key: edb-cli-v4-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
       uses: actions/cache@v4
@@ -491,6 +491,7 @@ jobs:
     - name: Restore cache into the source tree
       run: |
         cp -v build/cli/bin/edgedb edb/cli/edgedb
+        cp -v build/cli/bin/edgedb edb/cli/gel
         rsync -av ./build/rust_extensions/edb/ ./edb/
         rsync -av ./build/extensions/edb/ ./edb/
         rsync -av ./build/lib/edb/ ./edb/

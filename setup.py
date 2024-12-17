@@ -550,18 +550,20 @@ def _compile_cli(build_base, build_temp):
         check=True,
     )
 
-    cli_dest = ROOT_PATH / 'edb' / 'cli' / 'edgedb'
-    # Delete the target first, to avoid "Text file busy" errors during
-    # the copy if the CLI is currently running.
-    try:
-        cli_dest.unlink()
-    except FileNotFoundError:
-        pass
 
-    shutil.copy(
-        rust_root / 'bin' / 'edgedb',
-        cli_dest,
-    )
+    for dest in ('gel', 'edgedb'):
+        cli_dest = ROOT_PATH / 'edb' / 'cli' / dest
+        # Delete the target first, to avoid "Text file busy" errors during
+        # the copy if the CLI is currently running.
+        try:
+            cli_dest.unlink()
+        except FileNotFoundError:
+            pass
+
+        shutil.copy(
+            rust_root / 'bin' / 'edgedb',
+            cli_dest,
+        )
 
 
 _PYTHON_ONLY = os.environ.get("BUILD_EXT_MODE", "both") == "skip"
