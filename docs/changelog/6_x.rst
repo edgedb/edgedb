@@ -10,7 +10,7 @@ and will not be automatically suggested:
 
 .. code-block:: bash
 
-  $ edgedb project init --to-testing
+  $ edgedb project init --server-version 6.0-beta.1
 
 
 Upgrading
@@ -24,7 +24,7 @@ directory.
 
 .. code-block:: bash
 
-  $ edgedb project upgrade
+  $ edgedb project upgrade --to-testing
 
 Alternatively, specify an instance name if you aren't using a project.
 
@@ -99,6 +99,93 @@ dump-and-restore process.
 New features
 ============
 
+SQL write support
+-----------------
+
+You can now use SQL DML (``insert``, ``update``, ``delete``) when connecting to
+your EdgeDB instance via the PostgreSQL protocol. Our aim is to support most
+typical use cases from tools like SQL ORMs and SQL clients.
+
+Our aim is to allow even more developers to use EdgeDB, taking advantage of our
+advanced data model, tooling, and high-performance connection management. Teams
+can migrate their existing SQL codebases to EdgeDB without having to rewrite
+their queries. Once you've adopted EdgeDB, you can start to take advantage of
+EdgeQL's powerful query capabilities piece by piece.
+
+There are also some benefits to existing EdgeDB users who are already using
+EdgeQL. There are a number of SQL features that we still do not support, such
+as window functions, recursive queries, and explicit locking. You can now use
+these features in SQL today, and we will continue to add support for more
+features in the future.
+
+In-place upgrade
+----------------
+
+Our hope is this version will be the last one to require a full dump and
+restore process to when upgrading major versions. We know that dump-and-restore
+is a disruptive process, so our hope is that allowing in-place upgrades will
+make it easier for teams to upgrade more frequently.
+
+``ext::postgis``
+----------------
+
+We've added support for the popular PostGIS extension for PostgreSQL. This
+extension adds support for geographic objects and spatial data types.
+
+``std::net``
+------------
+
+We've introduced a new standard library module for sending network requests.
+Our first target is support for HTTP. This module will schedule asynchronous
+requests and allow you to poll for the response.
+
+``ext::auth``
+-------------
+
+We've introduced a number of new features to our authentication extension.
+
+- You can now configure generic OpenID Connect providers.
+- If you are using an OAuth provider that returns an ``id_token`` (like an
+  OpenID Connect compatible provider), you will now receive that validated
+  token in your callback. This will make it easier to use some of that data
+  for your own User or Profile objects and save a roundtrip to the identity
+  provider.
+- As an alternative (or in addition) to configuring SMTP for sending emails,
+  you can now configure a webhook for the various authentication lifecycle
+  events. You can use these webhooks to send custom emails, update analytics,
+  or trigger other workflows.
+- We've treated a missing PKCE session during email verification as an error,
+  but we will now support verifying end-user emails from a different device
+  than the one that started the sign-up or sign-in flow. To support
+  verification without PKCE, you will now direct the end-user to attempt a
+  login after they've verified their email, which will start a new flow.
+  Previously, you would have no way to know if a sign-in attempt is really an
+  "interrupted" sign-up attempt, and could not know when to make your own
+  ``User`` type. Now, on sign up, even if you require email verification, we
+  will return an ``identity_id`` in the sign up response, so you can create
+  your own ``User`` type before the email has been verified.
+- We now configure a development-only SMTP provider for instances hosted on
+  our Cloud. This SMTP proxy is heavily rate limited, and requires a fixed
+  sender email address. It is intended to be used for development and testing
+  purposes. Once you're ready to start sending real emails, you can configure
+  your own SMTP provider. We hope this will make it easier to get started with
+  a simple email-based authentication flow during early development.
+
+Breaking changes
+
+- We have moved our SMTP configuration into a new top-level
+  ``Config::SMTPProvider`` configuration object. During the upgrade process,
+  your existing SMTP configuration will be migrated to this new object, but if
+  you have any scripts that configure SMTP directly, you will need to update
+  them to use the new object.
+
+``ext::ai``
+-----------
+
+- We've updated the built-in list of models from our first-party LLM providers
+  to match the latest offerings from OpenAI, Anthropic, and Mistral.
+- We now pass LLM configuration query parameters through to the downstream
+  provider.
 
 Additional changes
 ==================
