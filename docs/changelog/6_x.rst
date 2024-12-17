@@ -126,6 +126,11 @@ restore process to when upgrading major versions. We know that dump-and-restore
 is a disruptive process, so our hope is that allowing in-place upgrades will
 make it easier for teams to upgrade more frequently.
 
+Query performance observability
+-------------------------------
+
+We now store statistics about query performance. [explain more here]
+
 ``ext::postgis``
 ----------------
 
@@ -186,6 +191,16 @@ Breaking changes
   to match the latest offerings from OpenAI, Anthropic, and Mistral.
 - We now pass LLM configuration query parameters through to the downstream
   provider.
+
+Simpler scoping rules
+---------------------
+
+We've simplified the scoping rules [explain more here].
+
+UI improvements
+---------------
+
+- Schema diffs
 
 Additional changes
 ==================
