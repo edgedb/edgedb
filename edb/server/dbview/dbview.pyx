@@ -494,25 +494,44 @@ cdef class Database:
             return old_serializer
 
     def hydrate_cache(self, query_cache):
+        warning_count = 0
         for _, in_data, out_data in query_cache:
-            query_req = rpc.CompilationRequest.deserialize(
-                in_data,
-                "<unknown>",
-                self.server.compilation_config_serializer,
-            )
+            try:
+                query_req = rpc.CompilationRequest.deserialize(
+                    in_data,
+                    "<unknown>",
+                    self.server.compilation_config_serializer,
+                )
 
-            if query_req not in self._eql_to_compiled:
-                unit = dbstate.QueryUnit.deserialize(out_data)
-                group = dbstate.QueryUnitGroup()
-                group.append(unit, serialize=False)
-                group.cache_state = CacheState.Present
-                if self._active_tx_list:
-                    # Any active tx would delay the time we flip to func cache
-                    group.tx_seq_id = self._tx_seq
-                    self._func_cache_gt_tx_seq[query_req] = group
+                if query_req not in self._eql_to_compiled:
+                    unit = dbstate.QueryUnit.deserialize(out_data)
+                    group = dbstate.QueryUnitGroup()
+                    group.append(unit, serialize=False)
+                    group.cache_state = CacheState.Present
+                    if self._active_tx_list:
+                        # Any active transaction would delay the time we flip
+                        # to function cache
+                        group.tx_seq_id = self._tx_seq
+                        self._func_cache_gt_tx_seq[query_req] = group
+                    else:
+                        group[0].maybe_use_func_cache()
+                    self._eql_to_compiled[query_req] = group
+            except Exception as e:
+                if warning_count < 0:
+                    warning_count -= 1
+                elif warning_count < 10:
+                    logger.warning("skipping incompatible cache item: %s", e)
+                    warning_count += 1
                 else:
-                    group[0].maybe_use_func_cache()
-                self._eql_to_compiled[query_req] = group
+                    logger.warning(
+                        "too many incompatible cache items, "
+                        "skipping the following warnings"
+                    )
+                    warning_count = -warning_count - 1
+        if warning_count < 0:
+            logger.warning(
+                "skipped %d incompatible cache items", -warning_count
+            )
 
     def clear_query_cache(self):
         self._eql_to_compiled.clear()
