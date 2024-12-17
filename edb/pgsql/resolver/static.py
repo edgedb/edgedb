@@ -220,6 +220,12 @@ ALLOWED_ADMIN_FUNCTIONS = frozenset(
         'pg_visible_in_snapshot',
         'pg_xact_commit_timestamp',
         'pg_xact_status',
+        'pg_partition_ancestors',
+        'pg_backend_pid',
+        'pg_wal_lsn_diff',
+        'pg_last_wal_replay_lsn',
+        'pg_current_wal_flush_lsn',
+        'pg_relation_is_publishable',
     }
 )
 
@@ -239,7 +245,7 @@ def eval_FuncCall(
 
     if fn_name.startswith('pg_') and fn_name not in ALLOWED_ADMIN_FUNCTIONS:
         raise errors.QueryError(
-            "forbidden function",
+            f"forbidden function '{fn_name}'",
             span=expr.span,
             pgext_code=pgerror.ERROR_INSUFFICIENT_PRIVILEGE,
         )
