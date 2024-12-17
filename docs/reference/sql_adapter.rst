@@ -397,9 +397,9 @@ Both schemas are not perfectly emulated, since they are quite large and
 complicated stores of information, that also changed between versions of
 PostgreSQL.
 
-Because of that so some tools might show objects that are not queryable or might
+Because of that, some tools might show objects that are not queryable or might
 report problems when introspecting. In such cases, please report the problem on
-GitHub so be can track the incompatibility down.
+GitHub so we can track the incompatibility down.
 
 Note that since the two information schemas are emulated, querying them may
 perform worse compared to other tables in the database. As a result, tools like
@@ -427,10 +427,10 @@ Locking
 Query cache
 ===========
 
-An SQL query is issued to EdgeDB, it is compiled an internal SQL query, which is
+An SQL query is issued to EdgeDB, it is compiled to an internal SQL query, which is
 then issued to the backing PostgreSQL instance. The compiler query is then
 cached, so each following issue of the same query will not perform any
-compilation, but just pass trough to PostgreSQL.
+compilation, but just pass through the cached query.
 
 .. versionadded:: 6.0
 
