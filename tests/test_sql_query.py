@@ -1487,8 +1487,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             '''
         )
         self.assertEqual(res1, res2)
-        assert isinstance(res1, int)
-        assert isinstance(res2, int)
 
         res = await self.squery_values(
             r'''

@@ -348,7 +348,10 @@ def eval_FuncCall(
 
     if fn_name == "to_regclass":
         arg = require_string_param(expr, ctx)
-        return to_regclass(arg, ctx=ctx)
+        return pgast.TypeCast(
+            arg=to_regclass(arg, ctx=ctx),
+            type_name=pgast.TypeName(name=('pg_catalog', 'regclass')),
+        )
 
     cast_arg_to_regclass = {
         'pg_relation_filenode',
