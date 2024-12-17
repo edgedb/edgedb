@@ -45,6 +45,7 @@ class PGConnection(asyncio.Protocol):
     parameter_status: dict[str, str]
     backend_secret: int
     is_ssl: bool
+    last_init_con_data: object
 
     def __init__(self, dbname): ...
     async def close(self): ...

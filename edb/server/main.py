@@ -223,6 +223,7 @@ async def _run_server(
             readiness_state_file=args.readiness_state_file,
             jwt_sub_allowlist_file=args.jwt_sub_allowlist_file,
             jwt_revocation_list_file=args.jwt_revocation_list_file,
+            config_file=args.config_file,
         )
         ss = server.Server(
             runstate_dir=runstate_dir,
@@ -259,6 +260,8 @@ async def _run_server(
             await tenant.load_sidechannel_configs(
                 json.loads(magic_smtp), compiler=compiler
             )
+        if args.config_file:
+            await tenant.load_config_file(compiler)
         # This coroutine runs as long as the server,
         # and compiler(.state) is *heavy*, so make sure we don't
         # keep a reference to it.
@@ -304,6 +307,7 @@ async def _run_server(
                     args.tls_client_ca_file,
                 )
                 ss.load_jwcrypto(args.jws_key_file)
+                tenant.reload_config_file.schedule()
             except Exception:
                 logger.critical(
                     "Unexpected error occurred during reload configuration; "

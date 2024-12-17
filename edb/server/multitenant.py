@@ -63,6 +63,7 @@ TenantConfig = TypedDict(
         "jwt-revocation-list-file": str,
         "readiness-state-file": str,
         "admin": bool,
+        "config-file": str,
     },
 )
 
@@ -247,13 +248,17 @@ class MultiTenantServer(server.BaseServer):
             backend_adaptive_ha=conf.get("backend-adaptive-ha", False),
         )
         tenant.set_init_con_data(self._init_con_data)
+        config_file = conf.get("config-file")
         tenant.set_reloadable_files(
             readiness_state_file=conf.get("readiness-state-file"),
             jwt_sub_allowlist_file=conf.get("jwt-sub-allowlist-file"),
             jwt_revocation_list_file=conf.get("jwt-revocation-list-file"),
+            config_file=config_file,
         )
         tenant.set_server(self)
         tenant.load_jwcrypto()
+        if config_file:
+            await tenant.load_config_file(self.get_compiler_pool())
         try:
             await tenant.init_sys_pgcon()
             await tenant.init()
@@ -383,6 +388,7 @@ class MultiTenantServer(server.BaseServer):
                             "readiness-state-file",
                             "jwt-sub-allowlist-file",
                             "jwt-revocation-list-file",
+                            "config-file",
                         }
                         if diff:
                             logger.warning(
@@ -399,6 +405,7 @@ class MultiTenantServer(server.BaseServer):
                                 "jwt-sub-allowlist-file"),
                             jwt_revocation_list_file=conf.get(
                                 "jwt-revocation-list-file"),
+                            config_file=conf.get("config-file"),
                         ):
                             # none of the reloadable values was modified
                             return

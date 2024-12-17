@@ -62,6 +62,7 @@ class ConStateType(enum.StrEnum):
     backend_session_config = "B"
     command_line_argument = "A"
     environment_variable = "E"
+    config_file = "F"
 
 
 class ConState(TypedDict):
