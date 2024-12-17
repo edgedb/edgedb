@@ -352,8 +352,8 @@ class BaseCluster:
         ]
         res = subprocess.call(
             args=args,
-            stdout=subprocess.STDOUT,
-            stderr=subprocess.STDOUT,
+            # stdout=subprocess.DEVNULL,
+            # stderr=subprocess.STDOUT,
         )
         return res
 
