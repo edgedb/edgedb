@@ -620,7 +620,7 @@ def lookup_bool_setting(
     return None
 
 
-def is_setting_truthy(value: str | int | float) -> bool:
+def is_setting_truthy(value: str | int | float) -> bool | None:
     if isinstance(value, int):
         return value != 0
     if isinstance(value, str):
