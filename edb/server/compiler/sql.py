@@ -620,14 +620,17 @@ def lookup_bool_setting(
     return None
 
 
-def is_setting_truthy(val: str | int | float) -> bool:
-    if isinstance(val, str):
-        truthy = {'on', 'true', 'yes', '1'}
-        return val.lower() in truthy
-    elif isinstance(val, int):
-        return bool(val)
-    else:
-        return False
+def is_setting_truthy(value: str | int | float) -> bool:
+    if isinstance(value, int):
+        return value != 0
+    if isinstance(value, str):
+        if value == 'o':
+            # ambigious
+            return None
+
+        truthy_values = ('on', 'true', 'yes', '1')
+        return any(t.startswith(value) for t in truthy_values)
+    return None
 
 
 def compute_stmt_name(text: str, tx_state: dbstate.SQLTransactionState) -> str:
