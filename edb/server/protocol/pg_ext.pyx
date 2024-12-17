@@ -1825,6 +1825,7 @@ def is_setting_truthy(value: str | int | float) -> bool | None:
     if isinstance(value, int):
         return value != 0
     if isinstance(value, str):
+        value = value.lower()
         if value == 'o':
             # ambigious
             return None

@@ -2000,6 +2000,9 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         self.assertEqual(await query_glob_bool('0'), False)
         self.assertEqual(await query_glob_bool('1231231'), True)
         self.assertEqual(await query_glob_bool('hello'), None)
+        self.assertEqual(await query_glob_bool("'ON'"), True)
+        self.assertEqual(await query_glob_bool("'OFF'"), False)
+        self.assertEqual(await query_glob_bool("'HELLO'"), None)
 
     async def test_sql_query_access_policy_01(self):
         # no access policies
