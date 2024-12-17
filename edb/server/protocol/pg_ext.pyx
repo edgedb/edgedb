@@ -1786,7 +1786,7 @@ cdef write_arg(
     if pg_type == ('text',) and isinstance(value, str):
         val = str(value).encode('UTF-8')
         buf.write_len_prefixed_bytes(val)
-    if pg_type == ('uuid',) and isinstance(value, str):
+    elif pg_type == ('uuid',) and isinstance(value, str):
         try:
             id = uuid.UUID(value)
             buf.write_len_prefixed_bytes(id.bytes)
@@ -1816,7 +1816,9 @@ cdef write_arg(
         buf.write_float(value)
     else:
         buf.write_int32(-1)  # NULL
-        raise RuntimeError(f"unimplemented glob type={pg_type}, value={value}")
+        raise RuntimeError(
+            f"unimplemented glob type={pg_type}, value={type(value)}"
+        )
 
 
 def is_setting_truthy(value: str | int | float) -> bool:
