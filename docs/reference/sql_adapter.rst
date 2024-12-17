@@ -475,6 +475,34 @@ compilation, but just pass through the cached query.
     queries ``SELECT 1;`` and ``SELECT 1 ;`` are compiled separately.
 
 
+Known limitations
+=================
+
+Following SQL statements are not supported:
+
+- ``CREATE``, ``ALTER``, ``DROP``,
+
+- ``TRUNCATE``, ``COMMENT``, ``SECURITY LABEL``, ``IMPORT FOREIGN SCHEMA``,
+
+- ``GRANT``, ``REVOKE``,
+
+- ``OPEN``, ``FETCH``, ``MOVE``, ``CLOSE``, ``DECLARE``, ``RETURN``,
+
+- ``CHECKPOINT``, ``DISCARD``, ``CALL``,
+
+- ``REINDEX``, ``VACUUM``, ``CLUSTER``, ``REFRESH MATERIALIZED VIEW``,
+
+- ``LISTEN``, ``UNLISTEN``, ``NOTIFY``,
+
+- ``LOAD``.
+
+Following functions are not supported:
+
+- ``set_config``,
+- ``pg_filenode_relation``,
+- most of system administration functions.
+
+
 Example: gradual transition from ORMs to EdgeDB
 ===============================================
 
