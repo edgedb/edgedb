@@ -651,8 +651,8 @@ def _build_ctes(n: Node, c: Context) -> List[pgast.CommonTableExpr]:
     is_recursive = _maybe(n, c, 'recursive', lambda x, _: bool(x)) or False
 
     ctes: List[pgast.CommonTableExpr] = _list(n, c, "ctes", _build_cte)
-    if is_recursive:
-        ctes[0].recursive = True
+    for cte in ctes:
+        cte.recursive = is_recursive
     return ctes
 
 
