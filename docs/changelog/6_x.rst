@@ -121,7 +121,7 @@ upgrade more frequently.
 Query performance observability
 -------------------------------
 
-We now store statistics about query performance. [explain more here]
+We now store statistics about query performance.
 
 ``ext::postgis``
 ----------------
@@ -192,12 +192,24 @@ We've introduced several new features to our authentication extension:
 Simpler scoping rules
 ---------------------
 
-We've simplified the scoping rules [explain more here].
+We've simplified the scoping rules for queries. See `our RFC 1027 outlining the
+changes <https://github.com/edgedb/rfcs/blob/master/text/1027-no-factoring.rst>`_.
 
-UI improvements
----------------
+To quote from the RFC:
 
-- Schema diffs
+> The desire to remove path factoring comes from two directions: a desire to
+> simplify and improve the language, and from implementation concerns.
+>
+> The path factoring behavior is quite complex, and makes it difficult to
+> understand the behavior of a query at a glance. Furthermore, it badly
+> compromises several of the intended design principles of EdgeQL.
+>
+> EdgeQL aims to support a "top-to-bottom" reading, but path factoring means
+> that code later in the query can fundamentally alter the meaning.
+
+By default in 6.0, we will generate new schemas that opt-in to the new scoping
+rules. Existing schemas will continue to use the old rules and emit warnings
+when queries that trigger the old behavior are encountered at query time.
 
 Additional changes
 ==================
