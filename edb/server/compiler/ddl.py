@@ -396,6 +396,12 @@ def _process_delta(
     compiler.compile_schema_storage_in_delta(
         ctx, pgdelta, subblock, context=context
     )
+    if not ctx.bootstrap_mode:
+        from edb.pgsql import metaschema
+        refresh = metaschema.generate_sql_information_schema_refresh(
+            ctx.compiler_state.backend_runtime_params.instance_params.version
+        )
+        refresh.generate(subblock)
 
     return block, new_types, pgdelta.config_ops
 
