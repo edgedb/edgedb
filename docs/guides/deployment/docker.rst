@@ -39,7 +39,6 @@ Docker volume, run:
 .. code-block:: bash
 
    $ docker run -it --rm --link=edgedb \
-       -e EDGEDB_SERVER_PASSWORD=secret \
        -v edgedb-cli-config:/.config/edgedb edgedb/edgedb-cli \
        -H edgedb instance link my_instance
 
