@@ -77,4 +77,6 @@ The current kinds are:
  * sql-introspection - refresh all sql introspection views
 """
 PATCHES: list[tuple[str, str]] = _setup_patches([
+    # 6.0b2?
+    ('sql-introspection', ''),
 ])
