@@ -687,7 +687,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                     f'invalid value for parameter "client_encoding": "{encoding}"',
                 )
             self._dbview._settings = self._dbview._settings.set(
-                "client_encoding", client_encoding
+                "client_encoding", (client_encoding,)
             )
         else:
             client_encoding = "UTF8"
@@ -1804,7 +1804,7 @@ cdef write_arg(
     elif pg_type == ('bool',):
         is_truthy = is_setting_truthy(value)
         if is_truthy == None:
-            buf.write_int32(-1)    
+            buf.write_int32(-1)
         else:
             buf.write_int32(1)
             buf.write_byte(1 if is_truthy else 0)
