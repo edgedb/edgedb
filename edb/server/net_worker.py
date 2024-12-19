@@ -24,6 +24,7 @@ import typing
 import asyncio
 import logging
 import base64
+import random
 
 from edb.ir import statypes
 from edb.server import defines
@@ -148,9 +149,10 @@ async def http(server: edbserver.BaseServer) -> None:
         except Exception as ex:
             logger.debug("HTTP worker failed", exc_info=ex)
         finally:
-            await asyncio.sleep(
-                POLLING_INTERVAL.to_microseconds() / 1_000_000.0
+            jittered_polling_interval = (
+                POLLING_INTERVAL.to_microseconds() * random.uniform(0.8, 1.2)
             )
+            await asyncio.sleep(jittered_polling_interval / 1_000_000.0)
 
 
 @dataclasses.dataclass
