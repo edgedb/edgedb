@@ -27,6 +27,7 @@ from edb.testbase import server as tb
 class TestQueryStatsMixin:
     stats_magic_word: str = NotImplemented
     stats_type: str = NotImplemented
+    counter: int = 0
 
     async def _query_for_stats(self):
         raise NotImplementedError
@@ -72,14 +73,6 @@ class TestQueryStatsMixin:
             calls + 1,
         )
 
-        # Turn off cfg::Config.track_query_stats, verify tracking is stopped
-        await self._configure_track('None')
-        await self._query_for_stats()
-        self.assertEqual(
-            await self.con.query_single(stats_query, self.stats_type),
-            calls + 1,
-            )
-
         # sys::reset_query_stats() branch filter works correctly
         self.assertIsNone(
             await self.con.query_single(
@@ -100,15 +93,30 @@ class TestQueryStatsMixin:
             0,
         )
 
+        # Turn off cfg::Config.track_query_stats, verify tracking is stopped
+        await self._configure_track('None')
+        await self._query_for_stats()
+        await self._query_for_stats()
+        self.assertEqual(
+            await self.con.query_single(stats_query, self.stats_type),
+            0,
+        )
+
+        # Turn cfg::Config.track_query_stats back on again
+        if self.stats_type == 'SQL':
+            # FIXME: don't return after fixing #8147
+            return
+        await self._configure_track('All')
+        await self._query_for_stats()
+        self.assertEqual(
+            await self.con.query_single(stats_query, self.stats_type),
+            1,
+        )
+
 
 class TestEdgeQLSys(tb.QueryTestCase, TestQueryStatsMixin):
     stats_magic_word = 'TestEdgeQLSys'
     stats_type = 'EdgeQL'
-    SETUP = f'''
-        create type {stats_magic_word} {{
-            create property bar -> str;
-        }};
-    '''
 
     async def test_edgeql_sys_locks(self):
         lock_key = tb.gen_lock_key()
@@ -147,9 +155,13 @@ class TestEdgeQLSys(tb.QueryTestCase, TestQueryStatsMixin):
             [False])
 
     async def _query_for_stats(self):
+        self.counter += 1
         self.assertEqual(
-            await self.con.query(f'select {self.stats_magic_word}'),
-            [],
+            await self.con.query(
+                f'select ('
+                    f'{self.stats_magic_word}{self.counter} := {self.counter})'
+            ),
+            [(self.counter,)],
         )
 
     async def _configure_track(self, option: str):
@@ -175,18 +187,21 @@ class TestSQLSys(tb.SQLQueryTestCase, TestQueryStatsMixin):
     TRANSACTION_ISOLATION = False
 
     async def _query_for_stats(self):
+        self.counter += 1
+        ident = common.quote_ident(self.stats_magic_word + str(self.counter))
         self.assertEqual(
             await self.squery_values(
-                f"select 1 as {common.quote_ident(self.stats_magic_word)}"
+                f"select {self.counter} as {ident}"
             ),
-            [[1]],
+            [[self.counter]],
         )
 
     async def _configure_track(self, option: str):
         # XXX: we should probably translate the config name in the compiler,
         # so that we can use the frontend name (track_query_stats) here instead
+        # FIXME: drop lower() after fixing #8147
         await self.scon.execute(f'''
-            set "edb_stat_statements.track" TO {option};
+            set "edb_stat_statements.track" TO '{option.lower()}';
         ''')
 
     async def _bad_query_for_stats(self):
