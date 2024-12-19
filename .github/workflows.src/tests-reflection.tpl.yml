@@ -35,7 +35,7 @@ jobs:
 
     - name: Test
       env:
-        EDGEDB_TEST_REPEATS: 1
+        EDGEDB_DEBUG_DELTA_VALIDATE_REFLECTION: 1
       run: |
         edb test -j2 -v
 
