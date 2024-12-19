@@ -34,7 +34,7 @@ pub enum AuthType {
     ScramSha256,
 }
 
-#[derive(Debug, Clone)]
+#[derive(derive_more::Debug, Clone)]
 pub enum CredentialData {
     /// A credential that always succeeds, regardless of input password. Due to
     /// the design of SCRAM-SHA-256, this cannot be used with that auth type.
@@ -42,10 +42,13 @@ pub enum CredentialData {
     /// A credential that always fails, regardless of the input password.
     Deny,
     /// A plain-text password.
+    #[debug("Plain(...)")]
     Plain(String),
     /// A stored MD5 hash + salt.
+    #[debug("Md5(...)")]
     Md5(md5::StoredHash),
     /// A stored SCRAM-SHA-256 key.
+    #[debug("Scram(...)")]
     Scram(scram::StoredKey),
 }
 
