@@ -276,6 +276,7 @@ macro_rules! protocol_builder {
                 $( "  (value = `", stringify!($value), "`)", )?
                 "\n\n"
             )* )]
+            #[derive(Copy, Clone)]
             pub struct $name<'a> {
                 /// Our zero-copy buffer.
                 #[doc(hidden)]
@@ -371,7 +372,7 @@ macro_rules! protocol_builder {
                     })
                 }
 
-                pub fn to_vec(&self) -> Vec<u8> {
+                pub fn to_vec(self) -> Vec<u8> {
                     self.__buf.to_vec()
                 }
 

@@ -33,6 +33,7 @@ impl<S: Stream> StreamWithUpgrade for (S, ()) {
     }
 }
 
+#[derive(derive_more::Debug)]
 pub struct UpgradableStream<B: Stream, C: Unpin>
 where
     (B, C): StreamWithUpgrade,
@@ -77,6 +78,19 @@ where
             UpgradableStreamInner::Upgrading => Err(invalid_state!(
                 "Attempted to upgrade a stream that is already in the process of upgrading"
             )),
+        }
+    }
+
+    /// Convert the inner stream into a choice between the base and the upgraded stream.
+    ///
+    /// If the inner stream is in the process of upgrading, return an error containing `self`.
+    pub fn into_choice(self) -> Result<UpgradableStreamChoice<B, C>, Self> {
+        match self.inner {
+            UpgradableStreamInner::Base(base, _) => Ok(UpgradableStreamChoice::Base(base)),
+            UpgradableStreamInner::Upgraded(upgraded) => {
+                Ok(UpgradableStreamChoice::Upgrade(upgraded))
+            }
+            UpgradableStreamInner::Upgrading => Err(self),
         }
     }
 }
@@ -185,11 +199,26 @@ where
     }
 }
 
+#[derive(derive_more::Debug)]
 enum UpgradableStreamInner<B: Stream, C: Unpin>
 where
     (B, C): StreamWithUpgrade,
 {
+    #[debug("Base(..)")]
     Base(B, C),
+    #[debug("Upgraded(..)")]
     Upgraded(<(B, C) as StreamWithUpgrade>::Upgrade),
+    #[debug("Upgrading")]
     Upgrading,
+}
+
+#[derive(derive_more::Debug)]
+pub enum UpgradableStreamChoice<B: Stream, C: Unpin>
+where
+    (B, C): StreamWithUpgrade,
+{
+    #[debug("Base(..)")]
+    Base(B),
+    #[debug("Upgrade(..)")]
+    Upgrade(<(B, C) as StreamWithUpgrade>::Upgrade),
 }
