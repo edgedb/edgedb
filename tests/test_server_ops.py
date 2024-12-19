@@ -1531,7 +1531,6 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             raise
         return cluster, connect_args
 
-    @unittest.skip('Test was failing mysteriously in CI. See #7933.')
     async def test_server_ops_multi_tenant(self):
         with (
             tempfile.TemporaryDirectory() as td1,
@@ -1573,8 +1572,12 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
                     )
                     for i in range(1, 7):
                         name = f"_test_server_ops_multi_tenant_{i}"
+                        print('v' * 80)
+                        print(name)
                         with self.subTest(name, i=i):
                             await getattr(self, name)(mtargs)
+                        print(name)
+                        print('^' * 80)
             finally:
                 try:
                     await cluster1.stop()
@@ -1743,6 +1746,14 @@ class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
             await conn.execute(f'''
                 configure current database set
                 ext::auth::AuthConfig::auth_signing_key := '{"a" * 32}';
+
+                CONFIGURE CURRENT DATABASE INSERT cfg::SMTPProviderConfig {{
+                    name := "email_hosting_is_easy",
+                    sender := "sender@example.com",
+                }};
+
+                CONFIGURE CURRENT DATABASE SET
+                cfg::current_email_provider_name := "email_hosting_is_easy";
 
                 configure current database
                 insert ext::auth::EmailPasswordProviderConfig {{
