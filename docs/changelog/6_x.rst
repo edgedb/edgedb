@@ -1,0 +1,234 @@
+====
+v6.0
+====
+
+:edb-alt-title: EdgeDB v6
+
+To explore the new features, ensure you specify version 6.0 when initializing
+your project. Pre-release versions are not considered stable and will not be
+automatically suggested:
+
+.. code-block:: bash
+
+  $ edgedb project init --server-version 6.0-beta.1
+
+
+Upgrading
+=========
+
+.. edb:collapsed::
+
+**Local instances**
+
+To upgrade a local project, first ensure that your CLI is up to date with
+``edgedb cli upgrade``. Then run the following command inside the project
+directory.
+
+.. code-block:: bash
+
+  $ edgedb project upgrade --to-testing
+
+Alternatively, specify an instance name if you aren't using a project:
+
+.. code-block:: bash
+
+  $ edgedb instance upgrade -I my_instance
+
+The CLI will check if your schema can migrate cleanly to EdgeDB 6.0. If any
+issues are found, they will be reported.
+
+**Hosted instances**
+
+To upgrade a remote instance, we recommend the following dump-and-restore
+process:
+
+1. EdgeDB v6.0 supports PostgreSQL 14 or above. Verify your PostgreSQL version
+   before upgrading EdgeDB. If you're using Postgres 13 or below, upgrade
+   Postgres first.
+
+2. Spin up an empty 6.0 instance. You can use one of our :ref:`deployment
+   guides <ref_guide_deployment>`.
+
+   For Debian/Ubuntu, when adding the EdgeDB package repository, use this
+   command:
+
+   .. code-block:: bash
+
+       $ echo deb [signed-by=/usr/local/share/keyrings/edgedb-keyring.gpg] \
+           https://packages.edgedb.com/apt \
+           $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) main \
+           | sudo tee /etc/apt/sources.list.d/edgedb.list
+       $ sudo apt-get update && sudo apt-get install edgedb-6
+
+   For CentOS/RHEL, use this installation command:
+
+   .. code-block:: bash
+
+       $ sudo yum install edgedb-6
+
+   In any required ``systemctl`` commands, replace ``edgedb-server-6`` with
+   ``edgedb-server-6``.
+
+   For Docker setups, use the ``6.0`` tag.
+
+3. Take your application offline, then dump your v5.x database with the CLI:
+
+   .. code-block:: bash
+
+       $ edgedb dump --dsn <old dsn> --all --format dir my_database.dump/
+
+   This will dump the schema and contents of your current database to a
+   directory on your local disk called ``my_database.dump``. The directory name
+   isn't important.
+
+4. Restore the empty v6.x instance from the dump:
+
+   .. code-block:: bash
+
+       $ edgedb restore --all my_database.dump/ --dsn <new dsn>
+
+   Once the restore is complete, update your application to connect to the new
+   instance.
+
+   This process will involve some downtime, specifically during steps 2 and 3.
+
+
+New features
+============
+
+SQL write support
+-----------------
+
+You can now use SQL DML (``insert``, ``update``, ``delete``) when connecting to
+your EdgeDB instance via the PostgreSQL protocol. Our aim is to support most
+typical use cases from tools like SQL ORMs and SQL clients.
+
+This allows more developers to use EdgeDB, leveraging our advanced data model,
+tooling, and high-performance connection management. Teams can migrate their
+existing SQL codebases to EdgeDB without rewriting their queries. Once adopted,
+you can gradually take advantage of EdgeQL's powerful query capabilities.
+
+Existing EdgeDB users who already use EdgeQL can benefit too. While some SQL
+features like window functions, recursive queries, and explicit locking are not
+yet supported, you can use these features in SQL today. We will continue to add
+support for more features in the future.
+
+In-place upgrade
+----------------
+
+We aim for this version to be the last requiring a full dump and restore
+process for major version upgrades. We understand that dump-and-restore is
+disruptive, so enabling in-place upgrades will make it easier for teams to
+upgrade more frequently.
+
+Query performance observability
+-------------------------------
+
+We now store statistics about query performance. These statistics are available
+in ``sys::QueryStats`` objects.
+
+.. code-block:: edgeql
+
+  select sys::QueryStats {
+    query,
+    queryType,
+    tag,
+    plans,
+    total_plan_time,
+    mean_plan_time,
+    calls,
+    total_exec_time,
+    mean_exec_time,
+  } filter .branch.name = sys::get_current_branch();
+
+More details to come in the reference documentation.
+
+ext::postgis
+----------------
+
+We've added support for the popular PostGIS extension for PostgreSQL. This
+extension adds support for geographic objects and spatial data types.
+
+std::net
+------------
+
+We've introduced a new standard library module for sending network requests,
+initially supporting HTTP. This module schedules asynchronous requests and
+allows you to poll for responses.
+
+ext::auth
+-------------
+
+We've introduced several new features to our authentication extension:
+
+- You can now configure generic OpenID Connect providers.
+- If using an OAuth provider that returns an ``id_token`` (like an OpenID
+  Connect compatible provider), you will now receive that validated token in
+  your callback. This simplifies using some of that data for your own User or
+  Profile objects, saving a roundtrip to the identity provider.
+- As an alternative (or in addition) to configuring SMTP for sending emails,
+  you can now configure a webhook for various authentication lifecycle events.
+  Use these webhooks to send custom emails, update analytics, or trigger other
+  workflows.
+- Previously, a missing PKCE session during email verification was treated as
+  an error. Now, we support verifying end-user emails from a different device
+  than the one used to start the sign-up or sign-in process. To enable
+  verification without PKCE, direct the end-user to attempt a login after
+  verifying their email, which will initiate a new flow.
+
+  Previously, the application couldn't identify which identity was being
+  created during sign-up until email verification was successful. When
+  verification occurred on the same device, it concluded with an auth token,
+  allowing the creation of a new ``User`` based on that token's identity. With
+  the new process, where users are directed to sign in after email
+  verification, there's no clear distinction between a regular sign-in (which
+  shouldn't create a new ``User``) and an interrupted sign-up (which should
+  create a new ``User``). To address this, we now return an ``identity_id`` in
+  the sign-up response, enabling you to create a ``User`` type before the email
+  is verified.
+- We now configure a development-only SMTP provider for instances hosted on
+  our Cloud. This SMTP proxy is heavily rate limited, and requires a fixed
+  sender email address. It is intended to be used for development and testing
+  purposes. Once you're ready to start sending real emails, you can configure
+  your own SMTP provider. We hope this will make it easier to get started with
+  a simple email-based authentication flow during early development.
+
+**Breaking changes**
+
+- We have moved our SMTP configuration into a new top-level
+  ``Config::SMTPProvider`` configuration object. During the upgrade process,
+  your existing SMTP configuration will be migrated to this new object. If you
+  have any scripts that configure SMTP directly, update them to use the new
+  object.
+
+ext::ai
+-----------
+
+- We've updated the built-in list of models from our first-party LLM providers
+  to match the latest offerings from OpenAI, Anthropic, and Mistral.
+- We now pass LLM configuration query parameters through to the downstream
+  provider.
+
+Simpler scoping rules
+---------------------
+
+We've simplified the scoping rules for queries. See `our RFC 1027 outlining the
+changes <https://github.com/edgedb/rfcs/blob/master/text/1027-no-factoring.rst>`_.
+
+The RFC highlights two main reasons for removing path factoring: the need to
+simplify and enhance the language, and concerns about implementation. Path
+factoring is complex and makes it hard to quickly understand a query's
+behavior. It also undermines several key design principles of EdgeQL. Although
+EdgeQL is intended to be read from top to bottom, path factoring allows later
+parts of a query to change its meaning significantly.
+
+By default in 6.0, we will generate new schemas that opt-in to the new scoping
+rules. Existing schemas will continue to use the old rules and emit warnings
+when queries that trigger the old behavior are encountered at query time.
+
+Additional changes
+==================
+
+
+Bug fixes
+---------
