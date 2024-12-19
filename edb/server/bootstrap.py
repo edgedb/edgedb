@@ -750,10 +750,19 @@ def _generate_drop_views(
     for cv in reversed(list(group)):
         dv: Any
         if isinstance(cv, dbops.CreateView):
-            dv = dbops.DropView(
+            # We try deleting both a MATERIALIZED and not materialized
+            # version, since that allows us to switch between them
+            # more easily.
+            dv = dbops.CommandGroup()
+            dv.add_command(dbops.DropView(
                 cv.view.name,
                 conditions=[dbops.ViewExists(cv.view.name)],
-            )
+            ))
+            dv.add_command(dbops.DropView(
+                cv.view.name,
+                conditions=[dbops.ViewExists(cv.view.name, materialized=True)],
+                materialized=True,
+            ))
         elif isinstance(cv, dbops.CreateFunction):
             dv = dbops.DropFunction(
                 cv.function.name,
