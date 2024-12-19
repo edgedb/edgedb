@@ -82,6 +82,7 @@ from edb.server import metrics
 from edb.server.protocol cimport frontend
 
 from edb.common import debug
+from edb.common import typeutils
 
 from . import errors as pgerror
 
@@ -3016,6 +3017,7 @@ cdef EdegDBCodecContext DEFAULT_CODEC_CONTEXT = EdegDBCodecContext()
 
 
 cdef setting_to_sql(setting):
+    assert typeutils.is_container(setting)
     return ', '.join(setting_val_to_sql(v) for v in setting)
 
 

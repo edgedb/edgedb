@@ -1591,20 +1591,42 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             await con.aclose()
 
     async def test_sql_query_client_encoding_1(self):
+        self.assertEqual(
+            self.scon.get_settings().client_encoding.lower(), "utf_8"
+        )
         rv1 = await self.squery_values('select * from "Genre" order by id')
         await self.squery_values("set client_encoding to 'GBK'")
         rv2 = await self.squery_values('select * from "Genre" order by id')
+        self.assertEqual(
+            self.scon.get_settings().client_encoding.lower(), "gbk"
+        )
         self.assertEqual(rv1, rv2)
 
     async def test_sql_query_client_encoding_2(self):
         await self.squery_values("set client_encoding to 'sql-ascii'")
+        self.assertEqual(
+            self.scon.get_settings().client_encoding.lower(), "sql_ascii"
+        )
         await self.squery_values('select * from "Movie"')
         with self.assertRaises(UnicodeDecodeError):
             await self.squery_values('select * from "Genre"')
 
         await self.squery_values("set client_encoding to 'latin1'")
+        self.assertEqual(
+            self.scon.get_settings().client_encoding.lower(), "latin1"
+        )
         with self.assertRaises(asyncpg.UntranslatableCharacterError):
             await self.squery_values('select * from "Genre"')
+
+    async def test_sql_query_client_encoding_3(self):
+        non_english = "奇奇怪怪"
+        rv1 = await self.squery_values('select $1::text', non_english)
+        await self.squery_values("set client_encoding to 'GBK'")
+        rv2 = await self.squery_values('select $1::text', non_english)
+        self.assertEqual(
+            self.scon.get_settings().client_encoding.lower(), "gbk"
+        )
+        self.assertEqual(rv1, rv2)
 
     async def test_sql_query_server_version(self):
         version = await self.scon.fetchval("show server_version")
