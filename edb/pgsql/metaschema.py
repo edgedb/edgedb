@@ -6294,6 +6294,10 @@ def _generate_sql_information_schema(
     backend_version: params.BackendVersion
 ) -> List[dbops.Command]:
 
+    # Helper to create wrappers around materialized views.  For
+    # performance, we use MATERIALIZED VIEW for some of our SQL
+    # emulation tables. Unfortunately we can't use those directly,
+    # since we need tableoid to match the real pg_catalog table.
     def make_wrapper_view(name: str) -> trampoline.VersionedView:
         return trampoline.VersionedView(
             name=("edgedbsql", name),
