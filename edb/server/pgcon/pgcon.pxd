@@ -138,6 +138,7 @@ cdef class PGConnection:
         public object pinned_by
 
         object last_state
+        public object last_init_con_data
 
         str last_indirect_return
 
