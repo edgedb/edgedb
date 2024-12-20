@@ -1009,6 +1009,40 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(
+        errors.InvalidPropertyTargetError,
+        "got object type"
+    )
+    def test_schema_object_as_lprop_01(self):
+        """
+        type Tgt;
+        type Tgt2;
+        type Src {
+          multi tgts: Tgt {
+            lprop: Tgt2;
+          }
+        };
+        """
+
+    @tb.must_fail(
+        errors.InvalidPropertyTargetError,
+        "got object type"
+    )
+    def test_schema_object_as_lprop_02(self):
+        """
+        type Tgt;
+        type Tgt2;
+        type Src {
+          multi tgts: Tgt {
+          }
+        };
+        type Src2 extending Src {
+          overloaded multi tgts: Tgt {
+            lprop: Tgt2;
+          }
+        };
+        """
+
+    @tb.must_fail(
         errors.InvalidFunctionDefinitionError,
         r"cannot create the `test::foo\(VARIADIC bar: "
         r"OPTIONAL array<std::int64>\)` function: "
