@@ -37,6 +37,7 @@ from edb.edgeql import parser as qlparser
 
 from . import delta as sd
 from . import objects as so
+from . import objtypes as s_objtypes
 from . import properties as s_props
 from . import pointers
 from . import sources
@@ -115,14 +116,18 @@ class CreateUnknownPointer(
         #    that to a delta tree and apply it.
 
         nschema = super().apply(schema, context)
+        source = self.scls.get_source(nschema)
         target = self.scls.get_target(nschema)
-        assert target
+        assert source and target
 
         astnode = self.node
         assert astnode
         astcls = (
             qlast.CreateConcreteLink
+            # It's a link if the target is an object and so is the source.
+            # If the source isn't, it's a link property, which will fail.
             if target.is_object_type()
+            and isinstance(source, s_objtypes.ObjectType)
             else qlast.CreateConcreteProperty
         )
         astnode = astnode.replace(__class__=astcls)
@@ -161,13 +166,19 @@ class AlterUnknownPointer(
         cmd = super()._cmd_tree_from_ast(schema, fakenode, context)
 
         obj = cmd.get_object(schema, context)
+        source = obj.get_source(schema)
+        is_prop = (
+            isinstance(obj, s_props.Property)
+            or not isinstance(source, s_objtypes.ObjectType)
+        )
+
         astcls = (
             qlast.AlterConcreteProperty
-            if isinstance(obj, s_props.Property)
+            if is_prop
             else qlast.AlterConcreteLink
         ) if isinstance(astnode, qlast.AlterObject) else (
             qlast.CreateConcreteProperty
-            if isinstance(obj, s_props.Property)
+            if is_prop
             else qlast.CreateConcreteLink
         )
         astnode = astnode.replace(__class__=astcls)
