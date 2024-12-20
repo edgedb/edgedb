@@ -43,6 +43,7 @@ from edb.pgsql import compiler as pgcompiler
 from edb.pgsql.compiler import enums as pgce
 
 from edb.schema import types as s_types
+from edb.schema import pointers as s_pointers
 
 from edb.ir import ast as irast
 
@@ -218,8 +219,22 @@ def resolve_column_kind(
             assert expr
 
             source = pointer.get_source(ctx.schema)
-            assert isinstance(source, s_types.Type)
-            source_id = irast.PathId.from_type(ctx.schema, source, env=None)
+
+            subject_id: irast.PathId
+            source_id: irast.PathId
+            if isinstance(source, s_types.Type):
+                subject_id = irast.PathId.from_type(
+                    ctx.schema, source, env=None
+                )
+                source_id = subject_id
+            else:
+                assert isinstance(source, s_pointers.Pointer)
+                subject_id = irast.PathId.from_pointer(
+                    ctx.schema, source, env=None
+                )
+                s = source.get_source(ctx.schema)
+                assert isinstance(s, s_types.Type)
+                source_id = irast.PathId.from_type(ctx.schema, s, env=None)
 
             singletons = [source]
             options = qlcompiler.CompilerOptions(
@@ -232,15 +247,23 @@ def resolve_column_kind(
             )
             compiled = expr.compiled(ctx.schema, options=options, context=None)
 
+            subject_rel = pgast.Relation(name=table.reference_as)
+            subject_rel.path_outputs = {
+                (source_id, pgce.PathAspect.IDENTITY): pgast.ColumnRef(
+                    name=('source',)
+                )
+            }
+            subject_rel_var = pgast.RelRangeVar(
+                alias=pgast.Alias(aliasname=table.reference_as),
+                relation=subject_rel,
+            )
+
             sql_tree = pgcompiler.compile_ir_to_sql_tree(
                 compiled.irast,
                 external_rvars={
-                    (source_id, pgce.PathAspect.SOURCE): pgast.RelRangeVar(
-                        alias=pgast.Alias(
-                            aliasname=table.reference_as,
-                        ),
-                        relation=pgast.Relation(name=table.reference_as),
-                    ),
+                    (subject_id, pgce.PathAspect.SOURCE): subject_rel_var,
+                    (subject_id, pgce.PathAspect.VALUE): subject_rel_var,
+                    (source_id, pgce.PathAspect.IDENTITY): subject_rel_var
                 },
                 output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
                 alias_generator=ctx.alias_generator,

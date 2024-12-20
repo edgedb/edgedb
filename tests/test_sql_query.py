@@ -21,7 +21,6 @@ import decimal
 import io
 import os.path
 from typing import Coroutine, Optional, Tuple
-import unittest
 import uuid
 import asyncio
 
@@ -477,7 +476,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         # multi
         res = await self.scon.fetch('SELECT * FROM "Movie.actors"')
-        self.assert_shape(res, 3, ['source', 'target', 'role'])
+        self.assert_shape(res, 3, ['source', 'target', 'role', 'role_lower'])
 
         # single with properties
         res = await self.scon.fetch('SELECT * FROM "Movie.director"')
@@ -1219,6 +1218,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ['Movie.actors', 'source', 'NO', 1],
                 ['Movie.actors', 'target', 'NO', 2],
                 ['Movie.actors', 'role', 'YES', 3],
+                ['Movie.actors', 'role_lower', 'YES', 4],
                 ['Movie.director', 'source', 'NO', 1],
                 ['Movie.director', 'target', 'NO', 2],
                 ['Movie.director', 'bar', 'YES', 3],
@@ -1674,6 +1674,26 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                     ["Tom", "Tom Hanks"],
                 ]
             ),
+        )
+
+    async def test_sql_query_copy_05(self):
+        # copy of a link table with link prop
+
+        out = io.BytesIO()
+        await self.scon.copy_from_table(
+            "Movie.actors",
+            output=out,
+            format="csv",
+            delimiter="\t",
+        )
+        out = io.StringIO(out.getvalue().decode("utf-8"))
+        res = list(csv.reader(out, delimiter="\t"))
+
+        # columns: 0      1      2
+        #          source target role
+        self.assertEqual(
+            {row[2] for row in res},
+            {"Captain Miller", ""}
         )
 
     async def test_sql_query_error_01(self):
