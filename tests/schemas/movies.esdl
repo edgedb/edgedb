@@ -46,7 +46,8 @@ type Content {
 type Movie extending Content {
     release_year: int64;
     multi actors: Person {
-        role: str;
+        property role: str;
+        property role_lower := str_lower(@role);
     };
     director: Person {
         bar: str;
