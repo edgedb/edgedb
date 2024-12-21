@@ -1619,6 +1619,22 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         with self.assertRaises(asyncpg.UntranslatableCharacterError):
             await self.squery_values('select * from "Genre"')
 
+        # Bug workaround: because of MagicStack/asyncpg#1215, if an
+        # error occurs inside a transaction where a config was set,
+        # when the transaction is rolled back the client-side version
+        # of that config is not reverted. This was causing other tests
+        # to fail with encoding errors.
+        # Get things back into a good state.
+        await self.stran.rollback()
+        self.stran = self.scon.transaction()
+        await self.stran.start()
+        # ... need to change it away then change it back to have it show up
+        await self.squery_values("set client_encoding to 'latin1'")
+        await self.squery_values("set client_encoding to 'UTF8'")
+        self.assertEqual(
+            self.scon.get_settings().client_encoding.lower(), "utf8"
+        )
+
     async def test_sql_query_client_encoding_3(self):
         non_english = "奇奇怪怪"
         rv1 = await self.squery_values('select $1::text', non_english)
