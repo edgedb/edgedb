@@ -57,6 +57,7 @@ from edb.server import pgcon
 
 from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
+from edb.pgsql import metaschema
 from edb.pgsql import trampoline
 
 
@@ -272,6 +273,15 @@ async def _upgrade_one(
             await ctx.conn.sql_execute(patch.encode('utf-8'))
         except Exception:
             raise
+
+    # Refresh the pg_catalog materialized views
+    current_block = dbops.PLTopBlock()
+    refresh = metaschema.generate_sql_information_schema_refresh(
+        backend_params.instance_params.version
+    )
+    refresh.generate(current_block)
+    patch = current_block.to_string()
+    await ctx.conn.sql_execute(patch.encode('utf-8'))
 
     new_local_spec = config.load_spec_from_schema(
         schema,
