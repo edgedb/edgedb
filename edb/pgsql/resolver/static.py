@@ -220,6 +220,12 @@ ALLOWED_ADMIN_FUNCTIONS = frozenset(
         'pg_visible_in_snapshot',
         'pg_xact_commit_timestamp',
         'pg_xact_status',
+        'pg_partition_ancestors',
+        'pg_backend_pid',
+        'pg_wal_lsn_diff',
+        'pg_last_wal_replay_lsn',
+        'pg_current_wal_flush_lsn',
+        'pg_relation_is_publishable',
     }
 )
 
@@ -239,7 +245,7 @@ def eval_FuncCall(
 
     if fn_name.startswith('pg_') and fn_name not in ALLOWED_ADMIN_FUNCTIONS:
         raise errors.QueryError(
-            "forbidden function",
+            f"forbidden function '{fn_name}'",
             span=expr.span,
             pgext_code=pgerror.ERROR_INSUFFICIENT_PRIVILEGE,
         )
@@ -342,7 +348,10 @@ def eval_FuncCall(
 
     if fn_name == "to_regclass":
         arg = require_string_param(expr, ctx)
-        return to_regclass(arg, ctx=ctx)
+        return pgast.TypeCast(
+            arg=to_regclass(arg, ctx=ctx),
+            type_name=pgast.TypeName(name=('pg_catalog', 'regclass')),
+        )
 
     cast_arg_to_regclass = {
         'pg_relation_filenode',
@@ -442,14 +451,17 @@ def cast_to_regclass(param: pgast.BaseExpr, ctx: Context) -> pgast.BaseExpr:
     """
 
     expr = eval(param, ctx=ctx)
+    res: pgast.BaseExpr
     if isinstance(expr, pgast.NullConstant):
-        return pgast.NullConstant()
-    if isinstance(expr, pgast.StringConstant):
-        return to_regclass(expr.val, ctx=ctx)
+        res = pgast.NullConstant()
+    elif isinstance(expr, pgast.StringConstant) and expr.val.isnumeric():
+        # We need to treat numeric string constants as numbers, apparently.
+        res = pgast.NumericConstant(val=expr.val)
 
-    oid: pgast.BaseExpr
-    if isinstance(expr, pgast.NumericConstant):
-        oid = expr
+    elif isinstance(expr, pgast.StringConstant):
+        res = to_regclass(expr.val, ctx=ctx)
+    elif isinstance(expr, pgast.NumericConstant):
+        res = expr
     else:
         # This is a complex expression of unknown type.
         # If we knew the type is numeric, we could lookup the internal oid by
@@ -460,7 +472,7 @@ def cast_to_regclass(param: pgast.BaseExpr, ctx: Context) -> pgast.BaseExpr:
         # So let's insert a runtime type check with an 'unsupported' message for
         # strings.
         param = dispatch.resolve(param, ctx=ctx)
-        oid = pgast.CaseExpr(
+        res = pgast.CaseExpr(
             args=[
                 pgast.CaseWhen(
                     expr=pgast.Expr(
@@ -492,7 +504,10 @@ def cast_to_regclass(param: pgast.BaseExpr, ctx: Context) -> pgast.BaseExpr:
                 ]
             )
         )
-    return oid
+    return pgast.TypeCast(
+        arg=res,
+        type_name=pgast.TypeName(name=('pg_catalog', 'regclass')),
+    )
 
 
 def to_regclass(reg_class_name: str, ctx: Context) -> pgast.BaseExpr:

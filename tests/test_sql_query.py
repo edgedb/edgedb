@@ -16,16 +16,18 @@
 # limitations under the License.
 #
 
+import asyncio
 import csv
 import decimal
 import io
 import os.path
+import subprocess
 from typing import Coroutine, Optional, Tuple
 import unittest
 import uuid
-import asyncio
 
 from edb.tools import test
+from edb.server import pgcluster
 from edb.testbase import server as tb
 
 import edgedb
@@ -91,7 +93,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         };
 
         create global glob_mod::a: str;
-        create global glob_mod::b: str;
+        create global glob_mod::b: bool;
         create type glob_mod::Computed {
             create property a := global glob_mod::a;
             create property b := global glob_mod::b;
@@ -102,6 +104,32 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             os.path.dirname(__file__), 'schemas', 'movies_setup.edgeql'
         ),
     ]
+
+    async def test_sql_query_psql_describe_01(self):
+        dsn = self.get_sql_proto_dsn()
+        pg_bin_dir = await pgcluster.get_pg_bin_dir()
+
+        # Run a describe command in psql
+        cmd = [
+            pg_bin_dir / 'psql',
+            '--dbname', dsn,
+            '-c',
+            '\\d "Person"',
+        ]
+        try:
+            subprocess.run(
+                cmd,
+                input=None,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT
+            )
+        except subprocess.CalledProcessError as e:
+            raise AssertionError(
+                f'command {cmd} returned non-zero exit status '
+                f'{e.returncode}\n{e.output}'
+            ) from e
 
     async def test_sql_query_00(self):
         # basic
@@ -477,7 +505,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
 
         # multi
         res = await self.scon.fetch('SELECT * FROM "Movie.actors"')
-        self.assert_shape(res, 3, ['source', 'target', 'role'])
+        self.assert_shape(res, 3, ['source', 'target', 'role', 'role_lower'])
 
         # single with properties
         res = await self.scon.fetch('SELECT * FROM "Movie.director"')
@@ -1047,6 +1075,101 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             )
         ]])
 
+    async def test_sql_query_56(self):
+        # recursive
+
+        res = await self.squery_values(
+            '''
+            WITH RECURSIVE
+              integers(n) AS (
+                  SELECT 0
+                UNION ALL
+                  SELECT n + 1 FROM integers
+                  WHERE n + 1 < 5
+              )
+            SELECT n FROM integers
+            ''',
+        )
+        self.assertEqual(res, [
+            [0],
+            [1],
+            [2],
+            [3],
+            [4],
+        ])
+
+        res = await self.squery_values(
+            '''
+            WITH RECURSIVE
+              fibonacci(n, prev, val) AS (
+                  SELECT 1, 0, 1
+                UNION ALL
+                  SELECT n + 1, val, prev + val
+                  FROM fibonacci
+                  WHERE n + 1 < 10
+              )
+            SELECT n, val FROM fibonacci;
+            '''
+        )
+        self.assertEqual(res, [
+            [1, 1],
+            [2, 1],
+            [3, 2],
+            [4, 3],
+            [5, 5],
+            [6, 8],
+            [7, 13],
+            [8, 21],
+            [9, 34],
+        ])
+
+        res = await self.squery_values(
+            '''
+            WITH RECURSIVE
+              fibonacci(n, prev, val) AS (
+                  SELECT 1, 0, 1
+                UNION ALL
+                  SELECT n + 1, val, prev + val
+                  FROM fibonacci
+                  WHERE n + 1 < 8
+              ),
+              integers(n) AS (
+                  SELECT 0
+                UNION ALL
+                  SELECT n + 1 FROM integers
+                  WHERE n + 1 < 5
+              )
+            SELECT f.n, f.val FROM fibonacci f, integers i where f.n = i.n;
+            '''
+        )
+        self.assertEqual(res, [
+            [1, 1],
+            [2, 1],
+            [3, 2],
+            [4, 3],
+        ])
+
+        res = await self.squery_values(
+            '''
+            WITH RECURSIVE
+              a as (SELECT 12 as n),
+              integers(n) AS (
+                  SELECT 0
+                UNION ALL
+                  SELECT n + 1 FROM integers
+                  WHERE n + 1 < 5
+              )
+            SELECT * FROM a, integers;
+            '''
+        )
+        self.assertEqual(res, [
+            [12, 0],
+            [12, 1],
+            [12, 2],
+            [12, 3],
+            [12, 4],
+        ])
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
@@ -1124,6 +1247,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 ['Movie.actors', 'source', 'NO', 1],
                 ['Movie.actors', 'target', 'NO', 2],
                 ['Movie.actors', 'role', 'YES', 3],
+                ['Movie.actors', 'role_lower', 'YES', 4],
                 ['Movie.director', 'source', 'NO', 1],
                 ['Movie.director', 'target', 'NO', 2],
                 ['Movie.director', 'bar', 'YES', 3],
@@ -1364,8 +1488,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             '''
         )
         self.assertEqual(res1, res2)
-        assert isinstance(res1, int)
-        assert isinstance(res2, int)
 
         res = await self.squery_values(
             r'''
@@ -1470,20 +1592,58 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             await con.aclose()
 
     async def test_sql_query_client_encoding_1(self):
+        self.assertEqual(
+            self.scon.get_settings().client_encoding.lower(), "utf_8"
+        )
         rv1 = await self.squery_values('select * from "Genre" order by id')
         await self.squery_values("set client_encoding to 'GBK'")
         rv2 = await self.squery_values('select * from "Genre" order by id')
+        self.assertEqual(
+            self.scon.get_settings().client_encoding.lower(), "gbk"
+        )
         self.assertEqual(rv1, rv2)
 
     async def test_sql_query_client_encoding_2(self):
         await self.squery_values("set client_encoding to 'sql-ascii'")
+        self.assertEqual(
+            self.scon.get_settings().client_encoding.lower(), "sql_ascii"
+        )
         await self.squery_values('select * from "Movie"')
         with self.assertRaises(UnicodeDecodeError):
             await self.squery_values('select * from "Genre"')
 
         await self.squery_values("set client_encoding to 'latin1'")
+        self.assertEqual(
+            self.scon.get_settings().client_encoding.lower(), "latin1"
+        )
         with self.assertRaises(asyncpg.UntranslatableCharacterError):
             await self.squery_values('select * from "Genre"')
+
+        # Bug workaround: because of MagicStack/asyncpg#1215, if an
+        # error occurs inside a transaction where a config was set,
+        # when the transaction is rolled back the client-side version
+        # of that config is not reverted. This was causing other tests
+        # to fail with encoding errors.
+        # Get things back into a good state.
+        await self.stran.rollback()
+        self.stran = self.scon.transaction()
+        await self.stran.start()
+        # ... need to change it away then change it back to have it show up
+        await self.squery_values("set client_encoding to 'latin1'")
+        await self.squery_values("set client_encoding to 'UTF8'")
+        self.assertEqual(
+            self.scon.get_settings().client_encoding.lower(), "utf8"
+        )
+
+    async def test_sql_query_client_encoding_3(self):
+        non_english = "奇奇怪怪"
+        rv1 = await self.squery_values('select $1::text', non_english)
+        await self.squery_values("set client_encoding to 'GBK'")
+        rv2 = await self.squery_values('select $1::text', non_english)
+        self.assertEqual(
+            self.scon.get_settings().client_encoding.lower(), "gbk"
+        )
+        self.assertEqual(rv1, rv2)
 
     async def test_sql_query_server_version(self):
         version = await self.scon.fetchval("show server_version")
@@ -1579,6 +1739,26 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                     ["Tom", "Tom Hanks"],
                 ]
             ),
+        )
+
+    async def test_sql_query_copy_05(self):
+        # copy of a link table with link prop
+
+        out = io.BytesIO()
+        await self.scon.copy_from_table(
+            "Movie.actors",
+            output=out,
+            format="csv",
+            delimiter="\t",
+        )
+        out = io.StringIO(out.getvalue().decode("utf-8"))
+        res = list(csv.reader(out, delimiter="\t"))
+
+        # columns: 0      1      2
+        #          source target role
+        self.assertEqual(
+            {row[2] for row in res},
+            {"Captain Miller", ""}
         )
 
     async def test_sql_query_error_01(self):
@@ -1949,7 +2129,7 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         await self.scon.execute(
             f"""
             SET LOCAL "global glob_mod::a" TO hello;
-            SET LOCAL "global glob_mod::b" TO world;
+            SET LOCAL "global glob_mod::b" TO no;
             """
         )
 
@@ -1958,7 +2138,51 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             SELECT a, b FROM glob_mod."Computed"
             '''
         )
-        self.assertEqual(res, [["hello", "world"]])
+        self.assertEqual(res, [["hello", False]])
+
+    async def test_sql_query_computed_13(self):
+        # globals bool values
+
+        async def query_glob_bool(value: str) -> bool:
+            await self.scon.execute(
+                f"""
+                SET LOCAL "global glob_mod::b" TO {value};
+                """
+            )
+            res = await self.squery_values(
+                '''
+                SELECT b FROM glob_mod."Computed"
+                '''
+            )
+            return res[0][0]
+
+        self.assertEqual(await query_glob_bool('on'), True)
+        self.assertEqual(await query_glob_bool('off'), False)
+        self.assertEqual(await query_glob_bool('o'), None)
+        self.assertEqual(await query_glob_bool('of'), False)
+        self.assertEqual(await query_glob_bool('true'), True)
+        self.assertEqual(await query_glob_bool('tru'), True)
+        self.assertEqual(await query_glob_bool('tr'), True)
+        self.assertEqual(await query_glob_bool('t'), True)
+        self.assertEqual(await query_glob_bool('false'), False)
+        self.assertEqual(await query_glob_bool('fals'), False)
+        self.assertEqual(await query_glob_bool('fal'), False)
+        self.assertEqual(await query_glob_bool('fa'), False)
+        self.assertEqual(await query_glob_bool('f'), False)
+        self.assertEqual(await query_glob_bool('yes'), True)
+        self.assertEqual(await query_glob_bool('ye'), True)
+        self.assertEqual(await query_glob_bool('y'), True)
+        self.assertEqual(await query_glob_bool('no'), False)
+        self.assertEqual(await query_glob_bool('n'), False)
+        self.assertEqual(await query_glob_bool('"1"'), True)
+        self.assertEqual(await query_glob_bool('"0"'), False)
+        self.assertEqual(await query_glob_bool('1'), True)
+        self.assertEqual(await query_glob_bool('0'), False)
+        self.assertEqual(await query_glob_bool('1231231'), True)
+        self.assertEqual(await query_glob_bool('hello'), None)
+        self.assertEqual(await query_glob_bool("'ON'"), True)
+        self.assertEqual(await query_glob_bool("'OFF'"), False)
+        self.assertEqual(await query_glob_bool("'HELLO'"), None)
 
     async def test_sql_query_access_policy_01(self):
         # no access policies

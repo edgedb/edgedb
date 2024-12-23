@@ -32,6 +32,7 @@ from typing import (
     cast,
 )
 
+import functools
 import json
 import re
 
@@ -6295,11 +6296,27 @@ def _generate_sql_information_schema(
     backend_version: params.BackendVersion
 ) -> List[dbops.Command]:
 
+    # Helper to create wrappers around materialized views.  For
+    # performance, we use MATERIALIZED VIEW for some of our SQL
+    # emulation tables. Unfortunately we can't use those directly,
+    # since we need tableoid to match the real pg_catalog table.
+    def make_wrapper_view(name: str) -> trampoline.VersionedView:
+        return trampoline.VersionedView(
+            name=("edgedbsql", name),
+            query=f"""
+            SELECT *,
+            'pg_catalog.{name}'::regclass::oid as tableoid,
+            xmin, cmin, xmax, cmax, ctid
+            FROM edgedbsql_VER.{name}_
+            """,
+        )
+
     # A helper view that contains all data tables we expose over SQL, excluding
     # introspection tables.
     # It contains table & schema names and associated module id.
     virtual_tables = trampoline.VersionedView(
         name=('edgedbsql', 'virtual_tables'),
+        materialized=True,
         query='''
         WITH obj_ty_pre AS (
             SELECT
@@ -6423,7 +6440,7 @@ def _generate_sql_information_schema(
                             split_part(name, '::', 2) AS name,
                             backend_id
                         FROM edgedb_VER."_SchemaScalarType"
-                        WHERE NOT builtin
+                        WHERE NOT builtin AND arg_values IS NULL
                         UNION ALL
                         -- get the tuples
                         SELECT
@@ -6638,20 +6655,15 @@ def _generate_sql_information_schema(
 
     pg_catalog_views = [
         trampoline.VersionedView(
-            name=("edgedbsql", "pg_namespace"),
+            name=("edgedbsql", "pg_namespace_"),
+            materialized=True,
             query="""
         -- system schemas
         SELECT
             oid,
             nspname,
             nspowner,
-            nspacl,
-            tableoid,
-            xmin,
-            cmin,
-            xmax,
-            cmax,
-            ctid
+            nspacl
         FROM pg_namespace
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
                           'edgedb', 'edgedbstd', 'edgedbt',
@@ -6666,18 +6678,7 @@ def _generate_sql_information_schema(
              FROM pg_roles
              WHERE rolname = CURRENT_USER
              LIMIT 1)                           AS nspowner,
-            NULL AS nspacl,
-            (SELECT pg_class.oid
-             FROM pg_class
-             JOIN pg_namespace ON pg_class.relnamespace = pg_namespace.oid
-             WHERE pg_namespace.nspname = 'pg_catalog'::name
-             AND pg_class.relname = 'pg_namespace'::name
-             )                                  AS tableoid,
-            '0'::xid                            AS xmin,
-            '0'::cid                            AS cmin,
-            '0'::xid                            AS xmax,
-            '0'::cid                            AS cmax,
-            NULL                                AS ctid
+            NULL AS nspacl
         FROM (
             SELECT schema_name, module_id
             FROM edgedbsql_VER.virtual_tables
@@ -6692,8 +6693,10 @@ def _generate_sql_information_schema(
         ) t
         """,
         ),
+        make_wrapper_view("pg_namespace"),
         trampoline.VersionedView(
-            name=("edgedbsql", "pg_type"),
+            name=("edgedbsql", "pg_type_"),
+            materialized=True,
             query="""
         SELECT
             pt.oid,
@@ -6701,8 +6704,7 @@ def _generate_sql_information_schema(
                 AS typname,
             edgedbsql_VER._pg_namespace_rename(pt.oid, pt.typnamespace)
                 AS typnamespace,
-            {0},
-            pt.tableoid, pt.xmin, pt.cmin, pt.xmax, pt.cmax, pt.ctid
+            {0}
         FROM pg_type pt
         JOIN pg_namespace pn ON pt.typnamespace = pn.oid
         WHERE
@@ -6716,14 +6718,16 @@ def _generate_sql_information_schema(
                 )
             ),
         ),
+        make_wrapper_view("pg_type"),
         # pg_class that contains classes only for tables
         # This is needed so we can use it to filter pg_index to indexes only on
         # visible tables.
         trampoline.VersionedView(
             name=("edgedbsql", "pg_class_tables"),
+            materialized=True,
             query="""
         -- Postgres tables
-        SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
+        SELECT pc.*
         FROM pg_class pc
         JOIN pg_namespace pn ON pc.relnamespace = pn.oid
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
@@ -6764,19 +6768,14 @@ def _generate_sql_information_schema(
             relminmxid,
             relacl,
             reloptions,
-            relpartbound,
-            pc.tableoid,
-            pc.xmin,
-            pc.cmin,
-            pc.xmax,
-            pc.cmax,
-            pc.ctid
+            relpartbound
         FROM pg_class pc
         JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pc.reltype
         """,
         ),
         trampoline.VersionedView(
-            name=("edgedbsql", "pg_index"),
+            name=("edgedbsql", "pg_index_"),
+            materialized=True,
             query=f"""
         SELECT
             pi.indexrelid,
@@ -6811,8 +6810,7 @@ def _generate_sql_information_schema(
             pi.indclass,
             pi.indoption,
             pi.indexprs,
-            pi.indpred,
-            pi.tableoid, pi.xmin, pi.cmin, pi.xmax, pi.cmax, pi.ctid
+            pi.indpred
         FROM pg_index pi
 
         -- filter by tables visible in pg_class
@@ -6832,8 +6830,10 @@ def _generate_sql_information_schema(
         WHERE vt.id IS NULL OR is_id.t IS NOT NULL
         """,
         ),
+        make_wrapper_view('pg_index'),
         trampoline.VersionedView(
-            name=("edgedbsql", "pg_class"),
+            name=("edgedbsql", "pg_class_"),
+            materialized=True,
             query="""
         -- tables
         SELECT pc.*
@@ -6842,7 +6842,7 @@ def _generate_sql_information_schema(
         UNION
 
         -- indexes
-        SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
+        SELECT pc.*
         FROM pg_class pc
         JOIN pg_index pi ON pc.oid = pi.indexrelid
 
@@ -6882,13 +6882,7 @@ def _generate_sql_information_schema(
             pc.relminmxid,
             pc.relacl,
             pc.reloptions,
-            pc.relpartbound,
-            pc.tableoid,
-            pc.xmin,
-            pc.cmin,
-            pc.xmax,
-            pc.cmax,
-            pc.ctid
+            pc.relpartbound
         FROM pg_class pc
         JOIN edgedb_VER."_SchemaTuple" tup ON tup.backend_id = pc.reltype
         JOIN (
@@ -6898,7 +6892,7 @@ def _generate_sql_information_schema(
         ) nsdef ON TRUE
         """,
         ),
-
+        make_wrapper_view("pg_class"),
         # Because we hide some columns and
         # because pg_dump expects attnum to be sequential numbers
         # we have to invent new attnums with ROW_NUMBER().
@@ -6908,6 +6902,7 @@ def _generate_sql_information_schema(
         # attnum_internal column.
         trampoline.VersionedView(
             name=("edgedbsql", "pg_attribute_ext"),
+            materialized=True,
             query=r"""
         SELECT attrelid,
             attname,
@@ -6934,13 +6929,7 @@ def _generate_sql_information_schema(
             attacl,
             attoptions,
             attfdwoptions,
-            null::int[] as attmissingval,
-            pa.tableoid,
-            pa.xmin,
-            pa.cmin,
-            pa.xmax,
-            pa.cmax,
-            pa.ctid
+            null::int[] as attmissingval
         FROM pg_attribute pa
         JOIN pg_class pc ON pa.attrelid = pc.oid
         JOIN pg_namespace pn ON pc.relnamespace = pn.oid
@@ -6981,8 +6970,7 @@ def _generate_sql_information_schema(
             attacl,
             attoptions,
             attfdwoptions,
-            null::int[] as attmissingval,
-            tableoid, xmin, cmin, xmax, cmax, ctid
+            null::int[] as attmissingval
         FROM (
         SELECT
             COALESCE(
@@ -6993,8 +6981,7 @@ def _generate_sql_information_schema(
             COALESCE(spec.position, 2) AS col_position,
             (sp.required IS TRUE OR spec.k IS NOT NULL) as required,
             pc.oid AS pc_oid,
-            pa.*,
-            pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
+            pa.*
 
         FROM edgedb_VER."_SchemaPointer" sp
         JOIN edgedbsql_VER.virtual_tables vt ON vt.id = sp.source
@@ -7034,8 +7021,7 @@ def _generate_sql_information_schema(
             spec.position as position,
             TRUE as required,
             pa.attrelid as pc_oid,
-            pa.*,
-            pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
+            pa.*
         FROM edgedb_VER."_SchemaProperty" sp
         JOIN pg_class pc ON pc.relname = sp.id::TEXT
         JOIN pg_attribute pa ON pa.attrelid = pc.oid
@@ -7058,8 +7044,7 @@ def _generate_sql_information_schema(
             pa.attnum as position,
             TRUE as required,
             pa.attrelid as pc_oid,
-            pa.*,
-            pa.tableoid, pa.xmin, pa.cmin, pa.xmax, pa.cmax, pa.ctid
+            pa.*
         FROM pg_attribute pa
         JOIN pg_class pc ON pc.oid = pa.attrelid
         JOIN edgedbsql_VER.virtual_tables vt ON vt.pg_type_id = pc.reltype
@@ -7096,7 +7081,7 @@ def _generate_sql_information_schema(
           attoptions,
           attfdwoptions,
           attmissingval,
-          tableoid,
+          'pg_catalog.pg_attribute'::regclass::oid as tableoid,
           xmin,
           cmin,
           xmax,
@@ -7352,7 +7337,7 @@ def _generate_sql_information_schema(
             NULL::real[] AS stavalues3,
             NULL::real[] AS stavalues4,
             NULL::real[] AS stavalues5,
-            tableoid, xmin, cmin, xmax, cmax, ctid
+            s.tableoid, s.xmin, s.cmin, s.xmax, s.cmax, s.ctid
         FROM pg_statistic s
         JOIN edgedbsql_VER.pg_attribute_ext a ON (
             a.attrelid = s.starelid AND a.attnum_internal = s.staattnum
@@ -7922,6 +7907,22 @@ def _generate_sql_information_schema(
         + [dbops.CreateView(view) for view in views]
         + [dbops.CreateFunction(func) for func in util_functions]
     )
+
+
+@functools.cache
+def generate_sql_information_schema_refresh(
+    backend_version: params.BackendVersion
+) -> dbops.Command:
+    refresh = dbops.CommandGroup()
+    for command in _generate_sql_information_schema(backend_version):
+        if (
+            isinstance(command, dbops.CreateView)
+            and command.view.materialized
+        ):
+            refresh.add_command(dbops.Query(
+                text=f'REFRESH MATERIALIZED VIEW {q(*command.view.name)}'
+            ))
+    return refresh
 
 
 class ObjectAncestorsView(trampoline.VersionedView):

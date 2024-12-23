@@ -214,7 +214,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         count = len(ctes)
         for i, cte in enumerate(ctes):
             self.new_lines = 1
-            if getattr(cte, 'recursive', None):
+            if i == 0 and getattr(cte, 'recursive', None):
                 self.write('RECURSIVE ')
             self.write(common.quote_ident(cte.name))
 

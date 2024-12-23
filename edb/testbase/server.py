@@ -1348,6 +1348,16 @@ class ConnectedTestCase(ClusterTestCase):
                     'CONFIGURE SESSION RESET apply_access_policies'
                 )
 
+    @classmethod
+    def get_sql_proto_dsn(cls, dbname=None):
+        dbname = dbname or cls.con.dbname
+        conargs = cls.get_connect_args()
+        return (
+            f"postgres://{conargs['user']}:{conargs['password']}@"
+            f"{conargs['host']}:{conargs['port']}/{cls.con.dbname}?"
+            f"sslrootcert={conargs['tls_ca_file']}"
+        )
+
 
 class DatabaseTestCase(ConnectedTestCase):
 
@@ -1930,13 +1940,8 @@ class StablePGDumpTestCase(BaseQueryTestCase):
 
     @classmethod
     def run_pg_dump_on_connection(
-        cls, conargs: Dict[str, Any], *args, input: Optional[str] = None
+        cls, dsn: str, *args, input: Optional[str] = None
     ) -> None:
-        dsn = (
-            f"postgres://{conargs['user']}:{conargs['password']}@"
-            f"{conargs['host']}:{conargs['port']}/{cls.con.dbname}?"
-            f"sslrootcert={conargs['tls_ca_file']}"
-        )
         cmd = [cls._pg_bin_dir / 'pg_dump', '--dbname', dsn]
         cmd += args
         try:
@@ -1965,7 +1970,7 @@ class StablePGDumpTestCase(BaseQueryTestCase):
             raise unittest.SkipTest('SQL dump tests skipped in single db mode')
 
         super().setUpClass()
-        conargs = cls.get_connect_args()
+        frontend_dsn = cls.get_sql_proto_dsn()
         src_dbname = cls.con.dbname
         tgt_dbname = f'restored_{src_dbname}'
         try:
@@ -1982,7 +1987,7 @@ class StablePGDumpTestCase(BaseQueryTestCase):
 
         # Run pg_dump to create the dump data for an existing Gel database.
         with tempfile.NamedTemporaryFile() as f:
-            cls.run_pg_dump_on_connection(conargs, '-f', f.name)
+            cls.run_pg_dump_on_connection(frontend_dsn, '-f', f.name)
 
             # Skip the restore part of the test if the database
             # backend is older than our pg_dump, since it won't work.
