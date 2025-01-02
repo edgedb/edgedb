@@ -48,12 +48,6 @@ impl From<ParseError> for PyErr {
     }
 }
 
-impl From<db_proto::ParseError> for PyErr {
-    fn from(err: db_proto::ParseError) -> PyErr {
-        PyRuntimeError::new_err(err.to_string())
-    }
-}
-
 impl EnvVar for (String, Bound<'_, PyAny>) {
     fn read(&self, name: &'static str) -> Option<std::borrow::Cow<str>> {
         // os.environ[name], or the default user if not
@@ -357,7 +351,9 @@ impl PyConnectionState {
         if self.inner.read_ssl_response() {
             // SSL responses are always one character
             let response = [buffer.as_slice(py).unwrap().first().unwrap().get()];
-            let response = SSLResponse::new(&response)?;
+            let response = SSLResponse::new(&response).map_err(|e| {
+                PyException::new_err(e.to_string())
+            })?;
             self.inner
                 .drive(ConnectionDrive::SslResponse(response), &mut self.update)?;
         } else {

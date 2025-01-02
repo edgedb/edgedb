@@ -10,8 +10,8 @@ use pgrust::connection::{
     Client, Credentials, FlowAccumulator, MaxRows, Oid, Param, PipelineBuilder, Portal,
     ResolvedTarget, Statement,
 };
-use pgrust::protocol::match_message;
 use pgrust::protocol::postgres::data::*;
+use db_proto::match_message;
 use tokio::task::LocalSet;
 
 use captive_postgres::*;

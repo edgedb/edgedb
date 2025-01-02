@@ -746,8 +746,6 @@ macro_rules! basic_types {
 
     (: array<$ty:ty> $($len:ty)*) => {
         $(
-            field_access!($crate::FieldAccess, ArrayMeta<$len, $ty>);
-
             #[allow(unused)]
             impl FieldAccess<ArrayMeta<$len, $ty>> {
                 pub const fn meta() -> &'static dyn Meta {
