@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 /// A queue of futures that can be polled in order.
 ///
-/// Only only future will be active at a time. If no futures are active, the
+/// Only one future will be active at a time. If no futures are active, the
 /// waker will be triggered when the next future is submitted to the queue.
 pub struct FutureQueue<T> {
     queue: tokio::sync::mpsc::UnboundedReceiver<Pin<Box<dyn Future<Output = T>>>>,
