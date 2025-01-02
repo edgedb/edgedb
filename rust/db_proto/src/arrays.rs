@@ -221,7 +221,7 @@ macro_rules! array_access {
             #[inline]
             pub const fn size_of_field_at(mut buf: &[u8]) -> Result<usize, $crate::ParseError> {
                 let mut size = std::mem::size_of::<$len>();
-                let mut len = match super::FieldAccess::<$len>::extract(buf) {
+                let mut len = match $acc::FieldAccess::<$len>::extract(buf) {
                     Ok(n) => n,
                     Err(e) => return Err(e),
                 };
@@ -235,7 +235,7 @@ macro_rules! array_access {
                         break;
                     }
                     len -= 1;
-                    let elem_size = match super::FieldAccess::<$ty>::size_of_field_at(buf) {
+                    let elem_size = match $acc::FieldAccess::<$ty>::size_of_field_at(buf) {
                         Ok(n) => n,
                         Err(e) => return Err(e),
                     };
@@ -246,7 +246,7 @@ macro_rules! array_access {
             }
             #[inline(always)]
             pub const fn extract(buf: &[u8]) -> Result<$crate::Array<'_, $len, $ty>, $crate::ParseError> {
-                match super::FieldAccess::<$len>::extract(buf) {
+                match $acc::FieldAccess::<$len>::extract(buf) {
                     Ok(len) => Ok($crate::Array::new(buf.split_at(std::mem::size_of::<$len>()).1, len as u32)),
                     Err(e) => Err(e)
                 }
@@ -260,7 +260,7 @@ macro_rules! array_access {
                         break;
                     }
                     let item = &buffer[index];
-                    size += super::FieldAccess::<$ty>::measure(item);
+                    size += $acc::FieldAccess::<$ty>::measure(item);
                     index += 1;
                 }
                 size
@@ -269,14 +269,16 @@ macro_rules! array_access {
             pub fn copy_to_buf<'a>(buf: &mut $crate::BufWriter, value: &'a[<$ty as $crate::Enliven>::ForBuilder<'a>]) {
                 buf.write(&<$len>::to_be_bytes(value.len() as _));
                 for elem in value {
-                    super::FieldAccess::<$ty>::copy_to_buf(buf, elem);
+                    $acc::FieldAccess::<$ty>::copy_to_buf(buf, elem);
                 }
             }
             #[inline(always)]
-            pub const fn constant(value: usize) -> Self {
+            pub const fn constant(value: usize) -> $crate::meta::Array<$len, $ty> {
                 panic!("Constants unsupported for this data type")
             }
         }
+
+        $crate::field_access!($acc :: FieldAccess, $crate::meta::Array<$len, $ty>);
         )*
 
         #[allow(unused)]
@@ -294,7 +296,7 @@ macro_rules! array_access {
                     if buf[0] == 0 {
                         return Ok(size);
                     }
-                    let elem_size = match super::FieldAccess::<$ty>::size_of_field_at(buf) {
+                    let elem_size = match $acc::FieldAccess::<$ty>::size_of_field_at(buf) {
                         Ok(n) => n,
                         Err(e) => return Err(e),
                     };
@@ -315,7 +317,7 @@ macro_rules! array_access {
                         break;
                     }
                     let item = &buffer[index];
-                    size += super::FieldAccess::<$ty>::measure(item);
+                    size += $acc::FieldAccess::<$ty>::measure(item);
                     index += 1;
                 }
                 size
@@ -323,15 +325,17 @@ macro_rules! array_access {
             #[inline(always)]
             pub fn copy_to_buf(buf: &mut $crate::BufWriter, value: &[<$ty as $crate::Enliven>::ForBuilder<'_>]) {
                 for elem in value {
-                    super::FieldAccess::<$ty>::copy_to_buf(buf, elem);
+                    $acc::FieldAccess::<$ty>::copy_to_buf(buf, elem);
                 }
                 buf.write_u8(0);
             }
             #[inline(always)]
-            pub const fn constant(value: usize) -> Self {
+            pub const fn constant(value: usize) -> $crate::meta::ZTArray<$ty> {
                 panic!("Constants unsupported for this data type")
             }
         }
+
+        $crate::field_access!($acc :: FieldAccess, $crate::meta::ZTArray<$ty>);
     };
 }
 

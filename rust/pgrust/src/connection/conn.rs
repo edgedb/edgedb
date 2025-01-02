@@ -11,15 +11,13 @@ use crate::{
         ConnectionError,
     },
     handshake::ConnectionSslRequirement,
-    protocol::{
-        postgres::{
+    protocol::postgres::{
             builder,
             data::{Message, NotificationResponse, ParameterStatus},
             meta,
         },
-        StructBuffer,
-    },
 };
+use db_proto::StructBuffer;
 use futures::{future::Either, FutureExt};
 use std::{
     cell::RefCell,

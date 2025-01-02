@@ -175,20 +175,23 @@ macro_rules! struct_elaborate {
 #[macro_export]
 macro_rules! __protocol {
     ($( $( #[ $sdoc:meta ] )* struct $name:ident $(: $super:ident)? { $($struct:tt)+ } )+) => {
-        /// This struct is specialized for each type we want to extract data from. We
-        /// have to do it this way to work around Rust's lack of const specialization.
-        pub struct FieldAccess<T: $crate::Enliven> {
-            _phantom_data: std::marker::PhantomData<T>,
-        }
+        mod access {
+            /// This struct is specialized for each type we want to extract data from. We
+            /// have to do it this way to work around Rust's lack of const specialization.
+            pub struct FieldAccess<T: $crate::Enliven> {
+                _phantom_data: std::marker::PhantomData<T>,
+            }
 
-        $crate::field_access_copy!{$crate::FieldAccess, self::FieldAccess, u8, i16, i32, u32, u64}
-        $crate::field_access_copy!{$crate::FieldAccess, self::FieldAccess, 
-            $crate::meta::ZTString,
-            $crate::meta::LString,
-            $crate::meta::Uuid,
-            $crate::meta::Rest,
-            $crate::meta::Encoded,
-            $crate::meta::Length
+            $crate::field_access_copy!{$crate::FieldAccess, self::FieldAccess, u8, i16, i32, u32, u64}
+            $crate::field_access_copy!{basic $crate::FieldAccess, self::FieldAccess, u8, i16, i32, u32, u64}
+            $crate::field_access_copy!{$crate::FieldAccess, self::FieldAccess, 
+                $crate::meta::ZTString,
+                $crate::meta::LString,
+                $crate::meta::Uuid,
+                $crate::meta::Rest,
+                $crate::meta::Encoded,
+                $crate::meta::Length
+            }
         }
 
         $(
@@ -345,7 +348,7 @@ macro_rules! protocol_builder {
 
                     $(
                         $(
-                            let Ok(val) = super::FieldAccess::<$type>::extract(buf.split_at(offset).1) else {
+                            let Ok(val) = super::access::FieldAccess::<$type>::extract(buf.split_at(offset).1) else {
                                 return false;
                             };
                             if val as usize != $value as usize { return false; }
@@ -357,11 +360,11 @@ macro_rules! protocol_builder {
                 }
 
                 $(
-                    pub const fn can_cast(parent: &<$super as $crate::Enliven>::WithLifetime<'a>) -> bool {
+                    pub const fn can_cast(parent: &<super::meta::$super as $crate::Enliven>::WithLifetime<'a>) -> bool {
                         Self::is_buffer(parent.__buf)
                     }
 
-                    pub const fn try_new(parent: &<$super as $crate::Enliven>::WithLifetime<'a>) -> Option<Self> {
+                    pub const fn try_new(parent: &<super::meta::$super as $crate::Enliven>::WithLifetime<'a>) -> Option<Self> {
                         if Self::can_cast(parent) {
                             // TODO
                             let Ok(value) = Self::new(parent.__buf) else {
@@ -382,7 +385,7 @@ macro_rules! protocol_builder {
                     let mut index = 0;
                     $(
                         __field_offsets[index] = offset;
-                        offset += match super::FieldAccess::<$type>::size_of_field_at(buf.split_at(offset).1) {
+                        offset += match super::access::FieldAccess::<$type>::size_of_field_at(buf.split_at(offset).1) {
                             Ok(n) => n,
                             Err(e) => return Err(e),
                         };
@@ -411,7 +414,7 @@ macro_rules! protocol_builder {
                         let (_, buf) = self.__buf.split_at(offset1);
                         let (buf, _) = buf.split_at(offset2 - offset1);
                         // This will not panic: we've confirmed the validity of the buffer when sizing
-                        let Ok(value) = super::FieldAccess::<$type>::extract(buf) else {
+                        let Ok(value) = super::access::FieldAccess::<$type>::extract(buf) else {
                             panic!();
                         };
                         value
@@ -454,7 +457,7 @@ macro_rules! protocol_builder {
             #[allow(unused)]
             impl Meta {
                 pub const FIELD_COUNT: usize = [$(stringify!($field)),*].len();
-                $($(pub const [<$field:upper _VALUE>]: $type = super::FieldAccess::<$type>::constant($value as usize);)?)*
+                $($(pub const [<$field:upper _VALUE>]: $type = super::access::FieldAccess::<$type>::constant($value as usize);)?)*
             }
 
             impl $crate::Meta for Meta {
@@ -465,14 +468,14 @@ macro_rules! protocol_builder {
                     $crate::r#if!(__is_empty__ [$($super)?] {
                         const RELATIONS: &'static [($crate::MetaRelation, &'static dyn $crate::Meta)] = &[
                             $(
-                                ($crate::MetaRelation::Field(stringify!($field)), super::FieldAccess::<$type>::meta())
+                                ($crate::MetaRelation::Field(stringify!($field)), super::access::FieldAccess::<$type>::meta())
                             ),*
                         ];
                     } else {
                         const RELATIONS: &'static [($crate::MetaRelation, &'static dyn $crate::Meta)] = &[
-                            ($crate::MetaRelation::Parent, super::FieldAccess::<$($super)?>::meta()),
+                            ($crate::MetaRelation::Parent, super::access::FieldAccess::<super::meta::$($super)?>::meta()),
                             $(
-                                ($crate::MetaRelation::Field(stringify!($field)), super::FieldAccess::<$type>::meta())
+                                ($crate::MetaRelation::Field(stringify!($field)), super::access::FieldAccess::<$type>::meta())
                             ),*
                         ];
                     });
@@ -501,7 +504,7 @@ macro_rules! protocol_builder {
             }
 
             #[allow(unused)]
-            impl super::FieldAccess<Meta> {
+            impl super::access::FieldAccess<Meta> {
                 #[inline(always)]
                 pub const fn name() -> &'static str {
                     stringify!($name)
@@ -514,7 +517,7 @@ macro_rules! protocol_builder {
                 pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
                     let mut offset = 0;
                     $(
-                        offset += match super::FieldAccess::<$type>::size_of_field_at(buf.split_at(offset).1) {
+                        offset += match super::access::FieldAccess::<$type>::size_of_field_at(buf.split_at(offset).1) {
                             Ok(n) => n,
                             Err(e) => return Err(e),
                         };
@@ -535,8 +538,9 @@ macro_rules! protocol_builder {
                 }
             }
 
-            $crate::field_access!{super::FieldAccess, [<$name Meta>]}
-            $crate::array_access!{super::FieldAccess, [<$name Meta>]}
+            use super::access::FieldAccess as FieldAccess;
+            $crate::field_access!{self::FieldAccess, [<$name Meta>]}
+            $crate::array_access!{self::FieldAccess, [<$name Meta>]}
         );
     };
     (__meta__, fixed_offset($fixed_expr:expr) $field:ident $crate::meta::Length) => {
@@ -593,7 +597,7 @@ macro_rules! protocol_builder {
                 pub const fn measure(&self) -> usize {
                     let mut size = 0;
                     $(
-                        $crate::r#if!(__has__ [$($variable_marker)?] { size += super::FieldAccess::<$type>::measure(&self.$field); });
+                        $crate::r#if!(__has__ [$($variable_marker)?] { size += super::access::FieldAccess::<$type>::measure(&self.$field); });
                         $crate::r#if!(__has__ [$($fixed_marker)?] { size += std::mem::size_of::<$type>(); });
                     )*
                     size
@@ -649,7 +653,7 @@ macro_rules! protocol_builder {
                                 <$type as $crate::FieldAccessArray>::copy_to_buf(buf, &0);
                             });
                         } else {
-                            super::FieldAccess::<$type>::copy_to_buf(buf, $($value)? as usize as _);
+                            <$type as $crate::FieldAccessArray>::copy_to_buf(buf, &($($value)? as usize as _));
                         });
                     )*
 
@@ -708,7 +712,6 @@ mod tests {
     }
 
     mod mixed {
-        use crate::meta::ZTString;
         crate::protocol!(struct Mixed {
             a: u8 = 1,
             s: ZTString,

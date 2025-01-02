@@ -5,8 +5,8 @@ mod gen;
 mod message_group;
 mod writer;
 
-#[cfg(test)]
-mod test_protocol;
+#[doc(hidden)]
+pub mod test_protocol;
 
 /// Metatypes for the protocol and related arrays/strings.
 pub mod meta {
@@ -175,6 +175,32 @@ macro_rules! field_access_copy {
                 $crate::meta::Array<u8, $ty>,
                 $crate::meta::Array<i16, $ty>
             );
+        )*
+    };
+
+    (basic $acc1:ident :: FieldAccess, $acc2:ident :: FieldAccess, $($ty:ty),*) => {
+        $(
+        impl <const S: usize> $acc2 :: FieldAccess<[$ty; S]> {
+            #[inline(always)]
+            pub const fn meta() -> &'static dyn $crate::Meta {
+                $acc1::FieldAccess::<[$ty; S]>::meta()
+            }
+            #[inline(always)]
+            pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
+                $acc1::FieldAccess::<[$ty; S]>::size_of_field_at(buf)
+            }
+            #[inline(always)]
+            pub const fn extract(buf: &[u8]) -> Result<[<$ty as $crate::Enliven>::WithLifetime<'_>; S], $crate::ParseError> {
+                $acc1::FieldAccess::<[$ty; S]>::extract(buf)
+            }
+            pub const fn constant(_: usize) -> $ty {
+                panic!("Constants unsupported for this data type")
+            }
+            #[inline(always)]
+            pub const fn measure(value: &[<$ty as $crate::Enliven>::ForMeasure<'_>; S]) -> usize {
+                $acc1::FieldAccess::<[$ty; S]>::measure(value)
+            }
+        }
         )*
     };
     (: $acc1:ident :: FieldAccess, $acc2:ident :: FieldAccess, $($ty:ty),*) => {

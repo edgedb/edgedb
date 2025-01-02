@@ -11,11 +11,9 @@ use crate::{
         },
         ConnectionSslRequirement,
     },
-    protocol::{
-        postgres::{data::SSLResponse, meta, FrontendBuilder, InitialBuilder},
-        StructBuffer,
-    },
+    protocol::postgres::{data::SSLResponse, meta, FrontendBuilder, InitialBuilder},
 };
+use db_proto::StructBuffer;
 use pyo3::{
     buffer::PyBuffer,
     exceptions::{PyException, PyRuntimeError},
@@ -50,8 +48,8 @@ impl From<ParseError> for PyErr {
     }
 }
 
-impl From<crate::protocol::ParseError> for PyErr {
-    fn from(err: crate::protocol::ParseError) -> PyErr {
+impl From<db_proto::ParseError> for PyErr {
+    fn from(err: db_proto::ParseError) -> PyErr {
         PyRuntimeError::new_err(err.to_string())
     }
 }

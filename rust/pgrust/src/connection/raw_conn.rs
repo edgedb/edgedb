@@ -10,7 +10,8 @@ use crate::handshake::{
     ConnectionSslRequirement,
 };
 use crate::protocol::postgres::{FrontendBuilder, InitialBuilder};
-use crate::protocol::{postgres::data::SSLResponse, postgres::meta, StructBuffer};
+use crate::protocol::{postgres::data::SSLResponse, postgres::meta};
+use db_proto::StructBuffer;
 use gel_auth::AuthType;
 use std::collections::HashMap;
 use std::pin::Pin;

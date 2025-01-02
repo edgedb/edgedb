@@ -96,7 +96,7 @@ impl FieldAccess<RestMeta> {
         buf.write(value)
     }
     #[inline(always)]
-    pub const fn constant(value: usize) -> RestMeta {
+    pub const fn constant(_: usize) -> RestMeta {
         panic!("Constants unsupported for this data type")
     }
 }
@@ -204,6 +204,10 @@ impl FieldAccess<ZTStringMeta> {
     pub fn copy_to_buf(buf: &mut BufWriter, value: &str) {
         buf.write(value.as_bytes());
         buf.write_u8(0);
+    }
+    #[inline(always)]
+    pub const fn constant(_: usize) -> ZTStringMeta {
+        panic!("Constants unsupported for this data type")
     }
 }
 
@@ -315,6 +319,10 @@ impl FieldAccess<LStringMeta> {
         buf.write(&len.to_be_bytes());
         buf.write(value.as_bytes());
     }
+    #[inline(always)]
+    pub const fn constant(_: usize) -> LStringMeta {
+        panic!("Constants unsupported for this data type")
+    }
 }
 
 field_access!(crate::FieldAccess, UuidMeta);
@@ -367,6 +375,10 @@ impl FieldAccess<UuidMeta> {
         buf.write(value.as_bytes().as_slice());
     }
 
+    #[inline(always)]
+    pub const fn constant(_: usize) -> UuidMeta {
+        panic!("Constants unsupported for this data type")
+    }
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -492,6 +504,10 @@ impl FieldAccess<EncodedMeta> {
                 buf.write(value);
             }
         }
+    }
+    #[inline(always)]
+    pub const fn constant(_: usize) -> EncodedMeta {
+        panic!("Constants unsupported for this data type")
     }
 }
 
@@ -702,6 +718,28 @@ macro_rules! basic_types {
             }
         }
 
+        impl <const S: usize> $crate::FieldAccessArray for [$ty; S] {
+            const META: &'static dyn $crate::Meta =
+                $crate::FieldAccess::<[$ty; S]>::meta();
+            #[inline(always)]
+            fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
+                $crate::FieldAccess::<[$ty; S]>::size_of_field_at(buf)
+            }
+            #[inline(always)]
+            fn extract(
+                buf: &[u8],
+            ) -> Result<
+                <Self as $crate::Enliven>::WithLifetime<'_>,
+                $crate::ParseError,
+            > {
+                FieldAccess::<[$ty; S]>::extract(buf)
+            }
+            #[inline(always)]
+            fn copy_to_buf(buf: &mut $crate::BufWriter, value: &[$ty; S]) {
+                FieldAccess::<[$ty; S]>::copy_to_buf(buf, value)
+            }
+        }
+
         basic_types!(: array<$ty> u8 i16 i32 u32 u64);
         )*
     };
@@ -785,7 +823,7 @@ macro_rules! basic_types {
                     }
                 }
                 #[inline(always)]
-                pub const fn constant(value: usize) -> Self {
+                pub const fn constant(value: usize) -> ArrayMeta<$len, $ty> {
                     panic!("Constants unsupported for this data type")
                 }   
             }

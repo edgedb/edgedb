@@ -17,18 +17,15 @@
 
 use std::{cell::RefCell, num::NonZeroU32, rc::Rc};
 
-use crate::protocol::{
-    match_message,
-    postgres::{
+use crate::protocol::postgres::{
         builder,
         data::{
             BindComplete, CloseComplete, CommandComplete, CopyData, CopyDone, CopyOutResponse,
             DataRow, EmptyQueryResponse, ErrorResponse, Message, NoData, NoticeResponse,
             ParameterDescription, ParseComplete, PortalSuspended, ReadyForQuery, RowDescription,
         },
-    },
-    Encoded,
-};
+    };
+use db_proto::{Encoded, match_message};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Param<'a> {
