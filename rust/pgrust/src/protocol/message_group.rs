@@ -21,7 +21,7 @@ macro_rules! message_group {
 
         #[allow(unused)]
         impl [<$group Builder>]<'_> {
-            pub fn to_vec(&self) -> Vec<u8> {
+            pub fn to_vec(self) -> Vec<u8> {
                 match self {
                     $(
                         Self::$message(message) => message.to_vec(),

@@ -282,7 +282,7 @@ struct Close: Message {
     mtype: u8 = 'C',
     /// Length of message contents in bytes, including self.
     mlen: len,
-    /// 'xS' to close a prepared statement; 'P' to close a portal.
+    /// 'S' to close a prepared statement; 'P' to close a portal.
     ctype: u8,
     /// The name of the prepared statement or portal to close.
     name: ZTString,
@@ -564,7 +564,7 @@ struct Parse: Message {
     mlen: len,
     /// The name of the destination prepared statement.
     statement: ZTString,
-    /// The query String to be parsed.
+    /// The query string to be parsed.
     query: ZTString,
     /// OIDs of the parameter data types.
     param_types: Array<i16, i32>,

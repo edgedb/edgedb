@@ -385,6 +385,15 @@ pub enum Encoded<'a> {
     Value(&'a [u8]),
 }
 
+impl<'a> Encoded<'a> {
+    pub fn to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
+        match self {
+            Encoded::Null => "".into(),
+            Encoded::Value(value) => String::from_utf8_lossy(value),
+        }
+    }
+}
+
 impl<'a> AsRef<Encoded<'a>> for Encoded<'a> {
     fn as_ref(&self) -> &Encoded<'a> {
         self
@@ -443,10 +452,10 @@ impl FieldAccess<EncodedMeta> {
         const N: usize = std::mem::size_of::<i32>();
         if let Some(len) = buf.first_chunk::<N>() {
             let len = i32::from_be_bytes(*len);
-            if len < 0 {
-                Err(ParseError::InvalidData)
-            } else if len == -1 {
+            if len == -1 {
                 Ok(N)
+            } else if len < 0 {
+                Err(ParseError::InvalidData)
             } else if buf.len() < len as usize + N {
                 Err(ParseError::TooShort)
             } else {
@@ -461,10 +470,10 @@ impl FieldAccess<EncodedMeta> {
         const N: usize = std::mem::size_of::<i32>();
         if let Some((len, array)) = buf.split_first_chunk::<N>() {
             let len = i32::from_be_bytes(*len);
-            if len < 0 {
-                Err(ParseError::InvalidData)
-            } else if len == -1 {
+            if len == -1 && array.is_empty() {
                 Ok(Encoded::Null)
+            } else if len < 0 {
+                Err(ParseError::InvalidData)
             } else if array.len() < len as _ {
                 Err(ParseError::TooShort)
             } else {
