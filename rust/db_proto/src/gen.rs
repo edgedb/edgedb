@@ -176,13 +176,14 @@ macro_rules! struct_elaborate {
 macro_rules! __protocol {
     ($( $( #[ $sdoc:meta ] )* struct $name:ident $(: $super:ident)? { $($struct:tt)+ } )+) => {
         mod access {
+            #![allow(unused)]
+
             /// This struct is specialized for each type we want to extract data from. We
             /// have to do it this way to work around Rust's lack of const specialization.
             pub struct FieldAccess<T: $crate::Enliven> {
                 _phantom_data: std::marker::PhantomData<T>,
             }
 
-            $crate::field_access_copy!{$crate::FieldAccess, self::FieldAccess, u8, i16, i32, u32, u64}
             $crate::field_access_copy!{basic $crate::FieldAccess, self::FieldAccess, u8, i16, i32, u32, u64}
             $crate::field_access_copy!{$crate::FieldAccess, self::FieldAccess, 
                 $crate::meta::ZTString,
@@ -198,7 +199,8 @@ macro_rules! __protocol {
             paste::paste!(
                 #[allow(unused_imports)]
                 pub(crate) mod [<__ $name:lower>] {
-                    use $crate::{protocol_builder, meta::*};
+                    use $crate::{meta::*, protocol_builder};
+                    use super::meta::*;
                     $crate::struct_elaborate!(protocol_builder(__struct__) => $( #[ $sdoc ] )* struct $name $(: $super)? { $($struct)+ } );
                     $crate::struct_elaborate!(protocol_builder(__meta__) => $( #[ $sdoc ] )* struct $name $(: $super)? { $($struct)+ } );
                     $crate::struct_elaborate!(protocol_builder(__measure__) => $( #[ $sdoc ] )* struct $name $(: $super)? { $($struct)+ } );

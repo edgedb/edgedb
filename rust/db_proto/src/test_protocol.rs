@@ -39,4 +39,24 @@ protocol!(
         /// The values in the row.
         values: Array<i16, Encoded>,
     }
+
+    struct QueryType {
+        /// The type of the query parameter.
+        typ: u8,
+        /// The length of the query parameter.
+        len: u32,
+        /// The metadata of the query parameter.
+        meta: Array<u32, u8>,
+    }
+
+    struct Query: Message {
+        /// Identifies the message as a query.
+        mtype: u8 = 'Q',
+        /// Length of message contents in bytes, including self.
+        mlen: len,
+        /// The query string.
+        query: ZTString,
+        /// The types of the query parameters.
+        types: Array<i16, QueryType>,
+    }
 );

@@ -209,7 +209,7 @@ impl<'a, T: FieldAccessArray> Iterator for ArrayIter<'a, T> {
 #[doc(hidden)]
 macro_rules! array_access {
     ($acc:ident :: FieldAccess, $ty:ty) => {
-        $crate::array_access!($acc :: FieldAccess, $ty | u8 i16 i32);
+        $crate::array_access!($acc :: FieldAccess, $ty | u8 i16 i32 u32);
     };
     ($acc:ident :: FieldAccess, $ty:ty | $($len:ty)*) => {
         $(
