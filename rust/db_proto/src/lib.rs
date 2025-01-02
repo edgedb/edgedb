@@ -136,6 +136,77 @@ pub struct FieldAccess<T: Enliven> {
     _phantom_data: std::marker::PhantomData<T>,
 }
 
+/// Declares a field access for a given type.
+#[macro_export]
+#[doc(hidden)]
+macro_rules! declare_field_access {
+    (
+        Meta = $meta:ty,
+        Inflated = $inflated:ty,
+        Measure = $measured:ty,
+        Builder = $builder:ty,
+
+        pub const fn meta() -> &'static dyn Meta 
+            $meta_body:block
+        
+
+        pub const fn size_of_field_at($size_of_arg0:ident : &[u8]) -> Result<usize, ParseError> 
+            $size_of:block
+        
+
+        pub const fn extract($extract_arg0:ident : &[u8]) -> Result<$extract_ret:ty, ParseError> 
+           $extract:block
+        
+
+        pub const fn measure($measure_arg0:ident : &$measure_param:ty) -> usize 
+            $measure:block
+        
+
+        pub fn copy_to_buf($copy_arg0:ident : &mut BufWriter, $copy_arg1:ident : &$value_param:ty) 
+            $copy:block
+        
+
+        pub const fn constant($constant_arg0:ident : usize) -> $constant_ret:ty 
+            $constant:block
+    ) => {
+        impl Enliven for $meta {
+            type WithLifetime<'a> = $inflated;
+            type ForMeasure<'a> = $measured;
+            type ForBuilder<'a> = $builder;
+        }
+
+        impl FieldAccess<$meta> {
+            #[inline(always)]
+            pub const fn meta() -> &'static dyn Meta {
+                $meta_body
+            }
+            #[inline(always)]
+            pub const fn size_of_field_at($size_of_arg0: &[u8]) -> Result<usize, ParseError> {
+                $size_of
+            }
+            #[inline(always)]
+            pub const fn extract($extract_arg0: &[u8]) -> Result<$extract_ret, ParseError> {
+                $extract
+            }
+            #[inline(always)]
+            pub const fn measure($measure_arg0: &$measure_param) -> usize {
+                $measure
+            }
+            #[inline(always)]
+            pub fn copy_to_buf($copy_arg0: &mut BufWriter, $copy_arg1: &$value_param) {
+                $copy
+            }
+            #[inline(always)]
+            pub const fn constant($constant_arg0: usize) -> $constant_ret {
+                $constant
+            }
+        }
+        
+        $crate::field_access!($crate::FieldAccess, RestMeta);
+        $crate::array_access!($crate::FieldAccess, RestMeta);
+    }
+}
+
 /// Delegate to the concrete [`FieldAccess`] for each type we want to extract.
 #[macro_export]
 #[doc(hidden)]

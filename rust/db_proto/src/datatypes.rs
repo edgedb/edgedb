@@ -3,11 +3,7 @@ use std::{marker::PhantomData, str::Utf8Error};
 use uuid::Uuid;
 
 use crate::{
-    array_access,
-    arrays::{Array, ArrayMeta},
-    field_access,
-    writer::BufWriter,
-    Enliven, FieldAccess, Meta, ParseError,
+    array_access, arrays::{Array, ArrayMeta}, declare_field_access, field_access, writer::BufWriter, Enliven, FieldAccess, Meta, ParseError
 };
 
 pub mod meta {
@@ -25,20 +21,42 @@ pub struct Rest<'a> {
     buf: &'a [u8],
 }
 
-field_access!(crate::FieldAccess, RestMeta);
-// TODO: remove
-array_access!(crate::FieldAccess, RestMeta);
+declare_field_access!{
+    Meta = RestMeta,
+    Inflated = Rest<'a>,
+    Measure = &'a [u8],
+    Builder = &'a [u8],
+
+    pub const fn meta() -> &'static dyn Meta {
+        &RestMeta {}
+    }
+
+    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
+        Ok(buf.len())
+    }
+
+    pub const fn extract(buf: &[u8]) -> Result<Rest<'_>, ParseError> {
+        Ok(Rest { buf })
+    }
+
+    pub const fn measure(buf: &[u8]) -> usize {
+        buf.len()
+    }
+
+    pub fn copy_to_buf(buf: &mut BufWriter, value: &[u8]) {
+        buf.write(value)
+    }
+
+    pub const fn constant(_constant: usize) -> RestMeta {
+        panic!("Constants unsupported for this data type")
+    }
+}
 
 pub struct RestMeta {}
 impl Meta for RestMeta {
     fn name(&self) -> &'static str {
         "Rest"
     }
-}
-impl Enliven for RestMeta {
-    type WithLifetime<'a> = Rest<'a>;
-    type ForMeasure<'a> = &'a [u8];
-    type ForBuilder<'a> = &'a [u8];
 }
 
 impl<'a> Rest<'a> {}
@@ -71,33 +89,6 @@ impl<const N: usize> PartialEq<&[u8; N]> for Rest<'_> {
 impl PartialEq<&[u8]> for Rest<'_> {
     fn eq(&self, other: &&[u8]) -> bool {
         self.buf == *other
-    }
-}
-
-impl FieldAccess<RestMeta> {
-    #[inline(always)]
-    pub const fn meta() -> &'static dyn Meta {
-        &RestMeta {}
-    }
-    #[inline(always)]
-    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
-        Ok(buf.len())
-    }
-    #[inline(always)]
-    pub const fn extract(buf: &[u8]) -> Result<Rest<'_>, ParseError> {
-        Ok(Rest { buf })
-    }
-    #[inline(always)]
-    pub const fn measure(buf: &[u8]) -> usize {
-        buf.len()
-    }
-    #[inline(always)]
-    pub fn copy_to_buf(buf: &mut BufWriter, value: &[u8]) {
-        buf.write(value)
-    }
-    #[inline(always)]
-    pub const fn constant(_: usize) -> RestMeta {
-        panic!("Constants unsupported for this data type")
     }
 }
 
