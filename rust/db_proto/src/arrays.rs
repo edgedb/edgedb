@@ -236,7 +236,7 @@ impl<'a, T: FieldAccessArray> Iterator for ArrayIter<'a, T> {
     }
 }
 
-/// Definate array accesses for inflated, strongly-typed arrays of both
+/// Define array accesses for inflated, strongly-typed arrays of both
 /// zero-terminated and length-delimited types.
 #[macro_export]
 #[doc(hidden)]
