@@ -202,8 +202,8 @@ macro_rules! declare_field_access {
             }
         }
         
-        $crate::field_access!($crate::FieldAccess, RestMeta);
-        $crate::array_access!($crate::FieldAccess, RestMeta);
+        $crate::field_access!($crate::FieldAccess, $meta);
+        $crate::array_access!($crate::FieldAccess, $meta);
     }
 }
 
@@ -300,7 +300,7 @@ macro_rules! field_access_copy {
             pub const fn extract(buf: &[u8]) -> Result<<$ty as $crate::Enliven>::WithLifetime<'_>, $crate::ParseError> {
                 $acc1::FieldAccess::<$ty>::extract(buf)
             }
-            pub const fn constant(value: usize) -> $ty {
+            pub const fn constant(value: usize) -> <$ty as $crate::Enliven>::WithLifetime<'static> {
                 $acc1::FieldAccess::<$ty>::constant(value)
             }
             #[inline(always)]

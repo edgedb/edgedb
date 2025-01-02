@@ -306,7 +306,7 @@ macro_rules! array_access {
                 }
             }
             #[inline(always)]
-            pub const fn constant(value: usize) -> $crate::meta::Array<$len, $ty> {
+            pub const fn constant(value: usize) -> $crate::Array<'static, $len, $ty> {
                 panic!("Constants unsupported for this data type")
             }
         }
@@ -361,7 +361,7 @@ macro_rules! array_access {
                 buf.write_u8(0);
             }
             #[inline(always)]
-            pub const fn constant(value: usize) -> $crate::meta::ZTArray<$ty> {
+            pub const fn constant(value: usize) -> $crate::ZTArray<'static, $ty> {
                 panic!("Constants unsupported for this data type")
             }
         }

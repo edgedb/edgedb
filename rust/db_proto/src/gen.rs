@@ -459,7 +459,7 @@ macro_rules! protocol_builder {
             #[allow(unused)]
             impl Meta {
                 pub const FIELD_COUNT: usize = [$(stringify!($field)),*].len();
-                $($(pub const [<$field:upper _VALUE>]: $type = super::access::FieldAccess::<$type>::constant($value as usize);)?)*
+                $($(pub const [<$field:upper _VALUE>]: <$type as $crate::Enliven>::WithLifetime<'static> = super::access::FieldAccess::<$type>::constant($value as usize);)?)*
             }
 
             impl $crate::Meta for Meta {

@@ -47,7 +47,7 @@ declare_field_access!{
         buf.write(value)
     }
 
-    pub const fn constant(_constant: usize) -> RestMeta {
+    pub const fn constant(_constant: usize) -> Rest<'static> {
         panic!("Constants unsupported for this data type")
     }
 }
@@ -98,20 +98,53 @@ pub struct ZTString<'a> {
     buf: &'a [u8],
 }
 
-field_access!(crate::FieldAccess, ZTStringMeta);
-array_access!(crate::FieldAccess, ZTStringMeta);
+declare_field_access!(
+    Meta = ZTStringMeta,
+    Inflated = ZTString<'a>,
+    Measure = &'a str,
+    Builder = &'a str,
+
+    pub const fn meta() -> &'static dyn Meta {
+        &ZTStringMeta {}
+    }
+
+    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
+        let mut i = 0;
+        loop {
+            if i >= buf.len() {
+                return Err(ParseError::TooShort);
+            }
+            if buf[i] == 0 {
+                return Ok(i + 1);
+            }
+            i += 1;
+        }
+    }
+
+    pub const fn extract(buf: &[u8]) -> Result<ZTString<'_>, ParseError> {
+        let buf = buf.split_at(buf.len() - 1).0;
+        Ok(ZTString { buf })
+    }
+
+    pub const fn measure(buf: &str) -> usize {
+        buf.len() + 1
+    }
+
+    pub fn copy_to_buf(buf: &mut BufWriter, value: &str) {
+        buf.write(value.as_bytes());
+        buf.write_u8(0);
+    }
+
+    pub const fn constant(_constant: usize) -> ZTString<'static> {
+        panic!("Constants unsupported for this data type")
+    }
+);
 
 pub struct ZTStringMeta {}
 impl Meta for ZTStringMeta {
     fn name(&self) -> &'static str {
         "ZTString"
     }
-}
-
-impl Enliven for ZTStringMeta {
-    type WithLifetime<'a> = ZTString<'a>;
-    type ForMeasure<'a> = &'a str;
-    type ForBuilder<'a> = &'a str;
 }
 
 impl std::fmt::Debug for ZTString<'_> {
@@ -164,64 +197,62 @@ impl<'a> TryInto<&'a str> for ZTString<'a> {
     }
 }
 
-impl FieldAccess<ZTStringMeta> {
-    #[inline(always)]
-    pub const fn meta() -> &'static dyn Meta {
-        &ZTStringMeta {}
-    }
-    #[inline(always)]
-    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
-        let mut i = 0;
-        loop {
-            if i >= buf.len() {
-                return Err(ParseError::TooShort);
-            }
-            if buf[i] == 0 {
-                return Ok(i + 1);
-            }
-            i += 1;
-        }
-    }
-    #[inline(always)]
-    pub const fn extract(buf: &[u8]) -> Result<ZTString<'_>, ParseError> {
-        let buf = buf.split_at(buf.len() - 1).0;
-        Ok(ZTString { buf })
-    }
-    #[inline(always)]
-    pub const fn measure(buf: &str) -> usize {
-        buf.len() + 1
-    }
-    #[inline(always)]
-    pub fn copy_to_buf(buf: &mut BufWriter, value: &str) {
-        buf.write(value.as_bytes());
-        buf.write_u8(0);
-    }
-    #[inline(always)]
-    pub const fn constant(_: usize) -> ZTStringMeta {
-        panic!("Constants unsupported for this data type")
-    }
-}
-
 /// A length-prefixed string.
 #[allow(unused)]
 pub struct LString<'a> {
     buf: &'a [u8],
 }
+declare_field_access!(
+    Meta = LStringMeta,
+    Inflated = LString<'a>,
+    Measure = &'a str,
+    Builder = &'a str,
 
-field_access!(crate::FieldAccess, LStringMeta);
-array_access!(crate::FieldAccess, LStringMeta);
+    pub const fn meta() -> &'static dyn Meta {
+        &LStringMeta {}
+    }
+
+    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
+        if buf.len() < 4 {
+            return Err(ParseError::TooShort);
+        }
+        let len = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
+        Ok(4 + len)
+    }
+
+    pub const fn extract(buf: &[u8]) -> Result<LString<'_>, ParseError> {
+        if buf.len() < 4 {
+            return Err(ParseError::TooShort);
+        }
+        let len = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
+        if buf.len() < 4 + len {
+            return Err(ParseError::TooShort);
+        }
+        Ok(LString {
+            buf: buf.split_at(4).1,
+        })
+    }
+
+    pub const fn measure(buf: &str) -> usize {
+        4 + buf.len()
+    }
+
+    pub fn copy_to_buf(buf: &mut BufWriter, value: &str) {
+        let len = value.len() as u32;
+        buf.write(&len.to_be_bytes());
+        buf.write(value.as_bytes());
+    }
+
+    pub const fn constant(_constant: usize) -> LString<'static> {
+        panic!("Constants unsupported for this data type")
+    }
+);
 
 pub struct LStringMeta {}
 impl Meta for LStringMeta {
     fn name(&self) -> &'static str {
         "LString"
     }
-}
-
-impl Enliven for LStringMeta {
-    type WithLifetime<'a> = LString<'a>;
-    type ForMeasure<'a> = &'a str;
-    type ForBuilder<'a> = &'a str;
 }
 
 impl std::fmt::Debug for LString<'_> {
@@ -274,71 +305,16 @@ impl<'a> TryInto<&'a str> for LString<'a> {
     }
 }
 
-impl FieldAccess<LStringMeta> {
-    #[inline(always)]
-    pub const fn meta() -> &'static dyn Meta {
-        &LStringMeta {}
-    }
-    #[inline(always)]
-    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
-        if buf.len() < 4 {
-            return Err(ParseError::TooShort);
-        }
-        let len = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
-        Ok(4 + len)
-    }
-    #[inline(always)]
-    pub const fn extract(buf: &[u8]) -> Result<LString<'_>, ParseError> {
-        if buf.len() < 4 {
-            return Err(ParseError::TooShort);
-        }
-        let len = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
-        if buf.len() < 4 + len {
-            return Err(ParseError::TooShort);
-        }
-        Ok(LString {
-            buf: buf.split_at(4).1,
-        })
-    }
-    #[inline(always)]
-    pub const fn measure(buf: &str) -> usize {
-        4 + buf.len()
-    }
-    #[inline(always)]
-    pub fn copy_to_buf(buf: &mut BufWriter, value: &str) {
-        let len = value.len() as u32;
-        buf.write(&len.to_be_bytes());
-        buf.write(value.as_bytes());
-    }
-    #[inline(always)]
-    pub const fn constant(_: usize) -> LStringMeta {
-        panic!("Constants unsupported for this data type")
-    }
-}
+declare_field_access! {
+    Meta = UuidMeta,
+    Inflated = Uuid,
+    Measure = Uuid,
+    Builder = Uuid,
 
-field_access!(crate::FieldAccess, UuidMeta);
-array_access!(crate::FieldAccess, UuidMeta);
-
-pub struct UuidMeta {}
-impl Meta for UuidMeta {
-    fn name(&self) -> &'static str {
-        "Uuid"
-    }
-}
-
-impl Enliven for UuidMeta {
-    type WithLifetime<'a> = Uuid;
-    type ForMeasure<'a> = Uuid;
-    type ForBuilder<'a> = Uuid;
-}
-
-impl FieldAccess<UuidMeta> {
-    #[inline(always)]
     pub const fn meta() -> &'static dyn Meta {
         &UuidMeta {}
     }
 
-    #[inline(always)]
     pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
         if buf.len() < 16 {
             Err(ParseError::TooShort)
@@ -347,7 +323,6 @@ impl FieldAccess<UuidMeta> {
         }
     }
 
-    #[inline(always)]
     pub const fn extract(buf: &[u8]) -> Result<Uuid, ParseError> {
         if let Some(bytes) = buf.first_chunk() {
             Ok(Uuid::from_u128(<u128>::from_be_bytes(*bytes)))
@@ -356,19 +331,23 @@ impl FieldAccess<UuidMeta> {
         }
     }
 
-    #[inline(always)]
     pub const fn measure(_value: &Uuid) -> usize {
         16
     }
 
-    #[inline(always)]
     pub fn copy_to_buf(buf: &mut BufWriter, value: &Uuid) {
-        buf.write(value.as_bytes().as_slice());
+        buf.write(value.as_bytes().as_slice())
     }
 
-    #[inline(always)]
-    pub const fn constant(_: usize) -> UuidMeta {
+    pub const fn constant(_constant: usize) -> Uuid {
         panic!("Constants unsupported for this data type")
+    }
+}
+
+pub struct UuidMeta {}
+impl Meta for UuidMeta {
+    fn name(&self) -> &'static str {
+        "Uuid"
     }
 }
 
@@ -394,21 +373,80 @@ impl<'a> AsRef<Encoded<'a>> for Encoded<'a> {
         self
     }
 }
+declare_field_access!(
+    Meta = EncodedMeta,
+    Inflated = Encoded<'a>,
+    Measure = Encoded<'a>,
+    Builder = Encoded<'a>,
 
-field_access!(crate::FieldAccess, EncodedMeta);
-array_access!(crate::FieldAccess, EncodedMeta);
+    pub const fn meta() -> &'static dyn Meta {
+        &EncodedMeta {}
+    }
+
+    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
+        const N: usize = std::mem::size_of::<i32>();
+        if let Some(len) = buf.first_chunk::<N>() {
+            let len = i32::from_be_bytes(*len);
+            if len == -1 {
+                Ok(N)
+            } else if len < 0 {
+                Err(ParseError::InvalidData)
+            } else if buf.len() < len as usize + N {
+                Err(ParseError::TooShort)
+            } else {
+                Ok(len as usize + N)
+            }
+        } else {
+            Err(ParseError::TooShort)
+        }
+    }
+
+    pub const fn extract(buf: &[u8]) -> Result<Encoded<'_>, ParseError> {
+        const N: usize = std::mem::size_of::<i32>();
+        if let Some((len, array)) = buf.split_first_chunk::<N>() {
+            let len = i32::from_be_bytes(*len);
+            if len == -1 && array.is_empty() {
+                Ok(Encoded::Null)
+            } else if len < 0 {
+                Err(ParseError::InvalidData)
+            } else if array.len() < len as _ {
+                Err(ParseError::TooShort)
+            } else {
+                Ok(Encoded::Value(array))
+            }
+        } else {
+            Err(ParseError::TooShort)
+        }
+    }
+
+    pub const fn measure(value: &Encoded) -> usize {
+        match value {
+            Encoded::Null => std::mem::size_of::<i32>(),
+            Encoded::Value(value) => value.len() + std::mem::size_of::<i32>(),
+        }
+    }
+
+    pub fn copy_to_buf(buf: &mut BufWriter, value: &Encoded) {
+        match value {
+            Encoded::Null => buf.write(&[0xff, 0xff, 0xff, 0xff]),
+            Encoded::Value(value) => {
+                let len: i32 = value.len() as _;
+                buf.write(&len.to_be_bytes());
+                buf.write(value);
+            }
+        }
+    }
+
+    pub const fn constant(_constant: usize) -> Encoded<'static> {
+        panic!("Constants unsupported for this data type")
+    }
+);
 
 pub struct EncodedMeta {}
 impl Meta for EncodedMeta {
     fn name(&self) -> &'static str {
         "Encoded"
     }
-}
-
-impl Enliven for EncodedMeta {
-    type WithLifetime<'a> = Encoded<'a>;
-    type ForMeasure<'a> = Encoded<'a>;
-    type ForBuilder<'a> = Encoded<'a>;
 }
 
 impl<'a> Encoded<'a> {}
@@ -437,80 +475,16 @@ impl PartialEq<&[u8]> for Encoded<'_> {
     }
 }
 
-impl FieldAccess<EncodedMeta> {
-    #[inline(always)]
-    pub const fn meta() -> &'static dyn Meta {
-        &EncodedMeta {}
-    }
-    #[inline(always)]
-    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
-        const N: usize = std::mem::size_of::<i32>();
-        if let Some(len) = buf.first_chunk::<N>() {
-            let len = i32::from_be_bytes(*len);
-            if len == -1 {
-                Ok(N)
-            } else if len < 0 {
-                Err(ParseError::InvalidData)
-            } else if buf.len() < len as usize + N {
-                Err(ParseError::TooShort)
-            } else {
-                Ok(len as usize + N)
-            }
-        } else {
-            Err(ParseError::TooShort)
-        }
-    }
-    #[inline(always)]
-    pub const fn extract(buf: &[u8]) -> Result<Encoded<'_>, ParseError> {
-        const N: usize = std::mem::size_of::<i32>();
-        if let Some((len, array)) = buf.split_first_chunk::<N>() {
-            let len = i32::from_be_bytes(*len);
-            if len == -1 && array.is_empty() {
-                Ok(Encoded::Null)
-            } else if len < 0 {
-                Err(ParseError::InvalidData)
-            } else if array.len() < len as _ {
-                Err(ParseError::TooShort)
-            } else {
-                Ok(Encoded::Value(array))
-            }
-        } else {
-            Err(ParseError::TooShort)
-        }
-    }
-    #[inline(always)]
-    pub const fn measure(value: &Encoded) -> usize {
-        match value {
-            Encoded::Null => std::mem::size_of::<i32>(),
-            Encoded::Value(value) => value.len() + std::mem::size_of::<i32>(),
-        }
-    }
-    #[inline(always)]
-    pub fn copy_to_buf(buf: &mut BufWriter, value: &Encoded) {
-        match value {
-            Encoded::Null => buf.write(&[0xff, 0xff, 0xff, 0xff]),
-            Encoded::Value(value) => {
-                let len: i32 = value.len() as _;
-                buf.write(&len.to_be_bytes());
-                buf.write(value);
-            }
-        }
-    }
-    #[inline(always)]
-    pub const fn constant(_: usize) -> EncodedMeta {
-        panic!("Constants unsupported for this data type")
-    }
-}
-
 // We alias usize here. Note that if this causes trouble in the future we can
 // probably work around this by adding a new "const value" function to
 // FieldAccess. For now it works!
-pub struct LengthMeta(#[allow(unused)] i32);
+pub struct LengthMeta {}
 impl Enliven for LengthMeta {
     type WithLifetime<'a> = usize;
     type ForMeasure<'a> = usize;
     type ForBuilder<'a> = usize;
 }
+
 impl Meta for LengthMeta {
     fn name(&self) -> &'static str {
         "len"
@@ -520,11 +494,11 @@ impl Meta for LengthMeta {
 impl FieldAccess<LengthMeta> {
     #[inline(always)]
     pub const fn meta() -> &'static dyn Meta {
-        &LengthMeta(0)
+        &LengthMeta {}
     }
     #[inline(always)]
-    pub const fn constant(value: usize) -> LengthMeta {
-        LengthMeta(value as i32)
+    pub const fn constant(value: usize) -> usize {
+        value
     }
     #[inline(always)]
     pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
@@ -814,7 +788,7 @@ macro_rules! basic_types {
                     }
                 }
                 #[inline(always)]
-                pub const fn constant(value: usize) -> ArrayMeta<$len, $ty> {
+                pub const fn constant(value: usize) -> Array<'static, $len, $ty> {
                     panic!("Constants unsupported for this data type")
                 }
             }
