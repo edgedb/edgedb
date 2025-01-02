@@ -173,7 +173,9 @@ macro_rules! field_access_copy {
             $crate::field_access_copy!(: $acc1 :: FieldAccess, $acc2 :: FieldAccess, 
                 $ty, 
                 $crate::meta::Array<u8, $ty>,
-                $crate::meta::Array<i16, $ty>
+                $crate::meta::Array<i16, $ty>,
+                $crate::meta::Array<i32, $ty>,
+                $crate::meta::Array<u32, $ty>
             );
         )*
     };
