@@ -46,7 +46,7 @@ class TestQueryStatsMixin:
         # reset_query_stats() may potentially affect other concurrent tests,
         # so use an explicit lock to prevent that. The magic number is lower
         # than gen_lock_key() (min_pid(=1024) * 1000).
-        await self.con.query( 'select sys::_advisory_lock(888888)')
+        await self.con.query('select sys::_advisory_lock(888888)')
         try:
             await self._test_sys_query_stats_inner()
         finally:
