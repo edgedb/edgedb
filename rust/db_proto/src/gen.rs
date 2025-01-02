@@ -185,7 +185,7 @@ macro_rules! __protocol {
             }
 
             $crate::field_access_copy!{basic $crate::FieldAccess, self::FieldAccess, u8, i16, i32, u32, u64}
-            $crate::field_access_copy!{$crate::FieldAccess, self::FieldAccess, 
+            $crate::field_access_copy!{$crate::FieldAccess, self::FieldAccess,
                 $crate::meta::ZTString,
                 $crate::meta::LString,
                 $crate::meta::Uuid,

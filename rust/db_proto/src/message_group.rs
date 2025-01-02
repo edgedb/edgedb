@@ -141,10 +141,7 @@ pub use __match_message as match_message;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_protocol::{
-        builder,
-        data::*,
-    };
+    use crate::test_protocol::{builder, data::*};
 
     #[test]
     fn test_match() {

@@ -4,6 +4,7 @@ use std::num::NonZero;
 use std::rc::Rc;
 
 // Constants
+use db_proto::match_message;
 use gel_auth::AuthType;
 use pgrust::connection::tokio::TokioStream;
 use pgrust::connection::{
@@ -11,7 +12,6 @@ use pgrust::connection::{
     ResolvedTarget, Statement,
 };
 use pgrust::protocol::postgres::data::*;
-use db_proto::match_message;
 use tokio::task::LocalSet;
 
 use captive_postgres::*;

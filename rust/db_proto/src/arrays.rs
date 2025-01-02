@@ -1,6 +1,6 @@
 #![allow(private_bounds)]
 
-use super::{ParseError, Enliven, FieldAccessArray, FixedSize, Meta, MetaRelation};
+use super::{Enliven, FieldAccessArray, FixedSize, Meta, MetaRelation, ParseError};
 pub use std::marker::PhantomData;
 
 pub mod meta {
@@ -96,8 +96,10 @@ impl<'a, T: FieldAccessArray> Iterator for ZTArrayIter<'a, T> {
     }
 }
 
-impl <T: FieldAccessArray + 'static> FieldAccessArray for ZTArrayMeta<T> {
-    const META: &'static dyn Meta = &ZTArrayMeta::<T> { _phantom: PhantomData };
+impl<T: FieldAccessArray + 'static> FieldAccessArray for ZTArrayMeta<T> {
+    const META: &'static dyn Meta = &ZTArrayMeta::<T> {
+        _phantom: PhantomData,
+    };
     fn size_of_field_at(mut buf: &[u8]) -> Result<usize, ParseError> {
         let mut size = 1;
         loop {
@@ -390,12 +392,15 @@ impl<'a, L: TryInto<usize>, T: FixedSize + FieldAccessArray> Array<'a, L, T> {
     }
 }
 
-
-impl <L: FieldAccessArray + 'static, T: FieldAccessArray + 'static> FieldAccessArray for ArrayMeta<L, T> 
-    where 
-    for <'a> L::ForBuilder<'a>: TryFrom<usize>,
-    for <'a> L::WithLifetime<'a>: TryInto<usize> {
-    const META: &'static dyn Meta = &ArrayMeta::<L, T> { _phantom: PhantomData };
+impl<L: FieldAccessArray + 'static, T: FieldAccessArray + 'static> FieldAccessArray
+    for ArrayMeta<L, T>
+where
+    for<'a> L::ForBuilder<'a>: TryFrom<usize>,
+    for<'a> L::WithLifetime<'a>: TryInto<usize>,
+{
+    const META: &'static dyn Meta = &ArrayMeta::<L, T> {
+        _phantom: PhantomData,
+    };
     fn size_of_field_at(mut buf: &[u8]) -> Result<usize, ParseError> {
         let mut size = std::mem::size_of::<T>();
         let len = match L::extract(buf) {
@@ -403,7 +408,8 @@ impl <L: FieldAccessArray + 'static, T: FieldAccessArray + 'static> FieldAccessA
             Err(e) => return Err(e),
         };
         #[allow(unused_comparisons)]
-        let Ok(mut len) = len else {
+        let Ok(mut len) = len
+        else {
             return Err(ParseError::InvalidData);
         };
         buf = buf.split_at(size).1;
@@ -424,12 +430,17 @@ impl <L: FieldAccessArray + 'static, T: FieldAccessArray + 'static> FieldAccessA
     fn extract(buf: &[u8]) -> Result<Array<L, T>, ParseError> {
         let len = match L::extract(buf) {
             Ok(len) => len.try_into(),
-            Err(e) => { return Err(e); }
+            Err(e) => {
+                return Err(e);
+            }
         };
         let Ok(len) = len else {
             return Err(ParseError::InvalidData);
         };
-        Ok(Array::new(buf.split_at(std::mem::size_of::<L>()).1, len as _))
+        Ok(Array::new(
+            buf.split_at(std::mem::size_of::<L>()).1,
+            len as _,
+        ))
     }
     fn copy_to_buf(buf: &mut crate::BufWriter, value: &&[<T as Enliven>::ForBuilder<'_>]) {
         let Ok(len) = L::ForBuilder::try_from(value.len()) else {

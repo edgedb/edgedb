@@ -19,9 +19,9 @@ pub use arrays::{Array, ArrayIter, ZTArray, ZTArrayIter};
 pub use buffer::StructBuffer;
 #[allow(unused)]
 pub use datatypes::{Encoded, LString, Rest, ZTString};
+pub use gen::protocol;
 pub use message_group::{match_message, message_group};
 pub use writer::BufWriter;
-pub use gen::protocol;
 
 #[derive(thiserror::Error, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseError {
@@ -142,8 +142,7 @@ pub struct FieldAccess<T: Enliven> {
 macro_rules! field_access {
     ($acc:ident :: FieldAccess, $ty:ty) => {
         impl $crate::FieldAccessArray for $ty {
-            const META: &'static dyn $crate::Meta =
-                $acc::FieldAccess::<$ty>::meta();
+            const META: &'static dyn $crate::Meta = $acc::FieldAccess::<$ty>::meta();
             #[inline(always)]
             fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
                 $acc::FieldAccess::<$ty>::size_of_field_at(buf)
@@ -151,14 +150,14 @@ macro_rules! field_access {
             #[inline(always)]
             fn extract(
                 buf: &[u8],
-            ) -> Result<
-                <Self as $crate::Enliven>::WithLifetime<'_>,
-                $crate::ParseError,
-            > {
+            ) -> Result<<Self as $crate::Enliven>::WithLifetime<'_>, $crate::ParseError> {
                 $acc::FieldAccess::<$ty>::extract(buf)
             }
             #[inline(always)]
-            fn copy_to_buf(buf: &mut $crate::BufWriter, value: &<$ty as $crate::Enliven>::ForBuilder<'_>) {
+            fn copy_to_buf(
+                buf: &mut $crate::BufWriter,
+                value: &<$ty as $crate::Enliven>::ForBuilder<'_>,
+            ) {
                 $acc::FieldAccess::<$ty>::copy_to_buf(buf, value)
             }
         }
@@ -170,8 +169,8 @@ macro_rules! field_access {
 macro_rules! field_access_copy {
     ($acc1:ident :: FieldAccess, $acc2:ident :: FieldAccess, $($ty:ty),*) => {
         $(
-            $crate::field_access_copy!(: $acc1 :: FieldAccess, $acc2 :: FieldAccess, 
-                $ty, 
+            $crate::field_access_copy!(: $acc1 :: FieldAccess, $acc2 :: FieldAccess,
+                $ty,
                 $crate::meta::ZTArray<$ty>,
                 $crate::meta::Array<u8, $ty>,
                 $crate::meta::Array<i16, $ty>,
@@ -184,8 +183,8 @@ macro_rules! field_access_copy {
     (basic $acc1:ident :: FieldAccess, $acc2:ident :: FieldAccess, $($ty:ty),*) => {
         $(
 
-        $crate::field_access_copy!(: $acc1 :: FieldAccess, $acc2 :: FieldAccess, 
-            $ty, 
+        $crate::field_access_copy!(: $acc1 :: FieldAccess, $acc2 :: FieldAccess,
+            $ty,
             $crate::meta::Array<u8, $ty>,
             $crate::meta::Array<i16, $ty>,
             $crate::meta::Array<i32, $ty>,

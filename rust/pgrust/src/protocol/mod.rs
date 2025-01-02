@@ -4,7 +4,7 @@ pub mod postgres;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use db_proto::{StructBuffer, StructMeta, match_message, Encoded};
+    use db_proto::{match_message, Encoded, StructBuffer, StructMeta};
     use postgres::{builder, data::*, measure, meta};
     use rand::Rng;
     /// We want to ensure that no malformed messages will cause unexpected

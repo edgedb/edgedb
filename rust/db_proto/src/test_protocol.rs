@@ -1,4 +1,3 @@
-
 //! A pseudo-Postgres protocol for testing.
 use crate::gen::protocol;
 

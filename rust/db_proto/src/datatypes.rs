@@ -3,8 +3,8 @@ use std::{marker::PhantomData, str::Utf8Error};
 use uuid::Uuid;
 
 use crate::{
-    arrays::{Array, ArrayMeta},
     array_access,
+    arrays::{Array, ArrayMeta},
     field_access,
     writer::BufWriter,
     Enliven, FieldAccess, Meta, ParseError,
@@ -825,7 +825,7 @@ macro_rules! basic_types {
                 #[inline(always)]
                 pub const fn constant(value: usize) -> ArrayMeta<$len, $ty> {
                     panic!("Constants unsupported for this data type")
-                }   
+                }
             }
         )*
     }

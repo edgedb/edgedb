@@ -18,14 +18,14 @@
 use std::{cell::RefCell, num::NonZeroU32, rc::Rc};
 
 use crate::protocol::postgres::{
-        builder,
-        data::{
-            BindComplete, CloseComplete, CommandComplete, CopyData, CopyDone, CopyOutResponse,
-            DataRow, EmptyQueryResponse, ErrorResponse, Message, NoData, NoticeResponse,
-            ParameterDescription, ParseComplete, PortalSuspended, ReadyForQuery, RowDescription,
-        },
-    };
-use db_proto::{Encoded, match_message};
+    builder,
+    data::{
+        BindComplete, CloseComplete, CommandComplete, CopyData, CopyDone, CopyOutResponse, DataRow,
+        EmptyQueryResponse, ErrorResponse, Message, NoData, NoticeResponse, ParameterDescription,
+        ParseComplete, PortalSuspended, ReadyForQuery, RowDescription,
+    },
+};
+use db_proto::{match_message, Encoded};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Param<'a> {
