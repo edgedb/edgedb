@@ -154,7 +154,7 @@ impl<L: FieldAccessArray, T: FieldAccessArray> Meta for ArrayMeta<L, T> {
 
 impl<L, T> Enliven for ArrayMeta<L, T>
 where
-    T: FieldAccessArray,
+    T: FieldAccessArray + Enliven,
 {
     type WithLifetime<'a> = Array<'a, L, T>;
     type ForMeasure<'a> = &'a [<T as Enliven>::ForMeasure<'a>];

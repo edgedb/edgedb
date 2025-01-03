@@ -1,9 +1,9 @@
 use std::{marker::PhantomData, str::Utf8Error};
 
-use uuid::Uuid;
+pub use uuid::Uuid;
 
 use crate::{
-    array_access, arrays::{Array, ArrayMeta}, declare_field_access, field_access, writer::BufWriter, Enliven, FieldAccess, Meta, ParseError
+    arrays::{Array, ArrayMeta}, declare_field_access, declare_field_access_fixed_size, field_access, writer::BufWriter, Enliven, FieldAccess, FieldAccessArray, Meta, ParseError
 };
 
 pub mod meta {
@@ -13,6 +13,8 @@ pub mod meta {
     pub use super::RestMeta as Rest;
     pub use super::UuidMeta as Uuid;
     pub use super::ZTStringMeta as ZTString;
+    pub use super::FixedArrayMeta as FixedArray;
+    pub use super::BasicMeta as Basic;
 }
 
 /// Represents the remainder of data in a message.
@@ -202,6 +204,7 @@ impl<'a> TryInto<&'a str> for ZTString<'a> {
 pub struct LString<'a> {
     buf: &'a [u8],
 }
+
 declare_field_access!(
     Meta = LStringMeta,
     Inflated = LString<'a>,
@@ -305,34 +308,20 @@ impl<'a> TryInto<&'a str> for LString<'a> {
     }
 }
 
-declare_field_access! {
+declare_field_access_fixed_size! {
     Meta = UuidMeta,
     Inflated = Uuid,
     Measure = Uuid,
     Builder = Uuid,
+    Size = 16,
+    Zero = Uuid::nil(),
 
     pub const fn meta() -> &'static dyn Meta {
         &UuidMeta {}
     }
 
-    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
-        if buf.len() < 16 {
-            Err(ParseError::TooShort)
-        } else {
-            Ok(16)
-        }
-    }
-
-    pub const fn extract(buf: &[u8]) -> Result<Uuid, ParseError> {
-        if let Some(bytes) = buf.first_chunk() {
-            Ok(Uuid::from_u128(<u128>::from_be_bytes(*bytes)))
-        } else {
-            Err(ParseError::TooShort)
-        }
-    }
-
-    pub const fn measure(_value: &Uuid) -> usize {
-        16
+    pub const fn extract(buf: &[u8; 16]) -> Result<Uuid, ParseError> {
+        Ok(Uuid::from_u128(<u128>::from_be_bytes(*buf)))
     }
 
     pub fn copy_to_buf(buf: &mut BufWriter, value: &Uuid) {
@@ -373,7 +362,8 @@ impl<'a> AsRef<Encoded<'a>> for Encoded<'a> {
         self
     }
 }
-declare_field_access!(
+
+declare_field_access! {
     Meta = EncodedMeta,
     Inflated = Encoded<'a>,
     Measure = Encoded<'a>,
@@ -440,7 +430,7 @@ declare_field_access!(
     pub const fn constant(_constant: usize) -> Encoded<'static> {
         panic!("Constants unsupported for this data type")
     }
-);
+}
 
 pub struct EncodedMeta {}
 impl Meta for EncodedMeta {
@@ -475,15 +465,48 @@ impl PartialEq<&[u8]> for Encoded<'_> {
     }
 }
 
+pub struct Length(pub i32);
+
+declare_field_access_fixed_size!{
+    Meta = LengthMeta,
+    Inflated = usize,
+    Measure = i32,
+    Builder = i32,
+    Size = 4,
+    Zero = 0,
+    
+    pub const fn meta() -> &'static dyn Meta {
+        &LengthMeta {}
+    }
+
+    pub const fn extract(buf: &[u8; 4]) -> Result<usize, ParseError> {
+        let n = i32::from_be_bytes(*buf);
+        if n >= 0 {
+            Ok(n as _)
+        } else {
+            Err(ParseError::InvalidData)
+        }
+    }
+
+    pub fn copy_to_buf(buf: &mut BufWriter, value: &i32) {
+        FieldAccess::<i32>::copy_to_buf(buf, &value)
+    }
+
+    pub const fn constant(value: usize) -> usize {
+        value
+    }
+}
+
+impl FieldAccess<LengthMeta> {
+    pub fn copy_to_buf_rewind(buf: &mut BufWriter, rewind: usize, value: usize) {
+        buf.write_rewind(rewind, &(value as i32).to_be_bytes());
+    }
+}
+
 // We alias usize here. Note that if this causes trouble in the future we can
 // probably work around this by adding a new "const value" function to
 // FieldAccess. For now it works!
 pub struct LengthMeta {}
-impl Enliven for LengthMeta {
-    type WithLifetime<'a> = usize;
-    type ForMeasure<'a> = usize;
-    type ForBuilder<'a> = usize;
-}
 
 impl Meta for LengthMeta {
     fn name(&self) -> &'static str {
@@ -491,221 +514,121 @@ impl Meta for LengthMeta {
     }
 }
 
-impl FieldAccess<LengthMeta> {
-    #[inline(always)]
-    pub const fn meta() -> &'static dyn Meta {
-        &LengthMeta {}
-    }
-    #[inline(always)]
-    pub const fn constant(value: usize) -> usize {
-        value
-    }
-    #[inline(always)]
-    pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
-        match FieldAccess::<i32>::extract(buf) {
-            Ok(n) if n >= 0 => Ok(std::mem::size_of::<i32>()),
-            Ok(_) => Err(ParseError::InvalidData),
-            Err(e) => Err(e),
-        }
-    }
-    #[inline(always)]
-    pub const fn extract(buf: &[u8]) -> Result<usize, ParseError> {
-        match FieldAccess::<i32>::extract(buf) {
-            Ok(n) if n >= 0 => Ok(n as _),
-            Ok(_) => Err(ParseError::InvalidData),
-            Err(e) => Err(e),
-        }
-    }
-    #[inline(always)]
-    pub const fn measure(_: &usize) -> usize {
-        std::mem::size_of::<i32>()
-    }
-    #[inline(always)]
-    pub fn copy_to_buf(buf: &mut BufWriter, value: &usize) {
-        FieldAccess::<i32>::copy_to_buf(buf, &(*value as i32))
-    }
-    #[inline(always)]
-    pub fn copy_to_buf_rewind(buf: &mut BufWriter, rewind: usize, value: usize) {
-        FieldAccess::<i32>::copy_to_buf_rewind(buf, rewind, value as i32)
+pub struct FixedArrayMeta<const S: usize, T> {
+    _phantom: PhantomData<T>,
+}
+
+impl <const S: usize, T: FieldAccessArray> Meta for FixedArrayMeta<S, T> {
+    fn name(&self) -> &'static str {
+        stringify!(Array<S, T>)
     }
 }
 
-field_access!(crate::FieldAccess, LengthMeta);
-array_access!(crate::FieldAccess, LengthMeta);
+impl <const S: usize, T: FieldAccessArray + 'static> FieldAccessArray for FixedArrayMeta<S, T> where FixedArrayMeta<S, T>: Enliven {
+    const META: &'static dyn Meta = &FixedArrayMeta::<S, T> { _phantom: PhantomData };
+    fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
+        unimplemented!()
+    }
+    fn extract(buf: &[u8]) -> Result<Self::WithLifetime<'_>, ParseError> {
+        unimplemented!()
+    }
+    fn copy_to_buf(buf: &mut BufWriter, value: &Self::ForBuilder<'_>) {
+        unimplemented!()
+    }
+}
+
+pub struct BasicMeta<T> {
+    _phantom: PhantomData<T>,
+}
+
+impl <T> Meta for BasicMeta<T> {
+    fn name(&self) -> &'static str {
+        stringify!(T)
+    }
+}
 
 macro_rules! basic_types {
     ($($ty:ty)*) => {
         $(
-        field_access!{$crate::FieldAccess, $ty}
+        declare_field_access_fixed_size! {
+            Meta = $ty,
+            Inflated = $ty,
+            Measure = $ty,
+            Builder = $ty,
+            Size = std::mem::size_of::<$ty>(),
+            Zero = 0,
 
-        impl Enliven for $ty {
-            type WithLifetime<'a> = $ty;
-            type ForMeasure<'a> = $ty;
-            type ForBuilder<'a> = $ty;
-        }
-
-        impl <const S: usize> Enliven for [$ty; S] {
-            type WithLifetime<'a> = [$ty; S];
-            type ForMeasure<'a> = [$ty; S];
-            type ForBuilder<'a> = [$ty; S];
-        }
-
-        #[allow(unused)]
-        impl FieldAccess<$ty> {
-            #[inline(always)]
             pub const fn meta() -> &'static dyn Meta {
-                struct Meta {}
-                impl $crate::Meta for Meta {
-                    fn name(&self) -> &'static str {
-                        stringify!($ty)
-                    }
-                }
-                &Meta{}
+                &BasicMeta::<$ty> { _phantom: PhantomData }
             }
-            #[inline(always)]
-            pub const fn constant(value: usize) -> $ty {
-                value as _
+
+            pub const fn extract(buf: &[u8; std::mem::size_of::<$ty>()]) -> Result<$ty, ParseError> {
+                Ok(<$ty>::from_be_bytes(*buf))
             }
-            #[inline(always)]
-            pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
-                let size = std::mem::size_of::<$ty>();
-                if size > buf.len() {
-                    Err($crate::ParseError::TooShort)
-                } else {
-                    Ok(size)
-                }
-            }
-            #[inline(always)]
-            pub const fn extract(buf: &[u8]) -> Result<$ty, $crate::ParseError> {
-                if let Some(bytes) = buf.first_chunk() {
-                    Ok(<$ty>::from_be_bytes(*bytes))
-                } else {
-                    Err($crate::ParseError::TooShort)
-                }
-            }
-            #[inline(always)]
-            pub const fn measure(_: &$ty) -> usize {
-                std::mem::size_of::<$ty>()
-            }
-            #[inline(always)]
+            
             pub fn copy_to_buf(buf: &mut BufWriter, value: &$ty) {
                 buf.write(&<$ty>::to_be_bytes(*value));
             }
-            #[inline(always)]
-            pub fn copy_to_buf_rewind(buf: &mut BufWriter, rewind: usize, value: $ty) {
-                buf.write_rewind(rewind, &<$ty>::to_be_bytes(value));
+            
+            pub const fn constant(value: usize) -> $ty {
+                value as _
             }
         }
+        // impl $crate::FixedSize for $ty {
+        //     const SIZE: usize = std::mem::size_of::<$ty>();
+        //     #[inline(always)]
+        //     fn extract_infallible(buf: &[u8]) -> $ty {
+        //         if let Some(buf) = buf.first_chunk() {
+        //             <$ty>::from_be_bytes(*buf)
+        //         } else {
+        //             panic!()
+        //         }
+        //     }
+        // }
+        // impl <const S: usize> $crate::FixedSize for [$ty; S] {
+        //     const SIZE: usize = std::mem::size_of::<$ty>() * S;
+        //     #[inline(always)]
+        //     fn extract_infallible(mut buf: &[u8]) -> [$ty; S] {
+        //         let mut out: [$ty; S] = [0; S];
+        //         let mut i = 0;
+        //         loop {
+        //             if i == S {
+        //                 break;
+        //             }
+        //             (out[i], buf) = if let Some((bytes, rest)) = buf.split_first_chunk() {
+        //                 (<$ty>::from_be_bytes(*bytes), rest)
+        //             } else {
+        //                 panic!()
+        //             };
+        //             i += 1;
+        //         }
+        //         out
+        //     }
+        // }
 
-        #[allow(unused)]
-        impl <const S: usize> FieldAccess<[$ty; S]> {
-            #[inline(always)]
-            pub const fn meta() -> &'static dyn Meta {
-                struct Meta {}
-                impl $crate::Meta for Meta {
-                    fn name(&self) -> &'static str {
-                        // TODO: can we extract this constant?
-                        concat!('[', stringify!($ty), "; ", "S")
-                    }
-                }
-                &Meta{}
-            }
-            #[inline(always)]
-            pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
-                let size = std::mem::size_of::<$ty>() * S;
-                if size > buf.len() {
-                    Err($crate::ParseError::TooShort)
-                } else {
-                    Ok(size)
-                }
-            }
-            #[inline(always)]
-            pub const fn measure(_: &[$ty; S]) -> usize {
-                std::mem::size_of::<$ty>() * S
-            }
-            #[inline(always)]
-            pub const fn extract(mut buf: &[u8]) -> Result<[$ty; S], $crate::ParseError> {
-                let mut out: [$ty; S] = [0; S];
-                let mut i = 0;
-                loop {
-                    if i == S {
-                        break;
-                    }
-                    (out[i], buf) = if let Some((bytes, rest)) = buf.split_first_chunk() {
-                        (<$ty>::from_be_bytes(*bytes), rest)
-                    } else {
-                        return Err($crate::ParseError::TooShort)
-                    };
-                    i += 1;
-                }
-                Ok(out)
-            }
-            #[inline(always)]
-            pub fn copy_to_buf(mut buf: &mut BufWriter, value: &[$ty; S]) {
-                if !buf.test(std::mem::size_of::<$ty>() * S) {
-                    return;
-                }
-                for n in value {
-                    buf.write(&<$ty>::to_be_bytes(*n));
-                }
-            }
-        }
+        // impl <const S: usize> $crate::FieldAccessArray for [$ty; S] {
+        //     const META: &'static dyn $crate::Meta =
+        //         $crate::FieldAccess::<[$ty; S]>::meta();
+        //     #[inline(always)]
+        //     fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
+        //         $crate::FieldAccess::<[$ty; S]>::size_of_field_at(buf)
+        //     }
+        //     #[inline(always)]
+        //     fn extract(
+        //         buf: &[u8],
+        //     ) -> Result<
+        //         <Self as $crate::Enliven>::WithLifetime<'_>,
+        //         $crate::ParseError,
+        //     > {
+        //         FieldAccess::<[$ty; S]>::extract(buf)
+        //     }
+        //     #[inline(always)]
+        //     fn copy_to_buf(buf: &mut $crate::BufWriter, value: &[$ty; S]) {
+        //         FieldAccess::<[$ty; S]>::copy_to_buf(buf, value)
+        //     }
+        // }
 
-        impl $crate::FixedSize for $ty {
-            const SIZE: usize = std::mem::size_of::<$ty>();
-            #[inline(always)]
-            fn extract_infallible(buf: &[u8]) -> $ty {
-                if let Some(buf) = buf.first_chunk() {
-                    <$ty>::from_be_bytes(*buf)
-                } else {
-                    panic!()
-                }
-            }
-        }
-        impl <const S: usize> $crate::FixedSize for [$ty; S] {
-            const SIZE: usize = std::mem::size_of::<$ty>() * S;
-            #[inline(always)]
-            fn extract_infallible(mut buf: &[u8]) -> [$ty; S] {
-                let mut out: [$ty; S] = [0; S];
-                let mut i = 0;
-                loop {
-                    if i == S {
-                        break;
-                    }
-                    (out[i], buf) = if let Some((bytes, rest)) = buf.split_first_chunk() {
-                        (<$ty>::from_be_bytes(*bytes), rest)
-                    } else {
-                        panic!()
-                    };
-                    i += 1;
-                }
-                out
-            }
-        }
-
-        impl <const S: usize> $crate::FieldAccessArray for [$ty; S] {
-            const META: &'static dyn $crate::Meta =
-                $crate::FieldAccess::<[$ty; S]>::meta();
-            #[inline(always)]
-            fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
-                $crate::FieldAccess::<[$ty; S]>::size_of_field_at(buf)
-            }
-            #[inline(always)]
-            fn extract(
-                buf: &[u8],
-            ) -> Result<
-                <Self as $crate::Enliven>::WithLifetime<'_>,
-                $crate::ParseError,
-            > {
-                FieldAccess::<[$ty; S]>::extract(buf)
-            }
-            #[inline(always)]
-            fn copy_to_buf(buf: &mut $crate::BufWriter, value: &[$ty; S]) {
-                FieldAccess::<[$ty; S]>::copy_to_buf(buf, value)
-            }
-        }
-
-        basic_types!(: array<$ty> u8 i16 i32 u32 u64);
+        // basic_types!(: array<$ty> u8 i16 i32 u32 u64);
         )*
     };
 

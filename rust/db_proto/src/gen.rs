@@ -88,7 +88,7 @@ macro_rules! struct_elaborate {
     };
     // Pattern match on known fixed-sized types and mark them as `size(fixed=fixed)`
     (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type([u8; $len:literal])($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
-        $crate::struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
+        $crate::struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($crate::meta::FixedArray<$len, u8>), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
     };
     (__builder_type__ fixed($fixed:ident $fixed_expr:expr) fields([type(u8)($ty:ty), $($rest:tt)*] $($frest:tt)*) $($srest:tt)*) => {
         $crate::struct_elaborate!(__builder_value__ fixed($fixed=>$fixed $fixed_expr=>($fixed_expr+std::mem::size_of::<$ty>())) fields([type($ty), size(fixed=fixed), $($rest)*] $($frest)*) $($srest)*);
@@ -355,7 +355,7 @@ macro_rules! protocol_builder {
                             };
                             if val as usize != $value as usize { return false; }
                         )?
-                        offset += std::mem::size_of::<$type>();
+                        offset += std::mem::size_of::<<$type as $crate::Enliven>::ForBuilder<'static>>();
                     )*
 
                     true
@@ -600,7 +600,7 @@ macro_rules! protocol_builder {
                     let mut size = 0;
                     $(
                         $crate::r#if!(__has__ [$($variable_marker)?] { size += super::access::FieldAccess::<$type>::measure(&self.$field); });
-                        $crate::r#if!(__has__ [$($fixed_marker)?] { size += std::mem::size_of::<$type>(); });
+                        $crate::r#if!(__has__ [$($fixed_marker)?] { size += std::mem::size_of::<<$type as $crate::Enliven>::ForBuilder<'static>>(); });
                     )*
                     size
                 }
@@ -661,7 +661,7 @@ macro_rules! protocol_builder {
 
                     $(
                         $crate::r#if!(__has__ [$($auto)?] {
-                            $crate::FieldAccess::<Length>::copy_to_buf_rewind(buf, auto_offset, buf.size() - auto_offset);
+                            $crate::FieldAccess::<$crate::meta::Length>::copy_to_buf_rewind(buf, auto_offset, buf.size() - auto_offset);
                         });
                     )*
 
