@@ -283,7 +283,7 @@ where
         };
         buf = buf.split_at(size).1;
         loop {
-            if len <= 0 {
+            if len == 0 {
                 break;
             }
             len -= 1;

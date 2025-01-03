@@ -489,7 +489,7 @@ declare_field_access_fixed_size! {
     }
 
     pub fn copy_to_buf(buf: &mut BufWriter, value: &i32) {
-        FieldAccess::<i32>::copy_to_buf(buf, &value)
+        FieldAccess::<i32>::copy_to_buf(buf, value)
     }
 
     pub const fn constant(value: usize) -> usize {
