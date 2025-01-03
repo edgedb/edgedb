@@ -24,7 +24,6 @@ pub use field_access::{FieldAccess, FieldAccessArray, FixedSize};
 pub use gen::protocol;
 pub use message_group::{match_message, message_group};
 pub use writer::BufWriter;
-pub use datatypes::declare_UuidMeta;
 
 #[derive(thiserror::Error, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseError {
@@ -118,34 +117,6 @@ impl std::fmt::Debug for dyn Meta {
         }
         s.finish()
     }
-}
-
-/// Delegate to the concrete [`FieldAccess`] for each type we want to extract.
-#[macro_export]
-#[doc(hidden)]
-macro_rules! field_access {
-    ($acc:ident :: FieldAccess, $ty:ty) => {
-        impl $crate::FieldAccessArray for $ty {
-            const META: &'static dyn $crate::Meta = $acc::FieldAccess::<$ty>::meta();
-            #[inline(always)]
-            fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
-                $acc::FieldAccess::<$ty>::size_of_field_at(buf)
-            }
-            #[inline(always)]
-            fn extract(
-                buf: &[u8],
-            ) -> Result<<Self as $crate::Enliven>::WithLifetime<'_>, $crate::ParseError> {
-                $acc::FieldAccess::<$ty>::extract(buf)
-            }
-            #[inline(always)]
-            fn copy_to_buf(
-                buf: &mut $crate::BufWriter,
-                value: &<$ty as $crate::Enliven>::ForBuilder<'_>,
-            ) {
-                $acc::FieldAccess::<$ty>::copy_to_buf(buf, value)
-            }
-        }
-    };
 }
 
 #[macro_export]
