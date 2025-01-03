@@ -10,7 +10,6 @@ use crate::{
 pub mod meta {
     pub use super::BasicMeta as Basic;
     pub use super::EncodedMeta as Encoded;
-    pub use super::FixedArrayMeta as FixedArray;
     pub use super::LStringMeta as LString;
     pub use super::LengthMeta as Length;
     pub use super::RestMeta as Rest;
@@ -515,23 +514,13 @@ impl Meta for LengthMeta {
     }
 }
 
-pub struct FixedArrayMeta<const S: usize, T> {
-    _phantom: PhantomData<T>,
-}
-
-impl<const S: usize, T: FieldAccessArray> Meta for FixedArrayMeta<S, T> {
-    fn name(&self) -> &'static str {
-        stringify!(Array<S, T>)
-    }
-}
-
 pub struct BasicMeta<T> {
     _phantom: PhantomData<T>,
 }
 
 impl<T> Meta for BasicMeta<T> {
     fn name(&self) -> &'static str {
-        stringify!(T)
+        std::any::type_name::<T>()
     }
 }
 

@@ -5,6 +5,7 @@ pub use std::marker::PhantomData;
 
 pub mod meta {
     pub use super::ArrayMeta as Array;
+    pub use super::FixedArrayMeta as FixedArray;
     pub use super::ZTArrayMeta as ZTArray;
 }
 
@@ -318,5 +319,23 @@ where
         for elem in *value {
             T::copy_to_buf(buf, elem);
         }
+    }
+}
+
+pub struct FixedArrayMeta<const S: usize, T> {
+    pub _phantom: PhantomData<T>,
+}
+
+impl<const S: usize, T: FieldAccessArray> Meta for FixedArrayMeta<S, T> {
+    fn name(&self) -> &'static str {
+        "FixedArray"
+    }
+
+    fn fixed_length(&self) -> Option<usize> {
+        Some(S)
+    }
+
+    fn relations(&self) -> &'static [(MetaRelation, &'static dyn Meta)] {
+        &[(MetaRelation::Item, <T as FieldAccessArray>::META)]
     }
 }

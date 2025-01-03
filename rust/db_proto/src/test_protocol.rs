@@ -58,4 +58,82 @@ protocol!(
         /// The types of the query parameters.
         types: Array<i16, QueryType>,
     }
+
+    struct Key {
+        /// The key.
+        key: [u8; 16],
+    }
+
+    struct Uuids {
+        /// The UUIDs.
+        uuids: Array<u32, Uuid>,
+    }
 );
+
+#[cfg(test)]
+mod tests {
+    use uuid::Uuid;
+
+    use super::*;
+
+    #[test]
+    fn test_meta() {
+        let expected = [
+            r#"Message { Field("mtype"): u8, Field("mlen"): len, Field("data"): Rest }"#,
+            r#"CommandComplete { Parent: "Message", Field("mtype"): u8, Field("mlen"): len, Field("tag"): ZTString }"#,
+            r#"Sync { Parent: "Message", Field("mtype"): u8, Field("mlen"): len }"#,
+            r#"DataRow { Parent: "Message", Field("mtype"): u8, Field("mlen"): len, Field("values"): Array { Length: i16, Item: Encoded } }"#,
+            r#"QueryType { Field("typ"): u8, Field("len"): u32, Field("meta"): Array { Length: u32, Item: u8 } }"#,
+            r#"Query { Parent: "Message", Field("mtype"): u8, Field("mlen"): len, Field("query"): ZTString, Field("types"): Array { Length: i16, Item: QueryType { Field("typ"): u8, Field("len"): u32, Field("meta"): Array { Length: u32, Item: u8 } } } }"#,
+            r#"Key { Field("key"): FixedArray { Length: 16, Item: u8 } }"#,
+        ];
+
+        for (i, meta) in meta::ALL.iter().enumerate() {
+            assert_eq!(expected[i], format!("{meta:?}"));
+        }
+    }
+
+    #[test]
+    fn test_query() {
+        let buf = builder::Query {
+            query: "SELECT * from foo",
+            types: &[builder::QueryType {
+                typ: 1,
+                len: 4,
+                meta: &[1, 2, 3, 4],
+            }],
+        }
+        .to_vec();
+
+        let query = data::Query::new(&buf).expect("Failed to parse query");
+        assert_eq!(
+            r#"Query { mtype: 81, mlen: 37, query: "SELECT * from foo", types: [QueryType { typ: 1, len: 4, meta: [1, 2, 3, 4] }] }"#,
+            format!("{query:?}")
+        );
+    }
+
+    #[test]
+    fn test_fixed_array() {
+        let buf = builder::Key {
+            key: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+        }
+        .to_vec();
+
+        let key = data::Key::new(&buf).expect("Failed to parse key");
+        assert_eq!(
+            key.key(),
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        );
+    }
+
+    #[test]
+    fn test_uuid() {
+        let buf = builder::Uuids {
+            uuids: &[Uuid::NAMESPACE_DNS],
+        }
+        .to_vec();
+
+        let uuids = data::Uuids::new(&buf).expect("Failed to parse uuids");
+        assert_eq!(uuids.uuids().get(0), Some(Uuid::NAMESPACE_DNS));
+    }
+}

@@ -84,6 +84,9 @@ pub trait Meta {
     fn relations(&self) -> &'static [(MetaRelation, &'static dyn Meta)] {
         &[]
     }
+    fn fixed_length(&self) -> Option<usize> {
+        None
+    }
     fn field(&self, name: &'static str) -> Option<&'static dyn Meta> {
         for (relation, meta) in self.relations() {
             if relation == &MetaRelation::Field(name) {
@@ -111,6 +114,9 @@ impl<T: Meta> PartialEq<T> for dyn Meta {
 impl std::fmt::Debug for dyn Meta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = f.debug_struct(self.name());
+        if let Some(length) = self.fixed_length() {
+            s.field("Length", &length);
+        }
         for (relation, meta) in self.relations() {
             if relation == &MetaRelation::Parent {
                 s.field(&format!("{relation:?}"), &meta.name());

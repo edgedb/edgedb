@@ -3,6 +3,12 @@ use crate::{BufWriter, Enliven, Meta, ParseError};
 /// As Rust does not currently support const in traits, we use this struct to
 /// provide the const methods. It requires more awkward code, so we make use of
 /// macros to generate the code.
+///
+/// Note that another consequence is that we have to declare this struct twice:
+/// once for this crate, and again when someone tries to instantiate a protocol.
+/// The reason for this is that we cannot add additional `impl`s for this `FieldAccess`
+/// outside of this crate. Instead, we use a macro to "copy" the existing `impl`s from
+/// this crate to the newtype.
 pub struct FieldAccess<T: Enliven> {
     _phantom_data: std::marker::PhantomData<T>,
 }
@@ -180,14 +186,9 @@ macro_rules! declare_field_access_fixed_size {
         impl<const S: usize> FieldAccess<$crate::meta::FixedArray<S, $meta>> {
             #[inline(always)]
             pub const fn meta() -> &'static dyn Meta {
-                struct Meta {}
-                impl $crate::Meta for Meta {
-                    fn name(&self) -> &'static str {
-                        // TODO: can we extract this constant?
-                        concat!('[', stringify!($ty), "; ", "S")
-                    }
+                &$crate::meta::FixedArray::<S, $meta> {
+                    _phantom: PhantomData,
                 }
-                &Meta {}
             }
             #[inline(always)]
             pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
@@ -233,7 +234,7 @@ macro_rules! declare_field_access_fixed_size {
             }
         }
 
-        impl<const S: usize> FieldAccessArray for FixedArrayMeta<S, $meta> {
+        impl<const S: usize> FieldAccessArray for $crate::meta::FixedArray<S, $meta> {
             const META: &'static dyn Meta = FieldAccess::<$meta>::meta();
             #[inline(always)]
             fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
@@ -313,7 +314,7 @@ macro_rules! array_access {
             }
             #[inline(always)]
             pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
-                const N: usize = std::mem::size_of::<$ty>();
+                const N: usize = <$ty as $crate::FixedSize>::SIZE;
                 const L: usize = std::mem::size_of::<$len>();
                 if let Some(len) = buf.first_chunk::<L>() {
                     let len_value = <$len>::from_be_bytes(*len);
@@ -341,7 +342,7 @@ macro_rules! array_access {
             }
             #[inline(always)]
             pub const fn extract(mut buf: &[u8]) -> Result<$crate::Array<$len, $ty>, $crate::ParseError> {
-                const N: usize = std::mem::size_of::<$ty>();
+                const N: usize = <$ty as $crate::FixedSize>::SIZE;
                 const L: usize = std::mem::size_of::<$len>();
                 if let Some((len, array)) = buf.split_first_chunk::<L>() {
                     let len_value = <$len>::from_be_bytes(*len);
@@ -361,7 +362,7 @@ macro_rules! array_access {
                     if buf.len() < byte_len {
                         Err($crate::ParseError::TooShort)
                     } else {
-                        Ok($crate::Array::new(array, <$len>::from_be_bytes(*len) as u32))
+                        Ok($crate::Array::new(array, len_value as u32))
                     }
                 } else {
                     Err($crate::ParseError::TooShort)
@@ -372,14 +373,14 @@ macro_rules! array_access {
                 buffer.len() * std::mem::size_of::<$ty>() + std::mem::size_of::<$len>()
             }
             #[inline(always)]
-            pub fn copy_to_buf(mut buf: &mut BufWriter, value: &[$ty]) {
+            pub fn copy_to_buf<'a>(mut buf: &mut BufWriter, value: &'a[<$ty as $crate::Enliven>::ForBuilder<'a>]) {
                 let size: usize = std::mem::size_of::<$ty>() * value.len() + std::mem::size_of::<$len>();
                 if !buf.test(size) {
                     return;
                 }
                 buf.write(&<$len>::to_be_bytes(value.len() as _));
                 for n in value {
-                    // buf.write(&<$ty>::to_be_bytes(*n));
+                    $acc::FieldAccess::<$ty>::copy_to_buf(buf, n);
                 }
             }
             #[inline(always)]
