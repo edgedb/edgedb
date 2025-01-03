@@ -3117,6 +3117,7 @@ class SysConfigSourceType(dbops.Enum):
                 'postgres environment variable',
                 'postgres configuration file',
                 'environment variable',
+                'configuration file',
                 'command line',
                 'postgres command line',
                 'postgres global',
@@ -3580,6 +3581,23 @@ class SysConfigFullFunction(trampoline.VersionedFunction):
             SELECT * FROM config_defaults WHERE name like '%::%'
         ),
 
+        config_static AS (
+            SELECT
+                s.name AS name,
+                s.value AS value,
+                (CASE
+                    WHEN s.type = 'A' THEN 'command line'
+                    WHEN s.type = 'E' THEN 'environment variable'
+                    ELSE 'configuration file'  -- 'F', matches WHERE below
+                END) AS source,
+                config_spec.backend_setting IS NOT NULL AS is_backend
+            FROM
+                _edgecon_state s
+                INNER JOIN config_spec ON (config_spec.name = s.name)
+            WHERE
+                s.type = 'A' OR s.type = 'E' OR s.type = 'F'
+        ),
+
         config_sys AS (
             SELECT
                 s.key AS name,
@@ -3610,16 +3628,12 @@ class SysConfigFullFunction(trampoline.VersionedFunction):
             SELECT
                 s.name AS name,
                 s.value AS value,
-                (CASE
-                    WHEN s.type = 'A' THEN 'command line'
-                    WHEN s.type = 'E' THEN 'environment variable'
-                    ELSE 'session'
-                END) AS source,
-                FALSE AS from_backend  -- only 'B' is for backend settings
+                'session' AS source,
+                FALSE AS is_backend  -- only 'B' is for backend settings
             FROM
                 _edgecon_state s
             WHERE
-                s.type != 'B'
+                s.type = 'C'
         ),
 
         pg_db_setting AS (
@@ -3789,6 +3803,7 @@ class SysConfigFullFunction(trampoline.VersionedFunction):
             FROM
                 (
                     SELECT * FROM config_defaults UNION ALL
+                    SELECT * FROM config_static UNION ALL
                     SELECT * FROM config_sys UNION ALL
                     SELECT * FROM config_db UNION ALL
                     SELECT * FROM config_sess
