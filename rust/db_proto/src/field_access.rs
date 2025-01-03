@@ -86,7 +86,7 @@ macro_rules! declare_field_access {
         }
 
         $crate::field_access!($crate::FieldAccess, $meta);
-        $crate::array_access!($crate::FieldAccess, $meta);
+        $crate::array_access!(variable, $crate::FieldAccess, $meta);
     };
 }
 
@@ -261,7 +261,7 @@ macro_rules! declare_field_access_fixed_size {
         }
 
         $crate::field_access!($crate::FieldAccess, $meta);
-        $crate::array_access!($crate::FieldAccess, $meta);
+        $crate::array_access!(fixed, $crate::FieldAccess, $meta);
     };
 }
 
@@ -298,10 +298,152 @@ macro_rules! field_access {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! array_access {
-    ($acc:ident :: FieldAccess, $ty:ty) => {
-        $crate::array_access!($acc :: FieldAccess, $ty | u8 i16 i32 u32);
+    (fixed, $acc:ident :: FieldAccess, $ty:ty) => {
+        $crate::array_access!(fixed, $acc :: FieldAccess, $ty | u8 i16 i32 u32);
     };
-    ($acc:ident :: FieldAccess, $ty:ty | $($len:ty)*) => {
+    (variable, $acc:ident :: FieldAccess, $ty:ty) => {
+        $crate::array_access!(variable, $acc :: FieldAccess, $ty | u8 i16 i32 u32);
+    };
+    (fixed, $acc:ident :: FieldAccess, $ty:ty | $($len:ty)*) => {
+        $(
+        #[allow(unused)]
+        impl FieldAccess<$crate::meta::Array<$len, $ty>> {
+            pub const fn meta() -> &'static dyn Meta {
+                &$crate::meta::Array::<$len, $ty> { _phantom: PhantomData }
+            }
+            #[inline(always)]
+            pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
+                const N: usize = std::mem::size_of::<$ty>();
+                const L: usize = std::mem::size_of::<$len>();
+                if let Some(len) = buf.first_chunk::<L>() {
+                    let len_value = <$len>::from_be_bytes(*len);
+                    #[allow(unused_comparisons)]
+                    if len_value < 0 {
+                        return Err($crate::ParseError::InvalidData);
+                    }
+                    let mut byte_len = len_value as usize;
+                    byte_len = match byte_len.checked_mul(N) {
+                        Some(l) => l,
+                        None => return Err($crate::ParseError::TooShort),
+                    };
+                    byte_len = match byte_len.checked_add(L) {
+                        Some(l) => l,
+                        None => return Err($crate::ParseError::TooShort),
+                    };
+                    if buf.len() < byte_len {
+                        Err($crate::ParseError::TooShort)
+                    } else {
+                        Ok(byte_len)
+                    }
+                } else {
+                    Err($crate::ParseError::TooShort)
+                }
+            }
+            #[inline(always)]
+            pub const fn extract(mut buf: &[u8]) -> Result<$crate::Array<$len, $ty>, $crate::ParseError> {
+                const N: usize = std::mem::size_of::<$ty>();
+                const L: usize = std::mem::size_of::<$len>();
+                if let Some((len, array)) = buf.split_first_chunk::<L>() {
+                    let len_value = <$len>::from_be_bytes(*len);
+                    #[allow(unused_comparisons)]
+                    if len_value < 0 {
+                        return Err($crate::ParseError::InvalidData);
+                    }
+                    let mut byte_len = len_value as usize;
+                    byte_len = match byte_len.checked_mul(N) {
+                        Some(l) => l,
+                        None => return Err($crate::ParseError::TooShort),
+                    };
+                    byte_len = match byte_len.checked_add(L) {
+                        Some(l) => l,
+                        None => return Err($crate::ParseError::TooShort),
+                    };
+                    if buf.len() < byte_len {
+                        Err($crate::ParseError::TooShort)
+                    } else {
+                        Ok($crate::Array::new(array, <$len>::from_be_bytes(*len) as u32))
+                    }
+                } else {
+                    Err($crate::ParseError::TooShort)
+                }
+            }
+            #[inline(always)]
+            pub const fn measure<'a>(buffer: &'a[<$ty as $crate::Enliven>::ForMeasure<'a>]) -> usize {
+                buffer.len() * std::mem::size_of::<$ty>() + std::mem::size_of::<$len>()
+            }
+            #[inline(always)]
+            pub fn copy_to_buf(mut buf: &mut BufWriter, value: &[$ty]) {
+                let size: usize = std::mem::size_of::<$ty>() * value.len() + std::mem::size_of::<$len>();
+                if !buf.test(size) {
+                    return;
+                }
+                buf.write(&<$len>::to_be_bytes(value.len() as _));
+                for n in value {
+                    // buf.write(&<$ty>::to_be_bytes(*n));
+                }
+            }
+            #[inline(always)]
+            pub const fn constant(value: usize) -> $crate::Array<'static, $len, $ty> {
+                panic!("Constants unsupported for this data type")
+            }
+        }
+        )*
+
+        #[allow(unused)]
+        impl $acc::FieldAccess<$crate::meta::ZTArray<$ty>> {
+            pub const fn meta() -> &'static dyn $crate::Meta {
+                &$crate::meta::ZTArray::<$ty> { _phantom: std::marker::PhantomData }
+            }
+            #[inline]
+            pub const fn size_of_field_at(mut buf: &[u8]) -> Result<usize, $crate::ParseError> {
+                let mut size = 1;
+                loop {
+                    if buf.is_empty() {
+                        return Err($crate::ParseError::TooShort);
+                    }
+                    if buf[0] == 0 {
+                        return Ok(size);
+                    }
+                    let elem_size = match $acc::FieldAccess::<$ty>::size_of_field_at(buf) {
+                        Ok(n) => n,
+                        Err(e) => return Err(e),
+                    };
+                    buf = buf.split_at(elem_size).1;
+                    size += elem_size;
+                }
+            }
+            #[inline(always)]
+            pub const fn extract(mut buf: &[u8]) -> Result<$crate::ZTArray<$ty>, $crate::ParseError> {
+                Ok($crate::ZTArray::new(buf))
+            }
+            #[inline]
+            pub const fn measure<'a>(buffer: &'a[<$ty as $crate::Enliven>::ForMeasure<'a>]) -> usize {
+                let mut size = 1;
+                let mut index = 0;
+                loop {
+                    if index + 1 > buffer.len() {
+                        break;
+                    }
+                    let item = &buffer[index];
+                    size += $acc::FieldAccess::<$ty>::measure(item);
+                    index += 1;
+                }
+                size
+            }
+            #[inline(always)]
+            pub fn copy_to_buf(buf: &mut $crate::BufWriter, value: &[<$ty as $crate::Enliven>::ForBuilder<'_>]) {
+                for elem in value {
+                    $acc::FieldAccess::<$ty>::copy_to_buf(buf, elem);
+                }
+                buf.write_u8(0);
+            }
+            #[inline(always)]
+            pub const fn constant(value: usize) -> $crate::ZTArray<'static, $ty> {
+                panic!("Constants unsupported for this data type")
+            }
+        }
+    };
+    (variable, $acc:ident :: FieldAccess, $ty:ty | $($len:ty)*) => {
         $(
         #[allow(unused)]
         impl $acc::FieldAccess<$crate::meta::Array<$len, $ty>> {
@@ -419,92 +561,6 @@ macro_rules! array_access {
             }
             #[inline(always)]
             pub const fn constant(value: usize) -> $crate::ZTArray<'static, $ty> {
-                panic!("Constants unsupported for this data type")
-            }
-        }
-    };
-}
-
-macro_rules! declare_field_access_fixed_size_impl {
-    ($meta:ty) => {
-        #[allow(unused)]
-        impl FieldAccess<ArrayMeta<$len, $ty>> {
-            pub const fn meta() -> &'static dyn Meta {
-                &ArrayMeta::<$len, $ty> { _phantom: PhantomData }
-            }
-            #[inline(always)]
-            pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
-                const N: usize = std::mem::size_of::<$ty>();
-                const L: usize = std::mem::size_of::<$len>();
-                if let Some(len) = buf.first_chunk::<L>() {
-                    let len_value = <$len>::from_be_bytes(*len);
-                    #[allow(unused_comparisons)]
-                    if len_value < 0 {
-                        return Err($crate::ParseError::InvalidData);
-                    }
-                    let mut byte_len = len_value as usize;
-                    byte_len = match byte_len.checked_mul(N) {
-                        Some(l) => l,
-                        None => return Err($crate::ParseError::TooShort),
-                    };
-                    byte_len = match byte_len.checked_add(L) {
-                        Some(l) => l,
-                        None => return Err($crate::ParseError::TooShort),
-                    };
-                    if buf.len() < byte_len {
-                        Err($crate::ParseError::TooShort)
-                    } else {
-                        Ok(byte_len)
-                    }
-                } else {
-                    Err($crate::ParseError::TooShort)
-                }
-            }
-            #[inline(always)]
-            pub const fn extract(mut buf: &[u8]) -> Result<Array<$len, $ty>, $crate::ParseError> {
-                const N: usize = std::mem::size_of::<$ty>();
-                const L: usize = std::mem::size_of::<$len>();
-                if let Some((len, array)) = buf.split_first_chunk::<L>() {
-                    let len_value = <$len>::from_be_bytes(*len);
-                    #[allow(unused_comparisons)]
-                    if len_value < 0 {
-                        return Err($crate::ParseError::InvalidData);
-                    }
-                    let mut byte_len = len_value as usize;
-                    byte_len = match byte_len.checked_mul(N) {
-                        Some(l) => l,
-                        None => return Err($crate::ParseError::TooShort),
-                    };
-                    byte_len = match byte_len.checked_add(L) {
-                        Some(l) => l,
-                        None => return Err($crate::ParseError::TooShort),
-                    };
-                    if buf.len() < byte_len {
-                        Err($crate::ParseError::TooShort)
-                    } else {
-                        Ok(Array::new(array, <$len>::from_be_bytes(*len) as u32))
-                    }
-                } else {
-                    Err($crate::ParseError::TooShort)
-                }
-            }
-            #[inline(always)]
-            pub const fn measure(buffer: &[$ty]) -> usize {
-                buffer.len() * std::mem::size_of::<$ty>() + std::mem::size_of::<$len>()
-            }
-            #[inline(always)]
-            pub fn copy_to_buf(mut buf: &mut BufWriter, value: &[$ty]) {
-                let size: usize = std::mem::size_of::<$ty>() * value.len() + std::mem::size_of::<$len>();
-                if !buf.test(size) {
-                    return;
-                }
-                buf.write(&<$len>::to_be_bytes(value.len() as _));
-                for n in value {
-                    buf.write(&<$ty>::to_be_bytes(*n));
-                }
-            }
-            #[inline(always)]
-            pub const fn constant(value: usize) -> Array<'static, $len, $ty> {
                 panic!("Constants unsupported for this data type")
             }
         }

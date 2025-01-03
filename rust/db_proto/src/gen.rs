@@ -542,7 +542,7 @@ macro_rules! protocol_builder {
 
             use super::access::FieldAccess as FieldAccess;
             $crate::field_access!{self::FieldAccess, [<$name Meta>]}
-            $crate::array_access!{self::FieldAccess, [<$name Meta>]}
+            $crate::array_access!{variable, self::FieldAccess, [<$name Meta>]}
         );
     };
     (__meta__, fixed_offset($fixed_expr:expr) $field:ident $crate::meta::Length) => {

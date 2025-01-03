@@ -60,6 +60,9 @@ pub trait StructLength: StructMeta {
 
 /// For a given metaclass, returns the inflated type, a measurement type and a
 /// builder type.
+///
+/// Types that don't include a lifetime can use the same type for the meta type
+/// and the `WithLifetime` type.
 pub trait Enliven {
     type WithLifetime<'a>;
     type ForMeasure<'a>: 'a;
