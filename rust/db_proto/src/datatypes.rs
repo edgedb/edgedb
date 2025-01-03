@@ -3,7 +3,7 @@ use std::{marker::PhantomData, str::Utf8Error};
 pub use uuid::Uuid;
 
 use crate::{
-    arrays::{Array, ArrayMeta}, declare_field_access, declare_field_access_fixed_size, field_access, writer::BufWriter, Enliven, FieldAccess, FieldAccessArray, Meta, ParseError
+    declare_field_access, declare_field_access_fixed_size, writer::BufWriter, Enliven, FieldAccess, FieldAccessArray, Meta, ParseError
 };
 
 pub mod meta {
@@ -524,19 +524,6 @@ impl <const S: usize, T: FieldAccessArray> Meta for FixedArrayMeta<S, T> {
     }
 }
 
-impl <const S: usize, T: FieldAccessArray + 'static> FieldAccessArray for FixedArrayMeta<S, T> where FixedArrayMeta<S, T>: Enliven {
-    const META: &'static dyn Meta = &FixedArrayMeta::<S, T> { _phantom: PhantomData };
-    fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
-        unimplemented!()
-    }
-    fn extract(buf: &[u8]) -> Result<Self::WithLifetime<'_>, ParseError> {
-        unimplemented!()
-    }
-    fn copy_to_buf(buf: &mut BufWriter, value: &Self::ForBuilder<'_>) {
-        unimplemented!()
-    }
-}
-
 pub struct BasicMeta<T> {
     _phantom: PhantomData<T>,
 }
@@ -574,17 +561,7 @@ macro_rules! basic_types {
                 value as _
             }
         }
-        // impl $crate::FixedSize for $ty {
-        //     const SIZE: usize = std::mem::size_of::<$ty>();
-        //     #[inline(always)]
-        //     fn extract_infallible(buf: &[u8]) -> $ty {
-        //         if let Some(buf) = buf.first_chunk() {
-        //             <$ty>::from_be_bytes(*buf)
-        //         } else {
-        //             panic!()
-        //         }
-        //     }
-        // }
+
         // impl <const S: usize> $crate::FixedSize for [$ty; S] {
         //     const SIZE: usize = std::mem::size_of::<$ty>() * S;
         //     #[inline(always)]

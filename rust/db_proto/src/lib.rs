@@ -276,6 +276,14 @@ macro_rules! declare_field_access_fixed_size {
             }
         }
         
+        impl $crate::FixedSize for $meta {
+            const SIZE: usize = std::mem::size_of::<$inflated>();
+            #[inline(always)]
+            fn extract_infallible(buf: &[u8]) -> $inflated {
+                FieldAccess::<$meta>::extract(buf).unwrap()
+            }
+        }
+
         impl <const S: usize> Enliven for $crate::meta::FixedArray<S, $meta> {
             type WithLifetime<'a> = [$inflated; S];
             type ForMeasure<'a> = [$measured; S];
@@ -333,6 +341,33 @@ macro_rules! declare_field_access_fixed_size {
                 if !buf.test(std::mem::size_of::<$builder>() * S) {
                     return;
                 }
+                for n in value {
+                    FieldAccess::<$meta>::copy_to_buf(buf, n);
+                }
+            }
+        }
+
+        impl <const S: usize> FieldAccessArray for FixedArrayMeta<S, $meta> {
+            const META: &'static dyn Meta = FieldAccess::<$meta>::meta();
+            #[inline(always)]
+            fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
+                // TODO: needs to verify the values as well
+                FieldAccess::<$meta>::size_of_field_at(buf).map(|size| size * S)
+            }
+            #[inline(always)]
+            fn extract(mut buf: &[u8]) -> Result<[$inflated; S], ParseError> {
+                let mut out = [$zero; S];
+                for i in 0..S {
+                    (out[i], buf) = if let Some((bytes, rest)) = buf.split_first_chunk() {
+                        (FieldAccess::<$meta>::extract_exact(bytes)?, rest)
+                    } else {
+                        return Err(ParseError::TooShort);
+                    };
+                }
+                Ok(out)
+            }
+            #[inline(always)]
+            fn copy_to_buf(buf: &mut BufWriter, value: &[$builder; S]) {
                 for n in value {
                     FieldAccess::<$meta>::copy_to_buf(buf, n);
                 }
