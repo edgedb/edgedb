@@ -306,6 +306,50 @@ to one of the other providers:
 - ``SlackOAuthProvider``
 
 
+Generic OpenID Connect providers
+--------------------------------
+
+.. versionadded:: 6.0
+
+Generic OpenID Connect providers are now supported. In order to use them,
+you will need to insert an ``ext::auth::OpenIDConnectProvider`` configuration
+object with a few additional properties:
+
+- ``name``: A unique string identifying the provider.
+- ``display_name``: A human-readable name for the provider.
+- ``issuer_url``: The issuer URL of the provider. This must be the domain of
+  the provider's authorization server and will be used to drive the OpenID
+  Connect flow.
+- ``logo_url``: (optional) A URL to an image of the provider's logo. This is
+  used in the built-in UI to display the correct logo.
+
+Inherited from ``ext::auth::OAuthProviderConfig``:
+
+- ``client_id``: The client ID of the provider.
+- ``secret``: The client secret of the provider.
+- ``additional_scope``: (optional) A space-separated string of additional
+  scopes to request from the provider.
+
+Here is an example of enabling the Google OpenID Connect provider (note, for
+Google, you can simply use the existing Google provider, but this is for
+illustration purposes):
+
+.. lint-off
+
+.. code-block:: edgeql
+
+    CONFIGURE CURRENT BRANCH
+    INSERT ext::auth::OpenIDConnectProvider {
+        name := 'google',
+        display_name := 'Google',
+        issuer_url := 'https://accounts.google.com',
+        logo_url := 'https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png',
+        client_id := '1234567890',
+        secret := '1234567890',
+    };
+
+.. lint-on
+
 Magic link
 ----------
 
