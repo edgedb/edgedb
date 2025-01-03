@@ -446,19 +446,32 @@ class Router:
 
         email_password_client = email_password.Client(db=self.db)
         require_verification = email_password_client.config.require_verification
+        if not require_verification and maybe_challenge is None:
+            raise errors.InvalidData(
+                'Missing "challenge" in register request'
+            )
         pkce_code: Optional[str] = None
 
         try:
             identity = await email_password_client.register(data)
-            if not require_verification:
-                if maybe_challenge is None:
-                    raise errors.InvalidData(
-                        'Missing "challenge" in register request'
-                    )
+            if require_verification:
+                response_dict = {
+                    "identity_id": identity.id,
+                    "verification_email_sent_at": datetime.datetime.now(
+                        datetime.timezone.utc
+                    ).isoformat()
+                }
+            else:
+                # Checked at the beginning of the route handler
+                assert maybe_challenge is not None
                 await pkce.create(self.db, maybe_challenge)
                 pkce_code = await pkce.link_identity_challenge(
                     self.db, identity.id, maybe_challenge
                 )
+                response_dict = {
+                    "code": pkce_code,
+                    "provider": register_provider_name,
+                }
 
             await self._send_verification_email(
                 provider=register_provider_name,
@@ -471,35 +484,15 @@ class Router:
                 maybe_redirect_to=maybe_redirect_to,
             )
 
-            now_iso8601 = datetime.datetime.now(
-                datetime.timezone.utc
-            ).isoformat()
             if maybe_redirect_to is not None:
                 response.status = http.HTTPStatus.FOUND
-                redirect_params = (
-                    {"verification_email_sent_at": now_iso8601}
-                    if require_verification
-                    else {
-                        "code": cast(str, pkce_code),
-                        "provider": register_provider_name,
-                    }
-                )
                 response.custom_headers["Location"] = util.join_url_params(
-                    maybe_redirect_to, redirect_params
+                    maybe_redirect_to, response_dict
                 )
             else:
                 response.status = http.HTTPStatus.CREATED
                 response.content_type = b"application/json"
-                if require_verification:
-                    response.body = json.dumps(
-                        {"verification_email_sent_at": (now_iso8601)}
-                    ).encode()
-                else:
-                    if pkce_code is None:
-                        raise errors.PKCECreationFailed
-                    response.body = json.dumps(
-                        {"code": pkce_code, "provider": register_provider_name}
-                    ).encode()
+                response.body = json.dumps(response_dict)
         except Exception as ex:
             redirect_on_failure = data.get(
                 "redirect_on_failure", maybe_redirect_to
@@ -1156,7 +1149,10 @@ class Router:
                 datetime.timezone.utc
             ).isoformat()
             response.body = json.dumps(
-                {"verification_email_sent_at": (now_iso8601)}
+                {
+                    "identity_id": identity.id,
+                    "verification_email_sent_at": now_iso8601,
+                }
             ).encode()
         else:
             if pkce_code is None:
