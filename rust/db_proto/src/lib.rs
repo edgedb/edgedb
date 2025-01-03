@@ -28,6 +28,10 @@ pub use gen::protocol;
 #[doc(inline)]
 pub use message_group::{match_message, message_group};
 
+/// Re-export for the `protocol!` macro.
+#[doc(hidden)]
+pub use paste::paste;
+
 #[derive(thiserror::Error, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseError {
     #[error("Buffer is too short")]

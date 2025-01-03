@@ -206,7 +206,7 @@ macro_rules! __protocol {
         }
 
         $(
-            paste::paste!(
+            $crate::paste!(
                 #[allow(unused_imports)]
                 pub(crate) mod [<__ $name:lower>] {
                     use $crate::{meta::*, protocol_builder};
@@ -222,7 +222,7 @@ macro_rules! __protocol {
         pub mod data {
             #![allow(unused_imports)]
             $(
-                paste::paste!(
+                $crate::paste!(
                     pub use super::[<__ $name:lower>]::$name;
                 );
             )+
@@ -230,7 +230,7 @@ macro_rules! __protocol {
         pub mod meta {
             #![allow(unused_imports)]
             $(
-                paste::paste!(
+                $crate::paste!(
                     pub use super::[<__ $name:lower>]::[<$name Meta>] as $name;
                 );
             )+
@@ -247,7 +247,7 @@ macro_rules! __protocol {
         pub mod builder {
             #![allow(unused_imports)]
             $(
-                paste::paste!(
+                $crate::paste!(
                     pub use super::[<__ $name:lower>]::[<$name Builder>] as $name;
                 );
             )+
@@ -255,7 +255,7 @@ macro_rules! __protocol {
         pub mod measure {
             #![allow(unused_imports)]
             $(
-                paste::paste!(
+                $crate::paste!(
                     pub use super::[<__ $name:lower>]::[<$name Measure>] as $name;
                 );
             )+
@@ -298,7 +298,7 @@ macro_rules! protocol_builder {
             $($rest:tt)*
         },)*),
     }) => {
-        paste::paste!(
+        $crate::paste!(
             /// Our struct we are building.
             type S<'a> = $name<'a>;
             /// The meta-struct for the struct we are building.
@@ -450,7 +450,7 @@ macro_rules! protocol_builder {
             $($rest:tt)*
         },)*),
     }) => {
-        paste::paste!(
+        $crate::paste!(
             $( #[$sdoc] )?
             #[allow(unused)]
             #[derive(Debug, Default)]
@@ -584,7 +584,7 @@ macro_rules! protocol_builder {
             $($rest:tt)*
         },)*),
     }) => {
-        paste::paste!(
+        $crate::paste!(
             $crate::r#if!(__is_empty__ [$($($variable_marker)?)*] {
                 $( #[$sdoc] )?
                 // No variable-sized fields
@@ -631,7 +631,7 @@ macro_rules! protocol_builder {
             $($rest:tt)*
         },)*),
     }) => {
-        paste::paste!(
+        $crate::paste!(
             $crate::r#if!(__is_empty__ [$($($no_value)?)*] {
                 $( #[$sdoc] )?
                 // No unfixed-value fields

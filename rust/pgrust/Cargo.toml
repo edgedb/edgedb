@@ -31,7 +31,6 @@ url = "2"
 serde = "1"
 serde_derive = "1"
 percent-encoding = "2"
-uuid = "1"
 bytemuck = { version = "1", features = ["derive"] }
 
 [dependencies.derive_more]
