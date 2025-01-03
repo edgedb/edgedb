@@ -300,10 +300,10 @@ macro_rules! field_access {
 #[doc(hidden)]
 macro_rules! array_access {
     (fixed, $acc:ident :: FieldAccess, $ty:ty) => {
-        $crate::array_access!(fixed, $acc :: FieldAccess, $ty | u8 i16 i32 u32);
+        $crate::array_access!(fixed, $acc :: FieldAccess, $ty | u8 i16 u16 i32 u32);
     };
     (variable, $acc:ident :: FieldAccess, $ty:ty) => {
-        $crate::array_access!(variable, $acc :: FieldAccess, $ty | u8 i16 i32 u32);
+        $crate::array_access!(variable, $acc :: FieldAccess, $ty | u8 i16 u16 i32 u32);
     };
     (fixed, $acc:ident :: FieldAccess, $ty:ty | $($len:ty)*) => {
         $(

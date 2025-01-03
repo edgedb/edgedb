@@ -131,6 +131,8 @@ impl std::fmt::Debug for dyn Meta {
     }
 }
 
+/// Used internally by the `protocol!` macro to copy from `FieldAccess` in this crate to
+/// `FieldAccess` in the generated code.
 #[macro_export]
 #[doc(hidden)]
 macro_rules! field_access_copy {
@@ -141,6 +143,7 @@ macro_rules! field_access_copy {
                 $crate::meta::ZTArray<$ty>,
                 $crate::meta::Array<u8, $ty>,
                 $crate::meta::Array<i16, $ty>,
+                $crate::meta::Array<u16, $ty>,
                 $crate::meta::Array<i32, $ty>,
                 $crate::meta::Array<u32, $ty>
             );
@@ -152,8 +155,10 @@ macro_rules! field_access_copy {
 
         $crate::field_access_copy!(: $acc1 :: FieldAccess, $acc2 :: FieldAccess,
             $ty,
+            $crate::meta::ZTArray<$ty>,
             $crate::meta::Array<u8, $ty>,
             $crate::meta::Array<i16, $ty>,
+            $crate::meta::Array<u16, $ty>,
             $crate::meta::Array<i32, $ty>,
             $crate::meta::Array<u32, $ty>
         );

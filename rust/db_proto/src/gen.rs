@@ -192,11 +192,13 @@ macro_rules! __protocol {
                 _phantom_data: std::marker::PhantomData<T>,
             }
 
-            $crate::field_access_copy!{basic $crate::FieldAccess, self::FieldAccess, u8, i16, i32, u32, u64}
+            $crate::field_access_copy!{basic $crate::FieldAccess, self::FieldAccess,
+                i8, u8, i16, u16, i32, u32, i64, u64, i128, u128,
+                $crate::meta::Uuid
+            }
             $crate::field_access_copy!{$crate::FieldAccess, self::FieldAccess,
                 $crate::meta::ZTString,
                 $crate::meta::LString,
-                $crate::meta::Uuid,
                 $crate::meta::Rest,
                 $crate::meta::Encoded,
                 $crate::meta::Length

@@ -525,7 +525,7 @@ impl<T> Meta for BasicMeta<T> {
 }
 
 macro_rules! basic_types {
-    ($($ty:ty)*) => {
+    ($($ty:ty),*) => {
         $(
         declare_field_access_fixed_size! {
             Meta = $ty,
@@ -553,10 +553,6 @@ macro_rules! basic_types {
         }
         )*
     };
-
-    (: array<$ty:ty> $($len:ty)*) => {
-        $(
-        )*
-    }
 }
-basic_types!(u8 i16 i32 u32 u64);
+
+basic_types!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128);
