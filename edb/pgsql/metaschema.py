@@ -6389,12 +6389,14 @@ def _generate_sql_information_schema(
         name=('edgedbsql', 'uuid_to_oid'),
         args=(
             ('id', 'uuid'),
+            # extra is two extra bits to throw into the oid, for now
+            ('extra', 'int4', '0'),
         ),
         returns=('oid',),
         volatility='immutable',
         text="""
             SELECT (
-                ('x' || substring(id::text, 2, 7))::bit(28)::bigint
+                ('x' || substring(id::text, 2, 7))::bit(28)::bigint*4 + extra
                  + 40000)::oid;
         """
     )
@@ -7194,7 +7196,9 @@ def _generate_sql_information_schema(
 
         -- foreign keys for object tables
         SELECT
-          edgedbsql_VER.uuid_to_oid(sl.id) as oid,
+          -- uuid_to_oid needs "extra" arg to disambiguate from the link table
+          -- keys below
+          edgedbsql_VER.uuid_to_oid(sl.id, 0) as oid,
           vt.table_name || '_fk_' || sl.name AS conname,
           edgedbsql_VER.uuid_to_oid(vt.module_id) AS connamespace,
           'f'::"char" AS contype,
@@ -7240,7 +7244,9 @@ def _generate_sql_information_schema(
         -- - single link with link properties (source & target),
         -- these constraints do not actually exist, so we emulate it entierly
         SELECT
-            edgedbsql_VER.uuid_to_oid(sp.id) AS oid,
+            -- uuid_to_oid needs "extra" arg to disambiguate from other
+            -- constraints using this pointer
+            edgedbsql_VER.uuid_to_oid(sp.id, spec.attnum) AS oid,
             vt.table_name || '_fk_' || spec.name AS conname,
             edgedbsql_VER.uuid_to_oid(vt.module_id) AS connamespace,
             'f'::"char" AS contype,
@@ -7856,6 +7862,10 @@ def _generate_sql_information_schema(
             returns=('text',),
             volatility='stable',
             text=r"""
+                -- Wrap in a subquery SELECT so that we get a clear failure
+                -- if something is broken and this returns multiple rows.
+                -- (By default it would silently return the first.)
+                SELECT (
                 SELECT CASE
                     WHEN contype = 'p' THEN
                     'PRIMARY KEY(' || (
@@ -7868,7 +7878,6 @@ def _generate_sql_information_schema(
                         SELECT attname
                         FROM edgedbsql_VER.pg_attribute
                         WHERE attrelid = conrelid AND attnum = ANY(conkey)
-                        LIMIT 1
                     ) || '")' || ' REFERENCES "'
                     || pn.nspname || '"."' || pc.relname || '"(id)'
                     ELSE ''
@@ -7878,6 +7887,7 @@ def _generate_sql_information_schema(
                 LEFT JOIN edgedbsql_VER.pg_namespace pn
                   ON pc.relnamespace = pn.oid
                 WHERE con.oid = conid
+                )
             """
         ),
         trampoline.VersionedFunction(
