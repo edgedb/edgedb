@@ -1,5 +1,4 @@
-use super::gen::protocol;
-use super::message_group::message_group;
+use db_proto::{message_group, protocol};
 
 message_group!(
     /// The `Backend` message group contains messages sent from the backend to the frontend.

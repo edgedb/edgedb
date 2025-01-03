@@ -1,5 +1,5 @@
-use super::gen::protocol;
-use crate::protocol::message_group::message_group;
+use db_proto::{message_group, protocol};
+
 message_group!(
     EdgeDBBackend: Message = [
         AuthenticationOk,

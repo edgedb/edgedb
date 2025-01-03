@@ -518,6 +518,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "db_proto"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "paste",
+ "pretty_assertions",
+ "thiserror 1.0.63",
+ "uuid",
+]
+
+[[package]]
 name = "derive_more"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1588,6 +1599,7 @@ dependencies = [
  "captive_postgres",
  "clap",
  "clap_derive",
+ "db_proto",
  "derive_more",
  "futures",
  "gel_auth",

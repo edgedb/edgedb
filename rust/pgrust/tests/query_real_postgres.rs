@@ -4,13 +4,13 @@ use std::num::NonZero;
 use std::rc::Rc;
 
 // Constants
+use db_proto::match_message;
 use gel_auth::AuthType;
 use pgrust::connection::tokio::TokioStream;
 use pgrust::connection::{
     Client, Credentials, FlowAccumulator, MaxRows, Oid, Param, PipelineBuilder, Portal,
     ResolvedTarget, Statement,
 };
-use pgrust::protocol::match_message;
 use pgrust::protocol::postgres::data::*;
 use tokio::task::LocalSet;
 

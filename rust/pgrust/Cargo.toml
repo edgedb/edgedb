@@ -17,6 +17,7 @@ gel_auth.workspace = true
 pyo3.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+db_proto.workspace = true
 
 futures = "0"
 thiserror = "1"
@@ -30,7 +31,6 @@ url = "2"
 serde = "1"
 serde_derive = "1"
 percent-encoding = "2"
-uuid = "1"
 bytemuck = { version = "1", features = ["derive"] }
 
 [dependencies.derive_more]

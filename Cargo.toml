@@ -8,6 +8,7 @@ members = [
     "rust/auth",
     "rust/captive_postgres",
     "rust/conn_pool",
+    "rust/db_proto",
     "rust/pgrust",
     "rust/http",
     "rust/pyo3_util"
@@ -21,6 +22,7 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["registry", "env-filter"] }
 
 gel_auth = { path = "rust/auth" }
+db_proto = { path = "rust/db_proto" }
 captive_postgres = { path = "rust/captive_postgres" }
 conn_pool = { path = "rust/conn_pool" }
 pgrust = { path = "rust/pgrust" }

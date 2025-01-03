@@ -11,11 +11,9 @@ use crate::{
         },
         ConnectionSslRequirement,
     },
-    protocol::{
-        postgres::{data::SSLResponse, meta, FrontendBuilder, InitialBuilder},
-        StructBuffer,
-    },
+    protocol::postgres::{data::SSLResponse, meta, FrontendBuilder, InitialBuilder},
 };
+use db_proto::StructBuffer;
 use pyo3::{
     buffer::PyBuffer,
     exceptions::{PyException, PyRuntimeError},
@@ -46,12 +44,6 @@ impl From<ConnectionError> for PyErr {
 
 impl From<ParseError> for PyErr {
     fn from(err: ParseError) -> PyErr {
-        PyRuntimeError::new_err(err.to_string())
-    }
-}
-
-impl From<crate::protocol::ParseError> for PyErr {
-    fn from(err: crate::protocol::ParseError) -> PyErr {
         PyRuntimeError::new_err(err.to_string())
     }
 }
@@ -359,7 +351,8 @@ impl PyConnectionState {
         if self.inner.read_ssl_response() {
             // SSL responses are always one character
             let response = [buffer.as_slice(py).unwrap().first().unwrap().get()];
-            let response = SSLResponse::new(&response)?;
+            let response =
+                SSLResponse::new(&response).map_err(|e| PyException::new_err(e.to_string()))?;
             self.inner
                 .drive(ConnectionDrive::SslResponse(response), &mut self.update)?;
         } else {

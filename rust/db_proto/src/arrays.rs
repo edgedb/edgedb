@@ -1,9 +1,11 @@
 #![allow(private_bounds)]
-use super::{Enliven, FieldAccessArray, FixedSize, Meta, MetaRelation};
+
+use super::{Enliven, FieldAccessArray, FixedSize, Meta, MetaRelation, ParseError};
 pub use std::marker::PhantomData;
 
 pub mod meta {
     pub use super::ArrayMeta as Array;
+    pub use super::FixedArrayMeta as FixedArray;
     pub use super::ZTArrayMeta as ZTArray;
 }
 
@@ -15,7 +17,7 @@ pub struct ZTArray<'a, T: FieldAccessArray> {
 
 /// Metaclass for [`ZTArray`].
 pub struct ZTArrayMeta<T> {
-    pub(crate) _phantom: PhantomData<T>,
+    pub _phantom: PhantomData<T>,
 }
 
 impl<T: FieldAccessArray> Meta for ZTArrayMeta<T> {
@@ -95,6 +97,38 @@ impl<'a, T: FieldAccessArray> Iterator for ZTArrayIter<'a, T> {
     }
 }
 
+impl<T: FieldAccessArray + 'static> FieldAccessArray for ZTArrayMeta<T> {
+    const META: &'static dyn Meta = &ZTArrayMeta::<T> {
+        _phantom: PhantomData,
+    };
+    fn size_of_field_at(mut buf: &[u8]) -> Result<usize, ParseError> {
+        let mut size = 1;
+        loop {
+            if buf.is_empty() {
+                return Err(ParseError::TooShort);
+            }
+            if buf[0] == 0 {
+                return Ok(size);
+            }
+            let elem_size = match T::size_of_field_at(buf) {
+                Ok(n) => n,
+                Err(e) => return Err(e),
+            };
+            buf = buf.split_at(elem_size).1;
+            size += elem_size;
+        }
+    }
+    fn extract(buf: &[u8]) -> Result<ZTArray<T>, ParseError> {
+        Ok(ZTArray::new(buf))
+    }
+    fn copy_to_buf(buf: &mut crate::BufWriter, value: &&[<T as Enliven>::ForBuilder<'_>]) {
+        for elem in *value {
+            T::copy_to_buf(buf, elem);
+        }
+        buf.write_u8(0);
+    }
+}
+
 /// Inflated version of a length-specified array with zero-copy iterator access.
 pub struct Array<'a, L, T: FieldAccessArray> {
     _phantom: PhantomData<(L, T)>,
@@ -104,7 +138,7 @@ pub struct Array<'a, L, T: FieldAccessArray> {
 
 /// Metaclass for [`Array`].
 pub struct ArrayMeta<L, T> {
-    pub(crate) _phantom: PhantomData<(L, T)>,
+    pub _phantom: PhantomData<(L, T)>,
 }
 
 impl<L: FieldAccessArray, T: FieldAccessArray> Meta for ArrayMeta<L, T> {
@@ -121,7 +155,7 @@ impl<L: FieldAccessArray, T: FieldAccessArray> Meta for ArrayMeta<L, T> {
 
 impl<L, T> Enliven for ArrayMeta<L, T>
 where
-    T: FieldAccessArray,
+    T: FieldAccessArray + Enliven,
 {
     type WithLifetime<'a> = Array<'a, L, T>;
     type ForMeasure<'a> = &'a [<T as Enliven>::ForMeasure<'a>];
@@ -203,130 +237,6 @@ impl<'a, T: FieldAccessArray> Iterator for ArrayIter<'a, T> {
     }
 }
 
-/// Definate array accesses for inflated, strongly-typed arrays of both
-/// zero-terminated and length-delimited types.
-macro_rules! array_access {
-    ($ty:ty) => {
-        $crate::protocol::arrays::array_access!($ty | u8 i16 i32);
-    };
-    ($ty:ty | $($len:ty)*) => {
-        $(
-        #[allow(unused)]
-        impl $crate::protocol::FieldAccess<$crate::protocol::meta::Array<$len, $ty>> {
-            pub const fn meta() -> &'static dyn $crate::protocol::Meta {
-                &$crate::protocol::meta::Array::<$len, $ty> { _phantom: std::marker::PhantomData }
-            }
-            #[inline]
-            pub const fn size_of_field_at(mut buf: &[u8]) -> Result<usize, $crate::protocol::ParseError> {
-                let mut size = std::mem::size_of::<$len>();
-                let mut len = match $crate::protocol::FieldAccess::<$len>::extract(buf) {
-                    Ok(n) => n,
-                    Err(e) => return Err(e),
-                };
-                #[allow(unused_comparisons)]
-                if len < 0 {
-                    return Err($crate::protocol::ParseError::InvalidData);
-                }
-                buf = buf.split_at(size).1;
-                loop {
-                    if len <= 0 {
-                        break;
-                    }
-                    len -= 1;
-                    let elem_size = match $crate::protocol::FieldAccess::<$ty>::size_of_field_at(buf) {
-                        Ok(n) => n,
-                        Err(e) => return Err(e),
-                    };
-                    buf = buf.split_at(elem_size).1;
-                    size += elem_size;
-                }
-                Ok(size)
-            }
-            #[inline(always)]
-            pub const fn extract(buf: &[u8]) -> Result<$crate::protocol::Array<'_, $len, $ty>, $crate::protocol::ParseError> {
-                match $crate::protocol::FieldAccess::<$len>::extract(buf) {
-                    Ok(len) => Ok($crate::protocol::Array::new(buf.split_at(std::mem::size_of::<$len>()).1, len as u32)),
-                    Err(e) => Err(e)
-                }
-            }
-            #[inline]
-            pub const fn measure<'a>(buffer: &'a[<$ty as $crate::protocol::Enliven>::ForMeasure<'a>]) -> usize {
-                let mut size = std::mem::size_of::<$len>();
-                let mut index = 0;
-                loop {
-                    if index + 1 > buffer.len() {
-                        break;
-                    }
-                    let item = &buffer[index];
-                    size += $crate::protocol::FieldAccess::<$ty>::measure(item);
-                    index += 1;
-                }
-                size
-            }
-            #[inline(always)]
-            pub fn copy_to_buf<'a>(buf: &mut $crate::protocol::writer::BufWriter, value: &'a[<$ty as $crate::protocol::Enliven>::ForBuilder<'a>]) {
-                buf.write(&<$len>::to_be_bytes(value.len() as _));
-                for elem in value {
-                    $crate::protocol::FieldAccess::<$ty>::copy_to_buf_ref(buf, elem);
-                }
-            }
-
-        }
-        )*
-
-        #[allow(unused)]
-        impl $crate::protocol::FieldAccess<$crate::protocol::meta::ZTArray<$ty>> {
-            pub const fn meta() -> &'static dyn $crate::protocol::Meta {
-                &$crate::protocol::meta::ZTArray::<$ty> { _phantom: std::marker::PhantomData }
-            }
-            #[inline]
-            pub const fn size_of_field_at(mut buf: &[u8]) -> Result<usize, $crate::protocol::ParseError> {
-                let mut size = 1;
-                loop {
-                    if buf.is_empty() {
-                        return Err($crate::protocol::ParseError::TooShort);
-                    }
-                    if buf[0] == 0 {
-                        return Ok(size);
-                    }
-                    let elem_size = match $crate::protocol::FieldAccess::<$ty>::size_of_field_at(buf) {
-                        Ok(n) => n,
-                        Err(e) => return Err(e),
-                    };
-                    buf = buf.split_at(elem_size).1;
-                    size += elem_size;
-                }
-            }
-            #[inline(always)]
-            pub const fn extract(mut buf: &[u8]) -> Result<$crate::protocol::ZTArray<$ty>, $crate::protocol::ParseError> {
-                Ok($crate::protocol::ZTArray::new(buf))
-            }
-            #[inline]
-            pub const fn measure<'a>(buffer: &'a[<$ty as $crate::protocol::Enliven>::ForMeasure<'a>]) -> usize {
-                let mut size = 1;
-                let mut index = 0;
-                loop {
-                    if index + 1 > buffer.len() {
-                        break;
-                    }
-                    let item = &buffer[index];
-                    size += $crate::protocol::FieldAccess::<$ty>::measure(item);
-                    index += 1;
-                }
-                size
-            }
-            #[inline(always)]
-            pub fn copy_to_buf(buf: &mut $crate::protocol::writer::BufWriter, value: &[<$ty as $crate::protocol::Enliven>::ForBuilder<'_>]) {
-                for elem in value {
-                    $crate::protocol::FieldAccess::<$ty>::copy_to_buf_ref(buf, elem);
-                }
-                buf.write_u8(0);
-            }
-        }
-    };
-}
-pub(crate) use array_access;
-
 // Arrays of type [`u8`] are special-cased to return a slice of bytes.
 impl<T> AsRef<[u8]> for Array<'_, T, u8> {
     fn as_ref(&self) -> &[u8] {
@@ -348,5 +258,84 @@ impl<'a, L: TryInto<usize>, T: FixedSize + FieldAccessArray> Array<'a, L, T> {
             // As we've normally pre-scanned all items, this will not panic
             Some(T::extract_infallible(segment))
         }
+    }
+}
+
+impl<L: FieldAccessArray + 'static, T: FieldAccessArray + 'static> FieldAccessArray
+    for ArrayMeta<L, T>
+where
+    for<'a> L::ForBuilder<'a>: TryFrom<usize>,
+    for<'a> L::WithLifetime<'a>: TryInto<usize>,
+{
+    const META: &'static dyn Meta = &ArrayMeta::<L, T> {
+        _phantom: PhantomData,
+    };
+    fn size_of_field_at(mut buf: &[u8]) -> Result<usize, ParseError> {
+        let mut size = std::mem::size_of::<T>();
+        let len = match L::extract(buf) {
+            Ok(n) => n.try_into(),
+            Err(e) => return Err(e),
+        };
+        #[allow(unused_comparisons)]
+        let Ok(mut len) = len
+        else {
+            return Err(ParseError::InvalidData);
+        };
+        buf = buf.split_at(size).1;
+        loop {
+            if len == 0 {
+                break;
+            }
+            len -= 1;
+            let elem_size = match T::size_of_field_at(buf) {
+                Ok(n) => n,
+                Err(e) => return Err(e),
+            };
+            buf = buf.split_at(elem_size).1;
+            size += elem_size;
+        }
+        Ok(size)
+    }
+    fn extract(buf: &[u8]) -> Result<Array<L, T>, ParseError> {
+        let len = match L::extract(buf) {
+            Ok(len) => len.try_into(),
+            Err(e) => {
+                return Err(e);
+            }
+        };
+        let Ok(len) = len else {
+            return Err(ParseError::InvalidData);
+        };
+        Ok(Array::new(
+            buf.split_at(std::mem::size_of::<L>()).1,
+            len as _,
+        ))
+    }
+    fn copy_to_buf(buf: &mut crate::BufWriter, value: &&[<T as Enliven>::ForBuilder<'_>]) {
+        let Ok(len) = L::ForBuilder::try_from(value.len()) else {
+            panic!("Array length out of bounds");
+        };
+        L::copy_to_buf(buf, &len);
+        for elem in *value {
+            T::copy_to_buf(buf, elem);
+        }
+    }
+}
+
+pub struct FixedArrayMeta<const S: usize, T> {
+    pub _phantom: PhantomData<T>,
+}
+
+impl<const S: usize, T: FieldAccessArray> Meta for FixedArrayMeta<S, T> {
+    fn name(&self) -> &'static str {
+        "FixedArray"
+    }
+
+    fn fixed_length(&self) -> Option<usize> {
+        Some(S)
+    }
+
+    fn relations(&self) -> &'static [(MetaRelation, &'static dyn Meta)] {
+        &[(MetaRelation::Item, <T as FieldAccessArray>::META)]
     }
 }

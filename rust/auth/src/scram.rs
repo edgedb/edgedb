@@ -6,7 +6,7 @@
 //! protocols like Postgres and SASL to enhance security against common attacks
 //! such as replay and man-in-the-middle attacks.
 //!
-//! https://en.wikipedia.org/wiki/Salted_Challenge_Response_Authentication_Mechanism
+//! <https://en.wikipedia.org/wiki/Salted_Challenge_Response_Authentication_Mechanism>
 //!
 //! ## Limitations of this implementation
 //!
