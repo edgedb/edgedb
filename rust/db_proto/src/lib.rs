@@ -18,7 +18,7 @@ pub mod meta {
 pub use arrays::{Array, ArrayIter, ZTArray, ZTArrayIter};
 pub use buffer::StructBuffer;
 #[allow(unused)]
-pub use datatypes::{Encoded, LString, Rest, ZTString, Length, Uuid};
+pub use datatypes::{Encoded, LString, Length, Rest, Uuid, ZTString};
 pub use gen::protocol;
 pub use message_group::{match_message, message_group};
 pub use writer::BufWriter;
@@ -146,27 +146,27 @@ macro_rules! declare_field_access {
         Measure = $measured:ty,
         Builder = $builder:ty,
 
-        pub const fn meta() -> &'static dyn Meta 
+        pub const fn meta() -> &'static dyn Meta
             $meta_body:block
         
 
-        pub const fn size_of_field_at($size_of_arg0:ident : &[u8]) -> Result<usize, ParseError> 
+        pub const fn size_of_field_at($size_of_arg0:ident : &[u8]) -> Result<usize, ParseError>
             $size_of:block
         
 
-        pub const fn extract($extract_arg0:ident : &[u8]) -> Result<$extract_ret:ty, ParseError> 
+        pub const fn extract($extract_arg0:ident : &[u8]) -> Result<$extract_ret:ty, ParseError>
            $extract:block
         
 
-        pub const fn measure($measure_arg0:ident : &$measure_param:ty) -> usize 
+        pub const fn measure($measure_arg0:ident : &$measure_param:ty) -> usize
             $measure:block
         
 
-        pub fn copy_to_buf($copy_arg0:ident : &mut BufWriter, $copy_arg1:ident : &$value_param:ty) 
+        pub fn copy_to_buf($copy_arg0:ident : &mut BufWriter, $copy_arg1:ident : &$value_param:ty)
             $copy:block
         
 
-        pub const fn constant($constant_arg0:ident : usize) -> $constant_ret:ty 
+        pub const fn constant($constant_arg0:ident : usize) -> $constant_ret:ty
             $constant:block
     ) => {
         impl Enliven for $meta {
@@ -201,10 +201,10 @@ macro_rules! declare_field_access {
                 $constant
             }
         }
-        
+
         $crate::field_access!($crate::FieldAccess, $meta);
         $crate::array_access!($crate::FieldAccess, $meta);
-    }
+    };
 }
 
 /// Declares a field access for a given type.
@@ -222,13 +222,13 @@ macro_rules! declare_field_access_fixed_size {
         pub const fn meta() -> &'static dyn Meta 
             $meta_body:block
 
-        pub const fn extract($extract_arg0:ident : &$extract_type:ty) -> Result<$extract_ret:ty, ParseError> 
+        pub const fn extract($extract_arg0:ident : &$extract_type:ty) -> Result<$extract_ret:ty, ParseError>
            $extract:block
 
-        pub fn copy_to_buf($copy_arg0:ident : &mut BufWriter, $copy_arg1:ident : &$value_param:ty) 
+        pub fn copy_to_buf($copy_arg0:ident : &mut BufWriter, $copy_arg1:ident : &$value_param:ty)
             $copy:block
 
-        pub const fn constant($constant_arg0:ident : usize) -> $constant_ret:ty 
+        pub const fn constant($constant_arg0:ident : usize) -> $constant_ret:ty
             $constant:block
     ) => {
         impl Enliven for $meta {
@@ -259,7 +259,9 @@ macro_rules! declare_field_access_fixed_size {
                 }
             }
             #[inline(always)]
-            pub const fn extract_exact($extract_arg0: &[u8; $size]) -> Result<$extract_ret, ParseError> {
+            pub const fn extract_exact(
+                $extract_arg0: &[u8; $size],
+            ) -> Result<$extract_ret, ParseError> {
                 $extract
             }
             #[inline(always)]
@@ -275,7 +277,7 @@ macro_rules! declare_field_access_fixed_size {
                 $constant
             }
         }
-        
+
         impl $crate::FixedSize for $meta {
             const SIZE: usize = std::mem::size_of::<$inflated>();
             #[inline(always)]
@@ -284,14 +286,14 @@ macro_rules! declare_field_access_fixed_size {
             }
         }
 
-        impl <const S: usize> Enliven for $crate::meta::FixedArray<S, $meta> {
+        impl<const S: usize> Enliven for $crate::meta::FixedArray<S, $meta> {
             type WithLifetime<'a> = [$inflated; S];
             type ForMeasure<'a> = [$measured; S];
             type ForBuilder<'a> = [$builder; S];
         }
 
         #[allow(unused)]
-        impl <const S: usize> FieldAccess<$crate::meta::FixedArray<S, $meta>> {
+        impl<const S: usize> FieldAccess<$crate::meta::FixedArray<S, $meta>> {
             #[inline(always)]
             pub const fn meta() -> &'static dyn Meta {
                 struct Meta {}
@@ -301,7 +303,7 @@ macro_rules! declare_field_access_fixed_size {
                         concat!('[', stringify!($ty), "; ", "S")
                     }
                 }
-                &Meta{}
+                &Meta {}
             }
             #[inline(always)]
             pub const fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
@@ -347,7 +349,7 @@ macro_rules! declare_field_access_fixed_size {
             }
         }
 
-        impl <const S: usize> FieldAccessArray for FixedArrayMeta<S, $meta> {
+        impl<const S: usize> FieldAccessArray for FixedArrayMeta<S, $meta> {
             const META: &'static dyn Meta = FieldAccess::<$meta>::meta();
             #[inline(always)]
             fn size_of_field_at(buf: &[u8]) -> Result<usize, ParseError> {
@@ -376,7 +378,7 @@ macro_rules! declare_field_access_fixed_size {
 
         $crate::field_access!($crate::FieldAccess, $meta);
         $crate::array_access!($crate::FieldAccess, $meta);
-    }
+    };
 }
 
 /// Delegate to the concrete [`FieldAccess`] for each type we want to extract.

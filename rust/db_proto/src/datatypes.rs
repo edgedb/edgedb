@@ -3,18 +3,19 @@ use std::{marker::PhantomData, str::Utf8Error};
 pub use uuid::Uuid;
 
 use crate::{
-    declare_field_access, declare_field_access_fixed_size, writer::BufWriter, Enliven, FieldAccess, FieldAccessArray, Meta, ParseError
+    declare_field_access, declare_field_access_fixed_size, writer::BufWriter, Enliven, FieldAccess,
+    FieldAccessArray, Meta, ParseError,
 };
 
 pub mod meta {
+    pub use super::BasicMeta as Basic;
     pub use super::EncodedMeta as Encoded;
+    pub use super::FixedArrayMeta as FixedArray;
     pub use super::LStringMeta as LString;
     pub use super::LengthMeta as Length;
     pub use super::RestMeta as Rest;
     pub use super::UuidMeta as Uuid;
     pub use super::ZTStringMeta as ZTString;
-    pub use super::FixedArrayMeta as FixedArray;
-    pub use super::BasicMeta as Basic;
 }
 
 /// Represents the remainder of data in a message.
@@ -23,7 +24,7 @@ pub struct Rest<'a> {
     buf: &'a [u8],
 }
 
-declare_field_access!{
+declare_field_access! {
     Meta = RestMeta,
     Inflated = Rest<'a>,
     Measure = &'a [u8],
@@ -467,14 +468,14 @@ impl PartialEq<&[u8]> for Encoded<'_> {
 
 pub struct Length(pub i32);
 
-declare_field_access_fixed_size!{
+declare_field_access_fixed_size! {
     Meta = LengthMeta,
     Inflated = usize,
     Measure = i32,
     Builder = i32,
     Size = 4,
     Zero = 0,
-    
+
     pub const fn meta() -> &'static dyn Meta {
         &LengthMeta {}
     }
@@ -518,7 +519,7 @@ pub struct FixedArrayMeta<const S: usize, T> {
     _phantom: PhantomData<T>,
 }
 
-impl <const S: usize, T: FieldAccessArray> Meta for FixedArrayMeta<S, T> {
+impl<const S: usize, T: FieldAccessArray> Meta for FixedArrayMeta<S, T> {
     fn name(&self) -> &'static str {
         stringify!(Array<S, T>)
     }
@@ -528,7 +529,7 @@ pub struct BasicMeta<T> {
     _phantom: PhantomData<T>,
 }
 
-impl <T> Meta for BasicMeta<T> {
+impl<T> Meta for BasicMeta<T> {
     fn name(&self) -> &'static str {
         stringify!(T)
     }
@@ -552,11 +553,11 @@ macro_rules! basic_types {
             pub const fn extract(buf: &[u8; std::mem::size_of::<$ty>()]) -> Result<$ty, ParseError> {
                 Ok(<$ty>::from_be_bytes(*buf))
             }
-            
+
             pub fn copy_to_buf(buf: &mut BufWriter, value: &$ty) {
                 buf.write(&<$ty>::to_be_bytes(*value));
             }
-            
+
             pub const fn constant(value: usize) -> $ty {
                 value as _
             }
