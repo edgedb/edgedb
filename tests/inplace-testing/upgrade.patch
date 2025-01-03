@@ -1,5 +1,5 @@
 diff --git a/edb/buildmeta.py b/edb/buildmeta.py
-index 52d9f700d..2297151e7 100644
+index f3d18a320..768b8afc8 100644
 --- a/edb/buildmeta.py
 +++ b/edb/buildmeta.py
 @@ -68,6 +68,12 @@ class MetadataError(Exception):
@@ -15,11 +15,21 @@ index 52d9f700d..2297151e7 100644
  class BackendVersion(NamedTuple):
      major: int
      minor: int
+@@ -620,6 +626,6 @@ def get_version_line() -> str:
+     return get_version_string() + " ".join(extras)
+ 
+ 
+-# Belt and suspenders check to prevent accidental changes.
+-# DO NOT EVER CHANGE THIS.
+-assert EDGEDB_CATALOG_VERSION == 2024_12_13_00_00  # Friday the 13th.
++# # Belt and suspenders check to prevent accidental changes.
++# # DO NOT EVER CHANGE THIS.
++# assert EDGEDB_CATALOG_VERSION == 2024_12_13_00_00  # Friday the 13th.
 diff --git a/edb/edgeql/ast.py b/edb/edgeql/ast.py
-index 53f317d26..ce83fb341 100644
+index 2be8df296..199b57918 100644
 --- a/edb/edgeql/ast.py
 +++ b/edb/edgeql/ast.py
-@@ -1134,6 +1134,23 @@ class SetGlobalType(SetField):
+@@ -1139,6 +1139,23 @@ class SetGlobalType(SetField):
      reset_value: bool = False
  
  
@@ -44,10 +54,10 @@ index 53f317d26..ce83fb341 100644
  
      __abstract_node__ = True
 diff --git a/edb/edgeql/codegen.py b/edb/edgeql/codegen.py
-index 5e82472ff..d06a8cd72 100644
+index 6e48e6575..ddf8541a5 100644
 --- a/edb/edgeql/codegen.py
 +++ b/edb/edgeql/codegen.py
-@@ -2448,6 +2448,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
+@@ -2451,6 +2451,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
      def visit_DropGlobal(self, node: qlast.DropGlobal) -> None:
          self._visit_DropObject(node, 'GLOBAL')
  
@@ -61,10 +71,10 @@ index 5e82472ff..d06a8cd72 100644
          if node.scope == qltypes.ConfigScope.GLOBAL:
              self._write_keywords('SET GLOBAL ')
 diff --git a/edb/edgeql/parser/grammar/ddl.py b/edb/edgeql/parser/grammar/ddl.py
-index 72bbb77fa..5a59b25b8 100644
+index d6e6b73ec..94f4df8e6 100644
 --- a/edb/edgeql/parser/grammar/ddl.py
 +++ b/edb/edgeql/parser/grammar/ddl.py
-@@ -246,6 +246,14 @@ class InnerDDLStmt(Nonterm):
+@@ -247,6 +247,14 @@ class InnerDDLStmt(Nonterm):
      def reduce_DropGlobalStmt(self, *_):
          pass
  
@@ -79,7 +89,7 @@ index 72bbb77fa..5a59b25b8 100644
      @parsing.inline(0)
      def reduce_DropCastStmt(self, *_):
          pass
-@@ -3565,6 +3573,38 @@ class DropGlobalStmt(Nonterm):
+@@ -3566,6 +3574,38 @@ class DropGlobalStmt(Nonterm):
              name=kids[2].val
          )
  
@@ -119,10 +129,10 @@ index 72bbb77fa..5a59b25b8 100644
  # MIGRATIONS
  #
 diff --git a/edb/lib/_testmode.edgeql b/edb/lib/_testmode.edgeql
-index 0f0f1332c..ef977c8dd 100644
+index 6fb29b1f6..6ef5ed3ad 100644
 --- a/edb/lib/_testmode.edgeql
 +++ b/edb/lib/_testmode.edgeql
-@@ -214,6 +214,15 @@ create extension package _conf VERSION '1.0' {
+@@ -224,6 +224,15 @@ create extension package _conf VERSION '1.0' {
  
  # std::_gen_series
  
@@ -204,7 +214,7 @@ index b447e6a4c..fc7ee4a74 100644
      pass
  
 diff --git a/edb/schema/functions.py b/edb/schema/functions.py
-index a8792324b..527b8c38f 100644
+index b17fb4b95..e1301b18e 100644
 --- a/edb/schema/functions.py
 +++ b/edb/schema/functions.py
 @@ -1244,6 +1244,27 @@ class Function(
@@ -312,7 +322,7 @@ index 76ec833f4..460ea0a67 100644
 +):
 +    astnode = qlast.DropBlobal
 diff --git a/edb/schema/operators.py b/edb/schema/operators.py
-index 856225997..bc9a3aea7 100644
+index c62c7f5cf..3c260fec4 100644
 --- a/edb/schema/operators.py
 +++ b/edb/schema/operators.py
 @@ -68,12 +68,6 @@ class Operator(
@@ -329,7 +339,7 @@ index 856225997..bc9a3aea7 100644
      # contain the name of the origin operator.
      # For example, the `std::IN` operator has `std::=`
 diff --git a/edb/server/compiler/status.py b/edb/server/compiler/status.py
-index 9c11af6e3..54321982e 100644
+index d6ed5cf80..9fe61ecb0 100644
 --- a/edb/server/compiler/status.py
 +++ b/edb/server/compiler/status.py
 @@ -68,6 +68,8 @@ def get_schema_class(ql: qlast.ObjectDDL) -> qltypes.SchemaObjectClass:
@@ -342,7 +352,7 @@ index 9c11af6e3..54321982e 100644
              return osc.LINK
          case qlast.IndexCommand():
 diff --git a/tests/test_edgeql_select.py b/tests/test_edgeql_select.py
-index aa26da128..18da441d0 100644
+index 94fd98cf1..cfa421cf9 100644
 --- a/tests/test_edgeql_select.py
 +++ b/tests/test_edgeql_select.py
 @@ -1964,6 +1964,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
