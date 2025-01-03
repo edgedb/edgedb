@@ -79,6 +79,7 @@ macro_rules! __message_group {
     };
 }
 
+#[doc(inline)]
 pub use __message_group as message_group;
 
 /// Perform a match on a message.

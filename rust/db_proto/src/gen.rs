@@ -171,6 +171,14 @@ macro_rules! struct_elaborate {
     }
 }
 
+/// Generates a protocol definition from a Rust-like DSL.
+///
+/// ```
+/// struct Foo {
+///     bar: u8,
+///     baz: u16,
+/// }
+/// ```
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __protocol {
@@ -253,6 +261,7 @@ macro_rules! __protocol {
     };
 }
 
+#[doc(inline)]
 pub use __protocol as protocol;
 
 #[macro_export]
@@ -832,7 +841,7 @@ mod tests {
                 fixed(no_fixed_offset = no_fixed_offset, (0)),
             },
             {
-                name(d), type ([u8; 4]), size(fixed = fixed),
+                name(d), type (crate::meta::FixedArray<4, u8>), size(fixed = fixed),
                 value(no_value = no_value),
                 docs(concat!("`", stringify! (d), "` field.")),
                 fixed(no_fixed_offset = no_fixed_offset, ((0) + std::mem::size_of::<i16>())),
@@ -842,7 +851,8 @@ mod tests {
                 value(no_value = no_value),
                 docs(concat!("`", stringify! (e), "` field.")),
                 fixed(no_fixed_offset = no_fixed_offset,
-                    (((0) + std::mem::size_of::<i16>()) + std::mem::size_of::<[u8; 4]>())),
+                    (((0) + std::mem::size_of::<i16>()) +
+                    std::mem::size_of::<[u8; 4]>())),
             },
         ),
         }));

@@ -86,6 +86,7 @@ mod tests {
             r#"QueryType { Field("typ"): u8, Field("len"): u32, Field("meta"): Array { Length: u32, Item: u8 } }"#,
             r#"Query { Parent: "Message", Field("mtype"): u8, Field("mlen"): len, Field("query"): ZTString, Field("types"): Array { Length: i16, Item: QueryType { Field("typ"): u8, Field("len"): u32, Field("meta"): Array { Length: u32, Item: u8 } } } }"#,
             r#"Key { Field("key"): FixedArray { Length: 16, Item: u8 } }"#,
+            r#"Uuids { Field("uuids"): Array { Length: u32, Item: Uuid } }"#,
         ];
 
         for (i, meta) in meta::ALL.iter().enumerate() {

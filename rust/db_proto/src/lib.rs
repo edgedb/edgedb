@@ -21,9 +21,12 @@ pub use buffer::StructBuffer;
 #[allow(unused)]
 pub use datatypes::{Encoded, LString, Length, Rest, Uuid, ZTString};
 pub use field_access::{FieldAccess, FieldAccessArray, FixedSize};
-pub use gen::protocol;
-pub use message_group::{match_message, message_group};
 pub use writer::BufWriter;
+
+#[doc(inline)]
+pub use gen::protocol;
+#[doc(inline)]
+pub use message_group::{match_message, message_group};
 
 #[derive(thiserror::Error, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseError {
