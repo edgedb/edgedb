@@ -1,5 +1,12 @@
 use crate::{BufWriter, Enliven, Meta, ParseError};
 
+/// As Rust does not currently support const in traits, we use this struct to
+/// provide the const methods. It requires more awkward code, so we make use of
+/// macros to generate the code.
+pub struct FieldAccess<T: Enliven> {
+    _phantom_data: std::marker::PhantomData<T>,
+}
+
 /// Delegates to a concrete [`FieldAccess`] but as a non-const trait. This is
 /// used for performing extraction in iterators.
 pub trait FieldAccessArray: Enliven {
@@ -9,11 +16,12 @@ pub trait FieldAccessArray: Enliven {
     fn copy_to_buf(buf: &mut BufWriter, value: &Self::ForBuilder<'_>);
 }
 
-/// As Rust does not currently support const in traits, we use this struct to
-/// provide the const methods. It requires more awkward code, so we make use of
-/// macros to generate the code.
-pub struct FieldAccess<T: Enliven> {
-    _phantom_data: std::marker::PhantomData<T>,
+/// A trait for types which are fixed-size, used to provide a `get` implementation
+/// in arrays and iterators.
+pub trait FixedSize: Enliven {
+    const SIZE: usize;
+    /// Extract this type from the given buffer, assuming that enough bytes are available.
+    fn extract_infallible(buf: &[u8]) -> <Self as Enliven>::WithLifetime<'_>;
 }
 
 /// Declares a field access for a given type which is variably-sized.
@@ -107,6 +115,16 @@ macro_rules! declare_field_access_fixed_size {
         pub const fn constant($constant_arg0:ident : usize) -> $constant_ret:ty
             $constant:block
     ) => {
+        paste::paste! { 
+            #[doc(hidden)]
+            #[macro_export]
+            macro_rules! [< __declare_$meta >] {
+                () => {  }
+            }
+
+            pub use [< __declare_$meta >] as [< declare_ $meta >];
+        }
+
         impl Enliven for $meta {
             type WithLifetime<'a> = $inflated;
             type ForMeasure<'a> = $measured;

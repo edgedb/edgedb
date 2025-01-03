@@ -20,10 +20,11 @@ pub use arrays::{Array, ArrayIter, ZTArray, ZTArrayIter};
 pub use buffer::StructBuffer;
 #[allow(unused)]
 pub use datatypes::{Encoded, LString, Length, Rest, Uuid, ZTString};
-pub use field_access::{FieldAccess, FieldAccessArray};
+pub use field_access::{FieldAccess, FieldAccessArray, FixedSize};
 pub use gen::protocol;
 pub use message_group::{match_message, message_group};
 pub use writer::BufWriter;
+pub use datatypes::declare_UuidMeta;
 
 #[derive(thiserror::Error, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseError {
@@ -64,12 +65,6 @@ pub trait Enliven {
     type WithLifetime<'a>;
     type ForMeasure<'a>: 'a;
     type ForBuilder<'a>: 'a;
-}
-
-pub trait FixedSize: Enliven {
-    const SIZE: usize;
-    /// Extract this type from the given buffer, assuming that enough bytes are available.
-    fn extract_infallible(buf: &[u8]) -> <Self as Enliven>::WithLifetime<'_>;
 }
 
 #[derive(Debug, Eq, PartialEq)]

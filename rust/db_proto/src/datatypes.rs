@@ -562,51 +562,6 @@ macro_rules! basic_types {
                 value as _
             }
         }
-
-        // impl <const S: usize> $crate::FixedSize for [$ty; S] {
-        //     const SIZE: usize = std::mem::size_of::<$ty>() * S;
-        //     #[inline(always)]
-        //     fn extract_infallible(mut buf: &[u8]) -> [$ty; S] {
-        //         let mut out: [$ty; S] = [0; S];
-        //         let mut i = 0;
-        //         loop {
-        //             if i == S {
-        //                 break;
-        //             }
-        //             (out[i], buf) = if let Some((bytes, rest)) = buf.split_first_chunk() {
-        //                 (<$ty>::from_be_bytes(*bytes), rest)
-        //             } else {
-        //                 panic!()
-        //             };
-        //             i += 1;
-        //         }
-        //         out
-        //     }
-        // }
-
-        // impl <const S: usize> $crate::FieldAccessArray for [$ty; S] {
-        //     const META: &'static dyn $crate::Meta =
-        //         $crate::FieldAccess::<[$ty; S]>::meta();
-        //     #[inline(always)]
-        //     fn size_of_field_at(buf: &[u8]) -> Result<usize, $crate::ParseError> {
-        //         $crate::FieldAccess::<[$ty; S]>::size_of_field_at(buf)
-        //     }
-        //     #[inline(always)]
-        //     fn extract(
-        //         buf: &[u8],
-        //     ) -> Result<
-        //         <Self as $crate::Enliven>::WithLifetime<'_>,
-        //         $crate::ParseError,
-        //     > {
-        //         FieldAccess::<[$ty; S]>::extract(buf)
-        //     }
-        //     #[inline(always)]
-        //     fn copy_to_buf(buf: &mut $crate::BufWriter, value: &[$ty; S]) {
-        //         FieldAccess::<[$ty; S]>::copy_to_buf(buf, value)
-        //     }
-        // }
-
-        // basic_types!(: array<$ty> u8 i16 i32 u32 u64);
         )*
     };
 

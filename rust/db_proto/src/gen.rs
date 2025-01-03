@@ -184,6 +184,8 @@ macro_rules! __protocol {
                 _phantom_data: std::marker::PhantomData<T>,
             }
 
+            $crate::declare_UuidMeta!();
+
             $crate::field_access_copy!{basic $crate::FieldAccess, self::FieldAccess, u8, i16, i32, u32, u64}
             $crate::field_access_copy!{$crate::FieldAccess, self::FieldAccess,
                 $crate::meta::ZTString,
