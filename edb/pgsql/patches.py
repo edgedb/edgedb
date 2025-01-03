@@ -78,5 +78,10 @@ The current kinds are:
 """
 PATCHES: list[tuple[str, str]] = _setup_patches([
     # 6.0b2?
+    # One of the sql-introspection's adds a param with a default to
+    # uuid_to_oid, so we need to drop the original to avoid ambiguity.
+    ('sql', '''
+drop function if exists edgedbsql_v6_2f20b3fed0.uuid_to_oid(uuid) cascade
+'''),
     ('sql-introspection', ''),
 ])
