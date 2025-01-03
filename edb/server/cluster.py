@@ -324,7 +324,11 @@ class BaseCluster:
             started = time.monotonic()
             await test()
             left -= (time.monotonic() - started)
-        if res := self._admin_query("SELECT ();", f"{max(1, int(left))}s"):
+        if res := self._admin_query(
+            "SELECT ();",
+            f"{max(1, int(left))}s",
+            check=False,
+        ):
             raise ClusterError(
                 f'could not connect to edgedb-server '
                 f'within {timeout} seconds (exit code = {res})') from None
@@ -333,6 +337,7 @@ class BaseCluster:
         self,
         query: str,
         wait_until_available: str = "0s",
+        check: bool=True,
     ) -> int:
         args = [
             "edgedb",
@@ -350,12 +355,13 @@ class BaseCluster:
             wait_until_available,
             query,
         ]
-        res = subprocess.call(
+        res = subprocess.run(
             args=args,
-            stdout=subprocess.DEVNULL,
+            check=check,
+            stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
-        return res
+        return res.returncode
 
     async def set_test_config(self) -> None:
         self._admin_query(f'''
