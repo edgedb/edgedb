@@ -38,12 +38,13 @@ class TestQueryStatsMixin:
     async def _bad_query_for_stats(self):
         raise NotImplementedError
 
-    async def _test_sys_query_stats(self):
+    def _before_test_sys_query_stats(self):
         if self.backend_dsn:
             self.skipTest(
                 "can't run query stats test when extension isn't present"
             )
 
+    async def _test_sys_query_stats(self):
         stats_query = f'''
             with stats := (
                 select
@@ -177,7 +178,15 @@ class TestEdgeQLSys(tb.QueryTestCase, TestQueryStatsMixin):
             await self.con.query(f'select {self.stats_magic_word}_NoSuchType')
 
     async def test_edgeql_sys_query_stats(self):
-        await self._test_sys_query_stats()
+        self._before_test_sys_query_stats()
+        async with tb.start_edgedb_server() as sd:
+            old_con = self.con
+            self.con = await sd.connect()
+            try:
+                await self._test_sys_query_stats()
+            finally:
+                await self.con.aclose()
+                self.con = old_con
 
 
 class TestSQLSys(tb.SQLQueryTestCase, TestQueryStatsMixin):
@@ -215,4 +224,14 @@ class TestSQLSys(tb.SQLQueryTestCase, TestQueryStatsMixin):
             )
 
     async def test_sql_sys_query_stats(self):
-        await self._test_sys_query_stats()
+        self._before_test_sys_query_stats()
+        async with tb.start_edgedb_server() as sd:
+            old_cons = self.con, self.scon
+            self.con = await sd.connect()
+            self.scon = await sd.connect_pg()
+            try:
+                await self._test_sys_query_stats()
+            finally:
+                await self.scon.close()
+                await self.con.aclose()
+                self.con, self.scon = old_cons
