@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 
-use crate::{
-    errors::{edgedb::EdbError, PgServerError},
-    protocol::ParseError,
-};
-
+use crate::errors::{edgedb::EdbError, PgServerError};
+use db_proto::ParseError;
 mod conn;
 pub mod dsn;
 mod flow;

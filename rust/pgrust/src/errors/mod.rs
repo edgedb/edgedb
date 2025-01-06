@@ -135,7 +135,7 @@ macro_rules! pg_error {
         )*
 
         paste!(
-            /// Postgres error codes. See https://www.postgresql.org/docs/current/errcodes-appendix.html.
+            /// Postgres error codes. See <https://www.postgresql.org/docs/current/errcodes-appendix.html>.
             #[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
             pub enum PgError {
                 $(

@@ -5,12 +5,9 @@ use crate::{
         PgError, PgErrorConnectionException, PgErrorFeatureNotSupported,
         PgErrorInvalidAuthorizationSpecification, PgServerError, PgServerErrorField,
     },
-    protocol::{
-        match_message,
-        postgres::{data::*, *},
-        ParseError, StructBuffer,
-    },
+    protocol::postgres::{data::*, *},
 };
+use db_proto::{match_message, ParseError, StructBuffer};
 use gel_auth::{
     handshake::{ServerAuth, ServerAuthDrive, ServerAuthError, ServerAuthResponse},
     AuthType, CredentialData,

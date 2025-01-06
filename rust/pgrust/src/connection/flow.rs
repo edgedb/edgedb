@@ -1,8 +1,8 @@
 //! Postgres flow notes:
 //!
-//! https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-FLOW-PIPELINING
+//! <https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-FLOW-PIPELINING>
 //!
-//! https://segmentfault.com/a/1190000017136059
+//! <https://segmentfault.com/a/1190000017136059>
 //!
 //! Extended query messages Parse, Bind, Describe, Execute, Close put the server
 //! into a "skip-til-sync" mode when erroring. All messages other than Terminate (including
@@ -17,18 +17,15 @@
 
 use std::{cell::RefCell, num::NonZeroU32, rc::Rc};
 
-use crate::protocol::{
-    match_message,
-    postgres::{
-        builder,
-        data::{
-            BindComplete, CloseComplete, CommandComplete, CopyData, CopyDone, CopyOutResponse,
-            DataRow, EmptyQueryResponse, ErrorResponse, Message, NoData, NoticeResponse,
-            ParameterDescription, ParseComplete, PortalSuspended, ReadyForQuery, RowDescription,
-        },
+use crate::protocol::postgres::{
+    builder,
+    data::{
+        BindComplete, CloseComplete, CommandComplete, CopyData, CopyDone, CopyOutResponse, DataRow,
+        EmptyQueryResponse, ErrorResponse, Message, NoData, NoticeResponse, ParameterDescription,
+        ParseComplete, PortalSuspended, ReadyForQuery, RowDescription,
     },
-    Encoded,
 };
+use db_proto::{match_message, Encoded};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Param<'a> {

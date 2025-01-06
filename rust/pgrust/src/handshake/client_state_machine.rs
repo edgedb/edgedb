@@ -3,7 +3,6 @@ use crate::{
     connection::{invalid_state, ConnectionError, Credentials, SslError},
     errors::PgServerError,
     protocol::{
-        match_message,
         postgres::data::{
             AuthenticationCleartextPassword, AuthenticationMD5Password, AuthenticationMessage,
             AuthenticationOk, AuthenticationSASL, AuthenticationSASLContinue,
@@ -11,10 +10,10 @@ use crate::{
             ReadyForQuery, SSLResponse,
         },
         postgres::{builder, FrontendBuilder, InitialBuilder},
-        ParseError,
     },
 };
 use base64::Engine;
+use db_proto::{match_message, ParseError};
 use gel_auth::{
     scram::{generate_salted_password, ClientEnvironment, ClientTransaction, Sha256Out},
     AuthType,

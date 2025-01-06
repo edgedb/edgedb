@@ -1,6 +1,8 @@
-macro_rules! message_group {
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __message_group {
     ($(#[$doc:meta])* $group:ident : $super:ident = [$($message:ident),*]) => {
-        paste::paste!(
+        $crate::paste!(
         $(#[$doc])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         #[allow(unused)]
@@ -29,7 +31,7 @@ macro_rules! message_group {
                 }
             }
 
-            pub fn copy_to_buf(&self, writer: &mut $crate::protocol::writer::BufWriter) {
+            pub fn copy_to_buf(&self, writer: &mut $crate::BufWriter) {
                 match self {
                     $(
                         Self::$message(message) => message.copy_to_buf(writer),
@@ -65,7 +67,7 @@ macro_rules! message_group {
         impl $group {
             pub fn identify(buf: &[u8]) -> Option<Self> {
                 $(
-                    if <meta::$message as $crate::protocol::Enliven>::WithLifetime::is_buffer(buf) {
+                    if <meta::$message as $crate::Enliven>::WithLifetime::is_buffer(buf) {
                         return Some(Self::$message);
                     }
                 )*
@@ -76,17 +78,19 @@ macro_rules! message_group {
         );
     };
 }
-pub(crate) use message_group;
+
+#[doc(inline)]
+pub use __message_group as message_group;
 
 /// Perform a match on a message.
 ///
 /// ```rust
-/// use pgrust::protocol::*;
-/// use pgrust::protocol::postgres::data::*;
+/// use db_proto::*;
+/// use db_proto::test_protocol::data::*;
 ///
 /// let buf = [b'?', 0, 0, 0, 4];
 /// match_message!(Message::new(&buf), Backend {
-///     (BackendKeyData as data) => {
+///     (DataRow as data) => {
 ///         todo!();
 ///     },
 ///     unknown => {
@@ -102,7 +106,7 @@ macro_rules! __match_message {
         $unknown:ident => $unknown_impl:block $(,)?
     }) => {
         'block: {
-            let __message: Result<_, $crate::protocol::ParseError> = $buf;
+            let __message: Result<_, $crate::ParseError> = $buf;
             let res = match __message {
                 Ok(__message) => {
                     $(
@@ -138,18 +142,15 @@ pub use __match_message as match_message;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::postgres::{
-        builder,
-        data::{Message, PasswordMessage},
-    };
+    use crate::test_protocol::{builder, data::*};
 
     #[test]
     fn test_match() {
         let message = builder::Sync::default().to_vec();
         let message = Message::new(&message);
         match_message!(message, Message {
-            (PasswordMessage as password) => {
-                eprintln!("{password:?}");
+            (DataRow as data_row) => {
+                eprintln!("{data_row:?}");
                 return;
             },
             unknown => {
