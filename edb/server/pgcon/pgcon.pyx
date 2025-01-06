@@ -1824,7 +1824,9 @@ cdef class PGConnection:
                         msg_buf = WriteBuffer.new_message(b'D')
                         msg_buf.write_int16(1)  # number of column values
                         setting = dbv.current_fe_settings()[setting_name]
-                        msg_buf.write_len_prefixed_utf8(setting_to_sql(setting))
+                        msg_buf.write_len_prefixed_utf8(
+                            setting_to_sql(setting_name, setting)
+                        )
                         buf.write_buffer(msg_buf.end_message())
 
                         # CommandComplete
@@ -3015,28 +3017,172 @@ cdef bytes FLUSH_MESSAGE = bytes(WriteBuffer.new_message(b'H').end_message())
 
 cdef EdegDBCodecContext DEFAULT_CODEC_CONTEXT = EdegDBCodecContext()
 
-
-cdef setting_to_sql(setting):
-    assert typeutils.is_container(setting)
-    return ', '.join(setting_val_to_sql(v) for v in setting)
-
-
-cdef set NON_QUOTABLE_STRINGS = {
-    'repeatable read',
-    'read committed',
-    'read uncommitted',
-    'off',
-    'on',
-    'yes',
-    'no',
-    'true',
-    'false',
+# Settings that are enums or bools and should not be quoted.
+# Can be retrived from PostgreSQL with:
+#   SELECt name FROM pg_catalog.pg_settings WHERE vartype IN ('enum', 'bool');
+cdef set ENUM_SETTINGS = {
+    'allow_alter_system',
+    'allow_in_place_tablespaces',
+    'allow_system_table_mods',
+    'archive_mode',
+    'array_nulls',
+    'autovacuum',
+    'backslash_quote',
+    'bytea_output',
+    'check_function_bodies',
+    'client_min_messages',
+    'compute_query_id',
+    'constraint_exclusion',
+    'data_checksums',
+    'data_sync_retry',
+    'debug_assertions',
+    'debug_logical_replication_streaming',
+    'debug_parallel_query',
+    'debug_pretty_print',
+    'debug_print_parse',
+    'debug_print_plan',
+    'debug_print_rewritten',
+    'default_toast_compression',
+    'default_transaction_deferrable',
+    'default_transaction_isolation',
+    'default_transaction_read_only',
+    'dynamic_shared_memory_type',
+    'edb_stat_statements.save',
+    'edb_stat_statements.track',
+    'edb_stat_statements.track_planning',
+    'edb_stat_statements.track_utility',
+    'enable_async_append',
+    'enable_bitmapscan',
+    'enable_gathermerge',
+    'enable_group_by_reordering',
+    'enable_hashagg',
+    'enable_hashjoin',
+    'enable_incremental_sort',
+    'enable_indexonlyscan',
+    'enable_indexscan',
+    'enable_material',
+    'enable_memoize',
+    'enable_mergejoin',
+    'enable_nestloop',
+    'enable_parallel_append',
+    'enable_parallel_hash',
+    'enable_partition_pruning',
+    'enable_partitionwise_aggregate',
+    'enable_partitionwise_join',
+    'enable_presorted_aggregate',
+    'enable_seqscan',
+    'enable_sort',
+    'enable_tidscan',
+    'escape_string_warning',
+    'event_triggers',
+    'exit_on_error',
+    'fsync',
+    'full_page_writes',
+    'geqo',
+    'gss_accept_delegation',
+    'hot_standby',
+    'hot_standby_feedback',
+    'huge_pages',
+    'huge_pages_status',
+    'icu_validation_level',
+    'ignore_checksum_failure',
+    'ignore_invalid_pages',
+    'ignore_system_indexes',
+    'in_hot_standby',
+    'integer_datetimes',
+    'intervalstyle',
+    'jit',
+    'jit_debugging_support',
+    'jit_dump_bitcode',
+    'jit_expressions',
+    'jit_profiling_support',
+    'jit_tuple_deforming',
+    'krb_caseins_users',
+    'lo_compat_privileges',
+    'log_checkpoints',
+    'log_connections',
+    'log_disconnections',
+    'log_duration',
+    'log_error_verbosity',
+    'log_executor_stats',
+    'log_hostname',
+    'log_lock_waits',
+    'log_min_error_statement',
+    'log_min_messages',
+    'log_parser_stats',
+    'log_planner_stats',
+    'log_recovery_conflict_waits',
+    'log_replication_commands',
+    'log_statement',
+    'log_statement_stats',
+    'log_truncate_on_rotation',
+    'logging_collector',
+    'parallel_leader_participation',
+    'password_encryption',
+    'plan_cache_mode',
+    'quote_all_identifiers',
+    'recovery_init_sync_method',
+    'recovery_prefetch',
+    'recovery_target_action',
+    'recovery_target_inclusive',
+    'remove_temp_files_after_crash',
+    'restart_after_crash',
+    'row_security',
+    'send_abort_for_crash',
+    'send_abort_for_kill',
+    'session_replication_role',
+    'shared_memory_type',
+    'ssl',
+    'ssl_max_protocol_version',
+    'ssl_min_protocol_version',
+    'ssl_passphrase_command_supports_reload',
+    'ssl_prefer_server_ciphers',
+    'standard_conforming_strings',
+    'stats_fetch_consistency',
+    'summarize_wal',
+    'sync_replication_slots',
+    'synchronize_seqscans',
+    'synchronous_commit',
+    'syslog_facility',
+    'syslog_sequence_numbers',
+    'syslog_split_messages',
+    'trace_connection_negotiation',
+    'trace_notify',
+    'trace_sort',
+    'track_activities',
+    'track_commit_timestamp',
+    'track_counts',
+    'track_functions',
+    'track_io_timing',
+    'track_wal_io_timing',
+    'transaction_deferrable',
+    'transaction_isolation',
+    'transaction_read_only',
+    'transform_null_equals',
+    'update_process_title',
+    'wal_compression',
+    'wal_init_zero',
+    'wal_level',
+    'wal_log_hints',
+    'wal_receiver_create_temp_slot',
+    'wal_recycle',
+    'wal_sync_method',
+    'xmlbinary',
+    'xmloption',
+    'zero_damaged_pages',
 }
 
 
-cdef inline str setting_val_to_sql(val: str | int | float):
+cdef setting_to_sql(name, setting):
+    is_enum = name.lower() in ENUM_SETTINGS
+
+    assert typeutils.is_container(setting)
+    return ', '.join(setting_val_to_sql(v, is_enum) for v in setting)
+
+
+cdef inline str setting_val_to_sql(val: str | int | float, is_enum: bool):
     if isinstance(val, str):
-        if val in NON_QUOTABLE_STRINGS:
+        if is_enum:
             # special case: no quoting
             return val
         # quote as identifier
