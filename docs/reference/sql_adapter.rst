@@ -439,8 +439,8 @@ Locking
 Query cache
 ===========
 
-An SQL query is issued to EdgeDB, it is compiled to an internal SQL query, which is
-then issued to the backing PostgreSQL instance. The compiler query is then
+An SQL query is issued to EdgeDB, it is compiled to an internal SQL query, which
+is then issued to the backing PostgreSQL instance. The compiled query is then
 cached, so each following issue of the same query will not perform any
 compilation, but just pass through the cached query.
 
