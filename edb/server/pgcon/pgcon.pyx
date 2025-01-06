@@ -3017,6 +3017,9 @@ cdef bytes FLUSH_MESSAGE = bytes(WriteBuffer.new_message(b'H').end_message())
 
 cdef EdegDBCodecContext DEFAULT_CODEC_CONTEXT = EdegDBCodecContext()
 
+# Settings that are enums or bools and should not be quoted.
+# Can be retrived from PostgreSQL with:
+#   SELECt name FROM pg_catalog.pg_settings WHERE vartype IN ('enum', 'bool');
 cdef set ENUM_SETTINGS = {
     'allow_alter_system',
     'allow_in_place_tablespaces',
@@ -3169,21 +3172,12 @@ cdef set ENUM_SETTINGS = {
     'zero_damaged_pages',
 }
 
+
 cdef setting_to_sql(name, setting):
     is_enum = name.lower() in ENUM_SETTINGS
 
     assert typeutils.is_container(setting)
     return ', '.join(setting_val_to_sql(v, is_enum) for v in setting)
-
-
-cdef set NON_QUOTABLE_STRINGS = {
-    'off',
-    'on',
-    'yes',
-    'no',
-    'true',
-    'false',
-}
 
 
 cdef inline str setting_val_to_sql(val: str | int | float, is_enum: bool):
