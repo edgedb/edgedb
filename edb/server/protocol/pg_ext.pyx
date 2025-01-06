@@ -355,7 +355,7 @@ cdef class ConnectionView:
                 return self._session_state_db_cache[1]
 
         rv = json.dumps({
-            key: setting_to_sql(val) for key, val in self._settings.items()
+            key: setting_to_sql(key, val) for key, val in self._settings.items()
         }).encode("utf-8")
         self._session_state_db_cache = (self._settings, rv)
         return rv

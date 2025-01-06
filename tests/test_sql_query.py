@@ -3015,6 +3015,57 @@ class TestSQLQueryNonTransactional(tb.SQLQueryTestCase):
 
         # setting cleanup not needed, since with end with the None, None
 
+    async def test_sql_query_set_05(self):
+        # IntervalStyle
+
+        await self.scon.execute('SET IntervalStyle TO ISO_8601;')
+        [[res]] = await self.squery_values(
+            "SELECT '2 years 15 months 100 weeks 99 hours'::interval::text;"
+        )
+        self.assertEqual(res, 'P3Y3M700DT99H')
+
+        await self.scon.execute('SET IntervalStyle TO postgres_verbose;')
+        [[res]] = await self.squery_values(
+            "SELECT '2 years 15 months 100 weeks 99 hours'::interval::text;"
+        )
+        self.assertEqual(res, '@ 3 years 3 mons 700 days 99 hours')
+
+        await self.scon.execute('SET IntervalStyle TO sql_standard;')
+        [[res]] = await self.squery_values(
+            "SELECT '2 years 15 months 100 weeks 99 hours'::interval::text;"
+        )
+        self.assertEqual(res, '+3-3 +700 +99:00:00')
+
+    async def test_sql_query_set_06(self):
+        # bytea_output
+
+        await self.scon.execute('SET bytea_output TO hex')
+        [[res]] = await self.squery_values(
+            "SELECT '\\x01abcdef01'::bytea::text"
+        )
+        self.assertEqual(res, r'\x01abcdef01')
+
+        await self.scon.execute('SET bytea_output TO escape')
+        [[res]] = await self.squery_values(
+            "SELECT '\\x01abcdef01'::bytea::text"
+        )
+        self.assertEqual(res, r'\001\253\315\357\001')
+
+    async def test_sql_query_set_07(self):
+        # enable_memoize
+
+        await self.scon.execute('SET enable_memoize TO ye')
+        [[res]] = await self.squery_values(
+            "SELECT 'hello'"
+        )
+        self.assertEqual(res, 'hello')
+
+        await self.scon.execute('SET enable_memoize TO off')
+        [[res]] = await self.squery_values(
+            "SELECT 'hello'"
+        )
+        self.assertEqual(res, 'hello')
+
     @test.skip(
         'blocking the connection causes other tests which trigger a '
         'PostgreSQL error to encounter a InternalServerError and close '
