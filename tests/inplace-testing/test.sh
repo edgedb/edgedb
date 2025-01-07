@@ -151,6 +151,9 @@ if $EDGEDB query 'create empty branch asdf'; then
 fi
 $EDGEDB query 'configure instance reset force_database_error'
 stop_server
+if [ "$SAVE_TARBALLS" = 1 ]; then
+    tar cf "$DIR"-cooked2.tar "$DIR"
+fi
 
 
 # Test!

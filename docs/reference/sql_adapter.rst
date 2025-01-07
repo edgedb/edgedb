@@ -300,54 +300,207 @@ construct is mapped to PostgreSQL schema:
 
 - Aliases are not mapped to PostgreSQL schema.
 
-- Globals are mapped to connection settings, prefixed with ``global``.
-  For example, a ``global default::username: str`` can be set using:
-  
-  .. code-block:: sql
+.. versionadded:: 6.0
 
-      SET "global default::username" TO 'Tom'``.
+    - Globals are mapped to connection settings, prefixed with ``global``.
+      For example, a ``global default::username: str`` can be accessed using:
 
-- Access policies are applied to object type tables when setting
-  ``apply_access_policies_pg`` is set to ``true``.
+      .. code-block:: sql
 
-- Mutation rewrites and triggers are applied to all DML commands.
+          SET "global default::username" TO 'Tom'``;
+          SHOW "global default::username";
 
+    - Access policies are applied to object type tables when setting
+      ``apply_access_policies_pg`` is set to ``true``.
+
+    - Mutation rewrites and triggers are applied to all DML commands.
 
 DML commands
 ============
 
-When using ``INSERT``, ``DELETE`` or ``UPDATE`` on any table, mutation rewrites
-and triggers are applied. These commands do not have a straight-forward
-translation to EdgeQL DML commands, but instead use the following mapping:
+.. versionchanged:: _default
 
-- ``INSERT INTO "Foo"`` object table maps to ``insert Foo``,
+    Data Modification Language commands (``INSERT``, ``UPDATE``, ``DELETE``, ..)
+    are not supported in EdgeDB <6.0.
 
-- ``INSERT INTO "Foo.keywords"`` link/property table maps to an
-  ``update Foo { keywords += ... }``,
+.. versionchanged:: 6.0
 
-- ``DELETE FROM "Foo"`` object table maps to ``delete Foo``,
+.. versionadded:: 6.0
 
-- ``DELETE FROM "Foo.keywords"`` link property/table maps to
-  ``update Foo { keywords -= ... }``,
+    When using ``INSERT``, ``DELETE`` or ``UPDATE`` on any table, mutation
+    rewrites and triggers are applied. These commands do not have a
+    straight-forward translation to EdgeQL DML commands, but instead use the
+    following mapping:
 
-- ``UPDATE "Foo"`` object table maps to ``update Foo set { ... }``,
+    - ``INSERT INTO "Foo"`` object table maps to ``insert Foo``,
 
-- ``UPDATE "Foo.keywords"`` is not supported.
+    - ``INSERT INTO "Foo.keywords"`` link/property table maps to an
+      ``update Foo { keywords += ... }``,
+
+    - ``DELETE FROM "Foo"`` object table maps to ``delete Foo``,
+
+    - ``DELETE FROM "Foo.keywords"`` link property/table maps to
+      ``update Foo { keywords -= ... }``,
+
+    - ``UPDATE "Foo"`` object table maps to ``update Foo set { ... }``,
+
+    - ``UPDATE "Foo.keywords"`` is not supported.
 
 
 Connection settings
 ===================
 
-SQL adapter supports a limited subset of PostgreSQL connection settings.
-There are the following additionally connection settings:
+SQL adapter supports most of PostgreSQL connection settings
+(for example ``search_path``), in the same manner as plain PostgreSQL:
 
-- ``allow_user_specified_id`` (default ``false``),
-- ``apply_access_policies_pg`` (default ``false``),
-- settings prefixed with ``"global "`` can use used to set values of globals.
+.. code-block:: sql
 
-Note that if ``allow_user_specified_id`` or ``apply_access_policies_pg`` are
-unset, they default to configuration set by ``configure current database``
-EdgeQL command.
+    SET search_path TO my_module;
+
+    SHOW search_path;
+
+    RESET search_path;
+
+.. versionadded:: 6.0
+
+    In addition, there are the following EdgeDB-specific settings:
+
+    - settings prefixed with ``"global "`` set the values of globals.
+
+      Because SQL syntax allows only string, integer and float constants in
+      ``SET`` command, globals of other types such as ``datetime`` cannot be set
+      this way.
+
+      .. code-block:: sql
+
+          SET "global my_module::hello" TO 'world';
+
+      Special handling is in place to enable setting:
+        - ``bool`` types via integers 0 or 1),
+        - ``uuid`` types via hex-encoded strings.
+
+      .. code-block:: sql
+
+          SET "global my_module::current_user_id"
+           TO "592c62c6-73dd-4b7b-87ba-46e6d34ec171";
+          SET "global my_module::is_admin" TO 1;
+
+      To set globals of other types via SQL, it is recommended to change the
+      global to use one of the simple types instead, and use appropriate casts
+      where the global is used.
+
+
+    - ``allow_user_specified_id`` (default ``false``),
+
+    - ``apply_access_policies_pg`` (default ``false``),
+
+    Note that if ``allow_user_specified_id`` or ``apply_access_policies_pg`` are
+    unset, they default to configuration set by ``configure current database``
+    EdgeQL command.
+
+
+Introspection
+=============
+
+The adapter emulates introspection schemas of PostgreSQL: ``information_schema``
+and ``pg_catalog``.
+
+Both schemas are not perfectly emulated, since they are quite large and
+complicated stores of information, that also changed between versions of
+PostgreSQL.
+
+Because of that, some tools might show objects that are not queryable or might
+report problems when introspecting. In such cases, please report the problem on
+GitHub so we can track the incompatibility down.
+
+Note that since the two information schemas are emulated, querying them may
+perform worse compared to other tables in the database. As a result, tools like
+``pg_dump`` and other introspection utilities might seem slower.
+
+
+Locking
+=======
+
+.. versionchanged:: _default
+
+    SQL adapter does not support ``LOCK`` in EdgeDB <6.0.
+
+.. versionchanged:: 6.0
+
+.. versionadded:: 6.0
+
+    SQL adapter supports LOCK command with the following limitations:
+
+    - it cannot be used on tables that represent object types with access
+      properties or links of such objects,
+    - it cannot be used on tables that represent object types that have child
+      types extending them.
+
+Query cache
+===========
+
+An SQL query is issued to EdgeDB, it is compiled to an internal SQL query, which
+is then issued to the backing PostgreSQL instance. The compiled query is then
+cached, so each following issue of the same query will not perform any
+compilation, but just pass through the cached query.
+
+.. versionadded:: 6.0
+
+    Additionally, most queries are "normalized" before compilation. This process
+    extracts constant values and replaces them by internal query parameters.
+    This allows sharing of compilation cache between queries that differ in
+    only constant values. This process is totally opaque and is fully handled by
+    EdgeDB. For example:
+
+    .. code-block:: sql
+
+        SELECT $1, 42;
+
+    ... is normalized to:
+
+    .. code-block:: sql
+
+        SELECT $1, $2;
+
+    This way, when a similar query is issued to EdgeDB:
+
+    .. code-block:: sql
+
+        SELECT $1, 500;
+
+    ... it normalizes to the same query as before, so it can reuse the query
+    cache.
+
+    Note that normalization process does not (yet) remove any whitespace, so
+    queries ``SELECT 1;`` and ``SELECT 1 ;`` are compiled separately.
+
+
+Known limitations
+=================
+
+Following SQL statements are not supported:
+
+- ``CREATE``, ``ALTER``, ``DROP``,
+
+- ``TRUNCATE``, ``COMMENT``, ``SECURITY LABEL``, ``IMPORT FOREIGN SCHEMA``,
+
+- ``GRANT``, ``REVOKE``,
+
+- ``OPEN``, ``FETCH``, ``MOVE``, ``CLOSE``, ``DECLARE``, ``RETURN``,
+
+- ``CHECKPOINT``, ``DISCARD``, ``CALL``,
+
+- ``REINDEX``, ``VACUUM``, ``CLUSTER``, ``REFRESH MATERIALIZED VIEW``,
+
+- ``LISTEN``, ``UNLISTEN``, ``NOTIFY``,
+
+- ``LOAD``.
+
+Following functions are not supported:
+
+- ``set_config``,
+- ``pg_filenode_relation``,
+- most of system administration functions.
 
 
 Example: gradual transition from ORMs to EdgeDB
