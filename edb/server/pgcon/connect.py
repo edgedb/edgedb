@@ -61,6 +61,12 @@ SETUP_CONFIG_CACHE_SCRIPT = '''
             value edgedb._sys_config_val_t NOT NULL
         );
 '''.strip()
+RESET_STATIC_CFG_SCRIPT: bytes = b'''
+    WITH x1 AS (
+        DELETE FROM _config_cache
+    )
+    DELETE FROM _edgecon_state WHERE type = 'A' OR type = 'E' OR type = 'F';
+'''
 
 
 def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:

@@ -121,7 +121,6 @@ class Tenant(ha_base.ClusterProtocol):
     _pg_unavailable_msg: str | None
     _init_con_data: list[config.ConState]
     _init_con_sql: bytes | None
-    _update_init_con_sql: bytes | None
 
     _ha_master_serial: int
     _backend_adaptive_ha: adaptive_ha.AdaptiveHASupport | None
@@ -208,7 +207,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._block_new_connections = set()
         self._report_config_data = {}
         self._init_con_data = []
-        self._init_con_sql = self._update_init_con_sql = None
+        self._init_con_sql = None
 
         # DB state will be initialized in init().
         self._dbindex = None
@@ -731,7 +730,6 @@ class Tenant(ha_base.ClusterProtocol):
     def set_init_con_data(self, data: list[config.ConState]) -> None:
         self._init_con_data = data
         self._init_con_sql = None
-        self._update_init_con_sql = None
         if data:
             self._init_con_sql = self._make_init_con_sql(data)
 
@@ -1028,20 +1026,18 @@ class Tenant(ha_base.ClusterProtocol):
             if not conn.is_healthy():
                 logger.warning("acquired an unhealthy pgcon; discard now")
             elif conn.last_init_con_data is not self._init_con_data:
-                if self._update_init_con_sql:
-                    try:
-                        await conn.sql_execute(self._update_init_con_sql)
-                    except Exception as e:
-                        logger.warning(
-                            "failed to update pgcon; discard now: %s", e
-                        )
-                    else:
-                        conn.last_init_con_data = self._init_con_data
-                        return conn
-                else:
-                    logger.warning(
-                        "don't know how to update pgcon; discard now"
+                try:
+                    await conn.sql_execute(
+                        pgcon.RESET_STATIC_CFG_SCRIPT +
+                        (self._init_con_sql or b'')
                     )
+                except Exception as e:
+                    logger.warning(
+                        "failed to update pgcon; discard now: %s", e
+                    )
+                else:
+                    conn.last_init_con_data = self._init_con_data
+                    return conn
             else:
                 return conn
             self._pg_pool.release(dbname, conn, discard=True)
@@ -1701,20 +1697,19 @@ class Tenant(ha_base.ClusterProtocol):
             ]
             + config_file_data
         )
-        return config_file_data
 
     async def _reload_config_file(self):
         # Load TOML config file
         compiler = self._server.get_compiler_pool()
-        config_file_data = await self.load_config_file(compiler)
-        self._update_init_con_sql = b"""
-            DELETE FROM _edgecon_state WHERE "type" = 'F';
-        """.strip() + self._make_init_con_sql(config_file_data)
+        await self.load_config_file(compiler)
 
         # Update sys pgcon and reload system config
         async with self.use_sys_pgcon() as syscon:
             if syscon.last_init_con_data is not self._init_con_data:
-                await syscon.sql_execute(self._update_init_con_sql)
+                await syscon.sql_execute(
+                    pgcon.RESET_STATIC_CFG_SCRIPT + (self._init_con_sql or b'')
+                )
+                syscon.last_init_con_data = self._init_con_data
             sys_config = await self._load_sys_config(syscon=syscon)
             # GOTCHA: don't notify the change of sysconfig because it's local
         self._dbindex.update_sys_config(sys_config)
