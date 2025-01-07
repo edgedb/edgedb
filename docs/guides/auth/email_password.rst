@@ -381,18 +381,6 @@ handle the verification flow, we implement an endpoint:
        return;
      }
 
-     const cookies = req.headers.cookie?.split("; ");
-     const verifier = cookies
-       ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
-       ?.split("=")[1];
-     if (!verifier) {
-       res.status = 400;
-       res.end(
-         `Could not find 'verifier' in the cookie store. Is this the same user agent/browser that started the authorization flow?`,
-       );
-       return;
-     }
-
      const verifyUrl = new URL("verify", EDGEDB_AUTH_BASE_URL);
      const verifyResponse = await fetch(verifyUrl.href, {
        method: "post",
@@ -401,7 +389,6 @@ handle the verification flow, we implement an endpoint:
        },
        body: JSON.stringify({
          verification_token,
-         verifier,
          provider: "builtin::local_emailpassword",
        }),
      });
@@ -415,25 +402,47 @@ handle the verification flow, we implement an endpoint:
 
      const { code } = await verifyResponse.json();
 
-     const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
-     tokenUrl.searchParams.set("code", code);
-     tokenUrl.searchParams.set("verifier", verifier);
-     const tokenResponse = await fetch(tokenUrl.href, {
-       method: "get",
-     });
+     const cookies = req.headers.cookie?.split("; ");
+     const verifier = cookies
+       ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+       ?.split("=")[1];
+     if (verifier) {
+       // Email verification flow is continuing from the original
+       // user agent/browser, so we can immediately get an auth token
+       const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+       tokenUrl.searchParams.set("code", code);
+       tokenUrl.searchParams.set("verifier", verifier);
+       const tokenResponse = await fetch(tokenUrl.href, {
+         method: "get",
+       });
 
-     if (!tokenResponse.ok) {
-       const text = await tokenResponse.text();
-       res.status = 400;
-       res.end(`Error from the auth server: ${text}`);
+       if (!tokenResponse.ok) {
+         const text = await tokenResponse.text();
+         res.status = 400;
+         res.end(`Error from the auth server: ${text}`);
+         return;
+       }
+
+       const { auth_token } = await tokenResponse.json();
+       res.writeHead(204, {
+         "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       });
+       res.end();
        return;
      }
 
-     const { auth_token } = await tokenResponse.json();
-     res.writeHead(204, {
-       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
-     });
-     res.end();
+     // Email verification flow is continuing from a different user agent/browser,
+     // so we need to render a notice to the user to sign in, which will either
+     // complete the PKCE flow or start a new one
+     res.status = 200;
+     res.end(
+       `
+       <html>
+         <body>
+           <p>Email verified! Please sign in to continue.</p>
+         </body>
+       </html>`,
+     );
    };
 
 .. lint-on
