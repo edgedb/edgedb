@@ -11,6 +11,7 @@ pyo3.workspace = true
 tokio.workspace = true
 pgrust.workspace = true
 gel_auth.workspace = true
+db_proto.workspace = true
 
 hyper = { version = "1.4.1", features = ["full"] }
 hyper-util = { version = "0.1.8", features = ["full"] }

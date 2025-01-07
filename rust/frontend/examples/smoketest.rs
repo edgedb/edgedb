@@ -2,11 +2,12 @@ use std::{cell::RefCell, collections::HashMap, future::Future, rc::Rc};
 
 use gel_auth::CredentialData;
 use openssl::ssl::{Ssl, SslContext, SslMethod};
-use pgrust::{connection::{Client, Credentials}, protocol::{edgedb::data::{CommandComplete, ParameterStatus, StateDataDescription}, StructBuffer}};
+use pgrust::{connection::{Client, Credentials}, protocol::edgedb::data::{CommandComplete, ParameterStatus, StateDataDescription}};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt}, net::TcpSocket, task::{self, LocalSet}
 };
 use std::pin::{Pin, pin};
+use db_proto::StructBuffer;
 
 #[derive(Debug, Clone)]
 struct TestSetup {
@@ -59,10 +60,7 @@ impl SmokeTest for PostgresSelect {
                         let cols = rows.fields().into_iter().map(|field| field.name().to_string_lossy().to_string()).collect::<Vec<_>>();
                         out.borrow_mut().push_str(&format!("{}\n", cols.join(",")));
                         let out = out.clone();
-                        move |row: Result<DataRow<'_>, ErrorResponse<'_>>| {
-                            let Ok(row) = row else {
-                                return;
-                            };
+                        move |row: DataRow<'_>| {
                             let values: Vec<_> = row.values().into_iter().map(|v| v.to_string_lossy().to_string()).collect();
                             out.borrow_mut().push_str(&format!("{}\n", values.join(",")));
                         }

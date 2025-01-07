@@ -613,6 +613,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
+ "db_proto",
  "derive_more",
  "futures",
  "gel_auth",
