@@ -317,6 +317,40 @@ Identity which sets a search parameter on the URL to ``isSignUp=true``:
      });
 
 
+Using an OpenID Connect id_token
+--------------------------------
+
+For some providers that implement OpenID Connect, we also return an ``id_token``
+in the response. This token will have been validated by the extension to
+ensure that it has been signed by the provider and that the token has not
+expired. You can use this token to get additional information about the user
+from the provider to enrich your ``User`` object.
+
+.. code-block:: javascript-diff
+
+   - const { auth_token } = await codeExchangeResponse.json();
+   + const { auth_token, id_token } = await codeExchangeResponse.json();
+
+     const isSignUp = requestUrl.searchParams.get("isSignUp");
+     if (isSignUp === "true") {
+   +   const { email, name, locale } = id_token
+         ? await decodeJwt(id_token)
+         : { email: null, name: null, locale: null };
+       const authedClient = client.withGlobals({
+         "ext::auth::client_token": auth_token,
+       });
+       await authedClient.query(`
+         insert User {
+           identity := (global ext::auth::ClientTokenIdentity)
+   +       email := <optional str>email,
+   +       name := <optional str>name,
+   +       locale := <optional str>locale
+         };
+   -   `);
+   +   `, { email, name, locale });
+     }
+
+
 Making authenticated requests to the OAuth resource server
 ----------------------------------------------------------
 
