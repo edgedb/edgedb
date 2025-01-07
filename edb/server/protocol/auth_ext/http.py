@@ -492,7 +492,7 @@ class Router:
             else:
                 response.status = http.HTTPStatus.CREATED
                 response.content_type = b"application/json"
-                response.body = json.dumps(response_dict)
+                response.body = json.dumps(response_dict).encode()
         except Exception as ex:
             redirect_on_failure = data.get(
                 "redirect_on_failure", maybe_redirect_to
