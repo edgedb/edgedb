@@ -206,7 +206,9 @@ pub fn parse_value(token: &Token) -> Result<Option<Value>, String> {
             return unquote_bytes(text).map(Value::Bytes).map(Some);
         }
 
-        Str => unquote_string(text).map_err(|s| s.to_string())?.to_string(),
+        Str | StrInterpStart | StrInterpEnd | StrInterpCont => {
+            unquote_string(text).map_err(|s| s.to_string())?.to_string()
+        }
         BacktickName => text[1..text.len() - 1].replace("``", "`"),
         Ident | Keyword(_) => text.to_string(),
         Substitution => text[2..text.len() - 1].to_string(),

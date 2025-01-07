@@ -222,7 +222,7 @@ fn is_operator(token: &Token) -> bool {
         DecimalConst | FloatConst | IntConst | BigIntConst | BinStr | Parameter
         | ParameterAndType | Str | BacktickName | Keyword(_) | Ident | Substitution | EOI
         | Epsilon | StartBlock | StartExtension | StartFragment | StartMigration
-        | StartSDLDocument => false,
+        | StartSDLDocument | StrInterpStart | StrInterpCont | StrInterpEnd => false,
     }
 }
 
