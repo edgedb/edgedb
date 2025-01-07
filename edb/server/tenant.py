@@ -34,6 +34,7 @@ from typing import (
 
 import asyncio
 import contextlib
+import dataclasses
 import functools
 import json
 import logging
@@ -1668,7 +1669,7 @@ class Tenant(ha_base.ClusterProtocol):
         # Parse TOML config file content into JSON
         if toml_data and toml_data.get("cfg::Config"):
             result = compiler.compile_structured_config(
-                toml_data, source="configuration file"
+                toml_data, "configuration file"
             )
             if asyncio.iscoroutine(result):
                 result = await result
@@ -2077,6 +2078,8 @@ class Tenant(ha_base.ClusterProtocol):
         self.create_task(task(), interruptable=True)
 
     def get_debug_info(self) -> dict[str, Any]:
+        from . import smtp
+
         pgaddr = self.get_pgaddr()
         pgaddr.clear_server_settings()
         pgdict = pgaddr.__dict__
@@ -2105,6 +2108,12 @@ class Tenant(ha_base.ClusterProtocol):
                 if db.name in defines.EDGEDB_SPECIAL_DBS:
                     continue
 
+                try:
+                    email_provider = dataclasses.asdict(
+                        smtp.get_current_email_provider(db)
+                    )
+                except errors.ConfigurationError:
+                    email_provider = None
                 dbs[db.name] = dict(
                     name=db.name,
                     dbver=db.dbver,
@@ -2125,6 +2134,7 @@ class Tenant(ha_base.ClusterProtocol):
                         )
                         for view in db.iter_views()
                     ],
+                    current_email_provider=email_provider,
                 )
 
         obj["databases"] = dbs
