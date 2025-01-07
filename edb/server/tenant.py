@@ -277,8 +277,9 @@ class Tenant(ha_base.ClusterProtocol):
         if compiler is None:
             compiler = self._server.get_compiler_pool()
         result = compiler.compile_structured_config(
-            {"cfg::Config": {"email_providers": value}}, source="magic",
-            allow_nested=True,
+            {"cfg::Config": {"email_providers": value}},
+            "magic",  # source
+            True,  # allow_nested
         )
         if asyncio.iscoroutine(result):
             result = await result
