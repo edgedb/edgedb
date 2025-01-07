@@ -1672,10 +1672,20 @@ class Tenant(ha_base.ClusterProtocol):
             )
             if asyncio.iscoroutine(result):
                 result = await result
+
+            def setting_filter(value: config.SettingValue) -> bool:
+                if self._server.config_settings[value.name].backend_setting:
+                    raise errors.ConfigurationError(
+                        f"backend config {value.name!r} cannot be set "
+                        f"via config file"
+                    )
+                return True
+
             json_obj = config.to_json_obj(
                 self._server.config_settings,
                 result["cfg::Config"],
                 include_source=False,
+                setting_filter=setting_filter,
             )
             config_file_data = [
                 {

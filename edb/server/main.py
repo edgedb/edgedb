@@ -544,6 +544,11 @@ async def run_server(
                 )
             )
             del compiler
+            if backend_settings:
+                abort(
+                    'Static backend settings for remote backend are '
+                    'not supported'
+                )
             with _internal_state_dir(runstate_dir, args) as (
                 int_runstate_dir,
                 args,
@@ -551,7 +556,6 @@ async def run_server(
                 return await multitenant.run_server(
                     args,
                     sys_config=sys_config,
-                    backend_settings=backend_settings,
                     sys_queries={
                         key: sql.encode("utf-8")
                         for key, sql in sys_queries.items()
@@ -630,11 +634,16 @@ async def run_server(
             compiler=compiler,
         )
 
-        if is_local_cluster and (new_instance or backend_settings):
-            logger.info('Restarting server to reload configuration...')
-            await cluster.stop()
-            await cluster.start(server_settings=backend_settings)
-            backend_settings = {}
+        if is_local_cluster:
+            if new_instance or backend_settings:
+                logger.info('Restarting server to reload configuration...')
+                await cluster.stop()
+                await cluster.start(server_settings=backend_settings)
+        elif backend_settings:
+            abort(
+                'Static backend settings for remote backend are not supported'
+            )
+        del backend_settings
 
         if (
             not args.bootstrap_only

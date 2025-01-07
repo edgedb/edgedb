@@ -72,7 +72,6 @@ class MultiTenantServer(server.BaseServer):
     _config_file: pathlib.Path
     _sys_config: Mapping[str, config.SettingValue]
     _init_con_data: list[config.ConState]
-    _backend_settings: Mapping[str, str]
 
     _tenants_by_sslobj: MutableMapping
     _tenants_conf: dict[str, dict[str, str]]
@@ -92,7 +91,6 @@ class MultiTenantServer(server.BaseServer):
         compiler_pool_tenant_cache_size: int,
         sys_config: Mapping[str, config.SettingValue],
         init_con_data: list[config.ConState],
-        backend_settings: Mapping[str, str],
         sys_queries: Mapping[str, bytes],
         report_config_typedesc: dict[defines.ProtocolVersion, bytes],
         **kwargs,
@@ -101,7 +99,6 @@ class MultiTenantServer(server.BaseServer):
         self._config_file = config_file
         self._sys_config = sys_config
         self._init_con_data = init_con_data
-        self._backend_settings = backend_settings
         self._compiler_pool_tenant_cache_size = compiler_pool_tenant_cache_size
 
         self._tenants_by_sslobj = weakref.WeakKeyDictionary()
@@ -441,7 +438,6 @@ async def run_server(
     *,
     sys_config: Mapping[str, config.SettingValue],
     init_con_data: list[config.ConState],
-    backend_settings: Mapping[str, str],
     sys_queries: Mapping[str, bytes],
     report_config_typedesc: dict[defines.ProtocolVersion, bytes],
     runstate_dir: pathlib.Path,
@@ -457,7 +453,6 @@ async def run_server(
             multitenant_config_file,
             sys_config=sys_config,
             init_con_data=init_con_data,
-            backend_settings=backend_settings,
             sys_queries=sys_queries,
             report_config_typedesc=report_config_typedesc,
             runstate_dir=runstate_dir,
