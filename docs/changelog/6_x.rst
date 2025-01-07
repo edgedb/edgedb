@@ -196,7 +196,7 @@ We've introduced several new features to our authentication extension:
 **Breaking changes**
 
 - We have moved our SMTP configuration into a new top-level
-  ``Config::SMTPProvider`` configuration object. During the upgrade process,
+  ``cfg::SMTPProviderConfig`` configuration object. During the upgrade process,
   your existing SMTP configuration will be migrated to this new object. If you
   have any scripts that configure SMTP directly, update them to use the new
   object.

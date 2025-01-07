@@ -212,20 +212,13 @@ great for testing in development:
 
 .. code-block:: edgeql
 
-    CONFIGURE CURRENT BRANCH SET
-    ext::auth::SMTPConfig::sender := 'hello@example.com';
-
-    CONFIGURE CURRENT BRANCH SET
-    ext::auth::SMTPConfig::host := 'localhost';
-
-    CONFIGURE CURRENT BRANCH SET
-    ext::auth::SMTPConfig::port := <int32>1025;
-
-    CONFIGURE CURRENT BRANCH SET
-    ext::auth::SMTPConfig::security := 'STARTTLSOrPlainText';
-
-    CONFIGURE CURRENT BRANCH SET
-    ext::auth::SMTPConfig::validate_certs := false;
+    CONFIGURE CURRENT BRANCH INSERT cfg::SMTPProviderConfig {
+        sender := 'hello@example.com',
+        host := 'localhost',
+        port := <int32>1025,
+        security := 'STARTTLSOrPlainText',
+        validate_certs := false,
+    };
 
 
 OAuth
