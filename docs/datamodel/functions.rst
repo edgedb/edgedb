@@ -34,6 +34,48 @@ This function accepts a :eql:type:`str` as an argument and produces a
 
 .. _ref_datamodel_functions_modifying:
 
+Sets as arguments
+^^^^^^^^^^^^^^^^^
+
+Calling a user-defined function on a set will always apply it as
+:ref:`*element-wise* <_ref_reference_cardinality_functions_operators>`.
+
+.. code-block:: sdl
+
+  function magnitude(x: float64) -> float64
+    using (
+      math::sqrt(sum(x * x))
+    );
+
+.. code-block:: edgeql-repl
+
+    db> select magnitude({3, 4});
+    {3, 4}
+
+In order to pass in multiple arguments at once, arguments should be packed into
+arrays:
+
+.. code-block:: sdl
+
+  function magnitude(xs: array<float64>) -> float64
+    using (
+      with x := array_unpack(xs)
+      select math::sqrt(sum(x * x))
+    );
+
+.. code-block:: edgeql-repl
+
+    db> select magnitude([3, 4]);
+    {5}
+
+Multiple packed arrays can be passed into such a function, which will then be
+applied element-wise.
+
+.. code-block:: edgeql-repl
+
+    db> select magnitude({[3, 4], [5, 12]});
+    {5, 13}
+
 Modifying Functions
 ^^^^^^^^^^^^^^^^^^^
 
@@ -93,6 +135,18 @@ then the following queries are valid:
     db> select add_user('May', <datetime>'2024-12-11T12:00:00-07:00') {name, joined_at};
     {default::User {name: 'May', joined_at: <datetime>'2024-12-11T12:00:00Z'}}
 
+In order to insert or update a multi parameter, the desired arguments should be
+aggregated into an array as described above:
+
+.. code-block:: sdl
+
+  function add_user(name: str, nicknames: array<str>) -> User
+    using (
+      insert User {
+        name := name,
+        nicknames := array_unpack(nicknames),
+      }
+    );
 
 .. list-table::
   :class: seealso

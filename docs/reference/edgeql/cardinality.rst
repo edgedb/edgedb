@@ -22,6 +22,8 @@ instance, when assigning to a ``required multi`` link, the value being
 assigned in question *must* have a cardinality of ``One`` or ``AtLeastOne``
 (as empty sets are not permitted).
 
+.. _ref_reference_cardinality_functions_operators:
+
 Functions and operators
 -----------------------
 

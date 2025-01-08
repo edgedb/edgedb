@@ -101,6 +101,8 @@ This declaration defines a new constraint with the following options:
     argument as a *whole set*, as opposed to being called on the input
     product element-by-element.
 
+    User defined functions can not use ``set of`` arguments.
+
     The ``optional`` qualifier indicates that the function will be called
     if the argument is an empty set.  The default behavior is to return
     an empty set if the argument is not marked as ``optional``.
