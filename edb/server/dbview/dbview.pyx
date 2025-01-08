@@ -1474,9 +1474,6 @@ cdef class DatabaseConnectionView:
             all_type_oids = []
 
         for i, query_unit in enumerate(qug):
-            if query_unit.cardinality is enums.Cardinality.NO_RESULT:
-                continue
-
             intro_sql = query_unit.introspection_sql
             if intro_sql is None:
                 intro_sql = query_unit.sql
@@ -1526,8 +1523,11 @@ cdef class DatabaseConnectionView:
 
             for i, desc_qu in enumerate(desc_qug):
                 qu_i = desc_map[i]
-                qug[qu_i].out_type_data = desc_qu[1][0]
-                qug[qu_i].out_type_id = desc_qu[1][1]
+
+                if query_req.output_format is not enums.OutputFormat.NONE:
+                    qug[qu_i].out_type_data = desc_qu[1][0]
+                    qug[qu_i].out_type_id = desc_qu[1][1]
+
                 qug[qu_i].in_type_data = desc_qu[0][0]
                 qug[qu_i].in_type_id = desc_qu[0][1]
                 qug[qu_i].in_type_args = desc_qu[0][2]
@@ -1539,8 +1539,10 @@ cdef class DatabaseConnectionView:
             # a group of ONE now.)
             # In near future we'll need to properly implement arg
             # remap.
-            qug.out_type_data = desc_qug[-1][1][0]
-            qug.out_type_id = desc_qug[-1][1][1]
+            if query_req.output_format is not enums.OutputFormat.NONE:
+                qug.out_type_data = desc_qug[-1][1][0]
+                qug.out_type_id = desc_qug[-1][1][1]
+
             qug.in_type_data = desc_qug[-1][0][0]
             qug.in_type_id = desc_qug[-1][0][1]
             qug.in_type_args = desc_qug[-1][0][2]

@@ -38,15 +38,25 @@ def pack_i32s(*args):
 class TestProtocol(ProtocolTestCase):
 
     async def _execute(
-        self, command_text, sync=True, data=False, cc=None, con=None
-    ):
+        self,
+        command_text: str,
+        sync: bool = True,
+        data: bool = False,
+        sql: bool = False,
+        cc: protocol.CommandComplete | None = None,
+        con: protocol.Connection | None = None,
+        input_language: protocol.InputLanguage = protocol.InputLanguage.EDGEQL,
+    ) -> None:
         exec_args = dict(
             annotations=[],
             allowed_capabilities=protocol.Capability.ALL,
             compilation_flags=protocol.CompilationFlag(0),
             implicit_limit=0,
             command_text=command_text,
-            input_language=protocol.InputLanguage.EDGEQL,
+            input_language=(
+                protocol.InputLanguage.SQL
+                if sql else protocol.InputLanguage.EDGEQL
+            ),
             output_format=protocol.OutputFormat.NONE,
             expected_cardinality=protocol.Cardinality.MANY,
             input_typedesc_id=b'\0' * 16,
@@ -61,7 +71,9 @@ class TestProtocol(ProtocolTestCase):
         if data:
             exec_args['output_format'] = protocol.OutputFormat.BINARY
 
-        args = (protocol.Execute(**exec_args),)
+        args: tuple[protocol.ClientMessage, ...] = (
+            protocol.Execute(**exec_args),
+        )
         if sync:
             args += (protocol.Sync(),)
         if con is None:
@@ -135,6 +147,74 @@ class TestProtocol(ProtocolTestCase):
         await self.con.recv_match(
             protocol.CommandComplete,
             status='ROLLBACK'
+        )
+        await self.con.recv_match(
+            protocol.ReadyForCommand,
+            transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
+        )
+
+    async def test_proto_execute_03(self):
+        # Test that OutputFormat.NONE returns no data
+
+        await self.con.connect()
+
+        await self._execute('SELECT 1', data=True)
+
+        await self.con.recv_match(
+            protocol.CommandDataDescription,
+            result_cardinality=compiler.Cardinality.ONE,
+        )
+        await self.con.recv_match(
+            protocol.Data,
+        )
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='SELECT'
+        )
+        await self.con.recv_match(
+            protocol.ReadyForCommand,
+            transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
+        )
+
+        await self._execute('SELECT 1')
+
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='SELECT'
+        )
+        await self.con.recv_match(
+            protocol.ReadyForCommand,
+            transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
+        )
+
+    async def test_proto_execute_04(self):
+        # Same as test_proto_execute_03 but for SQL
+
+        await self.con.connect()
+
+        await self._execute('SELECT 1', data=True, sql=True)
+
+        await self.con.recv_match(
+            protocol.CommandDataDescription,
+            result_cardinality=compiler.Cardinality.MANY,
+        )
+        await self.con.recv_match(
+            protocol.Data,
+        )
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='SELECT'
+        )
+        await self.con.recv_match(
+            protocol.ReadyForCommand,
+            transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
+        )
+
+        await self._execute('SELECT 1', sql=True)
+
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='SELECT'
         )
         await self.con.recv_match(
             protocol.ReadyForCommand,
