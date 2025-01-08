@@ -1547,7 +1547,7 @@ class TestServerConfig(tb.QueryTestCase):
             await con2.aclose()
 
 
-class TestSeparateCluster(tb.BaseHTTPTestCase):
+class TestSeparateCluster(tb.TestCaseWithHttpClient):
 
     @unittest.skipIf(
         platform.system() == "Darwin",
