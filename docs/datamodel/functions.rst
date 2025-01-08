@@ -72,7 +72,7 @@ Unlike other functions, the arguments of modifying functions **must** have a
     argument into modifying function
 
 Optional arguments can still accept empty sets. For example, if ``add_user``
-was defined as
+was defined as:
 
 .. code-block:: sdl
 
