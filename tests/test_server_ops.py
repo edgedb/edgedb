@@ -70,7 +70,7 @@ class TestServerApi(tb.ClusterTestCase):
             self.assertEqual(status, http.HTTPStatus.OK)
 
 
-class TestServerOps(tb.BaseHTTPTestCase, tb.CLITestCaseMixin):
+class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
 
     async def kill_process(self, proc: asyncio.subprocess.Process):
         proc.terminate()

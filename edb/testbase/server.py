@@ -433,7 +433,7 @@ class RollbackChanges:
         await self._tx.rollback()
 
 
-class BaseHTTPTestCase(TestCase):
+class TestCaseWithHttpClient(TestCase):
     @classmethod
     def get_api_prefix(cls):
         return ''
@@ -784,7 +784,7 @@ async def drop_db(conn, dbname):
     await conn.execute(f'DROP BRANCH {dbname}')
 
 
-class ClusterTestCase(BaseHTTPTestCase):
+class ClusterTestCase(TestCaseWithHttpClient):
 
     BASE_TEST_CLASS = True
     backend_dsn: Optional[str] = None

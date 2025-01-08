@@ -21,14 +21,15 @@ import json
 import random
 
 from edb.server import http
-from edb.testbase import http as tb
+from edb.testbase import http as http_tb
+from edb.testbase import server as tb
 from edb.tools.test import async_timeout
 
 
-class HttpTest(tb.BaseHttpTest):
+class HttpTest(tb.TestCase):
     def setUp(self):
         super().setUp()
-        self.mock_server = tb.MockHttpServer()
+        self.mock_server = http_tb.MockHttpServer()
         self.mock_server.start()
         self.base_url = self.mock_server.get_base_url().rstrip("/")
 
@@ -170,7 +171,7 @@ class HttpTest(tb.BaseHttpTest):
             self.assertEqual(result.json(), "ok")
 
 
-class HttpSSETest(tb.BaseHttpTest):
+class HttpSSETest(tb.TestCase):
     @async_timeout(timeout=5)
     async def test_immediate_connection_drop_streaming(self):
         """Test handling of a connection that is dropped immediately by the
