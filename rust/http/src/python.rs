@@ -10,6 +10,7 @@ use std::{
     os::fd::IntoRawFd,
     pin::Pin,
     rc::Rc,
+    sync::atomic::{fence, Ordering},
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -87,6 +88,13 @@ impl RpcPipe {
     async fn write(&self, msg: RustToPythonMessage) -> Result<(), String> {
         trace!("Rust -> Python: {msg:?}");
         self.rust_to_python.send(msg).map_err(|_| "Shutdown")?;
+
+        // HACK/TESTING: I (sully) do not *think* this should be
+        // necessary or useful. I *think* that write/read from a pipe
+        // ought to establish a synchronizes-with relationship.
+        // We will learn something if I am wrong, though.
+        fence(Ordering::AcqRel);
+
         // If we're shutting down, this may fail (but that's OK)
         poll_fn(|cx| {
             let pipe = &mut *self.rust_to_python_notify.borrow_mut();
@@ -639,6 +647,12 @@ impl Http {
     }
 
     fn _read(&self, py: Python<'_>) -> PyResult<PyObject> {
+        // HACK/TESTING: I (sully) do not *think* this should be
+        // necessary or useful. I *think* that write/read from a pipe
+        // ought to establish a synchronizes-with relationship.
+        // We will learn something if I am wrong, though.
+        fence(Ordering::AcqRel);
+
         let Ok(msg) = self
             .rust_to_python
             .try_lock()
