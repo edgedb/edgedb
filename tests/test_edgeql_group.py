@@ -515,13 +515,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             '''
             group {a := 1, b := 2} by .a;;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [{'a': 1, 'b': 2}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': 2},
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_free_object_02(self):
@@ -531,13 +533,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             using d := .c.d
             by d;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'d': 5},
                     'grouping': {'d'},
-                    'elements': [{'a': 1, 'b': [2, 3, 4], 'c': {'d': 5}}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': [2, 3, 4], 'c': {'d': 5}}
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_iterator_ptr_sets_01(self):
@@ -548,77 +552,73 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     select cards::User { name, b := n }
             ) by .name;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': 8},
                         {'name': 'Alice', 'b': 9},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': 8},
                         {'name': 'Bob', 'b': 9},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': 8},
                         {'name': 'Carol', 'b': 9},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': 8},
                         {'name': 'Dave', 'b': 9},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_iterator_ptr_sets_02(self):
         # Use computed pointer in by clause
         await self.assert_query_result(
             '''
-            select (
-                group (
-                    for n in { 8, 9 }
-                        select cards::User { name, b := n }
-                        order by .name
-                ) by .b
-            )
-            order by .key.b;
+            group (
+                for n in { 8, 9 }
+                    select cards::User { name, b := n }
+            ) by .b;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'b': 8},
                     'grouping': {'b'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': 8},
                         {'name': 'Bob', 'b': 8},
                         {'name': 'Carol', 'b': 8},
                         {'name': 'Dave', 'b': 8},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'b': 9},
                     'grouping': {'b'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': 9},
                         {'name': 'Bob', 'b': 9},
                         {'name': 'Carol', 'b': 9},
                         {'name': 'Dave', 'b': 9},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_iterator_ptr_sets_03(self):
@@ -627,36 +627,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             with N := (for n in { 8, 9 } select n)
             group cards::User { name, b := N } by .name;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_iterator_ptr_sets_04(self):
@@ -667,18 +667,18 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             using total := sum(.b)
             by total;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'total': 17},
                     'grouping': {'total'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {8, 9}},
                         {'name': 'Bob', 'b': {8, 9}},
                         {'name': 'Carol', 'b': {8, 9}},
                         {'name': 'Dave', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize computed pointers properly""")
@@ -690,36 +690,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 b := (for n in { 9 } union ({ c := 3, d := n }))
             } by .name;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize computed pointers properly""")
@@ -734,18 +734,18 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             using d := .b.d
             by d;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'d': 9},
                     'grouping': {'d'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {'c': 3, 'd': 9}},
                         {'name': 'Bob', 'b': {'c': 3, 'd': 9}},
                         {'name': 'Carol', 'b': {'c': 3, 'd': 9}},
                         {'name': 'Dave', 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_iterator_ptr_free_object_01(self):
@@ -756,16 +756,16 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     select { a := 1, b := n }
             ) by .a;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'b': 8},
                         {'a': 1, 'b': 9},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_iterator_ptr_free_object_02(self):
@@ -777,18 +777,22 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     select { a := 1, b := n }
             ) by .b;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'b': 8},
                     'grouping': {'b'},
-                    'elements': [{'a': 1, 'b': 8}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': 8},
+                    ]),
                 },
                 {
                     'key': {'b': 9},
                     'grouping': {'b'},
-                    'elements': [{'a': 1, 'b': 9}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': 9},
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_iterator_ptr_free_object_03(self):
@@ -797,13 +801,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             with N := (for n in { 8, 9 } select n)
             group { a := 1, b := N } by .a;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [{'a': 1, 'b': {8, 9}}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {8, 9}},
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize computed pointers properly""")
@@ -815,15 +821,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 b := (for n in { 9 } union ({ c := 3, d := n }))
             } by .a;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize computed pointers properly""")
@@ -838,15 +844,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             using d := .b.d
             by d;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'d': 9},
                     'grouping': {'d'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -861,36 +867,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 elements: { name, z := .b <= 1 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'z': True},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -903,38 +909,38 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 name: (select .elements.name limit 1),
                 grouping,
                 elements: { name, z := .b <= 1 },
-            } order by .name;
+            };
             ''',
-            [
+            tb.bag([
                 {
                     'name': 'Alice',
                     'grouping': {'d'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'name': 'Bob',
                     'grouping': {'d'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'name': 'Carol',
                     'grouping': {'d'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'name': 'Dave',
                     'grouping': {'d'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'z': True},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xfail("""
@@ -953,36 +959,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 elements: { name, z := .b <= 1 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'z': True},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -1007,36 +1013,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -1062,36 +1068,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'name': 'Alice',
                     'grouping': {'d'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'name': 'Bob',
                     'grouping': {'d'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'name': 'Carol',
                     'grouping': {'d'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'name': 'Dave',
                     'grouping': {'d'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xfail("""
@@ -1122,36 +1128,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -1166,15 +1172,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 elements: { a, z := .b <= 1 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'z': True},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -1189,14 +1195,14 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 elements: { a, z := .b <= 1 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'grouping': {'b'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'z': True},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xfail("""
@@ -1215,15 +1221,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 elements: { a, z := .b <= 1 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'z': True},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -1248,15 +1254,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -1282,14 +1288,14 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'grouping': {'d'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_volatile_ptr_free_object_06(self):
@@ -1316,14 +1322,14 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'grouping': {'d'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_duplicate_rejected_01(self):
@@ -1911,13 +1917,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             with X := {a := 1, b := 2}
             group X { a, b } by .a;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [{'a': 1, 'b': 2}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': 2},
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_free_object_02(self):
@@ -1926,13 +1934,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             with X := {a := 1, b := {2, 3, 4}, c := { d := 5 } }
             group X { a, b, c: {*} } using d := .c.d by d;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'d': 5},
                     'grouping': {'d'},
-                    'elements': [{'a': 1, 'b': [2, 3, 4], 'c': {'d': 5}}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': [2, 3, 4], 'c': {'d': 5}},
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_volatile_01(self):
@@ -1941,36 +1951,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             with N := random()
             group cards::User { name } by .name;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice'},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob'},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol'},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave'},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_volatile_02(self):
@@ -1979,13 +1989,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             with N := random()
             group { a := 1 } by .a;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [{'a': 1}],
+                    'elements': tb.bag([
+                        {'a': 1},
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -1997,18 +2009,18 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             using z := N <= 1
             by z;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'z': True},
                     'grouping': {'z'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice'},
                         {'name': 'Bob'},
                         {'name': 'Carol'},
                         {'name': 'Dave'},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -2020,13 +2032,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             using z := N <= 1
             by z;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'z': True},
                     'grouping': {'z'},
-                    'elements': [{'a': 1}],
+                    'elements': tb.bag([
+                        {'a': 1},
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -2043,36 +2057,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 elements: { name, z := .b <= 1},
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'z': True},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -2089,15 +2103,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 elements: { a, z := .b <= 1},
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'b': True},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize computed pointers properly""")
@@ -2107,44 +2121,43 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             with X := (
                 for n in { 8, 9 }
                     select cards::User { name, b := n }
-                    order by .name
             )
             group X { name, b } by .name;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': 8},
                         {'name': 'Alice', 'b': 9},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': 8},
                         {'name': 'Bob', 'b': 9},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': 8},
                         {'name': 'Carol', 'b': 9},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': 8},
                         {'name': 'Dave', 'b': 9},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_set_02(self):
@@ -2154,175 +2167,164 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             with X := (
                 for n in { 8, 9 }
                     select cards::User { name, b := n }
-                    order by .name
             )
             group X { name } by .name;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice'},
                         {'name': 'Alice'},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob'},
                         {'name': 'Bob'},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol'},
                         {'name': 'Carol'},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave'},
                         {'name': 'Dave'},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_set_03(self):
         # Wrap subject in select
         await self.assert_query_result(
             '''
-            select (
-                with X := (
-                    for n in { 8, 9 }
-                        select cards::User { name, b := n }
-                )
-                group (select X { name, b }) by .name
+            with X := (
+                for n in { 8, 9 }
+                    select cards::User { name, b := n }
             )
-            order by .key.name;
+            group (select X { name, b }) by .name;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': 8},
                         {'name': 'Alice', 'b': 9},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': 8},
                         {'name': 'Bob', 'b': 9},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': 8},
                         {'name': 'Carol', 'b': 9},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': 8},
                         {'name': 'Dave', 'b': 9},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_set_04(self):
         # Use computed pointer only in by clause
         await self.assert_query_result(
             '''
-            select (
-                with X := (
-                    for n in { 8, 9 }
-                        select cards::User { name, b := n }
-                        order by .name
-                )
-                group X { name } by .b
+            with X := (
+                for n in { 8, 9 }
+                    select cards::User { name, b := n }
             )
-            order by .key.b;
+            group X { name } by .b;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'b': 8},
                     'grouping': {'b'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice'},
                         {'name': 'Bob'},
                         {'name': 'Carol'},
                         {'name': 'Dave'},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'b': 9},
                     'grouping': {'b'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice'},
                         {'name': 'Bob'},
                         {'name': 'Carol'},
                         {'name': 'Dave'},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_set_05(self):
         await self.assert_query_result(
             '''
-            select (
-                with X := cards::User {
-                    name,
-                    b := (for n in { 8, 9 } select n),
-                }
-                group X { name, b } by .name
-            )
-            order by .key.name;
+            with X := cards::User {
+                name,
+                b := (for n in { 8, 9 } select n),
+            }
+            group X { name, b } by .name;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_set_06(self):
@@ -2336,61 +2338,58 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             using total := sum(.b)
             by total;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'total': 17},
                     'grouping': {'total'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {8, 9}},
                         {'name': 'Bob', 'b': {8, 9}},
                         {'name': 'Carol', 'b': {8, 9}},
                         {'name': 'Dave', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_set_07(self):
         await self.assert_query_result(
             '''
-            select (
-                with
-                    N := (for n in { 8, 9 } select n),
-                    X := cards::User { name, b := N }
-                group X { name, b } by .name
-            )
-            order by .key.name;
+            with
+                N := (for n in { 8, 9 } select n),
+                X := cards::User { name, b := N }
+            group X { name, b } by .name;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_set_08(self):
@@ -2403,108 +2402,102 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             using total := sum(.b)
             by total;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'total': 17},
                     'grouping': {'total'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {8, 9}},
                         {'name': 'Bob', 'b': {8, 9}},
                         {'name': 'Carol', 'b': {8, 9}},
                         {'name': 'Dave', 'b': {8, 9}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize computed pointers properly""")
     async def test_edgeql_group_binding_iterator_ptr_set_09(self):
         await self.assert_query_result(
             '''
-            select (
-                with X := cards::User {
-                    name,
-                    b := (for n in { 9 } union ({ c := 3, d := n }))
-                }
-                group X { name, b: { c, d } } by .name;
-            )
-            order by .key.name;
+            with X := cards::User {
+                name,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group X { name, b: { c, d } } by .name;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_set_10(self):
         # Remove pointer from output shape
         await self.assert_query_result(
             '''
-            select (
-                with X := cards::User {
-                    name,
-                    b := (for n in { 9 } union ({ c := 3, d := n }))
-                }
-                group X { name, b: { c } } by .name
-            )
-            order by .key.name;
+            with X := cards::User {
+                name,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group X { name, b: { c } } by .name;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {'c': 3}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': {'c': 3}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': {'c': 3}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': {'c': 3}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize computed pointers properly""")
@@ -2512,45 +2505,42 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         # Wrap subject in select
         await self.assert_query_result(
             '''
-            select (
-                with X := cards::User {
-                    name,
-                    b := (for n in { 9 } union ({ c := 3, d := n }))
-                }
-                group (select X { name, b: { c, d } }) by .name
-            )
-            order by .key.name;
+            with X := cards::User {
+                name,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group (select X { name, b: { c, d } }) by .name;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize computed pointers properly""")
@@ -2558,29 +2548,26 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         # Use computed pointer only in by clause
         await self.assert_query_result(
             '''
-            select (
-                with X := cards::User {
-                    name,
-                    b := (for n in { 9 } union ({ c := 3, d := n }))
-                }
-                group X { name, b: { c } }
-                using d := .b.d
-                by d
-            )
-            order by .key.d;
+            with X := cards::User {
+                name,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group X { name, b: { c } }
+            using d := .b.d
+            by d;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'d': 9},
                     'grouping': {'d'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {'c': 3, 'd': 9}},
                         {'name': 'Bob', 'b': {'c': 3, 'd': 9}},
                         {'name': 'Carol', 'b': {'c': 3, 'd': 9}},
                         {'name': 'Dave', 'b': {'c': 3, 'd': 9}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize computed pointers properly""")
@@ -2593,16 +2580,16 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             )
             group X { a, b } by .a;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'b': 8},
                         {'a': 1, 'b': 9},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_free_object_02(self):
@@ -2615,16 +2602,16 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             )
             group X { a } by .a;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1},
                         {'a': 1},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_free_object_03(self):
@@ -2637,16 +2624,16 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             )
             group (select X { a, b }) by .a;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'b': 8},
                         {'a': 1, 'b': 9},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_free_object_04(self):
@@ -2659,18 +2646,22 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             )
             group X { a } by .b;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'b': 8},
                     'grouping': {'b'},
-                    'elements': [{'a': 1}],
+                    'elements': tb.bag([
+                        {'a': 1},
+                    ]),
                 },
                 {
                     'key': {'b': 9},
                     'grouping': {'b'},
-                    'elements': [{'a': 1}],
+                    'elements': tb.bag([
+                        {'a': 1},
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_free_object_05(self):
@@ -2682,13 +2673,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }
             group X { a, b } by .a;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [{'a': 1, 'b': {8, 9}}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {8, 9}},
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_free_object_06(self):
@@ -2702,13 +2695,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             using total := sum(.b)
             by total;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'total': 17},
                     'grouping': {'total'},
-                    'elements': [{'a': 1, 'b': {8, 9}}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {8, 9}},
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_free_object_07(self):
@@ -2719,13 +2714,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 X := { a := 1, b := N }
             group X { a, b } by .a;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [{'a': 1, 'b': {8, 9}}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {8, 9}},
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_free_object_08(self):
@@ -2738,13 +2735,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             using total := sum(.b)
             by total;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'total': 17},
                     'grouping': {'total'},
-                    'elements': [{'a': 1, 'b': {8, 9}}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {8, 9}},
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize computed pointers properly""")
@@ -2757,13 +2756,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }
             group X { a, b: { c, d } } by .a;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [{'a': 1, 'b': {'c': 3, 'd': 9}}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 3, 'd': 9}},
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_binding_iterator_ptr_free_object_10(self):
@@ -2776,13 +2777,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }
             group X { a, b: { c } } by .a;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [{'a': 1, 'b': {'c': 3}}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 3}},
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize computed pointers properly""")
@@ -2796,13 +2799,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }
             group (select X { a, b: { c, d } }) by .a;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [{'a': 1, 'b': {'c': 3, 'd': 9}}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 3, 'd': 9}},
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize computed pointers properly""")
@@ -2818,13 +2823,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             using d := .b.d
             by d;
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'d': 9},
                     'grouping': {'d'},
-                    'elements': [{'a': 1, 'b': {'c': 3}}],
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 3}},
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -2840,36 +2847,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 elements: { name, z := .b <= 1 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'z': True},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -2886,36 +2893,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 elements: { name },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice'},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob'},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol'},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave'},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -2932,36 +2939,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 elements: { name, z := .b <= 1 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'z': True},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'z': True},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -2976,38 +2983,38 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 name: (select .elements.name limit 1),
                 grouping,
                 elements: { name, z := .b <= 1 },
-            } order by .name;
+            };
             ''',
-            [
+            tb.bag(
                 {
                     'name': 'Alice',
                     'grouping': {'b'},
-                    'elements': [
+                    'elements': tb.bag(
                         {'name': 'Alice', 'z': True},
-                    ],
+                    ),
                 },
                 {
                     'name': 'Bob',
                     'grouping': {'b'},
-                    'elements': [
+                    'elements': tb.bag(
                         {'name': 'Bob', 'z': True},
-                    ],
+                    ),
                 },
                 {
                     'name': 'Carol',
                     'grouping': {'b'},
-                    'elements': [
+                    'elements': tb.bag(
                         {'name': 'Carol', 'z': True},
-                    ],
+                    ),
                 },
                 {
                     'name': 'Dave',
                     'grouping': {'b'},
-                    'elements': [
+                    'elements': tb.bag(
                         {'name': 'Dave', 'z': True},
-                    ],
+                    ),
                 },
-            ]
+            )
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -3032,36 +3039,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -3084,36 +3091,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {'c': 2}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': {'c': 2}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': {'c': 2}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': {'c': 2}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -3139,36 +3146,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'name': 'Alice'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Bob'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Carol'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'key': {'name': 'Dave'},
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -3191,38 +3198,38 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     name,
                     b: { c },
                 },
-            } order by .name;
+            };
             ''',
-            [
+            tb.bag([
                 {
                     'name': 'Alice',
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Alice', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'name': 'Bob',
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Bob', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'name': 'Carol',
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Carol', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
                 {
                     'name': 'Dave',
                     'grouping': {'name'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'name': 'Dave', 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -3238,15 +3245,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 elements: { a, z := .b <= 1 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'z': True},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -3263,15 +3270,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 elements: { a },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -3288,15 +3295,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 elements: { a, z := .b <= 1 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'z': True},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -3313,14 +3320,14 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 elements: { a, z := .b <= 1 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'grouping': {'b'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'z': True},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -3345,15 +3352,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -3376,15 +3383,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'b': {'c': 2}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -3410,15 +3417,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'key': {'a': 1},
                     'grouping': {'a'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'b': {'c': 2, 'z': True}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     @test.xerror("""Group by doesn't materialize volatile properly""")
@@ -3443,14 +3450,14 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 },
             };
             ''',
-            [
+            tb.bag([
                 {
                     'grouping': {'d'},
-                    'elements': [
+                    'elements': tb.bag([
                         {'a': 1, 'b': {'c': 2}},
-                    ],
+                    ]),
                 },
-            ]
+            ])
         )
 
     async def test_edgeql_group_ordering_01(self):
