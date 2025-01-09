@@ -132,3 +132,8 @@ The :ref:`cartesian product <ref_reference_cardinality_cartesian>` of a
 
 ``Modifying`` expressions are not allowed in a non-scalar argument to a
 function, except for :ref:`standard set functions <ref_std_set>`.
+
+The non-optional parameters of ``Modifying``
+:ref:`functions <ref_datamodel_functions_modifying>` must have a
+:ref:`cardinality <ref_reference_cardinality>` of ``One``. Optional
+parameters must have a cardinality of ``AtMostOne``.

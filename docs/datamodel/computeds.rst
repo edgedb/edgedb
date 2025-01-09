@@ -53,9 +53,10 @@ field is referenced in a query.
 
 .. warning::
 
-  Volatile functions are not allowed in computed properties defined in schema.
-  This means that, for example, your schema-defined computed property cannot
-  call :eql:func:`datetime_current`, but it *can* call
+  :ref:`Volatile and modifying <ref_reference_volatility>` expressions are not
+  allowed in computed properties defined in schema. This means that, for
+  example, your schema-defined computed property cannot call
+  :eql:func:`datetime_current`, but it *can* call
   :eql:func:`datetime_of_transaction` or :eql:func:`datetime_of_statement`.
   This does *not* apply to computed properties outside of schema.
 
