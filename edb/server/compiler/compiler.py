@@ -2698,7 +2698,11 @@ def compile_sql_as_unit_group(
             sql=value_sql,
             introspection_sql=intro_sql,
             status=status,
-            cardinality=sql_unit.cardinality,
+            cardinality=(
+                enums.Cardinality.NO_RESULT
+                if ctx.output_format is enums.OutputFormat.NONE
+                else sql_unit.cardinality
+            ),
             capabilities=sql_unit.capabilities,
             globals=[
                 (str(sp.global_name), False) for sp in sql_unit.params
@@ -2706,7 +2710,10 @@ def compile_sql_as_unit_group(
             ] if sql_unit.params else [],
             output_format=(
                 enums.OutputFormat.NONE
-                if sql_unit.cardinality is enums.Cardinality.NO_RESULT
+                if (
+                    ctx.output_format is enums.OutputFormat.NONE
+                    or sql_unit.cardinality is enums.Cardinality.NO_RESULT
+                )
                 else enums.OutputFormat.BINARY
             ),
             source_map=sql_unit.source_map,
