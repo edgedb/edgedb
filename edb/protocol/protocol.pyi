@@ -16,32 +16,33 @@
 # limitations under the License.
 #
 
+from typing import Any
 
-from __future__ import annotations
+from . import messages
 
-from edb.testbase import server
+class Connection:
+    async def connect(self) -> None:
+        ...
 
-from edb.protocol import protocol  # type: ignore
+    async def execute(self, query: str, state_id: bytes, state: bytes) -> None:
+        ...
 
+    async def sync(self) -> bytes:
+        ...
 
-class ProtocolTestCase(server.DatabaseTestCase):
+    async def recv(self) -> messages.ServerMessage:
+        ...
 
-    PARALLELISM_GRANULARITY = 'database'
-    BASE_TEST_CLASS = True
+    async def recv_match(
+        self,
+        msgcls: type[messages.ServerMessage],
+        _ignore_msg: type[messages.ServerMessage] | None,
+        **fields: Any,
+    ) -> messages.ServerMessage:
+        ...
 
-    con: protocol.Connection
+    async def send(self, *msgs: messages.ClientMessage) -> None:
+        ...
 
-    def setUp(self):
-        self.con = self.loop.run_until_complete(
-            protocol.new_connection(
-                **self.get_connect_args(database=self.get_database_name())
-            )
-        )
-
-    def tearDown(self):
-        try:
-            self.loop.run_until_complete(
-                self.con.aclose()
-            )
-        finally:
-            self.con = None
+    async def aclose(self) -> None:
+        ...
