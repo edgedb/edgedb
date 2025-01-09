@@ -32,7 +32,10 @@ Example implementation
 ======================
 
 We will demonstrate the various steps below by building a NodeJS HTTP server in
-a single file that we will use to simulate a typical web application.
+a single file that we will use to simulate a typical web application. For this example,
+we will require email verification to demonstrate the full flow, but you can
+configure your provider to not require verification by setting the
+``require_verification`` setting to ``false``.
 
 .. note::
 
@@ -136,11 +139,6 @@ an existing user.
      const requestUrl = getRequestUrl(req);
 
      switch (requestUrl.pathname) {
-       case "/auth/callback": {
-         await handleCallback(req, res);
-         break;
-       }
-
        case "/auth/signup": {
          await handleSignUp(req, res);
          break;
@@ -223,28 +221,42 @@ an existing user.
          return;
        }
 
-       const { code } = await registerResponse.json();
+       const registerJson = await registerResponse.json();
 
-       const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
-       tokenUrl.searchParams.set("code", code);
-       tokenUrl.searchParams.set("verifier", pkce.verifier);
-       const tokenResponse = await fetch(tokenUrl.href, {
-         method: "get",
-       });
+       if ("code" in registerJson) {
+         // No verification required, we can immediately get an auth token
+         const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+         tokenUrl.searchParams.set("code", registerJson.code);
+         tokenUrl.searchParams.set("verifier", pkce.verifier);
+         const tokenResponse = await fetch(tokenUrl.href, {
+           method: "get",
+         });
 
-       if (!tokenResponse.ok) {
-         const text = await tokenResponse.text();
-         res.status = 400;
-         res.end(`Error from the auth server: ${text}`);
-         return;
+         if (!tokenResponse.ok) {
+           const text = await tokenResponse.text();
+           res.status = 400;
+           res.end(`Error from the auth server: ${text}`);
+           return;
+         }
+
+         const { auth_token } = await tokenResponse.json();
+         res.writeHead(204, {
+           "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         });
+
+         res.end();
+       } else {
+         // Verification required, we need to render a notice to the user
+         // to check their email for a verification link
+         res.writeHead(200, { "Content-Type": "text/html" });
+         res.end(`
+           <html>
+             <body>
+               <p>Please check your email for a verification link.</p>
+             </body>
+           </html>
+         `);
        }
-
-       const { auth_token } = await tokenResponse.json();
-       res.writeHead(204, {
-         "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
-       });
-
-       res.end();
      });
    };
 
@@ -291,27 +303,41 @@ an existing user.
          return;
        }
 
-       const { code } = await authenticateResponse.json();
+       const authenticateJson = await authenticateResponse.json();
 
-       const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
-       tokenUrl.searchParams.set("code", code);
-       tokenUrl.searchParams.set("verifier", pkce.verifier);
-       const tokenResponse = await fetch(tokenUrl.href, {
-         method: "get",
-       });
+       if ("code" in authenticateJson) {
+         // User is verified, we can get an auth token
+         const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+         tokenUrl.searchParams.set("code", authenticateJson.code);
+         tokenUrl.searchParams.set("verifier", pkce.verifier);
+         const tokenResponse = await fetch(tokenUrl.href, {
+           method: "get",
+         });
 
-       if (!tokenResponse.ok) {
-         const text = await tokenResponse.text();
-         res.status = 400;
-         res.end(`Error from the auth server: ${text}`);
-         return;
+         if (!tokenResponse.ok) {
+           const text = await tokenResponse.text();
+           res.status = 400;
+           res.end(`Error from the auth server: ${text}`);
+           return;
+         }
+
+         const { auth_token } = await tokenResponse.json();
+         res.writeHead(204, {
+           "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+         });
+         res.end();
+       } else {
+         // Verification required, we need to render a notice to the user
+         // to check their email for a verification link
+         res.writeHead(200, { "Content-Type": "text/html" });
+         res.end(`
+           <html>
+             <body>
+               <p>Please check your email for a verification link.</p>
+             </body>
+           </html>
+         `);
        }
-
-       const { auth_token } = await tokenResponse.json();
-       res.writeHead(204, {
-         "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
-       });
-       res.end();
      });
    };
 
@@ -355,18 +381,6 @@ handle the verification flow, we implement an endpoint:
        return;
      }
 
-     const cookies = req.headers.cookie?.split("; ");
-     const verifier = cookies
-       ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
-       ?.split("=")[1];
-     if (!verifier) {
-       res.status = 400;
-       res.end(
-         `Could not find 'verifier' in the cookie store. Is this the same user agent/browser that started the authorization flow?`,
-       );
-       return;
-     }
-
      const verifyUrl = new URL("verify", EDGEDB_AUTH_BASE_URL);
      const verifyResponse = await fetch(verifyUrl.href, {
        method: "post",
@@ -375,7 +389,6 @@ handle the verification flow, we implement an endpoint:
        },
        body: JSON.stringify({
          verification_token,
-         verifier,
          provider: "builtin::local_emailpassword",
        }),
      });
@@ -389,95 +402,50 @@ handle the verification flow, we implement an endpoint:
 
      const { code } = await verifyResponse.json();
 
-     const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
-     tokenUrl.searchParams.set("code", code);
-     tokenUrl.searchParams.set("verifier", verifier);
-     const tokenResponse = await fetch(tokenUrl.href, {
-       method: "get",
-     });
+     const cookies = req.headers.cookie?.split("; ");
+     const verifier = cookies
+       ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
+       ?.split("=")[1];
+     if (verifier) {
+       // Email verification flow is continuing from the original
+       // user agent/browser, so we can immediately get an auth token
+       const tokenUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
+       tokenUrl.searchParams.set("code", code);
+       tokenUrl.searchParams.set("verifier", verifier);
+       const tokenResponse = await fetch(tokenUrl.href, {
+         method: "get",
+       });
 
-     if (!tokenResponse.ok) {
-       const text = await tokenResponse.text();
-       res.status = 400;
-       res.end(`Error from the auth server: ${text}`);
-       return;
-     }
-
-     const { auth_token } = await tokenResponse.json();
-     res.writeHead(204, {
-       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
-     });
-     res.end();
-   };
-
-.. lint-on
-
-
-Retrieve ``auth_token``
------------------------
-
-Once the request to ``auth/authenticate`` completes, the EdgeDB server response
-with a JSON body with a single property: ``code``. You take that ``code`` and
-look up the ``verifier`` in the ``edgedb-pkce-verifier`` cookie, and make a
-request to the EdgeDB Auth extension to exchange these two pieces of data for
-an ``auth_token``.
-
-.. code-block:: javascript
-
-   /**
-    * Handles the PKCE callback and exchanges the `code` and `verifier
-    * for an auth_token, setting the auth_token as an HttpOnly cookie.
-    *
-    * @param {Request} req
-    * @param {Response} res
-    */
-   const handleCallback = async (req, res) => {
-      const requestUrl = getRequestUrl(req);
-
-      const code = requestUrl.searchParams.get("code");
-      if (!code) {
-         const error = requestUrl.searchParams.get("error");
-         res.status = 400;
-         res.end(
-            `OAuth callback is missing 'code'. \
-   OAuth provider responded with error: ${error}`,
-         );
-         return;
-      }
-
-      const cookies = req.headers.cookie?.split("; ");
-      const verifier = cookies
-         ?.find((cookie) => cookie.startsWith("edgedb-pkce-verifier="))
-         ?.split("=")[1];
-      if (!verifier) {
-         res.status = 400;
-         res.end(
-            `Could not find 'verifier' in the cookie store. Is this the \
-   same user agent/browser that started the authorization flow?`,
-         );
-         return;
-      }
-
-      const codeExchangeUrl = new URL("token", EDGEDB_AUTH_BASE_URL);
-      codeExchangeUrl.searchParams.set("code", code);
-      codeExchangeUrl.searchParams.set("verifier", verifier);
-      const codeExchangeResponse = await fetch(codeExchangeUrl.href, {
-         method: "GET",
-      });
-
-      if (!codeExchangeResponse.ok) {
-         const text = await codeExchangeResponse.text();
+       if (!tokenResponse.ok) {
+         const text = await tokenResponse.text();
          res.status = 400;
          res.end(`Error from the auth server: ${text}`);
          return;
-      }
+       }
 
-      const { auth_token } = await codeExchangeResponse.json();
-      res.writeHead(204, {
-         "Set-Cookie": `edgedb-auth-token=${auth_token}; Path=/; HttpOnly`,
-      });
-      res.end();
+       const { auth_token } = await tokenResponse.json();
+       res.writeHead(204, {
+         "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
+       });
+       res.end();
+       return;
+     }
+
+     // Email verification flow is continuing from a different user agent/browser,
+     // so we need to render a notice to the user to sign in, which will either
+     // complete the PKCE flow or start a new one
+     res.status = 200;
+     res.end(
+       `
+       <html>
+         <body>
+           <p>Email verified! Please sign in to continue.</p>
+         </body>
+       </html>`,
+     );
    };
+
+.. lint-on
 
 
 Create a User object
@@ -485,9 +453,8 @@ Create a User object
 
 For some applications, you may want to create a custom ``User`` type in the
 default module to attach application-specific information. You can tie this to
-an ``ext::auth::Identity`` by using the ``auth_token`` in our
-``ext::auth::client_token`` global and inserting your ``User`` object with a
-link to the ``Identity``.
+an ``ext::auth::Identity`` by using the ``identity_id`` returned during the
+sign-up flow.
 
 .. note::
 
@@ -508,33 +475,30 @@ Given this ``User`` type:
        };
    }
 
-You can update the ``handleVerify`` function like this to create a new ``User``
+You can update the ``handleRegister`` function like this to create a new ``User``
 object:
 
 .. lint-off
 
 .. code-block:: javascript-diff
 
-     const { auth_token } = await codeExchangeResponse.json();
+     const registerJson = await registerResponse.json();
+
+   + if ("identity_id" in registerJson) {
+   +   await client.query(`
+   +     with
+   +       identity := <ext::auth::Identity><uuid>$identity_id,
+   +       emailFactor := (
+   +         select ext::auth::EmailFactor filter .identity = identity
+   +       ),
+   +     insert User {
+   +       email := emailFactor.email,
+   +       identity := identity
+   +     };
+   +   `, { identity_id: registerJson.identity_id });
+   + }
    +
-   + const authedClient = client.withGlobals({
-   +   "ext::auth::client_token": auth_token,
-   + });
-   + await authedClient.query(`
-   +   with
-   +     identity := (global ext::auth::ClientTokenIdentity),
-   +     emailFactor := (
-   +       select ext::auth::EmailFactor filter .identity = identity
-   +     ),
-   +   insert User {
-   +     email := emailFactor.email,
-   +     identity := identity
-   +   };
-   + `);
-   +
-     res.writeHead(204, {
-       "Set-Cookie": `edgedb-auth-token=${auth_token}; HttpOnly; Path=/; Secure; SameSite=Strict`,
-     });
+     if ("code" in registerJson) {
 
 .. lint-on
 

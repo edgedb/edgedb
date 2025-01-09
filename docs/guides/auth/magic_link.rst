@@ -297,7 +297,7 @@ this code for an authentication token.
          const error = requestUrl.searchParams.get("error");
          res.status = 400;
          res.end(
-            `OAuth callback is missing 'code'. OAuth provider responded with error: ${error}`,
+            `Magic link callback is missing 'code'. Provider responded with error: ${error}`,
          );
          return;
       }
@@ -334,6 +334,72 @@ this code for an authentication token.
       });
       res.end();
    };
+
+.. lint-on
+
+
+Create a User object
+--------------------
+
+For some applications, you may want to create a custom ``User`` type in the
+default module to attach application-specific information. You can tie this to
+an ``ext::auth::Identity`` by using the ``identity_id`` returned during the
+sign-up flow.
+
+.. note::
+
+    For this example, we'll assume you have a one-to-one relationship between
+    ``User`` objects and ``ext::auth::Identity`` objects. In your own
+    application, you may instead decide to have a one-to-many relationship.
+
+Given this ``User`` type:
+
+.. code-block:: sdl
+
+   type User {
+       email: str;
+       name: str;
+
+       required identity: ext::auth::Identity {
+           constraint exclusive;
+       };
+   }
+
+You can update the ``handleCallback`` function like this to create a new ``User``
+object:
+
+.. lint-off
+
+.. code-block:: javascript-diff
+
+     const code = requestUrl.searchParams.get("code");
+     if (!code) {
+        const error = requestUrl.searchParams.get("error");
+        res.status = 400;
+        res.end(
+           `Magic link callback is missing 'code'. Provider responded with error: ${error}`,
+        );
+        return;
+     }
+
+   + const newIdentityId = requestUrl.searchParams.get("isSignUp") === "true" &&
+   +   requestUrl.searchParams.get("identity_id");
+   + if (newIdentityId) {
+   +   await client.query(`
+   +     with
+   +       identity := <ext::auth::Identity><uuid>$identity_id,
+   +       emailFactor := (
+   +         select ext::auth::EmailFactor filter .identity = identity
+   +       ),
+   +     insert User {
+   +       email := emailFactor.email,
+   +       identity := identity
+   +     };
+   +   `, { identity_id: newIdentityId });
+   + }
+   +
+     const cookies = req.headers.cookie?.split("; ");
+
 
 .. lint-on
 

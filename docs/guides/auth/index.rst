@@ -162,6 +162,118 @@ To configure via query or script:
     };
 
 
+Configuring webhooks
+====================
+
+The auth extension supports sending webhooks for a variety of auth events. You
+can use these webhooks to, for instance, send a fully customized email for
+email verification, or password reset instead of our built-in email
+verification and password reset emails. You could also use them to trigger
+analytics events, start an email drip campaign, create an audit log, or
+trigger other side effects in your application.
+
+.. note::
+
+  We send webhooks with no durability or reliability guarantees, so you should
+  always provide a mechanism for retrying delivery of any critical events,
+  such as email verification and password reset. We detail how to resend these
+  events in the relevant sections on the various authentication flows.
+
+
+Here are the webhooks that are currently supported:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Event
+     - Payload
+   * - ``IdentityCreated``
+     - | - ``event_type``: ``"IdentityCreated"`` (``str``)
+       | - ``event_id``: Unique event identifier (``str``)
+       | - ``timestamp``: ISO 8601 timestamp (``datetime``)
+       | - ``identity_id``: ID of created identity (``str``)
+   * - ``IdentityAuthenticated``
+     - | - ``event_type``: ``"IdentityAuthenticated"`` (``str``)
+       | - ``event_id``: Unique event identifier (``str``)
+       | - ``timestamp``: ISO 8601 timestamp (``datetime``)
+       | - ``identity_id``: ID of authenticated identity (``str``)
+   * - ``EmailFactorCreated``
+     - | - ``event_type``: ``"EmailFactorCreated"`` (``str``)
+       | - ``event_id``: Unique event identifier (``str``)
+       | - ``timestamp``: ISO 8601 timestamp (``datetime``)
+       | - ``identity_id``: Associated identity ID (``str``)
+       | - ``email_factor_id``: ID of created email factor (``str``)
+   * - ``EmailVerified``
+     - | - ``event_type``: ``"EmailVerified"`` (``str``)
+       | - ``event_id``: Unique event identifier (``str``)
+       | - ``timestamp``: ISO 8601 timestamp (``datetime``)
+       | - ``identity_id``: Associated identity ID (``str``)
+       | - ``email_factor_id``: ID of verified email factor (``str``)
+   * - ``EmailVerificationRequested``
+     - | - ``event_type``: ``"EmailVerificationRequested"`` (``str``)
+       | - ``event_id``: Unique event identifier (``str``)
+       | - ``timestamp``: ISO 8601 timestamp (``datetime``)
+       | - ``identity_id``: Associated identity ID (``str``)
+       | - ``email_factor_id``: ID of email factor to verify (``str``)
+       | - ``verification_token``: Token for verification (``str``)
+   * - ``PasswordResetRequested``
+     - | - ``event_type``: ``"PasswordResetRequested"`` (``str``)
+       | - ``event_id``: Unique event identifier (``str``)
+       | - ``timestamp``: ISO 8601 timestamp (``datetime``)
+       | - ``identity_id``: Associated identity ID (``str``)
+       | - ``email_factor_id``: ID of email factor (``str``)
+       | - ``reset_token``: Token for password reset (``str``)
+   * - ``MagicLinkRequested``
+     - | - ``event_type``: ``"MagicLinkRequested"`` (``str``)
+       | - ``event_id``: Unique event identifier (``str``)
+       | - ``timestamp``: ISO 8601 timestamp (``datetime``)
+       | - ``identity_id``: Associated identity ID (``str``)
+       | - ``email_factor_id``: ID of email factor (``str``)
+       | - ``magic_link_token``: Token for magic link (``str``)
+       | - ``magic_link_url``: Complete URL for magic link (``str``)
+
+You can configure webhooks with the UI or via query.
+
+.. code-block:: edgeql
+
+    CONFIGURE CURRENT BRANCH INSERT
+    ext::auth::WebhookConfig {
+        url := 'https://example.com/auth/webhook',
+        events := {
+            ext::auth::WebhookEvent.EmailVerificationRequested,
+            ext::auth::WebhookEvent.PasswordResetRequested,
+        }
+    };
+
+.. note::
+
+  URLs must be unique across all webhooks configured for each branch. If you want
+  to send multiple events to the same URL, you can do so by adding multiple
+  ``ext::auth::WebhookEvent`` values to the ``events`` set.
+
+
+Configuring SMTP
+================
+
+For email-based factors, you can configure SMTP to allow the extension to send
+emails on your behalf. You should either configure SMTP, or webhooks for the
+relevant events.
+
+Here is an example of configuring SMTP for local development, using something
+like `Mailpit <https://mailpit.axllent.org/docs/>`__.
+
+.. code-block:: edgeql
+
+    CONFIGURE CURRENT BRANCH INSERT cfg::SMTPProviderConfig {
+        sender := 'hello@example.com',
+        host := 'localhost',
+        port := <int32>1025,
+        security := 'STARTTLSOrPlainText',
+        validate_certs := false,
+    };
+
+
 Enabling authentication providers
 =================================
 
@@ -204,7 +316,11 @@ To enable via query or script:
 
 If you use the Email and Password provider, in addition to the
 ``require_verification`` configuration, you’ll need to configure SMTP to allow
-EdgeDB to send email verification and password reset emails on your behalf.
+EdgeDB to send email verification and password reset emails on your behalf or
+set up webhooks for the relevant events:
+
+- ``ext::auth::WebhookEvent.EmailVerificationRequested``
+- ``ext::auth::WebhookEvent.PasswordResetRequested``
 
 Here is an example of setting a local SMTP server, in this case using a
 product called `Mailpit <https://mailpit.axllent.org/docs/>`__ which is
@@ -212,20 +328,26 @@ great for testing in development:
 
 .. code-block:: edgeql
 
-    CONFIGURE CURRENT BRANCH SET
-    ext::auth::SMTPConfig::sender := 'hello@example.com';
+    CONFIGURE CURRENT BRANCH INSERT cfg::SMTPProviderConfig {
+        sender := 'hello@example.com',
+        host := 'localhost',
+        port := <int32>1025,
+        security := 'STARTTLSOrPlainText',
+        validate_certs := false,
+    };
 
-    CONFIGURE CURRENT BRANCH SET
-    ext::auth::SMTPConfig::host := 'localhost';
+Here is an example of setting up webhooks for the email verification and
+password reset events:
 
-    CONFIGURE CURRENT BRANCH SET
-    ext::auth::SMTPConfig::port := <int32>1025;
+.. code-block:: edgeql
 
-    CONFIGURE CURRENT BRANCH SET
-    ext::auth::SMTPConfig::security := 'STARTTLSOrPlainText';
-
-    CONFIGURE CURRENT BRANCH SET
-    ext::auth::SMTPConfig::validate_certs := false;
+    CONFIGURE CURRENT BRANCH INSERT ext::auth::WebhookConfig {
+        url := 'https://example.com/auth/webhook',
+        events := {
+            ext::auth::WebhookEvent.EmailVerificationRequested,
+            ext::auth::WebhookEvent.PasswordResetRequested,
+        }
+    };
 
 
 OAuth
@@ -306,14 +428,58 @@ to one of the other providers:
 - ``SlackOAuthProvider``
 
 
+Generic OpenID Connect providers
+--------------------------------
+
+.. versionadded:: 6.0
+
+Generic OpenID Connect providers are now supported. In order to use them,
+you will need to insert an ``ext::auth::OpenIDConnectProvider`` configuration
+object with a few additional properties:
+
+- ``name``: A unique string identifying the provider.
+- ``display_name``: A human-readable name for the provider.
+- ``issuer_url``: The issuer URL of the provider. This must be the domain of
+  the provider's authorization server and will be used to drive the OpenID
+  Connect flow.
+- ``logo_url``: (optional) A URL to an image of the provider's logo. This is
+  used in the built-in UI to display the correct logo.
+
+Inherited from ``ext::auth::OAuthProviderConfig``:
+
+- ``client_id``: The client ID of the provider.
+- ``secret``: The client secret of the provider.
+- ``additional_scope``: (optional) A space-separated string of additional
+  scopes to request from the provider.
+
+Here is an example of enabling the Google OpenID Connect provider (note, for
+Google, you can simply use the existing Google provider, but this is for
+illustration purposes):
+
+.. lint-off
+
+.. code-block:: edgeql
+
+    CONFIGURE CURRENT BRANCH
+    INSERT ext::auth::OpenIDConnectProvider {
+        name := 'google',
+        display_name := 'Google',
+        issuer_url := 'https://accounts.google.com',
+        logo_url := 'https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png',
+        client_id := '1234567890',
+        secret := '1234567890',
+    };
+
+.. lint-on
+
 Magic link
 ----------
 
 Magic link offers only one setting: ``token_time_to_live``. This determines how
 long after sending the magic link is valid.
 
-Since magic links rely on email, you must also configure SMTP. For local
-testing, you can use the same method used for SMTP previously for
+Since magic links rely on email, you must also configure SMTP or webhooks. For
+local testing, you can use the same method used for SMTP previously for
 :ref:`the email and password provider <ref_guide_auth_overview_email_password>`.
 
 Here is an example of setting a local SMTP server, in this case using a
@@ -322,20 +488,24 @@ great for testing in development:
 
 .. code-block:: edgeql
 
-    CONFIGURE CURRENT DATABASE SET
-    ext::auth::SMTPConfig::sender := 'hello@example.com';
+    CONFIGURE CURRENT BRANCH INSERT cfg::SMTPProviderConfig {
+        sender := 'hello@example.com',
+        host := 'localhost',
+        port := <int32>1025,
+        security := 'STARTTLSOrPlainText',
+        validate_certs := false,
+    };
 
-    CONFIGURE CURRENT DATABASE SET
-    ext::auth::SMTPConfig::host := 'localhost';
+Here is an example of setting up webhooks for the magic link events:
 
-    CONFIGURE CURRENT DATABASE SET
-    ext::auth::SMTPConfig::port := <int32>1025;
+.. code-block:: edgeql
 
-    CONFIGURE CURRENT DATABASE SET
-    ext::auth::SMTPConfig::security := 'STARTTLSOrPlainText';
-
-    CONFIGURE CURRENT DATABASE SET
-    ext::auth::SMTPConfig::validate_certs := false;
+    CONFIGURE CURRENT BRANCH INSERT ext::auth::WebhookConfig {
+        url := 'https://example.com/auth/webhook',
+        events := {
+            ext::auth::WebhookEvent.MagicLinkRequested,
+        }
+    };
 
 
 WebAuthn
@@ -356,8 +526,8 @@ WebAuthn
 
 .. note::
 
-    You will need to configure SMTP. For local testing, you can use Mailpit as
-    described in :ref:`the email/password section
+    You will need to configure SMTP or webhooks. For local testing, you can use
+    Mailpit as described in :ref:`the email/password section
     <ref_guide_auth_overview_email_password>`.
 
 .. note::
@@ -373,20 +543,24 @@ great for testing in development:
 
 .. code-block:: edgeql
 
-    CONFIGURE CURRENT DATABASE SET
-    ext::auth::SMTPConfig::sender := 'hello@example.com';
+    CONFIGURE CURRENT BRANCH INSERT cfg::SMTPProviderConfig {
+        sender := 'hello@example.com',
+        host := 'localhost',
+        port := <int32>1025,
+        security := 'STARTTLSOrPlainText',
+        validate_certs := false,
+    };
 
-    CONFIGURE CURRENT DATABASE SET
-    ext::auth::SMTPConfig::host := 'localhost';
+Here is an example of setting up webhooks for the WebAuthn events:
 
-    CONFIGURE CURRENT DATABASE SET
-    ext::auth::SMTPConfig::port := <int32>1025;
+.. code-block:: edgeql
 
-    CONFIGURE CURRENT DATABASE SET
-    ext::auth::SMTPConfig::security := 'STARTTLSOrPlainText';
-
-    CONFIGURE CURRENT DATABASE SET
-    ext::auth::SMTPConfig::validate_certs := false;
+    CONFIGURE CURRENT BRANCH INSERT ext::auth::WebhookConfig {
+        url := 'https://example.com/auth/webhook',
+        events := {
+            ext::auth::WebhookEvent.EmailVerificationRequested,
+        }
+    };
 
 
 Integrating your application
@@ -414,6 +588,8 @@ Select your method for detailed configuration:
     built_in_ui
     email_password
     oauth
+    magic_link
+    webauthn
 
 
 Example usage
