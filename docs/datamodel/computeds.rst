@@ -53,7 +53,7 @@ field is referenced in a query.
 
 .. warning::
 
-  :ref:`Volatile and modifying <_ref_reference_volatility>` expressions are not
+  :ref:`Volatile and modifying <ref_reference_volatility>` expressions are not
   allowed in computed properties defined in schema. This means that, for
   example, your schema-defined computed property cannot call
   :eql:func:`datetime_current`, but it *can* call

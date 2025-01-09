@@ -38,7 +38,7 @@ Sets as arguments
 ^^^^^^^^^^^^^^^^^
 
 Calling a user-defined function on a set will always apply it as
-:ref:`*element-wise* <_ref_reference_cardinality_functions_operators>`.
+:ref:`*element-wise* <ref_reference_cardinality_functions_operators>`.
 
 .. code-block:: sdl
 
@@ -84,7 +84,7 @@ Modifying Functions
 User-defined functions can contain DML (i.e.,
 :ref:`insert <ref_eql_insert>`, :ref:`update <ref_eql_update>`,
 :ref:`delete <ref_eql_delete>`) to make changes to existing data. These
-functions have a :ref:`modifying <_ref_reference_volatility>` volatility.
+functions have a :ref:`modifying <ref_reference_volatility>` volatility.
 
 .. code-block:: sdl
 
@@ -102,7 +102,7 @@ functions have a :ref:`modifying <_ref_reference_volatility>` volatility.
     {default::User {name: 'Jan', joined_at: <datetime>'2024-12-11T11:49:47Z'}}
 
 Unlike other functions, the arguments of modifying functions **must** have a
-:ref:`cardinality <_ref_reference_cardinality>` of ``One``.
+:ref:`cardinality <ref_reference_cardinality>` of ``One``.
 
 .. code-block:: edgeql-repl
 
