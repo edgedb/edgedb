@@ -24,7 +24,6 @@ import typing
 
 from . import messages
 from . import render_utils
-from .protocol import Connection  # NoQA
 
 from .messages import *  # NoQA
 

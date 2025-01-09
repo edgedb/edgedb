@@ -26,6 +26,7 @@ import edgedb
 from edb.server import args as srv_args
 from edb.server import compiler
 from edb import protocol
+from edb.protocol.protocol import Connection
 from edb.testbase import server as tb
 from edb.testbase import connection as tconn
 from edb.testbase.protocol.test import ProtocolTestCase
@@ -44,7 +45,7 @@ class TestProtocol(ProtocolTestCase):
         data: bool = False,
         sql: bool = False,
         cc: protocol.CommandComplete | None = None,
-        con: protocol.Connection | None = None,
+        con: Connection | None = None,
         input_language: protocol.InputLanguage = protocol.InputLanguage.EDGEQL,
     ) -> None:
         exec_args = dict(
