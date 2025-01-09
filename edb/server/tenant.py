@@ -473,16 +473,19 @@ class Tenant(ha_base.ClusterProtocol):
 
     async def load_extension_packages(self, path: pathlib.Path) -> None:
         exts = []
-        try:
-            with os.scandir(path) as it:
-                for entry in it:
-                    if (
-                        entry.is_dir()
-                        and (pathlib.Path(entry) / 'MANIFEST.toml').exists()
-                    ):
-                        exts.append(pathlib.Path(entry))
-        except FileNotFoundError:
-            pass
+        if self._is_extension_package(path):
+            exts.append(path)
+        else:
+            try:
+                with os.scandir(path) as it:
+                    for entry in it:
+                        if (
+                            entry.is_dir()
+                            and self._is_extension_package(entry)
+                        ):
+                            exts.append(pathlib.Path(entry))
+            except FileNotFoundError:
+                pass
 
         if not exts:
             return
@@ -507,6 +510,9 @@ class Tenant(ha_base.ClusterProtocol):
 
         for ext in exts:
             await self._load_extension_package(ext, ext_packages)
+
+    def _is_extension_package(self, path: pathlib.Path | os.DirEntry) -> bool:
+        return (pathlib.Path(path) / 'MANIFEST.toml').exists()
 
     async def _load_extension_package(
         self,
