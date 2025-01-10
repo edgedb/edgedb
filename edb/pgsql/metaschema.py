@@ -3117,7 +3117,6 @@ class SysConfigSourceType(dbops.Enum):
                 'postgres environment variable',
                 'postgres configuration file',
                 'environment variable',
-                'configuration file',
                 'command line',
                 'postgres command line',
                 'postgres global',
@@ -3587,15 +3586,24 @@ class SysConfigFullFunction(trampoline.VersionedFunction):
                 s.value AS value,
                 (CASE
                     WHEN s.type = 'A' THEN 'command line'
-                    WHEN s.type = 'E' THEN 'environment variable'
-                    ELSE 'configuration file'  -- 'F', matches WHERE below
+                    -- Due to inplace upgrade limits, without adding a new
+                    -- layer, configuration file values are manually squashed
+                    -- into the `environment variables` layer, see below.
+                    ELSE 'environment variable'
                 END) AS source,
                 config_spec.backend_setting IS NOT NULL AS is_backend
             FROM
                 _edgecon_state s
                 INNER JOIN config_spec ON (config_spec.name = s.name)
             WHERE
-                s.type = 'A' OR s.type = 'E' OR s.type = 'F'
+                -- Give precedence to configuration file values over
+                -- environment variables manually.
+                s.type = 'A' OR s.type = 'F' OR (
+                    s.type = 'E' AND NOT EXISTS (
+                        SELECT 1 FROM _edgecon_state ss
+                        WHERE ss.name = s.name AND ss.type = 'F'
+                    )
+                )
         ),
 
         config_sys AS (
