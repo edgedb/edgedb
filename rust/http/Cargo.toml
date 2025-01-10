@@ -20,7 +20,9 @@ tracing.workspace = true
 scopeguard = "1"
 eventsource-stream = "0.2.3"
 
-# We want to use rustls to avoid setenv issues OpenSSL and the system certs.
+# We want to use rustls to avoid setenv issues OpenSSL and the system certs. As long
+# as we don't call `openssl_probe::*init*env*()` functions, we should be fine.
+#
 # We add these features:
 # - http2: to use HTTP/2
 # - charset: to support charset encoding
