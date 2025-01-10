@@ -276,13 +276,17 @@ class Tenant(ha_base.ClusterProtocol):
     ) -> None:
         if compiler is None:
             compiler = self._server.get_compiler_pool()
-        result = compiler.compile_structured_config(
-            {"cfg::Config": {"email_providers": value}},
-            "magic",  # source
-            True,  # allow_nested
-        )
-        if asyncio.iscoroutine(result):
-            result = await result
+        objects = {"cfg::Config": {"email_providers": value}}
+        if isinstance(compiler, edbcompiler.Compiler):
+            result = compiler.compile_structured_config(
+                objects, source="magic", allow_nested=True
+            )
+        else:
+            result = await compiler.compile_structured_config(
+                objects,
+                "magic",  # source
+                True,  # allow_nested
+            )
         email_providers = result["cfg::Config"]["email_providers"]
         self._sidechannel_email_configs = list(email_providers.value)
 
@@ -1723,7 +1727,8 @@ class Tenant(ha_base.ClusterProtocol):
                 )
                 syscon.last_init_con_data = self._init_con_data
             sys_config = await self._load_sys_config(syscon=syscon)
-            # GOTCHA: don't notify the change of sysconfig because it's local
+            # GOTCHA: no need to notify other EdgeDBs on the same backend about
+            # such change to sysconfig, because static config is instance-local
         self._dbindex.update_sys_config(sys_config)
 
     def reload(self):

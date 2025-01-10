@@ -206,6 +206,8 @@ class ExclusiveTask:
         """Cancel scheduled task and wait for the running one to finish.
 
         After an ExclusiveTask is stopped, no more new schedules are allowed.
+        Note: "cancel scheduled task" only means setting self._scheduled to
+        False; if an asyncio task is scheduled, stop() will still wait for it.
         """
         self._scheduled = False
         self._stop_requested = True
