@@ -24,6 +24,7 @@ use pyo3::{
 };
 use std::collections::HashMap;
 use std::{borrow::Cow, path::Path};
+use tracing::warn;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[pyclass(eq, eq_int)]
@@ -474,6 +475,10 @@ impl ConnectionStateUpdate for PyConnectionStateUpdate {
                 e.print(py);
             }
         });
+    }
+
+    fn server_notice(&mut self, notice: &PgServerError) {
+        warn!("Unexpected server notice during handshake: {:?}", notice);
     }
 
     fn server_error(&mut self, error: &PgServerError) {
