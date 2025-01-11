@@ -159,15 +159,17 @@ class StreamingTestSuite(unittest.TestSuite):
                 getattr(result, '_moduleSetUpFailed', False)):
             return
 
+        result.annotate_test(test, {
+            'py-hash-secret': py_hash_secret,
+            'py-random-seed': py_random_seed,
+            'runner-pid': os.getpid(),
+        })
+
         start = time.monotonic()
         test.run(result)
         elapsed = time.monotonic() - start
 
         result.record_test_stats(test, {'running-time': elapsed})
-        result.annotate_test(test, {
-            'py-hash-secret': py_hash_secret,
-            'py-random-seed': py_random_seed,
-        })
 
         result._testRunEntered = False
         return result
@@ -768,7 +770,14 @@ class ParallelTextTestResult(unittest.result.TestResult):
         for test, start in self.currently_running.items():
             running_for = now - start
             if running_for > 5.0:
-                still_running[test] = running_for
+                key = str(test)
+                if (
+                    test in self.test_annotations
+                    and (pid := self.test_annotations[test].get('runner-pid'))
+                ):
+                    key = f'{key} (pid={pid})'
+
+                still_running[key] = running_for
         if still_running:
             self.ren.report_still_running(still_running)
 
@@ -1197,3 +1206,4 @@ multiprocessing.reduction.ForkingPickler.register(
 
 def _restore_Traceback():
     return None
+
