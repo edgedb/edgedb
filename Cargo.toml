@@ -35,3 +35,6 @@ lto = true
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(never)'] }
+
+[patch.crates-io]
+openssl-probe = { git = "https://github.com/edgedb/openssl-probe/", rev = "e5ed593600d1f8128629565d349682f54b3a8b57" }

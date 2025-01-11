@@ -33,7 +33,6 @@ eventsource-stream = "0.2.3"
 # - stream: to support streaming responses
 # - rustls-tls-native-roots: to use the native root certificates (rather than WebPKI)
 reqwest = { version = "0.12", default-features = false, features = ["http2", "charset", "gzip", "deflate", "brotli", "stream", "rustls-tls-native-roots"] }
-
 futures = "0"
 
 [dev-dependencies]
