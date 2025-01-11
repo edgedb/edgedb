@@ -182,8 +182,11 @@ class HttpSSETest(tb.TestCase):
         ):
             # Close connection immediately after reading a byte without sending
             # any response
+            print(1)
             await reader.read(1)
+            print(2)
             writer.close()
+            print(3)
             await writer.wait_closed()
 
         server = await asyncio.start_server(mock_drop_server, '127.0.0.1', 0)
@@ -191,13 +194,19 @@ class HttpSSETest(tb.TestCase):
         url = f'http://{addr[0]}:{addr[1]}/drop'
 
         try:
+            print(4)
             async with http.HttpClient(100) as client:
+                print(5)
                 with self.assertRaisesRegex(
                     Exception, "Connection reset by peer|IncompleteMessage"
                 ):
+                    print(6)
                     await client.stream_sse(url)
+                    print(7)
         finally:
+            print(8)
             server.close()
+            print(9)
             await server.wait_closed()
 
     @async_timeout(timeout=5)
