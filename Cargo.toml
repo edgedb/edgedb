@@ -16,7 +16,7 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-pyo3 = { version = "0.23.1", features = ["extension-module", "serde", "macros"] }
+pyo3 = { version = "0.23", features = ["extension-module", "serde", "macros"] }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "sync", "net", "io-util"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["registry", "env-filter"] }
