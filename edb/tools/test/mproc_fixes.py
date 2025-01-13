@@ -28,6 +28,7 @@ import multiprocessing.util
 
 
 _orig_pool_worker_handler = None
+_orig_pool_join_exited_workers = None
 
 logger = logging.getLogger(__name__)
 
@@ -92,9 +93,17 @@ def multiprocessing_worker_handler(*args):
         worker_process.join(timeout=10)
 
 
+def join_exited_workers(pool):
+    # Our use case shouldn't have workers exiting really, so we skip
+    # doing the joins so that we can detect crashes ourselves in the
+    # test runner.x
+    pass
+
+
 def patch_multiprocessing(debug: bool):
     global _orig_pool_worker
     global _orig_pool_worker_handler
+    global _orig_pool_join_exited_workers
 
     if debug:
         multiprocessing.util.log_to_stderr(logging.DEBUG)
@@ -111,3 +120,7 @@ def patch_multiprocessing(debug: bool):
     # Allow workers some time to shut down gracefully.
     _orig_pool_worker_handler = multiprocessing.pool.Pool._handle_workers
     multiprocessing.pool.Pool._handle_workers = multiprocessing_worker_handler
+
+    _orig_pool_join_exited_workers = (
+        multiprocessing.pool.Pool._join_exited_workers)
+    multiprocessing.pool.Pool._join_exited_workers = join_exited_workers
