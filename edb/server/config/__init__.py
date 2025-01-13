@@ -18,7 +18,9 @@
 
 
 from __future__ import annotations
-from typing import Any, Mapping
+from typing import Any, Mapping, TypedDict
+
+import enum
 
 import immutables
 
@@ -50,7 +52,23 @@ __all__ = (
     'load_ext_settings_from_schema',
     'get_compilation_config',
     'QueryCacheMode',
+    'ConState', 'ConStateType',
 )
+
+
+# See edb/server/pgcon/connect.py for documentation of the types
+class ConStateType(enum.StrEnum):
+    session_config = "C"
+    backend_session_config = "B"
+    command_line_argument = "A"
+    environment_variable = "E"
+    config_file = "F"
+
+
+class ConState(TypedDict):
+    name: str
+    value: Any
+    type: ConStateType
 
 
 def lookup(

@@ -19,10 +19,12 @@
 
 import asyncio
 import datetime
+import enum
 import json
 import os
 import platform
 import random
+import signal
 import tempfile
 import textwrap
 import unittest
@@ -2308,6 +2310,178 @@ class TestStaticServerConfig(tb.TestCase):
                     """),
                     p1,
                 )
+            finally:
+                await conn.aclose()
+
+    async def test_server_config_file_01(self):
+        conf = textwrap.dedent('''
+            ["cfg::Config"]
+            session_idle_timeout = "8m42s"
+            durprop = "996"
+            apply_access_policies = false
+            multiprop = "single"
+            current_email_provider_name = "localmock"
+
+            [[magic_smtp_config]]
+            _tname = "cfg::SMTPProviderConfig"
+            name = "localmock"
+            sender = "sender@example.com"
+            timeout_per_email = "1 minute 48 seconds"
+        ''')
+        async with tb.temp_file_with(
+            conf.encode()
+        ) as config_file, tb.start_edgedb_server(
+            config_file=config_file.name,
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
+        ) as sd:
+            conn = await sd.connect()
+            try:
+                sysconfig = conn.get_settings()["system_config"]
+                self.assertEqual(
+                    sysconfig.session_idle_timeout,
+                    datetime.timedelta(minutes=8, seconds=42),
+                )
+
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.session_idle_timeout)
+                    """),
+                    datetime.timedelta(minutes=8, seconds=42),
+                )
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(
+                            cfg::Config.durprop)
+                    """),
+                    datetime.timedelta(seconds=996),
+                )
+                self.assertFalse(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.apply_access_policies)
+                    """)
+                )
+                self.assertEqual(
+                    await conn.query("""\
+                        select assert_single(cfg::Config).multiprop
+                    """),
+                    ["single"],
+                )
+
+                dbname = await conn.query_single("""\
+                    select sys::get_current_branch()
+                """)
+                provider = sd.fetch_server_info()["databases"][dbname][
+                    "current_email_provider"
+                ]
+                self.assertEqual(provider['name'], 'localmock')
+                self.assertEqual(provider['sender'], 'sender@example.com')
+                self.assertEqual(provider['timeout_per_email'], 'PT1M48S')
+
+                await conn.query("""\
+                    configure current database
+                    set current_email_provider_name := 'non_exist';
+                """)
+                async for tr in self.try_until_succeeds(ignore=AssertionError):
+                    async with tr:
+                        provider = sd.fetch_server_info()["databases"][dbname][
+                            "current_email_provider"
+                        ]
+                        self.assertIsNone(provider)
+            finally:
+                await conn.aclose()
+
+    async def test_server_config_file_02(self):
+        conf = textwrap.dedent('''
+            ["cfg::Config"]
+            allow_bare_ddl = "illegal_input"
+        ''')
+        with self.assertRaisesRegex(
+            cluster.ClusterError,
+            "'cfg::AllowBareDDL' enum has no member called 'illegal_input'"
+        ):
+            async with tb.temp_file_with(
+                conf.encode()
+            ) as config_file, tb.start_edgedb_server(
+                config_file=config_file.name,
+            ):
+                pass
+
+    async def test_server_config_file_03(self):
+        conf = textwrap.dedent('''
+            ["cfg::Config"]
+            apply_access_policies = "on"
+        ''')
+        with self.assertRaisesRegex(
+            cluster.ClusterError,
+            "can only be one of: true, false",
+        ):
+            async with tb.temp_file_with(
+                conf.encode()
+            ) as config_file, tb.start_edgedb_server(
+                config_file=config_file.name,
+            ):
+                pass
+
+    async def test_server_config_file_04(self):
+        conf = textwrap.dedent('''
+            ["cfg::Config"]
+            query_execution_timeout = "1 hour"
+        ''')
+        with self.assertRaisesRegex(
+            cluster.ClusterError,
+            "backend config 'query_execution_timeout' cannot be set "
+            "via config file"
+        ):
+            async with tb.temp_file_with(
+                conf.encode()
+            ) as config_file, tb.start_edgedb_server(
+                config_file=config_file.name,
+            ):
+                pass
+
+    async def test_server_config_file_05(self):
+        class Prop(enum.Enum):
+            One = "One"
+            Two = "Two"
+            Three = "Three"
+
+        conf = textwrap.dedent('''
+            ["cfg::Config"]
+            enumprop = "One"
+        ''')
+        async with tb.temp_file_with(
+            conf.encode()
+        ) as config_file, tb.start_edgedb_server(
+            config_file=config_file.name,
+        ) as sd:
+            conn = await sd.connect()
+            try:
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(
+                            cfg::Config.enumprop)
+                    """),
+                    Prop.One,
+                )
+
+                config_file.seek(0)
+                config_file.truncate()
+                config_file.write(textwrap.dedent('''
+                    ["cfg::Config"]
+                    enumprop = "Three"
+                ''').encode())
+                config_file.flush()
+                os.kill(sd.pid, signal.SIGHUP)
+
+                async for tr in self.try_until_succeeds(ignore=AssertionError):
+                    async with tr:
+                        self.assertEqual(
+                            await conn.query_single("""\
+                                select assert_single(
+                                    cfg::Config.enumprop)
+                            """),
+                            Prop.Three,
+                        )
             finally:
                 await conn.aclose()
 

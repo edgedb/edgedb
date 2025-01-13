@@ -101,3 +101,222 @@ class TestDebounce(unittest.TestCase):
                 (2020, [15]),
             ],
         )
+
+
+class TestExclusiveTask(unittest.TestCase):
+    async def _test(self, task: asyncutil.ExclusiveTask, get_counter):
+        # double-schedule is effective only once
+        task.schedule()
+        self.assertTrue(task.scheduled)
+        task.schedule()
+        self.assertTrue(task.scheduled)
+        self.assertEqual(get_counter(), 0)
+
+        # an exclusive task is running, schedule another one with a double shot
+        await asyncio.sleep(4)
+        self.assertFalse(task.scheduled)
+        await asyncio.sleep(1)
+        task.schedule()
+        self.assertTrue(task.scheduled)
+        task.schedule()
+        self.assertTrue(task.scheduled)
+        self.assertEqual(get_counter(), 1)
+
+        # first task done, second follows immediately
+        await asyncio.sleep(5)
+        self.assertFalse(task.scheduled)
+        self.assertEqual(get_counter(), 3)
+
+        # all done
+        await asyncio.sleep(9)
+        self.assertFalse(task.scheduled)
+        self.assertEqual(get_counter(), 4)
+
+        # works repeatedly
+        await asyncio.sleep(1)
+        task.schedule()
+        self.assertTrue(task.scheduled)
+        await asyncio.sleep(3)
+        self.assertFalse(task.scheduled)
+        await asyncio.sleep(1)
+        task.schedule()
+        self.assertTrue(task.scheduled)
+        self.assertEqual(get_counter(), 5)
+
+        # now stop the scheduled task and wait for the running one to finish
+        await asyncio.sleep(1)
+        await task.stop()
+        self.assertFalse(task.scheduled)
+        self.assertEqual(get_counter(), 6)
+
+        # no further schedule allowed
+        task.schedule()
+        self.assertFalse(task.scheduled)
+        await asyncio.sleep(10)
+        self.assertEqual(get_counter(), 6)
+
+    @with_fake_event_loop
+    async def test_exclusive_task_01(self):
+        counter = 0
+
+        @asyncutil.exclusive_task
+        async def task():
+            nonlocal counter
+            counter += 1
+            await asyncio.sleep(8)
+            counter += 1
+
+        await self._test(task, lambda: counter)
+
+    @with_fake_event_loop
+    async def test_exclusive_task_02(self):
+        counter = 0
+
+        @asyncutil.exclusive_task()
+        async def task():
+            nonlocal counter
+            counter += 1
+            await asyncio.sleep(8)
+            counter += 1
+
+        await self._test(task, lambda: counter)
+
+    @with_fake_event_loop
+    async def test_exclusive_task_03(self):
+        class MyClass:
+            def __init__(self):
+                self.counter = 0
+
+            @asyncutil.exclusive_task
+            async def task(self):
+                self.counter += 1
+                await asyncio.sleep(8)
+                self.counter += 1
+
+        obj = MyClass()
+        await self._test(obj.task, lambda: obj.counter)
+
+    @with_fake_event_loop
+    async def test_exclusive_task_04(self):
+        class MyClass:
+            def __init__(self):
+                self.counter = 0
+
+            @asyncutil.exclusive_task(slot="another")
+            async def task(self):
+                self.counter += 1
+                await asyncio.sleep(8)
+                self.counter += 1
+
+        obj = MyClass()
+        await self._test(obj.task, lambda: obj.counter)
+
+    @with_fake_event_loop
+    async def test_exclusive_task_05(self):
+        class MyClass:
+            __slots__ = ("counter", "another",)
+
+            def __init__(self):
+                self.counter = 0
+
+            @asyncutil.exclusive_task(slot="another")
+            async def task(self):
+                self.counter += 1
+                await asyncio.sleep(8)
+                self.counter += 1
+
+        obj = MyClass()
+        await self._test(obj.task, lambda: obj.counter)
+
+    @with_fake_event_loop
+    async def test_exclusive_task_06(self):
+        class MyClass:
+            def __init__(self, factor: int):
+                self.counter = 0
+                self.factor = factor
+
+            @asyncutil.exclusive_task
+            async def task(self):
+                self.counter += self.factor
+                await asyncio.sleep(8)
+                self.counter += self.factor
+
+        obj1 = MyClass(1)
+        obj2 = MyClass(2)
+        async with asyncio.TaskGroup() as g:
+            g.create_task(
+                self._test(obj1.task, lambda: obj1.counter // obj1.factor)
+            )
+            await asyncio.sleep(3)
+            g.create_task(
+                self._test(obj2.task, lambda: obj2.counter // obj2.factor)
+            )
+
+    def test_exclusive_task_07(self):
+        with self.assertRaises(TypeError):
+            class MyClass:
+                __slots__ = ()
+
+                @asyncutil.exclusive_task
+                async def task(self):
+                    pass
+
+    def test_exclusive_task_08(self):
+        with self.assertRaises(TypeError):
+            class MyClass:
+                __slots__ = ()
+
+                @asyncutil.exclusive_task(slot="missing")
+                async def task(self):
+                    pass
+
+    def test_exclusive_task_09(self):
+        with self.assertRaises(TypeError):
+            @asyncutil.exclusive_task
+            async def task(*args, **kwargs):
+                pass
+
+    def test_exclusive_task_10(self):
+        with self.assertRaises(TypeError):
+            @asyncutil.exclusive_task
+            async def task(*, p):
+                pass
+
+    def test_exclusive_task_11(self):
+        with self.assertRaises(TypeError):
+            class MyClass:
+                @asyncutil.exclusive_task
+                async def task(self, p):
+                    pass
+
+    def test_exclusive_task_12(self):
+        with self.assertRaises(TypeError):
+            class MyClass:
+                @asyncutil.exclusive_task
+                @classmethod
+                async def task(cls):
+                    pass
+
+    @with_fake_event_loop
+    async def test_exclusive_task_13(self):
+        counter = 0
+
+        class MyClass:
+            @asyncutil.exclusive_task
+            @staticmethod
+            async def task():
+                nonlocal counter
+                counter += 1
+                await asyncio.sleep(8)
+                counter += 1
+
+        obj1 = MyClass()
+        obj2 = MyClass()
+
+        async with asyncio.TaskGroup() as g:
+            g.create_task(
+                self._test(obj1.task, lambda: counter)
+            )
+            g.create_task(
+                self._test(obj2.task, lambda: counter)
+            )

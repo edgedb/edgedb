@@ -56,7 +56,7 @@ class SMTPProviderConfig:
 
 class SMTP:
     def __init__(self, db: dbview.Database):
-        current_provider = _get_current_email_provider(db)
+        current_provider = get_current_email_provider(db)
         self.sender = current_provider.sender or "noreply@example.com"
         default_port = (
             465
@@ -205,7 +205,7 @@ class SMTP:
             pickle.dump(args, f)
 
 
-def _get_current_email_provider(
+def get_current_email_provider(
     db: dbview.Database,
 ) -> SMTPProviderConfig:
     current_provider_name = db.lookup_config("current_email_provider_name")
