@@ -86,6 +86,9 @@ def resolve(
     else:
         raise AssertionError()
 
+    if limit := ctx.options.implicit_limit:
+        resolved = apply_implicit_limit(resolved, limit, resolved_table, ctx)
+
     command.fini_external_params(ctx)
 
     if top_level_ctes:
@@ -179,3 +182,18 @@ def as_plain_select(
             for index, c in enumerate(table.columns)
         ],
     )
+
+
+def apply_implicit_limit(
+    expr: pgast.Base,
+    limit: int,
+    table: Optional[context.Table],
+    ctx: context.ResolverContextLevel,
+) -> pgast.Base:
+    e = as_plain_select(expr, table, ctx)
+    if not e:
+        return expr
+
+    if e.limit_count is None:
+        e.limit_count = pgast.NumericConstant(val=str(limit))
+    return e
