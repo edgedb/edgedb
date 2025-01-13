@@ -2832,6 +2832,24 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             "SELECT 'test' as a", [{"a": "test"}]
         )
 
+    async def test_sql_native_query_22(self):
+        await self.assert_sql_query_result(
+            "SELECT 1 as a UNION SELECT 2 as a", [{"a": 1}, {"a": 2}]
+        )
+
+    async def test_sql_native_query_23(self):
+        await self.assert_sql_query_result(
+            "VALUES (1, 2)", [{"column1": 1, "column2": 2}]
+        )
+
+    async def test_sql_native_query_24(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.UnsupportedFeatureError, 'not supported: COPY'
+        ):
+            await self.assert_sql_query_result(
+                'COPY "Genre" TO STDOUT', []
+            )
+
 
 class TestSQLQueryNonTransactional(tb.SQLQueryTestCase):
 
