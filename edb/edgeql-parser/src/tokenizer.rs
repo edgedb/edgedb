@@ -426,11 +426,8 @@ impl<'a> Tokenizer<'a> {
             '=' => Ok((Eq, 1)),
             ',' => Ok((Comma, 1)),
             '(' => Ok((OpenParen, 1)),
-            ')' if self.open_parens == 0 && !self.str_interp_stack.is_empty() => {
-                self.parse_string_interp_cont(
-                    &self.str_interp_stack[self.str_interp_stack.len() - 1],
-                )
-            }
+            ')' if self.open_parens == 0 && !self.str_interp_stack.is_empty() => self
+                .parse_string_interp_cont(&self.str_interp_stack[self.str_interp_stack.len() - 1]),
             ')' => Ok((CloseParen, 1)),
             '[' => Ok((OpenBracket, 1)),
             ']' => Ok((CloseBracket, 1)),
