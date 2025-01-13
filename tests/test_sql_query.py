@@ -2871,6 +2871,14 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 'COPY "Genre" TO STDOUT', []
             )
 
+    async def test_sql_native_query_25(self):
+        # implict limit
+        await self.assert_sql_query_result(
+            'VALUES (1), (2), (3), (4), (5), (6), (7)',
+            [{'column1': 1}, {'column1': 2}, {'column1': 3}],
+            implicit_limit=3,
+        )
+
 
 class TestSQLQueryNonTransactional(tb.SQLQueryTestCase):
 
