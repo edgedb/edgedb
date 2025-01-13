@@ -55,7 +55,7 @@ class ResolvedSQL:
 
 
 def resolve(
-    query: pgast.Base,
+    query: pgast.Query | pgast.CopyStmt,
     schema: s_schema.Schema,
     options: context.Options,
 ) -> ResolvedSQL:
@@ -77,7 +77,14 @@ def resolve(
     command.init_external_params(query, ctx)
     top_level_ctes = command.compile_dml(query, ctx=ctx)
 
-    resolved = dispatch.resolve(query, ctx=ctx)
+    resolved: pgast.Base
+    if isinstance(query, pgast.Query):
+        resolved, resolved_table = dispatch.resolve_relation(query, ctx=ctx)
+    elif isinstance(query, pgast.CopyStmt):
+        resolved = dispatch.resolve(query, ctx=ctx)
+        resolved_table = None
+    else:
+        raise AssertionError()
 
     command.fini_external_params(ctx)
 
@@ -119,15 +126,16 @@ def resolve(
 
     if options.include_edgeql_io_format_alternative:
         edgeql_output_format_ast = copy.copy(resolved)
-        if isinstance(edgeql_output_format_ast, pgast.SelectStmt):
-            edgeql_output_format_ast.target_list = [
+        if e := as_plain_select(edgeql_output_format_ast, resolved_table, ctx):
+            e.target_list = [
                 pgast.ResTarget(
                     val=expr.construct_row_expr(
-                        (rt.val for rt in edgeql_output_format_ast.target_list),
+                        (rt.val for rt in e.target_list),
                         ctx=ctx,
                     )
                 )
             ]
+            edgeql_output_format_ast = e
     else:
         edgeql_output_format_ast = None
 
@@ -136,4 +144,38 @@ def resolve(
         edgeql_output_format_ast=edgeql_output_format_ast,
         command_complete_tag=command_complete_tag,
         params=ctx.query_params,
+    )
+
+
+def as_plain_select(
+    query: pgast.Base,
+    table: Optional[context.Table],
+    ctx: context.ResolverContextLevel,
+) -> Optional[pgast.SelectStmt]:
+    if not isinstance(query, pgast.Query):
+        return None
+    assert table
+
+    if (
+        isinstance(query, pgast.SelectStmt)
+        and not query.op
+        and not query.values
+    ):
+        return query
+
+    table.alias = "t"
+    return pgast.SelectStmt(
+        from_clause=[
+            pgast.RangeSubselect(
+                subquery=query,
+                alias=pgast.Alias(aliasname="t"),
+            )
+        ],
+        target_list=[
+            pgast.ResTarget(
+                name=f'column{index}',
+                val=expr.resolve_column_kind(table, c.kind, ctx=ctx),
+            )
+            for index, c in enumerate(table.columns)
+        ],
     )

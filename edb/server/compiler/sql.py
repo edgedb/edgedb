@@ -354,6 +354,10 @@ def _compile_sql(
                     "SQL prepared statements are not supported"
                 )
 
+            if not isinstance(stmt.query, (pgast.Query, pgast.CopyStmt)):
+                from edb.pgsql import resolver as pg_resolver
+                pg_resolver.dispatch._raise_unsupported(stmt.query)
+
             # Translate the underlying query.
             stmt_resolved, stmt_source, _ = resolve_query(
                 stmt.query, schema, tx_state, opts
@@ -438,6 +442,13 @@ def _compile_sql(
             # just ignore
             unit.query = "DO $$ BEGIN END $$;"
         elif isinstance(stmt, (pgast.Query, pgast.CopyStmt)):
+            if (
+                protocol_version != defines.POSTGRES_PROTOCOL
+                and isinstance(stmt, pgast.CopyStmt)
+            ):
+                from edb.pgsql import resolver as pg_resolver
+                pg_resolver.dispatch._raise_unsupported(stmt)
+
             stmt_resolved, stmt_source, edgeql_fmt_src = resolve_query(
                 stmt, schema, tx_state, opts
             )
@@ -549,7 +560,7 @@ class ResolverOptionsPartial:
 
 
 def resolve_query(
-    stmt: pgast.Base,
+    stmt: pgast.Query | pgast.CopyStmt,
     schema: s_schema.Schema,
     tx_state: dbstate.SQLTransactionState,
     opts: ResolverOptionsPartial,
