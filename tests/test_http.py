@@ -17,8 +17,10 @@
 #
 
 import asyncio
+import inspect
 import json
 import random
+import unittest
 
 from edb.server import http
 from edb.testbase import http as http_tb
@@ -26,9 +28,12 @@ from edb.testbase import server as tb
 from edb.tools.test import async_timeout
 
 
-class HttpTest(tb.TestCase):
+def run_async(coroutine):
+    with asyncio.Runner(debug=True) as runner:
+        runner.run(coroutine)
+
+class HttpTest(unittest.TestCase):
     def setUp(self):
-        super().setUp()
         self.mock_server = http_tb.MockHttpServer()
         self.mock_server.start()
         self.base_url = self.mock_server.get_base_url().rstrip("/")
@@ -37,7 +42,12 @@ class HttpTest(tb.TestCase):
         if self.mock_server is not None:
             self.mock_server.stop()
         self.mock_server = None
-        super().tearDown()
+
+    def __getattribute__(self, name):
+        attr = super().__getattribute__(name)
+        if name.startswith("test_") and inspect.iscoroutinefunction(attr):
+            return lambda: run_async(attr())
+        return attr
 
     @async_timeout(timeout=5)
     async def test_get(self):
