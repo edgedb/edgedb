@@ -705,6 +705,44 @@ The following sections document the most commonly used functions:
    Create a geometry from its WKT representation.
 
 
+Example
+=======
+
+Here's a simple example showing how to create and query geometric data:
+
+.. code-block:: esdl 
+
+   # Create a spatial table
+   type Location {
+       required name: str;
+       required position: ext::postgis::geometry;
+   }
+
+.. code-block:: edgeql
+
+   # Insert some data
+   INSERT Location {
+       name := 'Central Park',
+       position := ext::postgis::geomfromtext(
+           'POLYGON((-73.968285 40.785091, -73.981457 40.768930, 
+                     -73.958798 40.764891, -73.968285 40.785091))'
+       )
+   };
+
+   # Find locations within 5km of a point
+   SELECT Location {
+       name,
+       distance := ext::postgis::distance(
+           .position,
+           ext::postgis::makepoint(-73.935242, 40.730610)
+       )
+   } FILTER ext::postgis::dwithin(
+       .position,
+       ext::postgis::makepoint(-73.935242, 40.730610),
+       5000  # 5km radius
+   );
+
+
 For more information about PostGIS extension, refer to 
 the `PostGIS documentation <postgis_>`_.
 
