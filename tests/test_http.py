@@ -17,18 +17,34 @@
 #
 
 import asyncio
+import inspect
 import json
 import random
+import unittest
 
 from edb.server import http
 from edb.testbase import http as http_tb
-from edb.testbase import server as tb
-from edb.tools.test import async_timeout
 
 
-class HttpTest(tb.TestCase):
+async def async_timeout(coroutine, timeout=5):
+    return await asyncio.wait_for(coroutine, timeout=timeout)
+
+
+def run_async(coroutine, timeout=5):
+    with asyncio.Runner(debug=True) as runner:
+        runner.run(async_timeout(coroutine, timeout))
+
+
+class BaseHttpAsyncTest(unittest.TestCase):
+    def __getattribute__(self, name):
+        attr = super().__getattribute__(name)
+        if name.startswith("test_") and inspect.iscoroutinefunction(attr):
+            return lambda: run_async(attr())
+        return attr
+
+
+class HttpTest(BaseHttpAsyncTest):
     def setUp(self):
-        super().setUp()
         self.mock_server = http_tb.MockHttpServer()
         self.mock_server.start()
         self.base_url = self.mock_server.get_base_url().rstrip("/")
@@ -37,9 +53,7 @@ class HttpTest(tb.TestCase):
         if self.mock_server is not None:
             self.mock_server.stop()
         self.mock_server = None
-        super().tearDown()
 
-    @async_timeout(timeout=5)
     async def test_get(self):
         async with http.HttpClient(100) as client:
             example_request = (
@@ -64,7 +78,6 @@ class HttpTest(tb.TestCase):
             self.assertEqual(result.status_code, 200)
             self.assertEqual(result.json(), {"message": "Hello, world!"})
 
-    @async_timeout(timeout=5)
     async def test_post(self):
         async with http.HttpClient(100) as client:
             example_request = (
@@ -89,7 +102,6 @@ class HttpTest(tb.TestCase):
                 result.json(), {"message": f"Hello, world! {random_data}"}
             )
 
-    @async_timeout(timeout=5)
     async def test_post_with_headers(self):
         async with http.HttpClient(100) as client:
             example_request = (
@@ -117,13 +129,11 @@ class HttpTest(tb.TestCase):
             )
             self.assertEqual(result.headers["X-Test"], "test!")
 
-    @async_timeout(timeout=5)
     async def test_bad_url(self):
         async with http.HttpClient(100) as client:
             with self.assertRaisesRegex(Exception, "Scheme"):
                 await client.get("httpx://uh-oh")
 
-    @async_timeout(timeout=5)
     async def test_immediate_connection_drop(self):
         """Test handling of a connection that is dropped immediately by the
         server"""
@@ -151,7 +161,6 @@ class HttpTest(tb.TestCase):
             server.close()
             await server.wait_closed()
 
-    @async_timeout(timeout=5)
     async def test_streaming_get_with_no_sse(self):
         async with http.HttpClient(100) as client:
             example_request = (
@@ -171,8 +180,7 @@ class HttpTest(tb.TestCase):
             self.assertEqual(result.json(), "ok")
 
 
-class HttpSSETest(tb.TestCase):
-    @async_timeout(timeout=5)
+class HttpSSETest(BaseHttpAsyncTest):
     async def test_immediate_connection_drop_streaming(self):
         """Test handling of a connection that is dropped immediately by the
         server"""
@@ -200,7 +208,6 @@ class HttpSSETest(tb.TestCase):
             server.close()
             await server.wait_closed()
 
-    @async_timeout(timeout=5)
     async def test_sse_with_mock_server_client_close(self):
         """Since the regular mock server doesn't support SSE, we need to test
         with a real socket. We handle just enough HTTP to get the job done."""
@@ -277,7 +284,6 @@ class HttpSSETest(tb.TestCase):
 
         assert is_closed
 
-    @async_timeout(timeout=5)
     async def test_sse_with_mock_server_close(self):
         """Try to close the server-side stream and see if the client detects
         an end for the iterator. Note that this is technically not correct SSE:
