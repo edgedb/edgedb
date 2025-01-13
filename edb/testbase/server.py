@@ -1248,6 +1248,7 @@ class ConnectedTestCase(ClusterTestCase):
         query,
         exp_result,
         *,
+        implicit_limit=0,
         msg=None,
         sort=None,
         variables=None,
@@ -1263,6 +1264,7 @@ class ConnectedTestCase(ClusterTestCase):
             await self.assert_query_result(
                 query,
                 exp_result,
+                implicit_limit=implicit_limit,
                 msg=msg,
                 sort=sort,
                 variables=variables,

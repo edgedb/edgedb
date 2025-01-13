@@ -64,6 +64,9 @@ class Options:
     # DisableNormalization to recompile the query without normalization.
     normalized_params: List[int]
 
+    # Apply a limit to the number of rows in the top-level query
+    implicit_limit: Optional[int]
+
 
 @dataclass(kw_only=True)
 class Scope:
