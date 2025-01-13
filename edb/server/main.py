@@ -36,7 +36,6 @@ early_setup()
 
 import asyncio
 import contextlib
-import enum
 import json
 import logging
 import os
@@ -199,6 +198,7 @@ async def _run_server(
     do_setproctitle: bool,
     new_instance: bool,
     compiler: edbcompiler.Compiler,
+    init_con_data: list[config.ConState],
 ):
 
     sockets = service_manager.get_activation_listen_sockets()
@@ -218,10 +218,12 @@ async def _run_server(
             backend_adaptive_ha=args.backend_adaptive_ha,
             extensions_dir=args.extensions_dir,
         )
+        tenant.set_init_con_data(init_con_data)
         tenant.set_reloadable_files(
             readiness_state_file=args.readiness_state_file,
             jwt_sub_allowlist_file=args.jwt_sub_allowlist_file,
             jwt_revocation_list_file=args.jwt_revocation_list_file,
+            config_file=args.config_file,
         )
         ss = server.Server(
             runstate_dir=runstate_dir,
@@ -258,6 +260,8 @@ async def _run_server(
             await tenant.load_sidechannel_configs(
                 json.loads(magic_smtp), compiler=compiler
             )
+        if args.config_file:
+            await tenant.load_config_file(compiler)
         # This coroutine runs as long as the server,
         # and compiler(.state) is *heavy*, so make sure we don't
         # keep a reference to it.
@@ -303,6 +307,7 @@ async def _run_server(
                     args.tls_client_ca_file,
                 )
                 ss.load_jwcrypto(args.jws_key_file)
+                tenant.reload_config_file.schedule()
             except Exception:
                 logger.critical(
                     "Unexpected error occurred during reload configuration; "
@@ -531,12 +536,19 @@ async def run_server(
                 compiler_state.config_spec,
             )
 
-            sys_config, backend_settings = initialize_static_cfg(
-                args,
-                is_remote_cluster=True,
-                compiler=compiler,
+            sys_config, backend_settings, init_con_data = (
+                initialize_static_cfg(
+                    args,
+                    is_remote_cluster=True,
+                    compiler=compiler,
+                )
             )
             del compiler
+            if backend_settings:
+                abort(
+                    'Static backend settings for remote backend are '
+                    'not supported'
+                )
             with _internal_state_dir(runstate_dir, args) as (
                 int_runstate_dir,
                 args,
@@ -544,7 +556,6 @@ async def run_server(
                 return await multitenant.run_server(
                     args,
                     sys_config=sys_config,
-                    backend_settings=backend_settings,
                     sys_queries={
                         key: sql.encode("utf-8")
                         for key, sql in sys_queries.items()
@@ -557,6 +568,7 @@ async def run_server(
                     internal_runstate_dir=int_runstate_dir,
                     do_setproctitle=do_setproctitle,
                     compiler_state=compiler_state,
+                    init_con_data=init_con_data,
                 )
         except server.StartupError as e:
             abort(str(e))
@@ -616,17 +628,22 @@ async def run_server(
 
         new_instance, compiler = await _init_cluster(cluster, args)
 
-        _, backend_settings = initialize_static_cfg(
+        _, backend_settings, init_con_data = initialize_static_cfg(
             args,
             is_remote_cluster=not is_local_cluster,
             compiler=compiler,
         )
 
-        if is_local_cluster and (new_instance or backend_settings):
-            logger.info('Restarting server to reload configuration...')
-            await cluster.stop()
-            await cluster.start(server_settings=backend_settings)
-            backend_settings = {}
+        if is_local_cluster:
+            if new_instance or backend_settings:
+                logger.info('Restarting server to reload configuration...')
+                await cluster.stop()
+                await cluster.start(server_settings=backend_settings)
+        elif backend_settings:
+            abort(
+                'Static backend settings for remote backend are not supported'
+            )
+        del backend_settings
 
         if (
             not args.bootstrap_only
@@ -673,6 +690,7 @@ async def run_server(
                     do_setproctitle=do_setproctitle,
                     new_instance=new_instance,
                     compiler=compiler,
+                    init_con_data=init_con_data,
                 )
 
     except server.StartupError as e:
@@ -807,28 +825,23 @@ def main_dev():
     main()
 
 
-class Source(enum.StrEnum):
-    command_line_argument = "A"
-    environment_variable = "E"
-
-
-sources = {
-    Source.command_line_argument: "command line argument",
-    Source.environment_variable: "environment variable",
-}
-
-
 def initialize_static_cfg(
     args: srvargs.ServerConfig,
     is_remote_cluster: bool,
     compiler: edbcompiler.Compiler,
-) -> Tuple[Mapping[str, config.SettingValue], Dict[str, str]]:
+) -> Tuple[
+    Mapping[str, config.SettingValue], Dict[str, str], list[config.ConState]
+]:
     result = {}
-    init_con_script_data = []
+    init_con_script_data: list[config.ConState] = []
     backend_settings = {}
     config_spec = compiler.state.config_spec
+    sources = {
+        config.ConStateType.command_line_argument: "command line argument",
+        config.ConStateType.environment_variable: "environment variable",
+    }
 
-    def add_config_values(obj: dict[str, Any], source: Source):
+    def add_config_values(obj: dict[str, Any], source: config.ConStateType):
         settings = compiler.compile_structured_config(
             {"cfg::Config": obj}, source=sources[source]
         )["cfg::Config"]
@@ -837,7 +850,7 @@ def initialize_static_cfg(
 
             if is_remote_cluster:
                 if setting.backend_setting and setting.requires_restart:
-                    if source == Source.command_line_argument:
+                    if source == config.ConStateType.command_line_argument:
                         where = "on command line"
                     else:
                         where = "as an environment variable"
@@ -876,7 +889,7 @@ def initialize_static_cfg(
                 if cfg != name:
                     values[cfg] = value
     if values:
-        add_config_values(values, Source.environment_variable)
+        add_config_values(values, config.ConStateType.environment_variable)
 
     values = {}
     if args.bind_addresses:
@@ -884,13 +897,9 @@ def initialize_static_cfg(
     if args.port:
         values["listen_port"] = args.port
     if values:
-        add_config_values(values, Source.command_line_argument)
+        add_config_values(values, config.ConStateType.command_line_argument)
 
-    if init_con_script_data:
-        from . import pgcon
-        pgcon.set_init_con_script_data(init_con_script_data)
-
-    return immutables.Map(result), backend_settings
+    return immutables.Map(result), backend_settings, init_con_script_data
 
 
 if __name__ == '__main__':

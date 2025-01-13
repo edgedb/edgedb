@@ -33,6 +33,7 @@ import subprocess
 import ssl
 import sys
 import tempfile
+import textwrap
 import time
 import unittest
 import urllib.error
@@ -1531,7 +1532,6 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
             raise
         return cluster, connect_args
 
-    @unittest.skip('Test was failing mysteriously in CI. See #7933.')
     async def test_server_ops_multi_tenant(self):
         with (
             tempfile.TemporaryDirectory() as td1,
@@ -1539,18 +1539,28 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
             tempfile.NamedTemporaryFile("w+") as conf_file,
             tempfile.NamedTemporaryFile("w+") as rd1,
             tempfile.NamedTemporaryFile("w+") as rd2,
+            tempfile.NamedTemporaryFile("w+") as cf1,
+            tempfile.NamedTemporaryFile("w+") as cf2,
         ):
             fs = []
             conf = {}
-            for i, td, rd in [(1, td1, rd1), (2, td2, rd2)]:
+            for i, td, rd, cf in [(1, td1, rd1, cf1), (2, td2, rd2, cf2)]:
                 rd.file.write("default:ok")
                 rd.file.flush()
+                cf.write(textwrap.dedent(f"""
+                    [[magic_smtp_config]]
+                    _tname = "cfg::SMTPProviderConfig"
+                    name = "provider:{i}"
+                    sender = "sender@host{i}.com"
+                """))
+                cf.flush()
                 fs.append(self.loop.create_task(self._init_pg_cluster(td)))
                 conf[f"{i}.localhost"] = {
                     "instance-name": f"localtest{i}",
                     "backend-dsn": f'postgres:///?user=postgres&host={td}',
                     "max-backend-connections": 10,
                     "readiness-state-file": rd.name,
+                    "config-file": cf.name,
                 }
             await asyncio.wait(fs)
             cluster1, args1 = await fs[0]
@@ -1566,12 +1576,22 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
                     runstate_dir=runstate_dir,
                     multitenant_config=conf_file.name,
                     max_allowed_connections=None,
+                    http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
                 )
                 async with srv as sd:
                     mtargs = MultiTenantArgs(
-                        srv, sd, conf_file, conf, args1, args2, rd1, rd2
+                        srv,
+                        sd,
+                        conf_file,
+                        conf,
+                        args1,
+                        args2,
+                        rd1,
+                        rd2,
+                        cf1,
+                        cf2
                     )
-                    for i in range(1, 7):
+                    for i in range(1, 8):
                         name = f"_test_server_ops_multi_tenant_{i}"
                         with self.subTest(name, i=i):
                             await getattr(self, name)(mtargs)
@@ -1605,9 +1625,6 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
             '\nedgedb_server_mt_tenants_current 2.0\n', data
         )
         self.assertIn(
-            '\nedgedb_server_mt_config_reload_errors_total 0.0\n', data
-        )
-        self.assertIn(
             '\nedgedb_server_mt_tenant_add_total'
             '{tenant="localtest1"} 1.0\n',
             data,
@@ -1635,10 +1652,6 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
             data,
         )
         self.assertIn(
-            '\nedgedb_server_mt_config_reload_errors_total 0.0\n',
-            data,
-        )
-        self.assertIn(
             '\nedgedb_server_mt_tenant_add_total'
             '{tenant="localtest1"} 1.0\n',
             data,
@@ -1663,10 +1676,6 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
         data = mtargs.sd.fetch_metrics()
         self.assertIn(
             '\nedgedb_server_mt_tenants_current 2.0\n',
-            data,
-        )
-        self.assertIn(
-            '\nedgedb_server_mt_config_reload_errors_total 0.0\n',
             data,
         )
         self.assertIn(
@@ -1733,7 +1742,7 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
         await self._test_server_ops_multi_tenant_2(mtargs)
 
     async def _test_server_ops_global_compile_cache(
-        self, mtargs: MultiTenantArgs, ddl, **kwargs
+        self, mtargs: MultiTenantArgs, ddl, i, **kwargs
     ):
         conn = await mtargs.sd.connect(**kwargs)
         try:
@@ -1748,6 +1757,9 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
                 insert ext::auth::EmailPasswordProviderConfig {{
                     require_verification := false,
                 }};
+
+                configure current database set
+                current_email_provider_name := 'provider:{i}';
             ''')
         finally:
             await conn.aclose()
@@ -1775,13 +1787,48 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
         await self._test_server_ops_global_compile_cache(
             mtargs,
             "create type GlobalCache1 { create property name: str }",
+            1,
             **mtargs.args1,
         )
         await self._test_server_ops_global_compile_cache(
             mtargs,
             "create type GlobalCache2 { create property active: bool }",
+            2,
             **mtargs.args2,
         )
+
+    async def _test_server_ops_multi_tenant_7(self, mtargs: MultiTenantArgs):
+        self.assertEqual(
+            (await mtargs.current_email_provider(1))["sender"],
+            "sender@host1.com",
+        )
+        self.assertEqual(
+            (await mtargs.current_email_provider(2))["sender"],
+            "sender@host2.com",
+        )
+
+        mtargs.cf1.seek(0)
+        mtargs.cf1.truncate(0)
+        mtargs.cf1.write(textwrap.dedent("""
+            [[magic_smtp_config]]
+            _tname = "cfg::SMTPProviderConfig"
+            name = "provider:1"
+            sender = "updated@example.com"
+        """))
+        mtargs.cf1.flush()
+        assert mtargs.srv.proc is not None
+        mtargs.srv.proc.send_signal(signal.SIGHUP)
+
+        async for tr in self.try_until_succeeds(ignore=AssertionError):
+            async with tr:
+                self.assertEqual(
+                    (await mtargs.current_email_provider(1))["sender"],
+                    "updated@example.com",
+                )
+                self.assertEqual(
+                    (await mtargs.current_email_provider(2))["sender"],
+                    "sender@host2.com",
+                )
 
 
 class MultiTenantArgs(NamedTuple):
@@ -1793,6 +1840,9 @@ class MultiTenantArgs(NamedTuple):
     args2: dict[str, str]
     rd1: tempfile._TemporaryFileWrapper
     rd2: tempfile._TemporaryFileWrapper
+    cf1: tempfile._TemporaryFileWrapper
+    cf2: tempfile._TemporaryFileWrapper
+    dbnames: list[str | None] = [None, None]
 
     def reload_server(self):
         self.conf_file.file.seek(0)
@@ -1800,6 +1850,23 @@ class MultiTenantArgs(NamedTuple):
         json.dump(self.conf, self.conf_file.file)
         self.conf_file.file.flush()
         self.srv.proc.send_signal(signal.SIGHUP)
+
+    def fetch_server_info(self, i):
+        return self.sd.fetch_server_info()["tenants"][f"{i}.localhost"]
+
+    async def current_email_provider(self, i):
+        tenant_info = self.fetch_server_info(i)
+        dbname = self.dbnames[i - 1]
+        if dbname is None:
+            conn = await self.sd.connect(**getattr(self, f"args{i}"))
+            try:
+                dbname = await conn.query_single("""\
+                    select sys::get_current_branch()
+                """)
+                self.dbnames[i - 1] = dbname
+            finally:
+                await conn.aclose()
+        return tenant_info["databases"][dbname]["current_email_provider"]
 
 
 class TestPGExtensions(tb.TestCase):

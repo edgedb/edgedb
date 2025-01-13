@@ -2386,6 +2386,7 @@ class _EdgeDBServer:
         jwt_sub_allowlist_file: Optional[os.PathLike] = None,
         jwt_revocation_list_file: Optional[os.PathLike] = None,
         multitenant_config: Optional[str] = None,
+        config_file: Optional[os.PathLike] = None,
         default_branch: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
         extra_args: Optional[List[str]] = None,
@@ -2422,6 +2423,7 @@ class _EdgeDBServer:
         self.jwt_sub_allowlist_file = jwt_sub_allowlist_file
         self.jwt_revocation_list_file = jwt_revocation_list_file
         self.multitenant_config = multitenant_config
+        self.config_file = config_file
         self.default_branch = default_branch
         self.env = env
         self.extra_args = extra_args
@@ -2589,6 +2591,9 @@ class _EdgeDBServer:
             cmd += ['--jwt-revocation-list-file',
                     self.jwt_revocation_list_file]
 
+        if self.config_file:
+            cmd += ['--config-file', self.config_file]
+
         if not self.multitenant_config:
             cmd += ['--instance-name=localtest']
 
@@ -2750,6 +2755,7 @@ def start_edgedb_server(
     jwt_sub_allowlist_file: Optional[os.PathLike] = None,
     jwt_revocation_list_file: Optional[os.PathLike] = None,
     multitenant_config: Optional[str] = None,
+    config_file: Optional[os.PathLike] = None,
     env: Optional[Dict[str, str]] = None,
     extra_args: Optional[List[str]] = None,
     default_branch: Optional[str] = None,
@@ -2830,6 +2836,7 @@ def start_edgedb_server(
         jwt_sub_allowlist_file=jwt_sub_allowlist_file,
         jwt_revocation_list_file=jwt_revocation_list_file,
         multitenant_config=multitenant_config,
+        config_file=config_file,
         env=env,
         extra_args=extra_args,
         default_branch=default_branch,
@@ -3029,6 +3036,14 @@ def _needs_factoring(weakly):
 
         return g
     return decorator
+
+
+@contextlib.asynccontextmanager
+async def temp_file_with(data: bytes):
+    with tempfile.NamedTemporaryFile() as f:
+        f.write(data)
+        f.flush()
+        yield f
 
 
 needs_factoring = _needs_factoring(weakly=False)
