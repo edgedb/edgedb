@@ -159,15 +159,17 @@ class StreamingTestSuite(unittest.TestSuite):
                 getattr(result, '_moduleSetUpFailed', False)):
             return
 
+        result.annotate_test(test, {
+            'py-hash-secret': py_hash_secret,
+            'py-random-seed': py_random_seed,
+            'runner-pid': os.getpid(),
+        })
+
         start = time.monotonic()
         test.run(result)
         elapsed = time.monotonic() - start
 
         result.record_test_stats(test, {'running-time': elapsed})
-        result.annotate_test(test, {
-            'py-hash-secret': py_hash_secret,
-            'py-random-seed': py_random_seed,
-        })
 
         result._testRunEntered = False
         return result
@@ -367,6 +369,28 @@ class ParallelTestSuite(unittest.TestSuite):
                     try:
                         ar.get(timeout=0.1)
                     except multiprocessing.TimeoutError:
+                        # multiprocessing doesn't handle processes
+                        # crashing very well, so we check ourselves
+                        # (having disabled its own child pruning in
+                        # mproc_fixes)
+                        #
+                        # TODO: Should we look into using
+                        # concurrent.futures.ProcessPoolExecutor
+                        # instead?
+                        for p in pool._pool:
+                            if p.exitcode:
+                                tmsg = ''
+                                if isinstance(result, ParallelTextTestResult):
+                                    test = result.current_pids.get(p.pid)
+                                    tmsg = f' while running {test}'
+                                print(
+                                    f"ERROR: Test worker {p.pid} crashed with "
+                                    f"exit code {p.exitcode}{tmsg}",
+                                    file=sys.stderr,
+                                )
+                                sys.stderr.flush()
+                                os._exit(1)
+
                         if self.stop_requested:
                             break
                         else:
@@ -737,6 +761,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
         self.warnings = []
         self.notImplemented = []
         self.currently_running = {}
+        self.current_pids = {}
         # An index of all seen warnings to keep track
         # of repeated warnings.
         self._warnings = {}
@@ -768,7 +793,14 @@ class ParallelTextTestResult(unittest.result.TestResult):
         for test, start in self.currently_running.items():
             running_for = now - start
             if running_for > 5.0:
-                still_running[test] = running_for
+                key = str(test)
+                if (
+                    test in self.test_annotations
+                    and (pid := self.test_annotations[test].get('runner-pid'))
+                ):
+                    key = f'{key} (pid={pid})'
+
+                still_running[key] = running_for
         if still_running:
             self.ren.report_still_running(still_running)
 
@@ -793,6 +825,11 @@ class ParallelTextTestResult(unittest.result.TestResult):
         self.currently_running[test] = time.monotonic()
         self.ren.report_start(
             test, currently_running=list(self.currently_running))
+        if (
+            test in self.test_annotations
+            and (pid := self.test_annotations[test].get('runner-pid'))
+        ):
+            self.current_pids[pid] = test
 
     def addSuccess(self, test):
         super().addSuccess(test)
