@@ -502,7 +502,9 @@ class MockHttpServer:
     def stop(self):
         self._http_server.shutdown()
         if self._http_runner is not None:
-            self._http_runner.join()
+            self._http_runner.join(timeout=60)
+            if self._http_runner.is_alive():
+                raise RuntimeError("Mock HTTP server failed to stop")
             self._http_runner = None
 
     def __exit__(self, *exc):

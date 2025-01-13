@@ -22,8 +22,10 @@ from __future__ import annotations
 import asyncio
 import functools
 import unittest
+import logging
 
 
+logger = logging.getLogger("edb.server")
 skip = unittest.skip
 
 
@@ -66,9 +68,15 @@ def async_timeout(timeout: int):
             try:
                 await asyncio.wait_for(test_func(*args, **kwargs), timeout)
             except asyncio.TimeoutError:
+                logger.error(
+                    f"Test {test_func} failed due to timeout after {timeout}"
+                    "seconds")
                 raise AssertionError(
                     f"Test failed due to timeout after {timeout} seconds")
             except asyncio.CancelledError as e:
+                logger.error(
+                    f"Test {test_func} failed due to timeout after {timeout}"
+                    "seconds", e)
                 raise AssertionError(
                     f"Test failed due to timeout after {timeout} seconds", e)
         return wrapper
