@@ -10616,7 +10616,7 @@ aa \
     async def test_edgeql_expr_str_interpolation_01(self):
         await self.assert_query_result(
             r'''
-                select "1 + 1 = \(1 + 1\)"
+                select "1 + 1 = \(1 + 1)"
             ''',
             ['1 + 1 = 2'],
         )
@@ -10624,8 +10624,8 @@ aa \
         # Have some more fun. Nest it a bit.
         await self.assert_query_result(
             r'''select "asdf \(str_reverse("1234") ++
-"[\(sum({1,2,3})\)]"\)! count(User)=\
+"[\(sum({1,2,3}))]")! count(User)=\
 \(
-count(User)\)" ++ "!";''',
+count(User))" ++ "!";''',
             ['asdf 4321[6]! count(User)=0!'],
         )

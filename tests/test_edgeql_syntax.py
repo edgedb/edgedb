@@ -476,7 +476,7 @@ aa';
 
     def test_edgeql_syntax_constants_41(self):
         r"""
-        SELECT 'aaa \(aaa\) bbb';
+        SELECT 'aaa \(aaa) bbb';
         """
 
     def test_edgeql_syntax_constants_42(self):

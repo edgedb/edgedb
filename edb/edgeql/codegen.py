@@ -461,7 +461,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         for fragment in node.interpolations:
             self.write("\\(")
             self.visit(fragment.expr)
-            self.write("\\)")
+            self.write(")")
             self.write(edgeql_quote.escape_string(fragment.suffix))
         self.write("'")
 

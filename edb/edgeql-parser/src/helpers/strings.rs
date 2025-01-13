@@ -73,10 +73,9 @@ pub fn unquote_string(value: &str) -> Result<Cow<str>, UnquoteError> {
             .map_err(UnquoteError)?;
         Ok(value[msize..value.len() - msize].into())
     } else {
-        let start = if value.starts_with("\\)") { 2 } else { 1 };
         let end_trim = if value.ends_with("\\(") { 2 } else { 1 };
 
-        Ok(_unquote_string(&value[start..value.len() - end_trim])
+        Ok(_unquote_string(&value[1..value.len() - end_trim])
             .map_err(UnquoteError)?
             .into())
     }
