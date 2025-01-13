@@ -72,6 +72,7 @@ py_random_seed: bytes = random.SystemRandom().randbytes(8)
 
 faulthandler.enable(file=sys.stderr, all_threads=True)
 
+
 def teardown_suite() -> None:
     # The TestSuite methods are mutating the *result* object,
     # and the suite itself does not hold any state whatsoever,
@@ -93,7 +94,7 @@ def init_worker(
     global coverage_run
     global py_hash_secret
     global py_random_seed
-    
+
     faulthandler.enable(file=sys.stderr, all_threads=True)
     # If we're still running after 30 minutes, dump the traceback.
     faulthandler.dump_traceback_later(30 * 60, file=sys.stderr)
