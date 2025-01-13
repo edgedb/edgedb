@@ -88,7 +88,6 @@ pub enum SslError {
 #[derive(Clone, Default, derive_more::Debug)]
 pub struct Credentials {
     pub username: String,
-    #[debug(skip)]
     pub password: String,
     pub database: String,
     pub server_settings: HashMap<String, String>,
