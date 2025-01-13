@@ -124,5 +124,3 @@ def patch_multiprocessing(debug: bool):
     _orig_pool_join_exited_workers = (
         multiprocessing.pool.Pool._join_exited_workers)
     multiprocessing.pool.Pool._join_exited_workers = join_exited_workers
-
-    multiprocessing.pool.Pool._crashed_workers = None
