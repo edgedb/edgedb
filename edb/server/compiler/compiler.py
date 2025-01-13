@@ -2665,6 +2665,7 @@ def compile_sql_as_unit_group(
         disambiguate_column_names=True,
         backend_runtime_params=ctx.backend_runtime_params,
         protocol_version=ctx.protocol_version,
+        implicit_limit=ctx.implicit_limit,
     )
 
     qug = dbstate.QueryUnitGroup(
