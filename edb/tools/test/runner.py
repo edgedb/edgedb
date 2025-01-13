@@ -26,6 +26,7 @@ import collections.abc
 import csv
 import dataclasses
 import enum
+import faulthandler
 import io
 import itertools
 import json
@@ -69,6 +70,8 @@ coverage_run: Optional[Any] = None
 py_hash_secret: bytes = cpython_state.get_py_hash_secret()
 py_random_seed: bytes = random.SystemRandom().randbytes(8)
 
+faulthandler.enable(file=sys.stderr, all_threads=True)
+
 
 def teardown_suite() -> None:
     # The TestSuite methods are mutating the *result* object,
@@ -91,6 +94,10 @@ def init_worker(
     global coverage_run
     global py_hash_secret
     global py_random_seed
+
+    faulthandler.enable(file=sys.stderr, all_threads=True)
+    # If we're still running after 30 minutes, dump the traceback.
+    faulthandler.dump_traceback_later(30 * 60, file=sys.stderr)
 
     if additional_init:
         additional_init()
