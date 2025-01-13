@@ -152,10 +152,11 @@ pub struct Tokenizer<'a> {
     dot: bool,
     next_state: Option<(usize, TokenStub<'a>, usize, Pos, Pos)>,
     keyword_buf: String,
-    // We maintain a stack of the starting string characters for all
-    // our open string interpolations, since we need to match the
-    // correct one when closing them.
-    str_interp_stack: Vec<String>,
+    // We maintain a stack of the starting string characters and
+    // parentheses nesting level for all our open string
+    // interpolations, since we need to match the correct one when
+    // closing them.
+    str_interp_stack: Vec<(String, usize)>,
     // The number of currently open parentheses. If we see a close
     // paren when there are no open parens *and* we are inside a
     // string inerpolation, we close it.
@@ -279,7 +280,7 @@ impl<'a> Tokenizer<'a> {
         match kind {
             StrInterpStart => {
                 let start = self.buf[self.off..].chars().next()?;
-                self.str_interp_stack.push(start.into());
+                self.str_interp_stack.push((start.into(), self.open_parens));
             }
             StrInterpEnd => {
                 self.str_interp_stack.pop();
@@ -426,9 +427,12 @@ impl<'a> Tokenizer<'a> {
             '=' => Ok((Eq, 1)),
             ',' => Ok((Comma, 1)),
             '(' => Ok((OpenParen, 1)),
-            ')' if self.open_parens == 0 && !self.str_interp_stack.is_empty() => self
-                .parse_string_interp_cont(&self.str_interp_stack[self.str_interp_stack.len() - 1]),
-            ')' => Ok((CloseParen, 1)),
+            ')' => match self.str_interp_stack.last() {
+                Some((delim, paren_count)) if *paren_count == self.open_parens => {
+                    self.parse_string_interp_cont(delim)
+                }
+                _ => Ok((CloseParen, 1)),
+            },
             '[' => Ok((OpenBracket, 1)),
             ']' => Ok((CloseBracket, 1)),
             '{' => Ok((OpenBrace, 1)),

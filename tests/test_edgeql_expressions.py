@@ -10621,6 +10621,13 @@ aa \
             ['1 + 1 = 2'],
         )
 
+        await self.assert_query_result(
+            r'''
+                select ("1 + 1 = \(1 + 1)")
+            ''',
+            ['1 + 1 = 2'],
+        )
+
         # Have some more fun. Nest it a bit.
         await self.assert_query_result(
             r'''select "asdf \(str_reverse("1234") ++
