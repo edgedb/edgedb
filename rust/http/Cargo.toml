@@ -17,10 +17,22 @@ tokio.workspace = true
 pyo3_util.workspace = true
 tracing.workspace = true
 
-reqwest = { version = "0.12", features = ["gzip", "deflate", "stream"] }
 scopeguard = "1"
 eventsource-stream = "0.2.3"
 
+# We want to use rustls to avoid setenv issues w/ OpenSSL and the system certs. As long
+# as we don't call `openssl_probe::*init*env*()` functions (functions that call setenv
+# in a thread-unsafe way), we should be fine.
+#
+# More details: https://github.com/edgedb/edgedb/pull/8201
+#
+# We add these features:
+# - http2: to use HTTP/2
+# - charset: to support charset encoding
+# - gzip/deflate/brotli: to support compression
+# - stream: to support streaming responses
+# - rustls-tls-native-roots: to use the native root certificates (rather than WebPKI)
+reqwest = { version = "0.12", default-features = false, features = ["http2", "charset", "gzip", "deflate", "brotli", "stream", "rustls-tls-native-roots"] }
 futures = "0"
 
 [dev-dependencies]
