@@ -173,7 +173,7 @@ def as_plain_select(
         ],
         target_list=[
             pgast.ResTarget(
-                name=f'column{index}',
+                name=f'column{index + 1}',
                 val=expr.resolve_column_kind(table, c.kind, ctx=ctx),
             )
             for index, c in enumerate(table.columns)
