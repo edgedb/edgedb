@@ -29,6 +29,7 @@ from edb.testbase import http as http_tb
 async def async_timeout(coroutine, timeout=5):
     return await asyncio.wait_for(coroutine, timeout=timeout)
 
+
 def run_async(coroutine, timeout=5):
     with asyncio.Runner(debug=True) as runner:
         runner.run(async_timeout(coroutine, timeout))
