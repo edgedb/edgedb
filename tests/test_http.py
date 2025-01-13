@@ -350,7 +350,6 @@ class HttpSSETest(BaseHttpAsyncTest):
                     assert events[1].data == 'Event 2'
                     assert events[2].data == 'Event 3'
 
-        client_future = asyncio.create_task(client_task())
         async with server:
             client_future = asyncio.create_task(client_task())
             await asyncio.wait_for(client_future, timeout=5.0)
