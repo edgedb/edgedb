@@ -1182,6 +1182,10 @@ class BaseAtomicExpr(Nonterm):
     def reduce_Constant(self, *kids):
         pass
 
+    @parsing.inline(0)
+    def reduce_StringInterpolation(self, *kids):
+        pass
+
     def reduce_DUNDERSOURCE(self, *kids):
         self.val = qlast.Path(steps=[qlast.SpecialAnchor(name='__source__')])
 
@@ -1603,6 +1607,36 @@ class Constant(Nonterm):
     @parsing.inline(0)
     def reduce_BaseBytesConstant(self, *kids):
         pass
+
+
+class StringInterpolationTail(Nonterm):
+    def reduce_Expr_STRINTERPEND(self, *kids):
+        expr, lit = kids
+        self.val = qlast.StrInterp(
+            prefix='',
+            interpolations=[
+                qlast.StrInterpFragment(expr=expr.val, suffix=lit.clean_value),
+            ]
+        )
+
+    def reduce_Expr_STRINTERPCONT_StringInterpolationTail(self, *kids):
+        expr, lit, tail = kids
+        self.val = tail.val
+        self.val.interpolations.append(
+            qlast.StrInterpFragment(expr=expr.val, suffix=lit.clean_value)
+        )
+
+
+class StringInterpolation(Nonterm):
+    def reduce_STRINTERPSTART_StringInterpolationTail(self, *kids):
+        # We produce somewhat malformed StrInterp values out of
+        # StringInterpolationTail, for convenience and efficiency, and
+        # fix them up here.
+        # (In particular, we put the interpolations in backward.)
+        lit, tail = kids
+        self.val = tail.val
+        self.val.prefix = lit.clean_value
+        self.val.interpolations.reverse()
 
 
 class BaseNumberConstant(Nonterm):

@@ -160,6 +160,30 @@ def compile_IsOp(expr: qlast.IsOp, *, ctx: context.ContextLevel) -> irast.Set:
     return setgen.ensure_set(op_node, ctx=ctx)
 
 
+@dispatch.compile.register
+def compile_StrInterp(
+    expr: qlast.StrInterp, *, ctx: context.ContextLevel
+) -> irast.Set:
+    strs: list[qlast.Expr] = []
+    strs.append(qlast.Constant.string(expr.prefix))
+
+    str_type = qlast.TypeName(
+        maintype=qlast.ObjectRef(module='__std__', name='str')
+    )
+    for fragment in expr.interpolations:
+        strs.append(qlast.TypeCast(
+            expr=fragment.expr, type=str_type
+        ))
+        strs.append(qlast.Constant.string(fragment.suffix))
+
+    call = qlast.FunctionCall(
+        func=('__std__', 'array_join'),
+        args=[qlast.Array(elements=strs), qlast.Constant.string('')],
+    )
+
+    return dispatch.compile(call, ctx=ctx)
+
+
 @dispatch.compile.register(qlast.DetachedExpr)
 def compile_DetachedExpr(
     expr: qlast.DetachedExpr,

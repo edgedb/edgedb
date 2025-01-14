@@ -114,8 +114,13 @@ pub enum Kind {
     FloatConst,
     IntConst,
     BigIntConst,
-    BinStr,       // b"xx", b'xx'
-    Str,          // "xx", 'xx', r"xx", r'xx', $$xx$$
+    BinStr, // b"xx", b'xx'
+    Str,    // "xx", 'xx', r"xx", r'xx', $$xx$$
+
+    StrInterpStart, // "xx\(, 'xx\(
+    StrInterpCont,  // )xx\(
+    StrInterpEnd,   // )xx", )xx'
+
     BacktickName, // `xx`
     Substitution, // \(name)
 
@@ -147,6 +152,15 @@ pub struct Tokenizer<'a> {
     dot: bool,
     next_state: Option<(usize, TokenStub<'a>, usize, Pos, Pos)>,
     keyword_buf: String,
+    // We maintain a stack of the starting string characters and
+    // parentheses nesting level for all our open string
+    // interpolations, since we need to match the correct one when
+    // closing them.
+    str_interp_stack: Vec<(String, usize)>,
+    // The number of currently open parentheses. If we see a close
+    // paren when there are no open parens *and* we are inside a
+    // string inerpolation, we close it.
+    open_parens: usize,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -196,6 +210,8 @@ impl<'a> Tokenizer<'a> {
             // Current max keyword length is 10, but we're reserving some
             // space
             keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
+            str_interp_stack: Vec::new(),
+            open_parens: 0,
         };
         me.skip_whitespace();
         me
@@ -212,6 +228,9 @@ impl<'a> Tokenizer<'a> {
             dot: false,
             next_state: None,
             keyword_buf: String::with_capacity(MAX_KEYWORD_LENGTH),
+            // XXX: If we are in the middle of an interpolated string we will have trouble
+            str_interp_stack: Vec::new(),
+            open_parens: 0,
         };
         me.skip_whitespace();
         me
@@ -240,6 +259,8 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn read_token(&mut self) -> Option<Result<(TokenStub<'a>, Pos), Error>> {
+        use self::Kind::*;
+
         // This quickly resets the stream one token back
         // (the most common reset that used quite often)
         if let Some((at, tok, off, end, next)) = self.next_state {
@@ -255,6 +276,25 @@ impl<'a> Tokenizer<'a> {
             Ok(x) => x,
             Err(e) => return Some(Err(e)),
         };
+
+        match kind {
+            StrInterpStart => {
+                let start = self.buf[self.off..].chars().next()?;
+                self.str_interp_stack.push((start.into(), self.open_parens));
+            }
+            StrInterpEnd => {
+                self.str_interp_stack.pop();
+            }
+            OpenParen => {
+                self.open_parens += 1;
+            }
+            CloseParen => {
+                if self.open_parens > 0 {
+                    self.open_parens -= 1;
+                }
+            }
+            _ => {}
+        }
 
         // note we may want to get rid of "update_position" here as it's
         // faster to update 'as you go', but this is easier to get right first
@@ -387,7 +427,12 @@ impl<'a> Tokenizer<'a> {
             '=' => Ok((Eq, 1)),
             ',' => Ok((Comma, 1)),
             '(' => Ok((OpenParen, 1)),
-            ')' => Ok((CloseParen, 1)),
+            ')' => match self.str_interp_stack.last() {
+                Some((delim, paren_count)) if *paren_count == self.open_parens => {
+                    self.parse_string_interp_cont(delim)
+                }
+                _ => Ok((CloseParen, 1)),
+            },
             '[' => Ok((OpenBracket, 1)),
             ']' => Ok((CloseBracket, 1)),
             '{' => Ok((OpenBrace, 1)),
@@ -621,7 +666,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn parse_string(
-        &mut self,
+        &self,
         quote_off: usize,
         raw: bool,
         binary: bool,
@@ -652,6 +697,7 @@ impl<'a> Tokenizer<'a> {
             while let Some((idx, c)) = iter.next() {
                 match c {
                     '\\' if !raw => match iter.next() {
+                        Some((idx, '(')) => return Ok((Kind::StrInterpStart, quote_off + idx + 1)),
                         // skip any next char, even quote
                         Some((_, _)) => continue,
                         None => break,
@@ -664,6 +710,30 @@ impl<'a> Tokenizer<'a> {
         return Err(Error::new(format_args!(
             "unterminated string, quoted by `{}`",
             open_quote
+        )));
+    }
+
+    fn parse_string_interp_cont(&self, end: &str) -> Result<(Kind, usize), Error> {
+        let quote_off = 1;
+        let mut iter = self.buf[self.off + quote_off..].char_indices();
+
+        while let Some((idx, c)) = iter.next() {
+            match c {
+                '\\' => match iter.next() {
+                    Some((idx, '(')) => return Ok((Kind::StrInterpCont, quote_off + idx + 1)),
+                    // skip any next char, even quote
+                    Some((_, _)) => continue,
+                    None => break,
+                },
+                _ if self.buf[self.off + quote_off + idx..].starts_with(end) => {
+                    return Ok((Kind::StrInterpEnd, quote_off + idx + end.len()))
+                }
+                _ => check_prohibited(c, true)?,
+            }
+        }
+        return Err(Error::new(format_args!(
+            "unterminated string with interpolations, quoted by `{}`",
+            end,
         )));
     }
 

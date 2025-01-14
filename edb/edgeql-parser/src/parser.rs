@@ -750,6 +750,10 @@ fn get_token_kind(token_name: &str) -> Kind {
         "PARAMETERANDTYPE" => ParameterAndType,
         "SUBSTITUTION" => Substitution,
 
+        "STRINTERPSTART" => StrInterpStart,
+        "STRINTERPCONT" => StrInterpCont,
+        "STRINTERPEND" => StrInterpEnd,
+
         _ => {
             let mut token_name = token_name.to_lowercase();
 

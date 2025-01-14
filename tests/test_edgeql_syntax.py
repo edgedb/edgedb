@@ -474,9 +474,6 @@ aa';
         SELECT "\x1F\x01\x8F\x6e";
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"invalid string literal: invalid escape sequence '\\\('",
-                  line=2, col=16)
     def test_edgeql_syntax_constants_41(self):
         r"""
         SELECT 'aaa \(aaa) bbb';

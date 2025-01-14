@@ -67,6 +67,18 @@ class T_STARTSDLDOCUMENT(GrammarToken):
     pass
 
 
+class T_STRINTERPSTART(GrammarToken):
+    pass
+
+
+class T_STRINTERPCONT(GrammarToken):
+    pass
+
+
+class T_STRINTERPEND(GrammarToken):
+    pass
+
+
 class T_DOT(Token, lextoken='.'):
     pass
 
