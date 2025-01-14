@@ -262,3 +262,72 @@ mt_tenant_reload_errors = registry.new_labeled_counter(
     'Total number of tenants the server failed to reload.',
     labels=("tenant",),
 )
+
+open_fds = registry.new_gauge(
+    'open_fds',
+    'Number of open file descriptors.',
+)
+
+max_open_fds = registry.new_gauge(
+    'max_open_fds',
+    'Maximum number of open file descriptors.',
+)
+
+# Implement a function that monitors the number of open file descriptors
+# and updates the metrics accordingly. This will be replaced with a more
+# efficient implementation in Rust at a later date.
+
+
+def monitor_open_fds_linux():
+    import os
+    import time
+    while True:
+        max_open_fds.set(os.sysconf('SC_OPEN_MAX'))
+        # To get the current number of open files, stat /proc/self/fd/
+        # and get the size. If zero, count the number of entries in the
+        # directory.
+        #
+        # This is supported in modern Linux kernels.
+        # https://github.com/torvalds/linux/commit/f1f1f2569901ec5b9d425f2e91c09a0e320768f3
+        try:
+            st = os.stat('/proc/self/fd/')
+            if st.st_size == 0:
+                open_fds.set(len(os.listdir('/proc/self/fd/')))
+            else:
+                open_fds.set(st.st_size)
+        except Exception:
+            open_fds.set(-1)
+
+        time.sleep(30)
+
+
+def monitor_open_fds_macos():
+    import os
+    import time
+    while True:
+        max_open_fds.set(os.sysconf('SC_OPEN_MAX'))
+        # Iterate the contents of /dev/fd to list all entries.
+        # We assume that MacOS isn't going to be running a large installation
+        # of EdgeDB on a single machine.
+        try:
+            open_fds.set(len(os.listdir('/dev/fd')))
+        except Exception:
+            open_fds.set(-1)
+
+        time.sleep(30)
+
+
+def start_monitoring_open_fds():
+    import threading
+    import sys
+    import os
+
+    # Supported only on Linux and macOS.
+    if os.name == 'posix':
+        if sys.platform == 'darwin':
+            threading.Thread(target=monitor_open_fds_macos, daemon=True).start()
+        elif sys.platform == 'linux':
+            threading.Thread(target=monitor_open_fds_linux, daemon=True).start()
+
+
+start_monitoring_open_fds()
