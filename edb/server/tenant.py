@@ -34,6 +34,7 @@ from typing import (
 
 import asyncio
 import contextlib
+import dataclasses
 import functools
 import json
 import logging
@@ -42,6 +43,7 @@ import pathlib
 import pickle
 import struct
 import sys
+import textwrap
 import time
 import tomllib
 import uuid
@@ -51,6 +53,7 @@ import immutables
 
 from edb import buildmeta
 from edb import errors
+from edb.common import asyncutil
 from edb.common import retryloop
 from edb.common import verutils
 from edb.common.log import current_tenant
@@ -76,6 +79,7 @@ if TYPE_CHECKING:
 
     from . import pgcluster
     from . import server as edbserver
+    from . import compiler_pool as edbcompiler_pool
 
 
 logger = logging.getLogger("edb.server")
@@ -116,12 +120,15 @@ class Tenant(ha_base.ClusterProtocol):
     _suggested_client_pool_size: int
     _pg_pool: connpool.Pool
     _pg_unavailable_msg: str | None
+    _init_con_data: list[config.ConState]
+    _init_con_sql: bytes | None
 
     _ha_master_serial: int
     _backend_adaptive_ha: adaptive_ha.AdaptiveHASupport | None
     _readiness_state_file: pathlib.Path | None
     _readiness: srvargs.ReadinessState
     _readiness_reason: str
+    _config_file: pathlib.Path | None
 
     _extensions_dirs: tuple[pathlib.Path, ...]
 
@@ -182,6 +189,7 @@ class Tenant(ha_base.ClusterProtocol):
         self._readiness_state_file = None
         self._readiness = srvargs.ReadinessState.Default
         self._readiness_reason = ""
+        self._config_file = None
 
         self._max_backend_connections = max_backend_connections
         self._suggested_client_pool_size = max(
@@ -199,6 +207,8 @@ class Tenant(ha_base.ClusterProtocol):
         self._pg_unavailable_msg = None
         self._block_new_connections = set()
         self._report_config_data = {}
+        self._init_con_data = []
+        self._init_con_sql = None
 
         # DB state will be initialized in init().
         self._dbindex = None
@@ -222,6 +232,7 @@ class Tenant(ha_base.ClusterProtocol):
         readiness_state_file: str | pathlib.Path | None = None,
         jwt_sub_allowlist_file: str | pathlib.Path | None = None,
         jwt_revocation_list_file: str | pathlib.Path | None = None,
+        config_file: str | pathlib.Path | None = None,
     ) -> bool:
         rv = False
 
@@ -243,6 +254,12 @@ class Tenant(ha_base.ClusterProtocol):
             self._jwt_revocation_list_file = jwt_revocation_list_file
             rv = True
 
+        if isinstance(config_file, str):
+            config_file = pathlib.Path(config_file)
+        if self._config_file != config_file:
+            self._config_file = config_file
+            rv = True
+
         return rv
 
     def set_server(self, server: edbserver.BaseServer) -> None:
@@ -250,14 +267,26 @@ class Tenant(ha_base.ClusterProtocol):
         self.__loop = server.get_loop()
 
     async def load_sidechannel_configs(
-        self, value: Any, *, compiler: edbcompiler.Compiler | None = None
+        self,
+        value: Any,
+        *,
+        compiler: (
+            edbcompiler.Compiler | edbcompiler_pool.AbstractPool | None
+        ) = None,
     ) -> None:
         if compiler is None:
             compiler = self._server.get_compiler_pool()
-        result = compiler.compile_structured_config(
-            {"cfg::Config": {"email_providers": value}}, source="magic",
-            allow_nested=True,
-        )
+        objects = {"cfg::Config": {"email_providers": value}}
+        if isinstance(compiler, edbcompiler.Compiler):
+            result = compiler.compile_structured_config(
+                objects, source="magic", allow_nested=True
+            )
+        else:
+            result = await compiler.compile_structured_config(
+                objects,
+                "magic",  # source
+                True,  # allow_nested
+            )
         email_providers = result["cfg::Config"]["email_providers"]
         self._sidechannel_email_configs = list(email_providers.value)
 
@@ -604,6 +633,15 @@ class Tenant(ha_base.ClusterProtocol):
                 )
             )
 
+        if self._config_file is not None:
+
+            def reload_config_file():
+                self.reload_config_file.schedule()
+
+            self._file_watch_finalizers.append(
+                self.server.monitor_fs(self._config_file, reload_config_file)
+            )
+
     async def start_accepting_new_tasks(self) -> None:
         assert self._task_group is None
         self._task_group = asyncio.TaskGroup()
@@ -701,6 +739,27 @@ class Tenant(ha_base.ClusterProtocol):
             self.__sys_pgcon = None
         del self._sys_pgcon_waiter
 
+    def set_init_con_data(self, data: list[config.ConState]) -> None:
+        self._init_con_data = data
+        self._init_con_sql = None
+        if data:
+            self._init_con_sql = self._make_init_con_sql(data)
+
+    def _make_init_con_sql(self, data: list[config.ConState]) -> bytes:
+        if not data:
+            return b""
+
+        from edb.pgsql import common
+
+        quoted_json = common.quote_literal(json.dumps(data))
+        return textwrap.dedent(
+            f'''
+                INSERT INTO _edgecon_state
+                    SELECT * FROM jsonb_to_recordset({quoted_json}::jsonb)
+                        AS cfg(name text, value jsonb, type text);
+            '''
+        ).strip().encode()
+
     async def _pg_connect(
         self,
         dbname: str,
@@ -720,6 +779,11 @@ class Tenant(ha_base.ClusterProtocol):
             )
             if self._server.stmt_cache_size is not None:
                 rv.set_stmt_cache_size(self._server.stmt_cache_size)
+
+            if self._init_con_sql:
+                await rv.sql_execute(self._init_con_sql)
+            rv.last_init_con_data = self._init_con_data
+
         except Exception:
             metrics.backend_connection_establishment_errors.inc(
                 1.0, self._instance_name
@@ -971,11 +1035,24 @@ class Tenant(ha_base.ClusterProtocol):
 
         for _ in range(self._pg_pool.max_capacity):
             conn = await self._pg_pool.acquire(dbname)
-            if conn.is_healthy():
-                return conn
+            if not conn.is_healthy():
+                logger.warning("acquired an unhealthy pgcon; discard now")
+            elif conn.last_init_con_data is not self._init_con_data:
+                try:
+                    await conn.sql_execute(
+                        pgcon.RESET_STATIC_CFG_SCRIPT +
+                        (self._init_con_sql or b'')
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "failed to update pgcon; discard now: %s", e
+                    )
+                else:
+                    conn.last_init_con_data = self._init_con_data
+                    return conn
             else:
-                logger.warning("Acquired an unhealthy pgcon; discard now.")
-                self._pg_pool.release(dbname, conn, discard=True)
+                return conn
+            self._pg_pool.release(dbname, conn, discard=True)
         else:
             # This is unlikely to happen, but we defer to the caller to retry
             # when it does happen
@@ -1355,9 +1432,13 @@ class Tenant(ha_base.ClusterProtocol):
     async def _load_sys_config(
         self,
         query_name: str = "sysconfig",
+        syscon: pgcon.PGConnection | None = None,
     ) -> Mapping[str, config.SettingValue]:
-        async with self.use_sys_pgcon() as syscon:
-            query = self._server.get_sys_query(query_name)
+        query = self._server.get_sys_query(query_name)
+        if syscon is None:
+            async with self.use_sys_pgcon() as syscon:
+                sys_config_json = await syscon.sql_fetch_val(query)
+        else:
             sys_config_json = await syscon.sql_fetch_val(query)
 
         return config.from_json(self._server.config_settings, sys_config_json)
@@ -1569,6 +1650,93 @@ class Tenant(ha_base.ClusterProtocol):
         self._readiness = state
         self._readiness_reason = reason
 
+    @asyncutil.exclusive_task
+    async def reload_config_file(self):
+        if self._config_file is None:
+            return
+
+        try:
+            await self._reload_config_file()
+        except Exception:
+            logger.error("failed to reload config file", exc_info=True)
+            metrics.background_errors.inc(
+                1.0, self._instance_name, "reload_config_file"
+            )
+
+    async def load_config_file(self, compiler):
+        logger.info("loading config file")
+
+        # Read the TOML file
+        with self._config_file.open('rb') as f:
+            toml_data = tomllib.load(f)
+
+        # Handle special case for `magic_smtp_config`
+        magic_smtp_config = toml_data.pop("magic_smtp_config", None)
+        if magic_smtp_config:
+            await self.load_sidechannel_configs(
+                magic_smtp_config, compiler=compiler
+            )
+
+        # Parse TOML config file content into JSON
+        if toml_data and toml_data.get("cfg::Config"):
+            result = compiler.compile_structured_config(
+                toml_data, "configuration file"
+            )
+            if asyncio.iscoroutine(result):
+                result = await result
+
+            def setting_filter(value: config.SettingValue) -> bool:
+                if self._server.config_settings[value.name].backend_setting:
+                    raise errors.ConfigurationError(
+                        f"backend config {value.name!r} cannot be set "
+                        f"via config file"
+                    )
+                return True
+
+            json_obj = config.to_json_obj(
+                self._server.config_settings,
+                result["cfg::Config"],
+                include_source=False,
+                setting_filter=setting_filter,
+            )
+            config_file_data = [
+                {
+                    "name": name,
+                    "value": value,
+                    "type": config.ConStateType.config_file,
+                }
+                for name, value in json_obj.items()
+            ]
+        else:
+            config_file_data = []
+
+        # Update init_con_data and SQL
+        self.set_init_con_data(
+            [
+                cs
+                for cs in self._init_con_data
+                if cs["type"] != config.ConStateType.config_file
+            ]
+            + config_file_data
+        )
+
+    async def _reload_config_file(self):
+        # Load TOML config file
+        compiler = self._server.get_compiler_pool()
+        await self.load_config_file(compiler)
+
+        # Update sys pgcon and reload system config
+        async with self.use_sys_pgcon() as syscon:
+            if syscon.last_init_con_data is not self._init_con_data:
+                await syscon.sql_execute(
+                    pgcon.RESET_STATIC_CFG_SCRIPT + (self._init_con_sql or b'')
+                )
+                syscon.last_init_con_data = self._init_con_data
+            sys_config = await self._load_sys_config(syscon=syscon)
+            # GOTCHA: no need to notify other EdgeDBs on the same backend about
+            # such change to sysconfig, because static config is instance-local
+        self._dbindex.update_sys_config(sys_config)
+
     def reload(self):
         # In multi-tenant mode, the file paths for the following states may be
         # unset in a reload, while it's impossible in a regular server.
@@ -1583,6 +1751,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         self.reload_readiness_state()
         self.load_jwcrypto()
+        self.reload_config_file.schedule()
 
         self.start_watching_files()
 
@@ -1921,6 +2090,8 @@ class Tenant(ha_base.ClusterProtocol):
         self.create_task(task(), interruptable=True)
 
     def get_debug_info(self) -> dict[str, Any]:
+        from . import smtp
+
         pgaddr = self.get_pgaddr()
         pgaddr.clear_server_settings()
         pgdict = pgaddr.__dict__
@@ -1949,6 +2120,12 @@ class Tenant(ha_base.ClusterProtocol):
                 if db.name in defines.EDGEDB_SPECIAL_DBS:
                     continue
 
+                try:
+                    email_provider = dataclasses.asdict(
+                        smtp.get_current_email_provider(db)
+                    )
+                except errors.ConfigurationError:
+                    email_provider = None
                 dbs[db.name] = dict(
                     name=db.name,
                     dbver=db.dbver,
@@ -1969,6 +2146,7 @@ class Tenant(ha_base.ClusterProtocol):
                         )
                         for view in db.iter_views()
                     ],
+                    current_email_provider=email_provider,
                 )
 
         obj["databases"] = dbs

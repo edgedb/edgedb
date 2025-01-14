@@ -18,9 +18,20 @@
 
 
 from __future__ import annotations
-from typing import Callable, TypeVar, Awaitable
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    cast,
+    overload,
+    Self,
+    TypeVar,
+    Type,
+)
 
 import asyncio
+import inspect
+import warnings
 
 
 _T = TypeVar('_T')
@@ -140,3 +151,188 @@ async def debounce(
         batch = []
         last_signal = t
         target_time = None
+
+
+_Owner = TypeVar("_Owner")
+HandlerFunction = Callable[[], Awaitable[None]]
+HandlerMethod = Callable[[Any], Awaitable[None]]
+
+
+class ExclusiveTask:
+    """Manages to run a repeatable task once at a time."""
+
+    _handler: HandlerFunction
+    _task: asyncio.Task | None
+    _scheduled: bool
+    _stop_requested: bool
+
+    def __init__(self, handler: HandlerFunction) -> None:
+        self._handler = handler
+        self._task = None
+        self._scheduled = False
+        self._stop_requested = False
+
+    @property
+    def scheduled(self) -> bool:
+        return self._scheduled
+
+    async def _run(self) -> None:
+        if self._scheduled and not self._stop_requested:
+            self._scheduled = False
+        else:
+            return
+        try:
+            await self._handler()
+        finally:
+            if self._scheduled and not self._stop_requested:
+                self._task = asyncio.create_task(self._run())
+            else:
+                self._task = None
+
+    def schedule(self) -> None:
+        """Schedule to run the task as soon as possible.
+
+        If already scheduled, nothing happens; it won't queue up.
+
+        If the task is already running, it will be scheduled to run again as
+        soon as the running task is done.
+        """
+        if not self._stop_requested:
+            self._scheduled = True
+            if self._task is None:
+                self._task = asyncio.create_task(self._run())
+
+    async def stop(self) -> None:
+        """Cancel scheduled task and wait for the running one to finish.
+
+        After an ExclusiveTask is stopped, no more new schedules are allowed.
+        Note: "cancel scheduled task" only means setting self._scheduled to
+        False; if an asyncio task is scheduled, stop() will still wait for it.
+        """
+        self._scheduled = False
+        self._stop_requested = True
+        if self._task is not None:
+            await self._task
+
+
+class ExclusiveTaskProperty:
+    _method: HandlerMethod
+    _name: str | None
+
+    def __init__(
+        self, method: HandlerMethod, *, slot: str | None = None
+    ) -> None:
+        self._method = method
+        self._name = slot
+
+    def __set_name__(self, owner: Type[_Owner], name: str) -> None:
+        if (slots := getattr(owner, "__slots__", None)) is not None:
+            if self._name is None:
+                raise TypeError("missing slot in @exclusive_task()")
+            if self._name not in slots:
+                raise TypeError(
+                    f"slot {self._name!r} must be defined in __slots__"
+                )
+
+        if self._name is None:
+            self._name = name
+
+    @overload
+    def __get__(self, instance: None, owner: Type[_Owner]) -> Self: ...
+
+    @overload
+    def __get__(
+        self, instance: _Owner, owner: Type[_Owner]
+    ) -> ExclusiveTask: ...
+
+    def __get__(
+        self, instance: _Owner | None, owner: Type[_Owner]
+    ) -> ExclusiveTask | Self:
+        # getattr on the class
+        if instance is None:
+            return self
+
+        assert self._name is not None
+
+        # getattr on an object with __dict__
+        if (d := getattr(instance, "__dict__", None)) is not None:
+            if rv := d.get(self._name, None):
+                return rv
+            rv = ExclusiveTask(self._method.__get__(instance, owner))
+            d[self._name] = rv
+            return rv
+
+        # getattr on an object with __slots__
+        else:
+            if rv := getattr(instance, self._name, None):
+                return rv
+            rv = ExclusiveTask(self._method.__get__(instance, owner))
+            setattr(instance, self._name, rv)
+            return rv
+
+
+ExclusiveTaskDecorator = Callable[
+    [HandlerFunction | HandlerMethod], ExclusiveTask | ExclusiveTaskProperty
+]
+
+
+def _exclusive_task(
+    handler: HandlerFunction | HandlerMethod, *, slot: str | None
+) -> ExclusiveTask | ExclusiveTaskProperty:
+    sig = inspect.signature(handler)
+    params = list(sig.parameters.values())
+    if len(params) == 0:
+        handler = cast(HandlerFunction, handler)
+        if slot is not None:
+            warnings.warn(
+                "slot is specified but unused in @exclusive_task()",
+                stacklevel=2,
+            )
+        return ExclusiveTask(handler)
+    elif len(params) == 1 and params[0].kind in (
+        inspect.Parameter.POSITIONAL_ONLY,
+        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+    ):
+        handler = cast(HandlerMethod, handler)
+        return ExclusiveTaskProperty(handler, slot=slot)
+    else:
+        raise TypeError("bad signature")
+
+
+@overload
+def exclusive_task(handler: HandlerFunction) -> ExclusiveTask: ...
+
+
+@overload
+def exclusive_task(
+    handler: HandlerMethod, *, slot: str | None = None
+) -> ExclusiveTaskProperty: ...
+
+
+@overload
+def exclusive_task(*, slot: str | None = None) -> ExclusiveTaskDecorator: ...
+
+
+def exclusive_task(
+    handler: HandlerFunction | HandlerMethod | None = None,
+    *,
+    slot: str | None = None,
+) -> ExclusiveTask | ExclusiveTaskProperty | ExclusiveTaskDecorator:
+    """Convert an async function into an ExclusiveTask.
+
+    This decorator can be applied to either top-level functions or methods
+    in a class. In the latter case, the exclusiveness is bound to each object
+    of the owning class. If the owning class defines __slots__, you must also
+    define an extra slot to store the exclusive state and tell exclusive_task()
+    by providing the `slot` argument.
+    """
+    if handler is None:
+
+        def decorator(
+            handler: HandlerFunction | HandlerMethod,
+        ) -> ExclusiveTask | ExclusiveTaskProperty:
+            return _exclusive_task(handler, slot=slot)
+
+        return decorator
+
+    return _exclusive_task(handler, slot=slot)
