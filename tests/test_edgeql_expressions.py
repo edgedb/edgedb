@@ -29,7 +29,6 @@ import edgedb
 from edb import errors
 from edb.common import assert_data_shape
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class value(typing.NamedTuple):
@@ -8991,110 +8990,6 @@ aa \
                 UNION {x, x + 2};
             """,
             {2, 3, 4, 5},
-        )
-
-    @test.not_implemented('GROUP statement is not yet implemented')
-    async def test_edgeql_expr_group_01(self):
-        await self.assert_query_result(
-            r"""
-                WITH I := {1, 2, 3, 4}
-                GROUP I
-                USING _ := I % 2 = 0
-                BY _
-                INTO I
-                UNION _r := (
-                    values := array_agg(I ORDER BY I)
-                ) ORDER BY _r.values;
-            """,
-            [
-                {'values': [1, 3]},
-                {'values': [2, 4]}
-            ]
-        )
-
-    @test.not_implemented('GROUP statement is not yet implemented')
-    async def test_edgeql_expr_group_02(self):
-        await self.assert_query_result(
-            r'''
-                # handle a number of different aliases
-                WITH x := {(1, 2), (3, 4), (4, 2)}
-                GROUP y := x
-                USING _ := y.1
-                BY _
-                INTO y
-                UNION array_agg(y.0 ORDER BY y.0);
-            ''',
-            [[1, 4], [3]],
-            sort=True
-        )
-
-    @test.not_implemented('GROUP statement is not yet implemented')
-    async def test_edgeql_expr_group_03(self):
-        await self.assert_query_result(
-            r'''
-                WITH x := {(1, 2), (3, 4), (4, 2)}
-                GROUP x
-                USING _ := x.1
-                BY _
-                INTO x
-                UNION array_agg(x.0 ORDER BY x.0);
-            ''',
-            [[1, 4], [3]],
-            sort=True
-        )
-
-    @test.not_implemented('GROUP statement is not yet implemented')
-    async def test_edgeql_expr_group_04(self):
-        await self.assert_query_result(
-            r'''
-                WITH x := {(1, 2), (3, 4), (4, 2)}
-                GROUP x
-                USING B := x.1
-                BY B
-                INTO x
-                UNION (B, array_agg(x.0 ORDER BY x.0))
-                ORDER BY
-                    B;
-            ''',
-            [[2, [1, 4]], [4, [3]]],
-        )
-
-    @test.not_implemented('GROUP statement is not yet implemented')
-    async def test_edgeql_expr_group_05(self):
-        await self.assert_query_result(
-            r'''
-                # handle the case where the value to be computed depends
-                # on both, the grouped subset and the original set
-                WITH
-                    x1 := {(1, 0), (1, 0), (1, 0), (2, 0), (3, 0), (3, 0)},
-                    x2 := x1
-                GROUP y := x1
-                USING z := y.0
-                BY z
-                INTO y
-                UNION (
-                    # we expect that count(x1) and count(x2) will be
-                    # identical in this context, whereas count(y) will
-                    # represent the size of each subset
-                    z, count(y), count(x1), count(x2)
-                )
-                ORDER BY z;
-            ''',
-            [[1, 3, 6, 6], [2, 1, 6, 6], [3, 2, 6, 6]]
-        )
-
-    @test.not_implemented('GROUP statement is not yet implemented')
-    async def test_edgeql_expr_group_06(self):
-        await self.assert_query_result(
-            r'''
-                GROUP X := {1, 1, 1, 2, 3, 3}
-                USING y := X
-                BY y
-                INTO y
-                UNION (y, count(X))
-                ORDER BY y;
-            ''',
-            [[1, 3], [2, 1], [3, 2]]
         )
 
     async def test_edgeql_expr_slice_01(self):
