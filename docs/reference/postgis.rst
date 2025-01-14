@@ -710,7 +710,7 @@ Example
 
 Here's a simple example showing how to create and query geometric data:
 
-.. code-block:: esdl 
+.. code-block:: sdl 
 
    # Create a spatial table
    type Location {
