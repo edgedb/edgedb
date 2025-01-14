@@ -251,7 +251,7 @@ class FunctionCall(Expr):
     window: typing.Optional[WindowSpec] = None
 
 
-class StrInterpFragment(Expr):
+class StrInterpFragment(Base):
     expr: Expr
     suffix: str
 
