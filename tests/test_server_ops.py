@@ -1577,6 +1577,7 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
                     runstate_dir=runstate_dir,
                     multitenant_config=conf_file.name,
                     max_allowed_connections=None,
+                    testmode=False,
                     http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
                 )
                 async with srv as sd:
