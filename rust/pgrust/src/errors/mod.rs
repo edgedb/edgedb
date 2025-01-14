@@ -4,7 +4,7 @@ use std::{collections::HashMap, str::FromStr};
 
 pub mod edgedb;
 
-use crate::protocol::postgres::data::ErrorResponse;
+use crate::protocol::postgres::data::{ErrorResponse, NoticeResponse};
 
 #[macro_export]
 macro_rules! pg_error_class {
@@ -411,6 +411,43 @@ impl From<ErrorResponse<'_>> for PgServerError {
         for field in error.fields() {
             let value = field.value().to_string_lossy().into_owned();
             match PgServerErrorField::try_from(field.etype()) {
+                Ok(PgServerErrorField::Code) => code = value,
+                Ok(PgServerErrorField::Message) => message = value,
+                Ok(PgServerErrorField::SeverityNonLocalized) => {
+                    severity = PgErrorSeverity::from_str(&value).unwrap_or_default()
+                }
+                Ok(field_type) => {
+                    extra.insert(field_type, value);
+                }
+                Err(_) => {}
+            }
+        }
+
+        // It's very unlikely the server will give us a non-five-character code
+        let code = match PgError::from_str(&code) {
+            Ok(code) => code,
+            Err(_) => PgError::Other(*b"?????"),
+        };
+
+        PgServerError {
+            code,
+            severity,
+            message,
+            extra,
+        }
+    }
+}
+
+impl From<NoticeResponse<'_>> for PgServerError {
+    fn from(error: NoticeResponse) -> Self {
+        let mut code = String::new();
+        let mut message = String::new();
+        let mut extra = HashMap::new();
+        let mut severity = PgErrorSeverity::Error;
+
+        for field in error.fields() {
+            let value = field.value().to_string_lossy().into_owned();
+            match PgServerErrorField::try_from(field.ntype()) {
                 Ok(PgServerErrorField::Code) => code = value,
                 Ok(PgServerErrorField::Message) => message = value,
                 Ok(PgServerErrorField::SeverityNonLocalized) => {

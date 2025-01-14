@@ -2,14 +2,15 @@ use super::ConnectionSslRequirement;
 use crate::{
     connection::{invalid_state, ConnectionError, Credentials, SslError},
     errors::PgServerError,
-    protocol::{
-        postgres::data::{
+    protocol::postgres::{
+        builder,
+        data::{
             AuthenticationCleartextPassword, AuthenticationMD5Password, AuthenticationMessage,
             AuthenticationOk, AuthenticationSASL, AuthenticationSASLContinue,
-            AuthenticationSASLFinal, BackendKeyData, ErrorResponse, Message, ParameterStatus,
-            ReadyForQuery, SSLResponse,
+            AuthenticationSASLFinal, BackendKeyData, ErrorResponse, Message, NoticeResponse,
+            ParameterStatus, ReadyForQuery, SSLResponse,
         },
-        postgres::{builder, FrontendBuilder, InitialBuilder},
+        FrontendBuilder, InitialBuilder,
     },
 };
 use base64::Engine;
@@ -93,6 +94,7 @@ pub trait ConnectionStateUpdate: ConnectionStateSend {
     fn cancellation_key(&mut self, pid: i32, key: i32) {}
     fn state_changed(&mut self, state: ConnectionStateType) {}
     fn server_error(&mut self, error: &PgServerError) {}
+    fn server_notice(&mut self, notice: &PgServerError) {}
     fn auth(&mut self, auth: AuthType) {}
 }
 
@@ -248,6 +250,10 @@ impl ConnectionState {
                             password: &credentials.password,
                         }.into())?;
                     },
+                    (NoticeResponse as notice) => {
+                        let err = PgServerError::from(notice);
+                        update.server_notice(&err);
+                    },
                     (ErrorResponse as error) => {
                         self.0 = Error;
                         let err = PgServerError::from(error);
@@ -282,6 +288,10 @@ impl ConnectionState {
                     (AuthenticationMessage as auth) => {
                         trace!("SCRAM Unknown auth message: {}", auth.status())
                     },
+                    (NoticeResponse as notice) => {
+                        let err = PgServerError::from(notice);
+                        update.server_notice(&err);
+                    },
                     (ErrorResponse as error) => {
                         self.0 = Error;
                         let err = PgServerError::from(error);
@@ -308,6 +318,10 @@ impl ConnectionState {
                         trace!("-> Ready");
                         self.0 = Ready;
                         update.state_changed(ConnectionStateType::Ready);
+                    },
+                    (NoticeResponse as notice) => {
+                        let err = PgServerError::from(notice);
+                        update.server_notice(&err);
                     },
                     (ErrorResponse as error) => {
                         self.0 = Error;
