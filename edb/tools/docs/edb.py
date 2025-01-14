@@ -68,7 +68,7 @@ class EDBEnvironmentSwitcher(d_rst.Directive):
         node = d_nodes.container()
         node['env-switcher'] = True
         return [node]
-    
+
 
 class EDBSplitSection(d_rst.Directive):
 
@@ -81,11 +81,11 @@ class EDBSplitSection(d_rst.Directive):
         node['split-section'] = True
         self.state.nested_parse(self.content, self.content_offset, node)
         if (
-            not isinstance(node.children[0], d_nodes.literal_block)
-            and not isinstance(node.children[0], TabsNode)
+            not isinstance(node.children[-1], d_nodes.literal_block)
+            and not isinstance(node.children[-1], TabsNode)
         ):
             raise Exception(
-                f'expected edb:split-section content to begin with a code block'
+                f'expected edb:split-section content to end with a code block'
             )
         return [node]
 
