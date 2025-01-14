@@ -1520,6 +1520,7 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
                 runstate_dir=runstate_dir,
                 backend_dsn=f'postgres:///?user=postgres&host={path}',
                 reset_auth=True,
+                testmode=False,
                 auto_shutdown_after=1,
             ) as sd:
                 connect_args = {
