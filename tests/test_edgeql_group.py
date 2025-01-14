@@ -510,6 +510,828 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_group_free_object_01(self):
+        await self.assert_query_result(
+            '''
+            group {a := 1, b := 2} by .a;;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': 2},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_free_object_02(self):
+        await self.assert_query_result(
+            '''
+            group {a := 1, b := {2, 3, 4}, c := { d := 5 } }
+            using d := .c.d
+            by d;
+            ''',
+            tb.bag([
+                {
+                    'key': {'d': 5},
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': [2, 3, 4], 'c': {'d': 5}}
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_iterator_ptr_sets_01(self):
+        await self.assert_query_result(
+            '''
+            group (
+                for n in { 8, 9 }
+                    select cards::User { name, b := n }
+            ) by .name;
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': 8},
+                        {'name': 'Alice', 'b': 9},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': 8},
+                        {'name': 'Bob', 'b': 9},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': 8},
+                        {'name': 'Carol', 'b': 9},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': 8},
+                        {'name': 'Dave', 'b': 9},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_iterator_ptr_sets_02(self):
+        # Use computed pointer in by clause
+        await self.assert_query_result(
+            '''
+            group (
+                for n in { 8, 9 }
+                    select cards::User { name, b := n }
+            ) by .b;
+            ''',
+            tb.bag([
+                {
+                    'key': {'b': 8},
+                    'grouping': {'b'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': 8},
+                        {'name': 'Bob', 'b': 8},
+                        {'name': 'Carol', 'b': 8},
+                        {'name': 'Dave', 'b': 8},
+                    ]),
+                },
+                {
+                    'key': {'b': 9},
+                    'grouping': {'b'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': 9},
+                        {'name': 'Bob', 'b': 9},
+                        {'name': 'Carol', 'b': 9},
+                        {'name': 'Dave', 'b': 9},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_iterator_ptr_sets_03(self):
+        await self.assert_query_result(
+            '''
+            with N := (for n in { 8, 9 } select n)
+            group cards::User { name, b := N } by .name;
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {8, 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': {8, 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': {8, 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': {8, 9}},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_iterator_ptr_sets_04(self):
+        await self.assert_query_result(
+            '''
+            with N := (for n in { 8, 9 } select n)
+            group cards::User { name, b := N }
+            using total := sum(.b)
+            by total;
+            ''',
+            tb.bag([
+                {
+                    'key': {'total': 17},
+                    'grouping': {'total'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {8, 9}},
+                        {'name': 'Bob', 'b': {8, 9}},
+                        {'name': 'Carol', 'b': {8, 9}},
+                        {'name': 'Dave', 'b': {8, 9}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_iterator_ptr_sets_05(self):
+        await self.assert_query_result(
+            '''
+            group cards::User {
+                name,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            } by .name;
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_iterator_ptr_sets_06(self):
+        # Use computed pointer in by clause
+        await self.assert_query_result(
+            '''
+            group cards::User {
+                name,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            using d := .b.d
+            by d;
+            ''',
+            tb.bag([
+                {
+                    'key': {'d': 9},
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {'c': 3, 'd': 9}},
+                        {'name': 'Bob', 'b': {'c': 3, 'd': 9}},
+                        {'name': 'Carol', 'b': {'c': 3, 'd': 9}},
+                        {'name': 'Dave', 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_iterator_ptr_free_object_01(self):
+        await self.assert_query_result(
+            '''
+            group (
+                for n in { 8, 9 }
+                    select { a := 1, b := n }
+            ) by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': 8},
+                        {'a': 1, 'b': 9},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_iterator_ptr_free_object_02(self):
+        # Use computed pointer in by clause
+        await self.assert_query_result(
+            '''
+            group (
+                for n in { 8, 9 }
+                    select { a := 1, b := n }
+            ) by .b;
+            ''',
+            tb.bag([
+                {
+                    'key': {'b': 8},
+                    'grouping': {'b'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': 8},
+                    ]),
+                },
+                {
+                    'key': {'b': 9},
+                    'grouping': {'b'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': 9},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_iterator_ptr_free_object_03(self):
+        await self.assert_query_result(
+            '''
+            with N := (for n in { 8, 9 } select n)
+            group { a := 1, b := N } by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {8, 9}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_iterator_ptr_free_object_04(self):
+        await self.assert_query_result(
+            '''
+            group {
+                a := 1,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            } by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_iterator_ptr_free_object_05(self):
+        # Use computed pointer in by clause
+        await self.assert_query_result(
+            '''
+            group {
+                a := 1,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            using d := .b.d
+            by d;
+            ''',
+            tb.bag([
+                {
+                    'key': {'d': 9},
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_volatile_ptr_set_01(self):
+        await self.assert_query_result(
+            '''
+            select (
+                group cards::User { name, b := random() } by .name
+            ) {
+                key,
+                grouping,
+                elements: { name, z := .b <= 1 },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'z': True},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_volatile_ptr_set_02(self):
+        await self.assert_query_result(
+            '''
+            select (
+                group cards::User { name, b := random() } by .b
+            ) {
+                name: (select .elements.name limit 1),
+                grouping,
+                elements: { name, z := .b <= 1 },
+            };
+            ''',
+            tb.bag([
+                {
+                    'name': 'Alice',
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'z': True},
+                    ]),
+                },
+                {
+                    'name': 'Bob',
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'z': True},
+                    ]),
+                },
+                {
+                    'name': 'Carol',
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'z': True},
+                    ]),
+                },
+                {
+                    'name': 'Dave',
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'z': True},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xfail("""
+        Issue #8095
+
+        Select group produces incorrect keys
+    """)
+    async def test_edgeql_group_volatile_ptr_set_03(self):
+        await self.assert_query_result(
+            '''
+            select (
+                group (select cards::User { name, b := random() }) by .name
+            ) {
+                key,
+                grouping,
+                elements: { name, z := .b <= 1 },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'z': True},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_volatile_ptr_set_04(self):
+        await self.assert_query_result(
+            '''
+            select (
+                group cards::User {
+                    name,
+                    b := { c := 2, d := random() },
+                }
+                by .name
+            ) {
+                key,
+                grouping,
+                elements: {
+                    name,
+                    b: {
+                        c,
+                        z := .d <= 1,
+                    },
+                },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_volatile_ptr_set_05(self):
+        await self.assert_query_result(
+            '''
+            select (
+                group cards::User {
+                    name,
+                    b := { c := 2, d := random() },
+                }
+                using d := .b.c
+                by d
+            ) {
+                name: (select .elements.name limit 1),
+                grouping,
+                elements: {
+                    a,
+                    b: {
+                        c,
+                        z := .d <= 1,
+                    },
+                },
+            };
+            ''',
+            tb.bag([
+                {
+                    'name': 'Alice',
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'name': 'Bob',
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'name': 'Carol',
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'name': 'Dave',
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xfail("""
+        Issue #8095
+
+        Select group produces incorrect keys
+    """)
+    async def test_edgeql_group_volatile_ptr_set_06(self):
+        await self.assert_query_result(
+            '''
+            select (
+                group (
+                    select cards::User {
+                        name,
+                        b := { c := 2, d := random() },
+                    }
+                )
+                by .name
+            ) {
+                key,
+                grouping,
+                elements: {
+                    name,
+                    b: {
+                        c,
+                        z := .d <= 1,
+                    },
+                },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_volatile_ptr_free_object_01(self):
+        await self.assert_query_result(
+            '''
+            select (
+                group { a := 1, b := random() } by .a
+            ) {
+                key,
+                grouping,
+                elements: { a, z := .b <= 1 },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'z': True},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_volatile_ptr_free_object_02(self):
+        await self.assert_query_result(
+            '''
+            select (
+                group { a := 1, b := random() } by .b
+            ) {
+                key,
+                grouping,
+                elements: { a, z := .b <= 1 },
+            };
+            ''',
+            tb.bag([
+                {
+                    'grouping': {'b'},
+                    'elements': tb.bag([
+                        {'a': 1, 'z': True},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xfail("""
+        Issue #8095
+
+        Select group produces incorrect keys
+    """)
+    async def test_edgeql_group_volatile_ptr_free_object_03(self):
+        await self.assert_query_result(
+            '''
+            select (
+                group (select { a := 1, b := random() }) by .a
+            ) {
+                key,
+                grouping,
+                elements: { a, z := .b <= 1 },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'z': True},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_volatile_ptr_free_object_04(self):
+        await self.assert_query_result(
+            '''
+            select (
+                group {
+                    a := 1,
+                    b := { c := 2, d := random() },
+                }
+                by .a
+            ) {
+                key,
+                grouping,
+                elements: {
+                    a,
+                    b: {
+                        c,
+                        z := .d <= 1,
+                    },
+                },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_volatile_ptr_free_object_05(self):
+        await self.assert_query_result(
+            '''
+            select (
+                group {
+                    a := 1,
+                    b := { c := 2, d := random() },
+                }
+                using d := .b.c
+                by d
+            ) {
+                key,
+                grouping,
+                elements: {
+                    a,
+                    b: {
+                        c,
+                        z := .d <= 1,
+                    },
+                },
+            };
+            ''',
+            tb.bag([
+                {
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_volatile_ptr_free_object_06(self):
+        await self.assert_query_result(
+            '''
+            select (
+                group (
+                    select {
+                        a := 1,
+                        b := { c := 2, d := random() },
+                    }
+                )
+                using d := .b.c
+                by d
+            ) {
+                key,
+                grouping,
+                elements: {
+                    a,
+                    b: {
+                        c,
+                        z := .d <= 1,
+                    },
+                },
+            };
+            ''',
+            tb.bag([
+                {
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+            ])
+        )
+
     async def test_edgeql_group_duplicate_rejected_01(self):
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
@@ -1086,6 +1908,1555 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                         {"name": "Djinn"}
                     ]),
                 }
+            ])
+        )
+
+    async def test_edgeql_group_binding_free_object_01(self):
+        await self.assert_query_result(
+            '''
+            with X := {a := 1, b := 2}
+            group X { a, b } by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': 2},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_free_object_02(self):
+        await self.assert_query_result(
+            '''
+            with X := {a := 1, b := {2, 3, 4}, c := { d := 5 } }
+            group X { a, b, c: {*} } using d := .c.d by d;
+            ''',
+            tb.bag([
+                {
+                    'key': {'d': 5},
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': [2, 3, 4], 'c': {'d': 5}},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_volatile_01(self):
+        await self.assert_query_result(
+            '''
+            with N := random()
+            group cards::User { name } by .name;
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice'},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob'},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol'},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave'},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_volatile_02(self):
+        await self.assert_query_result(
+            '''
+            with N := random()
+            group { a := 1 } by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_03(self):
+        await self.assert_query_result(
+            '''
+            with N := random()
+            group cards::User { name }
+            using z := N <= 1
+            by z;
+            ''',
+            tb.bag([
+                {
+                    'key': {'z': True},
+                    'grouping': {'z'},
+                    'elements': tb.bag([
+                        {'name': 'Alice'},
+                        {'name': 'Bob'},
+                        {'name': 'Carol'},
+                        {'name': 'Dave'},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_04(self):
+        await self.assert_query_result(
+            '''
+            with N := random()
+            group { a := 1 }
+            using z := N <= 1
+            by z;
+            ''',
+            tb.bag([
+                {
+                    'key': {'z': True},
+                    'grouping': {'z'},
+                    'elements': tb.bag([
+                        {'a': 1},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_05(self):
+        await self.assert_query_result(
+            '''
+            select (
+                with
+                    N := random()
+                group cards::User { name, b := N } by .name
+            ) {
+                key,
+                grouping,
+                elements: { name, z := .b <= 1},
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'z': True},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_06(self):
+        await self.assert_query_result(
+            '''
+            select (
+                with
+                    N := random(),
+                group { a := 1, b := N } by .a
+            ) {
+                key,
+                grouping,
+                elements: { a, z := .b <= 1},
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': True},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_binding_iterator_ptr_set_01(self):
+        await self.assert_query_result(
+            '''
+            with X := (
+                for n in { 8, 9 }
+                    select cards::User { name, b := n }
+            )
+            group X { name, b } by .name;
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': 8},
+                        {'name': 'Alice', 'b': 9},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': 8},
+                        {'name': 'Bob', 'b': 9},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': 8},
+                        {'name': 'Carol', 'b': 9},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': 8},
+                        {'name': 'Dave', 'b': 9},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_set_02(self):
+        # Remove computed pointer from output shape
+        await self.assert_query_result(
+            '''
+            with X := (
+                for n in { 8, 9 }
+                    select cards::User { name, b := n }
+            )
+            group X { name } by .name;
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice'},
+                        {'name': 'Alice'},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob'},
+                        {'name': 'Bob'},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol'},
+                        {'name': 'Carol'},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave'},
+                        {'name': 'Dave'},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_set_03(self):
+        # Wrap subject in select
+        await self.assert_query_result(
+            '''
+            with X := (
+                for n in { 8, 9 }
+                    select cards::User { name, b := n }
+            )
+            group (select X { name, b }) by .name;
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': 8},
+                        {'name': 'Alice', 'b': 9},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': 8},
+                        {'name': 'Bob', 'b': 9},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': 8},
+                        {'name': 'Carol', 'b': 9},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': 8},
+                        {'name': 'Dave', 'b': 9},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_set_04(self):
+        # Use computed pointer only in by clause
+        await self.assert_query_result(
+            '''
+            with X := (
+                for n in { 8, 9 }
+                    select cards::User { name, b := n }
+            )
+            group X { name } by .b;
+            ''',
+            tb.bag([
+                {
+                    'key': {'b': 8},
+                    'grouping': {'b'},
+                    'elements': tb.bag([
+                        {'name': 'Alice'},
+                        {'name': 'Bob'},
+                        {'name': 'Carol'},
+                        {'name': 'Dave'},
+                    ]),
+                },
+                {
+                    'key': {'b': 9},
+                    'grouping': {'b'},
+                    'elements': tb.bag([
+                        {'name': 'Alice'},
+                        {'name': 'Bob'},
+                        {'name': 'Carol'},
+                        {'name': 'Dave'},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_set_05(self):
+        await self.assert_query_result(
+            '''
+            with X := cards::User {
+                name,
+                b := (for n in { 8, 9 } select n),
+            }
+            group X { name, b } by .name;
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {8, 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': {8, 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': {8, 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': {8, 9}},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_set_06(self):
+        await self.assert_query_result(
+            '''
+            with X := cards::User {
+                name,
+                b := (for n in { 8, 9 } select n),
+            }
+            group X { name, b }
+            using total := sum(.b)
+            by total;
+            ''',
+            tb.bag([
+                {
+                    'key': {'total': 17},
+                    'grouping': {'total'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {8, 9}},
+                        {'name': 'Bob', 'b': {8, 9}},
+                        {'name': 'Carol', 'b': {8, 9}},
+                        {'name': 'Dave', 'b': {8, 9}},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_set_07(self):
+        await self.assert_query_result(
+            '''
+            with
+                N := (for n in { 8, 9 } select n),
+                X := cards::User { name, b := N }
+            group X { name, b } by .name;
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {8, 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': {8, 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': {8, 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': {8, 9}},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_set_08(self):
+        await self.assert_query_result(
+            '''
+            with
+                N := (for n in { 8, 9 } select n),
+                X := cards::User { name, b := N }
+            group X { name, b }
+            using total := sum(.b)
+            by total;
+            ''',
+            tb.bag([
+                {
+                    'key': {'total': 17},
+                    'grouping': {'total'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {8, 9}},
+                        {'name': 'Bob', 'b': {8, 9}},
+                        {'name': 'Carol', 'b': {8, 9}},
+                        {'name': 'Dave', 'b': {8, 9}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_binding_iterator_ptr_set_09(self):
+        await self.assert_query_result(
+            '''
+            with X := cards::User {
+                name,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group X { name, b: { c, d } } by .name;
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_set_10(self):
+        # Remove pointer from output shape
+        await self.assert_query_result(
+            '''
+            with X := cards::User {
+                name,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group X { name, b: { c } } by .name;
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {'c': 3}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': {'c': 3}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': {'c': 3}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': {'c': 3}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_binding_iterator_ptr_set_11(self):
+        # Wrap subject in select
+        await self.assert_query_result(
+            '''
+            with X := cards::User {
+                name,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group (select X { name, b: { c, d } }) by .name;
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_binding_iterator_ptr_set_12(self):
+        # Use computed pointer only in by clause
+        await self.assert_query_result(
+            '''
+            with X := cards::User {
+                name,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group X { name, b: { c } }
+            using d := .b.d
+            by d;
+            ''',
+            tb.bag([
+                {
+                    'key': {'d': 9},
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {'c': 3, 'd': 9}},
+                        {'name': 'Bob', 'b': {'c': 3, 'd': 9}},
+                        {'name': 'Carol', 'b': {'c': 3, 'd': 9}},
+                        {'name': 'Dave', 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_binding_iterator_ptr_free_object_01(self):
+        await self.assert_query_result(
+            '''
+            with X := (
+                for n in { 8, 9 }
+                    select { a := 1, b := n }
+            )
+            group X { a, b } by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': 8},
+                        {'a': 1, 'b': 9},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_free_object_02(self):
+        # Remove computed pointer from output shape
+        await self.assert_query_result(
+            '''
+            with X := (
+                for n in { 8, 9 }
+                    select { a := 1, b := n }
+            )
+            group X { a } by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1},
+                        {'a': 1},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_free_object_03(self):
+        # Wrap subject in select
+        await self.assert_query_result(
+            '''
+            with X := (
+                for n in { 8, 9 }
+                    select { a := 1, b := n }
+            )
+            group (select X { a, b }) by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': 8},
+                        {'a': 1, 'b': 9},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_free_object_04(self):
+        # Use computed pointer only in by clause
+        await self.assert_query_result(
+            '''
+            with X := (
+                for n in { 8, 9 }
+                    select { a := 1, b := n }
+            )
+            group X { a } by .b;
+            ''',
+            tb.bag([
+                {
+                    'key': {'b': 8},
+                    'grouping': {'b'},
+                    'elements': tb.bag([
+                        {'a': 1},
+                    ]),
+                },
+                {
+                    'key': {'b': 9},
+                    'grouping': {'b'},
+                    'elements': tb.bag([
+                        {'a': 1},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_free_object_05(self):
+        await self.assert_query_result(
+            '''
+            with X := {
+                a := 1,
+                b := (for n in { 8, 9 } select n),
+            }
+            group X { a, b } by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {8, 9}},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_free_object_06(self):
+        await self.assert_query_result(
+            '''
+            with X := {
+                a := 1,
+                b := (for n in { 8, 9 } select n),
+            }
+            group X { a, b }
+            using total := sum(.b)
+            by total;
+            ''',
+            tb.bag([
+                {
+                    'key': {'total': 17},
+                    'grouping': {'total'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {8, 9}},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_free_object_07(self):
+        await self.assert_query_result(
+            '''
+            with
+                N := (for n in { 8, 9 } select n),
+                X := { a := 1, b := N }
+            group X { a, b } by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {8, 9}},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_free_object_08(self):
+        await self.assert_query_result(
+            '''
+            with
+                N := (for n in { 8, 9 } select n),
+                X := { a := 1, b := N }
+            group X { a, b }
+            using total := sum(.b)
+            by total;
+            ''',
+            tb.bag([
+                {
+                    'key': {'total': 17},
+                    'grouping': {'total'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {8, 9}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_binding_iterator_ptr_free_object_09(self):
+        await self.assert_query_result(
+            '''
+            with X := {
+                a := 1,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group X { a, b: { c, d } } by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+            ])
+        )
+
+    async def test_edgeql_group_binding_iterator_ptr_free_object_10(self):
+        # Remove pointer from output shape
+        await self.assert_query_result(
+            '''
+            with X := {
+                a := 1,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group X { a, b: { c } } by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 3}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_binding_iterator_ptr_free_object_11(self):
+        # Wrap subject in select
+        await self.assert_query_result(
+            '''
+            with X := {
+                a := 1,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group (select X { a, b: { c, d } }) by .a;
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 3, 'd': 9}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize computed pointers properly""")
+    async def test_edgeql_group_binding_iterator_ptr_free_object_12(self):
+        # Use computed pointer only in by clause
+        await self.assert_query_result(
+            '''
+            with X := {
+                a := 1,
+                b := (for n in { 9 } union ({ c := 3, d := n }))
+            }
+            group X { a, b: { c } }
+            using d := .b.d
+            by d;
+            ''',
+            tb.bag([
+                {
+                    'key': {'d': 9},
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 3}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_set_01(self):
+        await self.assert_query_result(
+            '''
+            select (
+                with X := cards::User { name, b := random() }
+                group X { name, b } by .name;
+            ) {
+                key,
+                grouping,
+                elements: { name, z := .b <= 1 },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'z': True},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_set_02(self):
+        # Remove pointer from output shape
+        await self.assert_query_result(
+            '''
+            select (
+                with X := cards::User { name, b := random() }
+                group X { name } by .name;
+            ) {
+                key,
+                grouping,
+                elements: { name },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice'},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob'},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol'},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave'},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_set_03(self):
+        # Wrap subject in select
+        await self.assert_query_result(
+            '''
+            select (
+                with X := cards::User { name, b := random() }
+                group (select X { name, b }) by .name;
+            ) {
+                key,
+                grouping,
+                elements: { name, z := .b <= 1 },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'z': True},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'z': True},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_set_04(self):
+        # Use computed pointer only in by clause
+        await self.assert_query_result(
+            '''
+            select (
+                with X := cards::User { name, b := random() }
+                group X { name } by .b;
+            ) {
+                name: (select .elements.name limit 1),
+                grouping,
+                elements: { name, z := .b <= 1 },
+            };
+            ''',
+            tb.bag(
+                {
+                    'name': 'Alice',
+                    'grouping': {'b'},
+                    'elements': tb.bag(
+                        {'name': 'Alice', 'z': True},
+                    ),
+                },
+                {
+                    'name': 'Bob',
+                    'grouping': {'b'},
+                    'elements': tb.bag(
+                        {'name': 'Bob', 'z': True},
+                    ),
+                },
+                {
+                    'name': 'Carol',
+                    'grouping': {'b'},
+                    'elements': tb.bag(
+                        {'name': 'Carol', 'z': True},
+                    ),
+                },
+                {
+                    'name': 'Dave',
+                    'grouping': {'b'},
+                    'elements': tb.bag(
+                        {'name': 'Dave', 'z': True},
+                    ),
+                },
+            )
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_set_05(self):
+        await self.assert_query_result(
+            '''
+            select (
+                with X := cards::User {
+                    name,
+                    b := { c := 2, d := random() }
+                }
+                group X { name, b: { c, d } } by .name;
+            ) {
+                key,
+                grouping,
+                elements: {
+                    name,
+                    b: {
+                        c,
+                        z := .d <= 1,
+                    },
+                },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_set_06(self):
+        # Remove pointer from output shape
+        await self.assert_query_result(
+            '''
+            select (
+                with X := cards::User {
+                    name,
+                    b := { c := 2, d := random() }
+                }
+                group (select X { name, b: { c } }) by .name;
+            ) {
+                key,
+                grouping,
+                elements: {
+                    name,
+                    b: { c },
+                },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {'c': 2}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': {'c': 2}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': {'c': 2}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': {'c': 2}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_set_07(self):
+        # Wrap subject in select
+        await self.assert_query_result(
+            '''
+            select (
+                with X := cards::User {
+                    name,
+                    b := { c := 2, d := random() }
+                }
+                group (select X { name, b: { c, d } }) by .name;
+            ) {
+                key,
+                grouping,
+                elements: {
+                    name,
+                    b: {
+                        c,
+                        z := .d <= 1,
+                    },
+                },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'name': 'Alice'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Bob'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Carol'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'key': {'name': 'Dave'},
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_set_08(self):
+        # Use computed pointer only in by clause
+        await self.assert_query_result(
+            '''
+            select (
+                with X := cards::User {
+                    name,
+                    b := { c := 2, d := random() }
+                }
+                group (select X { name, b: { c } })
+                using d := .b.c
+                by d;
+            ) {
+                name: (select .elements.name limit 1),
+                grouping,
+                elements: {
+                    name,
+                    b: { c },
+                },
+            };
+            ''',
+            tb.bag([
+                {
+                    'name': 'Alice',
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Alice', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'name': 'Bob',
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Bob', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'name': 'Carol',
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Carol', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+                {
+                    'name': 'Dave',
+                    'grouping': {'name'},
+                    'elements': tb.bag([
+                        {'name': 'Dave', 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_free_object_01(self):
+        await self.assert_query_result(
+            '''
+            select (
+                with X := { a := 1, b := random() }
+                group X { a, b } by .a;
+            ) {
+                key,
+                grouping,
+                elements: { a, z := .b <= 1 },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'z': True},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_free_object_02(self):
+        # Remove pointer from output shape
+        await self.assert_query_result(
+            '''
+            select (
+                with X := { a := 1, b := random() }
+                group X { a } by .a;
+            ) {
+                key,
+                grouping,
+                elements: { a },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_free_object_03(self):
+        # Wrap subject in select
+        await self.assert_query_result(
+            '''
+            select (
+                with X := { a := 1, b := random() }
+                group (select X { a, b }) by .a;
+            ) {
+                key,
+                grouping,
+                elements: { a, z := .b <= 1 },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'z': True},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_free_object_04(self):
+        # Use computed pointer only in by clause
+        await self.assert_query_result(
+            '''
+            select (
+                with X := { a := 1, b := random() }
+                group X { a } by .b;
+            ) {
+                key,
+                grouping,
+                elements: { a, z := .b <= 1 },
+            };
+            ''',
+            tb.bag([
+                {
+                    'grouping': {'b'},
+                    'elements': tb.bag([
+                        {'a': 1, 'z': True},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_free_object_05(self):
+        await self.assert_query_result(
+            '''
+            select (
+                with X := {
+                    a := 1,
+                    b := { c := 2, d := random() }
+                }
+                group X { a, b: { c, d } } by .a;
+            ) {
+                key,
+                grouping,
+                elements: {
+                    a,
+                    b: {
+                        c,
+                        z := .d <= 1,
+                    },
+                },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_free_object_06(self):
+        # Remove pointer from output shape
+        await self.assert_query_result(
+            '''
+            select (
+                with X := {
+                    a := 1,
+                    b := { c := 2, d := random() }
+                }
+                group (select X { a, b: { c } }) by .a;
+            ) {
+                key,
+                grouping,
+                elements: {
+                    a,
+                    b: { c },
+                },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 2}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_free_object_07(self):
+        # Wrap subject in select
+        await self.assert_query_result(
+            '''
+            select (
+                with X := {
+                    a := 1,
+                    b := { c := 2, d := random() }
+                }
+                group (select X { a, b: { c, d } }) by .a;
+            ) {
+                key,
+                grouping,
+                elements: {
+                    a,
+                    b: {
+                        c,
+                        z := .d <= 1,
+                    },
+                },
+            };
+            ''',
+            tb.bag([
+                {
+                    'key': {'a': 1},
+                    'grouping': {'a'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 2, 'z': True}},
+                    ]),
+                },
+            ])
+        )
+
+    @test.xerror("""Group by doesn't materialize volatile properly""")
+    async def test_edgeql_group_binding_volatile_ptr_free_object_08(self):
+        # Use computed pointer only in by clause
+        await self.assert_query_result(
+            '''
+            select (
+                with X := {
+                    a := 1,
+                    b := { c := 2, d := random() }
+                }
+                group (select X { a, b: { c } })
+                using d := .b.c
+                by d;
+            ) {
+                key,
+                grouping,
+                elements: {
+                    a,
+                    b: { c },
+                },
+            };
+            ''',
+            tb.bag([
+                {
+                    'grouping': {'d'},
+                    'elements': tb.bag([
+                        {'a': 1, 'b': {'c': 2}},
+                    ]),
+                },
             ])
         )
 
