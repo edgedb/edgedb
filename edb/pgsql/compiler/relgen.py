@@ -1559,9 +1559,10 @@ def process_set_as_subquery(
             return _new_subquery_stmt_set_rvar(ir_set, stmt, ctx=newctx)
 
         # materialized refs should always get picked up by now
-        assert not isinstance(expr, irast.MaterializedExpr), (
-            f"Can't find materialized set {ir_set.path_id}"
-        )
+        if isinstance(expr, irast.MaterializedExpr):
+            raise AssertionError(
+                f"Can't find materialized set {ir_set.path_id}"
+            )
         assert isinstance(expr, irast.Stmt)
 
         inner_set = expr.result
