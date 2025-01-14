@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+import os
+import sys
 
 from edb.common import prometheus as prom
 
@@ -263,15 +265,16 @@ mt_tenant_reload_errors = registry.new_labeled_counter(
     labels=("tenant",),
 )
 
-open_fds = registry.new_gauge(
-    'open_fds',
-    'Number of open file descriptors.',
-)
+if os.name == 'posix' and (sys.platform == 'linux' or sys.platform == 'darwin'):
+    open_fds = registry.new_gauge(
+        'open_fds',
+        'Number of open file descriptors.',
+    )
 
-max_open_fds = registry.new_gauge(
-    'max_open_fds',
-    'Maximum number of open file descriptors.',
-)
+    max_open_fds = registry.new_gauge(
+        'max_open_fds',
+        'Maximum number of open file descriptors.',
+    )
 
 # Implement a function that monitors the number of open file descriptors
 # and updates the metrics accordingly. This will be replaced with a more
@@ -279,7 +282,6 @@ max_open_fds = registry.new_gauge(
 
 
 def monitor_open_fds_linux():
-    import os
     import time
     while True:
         max_open_fds.set(os.sysconf('SC_OPEN_MAX'))
@@ -302,7 +304,6 @@ def monitor_open_fds_linux():
 
 
 def monitor_open_fds_macos():
-    import os
     import time
     while True:
         max_open_fds.set(os.sysconf('SC_OPEN_MAX'))
@@ -319,15 +320,21 @@ def monitor_open_fds_macos():
 
 def start_monitoring_open_fds():
     import threading
-    import sys
-    import os
 
     # Supported only on Linux and macOS.
     if os.name == 'posix':
         if sys.platform == 'darwin':
-            threading.Thread(target=monitor_open_fds_macos, daemon=True).start()
+            threading.Thread(
+                target=monitor_open_fds_macos,
+                name='open_fds_monitor',
+                daemon=True
+            ).start()
         elif sys.platform == 'linux':
-            threading.Thread(target=monitor_open_fds_linux, daemon=True).start()
+            threading.Thread(
+                target=monitor_open_fds_linux,
+                name='open_fds_monitor',
+                daemon=True
+            ).start()
 
 
 start_monitoring_open_fds()
