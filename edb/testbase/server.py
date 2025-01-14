@@ -2394,6 +2394,7 @@ class _EdgeDBServer:
         extra_args: Optional[List[str]] = None,
         net_worker_mode: Optional[str] = None,
         password: Optional[str] = None,
+        testmode: bool = True,
     ) -> None:
         self.bind_addrs = bind_addrs
         self.auto_shutdown_after = auto_shutdown_after
@@ -2431,6 +2432,7 @@ class _EdgeDBServer:
         self.extra_args = extra_args
         self.net_worker_mode = net_worker_mode
         self.password = password
+        self.testmode = testmode
 
     async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
         while True:
@@ -2480,12 +2482,14 @@ class _EdgeDBServer:
         cmd = [
             sys.executable, '-m', 'edb.server.main',
             '--port', 'auto',
-            '--testmode',
             '--emit-server-status', f'fd://{status_w.fileno()}',
             '--compiler-pool-size', str(self.compiler_pool_size),
             '--tls-cert-mode', str(self.tls_cert_mode),
             '--jose-key-mode', 'generate',
         ]
+
+        if self.testmode:
+            cmd.extend(['--testmode'])
 
         if self.compiler_pool_mode is not None:
             cmd.extend(('--compiler-pool-mode', self.compiler_pool_mode.value))
@@ -2763,6 +2767,7 @@ def start_edgedb_server(
     default_branch: Optional[str] = None,
     net_worker_mode: Optional[str] = None,
     force_new: bool = False,  # True for ignoring multitenant config env
+    testmode: bool = True,
 ):
     if (not devmode.is_in_dev_mode() or adjacent_to) and not runstate_dir:
         if backend_dsn or adjacent_to:
@@ -2844,6 +2849,7 @@ def start_edgedb_server(
         default_branch=default_branch,
         net_worker_mode=net_worker_mode,
         password=password,
+        testmode=testmode,
     )
 
 

@@ -1552,6 +1552,8 @@ def parse_args(**kwargs: Any):
         if kwargs['compiler_pool_mode'] is not CompilerPoolMode.MultiTenant:
             abort("must use --compiler-pool-mode=fixed_multi_tenant "
                   "in multi-tenant mode")
+        if kwargs['testmode']:
+            abort("cannot use --testmode in multi-tenant mode")
 
     bootstrap_script_text: Optional[str]
     if kwargs['bootstrap_command_file']:
