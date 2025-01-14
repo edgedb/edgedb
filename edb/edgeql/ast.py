@@ -251,6 +251,16 @@ class FunctionCall(Expr):
     window: typing.Optional[WindowSpec] = None
 
 
+class StrInterpFragment(Base):
+    expr: Expr
+    suffix: str
+
+
+class StrInterp(Expr):
+    prefix: str
+    interpolations: list[StrInterpFragment]
+
+
 class BaseConstant(Expr):
     """Constant (a literal value)."""
     __abstract_node__ = True

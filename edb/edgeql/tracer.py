@@ -629,6 +629,19 @@ def trace_Array(node: qlast.Array, *, ctx: TracerContext) -> None:
 
 
 @trace.register
+def trace_StrInterpFragment(
+    node: qlast.StrInterpFragment, *, ctx: TracerContext
+) -> None:
+    trace(node.expr, ctx=ctx)
+
+
+@trace.register
+def trace_StrInterp(node: qlast.StrInterp, *, ctx: TracerContext) -> None:
+    for el in node.interpolations:
+        trace(el, ctx=ctx)
+
+
+@trace.register
 def trace_Set(node: qlast.Set, *, ctx: TracerContext) -> None:
     for el in node.elements:
         trace(el, ctx=ctx)

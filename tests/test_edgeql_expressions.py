@@ -10612,3 +10612,27 @@ aa \
                     "Foo' does not exist",
                 ):
                     await self.con.execute(query)
+
+    async def test_edgeql_expr_str_interpolation_01(self):
+        await self.assert_query_result(
+            r'''
+                select "1 + 1 = \(1 + 1)"
+            ''',
+            ['1 + 1 = 2'],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select ("1 + 1 = \(1 + 1)")
+            ''',
+            ['1 + 1 = 2'],
+        )
+
+        # Have some more fun. Nest it a bit.
+        await self.assert_query_result(
+            r'''select "asdf \(str_reverse("1234") ++
+"[\(sum({1,2,3}))]")! count(User)=\
+\(
+count(User))" ++ "!";''',
+            ['asdf 4321[6]! count(User)=0!'],
+        )

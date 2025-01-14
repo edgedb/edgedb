@@ -455,6 +455,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._write_keywords('GLOBAL ')
         self.visit(node.name)
 
+    def visit_StrInterp(self, node: qlast.StrInterp) -> None:
+        self.write("'")
+        self.write(edgeql_quote.escape_string(node.prefix))
+        for fragment in node.interpolations:
+            self.write("\\(")
+            self.visit(fragment.expr)
+            self.write(")")
+            self.write(edgeql_quote.escape_string(fragment.suffix))
+        self.write("'")
+
     def visit_UnaryOp(self, node: qlast.UnaryOp) -> None:
         op = str(node.op).upper()
         self.write(op)
