@@ -24,6 +24,8 @@ from docutils import nodes as d_nodes
 from docutils.parsers import rst as d_rst
 from docutils.parsers.rst import directives as d_directives  # type: ignore
 
+from sphinx_code_tabs import TabsNode
+
 
 class EDBYoutubeEmbed(d_rst.Directive):
 
@@ -56,13 +58,47 @@ class EDBCollapsed(d_rst.Directive):
         return [node]
 
 
+class EDBEnvironmentSwitcher(d_rst.Directive):
+
+    has_content = False
+    optional_arguments = 0
+    required_arguments = 0
+
+    def run(self):
+        node = d_nodes.container()
+        node['env-switcher'] = True
+        return [node]
+    
+
+class EDBSplitSection(d_rst.Directive):
+
+    has_content = True
+    optional_arguments = 0
+    required_arguments = 0
+
+    def run(self):
+        node = d_nodes.container()
+        node['split-section'] = True
+        self.state.nested_parse(self.content, self.content_offset, node)
+        if (
+            not isinstance(node.children[0], d_nodes.literal_block)
+            and not isinstance(node.children[0], TabsNode)
+        ):
+            raise Exception(
+                f'expected edb:split-section content to begin with a code block'
+            )
+        return [node]
+
+
 class GelDomain(s_domains.Domain):
     name = "edb"
     label = "Gel"
 
     directives = {
         'collapsed': EDBCollapsed,
-        'youtube-embed': EDBYoutubeEmbed
+        'youtube-embed': EDBYoutubeEmbed,
+        'env-switcher': EDBEnvironmentSwitcher,
+        'split-section': EDBSplitSection,
     }
 
 
