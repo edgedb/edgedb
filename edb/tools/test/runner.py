@@ -96,8 +96,6 @@ def init_worker(
     global py_random_seed
 
     faulthandler.enable(file=sys.stderr, all_threads=True)
-    # If we're still running after 30 minutes, dump the traceback.
-    faulthandler.dump_traceback_later(30 * 60, file=sys.stderr)
 
     if additional_init:
         additional_init()
