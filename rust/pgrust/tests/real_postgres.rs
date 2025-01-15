@@ -17,8 +17,41 @@ fn address(address: &ListenAddress) -> ResolvedTarget {
     }
 }
 
+/// Ensure that a notice doesn't cause unexpected behavior.
+#[test_log::test(tokio::test)]
+async fn test_auth_noisy() -> Result<(), Box<dyn std::error::Error>> {
+    let Ok(builder) = PostgresBuilder::new().with_automatic_bin_path() else {
+        return Ok(());
+    };
+
+    let builder = builder
+        .debug_level(5)
+        .server_option("client_min_messages", "debug5");
+
+    let process = builder.build()?;
+
+    let credentials = Credentials {
+        username: DEFAULT_USERNAME.to_string(),
+        password: DEFAULT_PASSWORD.to_string(),
+        database: DEFAULT_DATABASE.to_string(),
+        server_settings: Default::default(),
+    };
+
+    let client = address(&process.socket_address).connect().await?;
+
+    let ssl_requirement = ConnectionSslRequirement::Optional;
+
+    let params = connect_raw_ssl(credentials, ssl_requirement, create_ssl_client()?, client)
+        .await?
+        .params()
+        .clone();
+    assert_eq!(params.auth, AuthType::Trust);
+
+    Ok(())
+}
+
 #[rstest]
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn test_auth_real(
     #[values(AuthType::Trust, AuthType::Plain, AuthType::Md5, AuthType::ScramSha256)]
     auth: AuthType,

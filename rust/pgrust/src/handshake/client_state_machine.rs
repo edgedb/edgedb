@@ -93,8 +93,12 @@ pub trait ConnectionStateUpdate: ConnectionStateSend {
     fn parameter(&mut self, name: &str, value: &str) {}
     fn cancellation_key(&mut self, pid: i32, key: i32) {}
     fn state_changed(&mut self, state: ConnectionStateType) {}
-    fn server_error(&mut self, error: &PgServerError) {}
-    fn server_notice(&mut self, notice: &PgServerError) {}
+    fn server_error(&mut self, error: &PgServerError) {
+        error!("Server error during handshake: {:?}", error);
+    }
+    fn server_notice(&mut self, notice: &PgServerError) {
+        warn!("Server notice during handshake: {:?}", notice);
+    }
     fn auth(&mut self, auth: AuthType) {}
 }
 
