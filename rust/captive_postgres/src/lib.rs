@@ -22,16 +22,13 @@ pub const DEFAULT_DATABASE: &str = "postgres";
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub enum PostgresBinPath {
+    #[default]
     Path,
     Specified(PathBuf),
 }
 
-impl Default for PostgresBinPath {
-    fn default() -> Self {
-        PostgresBinPath::Path
-    }
-}
 
 #[derive(Debug)]
 pub struct PostgresBuilder {
@@ -169,10 +166,7 @@ impl PostgresBuilder {
         init_postgres(&initdb, &data_dir, self.auth)?;
         let port = port.take();
 
-        let ssl_config = match self.ssl_cert_and_key {
-            Some((cert, key)) => Some((cert, key)),
-            None => None,
-        };
+        let ssl_config = self.ssl_cert_and_key;
 
         let (socket_address, socket_path) = if self.unix_enabled {
             (
@@ -439,7 +433,7 @@ fn run_postgres(
         }
         if let Some(unix_socket_path) = &unix_socket_path {
             if unix_socket.is_none() {
-                unix_socket = std::os::unix::net::UnixStream::connect(&unix_socket_path).ok();
+                unix_socket = std::os::unix::net::UnixStream::connect(unix_socket_path).ok();
             }
         }
         if tcp_socket.is_none() {
