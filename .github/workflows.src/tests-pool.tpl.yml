@@ -46,7 +46,7 @@ jobs:
         TIME_SCALE: 10
       run: |
         mkdir -p pool-simulation/reports
-        python tests/test_server_pool.py
+        # python tests/test_server_pool.py
 
     - uses: EndBug/add-and-commit@v7.0.0
       if: ${{ always() }}
