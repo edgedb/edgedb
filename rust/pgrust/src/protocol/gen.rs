@@ -791,7 +791,7 @@ mod tests {
                 fixed(fixed_offset = fixed_offset, (0)),
             },
             {
-                name(l), type (crate::protocol::meta::Length), size(fixed = fixed),
+                name(l), type ($crate::protocol::meta::Length), size(fixed = fixed),
                 value(auto = auto), docs(concat!("`", stringify! (l), "` field.")),
                 fixed(fixed_offset = fixed_offset, ((0) + std::mem::size_of::<u8>())),
             },
