@@ -827,7 +827,7 @@ mod tests {
                 fixed(fixed_offset = fixed_offset, (0)),
             },
             {
-                name(l), type (crate::meta::Length), size(fixed = fixed),
+                name(l), type ($crate::meta::Length), size(fixed = fixed),
                 value(auto = auto), docs(concat!("`", stringify! (l), "` field.")),
                 fixed(fixed_offset = fixed_offset, ((0) + std::mem::size_of::<u8>())),
             },
@@ -843,7 +843,7 @@ mod tests {
                 fixed(no_fixed_offset = no_fixed_offset, (0)),
             },
             {
-                name(d), type (crate::meta::FixedArray<4, u8>), size(fixed = fixed),
+                name(d), type ($crate::meta::FixedArray<4, u8>), size(fixed = fixed),
                 value(no_value = no_value),
                 docs(concat!("`", stringify! (d), "` field.")),
                 fixed(no_fixed_offset = no_fixed_offset, ((0) + std::mem::size_of::<i16>())),
