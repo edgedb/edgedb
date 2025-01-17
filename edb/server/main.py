@@ -53,6 +53,7 @@ import setproctitle
 import uvloop
 
 from edb import buildmeta
+from edb import errors
 from edb.ir import statypes
 from edb.common import exceptions
 from edb.common import devmode
@@ -71,6 +72,7 @@ from . import service_manager
 
 if TYPE_CHECKING:
     from . import server
+    from edb.server import bootstrap
 else:
     # Import server lazily to make sure that most of imports happen
     # under coverage (if we're testing with it).  Otherwise
@@ -411,6 +413,50 @@ async def _get_remote_pgcluster(
     return cluster, args
 
 
+def _patch_stdlib_testmode(
+    stdlib: bootstrap.StdlibBits
+) -> bootstrap.StdlibBits:
+    from edb import edgeql
+    from edb.pgsql import delta as delta_cmds
+    from edb.pgsql import params as pg_params
+    from edb.edgeql import ast as qlast
+    from edb.schema import ddl as s_ddl
+    from edb.schema import delta as sd
+    from edb.schema import schema as s_schema
+    from edb.schema import std as s_std
+
+    schema: s_schema.Schema = s_schema.ChainedSchema(
+        s_schema.EMPTY_SCHEMA,
+        stdlib.stdschema,
+        stdlib.global_schema,
+    )
+    reflschema = stdlib.reflschema
+    ctx = sd.CommandContext(
+        stdmode=True,
+        backend_runtime_params=pg_params.get_default_runtime_params(),
+    )
+
+    for modname in s_schema.TESTMODE_SOURCES:
+        ddl_text = s_std.get_std_module_text(modname)
+        for ddl_cmd in edgeql.parse_block(ddl_text):
+            assert isinstance(ddl_cmd, qlast.DDLCommand)
+            delta = s_ddl.delta_from_ddl(
+                ddl_cmd, modaliases={}, schema=schema, stdmode=True
+            )
+            if not delta.canonical:
+                sd.apply(delta, schema=schema)
+            delta = delta_cmds.CommandMeta.adapt(delta)
+            schema = sd.apply(delta, schema=schema, context=ctx)
+            reflschema = delta.apply(reflschema, ctx)
+
+    assert isinstance(schema, s_schema.ChainedSchema)
+    return stdlib._replace(
+        stdschema=schema.get_top_schema(),
+        global_schema=schema.get_global_schema(),
+        reflschema=reflschema,
+    )
+
+
 async def run_server(
     args: srvargs.ServerConfig,
     *,
@@ -496,6 +542,19 @@ async def run_server(
                     "Cannot run multi-tenant server "
                     "without pre-compiled standard library"
                 )
+            if args.testmode:
+                # In multitenant mode, the server/compiler is started without a
+                # backend and will be connected to many backends. That means we
+                # cannot load the stdlib from a certain backend; instead, the
+                # pre-compiled stdlib is always in use. This means that we need
+                # to explicitly enable --testmode starting a multitenant server
+                # in order to handle backends with test-mode schema properly.
+                try:
+                    stdlib = _patch_stdlib_testmode(stdlib)
+                except errors.SchemaError:
+                    # The pre-compiled standard library already has test-mode
+                    # schema; ignore the patching error.
+                    pass
 
             compiler = edbcompiler.new_compiler(
                 stdlib.stdschema,
