@@ -292,6 +292,8 @@ class ServerConfig(NamedTuple):
 
     admin_ui: bool
 
+    override_cors_allowed_origins: Optional[str]
+
 
 class PathPath(click.Path):
     name = 'path'
@@ -1081,6 +1083,16 @@ server_options = typeutils.chain_decorators([
         ),
         default='default',
         help='Enable admin UI.'),
+    click.option(
+        '--override-cors-allowed-origins',
+        envvar="GEL_SERVER_OVERRIDE_CORS_ALLOWED_ORIGINS",
+        cls=EnvvarResolver,
+        hidden=True,
+        help='A comma separated list of origins to always allow CORS requests '
+             'from regardless of the `cors_allow_orgin` config. The `*` '
+             'character can be used as a wildcard. Intended for use by cloud '
+             'to always allow the cloud UI to make requests to the instance.'
+    ),
     click.option(
         '--disable-dynamic-system-config', is_flag=True,
         envvar="GEL_SERVER_DISABLE_DYNAMIC_SYSTEM_CONFIG",

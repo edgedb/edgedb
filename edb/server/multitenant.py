@@ -468,6 +468,7 @@ async def run_server(
             default_auth_method=args.default_auth_method,
             testmode=args.testmode,
             admin_ui=args.admin_ui,
+            override_cors_origins=args.override_cors_allowed_origins,
             disable_dynamic_system_config=args.disable_dynamic_system_config,
             compiler_pool_size=args.compiler_pool_size,
             compiler_pool_mode=srvargs.CompilerPoolMode.MultiTenant,

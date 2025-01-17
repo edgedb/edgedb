@@ -20,6 +20,7 @@
 
 
 from __future__ import annotations
+import re
 from typing import (
     Any,
     Callable,
@@ -160,6 +161,7 @@ class BaseServer:
         default_auth_method: srvargs.ServerAuthMethods = (
             srvargs.DEFAULT_AUTH_METHODS),
         admin_ui: bool = False,
+        override_cors_origins: Optional[str] = None,
         disable_dynamic_system_config: bool = False,
         compiler_state: edbcompiler.CompilerState,
         use_monitor_fs: bool = False,
@@ -252,6 +254,15 @@ class BaseServer:
 
         self._admin_ui = admin_ui
 
+        self._override_cors_origins = [
+            re.compile(
+                '^' + origin
+                    .replace('.', '\\.')
+                    .replace('*', '.*') + '$'
+            ) if '*' in origin else origin
+            for origin in override_cors_origins.split(',')
+        ] if override_cors_origins else []
+
         self._file_watch_handles = []
         self._tls_certs_reload_retry_handle: Any | asyncio.TimerHandle = None
 
@@ -307,6 +318,9 @@ class BaseServer:
 
     def is_admin_ui_enabled(self):
         return self._admin_ui
+
+    def get_override_cors_origins(self):
+        return self._override_cors_origins
 
     def on_binary_client_created(self) -> str:
         self._binary_proto_id_counter += 1

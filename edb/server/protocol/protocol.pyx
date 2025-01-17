@@ -840,13 +840,21 @@ cdef class HttpProtocol:
             config = self.tenant.get_sys_config().get('cors_allow_origins')
 
         allowed_origins = config.value if config else None
+        overrides = self.server.get_override_cors_origins()
 
-        if allowed_origins is None:
+        if allowed_origins is None and overrides == []:
             return False
 
         origin = request.origin.decode() if request.origin else None
+
         origin_allowed = origin is not None and (
-            origin in allowed_origins or '*' in allowed_origins)
+                any(
+                    override.match(origin) if isinstance(override, re.Pattern)
+                    else origin == override
+                    for override in overrides
+                )
+                or (origin in allowed_origins or '*' in allowed_origins)
+            )
 
         if origin_allowed:
             response.custom_headers['Access-Control-Allow-Origin'] = origin
