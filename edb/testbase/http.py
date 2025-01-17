@@ -47,7 +47,13 @@ bag = assert_data_shape.bag
 class BaseHttpTest(server.QueryTestCase):
     @classmethod
     async def _wait_for_db_config(
-        cls, config_key, *, server=None, instance_config=False, value=None
+        cls,
+        config_key,
+        *,
+        server=None,
+        instance_config=False,
+        value=None,
+        is_reset=False,
     ):
         dbname = cls.get_database_name()
         # Wait for the database config changes to propagate to the
@@ -68,17 +74,21 @@ class BaseHttpTest(server.QueryTestCase):
                         path="server-info",
                     )
                     data = json.loads(rdata)
-                    if 'databases' not in data:
+                    if "databases" not in data:
                         # multi-tenant instance - use the first tenant
-                        data = next(iter(data['tenants'].values()))
+                        data = next(iter(data["tenants"].values()))
                     if instance_config:
-                        config = data['instance_config']
+                        config = data["instance_config"]
                     else:
-                        config = data['databases'][dbname]['config']
-                    if config_key not in config:
-                        raise AssertionError('database config not ready')
-                    if value and config[config_key] != value:
-                        raise AssertionError(f'database config not ready')
+                        config = data["databases"][dbname]["config"]
+                    if is_reset:
+                        if config_key in config:
+                            raise AssertionError("database config not ready")
+                    else:
+                        if config_key not in config:
+                            raise AssertionError("database config not ready")
+                        if value and config[config_key] != value:
+                            raise AssertionError("database config not ready")
 
 
 class BaseHttpExtensionTest(BaseHttpTest):
@@ -90,25 +100,23 @@ class BaseHttpExtensionTest(BaseHttpTest):
     def get_api_prefix(cls):
         extpath = cls.get_extension_path()
         dbname = cls.get_database_name()
-        return f'/branch/{dbname}/{extpath}'
+        return f"/branch/{dbname}/{extpath}"
 
 
 class ExtAuthTestCase(BaseHttpExtensionTest):
-
-    EXTENSIONS = ['pgcrypto', 'auth']
+    EXTENSIONS = ["pgcrypto", "auth"]
 
     @classmethod
     def get_extension_path(cls):
-        return 'ext/auth'
+        return "ext/auth"
 
 
 class EdgeQLTestCase(BaseHttpExtensionTest):
-
-    EXTENSIONS = ['edgeql_http']
+    EXTENSIONS = ["edgeql_http"]
 
     @classmethod
     def get_extension_path(cls):
-        return 'edgeql'
+        return "edgeql"
 
     def edgeql_query(
         self,
@@ -119,46 +127,44 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
         globals=None,
         origin=None,
     ):
-        req_data = {
-            'query': query
-        }
+        req_data = {"query": query}
 
         if use_http_post:
             if variables is not None:
-                req_data['variables'] = variables
+                req_data["variables"] = variables
             if globals is not None:
-                req_data['globals'] = globals
-            req = urllib.request.Request(self.http_addr, method='POST')
-            req.add_header('Content-Type', 'application/json')
-            req.add_header('Authorization', self.make_auth_header())
+                req_data["globals"] = globals
+            req = urllib.request.Request(self.http_addr, method="POST")
+            req.add_header("Content-Type", "application/json")
+            req.add_header("Authorization", self.make_auth_header())
             if origin:
-                req.add_header('Origin', origin)
+                req.add_header("Origin", origin)
             response = urllib.request.urlopen(
                 req, json.dumps(req_data).encode(), context=self.tls_context
             )
             resp_data = json.loads(response.read())
         else:
             if variables is not None:
-                req_data['variables'] = json.dumps(variables)
+                req_data["variables"] = json.dumps(variables)
             if globals is not None:
-                req_data['globals'] = json.dumps(globals)
+                req_data["globals"] = json.dumps(globals)
             req = urllib.request.Request(
-                f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}',
+                f"{self.http_addr}/?{urllib.parse.urlencode(req_data)}",
             )
-            req.add_header('Authorization', self.make_auth_header())
+            req.add_header("Authorization", self.make_auth_header())
             response = urllib.request.urlopen(
                 req,
                 context=self.tls_context,
             )
             resp_data = json.loads(response.read())
 
-        if 'data' in resp_data:
-            return (resp_data['data'], response)
+        if "data" in resp_data:
+            return (resp_data["data"], response)
 
-        err = resp_data['error']
+        err = resp_data["error"]
 
-        ex_msg = err['message'].strip()
-        ex_code = err['code']
+        ex_msg = err["message"].strip()
+        ex_code = err["code"]
 
         raise edgedb.EdgeDBError._from_code(ex_code, ex_msg)
 
@@ -177,7 +183,8 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
             query,
             use_http_post=use_http_post,
             variables=variables,
-            globals=globals)
+            globals=globals,
+        )
 
         if sort is not None:
             # GQL will always have a single object returned. The data is
@@ -185,18 +192,16 @@ class EdgeQLTestCase(BaseHttpExtensionTest):
             for r in res.values():
                 assert_data_shape.sort_results(r, sort)
 
-        assert_data_shape.assert_data_shape(
-            res, result, self.fail, message=msg)
+        assert_data_shape.assert_data_shape(res, result, self.fail, message=msg)
         return res
 
 
 class GraphQLTestCase(BaseHttpExtensionTest):
-
-    EXTENSIONS = ['graphql']
+    EXTENSIONS = ["graphql"]
 
     @classmethod
     def get_extension_path(cls):
-        return 'graphql'
+        return "graphql"
 
     def graphql_query(
         self,
@@ -208,25 +213,25 @@ class GraphQLTestCase(BaseHttpExtensionTest):
         globals=None,
         deprecated_globals=None,
     ):
-        req_data = {'query': query}
+        req_data = {"query": query}
 
         if operation_name is not None:
-            req_data['operationName'] = operation_name
+            req_data["operationName"] = operation_name
 
         if use_http_post:
             if variables is not None:
-                req_data['variables'] = variables
+                req_data["variables"] = variables
             if globals is not None:
                 if variables is None:
-                    req_data['variables'] = dict()
-                req_data['variables']['__globals__'] = globals
+                    req_data["variables"] = dict()
+                req_data["variables"]["__globals__"] = globals
             # Support testing the old way of sending globals.
             if deprecated_globals is not None:
-                req_data['globals'] = deprecated_globals
+                req_data["globals"] = deprecated_globals
 
-            req = urllib.request.Request(self.http_addr, method='POST')
-            req.add_header('Content-Type', 'application/json')
-            req.add_header('Authorization', self.make_auth_header())
+            req = urllib.request.Request(self.http_addr, method="POST")
+            req.add_header("Content-Type", "application/json")
+            req.add_header("Authorization", self.make_auth_header())
             response = urllib.request.urlopen(
                 req, json.dumps(req_data).encode(), context=self.tls_context
             )
@@ -235,45 +240,48 @@ class GraphQLTestCase(BaseHttpExtensionTest):
             if globals is not None:
                 if variables is None:
                     variables = dict()
-                variables['__globals__'] = globals
+                variables["__globals__"] = globals
             # Support testing the old way of sending globals.
             if deprecated_globals is not None:
-                req_data['globals'] = json.dumps(deprecated_globals)
+                req_data["globals"] = json.dumps(deprecated_globals)
             if variables is not None:
-                req_data['variables'] = json.dumps(variables)
+                req_data["variables"] = json.dumps(variables)
             req = urllib.request.Request(
-                f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}',
+                f"{self.http_addr}/?{urllib.parse.urlencode(req_data)}",
             )
-            req.add_header('Authorization', self.make_auth_header())
+            req.add_header("Authorization", self.make_auth_header())
             response = urllib.request.urlopen(
                 req,
                 context=self.tls_context,
             )
             resp_data = json.loads(response.read())
 
-        if 'data' in resp_data:
-            return resp_data['data']
+        if "data" in resp_data:
+            return resp_data["data"]
 
-        err = resp_data['errors'][0]
+        err = resp_data["errors"][0]
 
-        typename, msg = err['message'].split(':', 1)
+        typename, msg = err["message"].split(":", 1)
         msg = msg.strip()
 
         try:
             ex_type = getattr(edgedb, typename)
         except AttributeError:
             raise AssertionError(
-                f'server returned an invalid exception typename: {typename!r}'
-                f'\n  Message: {msg}')
+                f"server returned an invalid exception typename: {typename!r}"
+                f"\n  Message: {msg}"
+            )
 
         ex = ex_type(msg)
 
-        if 'locations' in err:
+        if "locations" in err:
             # XXX Fix this when LSP "location" objects are implemented
             ex._attrs[base_errors.FIELD_LINE_START] = str(
-                err['locations'][0]['line']).encode()
+                err["locations"][0]["line"]
+            ).encode()
             ex._attrs[base_errors.FIELD_COLUMN_START] = str(
-                err['locations'][0]['column']).encode()
+                err["locations"][0]["column"]
+            ).encode()
 
         raise ex
 
@@ -296,7 +304,8 @@ class GraphQLTestCase(BaseHttpExtensionTest):
             use_http_post=use_http_post,
             variables=variables,
             globals=globals,
-            deprecated_globals=deprecated_globals)
+            deprecated_globals=deprecated_globals,
+        )
 
         if sort is not None:
             # GQL will always have a single object returned. The data is
@@ -304,8 +313,7 @@ class GraphQLTestCase(BaseHttpExtensionTest):
             for r in res.values():
                 assert_data_shape.sort_results(r, sort)
 
-        assert_data_shape.assert_data_shape(
-            res, result, self.fail, message=msg)
+        assert_data_shape.assert_data_shape(res, result, self.fail, message=msg)
         return res
 
 
@@ -317,12 +325,12 @@ class MockHttpServerHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         self.close_connection = False
         server, path = self.get_server_and_path()
-        self.server.owner.handle_request('GET', server, path, self)
+        self.server.owner.handle_request("GET", server, path, self)
 
     def do_POST(self):
         self.close_connection = False
         server, path = self.get_server_and_path()
-        self.server.owner.handle_request('POST', server, path, self)
+        self.server.owner.handle_request("POST", server, path, self)
 
     def log_message(self, *args):
         pass
@@ -332,10 +340,9 @@ class MultiHostMockHttpServerHandler(MockHttpServerHandler):
     def get_server_and_path(self) -> tuple[str, str]:
         # Path looks like:
         # http://127.0.0.1:32881/https%3A//slack.com/.well-known/openid-configuration
-        raw_url = urllib.parse.unquote(self.path.lstrip('/'))
+        raw_url = urllib.parse.unquote(self.path.lstrip("/"))
         url = urllib.parse.urlparse(raw_url)
-        return (f'{url.scheme}://{url.netloc}',
-                url.path.lstrip('/'))
+        return (f"{url.scheme}://{url.netloc}", url.path.lstrip("/"))
 
 
 ResponseType = tuple[str, int] | tuple[str, int, dict[str, str]]
@@ -384,7 +391,7 @@ class MockHttpServer:
                 | Callable[
                     [MockHttpServerHandler, RequestDetails], ResponseType
                 ]
-            )
+            ),
         ):
             self.routes[(method, server, path)] = handler
             return handler
@@ -408,8 +415,8 @@ class MockHttpServer:
         parsed_path = urllib.parse.urlparse(path)
         headers = {k.lower(): v for k, v in dict(handler.headers).items()}
         query_params = urllib.parse.parse_qs(parsed_path.query)
-        if 'content-length' in headers:
-            body = handler.rfile.read(int(headers['content-length'])).decode()
+        if "content-length" in headers:
+            body = handler.rfile.read(int(headers["content-length"])).decode()
         else:
             body = None
 
@@ -420,8 +427,10 @@ class MockHttpServer:
         )
         self.requests[key].append(request_details)
         if key not in self.routes:
-            error_message = (f"No route handler for {key}\n\n"
-                f"Available routes:\n{self.routes}")
+            error_message = (
+                f"No route handler for {key}\n\n"
+                f"Available routes:\n{self.routes}"
+            )
             handler.send_error(404, message=error_message)
             return
 
@@ -458,9 +467,9 @@ class MockHttpServer:
             )
             or accept_header == "*/*"
         ):
-            content_type = 'application/json'
+            content_type = "application/json"
         elif accept_header.startswith("application/x-www-form-urlencoded"):
-            content_type = 'application/x-www-form-urlencoded'
+            content_type = "application/x-www-form-urlencoded"
         else:
             handler.send_error(
                 415, f"Unsupported accept header: {accept_header}"
@@ -470,8 +479,8 @@ class MockHttpServer:
         data = response.encode()
 
         handler.send_response(status)
-        handler.send_header('Content-Type', content_type)
-        handler.send_header('Content-Length', str(len(data)))
+        handler.send_header("Content-Type", content_type)
+        handler.send_header("Content-Length", str(len(data)))
         if additional_headers is not None:
             for header, value in additional_headers.items():
                 handler.send_header(header, value)
@@ -479,11 +488,11 @@ class MockHttpServer:
         handler.wfile.write(data)
 
     def start(self):
-        assert not hasattr(self, '_http_runner')
+        assert not hasattr(self, "_http_runner")
         self._http_runner = threading.Thread(target=self._http_worker)
         self._http_runner.start()
         self.has_started.wait()
-        self.url = f'http://{self._address[0]}:{self._address[1]}/'
+        self.url = f"http://{self._address[0]}:{self._address[1]}/"
 
     def __enter__(self):
         self.start()
@@ -491,7 +500,7 @@ class MockHttpServer:
 
     def _http_worker(self):
         self._http_server = http.server.HTTPServer(
-            ('localhost', 0), self.handler_type
+            ("localhost", 0), self.handler_type
         )
         self._http_server.owner = self
         self._address = self._http_server.server_address
