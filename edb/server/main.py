@@ -543,6 +543,12 @@ async def run_server(
                     "without pre-compiled standard library"
                 )
             if args.testmode:
+                # In multitenant mode, the server/compiler is started without a
+                # backend and will be connected to many backends. That means we
+                # cannot load the stdlib from a certain backend; instead, the
+                # pre-compiled stdlib is always in use. This means that we need
+                # to explicitly enable --testmode starting a multitenant server
+                # in order to handle backends with test-mode schema properly.
                 try:
                     stdlib = _patch_stdlib_testmode(stdlib)
                 except errors.SchemaError:
