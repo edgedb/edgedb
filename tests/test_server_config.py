@@ -2202,12 +2202,17 @@ class TestStaticServerConfig(tb.TestCase):
                 pass
 
     async def test_server_config_env_01(self):
+        # Backend settings cannot be set statically with remote backend
+        remote_pg = bool(os.getenv("EDGEDB_TEST_BACKEND_DSN"))
+
         env = {
             "EDGEDB_SERVER_CONFIG_cfg::session_idle_timeout": "1m22s",
-            "EDGEDB_SERVER_CONFIG_cfg::query_execution_timeout": "403",
             "EDGEDB_SERVER_CONFIG_cfg::apply_access_policies": "false",
             "EDGEDB_SERVER_CONFIG_cfg::multiprop": "single",
         }
+        if not remote_pg:
+            env["EDGEDB_SERVER_CONFIG_cfg::query_execution_timeout"] = "403"
+
         async with tb.start_edgedb_server(env=env) as sd:
             conn = await sd.connect()
             try:
@@ -2223,13 +2228,14 @@ class TestStaticServerConfig(tb.TestCase):
                     """),
                     datetime.timedelta(minutes=1, seconds=22),
                 )
-                self.assertEqual(
-                    await conn.query_single("""\
-                        select assert_single(
-                            cfg::Config.query_execution_timeout)
-                    """),
-                    datetime.timedelta(seconds=403),
-                )
+                if not remote_pg:
+                    self.assertEqual(
+                        await conn.query_single("""\
+                            select assert_single(
+                                cfg::Config.query_execution_timeout)
+                        """),
+                        datetime.timedelta(seconds=403),
+                    )
                 self.assertFalse(
                     await conn.query_single("""\
                         select assert_single(cfg::Config.apply_access_policies)
@@ -2313,6 +2319,10 @@ class TestStaticServerConfig(tb.TestCase):
             finally:
                 await conn.aclose()
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use --config-file in multi-tenant mode",
+    )
     async def test_server_config_file_01(self):
         conf = textwrap.dedent('''
             ["cfg::Config"]
@@ -2390,6 +2400,10 @@ class TestStaticServerConfig(tb.TestCase):
             finally:
                 await conn.aclose()
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use --config-file in multi-tenant mode",
+    )
     async def test_server_config_file_02(self):
         conf = textwrap.dedent('''
             ["cfg::Config"]
@@ -2406,6 +2420,10 @@ class TestStaticServerConfig(tb.TestCase):
             ):
                 pass
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use --config-file in multi-tenant mode",
+    )
     async def test_server_config_file_03(self):
         conf = textwrap.dedent('''
             ["cfg::Config"]
@@ -2422,6 +2440,10 @@ class TestStaticServerConfig(tb.TestCase):
             ):
                 pass
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use --config-file in multi-tenant mode",
+    )
     async def test_server_config_file_04(self):
         conf = textwrap.dedent('''
             ["cfg::Config"]
@@ -2439,6 +2461,10 @@ class TestStaticServerConfig(tb.TestCase):
             ):
                 pass
 
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use --config-file in multi-tenant mode",
+    )
     async def test_server_config_file_05(self):
         class Prop(enum.Enum):
             One = "One"
