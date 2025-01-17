@@ -1520,7 +1520,6 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
                 runstate_dir=runstate_dir,
                 backend_dsn=f'postgres:///?user=postgres&host={path}',
                 reset_auth=True,
-                testmode=False,
                 auto_shutdown_after=1,
             ) as sd:
                 connect_args = {
@@ -1577,7 +1576,6 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
                     runstate_dir=runstate_dir,
                     multitenant_config=conf_file.name,
                     max_allowed_connections=None,
-                    testmode=False,
                     http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
                 )
                 async with srv as sd:
@@ -1800,13 +1798,6 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
         )
 
     async def _test_server_ops_multi_tenant_7(self, mtargs: MultiTenantArgs):
-        # FIXME(fantix?) - We can't test this outside devmode, because we
-        # can't currently use testmode in multi-tenant mode.
-        # This means that we can't access the server-info debug endpoint
-        # to get the info we need outside of devmode.
-        if not devmode.is_in_dev_mode():
-            return
-
         self.assertEqual(
             (await mtargs.current_email_provider(1))["sender"],
             "sender@host1.com",
