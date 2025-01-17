@@ -292,7 +292,7 @@ class ServerConfig(NamedTuple):
 
     admin_ui: bool
 
-    override_cors_allowed_origins: Optional[str]
+    cors_always_allowed_origins: Optional[str]
 
 
 class PathPath(click.Path):
@@ -1084,8 +1084,8 @@ server_options = typeutils.chain_decorators([
         default='default',
         help='Enable admin UI.'),
     click.option(
-        '--override-cors-allowed-origins',
-        envvar="GEL_SERVER_OVERRIDE_CORS_ALLOWED_ORIGINS",
+        '--cors-always-allowed-origins',
+        envvar="GEL_SERVER_CORS_ALWAYS_ALLOWED_ORIGINS",
         cls=EnvvarResolver,
         hidden=True,
         help='A comma separated list of origins to always allow CORS requests '

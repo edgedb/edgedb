@@ -246,7 +246,7 @@ async def _run_server(
             pidfile_dir=args.pidfile_dir,
             new_instance=new_instance,
             admin_ui=args.admin_ui,
-            override_cors_origins=args.override_cors_allowed_origins,
+            cors_always_allowed_origins=args.cors_always_allowed_origins,
             disable_dynamic_system_config=args.disable_dynamic_system_config,
             compiler_state=compiler.state,
             tenant=tenant,
