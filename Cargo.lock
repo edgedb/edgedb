@@ -311,6 +311,7 @@ name = "captive_postgres"
 version = "0.1.0"
 dependencies = [
  "gel_auth",
+ "nix",
  "openssl",
  "socket2",
  "tempfile",
