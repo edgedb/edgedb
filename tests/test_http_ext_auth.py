@@ -256,7 +256,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
         }};
 
         CONFIGURE CURRENT DATABASE SET
-        cfg::current_email_provider_name := "email_hosting_is_easy";
+        current_email_provider_name := "email_hosting_is_easy";
 
         CONFIGURE CURRENT DATABASE SET
         ext::auth::AuthConfig::auth_signing_key := '{SIGNING_KEY}';
@@ -2816,6 +2816,45 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             self.assertEqual(status, 400)
+
+    async def test_http_auth_ext_local_password_register_form_no_smtp(self):
+        await self.con.query(
+            """
+            CONFIGURE CURRENT DATABASE RESET
+            current_email_provider_name;
+            """,
+        )
+        await self._wait_for_db_config("cfg::current_email_provider_name")
+        try:
+            with self.http_con() as http_con:
+                email = f"{uuid.uuid4()}@example.com"
+                form_data = {
+                    "provider": "builtin::local_emailpassword",
+                    "email": email,
+                    "password": "test_password",
+                    "challenge": str(uuid.uuid4()),
+                }
+                form_data_encoded = urllib.parse.urlencode(form_data).encode()
+
+                _, _, status = self.http_con_request(
+                    http_con,
+                    None,
+                    path="register",
+                    method="POST",
+                    body=form_data_encoded,
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                )
+
+                self.assertEqual(status, 201)
+        finally:
+            await self.con.query(
+                """
+                CONFIGURE CURRENT DATABASE SET
+                current_email_provider_name := "email_hosting_is_easy";
+                """,
+            )
 
     async def test_http_auth_ext_local_password_register_json_02(self):
         with self.http_con() as http_con:
