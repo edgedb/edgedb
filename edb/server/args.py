@@ -687,6 +687,14 @@ server_options = typeutils.chain_decorators([
         envvar="GEL_SERVER_MULTITENANT_CONFIG_FILE",
         cls=EnvvarResolver,
         hidden=True,
+        help='Start the server in multi-tenant mode, with reloadable tenants '
+             'configured in the given file. Each tenant must have a unique '
+             'SNI name as the key to route the traffic correctly, as well as '
+             'a dedicated backend DSN to host the tenant data. See edb/server/'
+             'multitenant.py for config file format. All tenants share the '
+             'same compiler pool, thus the same stdlib. So if any of the '
+             'backends contains test-mode schema, the server should be '
+             'started with --testmode to handle them properly.',
     ),
     click.option(
         '-l', '--log-level',
@@ -1552,8 +1560,6 @@ def parse_args(**kwargs: Any):
         if kwargs['compiler_pool_mode'] is not CompilerPoolMode.MultiTenant:
             abort("must use --compiler-pool-mode=fixed_multi_tenant "
                   "in multi-tenant mode")
-        if kwargs['testmode']:
-            abort("cannot use --testmode in multi-tenant mode")
 
     bootstrap_script_text: Optional[str]
     if kwargs['bootstrap_command_file']:
