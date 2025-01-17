@@ -425,7 +425,7 @@ def _patch_stdlib_testmode(
     from edb.schema import schema as s_schema
     from edb.schema import std as s_std
 
-    schema = s_schema.ChainedSchema(
+    schema: s_schema.Schema = s_schema.ChainedSchema(
         s_schema.EMPTY_SCHEMA,
         stdlib.stdschema,
         stdlib.global_schema,
@@ -449,6 +449,7 @@ def _patch_stdlib_testmode(
             schema = sd.apply(delta, schema=schema, context=ctx)
             reflschema = delta.apply(reflschema, ctx)
 
+    assert isinstance(schema, s_schema.ChainedSchema)
     return stdlib._replace(
         stdschema=schema.get_top_schema(),
         global_schema=schema.get_global_schema(),
