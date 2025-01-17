@@ -2824,7 +2824,9 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             current_email_provider_name;
             """,
         )
-        await self._wait_for_db_config("cfg::current_email_provider_name")
+        await self._wait_for_db_config(
+            "cfg::current_email_provider_name", is_reset=True
+        )
         try:
             with self.http_con() as http_con:
                 email = f"{uuid.uuid4()}@example.com"
