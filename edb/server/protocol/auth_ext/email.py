@@ -1,11 +1,17 @@
 import asyncio
 import urllib.parse
 import random
+import logging
 
+from email.message import EmailMessage
 from typing import Any, Coroutine
 from edb.server import tenant, smtp
+from edb import errors
 
 from . import util, ui
+
+
+logger = logging.getLogger("edb.server.ext.auth")
 
 
 async def send_password_reset_email(
@@ -30,12 +36,7 @@ async def send_password_reset_email(
         reset_url=reset_url,
         **email_args,
     )
-    smtp_provider = smtp.SMTP(db)
-    coro = smtp_provider.send(
-        msg,
-        test_mode=test_mode,
-    )
-    await _protected_send(coro, tenant)
+    await _maybe_send_message(msg, tenant, db, test_mode)
 
 
 async def send_verification_email(
@@ -70,12 +71,7 @@ async def send_verification_email(
         verify_url=verify_url,
         **email_args,
     )
-    smtp_provider = smtp.SMTP(db)
-    coro = smtp_provider.send(
-        msg,
-        test_mode=test_mode,
-    )
-    await _protected_send(coro, tenant)
+    await _maybe_send_message(msg, tenant, db, test_mode)
 
 
 async def send_magic_link_email(
@@ -100,12 +96,7 @@ async def send_magic_link_email(
         link=link,
         **email_args,
     )
-    smtp_provider = smtp.SMTP(db)
-    coro = smtp_provider.send(
-        msg,
-        test_mode=test_mode,
-    )
-    await _protected_send(coro, tenant)
+    await _maybe_send_message(msg, tenant, db, test_mode)
 
 
 async def send_fake_email(tenant: tenant.Tenant) -> None:
@@ -113,6 +104,30 @@ async def send_fake_email(tenant: tenant.Tenant) -> None:
         pass
 
     coro = noop_coroutine()
+    await _protected_send(coro, tenant)
+
+
+async def _maybe_send_message(
+    msg: EmailMessage,
+    tenant: tenant.Tenant,
+    db: Any,
+    test_mode: bool,
+) -> None:
+    try:
+        smtp_provider = smtp.SMTP(db)
+    except errors.ConfigurationError as e:
+        logger.debug(
+            "ConfigurationError while instantiating SMTP provider, "
+            f"sending fake email instead: {e}"
+        )
+        smtp_provider = None
+    if smtp_provider is None:
+        coro = send_fake_email(tenant)
+    else:
+        coro = smtp_provider.send(
+            msg,
+            test_mode=test_mode,
+        )
     await _protected_send(coro, tenant)
 
 
