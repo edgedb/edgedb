@@ -21,14 +21,12 @@ pub const DEFAULT_DATABASE: &str = "postgres";
 
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub enum PostgresBinPath {
     #[default]
     Path,
     Specified(PathBuf),
 }
-
 
 #[derive(Debug)]
 pub struct PostgresBuilder {
