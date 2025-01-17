@@ -3,6 +3,7 @@ import urllib.parse
 import random
 import logging
 
+from email.message import EmailMessage
 from typing import Any, Coroutine
 from edb.server import tenant, smtp
 from edb import errors
@@ -107,7 +108,7 @@ async def send_fake_email(tenant: tenant.Tenant) -> None:
 
 
 async def _maybe_send_message(
-    msg: str,
+    msg: EmailMessage,
     tenant: tenant.Tenant,
     db: Any,
     test_mode: bool,
