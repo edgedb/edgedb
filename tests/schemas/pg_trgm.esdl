@@ -26,6 +26,16 @@ type Gin extending Base {
     index ext::pg_trgm::gin on (.p_str);
 }
 
+type Gin2 extending Base {
+    p_str_2: str;
+    index ext::pg_trgm::gist on ((.p_str, .p_str_2));
+}
+
 type Gist extending Base {
     index ext::pg_trgm::gist on (.p_str);
+}
+
+type Gist2 extending Base {
+    p_str_2: str;
+    index ext::pg_trgm::gist on ((.p_str, .p_str_2));
 }

@@ -18,7 +18,14 @@
 
 for x in range_unpack(range(1, 1001)) union (
     insert Gist {
-        p_str := "qwertyu" ++ str_pad_start(<str>x, 4, "0")
+        p_str := "qwertyu" ++ str_pad_start(<str>x, 4, "0"),
+    }
+);
+
+for x in range_unpack(range(1, 1001)) union (
+    insert Gist2 {
+        p_str := "qwertyu" ++ str_pad_start(<str>x, 4, "0"),
+        p_str_2 := "iopasdf" ++ str_pad_start(<str>x, 4, "0"),
     }
 );
 
@@ -531,7 +538,12 @@ for x in {
     "Samarra School",
     "Jangal-e Marakeh Sar",
 } union (
-    insert Gist {
+    (insert Gist {
         p_str := x
-    }
+    })
+    union
+    (insert Gist2 {
+        p_str := x,
+        p_str_2 := x,
+    })
 );
