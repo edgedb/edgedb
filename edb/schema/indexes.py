@@ -71,21 +71,19 @@ def is_index_valid_for_type(
     schema: s_schema.Schema,
     context: sd.CommandContext,
 ) -> bool:
-    index_name = str(index.get_name(schema))
+    index_allows_tuples = is_index_supporting_tuples(index, schema)
 
     for index_match in schema.get_referrers(
         index, scls_type=IndexMatch, field_name='index',
     ):
         valid_type = index_match.get_valid_type(schema)
-        if index_name == 'std::fts::index':
-            # FTS index works not only on its valid type (document), but also
-            # on tuples comtaining document as an element.
+        if index_allows_tuples:
             if is_subclass_or_tuple(expr_type, valid_type, schema):
                 return True
         elif expr_type.issubclass(schema, valid_type):
             return True
 
-    if context.testmode and index_name == 'default::test':
+    if context.testmode and str(index.get_name(schema)) == 'default::test':
         # For functional tests of abstract indexes.
         return expr_type.issubclass(
             schema,
@@ -93,6 +91,21 @@ def is_index_valid_for_type(
         )
 
     return False
+
+
+def is_index_supporting_tuples(
+    index: Index,
+    schema: s_schema.Schema,
+) -> bool:
+    index_name = str(index.get_name(schema))
+    return index_name in {
+        "std::fts::index",
+        "ext::pg_trgm::gin",
+        "ext::pg_trgm::gist",
+        "pg::gist",
+        "pg::gin",
+        "pg::brin",
+    }
 
 
 def is_subclass_or_tuple(
