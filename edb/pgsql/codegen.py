@@ -1130,27 +1130,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(f"DEALLOCATE {common.quote_ident(node.name)}")
 
     def visit_SQLValueFunction(self, node: pgast.SQLValueFunction) -> None:
-        from edb.pgsql.ast import SQLValueFunctionOP as op
-
-        names = {
-            op.CURRENT_DATE: "current_date",
-            op.CURRENT_TIME: "current_time",
-            op.CURRENT_TIME_N: "current_time",
-            op.CURRENT_TIMESTAMP: "current_timestamp",
-            op.CURRENT_TIMESTAMP_N: "current_timestamp",
-            op.LOCALTIME: "localtime",
-            op.LOCALTIME_N: "localtime",
-            op.LOCALTIMESTAMP: "localtimestamp",
-            op.LOCALTIMESTAMP_N: "localtimestamp",
-            op.CURRENT_ROLE: "current_role",
-            op.CURRENT_USER: "current_user",
-            op.USER: "user",
-            op.SESSION_USER: "session_user",
-            op.CURRENT_CATALOG: "current_catalog",
-            op.CURRENT_SCHEMA: "current_schema",
-        }
-
-        self.write(names[node.op])
+        self.write(common.get_sql_value_function_op(node.op))
         if node.arg:
             self.write("(")
             self.visit(node.arg)
