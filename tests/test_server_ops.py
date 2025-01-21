@@ -1591,7 +1591,7 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
                         cf1,
                         cf2
                     )
-                    for i in range(1, 8):
+                    for i in range(1, 9):
                         name = f"_test_server_ops_multi_tenant_{i}"
                         with self.subTest(name, i=i):
                             await getattr(self, name)(mtargs)
@@ -1829,6 +1829,70 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
                     (await mtargs.current_email_provider(2))["sender"],
                     "sender@host2.com",
                 )
+
+    async def _test_server_ops_multi_tenant_8(self, mtargs: MultiTenantArgs):
+        # Start with 2 tenants
+        data = mtargs.sd.fetch_metrics()
+        self.assertIn(
+            '\nedgedb_server_mt_tenants_current 2.0\n',
+            data,
+        )
+        await self._test_server_ops_multi_tenant_1(mtargs)
+
+        with tempfile.TemporaryDirectory() as td:
+            # Test adding tenant with a non-existing jwt-sub-allowlist-file
+            tf = tempfile.mktemp(dir=td)
+            conf = mtargs.conf["1.localhost"].copy()
+            conf.update({
+                "instance-name": "localtest3",
+                "jwt-sub-allowlist-file": tf,
+            })
+            mtargs.conf["3.localhost"] = conf
+            mtargs.reload_server()
+
+            # The tenant should not be ready at this moment, while the server
+            # keeps retrying to add the tenant
+            args3 = mtargs.args1.copy()
+            args3["server_hostname"] = "3.localhost"
+            with self.assertRaises(edgedb.AvailabilityError):
+                async for tr in self.try_until_succeeds(
+                    ignore=edgedb.AvailabilityError, timeout=3
+                ):
+                    async with tr:
+                        conn = await mtargs.sd.connect(**args3)
+                        await conn.aclose()
+
+            # Though, the metrics should reflect the ongoing attempt
+            data = mtargs.sd.fetch_metrics()
+            self.assertIn(
+                '\nedgedb_server_mt_tenant_add_total'
+                '{tenant="localtest3"} 1.0\n',
+                data,
+            )
+            self.assertIn(
+                '\nedgedb_server_mt_tenants_current 2.0\n',
+                data,
+            )
+
+            # Now, create the missing file and the tenant should be added
+            with open(tf, "w") as f:
+                f.write("\n")
+            async for tr in self.try_until_succeeds(
+                ignore=edgedb.AvailabilityError
+            ):
+                async with tr:
+                    conn = await mtargs.sd.connect(**args3)
+                    await conn.aclose()
+            data = mtargs.sd.fetch_metrics()
+            self.assertIn(
+                '\nedgedb_server_mt_tenant_add_total'
+                '{tenant="localtest3"} 1.0\n',
+                data,
+            )
+            self.assertIn(
+                '\nedgedb_server_mt_tenants_current 3.0\n',
+                data,
+            )
 
 
 class MultiTenantArgs(NamedTuple):

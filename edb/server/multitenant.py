@@ -316,7 +316,7 @@ class MultiTenantServer(server.BaseServer):
             rloop = retryloop.RetryLoop(
                 backoff=retryloop.exp_backoff(),
                 timeout=300,
-                ignore=(pgerrors.BackendError, IOError),
+                ignore=Exception,
                 retry_cb=_warn,
             )
             async for iteration in rloop:
