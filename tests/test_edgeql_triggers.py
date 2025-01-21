@@ -471,7 +471,7 @@ class TestTriggers(tb.QueryTestCase):
             {"name": "old", "notes": {"b!"}},
             {"name": "old", "notes": {"d"}},
             {"name": "old", "notes": {"c", "e"}},
-            {"name": "old", "notes": ["c!", "e!", "f!"]},
+            {"name": "old", "notes": {"c!", "e!", "f!"}},
         ])
 
         await self.assert_query_result(
