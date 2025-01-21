@@ -1575,6 +1575,36 @@ class TestServerProto(tb.QueryTestCase):
             await self.con.query('SELECT 42'),
             [42])
 
+    async def test_server_proto_tx_08(self):
+        try:
+            await self.con.query('''
+                START TRANSACTION ISOLATION REPEATABLE READ, READ ONLY;
+            ''')
+
+            self.assertEqual(
+                await self.con.query(
+                    'select <str>sys::get_transaction_isolation();',
+                ),
+                ["RepeatableRead"],
+            )
+        finally:
+            await self.con.query(f'''
+                ROLLBACK;
+            ''')
+
+    async def test_server_proto_tx_09(self):
+        try:
+            with self.assertRaisesRegex(
+                    edgedb.TransactionError,
+                    'only supported in read-only transactions'):
+                await self.con.query('''
+                    START TRANSACTION ISOLATION REPEATABLE READ;
+                ''')
+        finally:
+            await self.con.query(f'''
+                ROLLBACK;
+            ''')
+
     async def test_server_proto_tx_10(self):
         # Basic test that ROLLBACK works on SET ALIAS changes.
 

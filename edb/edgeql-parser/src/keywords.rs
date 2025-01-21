@@ -78,6 +78,7 @@ pub const UNRESERVED_KEYWORDS: phf::Set<&str> = phf_set!(
     "reject",
     "release",
     "rename",
+    "repeatable",
     "required",
     "reset",
     "restrict",

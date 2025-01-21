@@ -2167,6 +2167,19 @@ def _compile_ql_transaction(
         ctx.state.start_tx()
 
         sqls = 'START TRANSACTION'
+        iso = ql.isolation
+        if iso is not None:
+            if (
+                iso is not qltypes.TransactionIsolationLevel.SERIALIZABLE
+                and ql.access is not qltypes.TransactionAccessMode.READ_ONLY
+            ):
+                raise errors.TransactionError(
+                    f"{iso.value} transaction isolation level is only "
+                    "supported in read-only transactions",
+                    span=ql.span,
+                    hint=f"specify READ ONLY access mode",
+                )
+            sqls += f' ISOLATION LEVEL {iso.value}'
         if ql.access is not None:
             sqls += f' {ql.access.value}'
         if ql.deferrable is not None:
