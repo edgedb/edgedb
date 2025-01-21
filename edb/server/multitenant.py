@@ -46,7 +46,6 @@ from . import pgcluster
 from . import server
 from . import tenant as edbtenant
 from .compiler_pool import pool as compiler_pool
-from .pgcon import errors as pgerrors
 
 logger = logging.getLogger("edb.server")
 
@@ -316,7 +315,7 @@ class MultiTenantServer(server.BaseServer):
             rloop = retryloop.RetryLoop(
                 backoff=retryloop.exp_backoff(),
                 timeout=300,
-                ignore=(pgerrors.BackendError, IOError),
+                ignore=Exception,
                 retry_cb=_warn,
             )
             async for iteration in rloop:
