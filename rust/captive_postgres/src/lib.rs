@@ -1,16 +1,21 @@
-// Constants
+use ephemeral_port::EphemeralPort;
 use gel_auth::AuthType;
 use openssl::ssl::{Ssl, SslContext, SslMethod};
-use std::io::{BufRead, BufReader, Write};
-use std::net::{Ipv4Addr, SocketAddr, TcpListener};
+use std::io::{BufReader, Write};
+use std::net::{Ipv4Addr, SocketAddr};
+use std::num::NonZeroUsize;
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::{Arc, RwLock};
-use std::thread;
 use std::time::{Duration, Instant};
+use stdio_reader::StdioReader;
 use tempfile::TempDir;
 
+mod ephemeral_port;
+mod stdio_reader;
+
+// Constants
 pub const STARTUP_TIMEOUT_DURATION: Duration = Duration::from_secs(30);
 pub const PORT_RELEASE_TIMEOUT: Duration = Duration::from_secs(30);
 pub const LINGER_DURATION: Duration = Duration::from_secs(1);
@@ -28,7 +33,7 @@ pub enum PostgresBinPath {
     Specified(PathBuf),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PostgresBuilder {
     auth: AuthType,
     bin_path: PostgresBinPath,
@@ -37,6 +42,7 @@ pub struct PostgresBuilder {
     ssl_cert_and_key: Option<(PathBuf, PathBuf)>,
     unix_enabled: bool,
     debug_level: Option<u8>,
+    standby_of_port: Option<u16>,
 }
 
 impl Default for PostgresBuilder {
@@ -49,6 +55,7 @@ impl Default for PostgresBuilder {
             ssl_cert_and_key: None,
             unix_enabled: false,
             debug_level: None,
+            standby_of_port: None,
         }
     }
 }
@@ -132,6 +139,11 @@ impl PostgresBuilder {
         self
     }
 
+    pub fn enable_standby_of(mut self, port: u16) -> Self {
+        self.standby_of_port = Some(port);
+        self
+    }
+
     pub fn build(self) -> std::io::Result<PostgresProcess> {
         let initdb = match &self.bin_path {
             PostgresBinPath::Path => "initdb".into(),
@@ -140,6 +152,10 @@ impl PostgresBuilder {
         let postgres = match &self.bin_path {
             PostgresBinPath::Path => "postgres".into(),
             PostgresBinPath::Specified(path) => path.join("postgres"),
+        };
+        let pg_basebackup = match &self.bin_path {
+            PostgresBinPath::Path => "pg_basebackup".into(),
+            PostgresBinPath::Specified(path) => path.join("pg_basebackup"),
         };
 
         if !initdb.exists() {
@@ -154,6 +170,15 @@ impl PostgresBuilder {
                 format!("postgres executable not found at {}", postgres.display()),
             ));
         }
+        if !pg_basebackup.exists() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!(
+                    "pg_basebackup executable not found at {}",
+                    pg_basebackup.display()
+                ),
+            ));
+        }
 
         let temp_dir = TempDir::new()?;
         let port = EphemeralPort::allocate()?;
@@ -161,7 +186,15 @@ impl PostgresBuilder {
             .data_dir
             .unwrap_or_else(|| temp_dir.path().join("data"));
 
-        init_postgres(&initdb, &data_dir, self.auth)?;
+        // Create a standby signal file if requested
+        if let Some(standby_of_port) = self.standby_of_port {
+            run_pgbasebackup(&pg_basebackup, &data_dir, "localhost", standby_of_port)?;
+            let standby_signal_path = data_dir.join("standby.signal");
+            std::fs::write(&standby_signal_path, "")?;
+        } else {
+            init_postgres(&initdb, &data_dir, self.auth)?;
+        }
+
         let port = port.take();
 
         let ssl_config = self.ssl_cert_and_key;
@@ -207,7 +240,7 @@ impl PostgresBuilder {
         let child = run_postgres(command, &data_dir, socket_path, ssl_config, port)?;
 
         Ok(PostgresProcess {
-            child,
+            child: Some(child),
             socket_address,
             tcp_address,
             temp_dir,
@@ -222,96 +255,72 @@ pub enum ListenAddress {
     Unix(PathBuf),
 }
 
-/// Represents an ephemeral port that can be allocated and released for immediate re-use by another process.
-struct EphemeralPort {
-    port: u16,
-    listener: Option<TcpListener>,
-}
+fn spawn(command: &mut Command) -> std::io::Result<()> {
+    // Set the process group to 0 to ensure that the child process is killed when the parent process exits.
+    command.process_group(0);
 
-impl EphemeralPort {
-    /// Allocates a new ephemeral port.
-    ///
-    /// Returns a Result containing the EphemeralPort if successful,
-    /// or an IO error if the allocation fails.
-    fn allocate() -> std::io::Result<Self> {
-        let socket = socket2::Socket::new(socket2::Domain::IPV4, socket2::Type::STREAM, None)?;
-        socket.set_reuse_address(true)?;
-        socket.set_reuse_port(true)?;
-        socket.set_linger(Some(LINGER_DURATION))?;
-        socket.bind(&std::net::SocketAddr::from((Ipv4Addr::LOCALHOST, 0)).into())?;
-        socket.listen(1)?;
-        let listener = TcpListener::from(socket);
-        let port = listener.local_addr()?.port();
-        Ok(EphemeralPort {
-            port,
-            listener: Some(listener),
-        })
-    }
+    let program = Path::new(command.get_program())
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
 
-    /// Consumes the EphemeralPort and returns the allocated port number.
-    fn take(self) -> u16 {
-        // Drop the listener to free up the port
-        drop(self.listener);
+    eprintln!("{program} command:\n  {:?}", command);
+    let command = command.spawn()?;
+    let output = std::thread::scope(|s| {
+        use nix::sys::signal::{self, Signal};
+        use nix::unistd::Pid;
 
-        // Loop until the port is free
+        let pid = Pid::from_raw(command.id() as _);
+        let handle = s.spawn(|| command.wait_with_output());
         let start = Instant::now();
-
-        // If we can successfully connect to the port, it's not fully closed
-        while start.elapsed() < PORT_RELEASE_TIMEOUT {
-            let res = std::net::TcpStream::connect((Ipv4Addr::LOCALHOST, self.port));
-            if res.is_err() {
-                // If connection fails, the port is released
-                break;
+        while start.elapsed() < Duration::from_secs(30) {
+            if handle.is_finished() {
+                let handle = handle.join().map_err(|e| {
+                    std::io::Error::new(std::io::ErrorKind::Other, format!("{e:?}"))
+                })??;
+                return Ok(handle);
             }
             std::thread::sleep(HOT_LOOP_INTERVAL);
         }
+        eprintln!("Command timed out after 30 seconds. Sending SIGKILL.");
+        signal::kill(pid, Signal::SIGKILL)?;
+        handle
+            .join()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("{e:?}")))?
+    })?;
+    eprintln!("{program}: {}", output.status);
+    let status = output.status;
+    let output_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let error_str = String::from_utf8_lossy(&output.stderr).trim().to_string();
 
-        self.port
-    }
-}
-
-struct StdioReader {
-    output: Arc<RwLock<String>>,
-}
-
-impl StdioReader {
-    fn spawn<R: BufRead + Send + 'static>(reader: R, prefix: &'static str) -> Self {
-        let output = Arc::new(RwLock::new(String::new()));
-        let output_clone = Arc::clone(&output);
-
-        thread::spawn(move || {
-            let mut buf_reader = std::io::BufReader::new(reader);
-            loop {
-                let mut line = String::new();
-                match buf_reader.read_line(&mut line) {
-                    Ok(0) => break,
-                    Ok(_) => {
-                        if let Ok(mut output) = output_clone.write() {
-                            output.push_str(&line);
-                        }
-                        eprint!("[{}]: {}", prefix, line);
-                    }
-                    Err(e) => {
-                        let error_line = format!("Error reading {}: {}\n", prefix, e);
-                        if let Ok(mut output) = output_clone.write() {
-                            output.push_str(&error_line);
-                        }
-                        eprintln!("{}", error_line);
-                    }
-                }
-            }
-        });
-
-        StdioReader { output }
-    }
-
-    fn contains(&self, s: &str) -> bool {
-        if let Ok(output) = self.output.read() {
-            output.contains(s)
-        } else {
-            false
+    if !output_str.is_empty() {
+        eprintln!("=== begin {} stdout:===", program);
+        eprintln!("{}", output_str);
+        if !output_str.ends_with('\n') {
+            eprintln!();
         }
+        eprintln!("=== end {} stdout ===", program);
     }
+    if !error_str.is_empty() {
+        eprintln!("=== begin {} stderr:===", program);
+        eprintln!("{}", error_str);
+        if !error_str.ends_with('\n') {
+            eprintln!();
+        }
+        eprintln!("=== end {} stderr ===", program);
+    }
+    if output_str.is_empty() && error_str.is_empty() {
+        eprintln!("{program}: No output\n");
+    }
+    if !status.success() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("{program} failed with: {}", status),
+        ));
+    }
+
+    Ok(())
 }
 
 fn init_postgres(initdb: &Path, data_dir: &Path, auth: AuthType) -> std::io::Result<()> {
@@ -332,25 +341,41 @@ fn init_postgres(initdb: &Path, data_dir: &Path, auth: AuthType) -> std::io::Res
         .arg("--pwfile")
         .arg(pwfile.path())
         .arg("-U")
-        .arg(DEFAULT_USERNAME);
+        .arg(DEFAULT_USERNAME)
+        .arg("--no-instructions");
 
-    eprintln!("initdb command: {:?}", command);
-    let output = command.output()?;
+    spawn(&mut command)?;
 
-    let status = output.status;
-    let output_str = String::from_utf8_lossy(&output.stdout).to_string();
-    let error_str = String::from_utf8_lossy(&output.stderr).to_string();
+    Ok(())
+}
 
-    eprintln!("initdb stdout:\n{}", output_str);
-    eprintln!("initdb stderr:\n{}", error_str);
+fn run_pgbasebackup(
+    pg_basebackup: &Path,
+    data_dir: &Path,
+    host: &str,
+    port: u16,
+) -> std::io::Result<()> {
+    let mut command = Command::new(pg_basebackup);
+    // This works for testing purposes but putting passwords in the environment
+    // is usually bad practice.
+    //
+    // "Use of this environment variable is not recommended for security
+    // reasons" <https://www.postgresql.org/docs/current/libpq-envars.html>
+    command.env("PGPASSWORD", DEFAULT_PASSWORD);
+    command
+        .arg("-D")
+        .arg(data_dir)
+        .arg("-h")
+        .arg(host)
+        .arg("-p")
+        .arg(port.to_string())
+        .arg("-U")
+        .arg(DEFAULT_USERNAME)
+        .arg("-X")
+        .arg("stream")
+        .arg("-w");
 
-    if !status.success() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "initdb command failed",
-        ));
-    }
-
+    spawn(&mut command)?;
     Ok(())
 }
 
@@ -393,12 +418,14 @@ fn run_postgres(
         command.arg("-l");
     }
 
+    command.process_group(0);
+    eprintln!("postgres command:\n  {:?}", command);
     let mut child = command.spawn()?;
 
     let stdout_reader = BufReader::new(child.stdout.take().expect("Failed to capture stdout"));
-    let _ = StdioReader::spawn(stdout_reader, "stdout");
+    let _ = StdioReader::spawn(stdout_reader, format!("pg_stdout {}", child.id()));
     let stderr_reader = BufReader::new(child.stderr.take().expect("Failed to capture stderr"));
-    let stderr_reader = StdioReader::spawn(stderr_reader, "stderr");
+    let stderr_reader = StdioReader::spawn(stderr_reader, format!("pg_stderr {}", child.id()));
 
     let start_time = Instant::now();
 
@@ -423,7 +450,7 @@ fn run_postgres(
             Err(e) => return Err(e),
             _ => {}
         }
-        if !db_ready && stderr_reader.contains("database system is ready to accept connections") {
+        if !db_ready && stderr_reader.contains("database system is ready to accept ") {
             eprintln!("Database is ready");
             db_ready = true;
         } else {
@@ -445,17 +472,19 @@ fn run_postgres(
     // Print status for TCP/unix sockets
     if let Some(tcp) = &tcp_socket {
         eprintln!(
-            "TCP socket at {tcp_socket_addr:?} bound successfully on {}",
+            "TCP socket at {tcp_socket_addr:?} bound successfully (local address was {})",
             tcp.local_addr()?
         );
     } else {
         eprintln!("TCP socket at {tcp_socket_addr:?} binding failed");
     }
 
-    if unix_socket.is_some() {
-        eprintln!("Unix socket at {unix_socket_path:?} connected successfully");
-    } else {
-        eprintln!("Unix socket at {unix_socket_path:?} connection failed");
+    if let Some(unix_socket_path) = &unix_socket_path {
+        if unix_socket.is_some() {
+            eprintln!("Unix socket at {unix_socket_path:?} connected successfully");
+        } else {
+            eprintln!("Unix socket at {unix_socket_path:?} connection failed");
+        }
     }
 
     if network_ready {
@@ -506,17 +535,162 @@ pub fn create_ssl_client() -> Result<Ssl, Box<dyn std::error::Error>> {
     Ok(ssl)
 }
 
+/// The signal to send to the server to shut it down.
+///
+/// <https://www.postgresql.org/docs/8.1/postmaster-shutdown.html>
+#[derive(Debug, Clone, Copy)]
+pub enum ShutdownSignal {
+    /// "After receiving SIGTERM, the server disallows new connections, but lets
+    /// existing sessions end their work normally. It shuts down only after all
+    /// of the sessions terminate normally. This is the Smart Shutdown."
+    Smart,
+    /// "The server disallows new connections and sends all existing server
+    /// processes SIGTERM, which will cause them to abort their current
+    /// transactions and exit promptly. It then waits for the server processes
+    /// to exit and finally shuts down. This is the Fast Shutdown."
+    Fast,
+    /// "This is the Immediate Shutdown, which will cause the postmaster process
+    /// to send a SIGQUIT to all child processes and exit immediately, without
+    /// properly shutting itself down. The child processes likewise exit
+    /// immediately upon receiving SIGQUIT. This will lead to recovery (by
+    /// replaying the WAL log) upon next start-up. This is recommended only in
+    /// emergencies."
+    Immediate,
+    /// "It is best not to use SIGKILL to shut down the server. Doing so will
+    /// prevent the server from releasing shared memory and semaphores, which
+    /// may then have to be done manually before a new server can be started.
+    /// Furthermore, SIGKILL kills the postmaster process without letting it
+    /// relay the signal to its subprocesses, so it will be necessary to kill
+    /// the individual subprocesses by hand as well."
+    Forceful,
+}
+
+#[derive(Debug)]
+pub struct PostgresCluster {
+    primary: PostgresProcess,
+    standbys: Vec<PostgresProcess>,
+}
+
+impl PostgresCluster {
+    pub fn shutdown_timeout(
+        self,
+        timeout: Duration,
+        signal: ShutdownSignal,
+    ) -> Result<(), Vec<PostgresProcess>> {
+        let mut failed = Vec::new();
+        for standby in self.standbys {
+            if let Err(e) = standby.shutdown_timeout(timeout, signal) {
+                failed.push(e);
+            }
+        }
+        if let Err(e) = self.primary.shutdown_timeout(timeout, signal) {
+            failed.push(e);
+        }
+        if failed.is_empty() {
+            Ok(())
+        } else {
+            Err(failed)
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct PostgresProcess {
-    child: std::process::Child,
+    child: Option<std::process::Child>,
     pub socket_address: ListenAddress,
     pub tcp_address: SocketAddr,
     #[allow(unused)]
     temp_dir: TempDir,
 }
 
+impl PostgresProcess {
+    fn child(&self) -> &std::process::Child {
+        self.child.as_ref().unwrap()
+    }
+
+    fn child_mut(&mut self) -> &mut std::process::Child {
+        self.child.as_mut().unwrap()
+    }
+
+    pub fn notify_shutdown(&mut self, signal: ShutdownSignal) -> std::io::Result<()> {
+        use nix::sys::signal::{self, Signal};
+        use nix::unistd::Pid;
+
+        let id = Pid::from_raw(self.child().id() as _);
+        // https://www.postgresql.org/docs/8.1/postmaster-shutdown.html
+        match signal {
+            ShutdownSignal::Smart => signal::kill(id, Signal::SIGTERM)?,
+            ShutdownSignal::Fast => signal::kill(id, Signal::SIGINT)?,
+            ShutdownSignal::Immediate => signal::kill(id, Signal::SIGQUIT)?,
+            ShutdownSignal::Forceful => signal::kill(id, Signal::SIGKILL)?,
+        }
+        Ok(())
+    }
+
+    pub fn try_wait(&mut self) -> std::io::Result<Option<std::process::ExitStatus>> {
+        self.child_mut().try_wait()
+    }
+
+    /// Try to shut down, waiting up to `timeout` for the process to exit.
+    pub fn shutdown_timeout(
+        mut self,
+        timeout: Duration,
+        signal: ShutdownSignal,
+    ) -> Result<std::process::ExitStatus, Self> {
+        _ = self.notify_shutdown(signal);
+
+        let id = self.child().id();
+
+        let start = Instant::now();
+        while start.elapsed() < timeout {
+            if let Ok(Some(exit)) = self.child_mut().try_wait() {
+                self.child = None;
+                eprintln!("Process {id} died gracefully. ({exit:?})");
+                return Ok(exit);
+            }
+            std::thread::sleep(HOT_LOOP_INTERVAL);
+        }
+        Err(self)
+    }
+}
+
 impl Drop for PostgresProcess {
     fn drop(&mut self) {
-        let _ = self.child.kill();
+        use nix::sys::signal::{self, Signal};
+        use nix::unistd::Pid;
+
+        let Some(mut child) = self.child.take() else {
+            return;
+        };
+
+        // Create a thread to send SIGQUIT to the child process. The thread will not block
+        // process exit.
+
+        let id = Pid::from_raw(child.id() as _);
+        if let Ok(Some(_)) = child.try_wait() {
+            eprintln!("Process {id} already exited (crashed?).");
+            return;
+        }
+        if let Err(e) = signal::kill(id, Signal::SIGQUIT) {
+            eprintln!("Failed to send SIGQUIT to process {id}: {e:?}");
+        }
+
+        let builder = std::thread::Builder::new().name("postgres-shutdown-signal".into());
+        builder
+            .spawn(move || {
+                // Instead of sleeping, loop and check if the child process has exited every 100ms for up to 10 seconds.
+                let start = Instant::now();
+                while start.elapsed() < std::time::Duration::from_secs(10) {
+                    if let Ok(Some(_)) = child.try_wait() {
+                        eprintln!("Process {id} died gracefully.");
+                        return;
+                    }
+                    std::thread::sleep(HOT_LOOP_INTERVAL);
+                }
+                eprintln!("Process {id} did not die gracefully. Sending SIGKILL.");
+                _ = signal::kill(id, Signal::SIGKILL);
+            })
+            .unwrap();
     }
 }
 
@@ -535,10 +709,53 @@ pub fn setup_postgres(auth: AuthType, mode: Mode) -> std::io::Result<Option<Post
     Ok(Some(process))
 }
 
+pub fn create_cluster(
+    auth: AuthType,
+    size: NonZeroUsize,
+) -> std::io::Result<Option<PostgresCluster>> {
+    let builder: PostgresBuilder = PostgresBuilder::new();
+
+    let Ok(mut builder) = builder.with_automatic_bin_path() else {
+        eprintln!("Skipping test: postgres bin dir not found");
+        return Ok(None);
+    };
+
+    builder = builder.auth(auth).with_automatic_mode(Mode::Tcp);
+
+    // Primary requires the following postgres settings:
+    // - wal_level = replica
+
+    let primary = builder
+        .clone()
+        .server_option("wal_level", "replica")
+        .build()?;
+    let primary_port = primary.tcp_address.port();
+
+    let mut cluster = PostgresCluster {
+        primary,
+        standbys: vec![],
+    };
+
+    // Standby requires the following postgres settings:
+    // - primary_conninfo = 'host=localhost port=<port> user=postgres password=password'
+    // - hot_standby = on
+
+    for _ in 0..size.get() - 1 {
+        let builder = builder.clone()
+            .server_option("primary_conninfo", format!("host=localhost port={primary_port} user={DEFAULT_USERNAME} password={DEFAULT_PASSWORD}"))
+            .server_option("hot_standby", "on")
+            .enable_standby_of(primary_port);
+        let standby = builder.build()?;
+        cluster.standbys.push(standby);
+    }
+
+    Ok(Some(cluster))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use std::{num::NonZeroUsize, path::PathBuf};
 
     #[test]
     fn test_builder_defaults() {
@@ -570,5 +787,17 @@ mod tests {
             builder.server_options.get("max_connections").unwrap(),
             "100"
         );
+    }
+
+    #[test]
+    fn test_create_cluster() {
+        let Some(cluster) = create_cluster(AuthType::Md5, NonZeroUsize::new(2).unwrap()).unwrap()
+        else {
+            return;
+        };
+        assert_eq!(cluster.standbys.len(), 1);
+        cluster
+            .shutdown_timeout(Duration::from_secs(10), ShutdownSignal::Smart)
+            .unwrap();
     }
 }

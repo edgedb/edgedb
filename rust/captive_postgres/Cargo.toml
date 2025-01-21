@@ -14,4 +14,5 @@ gel_auth.workspace = true
 
 openssl = "0.10.55"
 tempfile = "3"
-socket2 = "0.5.8"
+socket2 = { version = "0.5", features = ["all"] }
+nix = { version = "0.29", features = ["signal"] }
