@@ -46,7 +46,6 @@ from . import pgcluster
 from . import server
 from . import tenant as edbtenant
 from .compiler_pool import pool as compiler_pool
-from .pgcon import errors as pgerrors
 
 logger = logging.getLogger("edb.server")
 
