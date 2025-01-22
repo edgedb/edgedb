@@ -926,6 +926,10 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         ):
             await self.squery_values('SELECT name FROM User')
 
+        val = await self.scon.fetch('SELECT * FROM User')
+        self.assert_shape(val, 1, ['user'])
+        self.assertEqual(tuple(val[0].values()), ('admin',))
+
     async def test_sql_query_45(self):
         res = await self.scon.fetch('SELECT 1 AS a, 2 AS a')
         self.assert_shape(res, 1, ['a', 'a'])

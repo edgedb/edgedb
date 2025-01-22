@@ -586,3 +586,26 @@ def get_object_from_backend_name(schema, metaclass, name, *, aspect=None):
     else:
         raise ValueError(
             f'cannot determine object from backend name for {metaclass!r}')
+
+
+def get_sql_value_function_op(op: pgast.SQLValueFunctionOP) -> str:
+    from edb.pgsql.ast import SQLValueFunctionOP as OP
+
+    NAMES = {
+        OP.CURRENT_DATE: "current_date",
+        OP.CURRENT_TIME: "current_time",
+        OP.CURRENT_TIME_N: "current_time",
+        OP.CURRENT_TIMESTAMP: "current_timestamp",
+        OP.CURRENT_TIMESTAMP_N: "current_timestamp",
+        OP.LOCALTIME: "localtime",
+        OP.LOCALTIME_N: "localtime",
+        OP.LOCALTIMESTAMP: "localtimestamp",
+        OP.LOCALTIMESTAMP_N: "localtimestamp",
+        OP.CURRENT_ROLE: "current_role",
+        OP.CURRENT_USER: "current_user",
+        OP.USER: "user",
+        OP.SESSION_USER: "session_user",
+        OP.CURRENT_CATALOG: "current_catalog",
+        OP.CURRENT_SCHEMA: "current_schema",
+    }
+    return NAMES[op]
