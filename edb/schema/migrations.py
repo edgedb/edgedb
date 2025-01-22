@@ -287,3 +287,27 @@ class AlterMigration(MigrationCommand, sd.AlterObject[Migration]):
 class DeleteMigration(MigrationCommand, sd.DeleteObject[Migration]):
 
     astnode = qlast.DropMigration
+
+
+def get_ordered_migrations(
+    schema: s_schema.Schema,
+) -> list[Migration]:
+    '''Get all the migrations, in order.
+
+    It would be nice if our toposort could do this for us, but
+    toposort is implemented recursively, and it would be a pain to
+    change that.
+
+    '''
+    output = []
+    mig = schema.get_last_migration()
+    while mig:
+        output.append(mig)
+
+        parents = mig.get_parents(schema).objects(schema)
+        assert len(parents) <= 1, "only one parent supported currently"
+        mig = parents[0] if parents else None
+
+    output.reverse()
+
+    return output

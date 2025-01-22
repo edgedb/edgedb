@@ -79,7 +79,6 @@ def delta_schemas(
     include_module_diff: bool=True,
     include_std_diff: bool=False,
     include_derived_types: bool=True,
-    include_migrations: bool=False,
     include_extensions: bool=False,
     linearize_delta: bool=True,
     descriptive_mode: bool=False,
@@ -132,9 +131,6 @@ def delta_schemas(
 
         include_derived_types:
             Whether to include derived types, like unions, in the diff.
-
-        include_migrations:
-            Whether to include migrations in the diff.
 
         linearize_delta:
             Whether the resulting diff should be properly ordered
@@ -296,6 +292,7 @@ def delta_schemas(
         s_mod.Module,
         s_func.Parameter,
         s_pseudo.PseudoType,
+        s_migr.Migration,
     )
 
     schemaclasses = [
@@ -304,10 +301,6 @@ def delta_schemas(
         if (
             not issubclass(schemacls, excluded_classes)
             and not schemacls.is_abstract()
-            and (
-                include_migrations
-                or not issubclass(schemacls, s_migr.Migration)
-            )
         )
     ]
 
@@ -996,8 +989,12 @@ def ddl_text_from_schema(
         include_module_diff=include_module_ddl,
         include_std_diff=include_std_ddl,
         include_derived_types=False,
-        include_migrations=include_migrations,
     )
+    if include_migrations:
+        context = so.ComparisonContext()
+        for mig in s_migr.get_ordered_migrations(schema):
+            diff.add(mig.as_create_delta(schema, context))
+
     return ddl_text_from_delta(None, schema, diff,
                                include_ext_version=not include_migrations)
 
