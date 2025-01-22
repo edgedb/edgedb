@@ -23,6 +23,7 @@ import json
 import os.path
 import re
 import textwrap
+import unittest
 import uuid
 
 import edgedb
@@ -13104,4 +13105,16 @@ class TestEdgeQLMigrationRewriteNonisolated(TestEdgeQLMigrationRewrite):
                 };
                 POPULATE MIGRATION;
                 COMMIT MIGRATION;
+            """)
+
+    @unittest.skipIf(
+        True,
+        """
+        This test is still pretty slow
+        """
+    )
+    async def test_edgeql_migration_rewrite_raw_02(self):
+        for _ in range(1200):
+            await self.con.execute(r"""
+                create applied migration { }
             """)
