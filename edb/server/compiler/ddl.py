@@ -1010,11 +1010,8 @@ def _commit_migration_rewrite(
 
     cmds: List[qlast.DDLCommand] = []
     # Now we find all the migrations...
-    migrations = s_delta.sort_by_cross_refs(
-        schema,
-        schema.get_objects(type=s_migrations.Migration),
-    )
-    for mig in migrations:
+    migrations = s_migrations.get_ordered_migrations(schema)
+    for mig in reversed(migrations):
         cmds.append(
             qlast.DropMigration(  # type: ignore
                 name=qlast.ObjectRef(name=mig.get_name(schema).name)
