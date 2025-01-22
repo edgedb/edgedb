@@ -26,6 +26,7 @@ from edb import errors
 from edb.common.parsing import Span
 
 from edb.pgsql import ast as pgast
+from edb.pgsql import common as pgcommon
 from edb.pgsql.compiler import astutils as pgastutils
 
 from . import dispatch
@@ -311,6 +312,32 @@ def _resolve_RangeFunction(
                     else:
                         col_names.append(name)
                     functions.append(dispatch.resolve(function, ctx=subctx))
+                case pgast.SQLValueFunction(op=op):
+                    # If SQLValueFunction gets statically evaluated, we need to
+                    # wrap it into a subquery, otherwise it is syntactically
+                    # incorrect. E.g. `SELECT * FROM current_user`, should be
+                    # compiled to `SELECT * FROM (SELECT 'admin')`
+
+                    val = dispatch.resolve(function, ctx=subctx)
+
+                    name = pgcommon.get_sql_value_function_op(op)
+                    range = pgast.RangeSubselect(
+                        subquery=pgast.SelectStmt(
+                            target_list=[pgast.ResTarget(val=val, name=name)]
+                        ),
+                        alias=pgast.Alias(
+                            aliasname=alias.aliasname,
+                            colnames=[name],
+                        ),
+                    )
+
+                    column = context.Column(
+                        name=name,
+                        kind=context.ColumnByName(reference_as=name),
+                    )
+                    table = context.Table(columns=[column])
+
+                    return range, table
                 case _:
                     functions.append(dispatch.resolve(function, ctx=subctx))
 
@@ -374,6 +401,7 @@ def _zip_column_alias(
 
     if len(columns) != len(alias.colnames):
         from edb.server.pgcon import errors as pgerror
+
         raise errors.QueryError(
             f'Table alias for `{alias.aliasname}` contains '
             f'{len(alias.colnames)} columns, but the query resolves to '
