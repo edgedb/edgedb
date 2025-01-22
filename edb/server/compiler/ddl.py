@@ -396,7 +396,20 @@ def _process_delta(
     compiler.compile_schema_storage_in_delta(
         ctx, pgdelta, subblock, context=context
     )
-    if not ctx.bootstrap_mode:
+
+    # Performance hack; we really want trivial migration commands
+    # (that only mutate the migration log) to not trigger a pg_catalog
+    # view refresh, since many get issued as part of MIGRATION
+    # REWRITEs.
+    all_migration_tweaks = all(
+        isinstance(
+            cmd, (s_ver.AlterSchemaVersion, s_migrations.MigrationCommand)
+        )
+        and not cmd.get_subcommands(type=s_delta.ObjectCommand)
+        for cmd in delta.get_subcommands()
+    )
+
+    if not ctx.bootstrap_mode and not all_migration_tweaks:
         from edb.pgsql import metaschema
         refresh = metaschema.generate_sql_information_schema_refresh(
             ctx.compiler_state.backend_runtime_params.instance_params.version
@@ -1059,11 +1072,8 @@ def _commit_migration_rewrite(
 
     cmds: List[qlast.DDLCommand] = []
     # Now we find all the migrations...
-    migrations = s_delta.sort_by_cross_refs(
-        schema,
-        schema.get_objects(type=s_migrations.Migration),
-    )
-    for mig in migrations:
+    migrations = s_migrations.get_ordered_migrations(schema)
+    for mig in reversed(migrations):
         cmds.append(
             qlast.DropMigration(
                 name=qlast.ObjectRef(name=mig.get_name(schema).name)
