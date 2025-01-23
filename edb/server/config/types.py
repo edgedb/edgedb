@@ -285,7 +285,8 @@ class QueryCacheMode(enum.StrEnum):
             # Persistent cache disabled for now by default on arm64 linux
             # because of observed problems in CI test runs.
             if platform.system() == 'Linux' and platform.machine() == 'arm64':
-                rv = QueryCacheMode.InMemory
+                # rv = QueryCacheMode.InMemory
+                rv = QueryCacheMode.PgFunc
             else:
                 rv = QueryCacheMode.PgFunc
         return rv
