@@ -749,7 +749,17 @@ class BaseServer:
             self._runstate_dir, f'.s.GEL.admin.{port}')
         symlink = os.path.join(
             self._runstate_dir, f'.s.EDGEDB.admin.{port}')
-        if not os.path.exists(symlink):
+
+        exists = False
+        try:
+            mode = os.lstat(symlink).st_mode
+            if stat.S_ISSOCK(mode):
+                os.unlink(symlink)
+            else:
+                exists = True
+        except FileNotFoundError:
+            pass
+        if not exists:
             os.symlink(admin_unix_sock_path, symlink)
 
         assert len(admin_unix_sock_path) <= (
