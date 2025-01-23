@@ -102,7 +102,7 @@ Strings
 
     A unicode string of text.
 
-    Any other type (except :eql:type:`bytes`) can be
+    Most primitive types (except :eql:type:`bytes`) can be
     :eql:op:`cast <cast>` to and from a string:
 
     .. code-block:: edgeql-repl
@@ -162,6 +162,24 @@ Strings
 
         This type is subject to `the Postgres maximum field size`_
         of 1GB.
+
+    .. versionadded:: 6.0
+
+    Regular strings may use ``\(expr)`` to interpolate the value of
+    ``expr`` into the string. The value will be cast to ``str`` if it
+    is not already. For example:
+
+    .. code-block:: edgeql-repl
+
+        db> select '1 + 1 = \(1+1)';
+        {'1 + 1 = 2'}
+        db> select User { name := '\(.first_name) \(.last_name)' };
+        {
+          default::User {
+            name := 'Keanu Reeves',
+          },
+          ...
+        }
 
 
 .. lint-off
@@ -465,7 +483,7 @@ Strings
 
     If *trim* specifies more than one character they will be removed from
     both ends of the string regardless of the order in which they appear.
-    This is the same as applying 
+    This is the same as applying
     :eql:func:`str_trim_start` and :eql:func:`str_trim_end`.
 
     .. code-block:: edgeql-repl
@@ -688,7 +706,7 @@ Strings
         {'21st century'}
 
     .. note::
-    
+
         If you want to use literal text in your format string, it's best to
         enclose it in double quotes as shown above with ``of`` and
         ``century``.
@@ -749,7 +767,7 @@ Strings
         A version of ``std::to_str`` exists which operates on arrays but has
         been deprecated; :eql:func:`array_join` should be used instead.
 
-    A :eql:type:`bytes` value can be converted to a :eql:type:`str` using 
+    A :eql:type:`bytes` value can be converted to a :eql:type:`str` using
     UTF-8 encoding. Returns an InvalidValueError if input UTF-8 is invalid.
 
     .. code-block:: edgeql-repl
