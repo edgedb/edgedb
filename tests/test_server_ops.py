@@ -1591,8 +1591,10 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
                         cf1,
                         cf2
                     )
-                    for i in range(1, 9):
-                        name = f"_test_server_ops_multi_tenant_{i}"
+                    test_prefix = '_test_server_ops_multi_tenant_'
+                    tests = [s for s in dir(self) if s.startswith(test_prefix)]
+                    for name in tests:
+                        i = name.replace(test_prefix, '')
                         with self.subTest(name, i=i):
                             await getattr(self, name)(mtargs)
             finally:
