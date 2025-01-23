@@ -89,12 +89,18 @@ impl SslError {
     pub fn common_error(&self) -> Option<CommonError> {
         match self {
             #[cfg(feature = "rustls")]
-            SslError::RustlsError(::rustls::Error::InvalidCertificate(::rustls::CertificateError::NotValidForName)) => Some(CommonError::InvalidCertificateForName),
+            SslError::RustlsError(::rustls::Error::InvalidCertificate(
+                ::rustls::CertificateError::NotValidForName,
+            )) => Some(CommonError::InvalidCertificateForName),
             #[cfg(feature = "openssl")]
             SslError::OpenSslError(e) => {
                 if let Some(ssl_error) = e.ssl_error() {
                     // TODO: Not quite right
-                    if ssl_error.errors().iter().any(|e| e.code() & 0x00fffff == 134) {
+                    if ssl_error
+                        .errors()
+                        .iter()
+                        .any(|e| e.code() & 0x00fffff == 134)
+                    {
                         Some(CommonError::InvalidCertificateForName)
                     } else {
                         None
@@ -398,12 +404,10 @@ mod tests {
     }
 
     fn load_test_ca() -> rustls_pki_types::CertificateDer<'static> {
-        rustls_pemfile::certs(
-            &mut include_str!("../../../../tests/certs/ca.cert.pem").as_bytes(),
-        )
-        .next()
-        .unwrap()
-        .unwrap()
+        rustls_pemfile::certs(&mut include_str!("../../../../tests/certs/ca.cert.pem").as_bytes())
+            .next()
+            .unwrap()
+            .unwrap()
     }
 
     fn load_test_key() -> rustls_pki_types::PrivateKeyDer<'static> {
@@ -414,7 +418,17 @@ mod tests {
         .unwrap()
     }
 
-    async fn spawn_tls_server() -> Result<(SocketAddr, tokio::task::JoinHandle<Result<(), std::io::Error>>), std::io::Error> {
+    async fn spawn_tls_server(
+        expected_hostname: Option<&str>,
+        server_alpn: Option<&[&str]>,
+        expected_alpn: Option<&str>,
+    ) -> Result<
+        (
+            SocketAddr,
+            tokio::task::JoinHandle<Result<(), std::io::Error>>,
+        ),
+        std::io::Error,
+    > {
         use ::rustls::{ServerConfig, ServerConnection};
 
         let _ = ::rustls::crypto::ring::default_provider().install_default();
@@ -428,22 +442,29 @@ mod tests {
         let key = load_test_key();
 
         // Configure rustls server
-        let config = ServerConfig::builder()
+        let mut config = ServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(vec![cert], key)
             .unwrap();
-        let tls_config = Arc::new(config);
+        config.alpn_protocols = server_alpn
+            .map(|alpn| alpn.iter().map(|s| s.as_bytes().to_vec()).collect())
+            .unwrap_or_default();
 
+        let tls_config = Arc::new(config);
+        let expected_alpn = expected_alpn.map(|alpn| alpn.as_bytes().to_vec());
+        let expected_hostname = expected_hostname.map(|sni| sni.to_string());
         let accept_task = tokio::spawn(async move {
             let (tcp_stream, _) = listener.accept().await.unwrap();
             let tls_conn = ServerConnection::new(tls_config).unwrap();
             let mut stream =
                 rustls_tokio_stream::TlsStream::new_server_side_from(tcp_stream, tls_conn, None);
             let handshake = stream.handshake().await?;
+            eprintln!("handshake: {:?}", handshake);
+            assert_eq!(handshake.alpn, expected_alpn);
+            assert_eq!(handshake.sni, expected_hostname);
             let mut buf = String::new();
             stream.read_to_string(&mut buf).await.unwrap();
             assert_eq!(buf, "Hello, world!");
-            stream.write_all(b"Hello, back!").await?;
             stream.shutdown().await?;
             Ok::<_, std::io::Error>(())
         });
@@ -454,7 +475,7 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(30_000)]
     async fn test_target_tcp_tls_verify_full_fails() -> Result<(), std::io::Error> {
-        let (addr, accept_task) = spawn_tls_server().await?;
+        let (addr, accept_task) = spawn_tls_server(None, None, None).await?;
 
         let connect_task = tokio::spawn(async move {
             let target = Target::new_tcp_tls(
@@ -465,7 +486,10 @@ mod tests {
                 },
             );
             let stm = Connector::new(target).unwrap().connect().await;
-            assert!(matches!(&stm, Err(ConnectionError::SslError(ssl)) if ssl.common_error() == Some(CommonError::InvalidCertificateForName)), "{stm:?}");
+            assert!(
+                matches!(&stm, Err(ConnectionError::SslError(ssl)) if ssl.common_error() == Some(CommonError::InvalidCertificateForName)),
+                "{stm:?}"
+            );
             Ok::<_, std::io::Error>(())
         });
 
@@ -479,7 +503,7 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(30_000)]
     async fn test_target_tcp_tls_verify_full_ok() -> Result<(), std::io::Error> {
-        let (addr, accept_task) = spawn_tls_server().await?;
+        let (addr, accept_task) = spawn_tls_server(Some("localhost"), None, None).await?;
 
         let connect_task = tokio::spawn(async move {
             let target = Target::new_tcp_tls(
@@ -498,14 +522,13 @@ mod tests {
         accept_task.await.unwrap().unwrap();
         connect_task.await.unwrap().unwrap();
 
-        Ok(()) 
+        Ok(())
     }
-    
 
     #[tokio::test]
     #[ntest::timeout(30_000)]
     async fn test_target_tcp_tls_insecure() -> Result<(), std::io::Error> {
-        let (addr, accept_task) = spawn_tls_server().await?;
+        let (addr, accept_task) = spawn_tls_server(None, None, None).await?;
 
         let connect_task = tokio::spawn(async move {
             let target = Target::new_tcp_tls(
@@ -517,6 +540,64 @@ mod tests {
             );
             let mut stm = Connector::new(target).unwrap().connect().await.unwrap();
             stm.write_all(b"Hello, world!").await?;
+            stm.shutdown().await?;
+            Ok::<_, std::io::Error>(())
+        });
+
+        accept_task.await.unwrap().unwrap();
+        connect_task.await.unwrap().unwrap();
+
+        Ok(())
+    }
+
+    /// Test that we can override the SNI.
+    #[tokio::test]
+    #[ntest::timeout(30_000)]
+    async fn test_target_tcp_tls_sni_override() -> Result<(), std::io::Error> {
+        let (addr, accept_task) = spawn_tls_server(Some("www.google.com"), None, None).await?;
+
+        let connect_task = tokio::spawn(async move {
+            let target = Target::new_tcp_tls(
+                ("127.0.0.1", addr.port()),
+                SslParameters {
+                    server_cert_verify: TlsServerCertVerify::Insecure,
+                    sni_override: Some(Cow::Borrowed("www.google.com")),
+                    ..Default::default()
+                },
+            );
+            let mut stm = Connector::new(target).unwrap().connect().await.unwrap();
+            stm.write_all(b"Hello, world!").await.unwrap();
+            stm.shutdown().await?;
+            Ok::<_, std::io::Error>(())
+        });
+
+        accept_task.await.unwrap().unwrap();
+        connect_task.await.unwrap().unwrap();
+
+        Ok(())
+    }
+
+    /// Test that we can override the ALPN.
+    #[tokio::test]
+    #[ntest::timeout(30_000)]
+    async fn test_target_tcp_tls_alpn_override() -> Result<(), std::io::Error> {
+        let (addr, accept_task) =
+            spawn_tls_server(None, Some(&["nope", "accepted"]), Some("accepted")).await?;
+
+        let connect_task = tokio::spawn(async move {
+            let target = Target::new_tcp_tls(
+                ("127.0.0.1", addr.port()),
+                SslParameters {
+                    server_cert_verify: TlsServerCertVerify::Insecure,
+                    alpn: Some(Cow::Borrowed(&[
+                        Cow::Borrowed("accepted"),
+                        Cow::Borrowed("fake"),
+                    ])),
+                    ..Default::default()
+                },
+            );
+            let mut stm = Connector::new(target).unwrap().connect().await.unwrap();
+            stm.write_all(b"Hello, world!").await.unwrap();
             stm.shutdown().await?;
             Ok::<_, std::io::Error>(())
         });
@@ -544,15 +625,22 @@ mod tests {
     async fn test_live_server_google_com_override_sni() {
         use std::net::ToSocketAddrs;
 
-        let addr = "www.google.com:443".to_socket_addrs().unwrap().into_iter().next().unwrap();
-        let target = Target::new_tcp_tls(addr, SslParameters {
-            sni_override: Some(Cow::Borrowed("www.google.com")),
-            ..Default::default()
-        });
+        let addr = "www.google.com:443"
+            .to_socket_addrs()
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        let target = Target::new_tcp_tls(
+            addr,
+            SslParameters {
+                sni_override: Some(Cow::Borrowed("www.google.com")),
+                ..Default::default()
+            },
+        );
         let mut stm = Connector::new(target).unwrap().connect().await.unwrap();
         stm.write_all(b"GET / HTTP/1.0\r\n\r\n").await.unwrap();
         // HTTP/1. .....
         assert_eq!(stm.read_u8().await.unwrap(), b'H');
     }
-
 }

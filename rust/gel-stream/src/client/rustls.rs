@@ -3,9 +3,7 @@ use rustls::client::WebPkiServerVerifier;
 use rustls::{
     ClientConfig, ClientConnection, DigitallySignedStruct, RootCertStore, SignatureScheme,
 };
-use rustls_pki_types::{
-    CertificateDer, DnsName, ServerName, UnixTime,
-};
+use rustls_pki_types::{CertificateDer, DnsName, ServerName, UnixTime};
 use rustls_platform_verifier::{ConfigVerifierExt, Verifier};
 
 use super::stream::{Stream, StreamWithUpgrade};
@@ -41,7 +39,7 @@ impl<S: Stream + 'static> StreamWithUpgrade for (S, Option<ClientConnection>) {
 
         let mut stream = rustls_tokio_stream::TlsStream::new_client_side(stream, tls, None);
         let res = stream.handshake().await;
-        
+
         // Potentially unwrap the error to get the underlying error.
         if let Err(e) = res {
             let kind = e.kind();
@@ -96,7 +94,9 @@ impl TlsInit for ClientConnection {
                 config
             }
             (TlsServerCertVerify::VerifyFull, TlsCert::System) => {
-                let mut config = ClientConfig::builder().dangerous().with_custom_certificate_verifier(Arc::new(Verifier::new()));
+                let mut config = ClientConfig::builder()
+                    .dangerous()
+                    .with_custom_certificate_verifier(Arc::new(Verifier::new()));
                 config
             }
             (TlsServerCertVerify::IgnoreHostname, TlsCert::Custom(root)) => {
@@ -107,7 +107,9 @@ impl TlsInit for ClientConnection {
 
                 let mut config = ClientConfig::builder()
                     .dangerous()
-                    .with_custom_certificate_verifier(Arc::new(IgnoreHostnameVerifier::new(verifier)));
+                    .with_custom_certificate_verifier(Arc::new(IgnoreHostnameVerifier::new(
+                        verifier,
+                    )));
                 config
             }
             (TlsServerCertVerify::IgnoreHostname, TlsCert::System) => {
@@ -136,9 +138,10 @@ impl TlsInit for ClientConnection {
 
         // Configure ALPN if provided
         if let Some(alpn_protocols) = alpn {
-            // config.alpn_protocols = alpn_protocols.iter()
-            //     .map(|p| p.as_bytes().to_vec())
-            //     .collect();
+            config.alpn_protocols = alpn_protocols
+                .iter()
+                .map(|p| p.as_bytes().to_vec())
+                .collect();
         }
 
         // Configure keylog if provided

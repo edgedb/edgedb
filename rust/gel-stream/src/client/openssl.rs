@@ -1,10 +1,11 @@
 use std::pin::Pin;
 
-use openssl::ssl::{SslContextBuilder, SslMethod, SslMode, SslVerifyMode};
+use openssl::ssl::{NameType, SslContextBuilder, SslMethod, SslMode, SslVerifyMode};
 use rustls_pki_types::ServerName;
 
 use super::{
-    stream::{Stream, StreamWithUpgrade}, SslError, SslParameters, SslVersion, TlsCert, TlsInit, TlsServerCertVerify
+    stream::{Stream, StreamWithUpgrade},
+    SslError, SslParameters, SslVersion, TlsCert, TlsInit, TlsServerCertVerify,
 };
 
 impl<S: Stream> StreamWithUpgrade for (S, Option<openssl::ssl::Ssl>) {
@@ -21,12 +22,9 @@ impl<S: Stream> StreamWithUpgrade for (S, Option<openssl::ssl::Ssl>) {
         };
 
         let mut stream = tokio_openssl::SslStream::new(tls, self.0)?;
-        let res = Pin::new(&mut stream)
-            .do_handshake()
-            .await;
+        let res = Pin::new(&mut stream).do_handshake().await;
 
-        res
-            .map_err(SslError::OpenSslError)?;
+        res.map_err(SslError::OpenSslError)?;
         Ok(stream)
     }
 }
@@ -64,7 +62,7 @@ impl TlsInit for openssl::ssl::Ssl {
         // Load root cert
         if let TlsCert::Custom(root) = root_cert {
             let root = openssl::x509::X509::from_der(root.as_ref())?;
-            ssl.set_certificate(&root)?;
+            ssl.cert_store_mut().add_cert(root)?;
             ssl.set_verify(SslVerifyMode::PEER);
         } else if *server_cert_verify == TlsServerCertVerify::Insecure {
             ssl.set_verify(SslVerifyMode::NONE);
@@ -78,7 +76,8 @@ impl TlsInit for openssl::ssl::Ssl {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "CRL not supported for OpenSSL",
-            ).into());
+            )
+            .into());
         }
 
         // Load certificate chain and private key
@@ -111,8 +110,40 @@ impl TlsInit for openssl::ssl::Ssl {
             }
         }
 
-        let mut ssl =openssl::ssl::Ssl::new(&ssl.build())?;
+        if *server_cert_verify == TlsServerCertVerify::VerifyFull {
+            if let Some(hostname) = sni_override {
+                ssl.verify_param_mut().set_host(hostname)?;
+            } else if let Some(ServerName::DnsName(hostname)) = &name {
+                ssl.verify_param_mut().set_host(hostname.as_ref())?;
+            } else if let Some(ServerName::IpAddress(ip)) = &name {
+                ssl.verify_param_mut().set_ip((*ip).into())?;
+            }
+        }
+
+        let mut ssl = openssl::ssl::Ssl::new(&ssl.build())?;
         ssl.set_connect_state();
+
+        // Set hostname if it's not an IP address
+        if let Some(hostname) = sni_override {
+            ssl.set_hostname(hostname)?;
+        } else if let Some(ServerName::DnsName(hostname)) = &name {
+            ssl.set_hostname(hostname.as_ref())?;
+        }
+
+        if let Some(alpn) = alpn {
+            let alpn = alpn
+                .iter()
+                .map(|s| {
+                    let bytes = s.as_bytes();
+                    let mut vec = Vec::with_capacity(bytes.len() + 1);
+                    vec.push(bytes.len() as u8);
+                    vec.extend_from_slice(bytes);
+                    vec
+                })
+                .flatten()
+                .collect::<Vec<_>>();
+            ssl.set_alpn_protos(&alpn)?;
+        }
 
         Ok(ssl)
     }
