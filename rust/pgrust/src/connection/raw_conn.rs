@@ -1,7 +1,4 @@
-use super::{
-    stream::{Stream, StreamWithUpgrade, UpgradableStream, UpgradableStreamChoice},
-    ConnectionError, Credentials,
-};
+use super::{invalid_state, Credentials, PGConnectionError};
 use crate::handshake::{
     client::{
         ConnectionDrive, ConnectionState, ConnectionStateSend, ConnectionStateType,
@@ -13,11 +10,13 @@ use crate::protocol::postgres::{FrontendBuilder, InitialBuilder};
 use crate::protocol::{postgres::data::SSLResponse, postgres::meta};
 use db_proto::StructBuffer;
 use gel_auth::AuthType;
-use gel_stream::client::{Connector, Target};
+use gel_stream::client::{
+    stream::{Stream, StreamWithUpgrade, UpgradableStream},
+    Connector,
+};
 use std::collections::HashMap;
 use std::pin::Pin;
-use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::io::AsyncWriteExt;
 use tracing::{trace, Level};
 
 #[derive(Clone, Default, Debug)]
@@ -75,13 +74,15 @@ impl ConnectionDriver {
         }
     }
 
-    async fn drive_bytes(
+    async fn drive_bytes<B: Stream, C: Unpin>(
         &mut self,
         state: &mut ConnectionState,
         drive: &[u8],
         message_buffer: &mut StructBuffer<meta::Message>,
-        stream: &mut UpgradableStream,
-    ) -> Result<(), ConnectionError>
+        stream: &mut UpgradableStream<B, C>,
+    ) -> Result<(), PGConnectionError>
+    where
+        (B, C): StreamWithUpgrade,
     {
         message_buffer.push_fallible(drive, |msg| {
             state.drive(ConnectionDrive::Message(msg), self)
@@ -108,12 +109,14 @@ impl ConnectionDriver {
         Ok(())
     }
 
-    async fn drive(
+    async fn drive<B: Stream, C: Unpin>(
         &mut self,
         state: &mut ConnectionState,
         drive: ConnectionDrive<'_>,
-        stream: &mut UpgradableStream,
-    ) -> Result<(), ConnectionError>
+        stream: &mut UpgradableStream<B, C>,
+    ) -> Result<(), PGConnectionError>
+    where
+        (B, C): StreamWithUpgrade,
     {
         state.drive(drive, self)?;
         loop {
@@ -139,145 +142,95 @@ impl ConnectionDriver {
     }
 }
 
-/// A raw, fully-authenticated stream connection to a backend server.
-pub struct RawClient
-{
-    stream: UpgradableStreamChoice,
+/// A raw client connection stream to a Postgres server, fully authenticated and
+/// ready to send queries.
+///
+/// This can be connected to a remote server using `connect`, or can be created
+/// with a pre-existing, pre-authenticated stream.
+#[derive(derive_more::Debug)]
+pub struct RawClient {
+    #[debug(skip)]
+    stream: Pin<Box<dyn Stream>>,
     params: ConnectionParams,
 }
 
 impl RawClient {
-    /// Create a new raw client from a stream. The stream must be fully authenticated and ready.
-    pub fn new(stream: B, params: ConnectionParams) -> Self {
+    /// Create a new `RawClient` from a given fully-authenticated stream.
+    #[inline]
+    pub fn new<S: Stream + 'static>(stream: S, params: ConnectionParams) -> Self {
         Self {
-            stream: UpgradableStreamChoice::Base(stream),
+            stream: Box::pin(stream),
             params,
         }
     }
-}
 
-impl RawClient
-{
-    pub fn params(&self) -> &ConnectionParams {
-        &self.params
-    }
-}
-
-impl AsyncRead for RawClient
-{
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        match &mut self.get_mut().stream {
-            UpgradableStreamChoice::Base(base) => Pin::new(base).poll_read(cx, buf),
-            UpgradableStreamChoice::Upgrade(upgraded) => Pin::new(upgraded).poll_read(cx, buf),
-        }
-    }
-}
-
-impl AsyncWrite for RawClient
-{
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize, std::io::Error>> {
-        match &mut self.get_mut().stream {
-            UpgradableStreamChoice::Base(base) => Pin::new(base).poll_write(cx, buf),
-            UpgradableStreamChoice::Upgrade(upgraded) => Pin::new(upgraded).poll_write(cx, buf),
+    /// Create a new `RawClient` from a given fully-authenticated and boxed stream.
+    #[inline]
+    pub fn new_boxed(stream: Box<dyn Stream>, params: ConnectionParams) -> Self {
+        Self {
+            stream: Box::into_pin(stream),
+            params,
         }
     }
 
-    fn poll_write_vectored(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        bufs: &[std::io::IoSlice<'_>],
-    ) -> Poll<Result<usize, std::io::Error>> {
-        match &mut self.get_mut().stream {
-            UpgradableStreamChoice::Base(base) => Pin::new(base).poll_write_vectored(cx, bufs),
-            UpgradableStreamChoice::Upgrade(upgraded) => {
-                Pin::new(upgraded).poll_write_vectored(cx, bufs)
-            }
-        }
-    }
+    /// Attempt to connect to a Postgres server using a given connector and SSL requirement.
+    pub async fn connect(
+        credentials: Credentials,
+        ssl_mode: ConnectionSslRequirement,
+        connector: Connector,
+    ) -> Result<RawClient, PGConnectionError> {
+        let mut state = ConnectionState::new(credentials, ssl_mode);
+        let mut stream = connector.connect().await?;
 
-    fn is_write_vectored(&self) -> bool {
-        match &self.stream {
-            UpgradableStreamChoice::Base(base) => base.is_write_vectored(),
-            UpgradableStreamChoice::Upgrade(upgraded) => upgraded.is_write_vectored(),
-        }
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
-        match &mut self.get_mut().stream {
-            UpgradableStreamChoice::Base(base) => Pin::new(base).poll_flush(cx),
-            UpgradableStreamChoice::Upgrade(upgraded) => Pin::new(upgraded).poll_flush(cx),
-        }
-    }
-
-    fn poll_shutdown(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        match &mut self.get_mut().stream {
-            UpgradableStreamChoice::Base(base) => Pin::new(base).poll_shutdown(cx),
-            UpgradableStreamChoice::Upgrade(upgraded) => Pin::new(upgraded).poll_shutdown(cx),
-        }
-    }
-}
-
-pub async fn connect_raw_ssl(
-    credentials: Credentials,
-    ssl_mode: ConnectionSslRequirement,
-    target: Target,
-) -> Result<RawClient, ConnectionError>
-{
-    let mut state = ConnectionState::new(credentials, ssl_mode);
-    let connector = Connector::new(target)?;
-    let mut stream = connector.connect().await?;
-
-    let mut update = ConnectionDriver::new();
-    update
-        .drive(&mut state, ConnectionDrive::Initial, &mut stream)
-        .await?;
-
-    let mut struct_buffer: StructBuffer<meta::Message> = StructBuffer::<meta::Message>::default();
-
-    while !state.is_ready() {
-        let mut buffer = [0; 1024];
-        let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buffer).await?;
-        if n == 0 {
-            Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?;
-        }
-        if tracing::enabled!(Level::TRACE) {
-            trace!("Read:");
-            let bytes: &[u8] = &buffer[..n];
-            for s in hexdump::hexdump_iter(bytes) {
-                trace!("{}", s);
-            }
-        }
-        if state.read_ssl_response() {
-            let ssl_response = SSLResponse::new(&buffer)?;
-            update
-                .drive(
-                    &mut state,
-                    ConnectionDrive::SslResponse(ssl_response),
-                    &mut stream,
-                )
-                .await?;
-            continue;
-        }
-
+        let mut update = ConnectionDriver::new();
         update
-            .drive_bytes(&mut state, &buffer[..n], &mut struct_buffer, &mut stream)
+            .drive(&mut state, ConnectionDrive::Initial, &mut stream)
             .await?;
+
+        let mut struct_buffer: StructBuffer<meta::Message> =
+            StructBuffer::<meta::Message>::default();
+
+        while !state.is_ready() {
+            let mut buffer = [0; 1024];
+            let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buffer).await?;
+            if n == 0 {
+                Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?;
+            }
+            if tracing::enabled!(Level::TRACE) {
+                trace!("Read:");
+                let bytes: &[u8] = &buffer[..n];
+                for s in hexdump::hexdump_iter(bytes) {
+                    trace!("{}", s);
+                }
+            }
+            if state.read_ssl_response() {
+                let ssl_response = SSLResponse::new(&buffer)?;
+                update
+                    .drive(
+                        &mut state,
+                        ConnectionDrive::SslResponse(ssl_response),
+                        &mut stream,
+                    )
+                    .await?;
+                continue;
+            }
+
+            update
+                .drive_bytes(&mut state, &buffer[..n], &mut struct_buffer, &mut stream)
+                .await?;
+        }
+
+        // This should not be possible -- we've fully upgraded the stream by now
+        let Ok(stream) = stream.into_choice() else {
+            return Err(invalid_state!("Connection was not ready"));
+        };
+
+        Ok(RawClient::new_boxed(stream.into_boxed(), update.params))
     }
 
-    let stream = stream.into_choice().unwrap();
-    Ok(RawClient {
-        stream,
-        params: update.params,
-    })
+    /// Consume the `RawClient` and return the underlying stream and connection parameters.
+    #[inline]
+    pub fn into_parts(self) -> (Pin<Box<dyn Stream>>, ConnectionParams) {
+        (self.stream, self.params)
+    }
 }

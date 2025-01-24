@@ -8,7 +8,7 @@ use tokio::net::TcpStream;
 #[cfg(unix)]
 use tokio::net::UnixStream;
 
-use super::ResolvedTarget;
+use super::target::ResolvedTarget;
 
 pub(crate) struct Resolver {
     #[cfg(feature = "hickory")]

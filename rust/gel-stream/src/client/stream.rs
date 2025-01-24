@@ -222,3 +222,19 @@ where
     #[debug("Upgrade(..)")]
     Upgrade(<(B, C) as StreamWithUpgrade>::Upgrade),
 }
+
+impl<B: Stream, C: Unpin> UpgradableStreamChoice<B, C>
+where
+    (B, C): StreamWithUpgrade,
+    B: 'static,
+    <(B, C) as StreamWithUpgrade>::Base: 'static,
+    <(B, C) as StreamWithUpgrade>::Upgrade: 'static,
+{
+    /// Take the inner stream as a boxed `Stream`
+    pub fn into_boxed(self) -> Box<dyn Stream> {
+        match self {
+            UpgradableStreamChoice::Base(base) => Box::new(base),
+            UpgradableStreamChoice::Upgrade(upgrade) => Box::new(upgrade),
+        }
+    }
+}

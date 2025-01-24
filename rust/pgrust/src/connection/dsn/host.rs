@@ -1,9 +1,47 @@
 use super::ParseError;
+use gel_stream::client::{ResolvedTarget, TargetName};
 use serde_derive::Serialize;
 use std::net::{IpAddr, Ipv6Addr};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct Host(pub HostType, pub u16);
+
+impl Host {
+    pub fn target_name(&self) -> Result<TargetName, std::io::Error> {
+        match &self.0 {
+            HostType::Hostname(hostname) => Ok(TargetName::new_tcp((hostname, self.1))),
+            HostType::IP(ip, Some(interface)) => Ok(TargetName::new_tcp((
+                format!("{}%{}", ip, interface),
+                self.1,
+            ))),
+            HostType::IP(ip, None) => Ok(TargetName::new_tcp((format!("{}", ip), self.1))),
+            HostType::Path(path) => TargetName::new_unix_path(path.clone()),
+            HostType::Abstract(name) => TargetName::new_unix_domain(name.clone()),
+        }
+    }
+}
+
+pub trait ToAddrsSyncVec {
+    fn to_addrs_sync(&self) -> Vec<(Host, Result<Vec<ResolvedTarget>, std::io::Error>)>;
+}
+
+impl ToAddrsSyncVec for Vec<Host> {
+    fn to_addrs_sync(&self) -> Vec<(Host, Result<Vec<ResolvedTarget>, std::io::Error>)> {
+        let mut result = Vec::with_capacity(self.len());
+        for host in self {
+            match host.target_name() {
+                Ok(target_name) => match target_name.to_addrs_sync() {
+                    Ok(addrs) => result.push((host.clone(), Ok(addrs))),
+                    Err(err) => result.push((host.clone(), Err(err))),
+                },
+                Err(err) => {
+                    result.push((host.clone(), Err(err)));
+                }
+            }
+        }
+        result
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub enum HostType {

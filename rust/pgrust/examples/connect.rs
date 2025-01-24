@@ -4,12 +4,11 @@ use captive_postgres::{
 use clap::Parser;
 use clap_derive::Parser;
 use gel_auth::AuthType;
-use gel_stream::client::{Connector, Target};
-use openssl::ssl::{Ssl, SslContext, SslMethod};
+use gel_stream::client::{Connector, ResolvedTarget, Target};
 use pgrust::{
     connection::{
         dsn::parse_postgres_dsn_env, Client, Credentials, ExecuteSink, Format, MaxRows,
-        PipelineBuilder, Portal, QuerySink, ResolvedTarget, Statement,
+        PipelineBuilder, Portal, QuerySink, Statement,
     },
     protocol::postgres::data::{CopyData, CopyOutResponse, DataRow, ErrorResponse, RowDescription},
 };
@@ -113,7 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.username = conn.user;
         args.password = conn.password.password().unwrap_or_default().to_string();
         if let Some(host) = conn.hosts.first() {
-            socket_address = ResolvedTarget::to_addrs_sync(host)?.into_iter().next();
+            socket_address = host.target_name()?.to_addrs_sync()?.into_iter().next();
         }
     }
 
@@ -137,6 +136,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let statements = args
         .statements
         .unwrap_or_else(|| vec!["select 1;".to_string()]);
+    let socket_address = Target::new_resolved(socket_address);
+
     let local = LocalSet::new();
     local
         .run_until(run_queries(
@@ -231,9 +232,7 @@ async fn run_queries(
     extended: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let connector = Connector::new(target)?;
-    let client = connector.connect().await?;
-
-    let (conn, task) = Client::new(credentials, client);
+    let (conn, task) = Client::new(credentials, connector);
     tokio::task::spawn_local(task);
     conn.ready().await?;
 

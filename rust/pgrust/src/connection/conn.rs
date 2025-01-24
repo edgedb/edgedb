@@ -1,8 +1,7 @@
 use super::{
-    connect_raw_ssl,
     flow::{MessageHandler, MessageResult, Pipeline, QuerySink},
     raw_conn::RawClient,
-    Credentials,
+    Credentials, PGConnectionError,
 };
 use crate::{
     connection::{
@@ -18,7 +17,7 @@ use crate::{
 };
 use db_proto::StructBuffer;
 use futures::{future::Either, FutureExt};
-use gel_stream::client::Target;
+use gel_stream::client::{stream::Stream, Connector, Target};
 use std::{
     cell::RefCell,
     future::ready,
@@ -41,7 +40,7 @@ pub enum PGConnError {
     #[error("Postgres error: {0}")]
     PgError(#[from] crate::errors::PgServerError),
     #[error("Connection failed: {0}")]
-    Connection(#[from] ConnectionError),
+    Connection(#[from] PGConnectionError),
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
     /// If an operation in a pipeline group fails, all operations up to
@@ -76,13 +75,11 @@ pub enum PGConnError {
 /// # Ok::<(), PGConnError>(())
 /// # }
 /// ```
-pub struct Client
-{
+pub struct Client {
     conn: Rc<PGConn>,
 }
 
-impl Clone for Client
-{
+impl Clone for Client {
     fn clone(&self) -> Self {
         Self {
             conn: self.conn.clone(),
@@ -90,15 +87,14 @@ impl Clone for Client
     }
 }
 
-impl Client
-{
+impl Client {
     pub fn new(
         credentials: Credentials,
-        target: Target,
+        connector: Connector,
     ) -> (Self, impl Future<Output = Result<(), PGConnError>>) {
         let conn = Rc::new(PGConn::new_connection(async move {
             let ssl_mode = ConnectionSslRequirement::Optional;
-            let raw = connect_raw_ssl(credentials, ssl_mode, target).await?;
+            let raw = RawClient::connect(credentials, ssl_mode, connector).await?;
             Ok(raw)
         }));
         let task = conn.clone().task();
@@ -161,14 +157,13 @@ impl Client
 
 #[derive(derive_more::Debug)]
 #[allow(clippy::type_complexity)]
-enum ConnState
-{
+enum ConnState {
     #[debug("Connecting(..)")]
     #[allow(clippy::type_complexity)]
-    Connecting(Pin<Box<dyn Future<Output = Result<RawClient, ConnectionError>>>>),
+    Connecting(Pin<Box<dyn Future<Output = Result<RawClient, PGConnectionError>>>>),
     #[debug("Ready(..)")]
     Ready {
-        client: RawClient,
+        stream: Pin<Box<dyn Stream>>,
         handlers: VecDeque<(
             Box<dyn MessageHandler>,
             Option<tokio::sync::oneshot::Sender<()>>,
@@ -178,17 +173,15 @@ enum ConnState
     Closed,
 }
 
-struct PGConn
-{
+struct PGConn {
     state: RefCell<ConnState>,
     queue: RefCell<super::queue::FutureQueue<Result<(), PGConnError>>>,
     ready_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
-impl PGConn
-{
+impl PGConn {
     pub fn new_connection(
-        future: impl Future<Output = Result<RawClient, ConnectionError>> + 'static,
+        future: impl Future<Output = Result<RawClient, PGConnectionError>> + 'static,
     ) -> Self {
         Self {
             state: ConnState::Connecting(future.boxed_local()).into(),
@@ -198,9 +191,10 @@ impl PGConn
     }
 
     pub fn new_raw(stm: RawClient) -> Self {
+        let (stream, params) = stm.into_parts();
         Self {
             state: ConnState::Ready {
-                client: stm,
+                stream,
                 handlers: Default::default(),
             }
             .into(),
@@ -232,10 +226,10 @@ impl PGConn
 
     fn with_stream<T, F>(&self, f: F) -> Result<T, PGConnError>
     where
-        F: FnOnce(Pin<&mut RawClient>) -> T,
+        F: FnOnce(Pin<&mut dyn Stream>) -> T,
     {
         match &mut *self.state.borrow_mut() {
-            ConnState::Ready { ref mut client, .. } => Ok(f(Pin::new(client))),
+            ConnState::Ready { ref mut stream, .. } => Ok(f(stream.as_mut())),
             _ => Err(PGConnError::InvalidState),
         }
     }
@@ -382,8 +376,9 @@ impl PGConn
                                     return Poll::Ready(Ok::<_, PGConnError>(()));
                                 }
                             };
+                            let (stream, params) = raw.into_parts();
                             *state = ConnState::Ready {
-                                client: raw,
+                                stream,
                                 handlers: Default::default(),
                             };
                             Poll::Ready(Ok::<_, PGConnError>(()))
@@ -431,7 +426,7 @@ impl PGConn
                             }
                         }
                     };
-                    self.process_message(Some(message.map_err(ConnectionError::ParseError)?))
+                    self.process_message(Some(message.map_err(PGConnectionError::ParseError)?))
                 })?;
 
                 if n == 0 {
@@ -621,7 +616,7 @@ mod tests {
 
     /// Perform a test using captured binary protocol data from a real server.
     async fn run_expect<F: Future>(
-        query_task: impl FnOnce(Client<DuplexStream, ()>, Rc<RefCell<String>>) -> F + 'static,
+        query_task: impl FnOnce(Client, Rc<RefCell<String>>) -> F + 'static,
         expect: &'static [(&[u8], &[u8], &str)],
     ) {
         let f = async move {

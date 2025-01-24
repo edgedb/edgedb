@@ -1,5 +1,5 @@
 use crate::{
-    connection::ConnectionError,
+    connection::PGConnectionError,
     errors::edgedb::EdbError,
     protocol::edgedb::{data::*, *},
 };
@@ -162,7 +162,7 @@ impl ServerState {
         &mut self,
         drive: ConnectionDrive,
         update: &mut impl ConnectionStateUpdate,
-    ) -> Result<(), ConnectionError> {
+    ) -> Result<(), PGConnectionError> {
         trace!("SERVER DRIVE: {:?} {:?}", self.state, drive);
         let res = match drive {
             ConnectionDrive::RawMessage(raw) => self.buffer.push_fallible(raw, |message| {

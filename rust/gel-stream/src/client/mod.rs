@@ -1,10 +1,4 @@
-use std::{
-    borrow::Cow,
-    net::{IpAddr, SocketAddr},
-    os::linux::net::SocketAddrExt,
-    path::Path,
-    sync::Arc,
-};
+use std::borrow::Cow;
 
 #[cfg(feature = "openssl")]
 pub mod openssl;
@@ -16,8 +10,10 @@ pub mod tokio_stream;
 pub mod stream;
 
 mod connection;
+pub(crate) mod target;
 
 pub use connection::Connector;
+pub use target::{ResolvedTarget, Target, TargetName};
 
 macro_rules! __invalid_state {
     ($error:literal) => {{
@@ -190,131 +186,6 @@ pub enum SslVersion {
     Tls1_3,
 }
 
-pub struct Target {
-    inner: TargetInner,
-}
-
-#[allow(private_bounds)]
-impl Target {
-    /// Create a new target for a Unix socket.
-    #[cfg(unix)]
-    pub fn new_unix_path<'s>(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
-        let path = ResolvedTarget::from(std::os::unix::net::SocketAddr::from_pathname(path)?);
-        Ok(Self {
-            inner: TargetInner::NoTls(path.into()),
-        })
-    }
-
-    /// Create a new target for a Unix socket.
-    #[cfg(any(target_os = "linux", target_os = "android"))]
-    pub fn new_unix_domain<'s>(domain: impl AsRef<[u8]>) -> Result<Self, std::io::Error> {
-        let domain =
-            ResolvedTarget::from(std::os::unix::net::SocketAddr::from_abstract_name(domain)?);
-        Ok(Self {
-            inner: TargetInner::NoTls(domain.into()),
-        })
-    }
-
-    /// Create a new target for a TCP socket.
-    pub fn new_tcp(host: impl TcpResolve) -> Self {
-        Self {
-            inner: TargetInner::NoTls(host.into()),
-        }
-    }
-
-    /// Create a new target for a TCP socket with TLS.
-    pub fn new_tcp_tls(host: impl TcpResolve, params: SslParameters) -> Self {
-        Self {
-            inner: TargetInner::Tls(host.into(), params.into()),
-        }
-    }
-
-    /// Create a new target for a TCP socket with STARTTLS.
-    pub fn new_tcp_starttls(host: impl TcpResolve, params: SslParameters) -> Self {
-        Self {
-            inner: TargetInner::StartTls(host.into(), params.into()),
-        }
-    }
-
-    /// Get the name of the target. For resolved IP addresses, this is the string representation of the IP address.
-    /// For unresolved hostnames, this is the hostname.
-    fn name(&self) -> Option<ServerName> {
-        self.maybe_resolved().name()
-    }
-
-    fn maybe_resolved(&self) -> &MaybeResolvedTarget {
-        match &self.inner {
-            TargetInner::NoTls(target) => &target,
-            TargetInner::Tls(target, _) => &target,
-            TargetInner::StartTls(target, _) => &target,
-        }
-    }
-
-    fn maybe_ssl(&self) -> Option<&SslParameters> {
-        match &self.inner {
-            TargetInner::NoTls(_) => None,
-            TargetInner::Tls(_, params) => Some(params),
-            TargetInner::StartTls(_, params) => Some(params),
-        }
-    }
-}
-
-#[derive(Clone, Debug, derive_more::From)]
-pub(crate) enum MaybeResolvedTarget {
-    Resolved(ResolvedTarget),
-    Unresolved(Cow<'static, str>, u16, Option<Cow<'static, str>>),
-}
-
-impl MaybeResolvedTarget {
-    fn name(&self) -> Option<ServerName> {
-        match self {
-            MaybeResolvedTarget::Resolved(ResolvedTarget::SocketAddr(addr)) => {
-                Some(ServerName::IpAddress(addr.ip().into()))
-            }
-            MaybeResolvedTarget::Unresolved(host, _, _) => {
-                Some(ServerName::DnsName(host.to_string().try_into().ok()?))
-            }
-            _ => None,
-        }
-    }
-}
-
-/// The type of connection.
-#[derive(Clone, Debug)]
-enum TargetInner {
-    NoTls(MaybeResolvedTarget),
-    Tls(MaybeResolvedTarget, Arc<SslParameters>),
-    StartTls(MaybeResolvedTarget, Arc<SslParameters>),
-}
-
-#[derive(Clone, Debug, derive_more::From)]
-/// The resolved target of a connection attempt.
-pub enum ResolvedTarget {
-    SocketAddr(std::net::SocketAddr),
-    #[cfg(unix)]
-    UnixSocketAddr(std::os::unix::net::SocketAddr),
-}
-
-trait TcpResolve {
-    fn into(self) -> MaybeResolvedTarget;
-}
-
-impl<S: AsRef<str>> TcpResolve for (S, u16) {
-    fn into(self) -> MaybeResolvedTarget {
-        if let Ok(addr) = self.0.as_ref().parse::<IpAddr>() {
-            MaybeResolvedTarget::Resolved(ResolvedTarget::SocketAddr(SocketAddr::new(addr, self.1)))
-        } else {
-            MaybeResolvedTarget::Unresolved(Cow::Owned(self.0.as_ref().to_owned()), self.1, None)
-        }
-    }
-}
-
-impl TcpResolve for SocketAddr {
-    fn into(self) -> MaybeResolvedTarget {
-        MaybeResolvedTarget::Resolved(ResolvedTarget::SocketAddr(self))
-    }
-}
-
 trait TlsInit {
     type Tls;
     fn init(params: &SslParameters, name: Option<ServerName>) -> Result<Self::Tls, SslError>;
@@ -322,18 +193,11 @@ trait TlsInit {
 
 #[cfg(test)]
 mod tests {
+    use std::{net::SocketAddr, sync::Arc};
+
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     use super::*;
-
-    #[test]
-    fn test_target() {
-        let target = Target::new_tcp(("localhost", 5432));
-        assert_eq!(
-            target.name(),
-            Some(ServerName::DnsName("localhost".try_into().unwrap()))
-        );
-    }
 
     #[cfg(unix)]
     #[tokio::test]

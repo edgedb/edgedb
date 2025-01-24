@@ -1,7 +1,7 @@
 use crate::{
     connection::{
         dsn::{ConnectionParameters, RawConnectionParameters, SslMode, *},
-        ConnectionError, Credentials, ResolvedTarget,
+        Credentials, PGConnectionError,
     },
     errors::PgServerError,
     handshake::{
@@ -14,6 +14,7 @@ use crate::{
     protocol::postgres::{data::SSLResponse, meta, FrontendBuilder, InitialBuilder},
 };
 use db_proto::StructBuffer;
+use gel_stream::client::ResolvedTarget;
 use pyo3::{
     buffer::PyBuffer,
     exceptions::{PyException, PyRuntimeError},
@@ -37,8 +38,8 @@ pub enum SSLMode {
     VerifyFull,
 }
 
-impl From<ConnectionError> for PyErr {
-    fn from(err: ConnectionError) -> PyErr {
+impl From<PGConnectionError> for PyErr {
+    fn from(err: PGConnectionError) -> PyErr {
         PyRuntimeError::new_err(err.to_string())
     }
 }
@@ -94,12 +95,7 @@ impl PyConnectionParams {
         // As this might be blocking, drop the GIL while we allow for
         // resolution to take place.
         let hosts = self.inner.hosts()?;
-        let hosts = py.allow_threads(|| {
-            hosts.into_iter().map(|host| {
-                let addrs = ResolvedTarget::to_addrs_sync(&host);
-                (host, addrs)
-            })
-        });
+        let hosts = py.allow_threads(|| hosts.to_addrs_sync());
         let mut errors = Vec::new();
         let mut resolved_hosts = Vec::new();
 
@@ -156,7 +152,7 @@ impl PyConnectionParams {
         }
 
         if resolved_hosts.is_empty() {
-            return Err(ConnectionError::Io(std::io::Error::new(
+            return Err(PGConnectionError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 format!("Could not resolve addresses: {errors:?}"),
             ))

@@ -2123,6 +2123,7 @@ dependencies = [
  "db_proto",
  "derive_more",
  "futures",
+ "gel-stream",
  "gel_auth",
  "hex-literal",
  "hexdump",

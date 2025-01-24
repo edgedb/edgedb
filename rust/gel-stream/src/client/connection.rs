@@ -1,8 +1,9 @@
 use std::net::SocketAddr;
 
 use super::stream::UpgradableStream;
+use super::target::{MaybeResolvedTarget, ResolvedTarget};
 use super::tokio_stream::Resolver;
-use super::{ConnectionError, MaybeResolvedTarget, ResolvedTarget, Ssl, Target, TlsInit};
+use super::{ConnectionError, Ssl, Target, TlsInit};
 
 type Connection = UpgradableStream<super::Stream, Option<super::Ssl>>;
 
