@@ -3395,7 +3395,8 @@ class TestServerProtoConcurrentDDL(tb.DDLTestCase):
                     # deferred_shield ensures that none of the
                     # operations get cancelled, which allows us to
                     # aclose them all cleanly.
-                    g.create_task(asyncutil.deferred_shield(con.execute(f'''
+                    # Use _fetchall, because it doesn't retry
+                    g.create_task(asyncutil.deferred_shield(con._fetchall(f'''
                         CREATE TYPE {typename_prefix}{i} {{
                             CREATE REQUIRED PROPERTY prop1 -> std::int64;
                         }};
@@ -3441,7 +3442,8 @@ class TestServerProtoConcurrentGlobalDDL(tb.DDLTestCase):
                     # deferred_shield ensures that none of the
                     # operations get cancelled, which allows us to
                     # aclose them all cleanly.
-                    g.create_task(asyncutil.deferred_shield(con.execute(f'''
+                    # Use _fetchall, because it doesn't retry
+                    g.create_task(asyncutil.deferred_shield(con._fetchall(f'''
                         CREATE SUPERUSER ROLE concurrent_{i}
                     ''')))
         except ExceptionGroup as e:
