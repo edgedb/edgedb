@@ -8,7 +8,7 @@ use rustls_platform_verifier::Verifier;
 
 use super::stream::{Stream, StreamWithUpgrade};
 use super::tokio_stream::TokioStream;
-use super::{SslParameters, TlsCert, TlsInit, TlsServerCertVerify};
+use super::{TlsParameters, TlsCert, TlsInit, TlsServerCertVerify};
 use std::any::Any;
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
@@ -61,12 +61,12 @@ impl TlsInit for ClientConnection {
     type Tls = ClientConnection;
 
     fn init(
-        parameters: &SslParameters,
+        parameters: &TlsParameters,
         name: Option<ServerName>,
     ) -> Result<Self::Tls, super::SslError> {
         let _ = ::rustls::crypto::ring::default_provider().install_default();
 
-        let SslParameters {
+        let TlsParameters {
             server_cert_verify,
             root_cert,
             cert,

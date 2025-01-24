@@ -142,7 +142,7 @@ pub type Stream = tokio_stream::TokioStream;
 ///
 /// Note that both EdgeDB/Gel and Postgres may alter certificate validation levels
 /// when custom root certificates are provided. This must be done in the
-/// `SslParameters` struct by the caller.
+/// `TlsParameters` struct by the caller.
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
 pub enum TlsServerCertVerify {
     /// Do not verify the server's certificate. Only confirm that the server is
@@ -165,7 +165,7 @@ pub enum TlsCert {
 }
 
 #[derive(Default, Debug, PartialEq, Eq)]
-pub struct SslParameters {
+pub struct TlsParameters {
     pub server_cert_verify: TlsServerCertVerify,
     pub cert: Option<CertificateDer<'static>>,
     pub key: Option<PrivateKeyDer<'static>>,
@@ -178,7 +178,7 @@ pub struct SslParameters {
     pub alpn: Option<Cow<'static, [Cow<'static, str>]>>,
 }
 
-impl SslParameters {
+impl TlsParameters {
     pub fn insecure() -> Self {
         Self {
             server_cert_verify: TlsServerCertVerify::Insecure,
@@ -197,7 +197,7 @@ pub enum SslVersion {
 
 trait TlsInit {
     type Tls;
-    fn init(params: &SslParameters, name: Option<ServerName>) -> Result<Self::Tls, SslError>;
+    fn init(params: &TlsParameters, name: Option<ServerName>) -> Result<Self::Tls, SslError>;
 }
 
 #[cfg(test)]
@@ -353,7 +353,7 @@ mod tests {
         let connect_task = tokio::spawn(async move {
             let target = Target::new_tcp_tls(
                 ("127.0.0.1", addr.port()),
-                SslParameters {
+                TlsParameters {
                     root_cert: TlsCert::Custom(load_test_ca()),
                     ..Default::default()
                 },
@@ -381,7 +381,7 @@ mod tests {
         let connect_task = tokio::spawn(async move {
             let target = Target::new_tcp_tls(
                 ("localhost", addr.port()),
-                SslParameters {
+                TlsParameters {
                     root_cert: TlsCert::Custom(load_test_ca()),
                     ..Default::default()
                 },
@@ -406,7 +406,7 @@ mod tests {
         let connect_task = tokio::spawn(async move {
             let target = Target::new_tcp_tls(
                 ("127.0.0.1", addr.port()),
-                SslParameters {
+                TlsParameters {
                     server_cert_verify: TlsServerCertVerify::Insecure,
                     ..Default::default()
                 },
@@ -432,7 +432,7 @@ mod tests {
         let connect_task = tokio::spawn(async move {
             let target = Target::new_tcp_tls(
                 ("127.0.0.1", addr.port()),
-                SslParameters {
+                TlsParameters {
                     server_cert_verify: TlsServerCertVerify::Insecure,
                     sni_override: Some(Cow::Borrowed("www.google.com")),
                     ..Default::default()
@@ -460,7 +460,7 @@ mod tests {
         let connect_task = tokio::spawn(async move {
             let target = Target::new_tcp_tls(
                 ("127.0.0.1", addr.port()),
-                SslParameters {
+                TlsParameters {
                     server_cert_verify: TlsServerCertVerify::Insecure,
                     alpn: Some(Cow::Borrowed(&[
                         Cow::Borrowed("accepted"),
@@ -484,7 +484,7 @@ mod tests {
     #[cfg(feature = "__manual_tests")]
     #[tokio::test]
     async fn test_live_server_manual_google_com() {
-        let target = Target::new_tcp_tls(("www.google.com", 443), SslParameters::default());
+        let target = Target::new_tcp_tls(("www.google.com", 443), TlsParameters::default());
         let mut stm = Connector::new(target).unwrap().connect().await.unwrap();
         stm.write_all(b"GET / HTTP/1.0\r\n\r\n").await.unwrap();
         // HTTP/1. .....
@@ -506,7 +506,7 @@ mod tests {
             .unwrap();
         let target = Target::new_tcp_tls(
             addr,
-            SslParameters {
+            TlsParameters {
                 sni_override: Some(Cow::Borrowed("www.google.com")),
                 ..Default::default()
             },

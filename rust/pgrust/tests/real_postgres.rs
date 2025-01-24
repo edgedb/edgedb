@@ -1,6 +1,6 @@
 // Constants
 use gel_auth::AuthType;
-use gel_stream::client::{Connector, ResolvedTarget, SslParameters, Target};
+use gel_stream::client::{Connector, ResolvedTarget, TlsParameters, Target};
 use pgrust::connection::{Credentials, PGConnectionError, RawClient};
 use pgrust::errors::PgServerError;
 use pgrust::handshake::ConnectionSslRequirement;
@@ -42,7 +42,7 @@ async fn test_auth_noisy() -> Result<(), Box<dyn std::error::Error>> {
 
     let connector = Connector::new(Target::new_resolved_starttls(
         address(&postgres_process.socket_address),
-        SslParameters::insecure(),
+        TlsParameters::insecure(),
     ))?;
     let raw_client = RawClient::connect(credentials, ssl_requirement, connector).await?;
     let params = raw_client.into_parts().1;
@@ -76,7 +76,7 @@ async fn test_auth_real(
 
     let connector = Connector::new(Target::new_resolved_starttls(
         address(&postgres_process.socket_address),
-        SslParameters::insecure(),
+        TlsParameters::insecure(),
     ))?;
     let raw_client = RawClient::connect(credentials, ssl_requirement, connector).await?;
     let params = raw_client.into_parts().1;
@@ -111,7 +111,7 @@ async fn test_bad_password(
 
     let connector = Connector::new(Target::new_resolved_starttls(
         address(&postgres_process.socket_address),
-        SslParameters::insecure(),
+        TlsParameters::insecure(),
     ))?;
     let raw_client = RawClient::connect(credentials, ssl_requirement, connector).await;
 
@@ -147,7 +147,7 @@ async fn test_bad_username(
 
     let connector = Connector::new(Target::new_resolved_starttls(
         address(&postgres_process.socket_address),
-        SslParameters::insecure(),
+        TlsParameters::insecure(),
     ))?;
     let raw_client = RawClient::connect(credentials, ssl_requirement, connector).await;
 
@@ -184,7 +184,7 @@ async fn test_bad_database(
 
     let connector = Connector::new(Target::new_resolved_starttls(
         address(&postgres_process.socket_address),
-        SslParameters::insecure(),
+        TlsParameters::insecure(),
     ))?;
     let raw_client = RawClient::connect(credentials, ssl_requirement, connector).await;
 

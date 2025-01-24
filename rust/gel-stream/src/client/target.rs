@@ -8,7 +8,7 @@ use std::{
 
 use rustls_pki_types::ServerName;
 
-use super::SslParameters;
+use super::TlsParameters;
 
 /// A target name describes the TCP or Unix socket that a client will connect to.
 pub struct TargetName {
@@ -76,13 +76,13 @@ impl Target {
         }
     }
 
-    pub fn new_tls(name: TargetName, params: SslParameters) -> Self {
+    pub fn new_tls(name: TargetName, params: TlsParameters) -> Self {
         Self {
             inner: TargetInner::Tls(name.inner, params.into()),
         }
     }
 
-    pub fn new_starttls(name: TargetName, params: SslParameters) -> Self {
+    pub fn new_starttls(name: TargetName, params: TlsParameters) -> Self {
         Self {
             inner: TargetInner::StartTls(name.inner, params.into()),
         }
@@ -94,13 +94,13 @@ impl Target {
         }
     }
 
-    pub fn new_resolved_tls(target: ResolvedTarget, params: SslParameters) -> Self {
+    pub fn new_resolved_tls(target: ResolvedTarget, params: TlsParameters) -> Self {
         Self {
             inner: TargetInner::Tls(target.into(), params.into()),
         }
     }
 
-    pub fn new_resolved_starttls(target: ResolvedTarget, params: SslParameters) -> Self {
+    pub fn new_resolved_starttls(target: ResolvedTarget, params: TlsParameters) -> Self {
         Self {
             inner: TargetInner::StartTls(target.into(), params.into()),
         }
@@ -133,14 +133,14 @@ impl Target {
     }
 
     /// Create a new target for a TCP socket with TLS.
-    pub fn new_tcp_tls(host: impl TcpResolve, params: SslParameters) -> Self {
+    pub fn new_tcp_tls(host: impl TcpResolve, params: TlsParameters) -> Self {
         Self {
             inner: TargetInner::Tls(host.into(), params.into()),
         }
     }
 
     /// Create a new target for a TCP socket with STARTTLS.
-    pub fn new_tcp_starttls(host: impl TcpResolve, params: SslParameters) -> Self {
+    pub fn new_tcp_starttls(host: impl TcpResolve, params: TlsParameters) -> Self {
         Self {
             inner: TargetInner::StartTls(host.into(), params.into()),
         }
@@ -164,7 +164,7 @@ impl Target {
         matches!(self.inner, TargetInner::StartTls(_, _))
     }
 
-    pub(crate) fn maybe_ssl(&self) -> Option<&SslParameters> {
+    pub(crate) fn maybe_ssl(&self) -> Option<&TlsParameters> {
         match &self.inner {
             TargetInner::NoTls(_) => None,
             TargetInner::Tls(_, params) => Some(params),
@@ -233,8 +233,8 @@ impl MaybeResolvedTarget {
 #[derive(Clone, Debug)]
 enum TargetInner {
     NoTls(MaybeResolvedTarget),
-    Tls(MaybeResolvedTarget, Arc<SslParameters>),
-    StartTls(MaybeResolvedTarget, Arc<SslParameters>),
+    Tls(MaybeResolvedTarget, Arc<TlsParameters>),
+    StartTls(MaybeResolvedTarget, Arc<TlsParameters>),
 }
 
 #[derive(Clone, Debug, derive_more::From)]

@@ -5,7 +5,7 @@ use rustls_pki_types::ServerName;
 
 use super::{
     stream::{Stream, StreamWithUpgrade},
-    SslError, SslParameters, SslVersion, TlsCert, TlsInit, TlsServerCertVerify,
+    SslError, TlsParameters, SslVersion, TlsCert, TlsInit, TlsServerCertVerify,
 };
 
 impl<S: Stream> StreamWithUpgrade for (S, Option<openssl::ssl::Ssl>) {
@@ -43,8 +43,8 @@ impl From<SslVersion> for openssl::ssl::SslVersion {
 impl TlsInit for openssl::ssl::Ssl {
     type Tls = openssl::ssl::Ssl;
 
-    fn init(parameters: &SslParameters, name: Option<ServerName>) -> Result<Self, SslError> {
-        let SslParameters {
+    fn init(parameters: &TlsParameters, name: Option<ServerName>) -> Result<Self, SslError> {
+        let TlsParameters {
             server_cert_verify,
             root_cert,
             cert,
