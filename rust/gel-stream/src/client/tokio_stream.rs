@@ -1,6 +1,6 @@
 //! This module provides functionality to connect to Tokio TCP and Unix sockets.
 
-use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::net::{IpAddr, ToSocketAddrs};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};

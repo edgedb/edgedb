@@ -82,44 +82,44 @@ impl TlsInit for ClientConnection {
         let config = match (server_cert_verify, root_cert) {
             (TlsServerCertVerify::Insecure, _) => {
                 // The root cert is ignored.
-                let mut config = ClientConfig::builder()
+
+                ClientConfig::builder()
                     .dangerous()
-                    .with_custom_certificate_verifier(Arc::new(NullVerifier));
-                config
+                    .with_custom_certificate_verifier(Arc::new(NullVerifier))
             }
             (TlsServerCertVerify::VerifyFull, TlsCert::Custom(root)) => {
                 let mut roots = RootCertStore::empty();
                 let (loaded, ignored) = roots.add_parsable_certificates([root.clone()]);
-                let mut config = ClientConfig::builder().with_root_certificates(Arc::new(roots));
-                config
+                if loaded == 0 || ignored > 0 {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "Invalid certificate",
+                    )
+                    .into());
+                }
+
+                ClientConfig::builder().with_root_certificates(Arc::new(roots))
             }
-            (TlsServerCertVerify::VerifyFull, TlsCert::System) => {
-                let mut config = ClientConfig::builder()
-                    .dangerous()
-                    .with_custom_certificate_verifier(Arc::new(Verifier::new()));
-                config
-            }
+            (TlsServerCertVerify::VerifyFull, TlsCert::System) => ClientConfig::builder()
+                .dangerous()
+                .with_custom_certificate_verifier(Arc::new(Verifier::new())),
             (TlsServerCertVerify::IgnoreHostname, TlsCert::Custom(root)) => {
                 let mut roots = RootCertStore::empty();
                 roots.add_parsable_certificates([root.clone()]);
 
                 let verifier = WebPkiServerVerifier::builder(Arc::new(roots)).build()?;
 
-                let mut config = ClientConfig::builder()
+                ClientConfig::builder()
                     .dangerous()
                     .with_custom_certificate_verifier(Arc::new(IgnoreHostnameVerifier::new(
                         verifier,
-                    )));
-                config
+                    )))
             }
-            (TlsServerCertVerify::IgnoreHostname, TlsCert::System) => {
-                let mut config = ClientConfig::builder()
-                    .dangerous()
-                    .with_custom_certificate_verifier(Arc::new(IgnoreHostnameVerifier::new(
-                        Arc::new(Verifier::new()),
-                    )));
-                config
-            }
+            (TlsServerCertVerify::IgnoreHostname, TlsCert::System) => ClientConfig::builder()
+                .dangerous()
+                .with_custom_certificate_verifier(Arc::new(IgnoreHostnameVerifier::new(Arc::new(
+                    Verifier::new(),
+                )))),
         };
 
         // Load client certificate and key if provided

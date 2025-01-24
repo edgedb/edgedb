@@ -27,7 +27,7 @@ impl TargetName {
     pub fn new_unix_path<'s>(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
         let path = ResolvedTarget::from(std::os::unix::net::SocketAddr::from_pathname(path)?);
         Ok(Self {
-            inner: MaybeResolvedTarget::Resolved(path.into()),
+            inner: MaybeResolvedTarget::Resolved(path),
         })
     }
 
@@ -37,7 +37,7 @@ impl TargetName {
         let domain =
             ResolvedTarget::from(std::os::unix::net::SocketAddr::from_abstract_name(domain)?);
         Ok(Self {
-            inner: MaybeResolvedTarget::Resolved(domain.into()),
+            inner: MaybeResolvedTarget::Resolved(domain),
         })
     }
 
@@ -55,9 +55,9 @@ impl TargetName {
             MaybeResolvedTarget::Resolved(addr) => {
                 return Ok(vec![addr.clone()]);
             }
-            MaybeResolvedTarget::Unresolved(host, port, interface) => {
+            MaybeResolvedTarget::Unresolved(host, port, _interface) => {
                 let addrs = format!("{}:{}", host, port).to_socket_addrs()?;
-                result.extend(addrs.map(|addr| ResolvedTarget::SocketAddr(addr)));
+                result.extend(addrs.map(ResolvedTarget::SocketAddr));
             }
         }
         Ok(result)
@@ -76,15 +76,33 @@ impl Target {
         }
     }
 
-    pub fn new_resolved(name: ResolvedTarget) -> Self {
-        Self {
-            inner: TargetInner::NoTls(name.into()),
-        }
-    }
-
     pub fn new_tls(name: TargetName, params: SslParameters) -> Self {
         Self {
             inner: TargetInner::Tls(name.inner, params.into()),
+        }
+    }
+
+    pub fn new_starttls(name: TargetName, params: SslParameters) -> Self {
+        Self {
+            inner: TargetInner::StartTls(name.inner, params.into()),
+        }
+    }
+
+    pub fn new_resolved(target: ResolvedTarget) -> Self {
+        Self {
+            inner: TargetInner::NoTls(target.into()),
+        }
+    }
+
+    pub fn new_resolved_tls(target: ResolvedTarget, params: SslParameters) -> Self {
+        Self {
+            inner: TargetInner::Tls(target.into(), params.into()),
+        }
+    }
+
+    pub fn new_resolved_starttls(target: ResolvedTarget, params: SslParameters) -> Self {
+        Self {
+            inner: TargetInner::StartTls(target.into(), params.into()),
         }
     }
 
@@ -136,10 +154,14 @@ impl Target {
 
     pub(crate) fn maybe_resolved(&self) -> &MaybeResolvedTarget {
         match &self.inner {
-            TargetInner::NoTls(target) => &target,
-            TargetInner::Tls(target, _) => &target,
-            TargetInner::StartTls(target, _) => &target,
+            TargetInner::NoTls(target) => target,
+            TargetInner::Tls(target, _) => target,
+            TargetInner::StartTls(target, _) => target,
         }
+    }
+
+    pub(crate) fn is_starttls(&self) -> bool {
+        matches!(self.inner, TargetInner::StartTls(_, _))
     }
 
     pub(crate) fn maybe_ssl(&self) -> Option<&SslParameters> {
@@ -245,7 +267,7 @@ impl TcpResolve for SocketAddr {
 
 #[cfg(test)]
 mod tests {
-    use std::net::{Ipv6Addr, SocketAddrV6};
+    use std::net::SocketAddrV6;
 
     use super::*;
 

@@ -4,10 +4,7 @@ use super::{
     Credentials, PGConnectionError,
 };
 use crate::{
-    connection::{
-        flow::{QueryMessageHandler, SyncMessageHandler},
-        ConnectionError,
-    },
+    connection::flow::{QueryMessageHandler, SyncMessageHandler},
     handshake::ConnectionSslRequirement,
     protocol::postgres::{
         builder,
@@ -17,7 +14,7 @@ use crate::{
 };
 use db_proto::StructBuffer;
 use futures::{future::Either, FutureExt};
-use gel_stream::client::{stream::Stream, Connector, Target};
+use gel_stream::client::{stream::Stream, Connector};
 use std::{
     cell::RefCell,
     future::ready,
@@ -30,7 +27,7 @@ use std::{
     future::{poll_fn, Future},
     rc::Rc,
 };
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::io::ReadBuf;
 use tracing::{error, trace, warn, Level};
 
 #[derive(Debug, thiserror::Error)]
@@ -55,12 +52,11 @@ pub enum PGConnError {
 ///
 /// ```
 /// # use pgrust::connection::*;
+/// # use gel_stream::client::{Target, Connector};
 /// # _ = async {
-/// # let config = ();
 /// # let credentials = Credentials::default();
-/// # let (client, server) = ::tokio::io::duplex(64);
-/// # let socket = client;
-/// let (client, task) = Client::new(credentials, socket, config);
+/// # let connector = Connector::new(Target::new_tcp(("localhost", 1234))).unwrap();
+/// let (client, task) = Client::new(credentials, connector);
 /// ::tokio::task::spawn_local(task);
 ///
 /// // Run a basic query
@@ -191,7 +187,7 @@ impl PGConn {
     }
 
     pub fn new_raw(stm: RawClient) -> Self {
-        let (stream, params) = stm.into_parts();
+        let (stream, _params) = stm.into_parts();
         Self {
             state: ConnState::Ready {
                 stream,
@@ -376,7 +372,7 @@ impl PGConn {
                                     return Poll::Ready(Ok::<_, PGConnError>(()));
                                 }
                             };
-                            let (stream, params) = raw.into_parts();
+                            let (stream, _params) = raw.into_parts();
                             *state = ConnState::Ready {
                                 stream,
                                 handlers: Default::default(),
@@ -483,7 +479,7 @@ mod tests {
     use hex_literal::hex;
     use std::{fmt::Write, time::Duration};
     use tokio::{
-        io::{AsyncReadExt, AsyncWriteExt, DuplexStream},
+        io::{AsyncReadExt, AsyncWriteExt},
         task::LocalSet,
         time::timeout,
     };

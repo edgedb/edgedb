@@ -36,8 +36,10 @@ impl Connector {
         };
 
         if let Some(ssl) = self.target.maybe_ssl() {
-            let mut stm = UpgradableStream::new(stream, Some(Ssl::init(&ssl, self.target.name())?));
-            stm.secure_upgrade().await?;
+            let mut stm = UpgradableStream::new(stream, Some(Ssl::init(ssl, self.target.name())?));
+            if !self.target.is_starttls() {
+                stm.secure_upgrade().await?;
+            }
             Ok(stm)
         } else {
             Ok(UpgradableStream::new(stream, None))

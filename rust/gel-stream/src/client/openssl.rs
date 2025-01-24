@@ -1,6 +1,6 @@
 use std::pin::Pin;
 
-use openssl::ssl::{NameType, SslContextBuilder, SslMethod, SslMode, SslVerifyMode};
+use openssl::ssl::{SslContextBuilder, SslMethod, SslVerifyMode};
 use rustls_pki_types::ServerName;
 
 use super::{

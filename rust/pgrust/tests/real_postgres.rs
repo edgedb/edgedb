@@ -1,6 +1,6 @@
 // Constants
 use gel_auth::AuthType;
-use gel_stream::client::{Connector, ResolvedTarget, Target};
+use gel_stream::client::{Connector, ResolvedTarget, SslParameters, Target};
 use pgrust::connection::{Credentials, PGConnectionError, RawClient};
 use pgrust::errors::PgServerError;
 use pgrust::handshake::ConnectionSslRequirement;
@@ -40,9 +40,10 @@ async fn test_auth_noisy() -> Result<(), Box<dyn std::error::Error>> {
 
     let ssl_requirement = ConnectionSslRequirement::Optional;
 
-    let connector = Connector::new(Target::new_resolved(address(
-        &postgres_process.socket_address,
-    )))?;
+    let connector = Connector::new(Target::new_resolved_starttls(
+        address(&postgres_process.socket_address),
+        SslParameters::insecure(),
+    ))?;
     let raw_client = RawClient::connect(credentials, ssl_requirement, connector).await?;
     let params = raw_client.into_parts().1;
     assert_eq!(params.auth, AuthType::Trust);
@@ -73,9 +74,10 @@ async fn test_auth_real(
         _ => ConnectionSslRequirement::Optional,
     };
 
-    let connector = Connector::new(Target::new_resolved(address(
-        &postgres_process.socket_address,
-    )))?;
+    let connector = Connector::new(Target::new_resolved_starttls(
+        address(&postgres_process.socket_address),
+        SslParameters::insecure(),
+    ))?;
     let raw_client = RawClient::connect(credentials, ssl_requirement, connector).await?;
     let params = raw_client.into_parts().1;
 
@@ -107,13 +109,15 @@ async fn test_bad_password(
         _ => ConnectionSslRequirement::Optional,
     };
 
-    let connector = Connector::new(Target::new_resolved(address(
-        &postgres_process.socket_address,
-    )))?;
+    let connector = Connector::new(Target::new_resolved_starttls(
+        address(&postgres_process.socket_address),
+        SslParameters::insecure(),
+    ))?;
     let raw_client = RawClient::connect(credentials, ssl_requirement, connector).await;
 
     assert!(
-        matches!(raw_client, Err(PGConnectionError::ServerError(PgServerError { code, .. })) if &code.to_code() == b"28P01")
+        matches!(raw_client, Err(PGConnectionError::ServerError(PgServerError { code, .. })) if &code.to_code() == b"28P01"),
+        "Expected server error 28P01, got {raw_client:?}",
     );
 
     Ok(())
@@ -141,9 +145,10 @@ async fn test_bad_username(
         _ => ConnectionSslRequirement::Optional,
     };
 
-    let connector = Connector::new(Target::new_resolved(address(
-        &postgres_process.socket_address,
-    )))?;
+    let connector = Connector::new(Target::new_resolved_starttls(
+        address(&postgres_process.socket_address),
+        SslParameters::insecure(),
+    ))?;
     let raw_client = RawClient::connect(credentials, ssl_requirement, connector).await;
 
     assert!(
@@ -177,13 +182,15 @@ async fn test_bad_database(
         _ => ConnectionSslRequirement::Optional,
     };
 
-    let connector = Connector::new(Target::new_resolved(address(
-        &postgres_process.socket_address,
-    )))?;
+    let connector = Connector::new(Target::new_resolved_starttls(
+        address(&postgres_process.socket_address),
+        SslParameters::insecure(),
+    ))?;
     let raw_client = RawClient::connect(credentials, ssl_requirement, connector).await;
 
     assert!(
-        matches!(raw_client, Err(PGConnectionError::ServerError(PgServerError { code, .. })) if &code.to_code() == b"3D000")
+        matches!(raw_client, Err(PGConnectionError::ServerError(PgServerError { code, .. })) if &code.to_code() == b"3D000"),
+        "Expected server error 3D000, got {raw_client:?}",
     );
 
     Ok(())

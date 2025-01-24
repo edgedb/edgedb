@@ -178,6 +178,15 @@ pub struct SslParameters {
     pub alpn: Option<Cow<'static, [Cow<'static, str>]>>,
 }
 
+impl SslParameters {
+    pub fn insecure() -> Self {
+        Self {
+            server_cert_verify: TlsServerCertVerify::Insecure,
+            ..Default::default()
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SslVersion {
     Tls1,
