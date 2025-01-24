@@ -144,7 +144,12 @@ class BaseTransaction(abc.ABC):
     async def _commit(self) -> None:
         query = self._make_commit_query()
         try:
-            await self._connection.execute(query)
+            # Use _fetchall to ensure there is no retry performed.
+            # The protocol level apparently thinks the transaction is
+            # over if COMMIT fails, and since we use that to decide
+            # whether to retry in query/execute, it would want to
+            # retry a COMMIT.
+            await self._connection._fetchall(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -391,29 +396,55 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
     def _get_query_cache(self) -> abstract.QueryCache:
         return self._query_cache
 
-    async def _query(self, query_context: abstract.QueryContext):
-        await self.ensure_connected()
-        return await self.raw_query(query_context)
-
-    async def _execute(self, script: abstract.ExecuteContext) -> None:
-        await self.ensure_connected()
-        ctx = script.lower(allow_capabilities=edgedb_enums.Capability.ALL)
-        res = await self._protocol.execute(ctx)
-        if ctx.warnings:
-            script.warning_handler(ctx.warnings, res)
-
     async def ensure_connected(self):
         if self.is_closed():
             await self.connect()
         return self
 
+    async def _query(self, query_context: abstract.QueryContext):
+        await self.ensure_connected()
+        return await self.raw_query(query_context)
+
+    async def _retry_operation(self, func):
+        i = 0
+        while True:
+            i += 1
+            try:
+                return await func()
+            # Retry transaction conflict errors, up to a maximum of 5
+            # times.  We don't do this if we are in a transaction,
+            # since that *ought* to be done at the transaction level.
+            # Though in reality in the test suite it is usually done at the
+            # test runner level.
+            except errors.TransactionConflictError:
+                if i >= 5 or self.is_in_transaction():
+                    raise
+                await asyncio.sleep(
+                    min((2 ** i) * 0.1, 10)
+                    + random.randrange(100) * 0.001
+                )
+
+    async def _execute(self, script: abstract.ExecuteContext) -> None:
+        await self.ensure_connected()
+
+        async def _inner():
+            ctx = script.lower(allow_capabilities=edgedb_enums.Capability.ALL)
+            res = await self._protocol.execute(ctx)
+            if ctx.warnings:
+                script.warning_handler(ctx.warnings, res)
+
+        await self._retry_operation(_inner)
+
     async def raw_query(self, query_context: abstract.QueryContext):
-        ctx = query_context.lower(
-            allow_capabilities=edgedb_enums.Capability.ALL)
-        res = await self._protocol.query(ctx)
-        if ctx.warnings:
-            res = query_context.warning_handler(ctx.warnings, res)
-        return res
+        async def _inner():
+            ctx = query_context.lower(
+                allow_capabilities=edgedb_enums.Capability.ALL)
+            res = await self._protocol.query(ctx)
+            if ctx.warnings:
+                res = query_context.warning_handler(ctx.warnings, res)
+            return res
+
+        return await self._retry_operation(_inner)
 
     async def _fetchall_generic(self, ctx):
         await self.ensure_connected()
