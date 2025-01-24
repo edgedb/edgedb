@@ -5,11 +5,8 @@ use db_proto::ParseError;
 mod conn;
 pub mod dsn;
 mod flow;
-pub mod openssl;
 pub(crate) mod queue;
 mod raw_conn;
-mod stream;
-pub mod tokio;
 
 pub use conn::{Client, PGConnError};
 use dsn::HostType;

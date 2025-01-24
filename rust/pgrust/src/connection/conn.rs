@@ -2,7 +2,6 @@ use super::{
     connect_raw_ssl,
     flow::{MessageHandler, MessageResult, Pipeline, QuerySink},
     raw_conn::RawClient,
-    stream::{Stream, StreamWithUpgrade},
     Credentials,
 };
 use crate::{
@@ -19,6 +18,7 @@ use crate::{
 };
 use db_proto::StructBuffer;
 use futures::{future::Either, FutureExt};
+use gel_stream::client::Target;
 use std::{
     cell::RefCell,
     future::ready,
@@ -76,16 +76,12 @@ pub enum PGConnError {
 /// # Ok::<(), PGConnError>(())
 /// # }
 /// ```
-pub struct Client<B: Stream, C: Unpin>
-where
-    (B, C): StreamWithUpgrade,
+pub struct Client
 {
-    conn: Rc<PGConn<B, C>>,
+    conn: Rc<PGConn>,
 }
 
-impl<B: Stream, C: Unpin> Clone for Client<B, C>
-where
-    (B, C): StreamWithUpgrade,
+impl Clone for Client
 {
     fn clone(&self) -> Self {
         Self {
@@ -94,20 +90,15 @@ where
     }
 }
 
-impl<B: Stream, C: Unpin> Client<B, C>
-where
-    (B, C): StreamWithUpgrade,
-    B: 'static,
-    C: 'static,
+impl Client
 {
     pub fn new(
         credentials: Credentials,
-        socket: B,
-        config: C,
+        target: Target,
     ) -> (Self, impl Future<Output = Result<(), PGConnError>>) {
         let conn = Rc::new(PGConn::new_connection(async move {
             let ssl_mode = ConnectionSslRequirement::Optional;
-            let raw = connect_raw_ssl(credentials, ssl_mode, config, socket).await?;
+            let raw = connect_raw_ssl(credentials, ssl_mode, target).await?;
             Ok(raw)
         }));
         let task = conn.clone().task();
@@ -115,7 +106,7 @@ where
     }
 
     /// Create a new PostgreSQL client and a background task.
-    pub fn new_raw(stm: RawClient<B, C>) -> (Self, impl Future<Output = Result<(), PGConnError>>) {
+    pub fn new_raw(stm: RawClient) -> (Self, impl Future<Output = Result<(), PGConnError>>) {
         let conn = Rc::new(PGConn::new_raw(stm));
         let task = conn.clone().task();
         (Self { conn }, task)
@@ -170,16 +161,14 @@ where
 
 #[derive(derive_more::Debug)]
 #[allow(clippy::type_complexity)]
-enum ConnState<B: Stream, C: Unpin>
-where
-    (B, C): StreamWithUpgrade,
+enum ConnState
 {
     #[debug("Connecting(..)")]
     #[allow(clippy::type_complexity)]
-    Connecting(Pin<Box<dyn Future<Output = Result<RawClient<B, C>, ConnectionError>>>>),
+    Connecting(Pin<Box<dyn Future<Output = Result<RawClient, ConnectionError>>>>),
     #[debug("Ready(..)")]
     Ready {
-        client: RawClient<B, C>,
+        client: RawClient,
         handlers: VecDeque<(
             Box<dyn MessageHandler>,
             Option<tokio::sync::oneshot::Sender<()>>,
@@ -189,23 +178,17 @@ where
     Closed,
 }
 
-struct PGConn<B: Stream, C: Unpin>
-where
-    (B, C): StreamWithUpgrade,
+struct PGConn
 {
-    state: RefCell<ConnState<B, C>>,
+    state: RefCell<ConnState>,
     queue: RefCell<super::queue::FutureQueue<Result<(), PGConnError>>>,
     ready_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
-impl<B: Stream, C: Unpin> PGConn<B, C>
-where
-    (B, C): StreamWithUpgrade,
-    B: 'static,
-    C: 'static,
+impl PGConn
 {
     pub fn new_connection(
-        future: impl Future<Output = Result<RawClient<B, C>, ConnectionError>> + 'static,
+        future: impl Future<Output = Result<RawClient, ConnectionError>> + 'static,
     ) -> Self {
         Self {
             state: ConnState::Connecting(future.boxed_local()).into(),
@@ -214,7 +197,7 @@ where
         }
     }
 
-    pub fn new_raw(stm: RawClient<B, C>) -> Self {
+    pub fn new_raw(stm: RawClient) -> Self {
         Self {
             state: ConnState::Ready {
                 client: stm,
@@ -249,7 +232,7 @@ where
 
     fn with_stream<T, F>(&self, f: F) -> Result<T, PGConnError>
     where
-        F: FnOnce(Pin<&mut RawClient<B, C>>) -> T,
+        F: FnOnce(Pin<&mut RawClient>) -> T,
     {
         match &mut *self.state.borrow_mut() {
             ConnState::Ready { ref mut client, .. } => Ok(f(Pin::new(client))),

@@ -13,10 +13,10 @@ use crate::protocol::postgres::{FrontendBuilder, InitialBuilder};
 use crate::protocol::{postgres::data::SSLResponse, postgres::meta};
 use db_proto::StructBuffer;
 use gel_auth::AuthType;
+use gel_stream::client::{Connector, Target};
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tokio::io::AsyncWriteExt;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tracing::{trace, Level};
 
@@ -75,15 +75,13 @@ impl ConnectionDriver {
         }
     }
 
-    async fn drive_bytes<B: Stream, C: Unpin>(
+    async fn drive_bytes(
         &mut self,
         state: &mut ConnectionState,
         drive: &[u8],
         message_buffer: &mut StructBuffer<meta::Message>,
-        stream: &mut UpgradableStream<B, C>,
+        stream: &mut UpgradableStream,
     ) -> Result<(), ConnectionError>
-    where
-        (B, C): StreamWithUpgrade,
     {
         message_buffer.push_fallible(drive, |msg| {
             state.drive(ConnectionDrive::Message(msg), self)
@@ -110,14 +108,12 @@ impl ConnectionDriver {
         Ok(())
     }
 
-    async fn drive<B: Stream, C: Unpin>(
+    async fn drive(
         &mut self,
         state: &mut ConnectionState,
         drive: ConnectionDrive<'_>,
-        stream: &mut UpgradableStream<B, C>,
+        stream: &mut UpgradableStream,
     ) -> Result<(), ConnectionError>
-    where
-        (B, C): StreamWithUpgrade,
     {
         state.drive(drive, self)?;
         loop {
@@ -144,15 +140,13 @@ impl ConnectionDriver {
 }
 
 /// A raw, fully-authenticated stream connection to a backend server.
-pub struct RawClient<B: Stream, C: Unpin>
-where
-    (B, C): StreamWithUpgrade,
+pub struct RawClient
 {
-    stream: UpgradableStreamChoice<B, C>,
+    stream: UpgradableStreamChoice,
     params: ConnectionParams,
 }
 
-impl<B: Stream> RawClient<B, ()> {
+impl RawClient {
     /// Create a new raw client from a stream. The stream must be fully authenticated and ready.
     pub fn new(stream: B, params: ConnectionParams) -> Self {
         Self {
@@ -162,18 +156,14 @@ impl<B: Stream> RawClient<B, ()> {
     }
 }
 
-impl<B: Stream, C: Unpin> RawClient<B, C>
-where
-    (B, C): StreamWithUpgrade,
+impl RawClient
 {
     pub fn params(&self) -> &ConnectionParams {
         &self.params
     }
 }
 
-impl<B: Stream, C: Unpin> AsyncRead for RawClient<B, C>
-where
-    (B, C): StreamWithUpgrade,
+impl AsyncRead for RawClient
 {
     fn poll_read(
         self: Pin<&mut Self>,
@@ -187,9 +177,7 @@ where
     }
 }
 
-impl<B: Stream, C: Unpin> AsyncWrite for RawClient<B, C>
-where
-    (B, C): StreamWithUpgrade,
+impl AsyncWrite for RawClient
 {
     fn poll_write(
         self: Pin<&mut Self>,
@@ -240,17 +228,15 @@ where
     }
 }
 
-pub async fn connect_raw_ssl<B: Stream, C: Unpin>(
+pub async fn connect_raw_ssl(
     credentials: Credentials,
     ssl_mode: ConnectionSslRequirement,
-    config: C,
-    socket: B,
-) -> Result<RawClient<B, C>, ConnectionError>
-where
-    (B, C): StreamWithUpgrade,
+    target: Target,
+) -> Result<RawClient, ConnectionError>
 {
     let mut state = ConnectionState::new(credentials, ssl_mode);
-    let mut stream = UpgradableStream::from((socket, config));
+    let connector = Connector::new(target)?;
+    let mut stream = connector.connect().await?;
 
     let mut update = ConnectionDriver::new();
     update

@@ -4,6 +4,7 @@ use captive_postgres::{
 use clap::Parser;
 use clap_derive::Parser;
 use gel_auth::AuthType;
+use gel_stream::client::{Connector, Target};
 use openssl::ssl::{Ssl, SslContext, SslMethod};
 use pgrust::{
     connection::{
@@ -224,16 +225,15 @@ fn logging_sink_execute() -> impl ExecuteSink {
 }
 
 async fn run_queries(
-    socket_address: ResolvedTarget,
+    target: Target,
     credentials: Credentials,
     statements: Vec<String>,
     extended: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let client = socket_address.connect().await?;
-    let ssl = SslContext::builder(SslMethod::tls_client())?.build();
-    let ssl = Ssl::new(&ssl)?;
+    let connector = Connector::new(target)?;
+    let client = connector.connect().await?;
 
-    let (conn, task) = Client::new(credentials, client, ssl);
+    let (conn, task) = Client::new(credentials, client);
     tokio::task::spawn_local(task);
     conn.ready().await?;
 

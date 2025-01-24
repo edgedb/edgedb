@@ -4,7 +4,7 @@ use rustls::{
     ClientConfig, ClientConnection, DigitallySignedStruct, RootCertStore, SignatureScheme,
 };
 use rustls_pki_types::{CertificateDer, DnsName, ServerName, UnixTime};
-use rustls_platform_verifier::{ConfigVerifierExt, Verifier};
+use rustls_platform_verifier::Verifier;
 
 use super::stream::{Stream, StreamWithUpgrade};
 use super::tokio_stream::TokioStream;
