@@ -144,6 +144,11 @@ class BaseTransaction(abc.ABC):
     async def _commit(self) -> None:
         query = self._make_commit_query()
         try:
+            # Use _fetchall to ensure there is no retry performed.
+            # The protocol level apparently thinks the transaction is
+            # over if COMMIT fails, and since we use that to decide
+            # whether to retry in query/execute, it would want to
+            # retry a COMMIT.
             await self._connection._fetchall(query)
         except BaseException:
             self._state = TransactionState.FAILED
@@ -160,7 +165,7 @@ class BaseTransaction(abc.ABC):
     async def _rollback(self) -> None:
         query = self._make_rollback_query()
         try:
-            await self._connection._fetchall(query)
+            await self._connection.execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -414,7 +419,6 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             except errors.TransactionConflictError:
                 if i >= 5 or self.is_in_transaction():
                     raise
-                # print("RETRYING")
                 await asyncio.sleep(
                     min((2 ** i) * 0.1, 10)
                     + random.randrange(100) * 0.001
