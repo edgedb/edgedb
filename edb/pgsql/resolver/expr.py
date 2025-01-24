@@ -315,6 +315,11 @@ def _lookup_column(
             return [
                 (t, c)
                 for t in ctx.scope.tables
+                # Only look at the highest precedence level for
+                # *. That is, we take everything in our local FROM
+                # clauses but not stuff in enclosing queries, if we
+                # are a subquery.
+                if t.precedence == 0
                 for c in t.columns
                 if not c.hidden
             ]
