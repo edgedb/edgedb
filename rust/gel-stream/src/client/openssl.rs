@@ -101,7 +101,6 @@ impl TlsInit for openssl::ssl::Ssl {
                 }
             }
 
-            // ssl.set_ca_file(crl)?;
             ssl.verify_param_mut()
                 .set_flags(X509VerifyFlags::CRL_CHECK | X509VerifyFlags::CRL_CHECK_ALL)?;
             ssl.cert_store_mut()
