@@ -937,7 +937,7 @@ class TestClientSSLConnection(BaseTestSSLConnection):
                 sslmode=SSLMode.require,
                 sslcert=CLIENT_SSL_CERT_FILE,
                 sslrootcert=SSL_CA_CERT_FILE,
-                sslpassword='secRet',
+                sslpassword='secret1234',
                 sslkey=key_file
             )
 
@@ -953,7 +953,7 @@ class TestClientSSLConnection(BaseTestSSLConnection):
         await self._test_works(dsn=dsn)
 
         params['sslkey'] = CLIENT_SSL_PROTECTED_KEY_FILE
-        params['sslpassword'] = 'secRet'
+        params['sslpassword'] = 'secret1234'
         params_str = urllib.parse.urlencode(params)
         dsn = 'postgres://ssl_user@localhost/postgres?' + params_str
         await self._test_works(dsn=dsn)
@@ -970,14 +970,14 @@ class TestClientSSLConnection(BaseTestSSLConnection):
 
         env['PGSSLKEY'] = CLIENT_SSL_PROTECTED_KEY_FILE
         with unittest.mock.patch.dict('os.environ', env):
-            await self._test_works(dsn=dsn + '&sslpassword=secRet')
+            await self._test_works(dsn=dsn + '&sslpassword=secret1234')
 
     async def test_ssl_connection_client_auth_dot_postgresql(self):
         dsn = 'postgres://ssl_user@localhost/postgres?sslmode=verify-full'
         with mock_dot_postgresql(client=True):
             await self._test_works(dsn=dsn)
         with mock_dot_postgresql(client=True, protected=True):
-            await self._test_works(dsn=dsn + '&sslpassword=secRet')
+            await self._test_works(dsn=dsn + '&sslpassword=secret1234')
 
 
 class TestNoSSLConnection(BaseTestSSLConnection):

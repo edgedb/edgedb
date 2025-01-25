@@ -15,8 +15,12 @@ impl Host {
                 self.1,
             ))),
             HostType::IP(ip, None) => Ok(TargetName::new_tcp((format!("{}", ip), self.1))),
-            HostType::Path(path) => TargetName::new_unix_path(format!("{}/.s.PGSQL.{}", path, self.1)),
-            HostType::Abstract(name) => TargetName::new_unix_domain(format!("{}/.s.PGSQL.{}", name, self.1)),
+            HostType::Path(path) => {
+                TargetName::new_unix_path(format!("{}/.s.PGSQL.{}", path, self.1))
+            }
+            HostType::Abstract(name) => {
+                TargetName::new_unix_domain(format!("{}/.s.PGSQL.{}", name, self.1))
+            }
         }
     }
 }
