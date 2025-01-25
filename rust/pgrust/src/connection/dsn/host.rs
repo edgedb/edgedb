@@ -15,8 +15,8 @@ impl Host {
                 self.1,
             ))),
             HostType::IP(ip, None) => Ok(TargetName::new_tcp((format!("{}", ip), self.1))),
-            HostType::Path(path) => TargetName::new_unix_path(path.clone()),
-            HostType::Abstract(name) => TargetName::new_unix_domain(name.clone()),
+            HostType::Path(path) => TargetName::new_unix_path(format!("{}.{}", path, self.1)),
+            HostType::Abstract(name) => TargetName::new_unix_domain(format!("{}.{}", name, self.1)),
         }
     }
 }
