@@ -315,7 +315,7 @@ def _uncompile_insert_object_stmt(
 
     # handle DEFAULT and prepare the value relation
     value_relation, expected_columns = _uncompile_default_value(
-        stmt.select_stmt, stmt.ctes, expected_columns
+        stmt.select_stmt, stmt.ctes, expected_columns, sub, ctx=ctx
     )
 
     # if we are sure that we are inserting a single row
@@ -629,7 +629,7 @@ def _uncompile_insert_pointer_stmt(
 
     # handle DEFAULT and prepare the value relation
     value_relation, expected_columns = _uncompile_default_value(
-        stmt.select_stmt, stmt.ctes, expected_columns
+        stmt.select_stmt, stmt.ctes, expected_columns, sub, ctx=ctx
     )
 
     # if we are sure that we are inserting a single row
@@ -858,10 +858,43 @@ def _has_at_most_one_row(query: pgast.Query | None) -> bool:
     return False
 
 
+def _compile_standalone_default(
+    col: context.Column,
+    sub: s_objtypes.ObjectType | s_links.Link | s_properties.Property,
+    ctx: Context,
+) -> pgast.BaseExpr:
+    ptr, _, _ = _get_pointer_for_column(col, sub, ctx)
+    default = ptr.get_default(ctx.schema)
+    if default is None:
+        return pgast.NullConstant()
+
+    # TODO(?): Support defaults that reference the object being inserted.
+    # That seems like a pretty heavy lift in this scenario, though.
+
+    options = qlcompiler.CompilerOptions(
+        make_globals_empty=False,
+        apply_user_access_policies=ctx.options.apply_access_policies,
+    )
+    compiled = default.compiled(ctx.schema, options=options, context=None)
+
+    sql_tree = pgcompiler.compile_ir_to_sql_tree(
+        compiled.irast,
+        output_format=pgcompiler.OutputFormat.NATIVE_INTERNAL,
+        alias_generator=ctx.alias_generator,
+    )
+    merge_params(sql_tree, compiled.irast, ctx)
+
+    assert isinstance(sql_tree.ast, pgast.BaseExpr)
+    return sql_tree.ast
+
+
 def _uncompile_default_value(
     value_query: Optional[pgast.Query],
     value_ctes: Optional[List[pgast.CommonTableExpr]],
     expected_columns: List[context.Column],
+    sub: s_objtypes.ObjectType | s_links.Link | s_properties.Property,
+    *,
+    ctx: Context,
 ) -> Tuple[pgast.BaseRelation, List[context.Column]]:
     # INSERT INTO x DEFAULT VALUES
     if not value_query:
@@ -878,33 +911,51 @@ def _uncompile_default_value(
         def is_default(e: pgast.BaseExpr) -> bool:
             return isinstance(e, pgast.Keyword) and e.name == 'DEFAULT'
 
-        default_columns = set()
+        default_columns: dict[int, int] = {}
         for row in value_query.values:
             assert isinstance(row, pgast.ImplicitRowExpr)
 
             for to_remove, col in enumerate(row.args):
                 if is_default(col):
-                    default_columns.add(to_remove)
+                    default_columns[to_remove] = (
+                        default_columns.setdefault(to_remove, 0) + 1
+                    )
 
         # remove DEFAULT keywords and expected columns,
         # so EdgeQL insert will not get those columns, which will use the
         # property defaults.
         for to_remove in sorted(default_columns, reverse=True):
+            if default_columns[to_remove] != len(value_query.values):
+                continue
+                raise errors.QueryError(
+                    'DEFAULT keyword is supported only when '
+                    'used for a column in all rows',
+                    span=value_query.span,
+                    pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
+                )
+
             del expected_columns[to_remove]
 
             for r_index, row in enumerate(value_query.values):
                 assert isinstance(row, pgast.ImplicitRowExpr)
-
-                if not is_default(row.args[to_remove]):
-                    raise errors.QueryError(
-                        'DEFAULT keyword is supported only when '
-                        'used for a column in all rows',
-                        span=value_query.span,
-                        pgext_code=pgerror.ERROR_FEATURE_NOT_SUPPORTED,
-                    )
+                assert is_default(row.args[to_remove])
                 cols = list(row.args)
                 del cols[to_remove]
                 value_query.values[r_index] = row.replace(args=cols)
+
+        # Go back through and compile any left over
+        for r_index, row in enumerate(value_query.values):
+            assert isinstance(row, pgast.ImplicitRowExpr)
+            if not any(is_default(col) for col in row.args):
+                continue
+
+            cols = list(row.args)
+            for i, col in enumerate(row.args):
+                if is_default(col):
+                    cols[i] = _compile_standalone_default(
+                        expected_columns[i], sub, ctx=ctx
+                    )
+            value_query.values[r_index] = row.replace(args=cols)
 
         if (
             len(value_query.values) > 0

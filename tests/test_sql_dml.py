@@ -73,6 +73,9 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             set default := 'untitled';
           };
           create property created_at: datetime;
+          create property content: str {
+            set default := 'This page intentionally left blank';
+          }
         };
 
         create global y: str;
@@ -354,7 +357,7 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
                 '''
             )
 
-    async def test_sql_dml_insert_17(self):
+    async def test_sql_dml_insert_17a(self):
         # default values
 
         await self.scon.execute(
@@ -371,16 +374,57 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         res = await self.squery_values('SELECT title FROM "Document"')
         self.assert_data_shape(res, tb.bag([[None], ['Report (new)']]))
 
-        with self.assertRaisesRegex(
-            asyncpg.FeatureNotSupportedError,
-            'DEFAULT keyword is supported only when '
-            'used for a column in all rows',
-        ):
-            await self.scon.execute(
-                '''
-                INSERT INTO "Document" (title) VALUES ('Report'), (DEFAULT);
-                '''
-            )
+        await self.scon.execute(
+            '''
+            INSERT INTO "Document" (title) VALUES ('Report2'), (DEFAULT);
+            '''
+        )
+        res = await self.squery_values('SELECT title FROM "Document"')
+        self.assert_data_shape(
+            res,
+            tb.bag([
+                [None],
+                [None],
+                ['Report (new)'],
+                ['Report2 (new)'],
+            ]),
+        )
+
+        await self.scon.execute(
+            '''
+            INSERT INTO "Post" (title) VALUES ('post'), (DEFAULT);
+            '''
+        )
+        res = await self.squery_values('SELECT title FROM "Post"')
+        self.assert_data_shape(
+            res,
+            tb.bag([
+                ['post'],
+                ['untitled'],
+            ]),
+        )
+
+    async def test_sql_dml_insert_17b(self):
+        # more default values
+        await self.scon.execute(
+            '''
+            INSERT INTO "Post" (id, title, content) VALUES
+              (DEFAULT, 'foo', 'bar'),
+              (DEFAULT, 'post', DEFAULT),
+              (DEFAULT, DEFAULT, 'content'),
+              (DEFAULT, DEFAULT, DEFAULT);
+            '''
+        )
+        res = await self.squery_values('SELECT title, content FROM "Post"')
+        self.assert_data_shape(
+            res,
+            tb.bag([
+                ['foo', 'bar'],
+                ['post', 'This page intentionally left blank'],
+                ['untitled', 'content'],
+                ['untitled', 'This page intentionally left blank'],
+            ]),
+        )
 
     async def test_sql_dml_insert_18(self):
         res = await self.scon.fetch(
