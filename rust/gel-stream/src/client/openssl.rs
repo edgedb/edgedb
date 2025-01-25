@@ -1,11 +1,14 @@
 use std::pin::Pin;
 
-use openssl::ssl::{SslContextBuilder, SslMethod, SslVerifyMode};
+use openssl::{
+    ssl::{SslContextBuilder, SslMethod, SslVerifyMode},
+    x509::{verify::X509VerifyFlags, X509VerifyResult},
+};
 use rustls_pki_types::ServerName;
 
 use super::{
     stream::{Stream, StreamWithUpgrade},
-    SslError, TlsParameters, SslVersion, TlsCert, TlsInit, TlsServerCertVerify,
+    SslError, SslVersion, TlsCert, TlsInit, TlsParameters, TlsServerCertVerify,
 };
 
 impl<S: Stream> StreamWithUpgrade for (S, Option<openssl::ssl::Ssl>) {
@@ -23,7 +26,11 @@ impl<S: Stream> StreamWithUpgrade for (S, Option<openssl::ssl::Ssl>) {
 
         let mut stream = tokio_openssl::SslStream::new(tls, self.0)?;
         let res = Pin::new(&mut stream).do_handshake().await;
-
+        if res.is_err() {
+            if stream.ssl().verify_result() != X509VerifyResult::OK {
+                return Err(SslError::OpenSslErrorVerify(stream.ssl().verify_result()));
+            }
+        }
         res.map_err(SslError::OpenSslError)?;
         Ok(stream)
     }
@@ -70,14 +77,35 @@ impl TlsInit for openssl::ssl::Ssl {
 
         // Load CRL
         if !crl.is_empty() {
+            // The openssl crate doesn't yet have add_crl, so we need to use the raw FFI
+            use foreign_types::ForeignTypeRef;
+            let ptr = ssl.cert_store_mut().as_ptr();
+
+            extern "C" {
+                pub fn X509_STORE_add_crl(
+                    store: *mut openssl_sys::X509_STORE,
+                    x: *mut openssl_sys::X509_CRL,
+                ) -> openssl_sys::c_int;
+            }
+
+            for crl in crl {
+                let crl = openssl::x509::X509Crl::from_der(crl.as_ref())?;
+                let crl_ptr = crl.as_ptr();
+                let res = unsafe { X509_STORE_add_crl(ptr, crl_ptr) };
+                if res != 1 {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Failed to add CRL to store",
+                    )
+                    .into());
+                }
+            }
+
             // ssl.set_ca_file(crl)?;
-            // ssl.verify_param_mut()
-            //     .set_flags(X509VerifyFlags::CRL_CHECK | X509VerifyFlags::CRL_CHECK_ALL)?;
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "CRL not supported for OpenSSL",
-            )
-            .into());
+            ssl.verify_param_mut()
+                .set_flags(X509VerifyFlags::CRL_CHECK | X509VerifyFlags::CRL_CHECK_ALL)?;
+            ssl.cert_store_mut()
+                .set_flags(X509VerifyFlags::CRL_CHECK | X509VerifyFlags::CRL_CHECK_ALL)?;
         }
 
         // Load certificate chain and private key

@@ -1065,9 +1065,11 @@ name = "gel-stream"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "foreign-types",
  "hickory-resolver",
  "ntest",
  "openssl",
+ "openssl-sys",
  "rstest 0.24.0",
  "rustls",
  "rustls-pemfile",

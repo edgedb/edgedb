@@ -10,7 +10,7 @@ description = "A library for streaming data between clients and servers."
 default = ["tokio", "rustls"]
 tokio = ["dep:tokio"]
 rustls = ["tokio", "dep:rustls", "dep:rustls-tokio-stream", "dep:rustls-platform-verifier", "dep:webpki"]
-openssl = ["tokio", "dep:openssl", "dep:tokio-openssl"]
+openssl = ["tokio", "dep:openssl", "dep:tokio-openssl", "dep:foreign-types", "dep:openssl-sys"]
 hickory = ["dep:hickory-resolver"]
 __manual_tests = []
 
@@ -27,6 +27,10 @@ hickory-resolver = { version = "0.24.2", optional = true }
 rustls-tokio-stream = { version = "0.3.0", optional = true }
 rustls-platform-verifier = { version = "0.5.0", optional = true }
 webpki = { version = "0.22", optional = true }
+
+# Get these from openssl
+foreign-types = { version = "*", optional = true }
+openssl-sys = { version = "*", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

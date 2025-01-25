@@ -61,6 +61,9 @@ pub enum SslError {
     #[cfg(feature = "openssl")]
     #[error("OpenSSL error: {0}")]
     OpenSslErrorStack(#[from] ::openssl::error::ErrorStack),
+    #[cfg(feature = "openssl")]
+    #[error("OpenSSL certificate verification error: {0}")]
+    OpenSslErrorVerify(#[from] ::openssl::x509::X509VerifyResult),
 
     #[cfg(feature = "rustls")]
     #[error("Rustls error: {0}")]
@@ -82,29 +85,33 @@ pub enum SslError {
 }
 
 impl SslError {
+    /// Returns a common error for any time of crypto backend.
     pub fn common_error(&self) -> Option<CommonError> {
         match self {
             #[cfg(feature = "rustls")]
             SslError::RustlsError(::rustls::Error::InvalidCertificate(
                 ::rustls::CertificateError::NotValidForName,
             )) => Some(CommonError::InvalidCertificateForName),
+            #[cfg(feature = "rustls")]
+            SslError::RustlsError(::rustls::Error::InvalidCertificate(
+                ::rustls::CertificateError::Revoked,
+            )) => Some(CommonError::CertificateRevoked),
+            #[cfg(feature = "rustls")]
+            SslError::RustlsError(::rustls::Error::InvalidCertificate(
+                ::rustls::CertificateError::Expired,
+            )) => Some(CommonError::CertificateExpired),
             #[cfg(feature = "openssl")]
-            SslError::OpenSslError(e) => {
-                if let Some(ssl_error) = e.ssl_error() {
-                    // TODO: Not quite right
-                    if ssl_error
-                        .errors()
-                        .iter()
-                        .any(|e| e.code() & 0x00fffff == 134)
-                    {
-                        Some(CommonError::InvalidCertificateForName)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
+            SslError::OpenSslErrorVerify(e) => match e.as_raw() {
+                openssl_sys::X509_V_ERR_HOSTNAME_MISMATCH => {
+                    Some(CommonError::InvalidCertificateForName)
                 }
-            }
+                openssl_sys::X509_V_ERR_IP_ADDRESS_MISMATCH => {
+                    Some(CommonError::InvalidCertificateForName)
+                }
+                openssl_sys::X509_V_ERR_CERT_REVOKED => Some(CommonError::CertificateRevoked),
+                openssl_sys::X509_V_ERR_CERT_HAS_EXPIRED => Some(CommonError::CertificateExpired),
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -114,6 +121,10 @@ impl SslError {
 pub enum CommonError {
     #[error("The certificate's subject name(s) do not match the name of the host")]
     InvalidCertificateForName,
+    #[error("The certificate has been revoked")]
+    CertificateRevoked,
+    #[error("The certificate has expired")]
+    CertificateExpired,
 }
 
 // Note that we choose rustls when both openssl and rustls are enabled.
@@ -291,6 +302,12 @@ mod tests {
         .unwrap()
     }
 
+    fn load_test_crls() -> Vec<rustls_pki_types::CertificateRevocationListDer<'static>> {
+        rustls_pemfile::crls(&mut include_str!("../../../../tests/certs/ca.crl.pem").as_bytes())
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+    }
+
     async fn spawn_tls_server(
         expected_hostname: Option<&str>,
         server_alpn: Option<&[&str]>,
@@ -418,6 +435,34 @@ mod tests {
         });
 
         accept_task.await.unwrap().unwrap();
+        connect_task.await.unwrap().unwrap();
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(30_000)]
+    async fn test_target_tcp_tls_crl() -> Result<(), std::io::Error> {
+        let (addr, accept_task) = spawn_tls_server(Some("localhost"), None, None).await?;
+
+        let connect_task = tokio::spawn(async move {
+            let target = Target::new_tcp_tls(
+                ("localhost", addr.port()),
+                TlsParameters {
+                    root_cert: TlsCert::Custom(load_test_ca()),
+                    crl: load_test_crls(),
+                    ..Default::default()
+                },
+            );
+            let stm = Connector::new(target).unwrap().connect().await;
+            assert!(
+                matches!(&stm, Err(ConnectionError::SslError(ssl)) if ssl.common_error() == Some(CommonError::CertificateRevoked)),
+                "{stm:?}"
+            );
+            Ok::<_, std::io::Error>(())
+        });
+
+        accept_task.await.unwrap().unwrap_err();
         connect_task.await.unwrap().unwrap();
 
         Ok(())

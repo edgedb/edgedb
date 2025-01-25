@@ -3,12 +3,14 @@ use rustls::client::WebPkiServerVerifier;
 use rustls::{
     ClientConfig, ClientConnection, DigitallySignedStruct, RootCertStore, SignatureScheme,
 };
-use rustls_pki_types::{CertificateDer, DnsName, ServerName, UnixTime};
+use rustls_pki_types::{
+    CertificateDer, CertificateRevocationListDer, DnsName, ServerName, UnixTime,
+};
 use rustls_platform_verifier::Verifier;
 
 use super::stream::{Stream, StreamWithUpgrade};
 use super::tokio_stream::TokioStream;
-use super::{TlsParameters, TlsCert, TlsInit, TlsServerCertVerify};
+use super::{TlsCert, TlsInit, TlsParameters, TlsServerCertVerify};
 use std::any::Any;
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
@@ -57,6 +59,44 @@ impl<S: Stream + 'static> StreamWithUpgrade for (S, Option<ClientConnection>) {
     }
 }
 
+fn make_verifier(
+    server_cert_verify: &TlsServerCertVerify,
+    root_cert: &TlsCert,
+    crls: Vec<CertificateRevocationListDer<'static>>,
+) -> Result<Arc<dyn ServerCertVerifier>, super::SslError> {
+    if *server_cert_verify == TlsServerCertVerify::Insecure {
+        return Ok(Arc::new(NullVerifier));
+    }
+
+    if let TlsCert::Custom(root) = root_cert {
+        let mut roots = RootCertStore::empty();
+        let (loaded, ignored) = roots.add_parsable_certificates([root.clone()]);
+        if loaded == 0 || ignored > 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid certificate",
+            )
+            .into());
+        }
+
+        let verifier = WebPkiServerVerifier::builder(Arc::new(roots))
+            .with_crls(crls)
+            .build()?;
+        if *server_cert_verify == TlsServerCertVerify::IgnoreHostname {
+            return Ok(Arc::new(IgnoreHostnameVerifier::new(verifier)));
+        }
+        return Ok(verifier);
+    }
+
+    if *server_cert_verify == TlsServerCertVerify::IgnoreHostname {
+        return Ok(Arc::new(IgnoreHostnameVerifier::new(Arc::new(
+            Verifier::new(),
+        ))));
+    }
+
+    Ok(Arc::new(Verifier::new()))
+}
+
 impl TlsInit for ClientConnection {
     type Tls = ClientConnection;
 
@@ -71,7 +111,7 @@ impl TlsInit for ClientConnection {
             root_cert,
             cert,
             key,
-            crl: _,
+            crl,
             min_protocol_version: _,
             max_protocol_version: _,
             alpn,
@@ -79,48 +119,11 @@ impl TlsInit for ClientConnection {
             sni_override,
         } = parameters;
 
-        let config = match (server_cert_verify, root_cert) {
-            (TlsServerCertVerify::Insecure, _) => {
-                // The root cert is ignored.
+        let verifier = make_verifier(server_cert_verify, root_cert, crl.clone())?;
 
-                ClientConfig::builder()
-                    .dangerous()
-                    .with_custom_certificate_verifier(Arc::new(NullVerifier))
-            }
-            (TlsServerCertVerify::VerifyFull, TlsCert::Custom(root)) => {
-                let mut roots = RootCertStore::empty();
-                let (loaded, ignored) = roots.add_parsable_certificates([root.clone()]);
-                if loaded == 0 || ignored > 0 {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidInput,
-                        "Invalid certificate",
-                    )
-                    .into());
-                }
-
-                ClientConfig::builder().with_root_certificates(Arc::new(roots))
-            }
-            (TlsServerCertVerify::VerifyFull, TlsCert::System) => ClientConfig::builder()
-                .dangerous()
-                .with_custom_certificate_verifier(Arc::new(Verifier::new())),
-            (TlsServerCertVerify::IgnoreHostname, TlsCert::Custom(root)) => {
-                let mut roots = RootCertStore::empty();
-                roots.add_parsable_certificates([root.clone()]);
-
-                let verifier = WebPkiServerVerifier::builder(Arc::new(roots)).build()?;
-
-                ClientConfig::builder()
-                    .dangerous()
-                    .with_custom_certificate_verifier(Arc::new(IgnoreHostnameVerifier::new(
-                        verifier,
-                    )))
-            }
-            (TlsServerCertVerify::IgnoreHostname, TlsCert::System) => ClientConfig::builder()
-                .dangerous()
-                .with_custom_certificate_verifier(Arc::new(IgnoreHostnameVerifier::new(Arc::new(
-                    Verifier::new(),
-                )))),
-        };
+        let config = ClientConfig::builder()
+            .dangerous()
+            .with_custom_certificate_verifier(verifier);
 
         // Load client certificate and key if provided
         let mut config = if let (Some(cert), Some(key)) = (cert, key) {
