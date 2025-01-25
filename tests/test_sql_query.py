@@ -2286,6 +2286,19 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         res = await self.squery_values('SELECT * FROM ONLY "Content"')
         self.assertEqual(len(res), 0)
 
+    async def test_sql_query_subquery_splat_01(self):
+        res = await self.squery_values(
+            '''
+            with "average_pages" as (select avg("pages") as "value" from "Book")
+            select pages from "Book"
+            where "Book".pages < (select * from "average_pages")
+            '''
+        )
+        self.assertEqual(
+            res,
+            [[206]],
+        )
+
     async def test_sql_query_unsupported_01(self):
         # test error messages of unsupported queries
 
