@@ -125,6 +125,9 @@ def resolve_SelectStmt(
 
         group_clause = dispatch.resolve_opt_list(stmt.group_clause, ctx=subctx)
 
+    # HAVING
+    having = dispatch.resolve_opt(stmt.having_clause, ctx=ctx)
+
     # SELECT projection
     table = context.Table()
     target_list: List[pgast.ResTarget] = []
@@ -176,6 +179,7 @@ def resolve_SelectStmt(
         from_clause=from_clause,
         target_list=target_list,
         group_clause=group_clause,
+        having_clause=having,
         where_clause=where,
         sort_clause=sort_clause,
         limit_offset=limit_offset,
