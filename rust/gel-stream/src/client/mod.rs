@@ -89,17 +89,17 @@ impl SslError {
     pub fn common_error(&self) -> Option<CommonError> {
         match self {
             #[cfg(feature = "rustls")]
-            SslError::RustlsError(::rustls::Error::InvalidCertificate(
-                ::rustls::CertificateError::NotValidForName,
-            )) => Some(CommonError::InvalidCertificateForName),
-            #[cfg(feature = "rustls")]
-            SslError::RustlsError(::rustls::Error::InvalidCertificate(
-                ::rustls::CertificateError::Revoked,
-            )) => Some(CommonError::CertificateRevoked),
-            #[cfg(feature = "rustls")]
-            SslError::RustlsError(::rustls::Error::InvalidCertificate(
-                ::rustls::CertificateError::Expired,
-            )) => Some(CommonError::CertificateExpired),
+            SslError::RustlsError(::rustls::Error::InvalidCertificate(cert_err)) => {
+                match cert_err {
+                    ::rustls::CertificateError::NotValidForName => {
+                        Some(CommonError::InvalidCertificateForName)
+                    }
+                    ::rustls::CertificateError::Revoked => Some(CommonError::CertificateRevoked),
+                    ::rustls::CertificateError::Expired => Some(CommonError::CertificateExpired),
+                    ::rustls::CertificateError::UnknownIssuer => Some(CommonError::InvalidIssuer),
+                    _ => None,
+                }
+            }
             #[cfg(feature = "openssl")]
             SslError::OpenSslErrorVerify(e) => match e.as_raw() {
                 openssl_sys::X509_V_ERR_HOSTNAME_MISMATCH => {
@@ -110,6 +110,10 @@ impl SslError {
                 }
                 openssl_sys::X509_V_ERR_CERT_REVOKED => Some(CommonError::CertificateRevoked),
                 openssl_sys::X509_V_ERR_CERT_HAS_EXPIRED => Some(CommonError::CertificateExpired),
+                openssl_sys::X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT
+                | openssl_sys::X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY => {
+                    Some(CommonError::InvalidIssuer)
+                }
                 _ => None,
             },
             _ => None,
@@ -125,6 +129,8 @@ pub enum CommonError {
     CertificateRevoked,
     #[error("The certificate has expired")]
     CertificateExpired,
+    #[error("The certificate was issued by an untrusted authority")]
+    InvalidIssuer,
 }
 
 // Note that we choose rustls when both openssl and rustls are enabled.
@@ -365,6 +371,33 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(30_000)]
     async fn test_target_tcp_tls_verify_full_fails() -> Result<(), std::io::Error> {
+        let (addr, accept_task) = spawn_tls_server(None, None, None).await?;
+
+        let connect_task = tokio::spawn(async move {
+            let target = Target::new_tcp_tls(
+                ("127.0.0.1", addr.port()),
+                TlsParameters {
+                    ..Default::default()
+                },
+            );
+            let stm = Connector::new(target).unwrap().connect().await;
+            assert!(
+                matches!(&stm, Err(ConnectionError::SslError(ssl)) if ssl.common_error() == Some(CommonError::InvalidIssuer)),
+                "{stm:?}"
+            );
+            Ok::<_, std::io::Error>(())
+        });
+
+        accept_task.await.unwrap().unwrap_err();
+        connect_task.await.unwrap().unwrap();
+
+        Ok(())
+    }
+
+    /// The certificate is not valid for 127.0.0.1, so the connection should fail.
+    #[tokio::test]
+    #[ntest::timeout(30_000)]
+    async fn test_target_tcp_tls_verify_full_fails_name() -> Result<(), std::io::Error> {
         let (addr, accept_task) = spawn_tls_server(None, None, None).await?;
 
         let connect_task = tokio::spawn(async move {
