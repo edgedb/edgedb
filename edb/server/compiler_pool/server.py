@@ -199,13 +199,13 @@ class MultiSchemaPool(pool_mod.FixedPool):
         self._cache_size = cache_size
         self._clients = {}
         self._secret = secret
+        self._get_init_args = functools.lru_cache()(self._get_init_args_uncached)
 
     def _init(self, kwargs: dict[str, typing.Any]) -> None:
         # this is deferred to _init_server()
         pass
 
-    @functools.cache
-    def _get_init_args(self):
+    def _get_init_args_uncached(self):
         init_args = (
             self._backend_runtime_params,
             self._std_schema,

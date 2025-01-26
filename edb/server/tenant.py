@@ -226,6 +226,7 @@ class Tenant(ha_base.ClusterProtocol):
 
         # If it isn't stored in instdata, it is the old default.
         self.default_database = defines.EDGEDB_OLD_DEFAULT_DB
+        self.get_backend_runtime_params = functools.lru_cache()(self._get_backend_runtime_params)
 
     def set_reloadable_files(
         self,
@@ -355,8 +356,7 @@ class Tenant(ha_base.ClusterProtocol):
     def get_pgaddr(self) -> pgconnparams.ConnectionParams:
         return self._cluster.get_pgaddr()
 
-    @functools.lru_cache
-    def get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
+    def _get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
         return self._cluster.get_runtime_params()
 
     def get_instance_name(self) -> str:

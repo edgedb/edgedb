@@ -550,6 +550,9 @@ class FlatSchema(Schema):
         self._globalname_to_id = immu.Map()
         self._refs_to = immu.Map()
         self._generation = 0
+        self.get_referrers_ex = functools.lru_cache()(self._get_referrers_ex)
+        self._get_referrers = functools.lru_cache()(self._get_referrers_uncached)
+        self._get_casts = functools.lru_cache()(self._get_casts_uncached)
 
     def _get_object_ids(self) -> Iterable[uuid.UUID]:
         return self._id_to_type.keys()
@@ -1218,8 +1221,7 @@ class FlatSchema(Schema):
                 type=s_oper.Operator,
             )
 
-    @functools.lru_cache()
-    def _get_casts(
+    def _get_casts_uncached(
         self,
         stype: s_types.Type,
         *,
@@ -1274,8 +1276,7 @@ class FlatSchema(Schema):
         return self._get_referrers(
             scls, scls_type=scls_type, field_name=field_name)
 
-    @functools.lru_cache()
-    def _get_referrers(
+    def _get_referrers_uncached(
         self,
         scls: so.Object,
         *,
@@ -1312,8 +1313,7 @@ class FlatSchema(Schema):
 
             return frozenset(referrers)  # type: ignore
 
-    @functools.lru_cache()
-    def get_referrers_ex(  # type: ignore
+    def _get_referrers_ex(  # type: ignore
         self,
         scls: so.Object,
         *,

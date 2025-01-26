@@ -177,6 +177,7 @@ class AbstractPool:
     def __init__(self, *, loop, **kwargs):
         self._loop = loop
         self._init_args = self._init(kwargs)
+        self._make_init_args = functools.lru_cache(1)(self._make_init_args_uncached)
 
     def _init(self, kwargs: dict[str, Any]) -> None:
         self._backend_runtime_params = kwargs["backend_runtime_params"]
@@ -189,8 +190,7 @@ class AbstractPool:
         assert self._dbindex is not None
         return self._make_init_args(*self._dbindex.get_cached_compiler_args())
 
-    @functools.lru_cache(1)
-    def _make_init_args(self, dbs, global_schema_pickle, system_config):
+    def _make_init_args_uncached(self, dbs, global_schema_pickle, system_config):
         init_args = (
             dbs,
             self._backend_runtime_params,
@@ -1071,6 +1071,7 @@ class RemotePool(AbstractPool):
                 "is not set"
             )
         self._secret = secret.encode()
+        self._make_init_args = functools.lru_cache(maxsize=1)(self._make_init_args_uncached)
 
     async def start(self, retry=False):
         if self._worker is None:
@@ -1103,8 +1104,7 @@ class RemotePool(AbstractPool):
             if worker.done():
                 (await worker).close()
 
-    @functools.lru_cache(1)
-    def _make_init_args(self, dbs, global_schema_pickle, system_config):
+    def _make_init_args_uncached(self, dbs, global_schema_pickle, system_config):
         init_args = (
             dbs,
             self._backend_runtime_params,
@@ -1328,6 +1328,7 @@ class MultiTenantPool(FixedPool):
     def __init__(self, *, cache_size, **kwargs):
         super().__init__(**kwargs)
         self._cache_size = cache_size
+        self._get_init_args = functools.lru_cache()(self._get_init_args_uncached)
 
     @property
     def cache_size(self) -> int:
@@ -1337,8 +1338,7 @@ class MultiTenantPool(FixedPool):
         for worker in self._workers.values():
             worker.invalidate(client_id)
 
-    @functools.cache
-    def _get_init_args(self):
+    def _get_init_args_uncached(self):
         init_args = (
             self._backend_runtime_params,
             self._std_schema,

@@ -1900,8 +1900,12 @@ class StateSerializer(InputShapeSerializer):
 
 
 class CompilationConfigSerializer(InputShapeSerializer):
-    @functools.lru_cache(64)
-    def encode_configs(
+
+    def __init__(self, type_id: uuid.UUID, type_data: bytes, protocol_version: tuple[int, int]) -> None:
+        super().__init__(type_id, type_data, protocol_version)
+        self.encode_configs = functools.lru_cache(64)(self._encode_configs)
+
+    def _encode_configs(
         self, *configs: immutables.Map[str, config.SettingValue] | None
     ) -> bytes:
         state: dict[str, Any] = {}

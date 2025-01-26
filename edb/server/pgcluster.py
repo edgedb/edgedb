@@ -866,6 +866,7 @@ class RemoteCluster(BaseCluster):
         )
         self._connection_addr = connection_addr
         self._ha_backend = ha_backend
+        self.get_client_id = functools.lru_cache()(self._get_client_id)
 
     def _get_connection_addr(self) -> Optional[Tuple[str, int]]:
         if self._ha_backend is not None:
@@ -925,8 +926,7 @@ class RemoteCluster(BaseCluster):
         if self._ha_backend is not None:
             self._ha_backend.stop_watching()
 
-    @functools.cache
-    def get_client_id(self) -> int:
+    def _get_client_id(self) -> int:
         tenant_id = self._instance_params.tenant_id
         if self._ha_backend is not None:
             backend_dsn = self._ha_backend.dsn

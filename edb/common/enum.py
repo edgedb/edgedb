@@ -31,9 +31,12 @@ class StrEnum(str, enum.Enum):
 
 @functools.total_ordering
 class OrderedEnumMixin():
+
+    def __init__(self) -> None:
+        self._index_of = functools.lru_cache(maxsize=None)(self.__index_of)
+
     @classmethod
-    @functools.lru_cache(None)
-    def _index_of(cls, value):
+    def __index_of(cls, value):
         return list(cls).index(value)
 
     def __lt__(self, other):
