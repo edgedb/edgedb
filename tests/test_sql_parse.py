@@ -115,7 +115,7 @@ class TestSQLParse(tb.BaseDocTest):
         """
         SELECT * FROM table_one UNION select * FROM table_two
 % OK %
-        SELECT * FROM table_one UNION (SELECT * FROM table_two)
+        (SELECT * FROM table_one) UNION (SELECT * FROM table_two)
         """
 
     def test_sql_parse_select_08(self):
@@ -252,7 +252,7 @@ class TestSQLParse(tb.BaseDocTest):
         """
         select * FROM table_one UNION select * FROM table_two
 % OK %
-        SELECT * FROM table_one UNION (SELECT * FROM table_two)
+        (SELECT * FROM table_one) UNION (SELECT * FROM table_two)
         """
 
     def test_sql_parse_select_28(self):

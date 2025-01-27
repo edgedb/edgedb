@@ -169,6 +169,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             add_line_information=opts.add_line_information,
             pretty=opts.pretty,
         )
+        self.is_toplevel = True
         # params
         self.with_source_map: bool = with_source_map
         self.reordered = reordered
@@ -184,6 +185,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         *x: str,
         delimiter: Optional[str] = None,
     ) -> None:
+        self.is_toplevel = False
         start = len(self.result)
         super().write(*x, delimiter=delimiter)
         for new in range(start, len(self.result)):
@@ -268,12 +270,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
     def visit_SelectStmt(self, node: pgast.SelectStmt) -> None:
-        # This is a very crude detection of whether this SELECT is
-        # a top level statement.
-        parenthesize = bool(self.result)
+        parenthesize = not self.is_toplevel
 
         if parenthesize:
-            if not self.reordered:
+            if not self.reordered and self.result:
                 self.new_lines = 1
             self.write('(')
             if self.reordered:
@@ -316,6 +316,13 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         if node.op:
             # Upper level set operation node (UNION/INTERSECT)
+
+            # HACK: The LHS of a set operation is *not* top-level, and
+            # shouldn't be treated as such. Since we (also hackily)
+            # use whether anything has been written do determine
+            # whether we are at the top level, write out an empty
+            # string to force parenthesization.
+            self.is_toplevel = False
             self.visit(node.larg)
             self.write(' ' + node.op + ' ')
             if node.all:

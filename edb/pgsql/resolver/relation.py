@@ -102,11 +102,9 @@ def resolve_SelectStmt(
                 span=stmt.span,
             )
 
-        relation = pgast.SelectStmt(
+        relation = stmt.replace(
             larg=cast(pgast.Query, larg),
             rarg=cast(pgast.Query, rarg),
-            op=stmt.op,
-            all=stmt.all,
             ctes=ctes + extract_ctes_from_ctx(ctx),
         )
         return (relation, ltable)
