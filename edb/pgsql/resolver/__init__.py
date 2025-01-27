@@ -130,15 +130,29 @@ def resolve(
     if options.include_edgeql_io_format_alternative:
         edgeql_output_format_ast = copy.copy(resolved)
         if e := as_plain_select(edgeql_output_format_ast, resolved_table, ctx):
-            e.target_list = [
-                pgast.ResTarget(
-                    val=expr.construct_row_expr(
-                        (rt.val for rt in e.target_list),
-                        ctx=ctx,
+            # Turn the query into one that returns a ROW.
+            #
+            # We need to do this by injecting a new query and putting
+            # the old one in its FROM clause, since things like
+            # DISTINCT/ORDER BY care about what exact columns are in
+            # the target list.
+            columns = []
+            for i, target in enumerate(e.target_list):
+                if not target.name:
+                    e.target_list[i] = target = target.replace(name=f'__i~{i}')
+                    assert target.name
+                columns.append(pgast.ColumnRef(name=(target.name,)))
+
+            edgeql_output_format_ast = pgast.SelectStmt(
+                target_list=[
+                    pgast.ResTarget(
+                        val=expr.construct_row_expr(columns, ctx=ctx)
                     )
-                )
-            ]
-            edgeql_output_format_ast = e
+                ],
+                from_clause=[pgast.RangeSubselect(subquery=e)],
+                ctes=e.ctes,
+            )
+            e.ctes = []
     else:
         edgeql_output_format_ast = None
 

@@ -2934,6 +2934,19 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             implicit_limit=3,
         )
 
+    async def test_sql_native_query_26(self):
+        await self.assert_sql_query_result(
+            """
+                select distinct title, pages from "Book"
+                order by title, pages;
+            """,
+            [
+                {'title': 'Chronicles of Narnia', 'pages': 206},
+                {'title': 'Hunger Games', 'pages': 374},
+            ],
+            apply_access_policies=False,
+        )
+
 
 class TestSQLQueryNonTransactional(tb.SQLQueryTestCase):
 
