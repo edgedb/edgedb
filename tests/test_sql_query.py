@@ -2326,6 +2326,17 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             [[206]],
         )
 
+    async def test_sql_query_having_01(self):
+        res = await self.squery_values(
+            '''
+            select 1 having false
+            '''
+        )
+        self.assertEqual(
+            res,
+            [],
+        )
+
     async def test_sql_query_unsupported_01(self):
         # test error messages of unsupported queries
 

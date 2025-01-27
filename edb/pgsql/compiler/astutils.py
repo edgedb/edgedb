@@ -453,7 +453,7 @@ def select_is_simple(stmt: pgast.SelectStmt) -> bool:
         not stmt.distinct_clause
         and not stmt.where_clause
         and not stmt.group_clause
-        and not stmt.having
+        and not stmt.having_clause
         and not stmt.window_clause
         and not stmt.values
         and not stmt.sort_clause
