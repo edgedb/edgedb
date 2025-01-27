@@ -1997,13 +1997,19 @@ def _get_pointer_for_column(
     assert not isinstance(subject, s_properties.Property)
 
     is_link = False
+    ptr_name = col.name
     if col.name.endswith('_id'):
-        # this condition will break *properties* that end with _id
-        # I'm not sure if this is a problem
-        ptr_name = col.name[0:-3]
-        is_link = True
-    else:
-        ptr_name = col.name
+        # If the name ends with _id, and a single link exists with that name,
+        # then we are referring to the link.
+        root_name = ptr_name[0:-3]
+        if (
+            (link := subject.maybe_get_ptr(
+                ctx.schema, sn.UnqualName(root_name), type=s_links.Link
+            ))
+            and link.singular(ctx.schema)
+        ):
+            ptr_name = root_name
+            is_link = True
 
     ptr = subject.maybe_get_ptr(ctx.schema, sn.UnqualName(ptr_name))
     assert ptr
