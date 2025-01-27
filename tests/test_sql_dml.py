@@ -86,6 +86,10 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
             create required property title: str;
             create link owner: User;
         };
+
+        create type Numbered {
+            create required property num_id: int64;
+        };
     """
     ]
 
@@ -967,6 +971,16 @@ class TestSQLDataModificationLanguage(tb.SQLQueryTestCase):
         docid = res[0][0]
         res = await self.squery_values('SELECT id, title FROM "Document"')
         self.assertEqual(res, [[docid, 'Test returning (new)']])
+
+    async def test_sql_dml_insert_45(self):
+        # Test that properties ending in _id work.
+        res = await self.scon.execute(
+            '''
+            INSERT INTO "Numbered" (num_id) VALUES (10)
+            '''
+        )
+        res = await self.squery_values('SELECT num_id FROM "Numbered"')
+        self.assertEqual(res, [[10]])
 
     async def test_sql_dml_delete_01(self):
         # delete, inspect CommandComplete tag
