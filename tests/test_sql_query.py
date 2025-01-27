@@ -1174,6 +1174,33 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             [12, 4],
         ])
 
+    async def test_sql_query_57(self):
+        res = await self.squery_values(
+            f'''
+            (select 1 limit 1) union (select 2 limit 1);
+            '''
+        )
+        self.assertEqual(
+            res,
+            [
+                [1],
+                [2],
+            ]
+        )
+
+        res = await self.squery_values(
+            f'''
+            (select 1) union (select 2) LIMIT $1;
+            ''',
+            1
+        )
+        self.assertEqual(
+            res,
+            [
+                [1],
+            ]
+        )
+
     async def test_sql_query_introspection_00(self):
         dbname = self.con.dbname
         res = await self.squery_values(
