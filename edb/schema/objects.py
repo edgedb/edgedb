@@ -1532,7 +1532,6 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
 
         coll = self.get_explicit_field_value(schema, attr, None)
         if coll is not None:
-            # breakpoint()
             all_coll = colltype.create(schema, coll.objects(schema))
             schema = self.set_field_value(schema, attr, all_coll)
 
