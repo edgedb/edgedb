@@ -1108,8 +1108,6 @@ def write_meta_delete_object(
 
             parent_variables = {}
 
-            if not hasattr(target, 'id'):
-                breakpoint()
             parent_variables[f'__{target_link}'] = (
                 json.dumps(str(target.id))
             )
