@@ -198,7 +198,6 @@ class DropFunction(ddl.DDLOperation, FunctionOperation):
         conditions: Optional[List[str | base.Condition]] = None,
         neg_conditions: Optional[List[str | base.Condition]] = None,
     ):
-        # breakpoint()
         self.conditional = if_exists
         super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.name = name
