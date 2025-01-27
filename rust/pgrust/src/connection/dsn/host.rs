@@ -18,8 +18,19 @@ impl Host {
             HostType::Path(path) => {
                 TargetName::new_unix_path(format!("{}/.s.PGSQL.{}", path, self.1))
             }
+            #[allow(unused)]
             HostType::Abstract(name) => {
-                TargetName::new_unix_domain(format!("{}/.s.PGSQL.{}", name, self.1))
+                #[cfg(any(target_os = "linux", target_os = "android"))]
+                {
+                    TargetName::new_unix_domain(format!("{}/.s.PGSQL.{}", name, self.1))
+                }
+                #[cfg(not(any(target_os = "linux", target_os = "android")))]
+                {
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::Unsupported,
+                        "Abstract sockets unsupported on this platform",
+                    ))
+                }
             }
         }
     }
