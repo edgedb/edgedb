@@ -1,9 +1,62 @@
 use super::ParseError;
+use gel_stream::client::{ResolvedTarget, TargetName};
 use serde_derive::Serialize;
 use std::net::{IpAddr, Ipv6Addr};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct Host(pub HostType, pub u16);
+
+impl Host {
+    pub fn target_name(&self) -> Result<TargetName, std::io::Error> {
+        match &self.0 {
+            HostType::Hostname(hostname) => Ok(TargetName::new_tcp((hostname, self.1))),
+            HostType::IP(ip, Some(interface)) => Ok(TargetName::new_tcp((
+                format!("{}%{}", ip, interface),
+                self.1,
+            ))),
+            HostType::IP(ip, None) => Ok(TargetName::new_tcp((format!("{}", ip), self.1))),
+            HostType::Path(path) => {
+                TargetName::new_unix_path(format!("{}/.s.PGSQL.{}", path, self.1))
+            }
+            #[allow(unused)]
+            HostType::Abstract(name) => {
+                #[cfg(any(target_os = "linux", target_os = "android"))]
+                {
+                    TargetName::new_unix_domain(format!("{}/.s.PGSQL.{}", name, self.1))
+                }
+                #[cfg(not(any(target_os = "linux", target_os = "android")))]
+                {
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::Unsupported,
+                        "Abstract sockets unsupported on this platform",
+                    ))
+                }
+            }
+        }
+    }
+}
+
+pub trait ToAddrsSyncVec {
+    fn to_addrs_sync(&self) -> Vec<(Host, Result<Vec<ResolvedTarget>, std::io::Error>)>;
+}
+
+impl ToAddrsSyncVec for Vec<Host> {
+    fn to_addrs_sync(&self) -> Vec<(Host, Result<Vec<ResolvedTarget>, std::io::Error>)> {
+        let mut result = Vec::with_capacity(self.len());
+        for host in self {
+            match host.target_name() {
+                Ok(target_name) => match target_name.to_addrs_sync() {
+                    Ok(addrs) => result.push((host.clone(), Ok(addrs))),
+                    Err(err) => result.push((host.clone(), Err(err))),
+                },
+                Err(err) => {
+                    result.push((host.clone(), Err(err)));
+                }
+            }
+        }
+        result
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub enum HostType {

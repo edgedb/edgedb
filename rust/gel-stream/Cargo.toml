@@ -1,0 +1,49 @@
+[package]
+name = "gel-stream"
+version = "0.1.0"
+edition = "2021"
+description = "A library for streaming data between clients and servers."
+
+[features]
+# rustls or openssl imply tokio, and tokio is the only stream we support
+# at this time.
+default = ["tokio", "rustls"]
+tokio = ["dep:tokio"]
+rustls = ["tokio", "dep:rustls", "dep:rustls-tokio-stream", "dep:rustls-platform-verifier", "dep:webpki"]
+openssl = ["tokio", "dep:openssl", "dep:tokio-openssl", "dep:foreign-types", "dep:openssl-sys"]
+hickory = ["dep:hickory-resolver"]
+__manual_tests = []
+
+[dependencies]
+derive_more = { version = "1", features = ["full"] }
+thiserror = "2"
+rustls-pki-types = "1"
+
+tokio = { version = "1", optional = true, features = ["full"] }
+rustls = { version = "0.23", optional = true }
+openssl = { version = "0.10.55", optional = true }
+tokio-openssl = { version = "0.6.5", optional = true }
+hickory-resolver = { version = "0.24.2", optional = true }
+rustls-tokio-stream = { version = "0.3.0", optional = true }
+rustls-platform-verifier = { version = "0.5.0", optional = true }
+webpki = { version = "0.22", optional = true }
+
+# Get these from openssl
+foreign-types = { version = "*", optional = true }
+openssl-sys = { version = "*", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+tempfile = "3"
+ntest = "0.9.3"
+rustls = "0.23"
+rustls-pemfile = "2"
+
+rstest = "0.24.0"
+rustls-tokio-stream = "0.3.0"
+
+[lints]
+workspace = true
+
+[lib]
+name = "gel_stream"

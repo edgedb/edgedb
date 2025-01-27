@@ -5,7 +5,6 @@ use std::io::{BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::num::NonZeroUsize;
 use std::os::unix::fs::PermissionsExt;
-use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -256,9 +255,6 @@ pub enum ListenAddress {
 }
 
 fn spawn(command: &mut Command) -> std::io::Result<()> {
-    // Set the process group to 0 to ensure that the child process is killed when the parent process exits.
-    command.process_group(0);
-
     let program = Path::new(command.get_program())
         .file_name()
         .unwrap_or_default()
@@ -418,7 +414,6 @@ fn run_postgres(
         command.arg("-l");
     }
 
-    command.process_group(0);
     eprintln!("postgres command:\n  {:?}", command);
     let mut child = command.spawn()?;
 

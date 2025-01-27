@@ -1,5 +1,6 @@
 //! This module provides functionality to connect to Tokio TCP and Unix sockets.
 
+use std::net::{IpAddr, ToSocketAddrs};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -7,7 +8,47 @@ use tokio::net::TcpStream;
 #[cfg(unix)]
 use tokio::net::UnixStream;
 
-use super::ResolvedTarget;
+use super::target::ResolvedTarget;
+
+pub(crate) struct Resolver {
+    #[cfg(feature = "hickory")]
+    resolver: hickory_resolver::TokioAsyncResolver,
+}
+
+#[allow(unused)]
+async fn resolve_host_to_socket_addrs(host: String) -> std::io::Result<IpAddr> {
+    let res = tokio::task::spawn_blocking(move || format!("{}:0", host).to_socket_addrs())
+        .await
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Interrupted, e.to_string()))??;
+    res.into_iter()
+        .next()
+        .ok_or(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "No address found",
+        ))
+        .map(|addr| addr.ip())
+}
+
+impl Resolver {
+    pub fn new() -> Result<Self, std::io::Error> {
+        Ok(Self {
+            #[cfg(feature = "hickory")]
+            resolver: hickory_resolver::AsyncResolver::tokio_from_system_conf()?,
+        })
+    }
+
+    pub async fn resolve_remote(&self, host: String) -> std::io::Result<IpAddr> {
+        #[cfg(feature = "hickory")]
+        {
+            let addr = self.resolver.lookup_ip(host).await?.iter().next().unwrap();
+            Ok(addr)
+        }
+        #[cfg(not(feature = "hickory"))]
+        {
+            resolve_host_to_socket_addrs(host).await
+        }
+    }
+}
 
 impl ResolvedTarget {
     /// Connects to the socket address and returns a TokioStream

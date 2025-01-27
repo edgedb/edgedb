@@ -18,6 +18,7 @@ pyo3.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 db_proto.workspace = true
+gel-stream.workspace = true
 
 futures = "0"
 thiserror = "1"

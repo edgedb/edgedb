@@ -1,15 +1,10 @@
 use super::{
-    connect_raw_ssl,
     flow::{MessageHandler, MessageResult, Pipeline, QuerySink},
     raw_conn::RawClient,
-    stream::{Stream, StreamWithUpgrade},
-    Credentials,
+    Credentials, PGConnectionError,
 };
 use crate::{
-    connection::{
-        flow::{QueryMessageHandler, SyncMessageHandler},
-        ConnectionError,
-    },
+    connection::flow::{QueryMessageHandler, SyncMessageHandler},
     handshake::ConnectionSslRequirement,
     protocol::postgres::{
         builder,
@@ -19,6 +14,7 @@ use crate::{
 };
 use db_proto::StructBuffer;
 use futures::{future::Either, FutureExt};
+use gel_stream::client::{stream::Stream, Connector};
 use std::{
     cell::RefCell,
     future::ready,
@@ -31,7 +27,7 @@ use std::{
     future::{poll_fn, Future},
     rc::Rc,
 };
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::io::ReadBuf;
 use tracing::{error, trace, warn, Level};
 
 #[derive(Debug, thiserror::Error)]
@@ -41,7 +37,7 @@ pub enum PGConnError {
     #[error("Postgres error: {0}")]
     PgError(#[from] crate::errors::PgServerError),
     #[error("Connection failed: {0}")]
-    Connection(#[from] ConnectionError),
+    Connection(#[from] PGConnectionError),
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
     /// If an operation in a pipeline group fails, all operations up to
@@ -56,12 +52,11 @@ pub enum PGConnError {
 ///
 /// ```
 /// # use pgrust::connection::*;
+/// # use gel_stream::client::{Target, Connector};
 /// # _ = async {
-/// # let config = ();
 /// # let credentials = Credentials::default();
-/// # let (client, server) = ::tokio::io::duplex(64);
-/// # let socket = client;
-/// let (client, task) = Client::new(credentials, socket, config);
+/// # let connector = Connector::new(Target::new_tcp(("localhost", 1234))).unwrap();
+/// let (client, task) = Client::new(credentials, connector);
 /// ::tokio::task::spawn_local(task);
 ///
 /// // Run a basic query
@@ -76,17 +71,11 @@ pub enum PGConnError {
 /// # Ok::<(), PGConnError>(())
 /// # }
 /// ```
-pub struct Client<B: Stream, C: Unpin>
-where
-    (B, C): StreamWithUpgrade,
-{
-    conn: Rc<PGConn<B, C>>,
+pub struct Client {
+    conn: Rc<PGConn>,
 }
 
-impl<B: Stream, C: Unpin> Clone for Client<B, C>
-where
-    (B, C): StreamWithUpgrade,
-{
+impl Clone for Client {
     fn clone(&self) -> Self {
         Self {
             conn: self.conn.clone(),
@@ -94,20 +83,14 @@ where
     }
 }
 
-impl<B: Stream, C: Unpin> Client<B, C>
-where
-    (B, C): StreamWithUpgrade,
-    B: 'static,
-    C: 'static,
-{
+impl Client {
     pub fn new(
         credentials: Credentials,
-        socket: B,
-        config: C,
+        connector: Connector,
     ) -> (Self, impl Future<Output = Result<(), PGConnError>>) {
         let conn = Rc::new(PGConn::new_connection(async move {
             let ssl_mode = ConnectionSslRequirement::Optional;
-            let raw = connect_raw_ssl(credentials, ssl_mode, config, socket).await?;
+            let raw = RawClient::connect(credentials, ssl_mode, connector).await?;
             Ok(raw)
         }));
         let task = conn.clone().task();
@@ -115,7 +98,7 @@ where
     }
 
     /// Create a new PostgreSQL client and a background task.
-    pub fn new_raw(stm: RawClient<B, C>) -> (Self, impl Future<Output = Result<(), PGConnError>>) {
+    pub fn new_raw(stm: RawClient) -> (Self, impl Future<Output = Result<(), PGConnError>>) {
         let conn = Rc::new(PGConn::new_raw(stm));
         let task = conn.clone().task();
         (Self { conn }, task)
@@ -170,16 +153,13 @@ where
 
 #[derive(derive_more::Debug)]
 #[allow(clippy::type_complexity)]
-enum ConnState<B: Stream, C: Unpin>
-where
-    (B, C): StreamWithUpgrade,
-{
+enum ConnState {
     #[debug("Connecting(..)")]
     #[allow(clippy::type_complexity)]
-    Connecting(Pin<Box<dyn Future<Output = Result<RawClient<B, C>, ConnectionError>>>>),
+    Connecting(Pin<Box<dyn Future<Output = Result<RawClient, PGConnectionError>>>>),
     #[debug("Ready(..)")]
     Ready {
-        client: RawClient<B, C>,
+        stream: Pin<Box<dyn Stream>>,
         handlers: VecDeque<(
             Box<dyn MessageHandler>,
             Option<tokio::sync::oneshot::Sender<()>>,
@@ -189,23 +169,15 @@ where
     Closed,
 }
 
-struct PGConn<B: Stream, C: Unpin>
-where
-    (B, C): StreamWithUpgrade,
-{
-    state: RefCell<ConnState<B, C>>,
+struct PGConn {
+    state: RefCell<ConnState>,
     queue: RefCell<super::queue::FutureQueue<Result<(), PGConnError>>>,
     ready_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
-impl<B: Stream, C: Unpin> PGConn<B, C>
-where
-    (B, C): StreamWithUpgrade,
-    B: 'static,
-    C: 'static,
-{
+impl PGConn {
     pub fn new_connection(
-        future: impl Future<Output = Result<RawClient<B, C>, ConnectionError>> + 'static,
+        future: impl Future<Output = Result<RawClient, PGConnectionError>> + 'static,
     ) -> Self {
         Self {
             state: ConnState::Connecting(future.boxed_local()).into(),
@@ -214,10 +186,11 @@ where
         }
     }
 
-    pub fn new_raw(stm: RawClient<B, C>) -> Self {
+    pub fn new_raw(stm: RawClient) -> Self {
+        let (stream, _params) = stm.into_parts();
         Self {
             state: ConnState::Ready {
-                client: stm,
+                stream,
                 handlers: Default::default(),
             }
             .into(),
@@ -249,10 +222,10 @@ where
 
     fn with_stream<T, F>(&self, f: F) -> Result<T, PGConnError>
     where
-        F: FnOnce(Pin<&mut RawClient<B, C>>) -> T,
+        F: FnOnce(Pin<&mut dyn Stream>) -> T,
     {
         match &mut *self.state.borrow_mut() {
-            ConnState::Ready { ref mut client, .. } => Ok(f(Pin::new(client))),
+            ConnState::Ready { ref mut stream, .. } => Ok(f(stream.as_mut())),
             _ => Err(PGConnError::InvalidState),
         }
     }
@@ -399,8 +372,9 @@ where
                                     return Poll::Ready(Ok::<_, PGConnError>(()));
                                 }
                             };
+                            let (stream, _params) = raw.into_parts();
                             *state = ConnState::Ready {
-                                client: raw,
+                                stream,
                                 handlers: Default::default(),
                             };
                             Poll::Ready(Ok::<_, PGConnError>(()))
@@ -448,7 +422,7 @@ where
                             }
                         }
                     };
-                    self.process_message(Some(message.map_err(ConnectionError::ParseError)?))
+                    self.process_message(Some(message.map_err(PGConnectionError::ParseError)?))
                 })?;
 
                 if n == 0 {
@@ -505,7 +479,7 @@ mod tests {
     use hex_literal::hex;
     use std::{fmt::Write, time::Duration};
     use tokio::{
-        io::{AsyncReadExt, AsyncWriteExt, DuplexStream},
+        io::{AsyncReadExt, AsyncWriteExt},
         task::LocalSet,
         time::timeout,
     };
@@ -638,7 +612,7 @@ mod tests {
 
     /// Perform a test using captured binary protocol data from a real server.
     async fn run_expect<F: Future>(
-        query_task: impl FnOnce(Client<DuplexStream, ()>, Rc<RefCell<String>>) -> F + 'static,
+        query_task: impl FnOnce(Client, Rc<RefCell<String>>) -> F + 'static,
         expect: &'static [(&[u8], &[u8], &str)],
     ) {
         let f = async move {

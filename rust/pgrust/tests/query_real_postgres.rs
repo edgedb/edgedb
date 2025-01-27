@@ -6,10 +6,9 @@ use std::rc::Rc;
 // Constants
 use db_proto::match_message;
 use gel_auth::AuthType;
-use pgrust::connection::tokio::TokioStream;
+use gel_stream::client::{Connector, ResolvedTarget, Target};
 use pgrust::connection::{
-    Client, Credentials, FlowAccumulator, MaxRows, Oid, Param, PipelineBuilder, Portal,
-    ResolvedTarget, Statement,
+    Client, Credentials, FlowAccumulator, MaxRows, Oid, Param, PipelineBuilder, Portal, Statement,
 };
 use pgrust::protocol::postgres::data::*;
 use tokio::task::LocalSet;
@@ -28,7 +27,7 @@ fn address(address: &ListenAddress) -> ResolvedTarget {
 
 async fn with_postgres<F, R>(callback: F) -> Result<Option<String>, Box<dyn std::error::Error>>
 where
-    F: FnOnce(Client<TokioStream, ()>, Rc<RefCell<FlowAccumulator>>) -> R,
+    F: FnOnce(Client, Rc<RefCell<FlowAccumulator>>) -> R,
     R: Future<Output = Result<(), Box<dyn std::error::Error>>>,
 {
     let Some(postgres_process) = setup_postgres(AuthType::Trust, Mode::Tcp)? else {
@@ -42,8 +41,10 @@ where
         server_settings: Default::default(),
     };
 
-    let socket = address(&postgres_process.socket_address).connect().await?;
-    let (client, task) = Client::new(credentials, socket, ());
+    let connector = Connector::new(Target::new_resolved(address(
+        &postgres_process.socket_address,
+    )))?;
+    let (client, task) = Client::new(credentials, connector);
     let accumulator = Rc::new(RefCell::new(FlowAccumulator::default()));
 
     let accumulator2 = accumulator.clone();

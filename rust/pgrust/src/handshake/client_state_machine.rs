@@ -1,6 +1,6 @@
 use super::ConnectionSslRequirement;
 use crate::{
-    connection::{invalid_state, ConnectionError, Credentials, SslError},
+    connection::{invalid_state, Credentials, PGConnectionError, SslError},
     errors::PgServerError,
     protocol::postgres::{
         builder,
@@ -157,7 +157,7 @@ impl ConnectionState {
         &mut self,
         drive: ConnectionDrive,
         update: &mut impl ConnectionStateUpdate,
-    ) -> Result<(), ConnectionError> {
+    ) -> Result<(), PGConnectionError> {
         use ConnectionStateImpl::*;
         trace!("Received drive {drive:?} in state {:?}", self.0);
         match (&mut self.0, drive) {
@@ -180,12 +180,12 @@ impl ConnectionState {
                 } else if response.code() == b'N' {
                     // Rejected
                     if *mode == ConnectionSslRequirement::Required {
-                        return Err(ConnectionError::SslError(SslError::SslRequiredByClient));
+                        return Err(PGConnectionError::SslError(SslError::SslRequiredByClient));
                     }
                     Self::send_startup_message(credentials, update)?;
                     self.0 = Connecting(std::mem::take(credentials), false);
                 } else {
-                    return Err(ConnectionError::UnexpectedResponse(format!(
+                    return Err(PGConnectionError::UnexpectedResponse(format!(
                         "Unexpected SSL response from server: {:?}",
                         response.code() as char
                     )));
@@ -221,7 +221,7 @@ impl ConnectionState {
                             }
                         }
                         if !found_scram_sha256 {
-                            return Err(ConnectionError::UnexpectedResponse("Server requested SASL authentication but does not support SCRAM-SHA-256".into()));
+                            return Err(PGConnectionError::UnexpectedResponse("Server requested SASL authentication but does not support SCRAM-SHA-256".into()));
                         }
                         let credentials = credentials.clone();
                         let mut tx = ClientTransaction::new("".into());

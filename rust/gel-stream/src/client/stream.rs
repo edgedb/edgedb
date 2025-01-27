@@ -15,7 +15,7 @@ pub trait StreamWithUpgrade: Unpin {
 
     /// Perform a secure upgrade operation and return the new, wrapped connection.
     #[allow(async_fn_in_trait)]
-    async fn secure_upgrade(self) -> Result<Self::Upgrade, ConnectionError>
+    async fn secure_upgrade(self) -> Result<Self::Upgrade, SslError>
     where
         Self: Sized;
 }
@@ -25,11 +25,11 @@ impl<S: Stream> StreamWithUpgrade for (S, ()) {
     type Upgrade = S;
     type Config = ();
 
-    async fn secure_upgrade(self) -> Result<Self::Upgrade, ConnectionError>
+    async fn secure_upgrade(self) -> Result<Self::Upgrade, SslError>
     where
         Self: Sized,
     {
-        Err(ConnectionError::SslError(SslError::SslUnsupportedByClient))
+        Err(SslError::SslUnsupportedByClient)
     }
 }
 
@@ -221,4 +221,20 @@ where
     Base(B),
     #[debug("Upgrade(..)")]
     Upgrade(<(B, C) as StreamWithUpgrade>::Upgrade),
+}
+
+impl<B: Stream, C: Unpin> UpgradableStreamChoice<B, C>
+where
+    (B, C): StreamWithUpgrade,
+    B: 'static,
+    <(B, C) as StreamWithUpgrade>::Base: 'static,
+    <(B, C) as StreamWithUpgrade>::Upgrade: 'static,
+{
+    /// Take the inner stream as a boxed `Stream`
+    pub fn into_boxed(self) -> Box<dyn Stream> {
+        match self {
+            UpgradableStreamChoice::Base(base) => Box::new(base),
+            UpgradableStreamChoice::Upgrade(upgrade) => Box::new(upgrade),
+        }
+    }
 }

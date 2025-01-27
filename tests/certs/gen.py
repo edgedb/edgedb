@@ -185,6 +185,9 @@ def new_crl(path, issuer, cert):
         .last_update(datetime.datetime.today())
         .next_update(datetime.datetime.today() + datetime.timedelta(days=1))
         .add_revoked_certificate(revoked_cert)
+        .add_extension(x509.CRLNumber(1), critical=True)
+        .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(
+            issuer_cert.public_key()), critical=True)
     )
     crl = builder.sign(private_key=signing_key, algorithm=hashes.SHA256())
     with open(path + ".crl.pem", "wb") as f:

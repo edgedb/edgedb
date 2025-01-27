@@ -13,7 +13,7 @@ mod passfile;
 mod raw_params;
 mod url;
 
-pub use host::{Host, HostType};
+pub use host::{Host, HostType, ToAddrsSyncVec};
 pub use params::{ConnectionParameters, Ssl, SslParameters};
 pub use passfile::{Password, PasswordWarning};
 pub use raw_params::{RawConnectionParameters, SslMode, SslVersion};
