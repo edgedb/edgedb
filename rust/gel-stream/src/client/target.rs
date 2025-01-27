@@ -33,9 +33,8 @@ impl TargetName {
     /// Create a new target for a Unix socket.
     #[cfg(any(target_os = "linux", target_os = "android"))]
     pub fn new_unix_domain(domain: impl AsRef<[u8]>) -> Result<Self, std::io::Error> {
-        use os::linux::net::SocketAddrExt;
         let domain =
-            ResolvedTarget::from(std::os::unix::net::SocketAddr::from_abstract_name(domain)?);
+            ResolvedTarget::from(std::os::linux::net::SocketAddrExt::from_abstract_name(domain)?);
         Ok(Self {
             inner: MaybeResolvedTarget::Resolved(domain),
         })
@@ -119,7 +118,7 @@ impl Target {
     #[cfg(any(target_os = "linux", target_os = "android"))]
     pub fn new_unix_domain(domain: impl AsRef<[u8]>) -> Result<Self, std::io::Error> {
         let domain =
-            ResolvedTarget::from(std::os::unix::net::SocketAddr::from_abstract_name(domain)?);
+            ResolvedTarget::from(std::os::linux::net::SocketAddrExt::from_abstract_name(domain)?);
         Ok(Self {
             inner: TargetInner::NoTls(domain.into()),
         })
@@ -199,7 +198,7 @@ impl std::fmt::Debug for MaybeResolvedTarget {
                 } else {
                     #[cfg(any(target_os = "linux", target_os = "android"))]
                     {
-                        use os::linux::net::SocketAddrExt;
+                        use std::os::linux::net::SocketAddrExt;
                         if let Some(name) = addr.as_abstract_name() {
                             return write!(f, "@{}", String::from_utf8_lossy(name));
                         }
