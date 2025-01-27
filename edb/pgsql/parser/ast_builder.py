@@ -276,7 +276,7 @@ def _build_select_stmt(n: Node, c: Context) -> pgast.SelectStmt:
         or [],
         where_clause=_maybe(n, c, "whereClause", _build_base_expr),
         group_clause=_maybe_list(n, c, "groupClause", _build_base),
-        having=_maybe(n, c, "having", _build_base_expr),
+        having_clause=_maybe(n, c, "havingClause", _build_base_expr),
         window_clause=_maybe_list(n, c, "windowClause", _build_base),
         values=_maybe_list(n, c, "valuesLists", _build_base_expr),
         sort_clause=_maybe_list(n, c, "sortClause", _build_sort_by),

@@ -687,7 +687,7 @@ class SelectStmt(Query):
     # GROUP BY clauses
     group_clause: typing.Optional[typing.List[Base]] = None
     # HAVING expression
-    having: typing.Optional[BaseExpr] = None
+    having_clause: typing.Optional[BaseExpr] = None
     # WINDOW window_name AS(...),
     window_clause: typing.Optional[typing.List[Base]] = None
     # List of ImplicitRow's in a VALUES query

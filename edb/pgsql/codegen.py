@@ -385,13 +385,13 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.visit_list(node.group_clause)
             self.indentation -= 2
 
-        if node.having:
+        if node.having_clause:
             self.indentation += 1
             self.new_lines = 1
             self.write('HAVING')
             self.new_lines = 1
             self.indentation += 1
-            self.visit(node.having)
+            self.visit(node.having_clause)
             self.indentation -= 2
 
         if node.sort_clause:
