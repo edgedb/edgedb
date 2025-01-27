@@ -1,7 +1,6 @@
 use std::{
     borrow::Cow,
     net::{IpAddr, SocketAddr},
-    os::linux::net::SocketAddrExt,
     path::Path,
     sync::Arc,
 };
@@ -34,6 +33,7 @@ impl TargetName {
     /// Create a new target for a Unix socket.
     #[cfg(any(target_os = "linux", target_os = "android"))]
     pub fn new_unix_domain(domain: impl AsRef<[u8]>) -> Result<Self, std::io::Error> {
+        use os::linux::net::SocketAddrExt;
         let domain =
             ResolvedTarget::from(std::os::unix::net::SocketAddr::from_abstract_name(domain)?);
         Ok(Self {
@@ -302,7 +302,10 @@ mod tests {
         let target = TargetName::new_unix_path("/tmp/test.sock").unwrap();
         assert_eq!(format!("{target:?}"), "/tmp/test.sock");
 
-        let target = TargetName::new_unix_domain("test").unwrap();
-        assert_eq!(format!("{target:?}"), "@test");
+        #[cfg(any(target_os = "linux", target_os = "android"))]
+        {
+            let target = TargetName::new_unix_domain("test").unwrap();
+            assert_eq!(format!("{target:?}"), "@test");
+        }
     }
 }
