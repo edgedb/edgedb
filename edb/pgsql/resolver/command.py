@@ -276,6 +276,12 @@ def _uncompile_subject_columns(
 def _uncompile_insert_stmt(
     stmt: pgast.InsertStmt, *, ctx: Context
 ) -> UncompiledDML:
+    if stmt.on_conflict:
+        raise errors.UnsupportedFeatureError(
+            'ON CONFLICT is not yet supported',
+            span=stmt.on_conflict.span,
+        )
+
     # determine the subject object
     sub_table, sub = _uncompile_dml_subject(stmt.relation, ctx=ctx)
 
