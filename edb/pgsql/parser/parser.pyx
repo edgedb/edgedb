@@ -25,7 +25,7 @@ from typing import (
 import enum
 import hashlib
 
-from .exceptions import PSqlParseError
+from .exceptions import PSqlSyntaxError
 
 
 from edb.server.pgproto.pgproto cimport (
@@ -88,7 +88,7 @@ def pg_parse(query) -> str:
 
     result = pg_query_parse(query)
     if result.error:
-        error = PSqlParseError(
+        error = PSqlSyntaxError(
             result.error.message.decode('utf8'),
             result.error.lineno, result.error.cursorpos
         )
@@ -139,7 +139,7 @@ def pg_normalize(query: str) -> NormalizedQuery:
 
     try:
         if result.error:
-            error = PSqlParseError(
+            error = PSqlSyntaxError(
                 result.error.message.decode('utf8'),
                 result.error.lineno, result.error.cursorpos
             )

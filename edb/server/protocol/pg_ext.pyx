@@ -425,7 +425,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 )
         elif isinstance(exc, parser_errors.PSqlUnsupportedError):
             exc = pgerror.FeatureNotSupported(str(exc))
-        elif isinstance(exc, parser_errors.PSqlParseError):
+        elif isinstance(exc, parser_errors.PSqlSyntaxError):
             exc = pgerror.new(
                 pgerror.ERROR_SYNTAX_ERROR,
                 str(exc),
