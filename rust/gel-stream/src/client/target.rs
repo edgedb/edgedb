@@ -198,8 +198,11 @@ impl std::fmt::Debug for MaybeResolvedTarget {
                     return write!(f, "{}", path.to_string_lossy());
                 } else {
                     #[cfg(any(target_os = "linux", target_os = "android"))]
-                    if let Some(name) = addr.as_abstract_name() {
-                        return write!(f, "@{}", String::from_utf8_lossy(name));
+                    {
+                        use os::linux::net::SocketAddrExt;
+                        if let Some(name) = addr.as_abstract_name() {
+                            return write!(f, "@{}", String::from_utf8_lossy(name));
+                        }
                     }
                 }
                 Ok(())
