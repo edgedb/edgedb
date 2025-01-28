@@ -39,6 +39,8 @@ from edb.common import debug
 from edb import edgeql
 from edb.edgeql import qltypes
 
+from edb.pgsql.parser import exceptions as parser_errors
+
 from edb.server import compiler
 from edb.server import config
 from edb.server import defines as edbdef
@@ -1008,6 +1010,9 @@ async def interpret_error(
             exc = RuntimeError(
                 'unhandled error while calling interpret_backend_error(); '
                 'run with EDGEDB_DEBUG_SERVER to debug.')
+
+    elif isinstance(exc, parser_errors.PSqlParseError):
+        exc = errormech.static_interpret_psql_parse_error(exc)
 
     return _check_for_ise(exc)
 
