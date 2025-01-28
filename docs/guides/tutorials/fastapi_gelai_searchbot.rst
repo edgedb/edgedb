@@ -6,49 +6,53 @@ FastAPI (Searchbot)
 
 :edb-alt-title: Building a searchbot with memory using FastAPI and Gel AI
 
-In this tutorial we're going to walk you through building a chat bot app from
-scratch using Gel and `FastAPI <https://fastapi.tiangolo.com/>`_.
+In this tutorial we're going to walk you through building a chat bot with search
+capabilities using Gel and `FastAPI <https://fastapi.tiangolo.com/>`_.
 
-FastAPI is a web framework designed to help you build an API, well, fast. And
-Gel is a data layer designed to help you manage data in your application, and
-also do it fast. By the end of this tutorial you will have tried out different
-aspects of using those two together, and hopefully come out with something
-useful on the other end.
+FastAPI is a framework designed to help you build a web app, well, fast. And Gel
+is a data layer designed to help you figure out storage  in your application,
+and also do it fast. By the end of this tutorial you will have tried out
+different aspects of using those two together, and hopefully come out with
+something useful on the other end.
 
 We're going to start by creating an app with FastAPI, then add web search
-capabilities to it, and then put search results through an LLM to get a
-human-friendly answer. After that we'll tie it all together with Gel by adding
-chat history, and polish it off with semantic search, so that the bot can
-remember previous interactions with the user.
+capabilities to it, and then put search results through a language model to get
+a human-friendly answer. After that we'll use Gel to add chat history, and
+finish it off with semantic search, so that the bot can remember previous
+interactions with the user.
 
-The end result is going to look something like this.
+The end result is going to look something like this:
+
+.. image::
+    /docs/tutorials/placeholder.png
+    :alt: Placeholder
+    :width: 100%
 
 Step 1. Initialize the project
 ==============================
 
-We're going to start by installing uv - a Python package manager that's going to
-simplify environment management for us. Follow their
-`installation instructions <https://docs.astral.sh/uv/getting-started/installation/>`_
-or simply run:
+We're going to start by installing `uv <https://docs.astral.sh/uv/>`_ - a Python
+package manager that's going to simplify environment management for us. You can
+follow their `installation instructions
+<https://docs.astral.sh/uv/getting-started/installation/>`_ or simply run:
 
 .. code-block:: bash
     $ curl -LsSf https://astral.sh/uv/install.sh | sh
 
-Now let's initialize our project following the
-`documentation <https://docs.astral.sh/uv/guides/projects/>`_:
+Once that is done, we can use uv to create scaffolding for our project following
+the `documentation <https://docs.astral.sh/uv/guides/projects/>`_:
 
 .. code-block:: bash
     $ uv init searchbot \
       && cd searchbot
 
-For now, the only dependencies we know we're going to need are Gel and FastAPI,
-so let's add those following uv's instructions on `managing dependencies
+For now, we know we're going to need are Gel and FastAPI, so let's add those
+following uv's instructions on `managing dependencies
 <https://docs.astral.sh/uv/concepts/projects/dependencies/#optional-dependencies>`_,
 as well as FastAPI's `installation docs
-<https://fastapi.tiangolo.com/#installation>`_. We'll follow that by ``uv sync``
-that's going to create our virtual environment in a ``.venv`` directory and
-ensure it's ready. Finally, we'll activate the environment and get started with
-code.
+<https://fastapi.tiangolo.com/#installation>`_. Running ``uv sync`` after that
+will create our virtual environment in a ``.venv`` directory and ensure it's
+ready. Finally, we'll activate the environment and get started.
 
 .. code-block:: bash
     $ uv add fastapi --optional standard \
@@ -59,17 +63,15 @@ code.
 Step 2. Get started with FastAPI
 ================================
 
-At this stage we're going to follow FastAPI's documentation. It contains
-everything there is to know about building an application, but we'll quickly
-touch on things that are relevant to us anyway.
+At this stage we need to follow FastAPI's `tutorial
+<https://fastapi.tiangolo.com/tutorial/>`_.
 
-We're going to make a super simple application with one endpoint that takes in a
-user query as an input and returns it as an output. First, let's create a file
-called `main.py` and put the "Hello World" example in it:
+We're going to make a super simple app with one endpoint that takes in a user
+query as input and echoes it as an output. First, let's create a file called
+`main.py` inside out `app` directory and put the "Hello World" example in it:
 
 .. code-block:: python
-    :caption: dbschema/default.esdl
-    # where does this file live?
+    :caption: app/main.py
 
     from fastapi import FastAPI
 
@@ -85,31 +87,31 @@ To start the server, we need to run:
 .. code-block:: bash
     $ fastapi dev main.py
 
-And sure enough, once the server is running, we can send a `GET` request to our
-server:
-
-.. note::
-    Replace with built-in tooling
+Once the server gets up and running, we can make sure it works using FastAPI's
+built-in UI at <http://127.0.0.1:8000/docs>_, or simply using `curl`:
 
 .. code-block:: bash
     $ curl -X GET "http://localhost:8000/"
 
-... and receive the output:
+    {"message": "Hello World"}
 
-.. code-block:: bash
-    # output
 
-In order to create an actual endpoint we need to tell the app that we're
-expecting a query to come in as a parameter. We'd prefer to have it in the body
-of the request, too, since user messages can get pretty long.
+Now, in order to create the endpoint we set out to create, we need to pass our
+query as a parameter to it. We'd prefer to have it in the body of the request
+since user messages can get pretty long.
 
-In FastAPI land this is done by creating a Pydantic schema and setting it as an
-input parameter type. `Pydantic <https://docs.pydantic.dev/latest/>`_ is a data
-validation library for Python that's similar to standard dataclasses. It has
-many features, but we're going to use it in a really straightforward manner to
-set the input and the output schema of our endpoint:
+In FastAPI land this is done by creating a Pydantic schema and making it the
+type of the input parameter. `Pydantic <https://docs.pydantic.dev/latest/>`_ is
+a data validation library for Python that's similar to standard dataclasses. It
+has many features, but we don't actually need to know about them for now. All we
+need to know is that FastAPI uses Pydantic types to automatically figure out
+schemae for `input <https://fastapi.tiangolo.com/tutorial/body/>`_, as well as
+`output <https://fastapi.tiangolo.com/tutorial/response-model/>`_.
+
+Let's add the following to our `main.py`:
 
 .. code-block:: python
+    :caption: app/main.py
     from pydantic import BaseModel
 
 
@@ -120,23 +122,23 @@ set the input and the output schema of our endpoint:
         response: str | None = None
         sources: list[str] | None = None
 
-Still following the docs, we'll beef up the endpoint like this:
+Now we can define our endpoint and set the two classes we just added as its
+argument and return type.
 
 .. code-block:: python
     @app.post("/search")
     async def search(search_terms: SearchTerms) -> SearchResult:
         return SearchResult(response=search_terms.query)
 
-And now let's test it:
+Same as before, we can test the endpoint using the UI, or by sending a request
+with `curl`:
 
 .. code-block:: bash
     $ curl -X POST "http://localhost:8000/search" \
       -H "Content-Type: application/json" \
       -d '{"query": "test search"}'
-```
 
-.. code-block:: bash
-    {"response":"test search","sources":null,"llm_error":null}
+    {"response":"test search","sources":null}
 
 Step 3. Implement web search
 ============================
