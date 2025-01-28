@@ -75,5 +75,6 @@ cdef class PgConnection(frontend.FrontendConnection):
         object endpoint_security
         bint is_tls
         bint _disable_cache
+        bint _disable_normalization
 
     cdef inline WriteBuffer ready_for_query(self)
