@@ -381,6 +381,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         self.is_tls = False
 
         self._disable_cache = debug.flags.disable_qcache
+        self._disable_normalization = debug.flags.edgeql_disable_normalization
 
     cdef _main_task_created(self):
         self.server.on_pgext_client_connected(self)
@@ -939,7 +940,10 @@ cdef class PgConnection(frontend.FrontendConnection):
         actions = []
         dbv = self._dbview
 
-        source = pg_parser.NormalizedSource.from_string(query_str)
+        if self._disable_normalization:
+            source = pg_parser.Source.from_string(query_str)
+        else:
+            source = pg_parser.NormalizedSource.from_string(query_str)
         query_units = await self.compile(source, dbv)
 
         # TODO: currently, normalization does not work with multiple queries
@@ -1461,7 +1465,10 @@ cdef class PgConnection(frontend.FrontendConnection):
         """
         stmts = set()
 
-        source = pg_parser.NormalizedSource.from_string(query_str)
+        if self._disable_normalization:
+            source = pg_parser.Source.from_string(query_str)
+        else:
+            source = pg_parser.NormalizedSource.from_string(query_str)
 
         query_units = await self.compile(
             source, dbv, ignore_cache=force_recompilation
