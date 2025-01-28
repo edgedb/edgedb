@@ -2926,6 +2926,15 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             apply_access_policies=False,
         )
 
+    async def test_sql_native_query_27(self):
+        with self.assertRaisesRegex(
+            edgedb.errors.EdgeQLSyntaxError,
+            'syntax error at or near',
+        ):
+            await self.con.query_sql('''
+                select (), asdf
+            ''')
+
 
 class TestSQLQueryNonTransactional(tb.SQLQueryTestCase):
 
