@@ -25,10 +25,10 @@ from edb.common import prometheus as prom
 registry = prom.Registry(prefix='edgedb_server')
 
 COUNT_BUCKETS = prom.per_order_buckets(
-    1, 10000, entries_per_order=5,
+    1, 10000, entries_per_order=2,
 )
 BYTES_BUCKETS = prom.per_order_buckets(
-    8, 2**20, entries_per_order=4, base=2,
+    32, 2**20, entries_per_order=1, base=2,
 )
 
 compiler_process_spawns = registry.new_counter(
