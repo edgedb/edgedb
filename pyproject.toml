@@ -259,10 +259,6 @@ ignore = [
 
     # TODO: enable this
     "B905", # zip() without an explicit strict= parameter
-
-    # TODO: enable this (this was tried before - it is non-trivial)
-    "B019", # Use of functools.lru_cache or functools.cache on methods can lead
-    # to memory leaks
 ]
 flake8-bugbear.extend-immutable-calls = ["immutables.Map"]
 

@@ -20,6 +20,10 @@
 from __future__ import annotations
 
 import collections.abc
+import functools
+
+
+from typing import TypeVar, Callable
 
 
 class LRUMapping(collections.abc.MutableMapping):
@@ -75,3 +79,51 @@ class LRUMapping(collections.abc.MutableMapping):
 
     def __iter__(self):
         return iter(self._dict)
+
+
+Tf = TypeVar('Tf', bound=Callable)
+
+
+class _NoPickle:
+    def __init__(self, obj):
+        self.obj = obj
+
+    def __bool__(self):
+        return bool(self.obj)
+
+    def __getstate__(self):
+        return ()
+
+    def __setstate__(self, _d):
+        self.obj = None
+
+
+def lru_method_cache(size: int | None=128) -> Callable[[Tf], Tf]:
+    """A version of lru_cache for methods that shouldn't leak memory.
+
+    Basically the idea is that we generate a per-object lru-cached
+    partially applied method.
+
+    Since pickling an lru_cache of a lambda or a functools.partial
+    doesn't work, we wrap it in a _NoPickle object that doesn't pickle
+    its contents.
+    """
+    def transformer(f: Tf) -> Tf:
+        key = f'__{f.__name__}_cached'
+
+        def func(self, *args, **kwargs):
+            _m = getattr(self, key, None)
+            if not _m:
+                _m = _NoPickle(
+                    functools.lru_cache(size)(functools.partial(f, self))
+                )
+                setattr(self, key, _m)
+            return _m.obj(*args, **kwargs)
+
+        return func  # type: ignore
+
+    return transformer
+
+
+def method_cache(f: Tf) -> Tf:
+    return lru_method_cache(None)(f)
