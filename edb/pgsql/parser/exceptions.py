@@ -21,6 +21,10 @@ from typing import Any, Optional
 
 
 class PSqlParseError(Exception):
+    pass
+
+
+class PSqlSyntaxError(PSqlParseError):
     def __init__(self, message, lineno, cursorpos):
         self.message = message
         self.lineno = lineno
@@ -30,7 +34,7 @@ class PSqlParseError(Exception):
         return self.message
 
 
-class PSqlUnsupportedError(Exception):
+class PSqlUnsupportedError(PSqlParseError):
     def __init__(self, node: Optional[Any] = None, feat: Optional[str] = None):
         self.node = node
         self.location = None
