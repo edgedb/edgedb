@@ -70,10 +70,33 @@ def calc_buckets(
     """Calculate histogram buckets on a logarithmic scale."""
     # See https://amplitude.com/blog/2014/08/06/optimal-streaming-histograms
     # for more details.
+    # (Says a long standing comment, but this isn't what that post recommends!)
     result: list[float] = []
     while start <= upper_bound:
         result.append(start)
         start *= increment_ratio
+    return tuple(result)
+
+
+def per_order_buckets(
+    start: float, end: float,
+    *,
+    base: float=10.0,
+    entries_per_order=4,
+) -> tuple[float, ...]:
+    # See https://amplitude.com/blog/2014/08/06/optimal-streaming-histograms
+    # for more details.
+    # (Actually, for this one.)
+    result: list[float] = [start]
+
+    next = start * base
+    while next <= end:
+        for i in range(1, entries_per_order):
+            val = next / entries_per_order * i
+            if val > result[-1]:
+                result.append(val)
+        result.append(next)
+        next *= base
     return tuple(result)
 
 
@@ -174,7 +197,7 @@ class Registry:
         /,
         *,
         unit: Unit | None = None,
-        buckets: list[float] | None = None,
+        buckets: typing.Sequence[float] | None = None,
     ) -> Histogram:
         hist = Histogram(self, name, desc, unit, buckets=buckets)
         self._add_metric(hist)
@@ -187,7 +210,7 @@ class Registry:
         /,
         *,
         unit: Unit | None = None,
-        buckets: list[float] | None = None,
+        buckets: typing.Sequence[float] | None = None,
         labels: tuple[str, ...],
     ) -> LabeledHistogram:
         hist = LabeledHistogram(
@@ -505,7 +528,7 @@ class BaseHistogram(BaseMetric):
     ]
 
     def __init__(
-        self, *args: typing.Any, buckets: list[float] | None = None
+        self, *args: typing.Any, buckets: typing.Sequence[float] | None = None
     ) -> None:
         if buckets is None:
             buckets = self.DEFAULT_BUCKETS
@@ -530,7 +553,7 @@ class Histogram(BaseHistogram):
     _sum: float
 
     def __init__(
-        self, *args: typing.Any, buckets: list[float] | None = None
+        self, *args: typing.Any, buckets: typing.Sequence[float] | None = None
     ) -> None:
         super().__init__(*args, buckets=buckets)
         self._sum = 0.0
@@ -581,7 +604,7 @@ class LabeledHistogram(BaseHistogram):
     def __init__(
         self,
         *args: typing.Any,
-        buckets: list[float] | None = None,
+        buckets: typing.Sequence[float] | None = None,
         labels: tuple[str, ...],
     ) -> None:
         super().__init__(*args, buckets=buckets)
