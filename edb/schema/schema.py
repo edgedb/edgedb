@@ -550,7 +550,7 @@ class FlatSchema(Schema):
         self._globalname_to_id = immu.Map()
         self._refs_to = immu.Map()
         self._generation = 0
-        self.get_referrers_ex = functools.lru_cache()(self._get_referrers_ex)
+        self._get_referrers_ex = functools.lru_cache()(self._get_referrers_ex_uncached)
         self._get_referrers = functools.lru_cache()(self._get_referrers_uncached)
         self._get_casts = functools.lru_cache()(self._get_casts_uncached)
 
@@ -1313,7 +1313,19 @@ class FlatSchema(Schema):
 
             return frozenset(referrers)  # type: ignore
 
-    def _get_referrers_ex(  # type: ignore
+    def get_referrers_ex(
+        self,
+        scls: so.Object,
+        *,
+        scls_type: Optional[Type[so.Object_T]] = None,
+        field_name: Optional[str] = None,
+    ) -> Dict[
+        Tuple[Type[so.Object_T], str],
+        FrozenSet[so.Object_T],
+    ]:
+        return self._get_referrers_ex(scls=scls, scls_type=scls_type, field_name=field_name)
+
+    def _get_referrers_ex_uncached(  # type: ignore
         self,
         scls: so.Object,
         *,
