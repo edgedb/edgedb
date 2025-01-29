@@ -24,6 +24,14 @@ CREATE SCALAR TYPE sys::TransactionIsolation
     EXTENDING enum<RepeatableRead, Serializable>;
 
 
+CREATE SCALAR TYPE sys::TransactionAccessMode
+    EXTENDING enum<ReadOnly, ReadWrite>;
+
+
+CREATE SCALAR TYPE sys::TransactionDeferrability
+    EXTENDING enum<Deferrable, NotDeferrable>;
+
+
 CREATE SCALAR TYPE sys::VersionStage
     EXTENDING enum<dev, alpha, beta, rc, final>;
 

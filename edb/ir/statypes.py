@@ -736,3 +736,54 @@ class EnabledDisabledType(
             EnabledDisabledEnum.Enabled: "true",
             EnabledDisabledEnum.Disabled: "false",
         }
+
+
+class TransactionAccessModeEnum(enum.StrEnum):
+    ReadOnly = "ReadOnly"
+    ReadWrite = "ReadWrite"
+
+
+class TransactionAccessMode(
+    EnumScalarType[TransactionAccessModeEnum],
+    edgeql_type="sys::TransactionAccessMode",
+):
+    @classmethod
+    def get_translation_map(cls) -> Mapping[TransactionAccessModeEnum, str]:
+        return {
+            TransactionAccessModeEnum.ReadOnly: "true",
+            TransactionAccessModeEnum.ReadWrite: "false",
+        }
+
+
+class TransactionDeferrabilityEnum(enum.StrEnum):
+    Deferrable = "Deferrable"
+    NotDeferrable = "NotDeferrable"
+
+
+class TransactionDeferrability(
+    EnumScalarType[TransactionDeferrabilityEnum],
+    edgeql_type="sys::TransactionDeferrability",
+):
+    @classmethod
+    def get_translation_map(cls) -> Mapping[TransactionDeferrabilityEnum, str]:
+        return {
+            TransactionDeferrabilityEnum.Deferrable: "true",
+            TransactionDeferrabilityEnum.NotDeferrable: "false",
+        }
+
+
+class TransactionIsolationEnum(enum.StrEnum):
+    Serializable = "Serializable"
+    RepeatableRead = "RepeatableRead"
+
+
+class TransactionIsolation(
+    EnumScalarType[TransactionIsolationEnum],
+    edgeql_type="sys::TransactionIsolation",
+):
+    @classmethod
+    def get_translation_map(cls) -> Mapping[TransactionIsolationEnum, str]:
+        return {
+            TransactionIsolationEnum.Serializable: "serializable",
+            TransactionIsolationEnum.RepeatableRead: "repeatable read",
+        }
