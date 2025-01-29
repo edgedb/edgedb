@@ -1379,6 +1379,15 @@ def const_ast_from_python(val: Any, with_secrets: bool=False) -> qlast.Expr:
             ),
             expr=qlast.Constant.string(value=val.to_iso8601()),
         )
+    elif isinstance(val, statypes.EnumScalarType):
+        qltype = val.get_edgeql_type()
+        return qlast.TypeCast(
+            type=qlast.TypeName(
+                maintype=qlast.ObjectRef(
+                    module=qltype.module, name=qltype.name),
+            ),
+            expr=qlast.Constant.string(value=val.to_str()),
+        )
     elif isinstance(val, statypes.CompositeType):
         return qlast.InsertQuery(
             subject=name_to_ast_ref(sn.name_from_string(val._tspec.name)),

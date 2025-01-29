@@ -40,8 +40,12 @@ from edb.common.typeutils import downcast
 from . import types
 
 
-SETTING_TYPES = {str, int, bool, float,
-                 statypes.Duration, statypes.ConfigMemory}
+SETTING_TYPES = {
+    str,
+    int,
+    bool,
+    float,
+}
 
 
 @dataclasses.dataclass(frozen=True, eq=True)
@@ -64,13 +68,20 @@ class Setting:
     protected: bool = False
 
     def __post_init__(self) -> None:
-        if (self.type not in SETTING_TYPES and
-                not isinstance(self.type, types.ConfigTypeSpec)):
+        if (
+            self.type not in SETTING_TYPES
+            and not isinstance(self.type, types.ConfigTypeSpec)
+            and not (
+                isinstance(self.type, type)
+                and issubclass(self.type, statypes.ScalarType)
+            )
+        ):
             raise ValueError(
                 f'invalid config setting {self.name!r}: '
                 f'type is expected to be either one of '
                 f'{{str, int, bool, float}} '
-                f'or an edb.server.config.types.ConfigType subclass')
+                f'or an edb.server.config.types.ConfigType ',
+                f'or edb.ir.statypes.ScalarType subclass')
 
         if self.set_of:
             if not isinstance(self.default, frozenset):
@@ -269,8 +280,10 @@ def _load_spec_from_type(
                 ptype, schema,
                 spec_class=types.ConfigTypeSpec,
             )
-        else:
+        elif isinstance(ptype, s_scalars.ScalarType):
             pytype = staeval.scalar_type_to_python_type(ptype, schema)
+        else:
+            raise RuntimeError(f"unsupported config value type: {ptype}")
 
         attributes = {}
         for a, v in p.get_annotations(schema).items(schema):

@@ -40,6 +40,7 @@ from edb.edgeql import quote as qlquote
 from edb.protocol import messages
 
 from edb.testbase import server as tb
+
 from edb.schema import objects as s_obj
 
 from edb.ir import statypes
@@ -2139,6 +2140,96 @@ class TestSeparateCluster(tb.TestCaseWithHttpClient):
                 if line.startswith(KEY):
                     new_aborted += float(line.split(' ')[1])
             self.assertEqual(orig_aborted, new_aborted)
+
+    @unittest.skipIf(
+        "EDGEDB_SERVER_MULTITENANT_CONFIG_FILE" in os.environ,
+        "cannot use CONFIGURE INSTANCE in multi-tenant mode",
+    )
+    async def test_server_config_custom_enum(self):
+        async def assert_conf(con, name, expected_val):
+            val = await con.query_single(f'''
+                select assert_single(cfg::Config.{name})
+            ''')
+
+            self.assertEqual(
+                str(val),
+                expected_val
+            )
+
+        async with tb.start_edgedb_server(
+            security=args.ServerSecurityMode.InsecureDevMode,
+        ) as sd:
+            c1 = await sd.connect()
+            c2 = await sd.connect()
+
+            await c2.query('create database test')
+            t1 = await sd.connect(database='test')
+
+            # check that the default was set correctly
+            await assert_conf(
+                c1, '__check_function_bodies', 'Enabled')
+
+            ####
+
+            await c1.query('''
+                configure instance set
+                    __check_function_bodies
+                        := cfg::TestEnabledDisabledEnum.Disabled;
+            ''')
+
+            for c in {c1, c2, t1}:
+                await assert_conf(
+                    c, '__check_function_bodies', 'Disabled')
+
+            ####
+
+            await t1.query('''
+                configure current database set
+                    __check_function_bodies :=
+                        cfg::TestEnabledDisabledEnum.Enabled;
+            ''')
+
+            for c in {c1, c2}:
+                await assert_conf(
+                    c, '__check_function_bodies', 'Disabled')
+
+            await assert_conf(
+                t1, '__check_function_bodies', 'Enabled')
+
+            ####
+
+            await c2.query('''
+                configure session set
+                    __check_function_bodies :=
+                        cfg::TestEnabledDisabledEnum.Disabled;
+            ''')
+            await assert_conf(
+                c1, '__check_function_bodies', 'Disabled')
+            await assert_conf(
+                t1, '__check_function_bodies', 'Enabled')
+            await assert_conf(
+                c2, '__check_function_bodies', 'Disabled')
+
+            ####
+            await c1.query('''
+                configure instance reset
+                    __check_function_bodies;
+            ''')
+            await t1.query('''
+                configure session set
+                    __check_function_bodies :=
+                        cfg::TestEnabledDisabledEnum.Disabled;
+            ''')
+            await assert_conf(
+                c1, '__check_function_bodies', 'Enabled')
+            await assert_conf(
+                t1, '__check_function_bodies', 'Disabled')
+            await assert_conf(
+                c2, '__check_function_bodies', 'Disabled')
+
+            await c1.aclose()
+            await c2.aclose()
+            await t1.aclose()
 
 
 class TestStaticServerConfig(tb.TestCase):
