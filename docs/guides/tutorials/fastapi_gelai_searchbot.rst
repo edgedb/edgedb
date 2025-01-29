@@ -55,10 +55,14 @@ will create our virtual environment in a ``.venv`` directory and ensure it's
 ready. Finally, we'll activate the environment and get started.
 
 .. code-block:: bash
-    $ uv add fastapi --optional standard \
+    $ uv add "fastapi[standard]" \
       && uv add gel \
       && uv sync \
       && source .venv/bin/activate
+
+.. note::
+   Source the env every time you open a new terminal session.
+
 
 Step 2. Get started with FastAPI
 ================================
@@ -69,6 +73,10 @@ At this stage we need to follow FastAPI's `tutorial
 We're going to make a super simple app with one endpoint that takes in a user
 query as input and echoes it as an output. First, let's create a file called
 `main.py` inside out `app` directory and put the "Hello World" example in it:
+
+.. note::
+   make a directory called app first and put init.py there
+
 
 .. code-block:: python
     :caption: app/main.py
@@ -85,15 +93,17 @@ query as input and echoes it as an output. First, let's create a file called
 To start the server, we need to run:
 
 .. code-block:: bash
-    $ fastapi dev main.py
+    $ fastapi dev app/main.py
 
 Once the server gets up and running, we can make sure it works using FastAPI's
 built-in UI at <http://127.0.0.1:8000/docs>_, or simply using `curl`:
 
 .. code-block:: bash
-    $ curl -X GET "http://localhost:8000/"
+    $ curl -X 'GET' \
+      'http://127.0.0.1:8000/' \
+      -H 'accept: application/json'
 
-    {"message": "Hello World"}
+    {"message":"Hello World"}
 
 
 Now, in order to create the endpoint we set out to create, we need to pass our
@@ -134,11 +144,18 @@ Same as before, we can test the endpoint using the UI, or by sending a request
 with `curl`:
 
 .. code-block:: bash
-    $ curl -X POST "http://localhost:8000/search" \
-      -H "Content-Type: application/json" \
-      -d '{"query": "test search"}'
+   $ curl -X 'POST' \
+      'http://127.0.0.1:8000/search' \
+      -H 'accept: application/json' \
+      -H 'Content-Type: application/json' \
+      -d '{
+      "query": "string"
+    }'
 
-    {"response":"test search","sources":null}
+    {
+      "response": "string",
+      "sources": null
+    }
 
 Step 3. Implement web search
 ============================
@@ -146,60 +163,35 @@ Step 3. Implement web search
 Now that we have our web app infrastructure in place, let's add some substance
 to it by implementing web search capabilities.
 
-There're many powerful feature-rich products for LLM-driven web search, but all
-we need for now is to simply scrape the text from a few sources so we can feed
-it to the model as context. Rather than getting into the weeds here, for the
-sake of this tutorial we can delegate this task to an LLM. After some cleanup,
-the end result should look similar to this:
+There're many powerful feature-rich products for LLM-driven web search (such as
+Brave for example). But for our purely educational purposes we will set our
+sails on the high seas 🏴‍☠️and scrape Google search results. Google tends to
+actively resist such behavior, so the most reliable way for us to get our links
+is to employ the `googlesearch-python` library:
+
+.. code-block:: bash
+    $ uv add googlesearch-python
+
+Having dealt with acquiring the links, we need to parse HTML in order to extract
+text. Rather than getting into the weeds, we can generate a reasonable solution
+using an LLM. After some cleanup, the end result should look similar to this:
+
+.. note::
+   create a new file called web.py
 
 .. code-block:: python
     :caption: app/web.py
 
     import requests
     from bs4 import BeautifulSoup
-    from urllib.parse import quote_plus
     import time
     import re
+
+    from googlesearch import search
 
     HEADERS = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
-
-
-    def search_google(query: str, limit: int = 5) -> list[str]:
-        """
-        Perform a Google search and return top URLs.
-        """
-
-        encoded_query = quote_plus(query)  # encode the search query
-        search_url = f"https://www.google.com/search?q={encoded_query}"
-
-        try:
-            response = requests.get(search_url, headers=HEADERS)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.text, "html.parser")
-            result_block = soup.find_all("div", attrs={"class": "g"})
-
-            search_results = []
-
-            for result in result_block:
-                link = result.find("a", href=True)
-                title = result.find("h3")
-
-                if link and title:
-                    link = result.find("a", href=True)
-                    if link["href"] not in search_results:
-                        search_results.append(link["href"])
-
-                        if len(search_results) >= limit:
-                            break
-
-            return search_results
-
-        except requests.exceptions.RequestException as e:
-            print(f"Error performing search: {e}")
-            return []
 
 
     def extract_text_from_url(url: str) -> str:
@@ -234,7 +226,7 @@ the end result should look similar to this:
         Returns list of (url, text_content) tuples.
         """
         results = []
-        urls = search_google(query, limit)
+        urls = search(query, num_results=limit)
 
         for url in urls:
             text = extract_text_from_url(url)
@@ -246,38 +238,61 @@ the end result should look similar to this:
         return results
 
     if __name__ == "__main__":
-        print(fetch_web_sources("gel database"))
+        print(fetch_web_sources("gel database", limit=1)[0][0])
 
-Good enough for now! We need to add one extra dependency: Beautiful Soup, which
-is a commonly used HTML parsing library. Let's add it by running:
+
+Good enough for now! We need to add two extra dependencies: requests and
+Beautiful Soup, which is a commonly used HTML parsing library. Let's add it by
+running:
 
 .. code-block:: bash
-    $ uv add beautifulsoup4
+    $ uv add beautifulsoup4 requests
 
 ... and test out LLM-generated solution to see if it works:
 
 .. code-block:: bash
     $ python3 app/web.py
 
-Now it's time to reflect the new capabilities in our web app:
+    https://www.geldata.com
+
+Now it's time to reflect the new capabilities in our web app. Let's update our
+search function like this:
 
 .. code-block:: python
-    # more code...
+    :caption: app/main.py
+
+    from .web import fetch_web_sources
+
+    class WebSource(BaseModel):
+        url: str | None = None
+        text: str | None = None
 
     @app.post("/search")
     async def search(search_terms: SearchTerms) -> SearchResult:
-        search_result = await generate(search_terms.query)
-        return search_result
+        web_sources = await search_web(search_terms.query)
+        return SearchResult(
+            response=search_terms.query, sources=[source.url for source in web_sources]
+        )
 
 
-    async def do_search(query):
-        return [{"url": url, "text": text} for url, text in fetch_text_results(query)]
+    async def search_web(query: str) -> list[WebSource]:
+        web_sources = [
+            WebSource(url=url, text=text) for url, text in fetch_web_sources(query, limit=1)
+        ]
+        return web_sources
+
+Testing it using the web UI, and sure enough, we get our sources in the
+response!
+
 
 Step 4. Connect to the LLM
 ==========================
 
-Now that we're capable of scraping text from search results, all that's left for
-us is to get the LLM to summarize it for us.
+.. note::
+   add links to documentation
+
+Now that we're capable of scraping text from search results, we can forward
+those results to the LLM to get a nice-looking summary.
 
 The most straightforward way to do that is to set up some OpenAI chat
 completions. To avoid delicate fiddling with HTML requests, let's add their
@@ -289,20 +304,31 @@ library as another dependency:
 Then we can grab some code straight from their documentation, and set up LLM
 generation like this:
 
-.. code-block:: python
-    async def generate(query):
-        web_results = await do_search(query)
+.. note::
+    describe env management
 
+.. code-block:: python
+    from openai import OpenAI
+    from dotenv import load_dotenv()
+
+    _ = load_dotenv()
+
+    llm_client = OpenAI()
+
+    async def generate_answer(
+        query: str,
+        web_sources: list[WebSource],
+    ) -> str:
         system_prompt = (
             "You are a helpful assistant that answers user's questions"
-            + " by finding relevant information in web search results"
+            + " by finding relevant information in web search results."
         )
 
         prompt = f"User search query: {query}\n\nWeb search results:\n"
 
-        for i, result in enumerate(web_results):
-            prompt += f"Result {i} (URL: {result['url']}):\n"
-            prompt += f"{result['text']}\n\n"
+        for i, source in enumerate(web_sources):
+            prompt += f"Result {i} (URL: {source.url}):\n"
+            prompt += f"{source.text}\n\n"
 
         completion = llm_client.chat.completions.create(
             model="gpt-4o-mini",
@@ -318,19 +344,36 @@ generation like this:
             ],
         )
 
-        generated_query = completion.choices[0].message.content
-
-        search_result = SearchResult(
-            response=generated_query, sources=[result["url"] for result in web_results]
-        )
-
-        # search_result = SearchResult(sources=[result["url"] for result in web_results])
-        return search_result
+        llm_response = completion.choices[0].message.content
+        return llm_response
 
 And as usual, let's reflect the new capabilities in the app and test it:
 
 .. code-block:: python
-    # beefed up endpoint
+
+    @app.post("/search")
+    async def search(search_terms: SearchTerms) -> SearchResult:
+        web_sources = await search_web(search_terms.query)
+        response = await generate_answer(search_terms.query, web_sources)
+        return SearchResult(
+            response=response, sources=[source.url for source in web_sources]
+        )
+
+.. code-block:: bash
+   curl -X 'POST' \
+      'http://127.0.0.1:8000/search' \
+      -H 'accept: application/json' \
+      -H 'Content-Type: application/json' \
+      -d '{
+      "query": "what is gel"
+    }'
+
+    {
+      "response": "Gel is a next-generation database ... "
+      "sources": [
+        "https://www.geldata.com/"
+      ]
+    }
 
 Step 5. Use Gel to implement chat history
 =========================================
@@ -351,8 +394,15 @@ line interface.
 .. code-block:: bash
     $ gel project init
 
+.. note::
+   accept all defaults
+
+
 Defining the schema
 -------------------
+
+.. note::
+   add links to documentation
 
 The database schema in Gel is defined declaratively. The init command actually
 created a stub for it in `dbchema/default.esdl`, that we're going to extend now
@@ -373,11 +423,10 @@ convention established in the LLM space, each message is going to have a role.
 
 Messages are grouped together into a chat, so let's add that, too.
 
-```esdl
-type Chat {
-	multi messages: Message;
-}
-```
+.. code-block:: sdl
+    type Chat {
+        multi messages: Message;
+    }
 
 And chats all belong to a certain user, making up their chat history:
 
@@ -386,7 +435,7 @@ And chats all belong to a certain user, making up their chat history:
         name: str {
             constraint exclusive;
         }
-        multi chats: ChatHistory;
+        multi chats: Chat;
     }
 
 We're going to keep our schema super simple for now. Some time down the road,
@@ -414,11 +463,14 @@ This is the entire schema we came up with:
             name: str {
                 constraint exclusive;
             }
-            multi chats: ChatHistory;
+            multi chats: Chat;
         }
     }
 
 For now, let's migrate to our new schema and proceed to writing some queries.
+
+.. note::
+   add links to documentation
 
 .. code-block:: sdl
     $ gel migration create
@@ -429,16 +481,53 @@ For now, let's migrate to our new schema and proceed to writing some queries.
 Writing queries
 ---------------
 
-First, let's create a directory called `queries` where we're going to put all of
-the EdgeQL-related stuff.
+.. note::
+   add links to documentation
 
-Let's get the trivial stuff out of the way first. Here're queries that fetch all
-the users, a single user, user's chats, and a particular chat.
+.. note::
+   we're assuming knowledge of EdgeQL here. If a refresher is needed, add link
+
+First, let's create a directory inside `app` called `queries` where we're going
+to put all of the EdgeQL-related stuff.
+
+Let's get the straightforward stuff out of the way first. Here're queries that
+fetch all the users, a single user, user's chats, and a particular chat.
 
 .. note::
    Add a fold of some kind to streamline the text
 
+.. note::
+   Explain that for each query we want to create a separate file inside the
+   folder, and that we're doing it to use codegen. Explain what problem codegen
+   is supposed to solve for us.
+
+
+.. note::
+   Provide the file with inserts that can be copied and pasted, explain how to
+   run it.
+
 .. code-block:: edgeql
+    :caption: app/queries/get_users.edgeql
+
+    select User { name };
+
+    select User { name }
+    filter .name = <str>$name;
+
+    select Chat {
+        messages,
+        user := .<chats[is User],
+    } filter .user.name = <str>$username;
+
+    select Chat {
+        messages,
+        user := .<chats[is User],
+    } filter .user.name = <str>$username and .id = <uuid>$chat_id;
+
+
+.. note::
+   generate queries, import, run, make sure everything works.
+
 
 For messages we're going to need something slightly more involved.
 
@@ -462,7 +551,7 @@ previous conversations with the user. That way, if you have to narrow down your
 search over multiple messages, the bot will be able to recall that and cut
 straight to the result next time.
 
-Stage 5. Use Gel's advanced features to create a RAG
+Step 6. Use Gel's advanced features to create a RAG
 ====================================================
 
 At this point we have a decent search bot that can refine a search query over
