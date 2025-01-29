@@ -149,7 +149,10 @@ def resolve(
                         val=expr.construct_row_expr(columns, ctx=ctx)
                     )
                 ],
-                from_clause=[pgast.RangeSubselect(subquery=e)],
+                from_clause=[pgast.RangeSubselect(
+                    subquery=e,
+                    alias=pgast.Alias(aliasname='r'),
+                )],
                 ctes=e.ctes,
             )
             e.ctes = []
