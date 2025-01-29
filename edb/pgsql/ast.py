@@ -972,6 +972,11 @@ class WindowDef(ImmutableBase):
 class RangeSubselect(PathRangeVar):
     """Subquery appearing in FROM clauses."""
 
+    # Before postgres 16, an alias is always required on selects from
+    # a subquery. Try to catch that with the typechecker by getting
+    # rid of the default value.
+    alias: Alias
+
     lateral: bool = False
     subquery: Query
 
