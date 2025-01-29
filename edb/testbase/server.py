@@ -2726,7 +2726,7 @@ def start_edgedb_server(
     bind_addrs: tuple[str, ...] = ('localhost',),
     auto_shutdown_after: Optional[int]=None,
     bootstrap_command: Optional[str]=None,
-    max_allowed_connections: Optional[int]=10,
+    max_allowed_connections: Optional[int]=5,
     compiler_pool_size: int=2,
     compiler_pool_mode: Optional[edgedb_args.CompilerPoolMode] = None,
     adjacent_to: Optional[tconn.Connection]=None,

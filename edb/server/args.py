@@ -414,11 +414,11 @@ def compute_default_max_backend_connections() -> int:
 
 def adjust_testmode_max_connections(max_conns):
     # Some test cases will start a second EdgeDB server (default
-    # max_backend_connections=10), so we should reserve some backend
+    # max_backend_connections=5), so we should reserve some backend
     # connections for that. This is ideally calculated upon the edb test -j
     # option, but that also depends on the total available memory. We are
     # hard-coding 15 reserved connections here for simplicity.
-    return max(1, max_conns // 2, max_conns - 15)
+    return max(1, max_conns // 2, max_conns - 30)
 
 
 def _validate_compiler_pool_size(ctx, param, value):
