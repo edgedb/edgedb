@@ -24,6 +24,13 @@ from edb.common import prometheus as prom
 
 registry = prom.Registry(prefix='edgedb_server')
 
+COUNT_BUCKETS = prom.per_order_buckets(
+    1, 10000, entries_per_order=2,
+)
+BYTES_BUCKETS = prom.per_order_buckets(
+    32, 2**20, entries_per_order=1, base=2,
+)
+
 compiler_process_spawns = registry.new_counter(
     'compiler_process_spawns_total',
     'Total number of compiler processes spawned.'
@@ -144,6 +151,7 @@ sql_compilations = registry.new_labeled_counter(
 queries_per_connection = registry.new_labeled_histogram(
     'queries_per_connection',
     'Number of queries per connection.',
+    buckets=COUNT_BUCKETS,
     labels=('tenant', 'interface'),
 )
 
@@ -151,6 +159,7 @@ query_size = registry.new_labeled_histogram(
     'query_size',
     'The size of a query.',
     unit=prom.Unit.BYTES,
+    buckets=BYTES_BUCKETS,
     labels=('tenant', 'interface'),
 )
 
