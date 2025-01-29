@@ -36,6 +36,7 @@ import httptools
 import immutables
 
 from edb.common import debug
+from edb.common import lru
 from edb.common import markup
 
 from .. import metrics
@@ -204,7 +205,7 @@ class MultiSchemaPool(pool_mod.FixedPool):
         # this is deferred to _init_server()
         pass
 
-    @functools.cache
+    @lru.method_cache
     def _get_init_args(self):
         init_args = (
             self._backend_runtime_params,

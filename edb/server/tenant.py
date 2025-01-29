@@ -35,7 +35,6 @@ from typing import (
 import asyncio
 import contextlib
 import dataclasses
-import functools
 import json
 import logging
 import os
@@ -54,6 +53,7 @@ import immutables
 from edb import buildmeta
 from edb import errors
 from edb.common import asyncutil
+from edb.common import lru
 from edb.common import retryloop
 from edb.common import verutils
 from edb.common.log import current_tenant
@@ -355,7 +355,7 @@ class Tenant(ha_base.ClusterProtocol):
     def get_pgaddr(self) -> pgconnparams.ConnectionParams:
         return self._cluster.get_pgaddr()
 
-    @functools.lru_cache
+    @lru.method_cache
     def get_backend_runtime_params(self) -> pgparams.BackendRuntimeParams:
         return self._cluster.get_runtime_params()
 

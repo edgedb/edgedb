@@ -37,6 +37,7 @@ import time
 import immutables
 
 from edb.common import debug
+from edb.common import lru
 
 from edb.pgsql import params as pgparams
 
@@ -189,7 +190,7 @@ class AbstractPool:
         assert self._dbindex is not None
         return self._make_init_args(*self._dbindex.get_cached_compiler_args())
 
-    @functools.lru_cache(1)
+    @lru.lru_method_cache(1)
     def _make_init_args(self, dbs, global_schema_pickle, system_config):
         init_args = (
             dbs,
@@ -1103,7 +1104,7 @@ class RemotePool(AbstractPool):
             if worker.done():
                 (await worker).close()
 
-    @functools.lru_cache(1)
+    @lru.lru_method_cache(1)
     def _make_init_args(self, dbs, global_schema_pickle, system_config):
         init_args = (
             dbs,
@@ -1337,7 +1338,7 @@ class MultiTenantPool(FixedPool):
         for worker in self._workers.values():
             worker.invalidate(client_id)
 
-    @functools.cache
+    @lru.method_cache
     def _get_init_args(self):
         init_args = (
             self._backend_runtime_params,
