@@ -20,7 +20,7 @@ thiserror = "2"
 rustls-pki-types = "1"
 
 tokio = { version = "1", optional = true, features = ["full"] }
-rustls = { version = "0.23", optional = true }
+rustls = { version = "0.23", optional = true, default-features = false, features = ["ring", "logging", "std", "tls12"] }
 openssl = { version = "0.10.55", optional = true }
 tokio-openssl = { version = "0.6.5", optional = true }
 hickory-resolver = { version = "0.24.2", optional = true }
@@ -36,7 +36,6 @@ openssl-sys = { version = "*", optional = true }
 tokio = { version = "1", features = ["full"] }
 tempfile = "3"
 ntest = "0.9.3"
-rustls = "0.23"
 rustls-pemfile = "2"
 
 rstest = "0.24.0"
