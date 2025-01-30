@@ -478,6 +478,107 @@ For now, let's migrate to our new schema and proceed to writing some queries.
 .. code-block:: sdl
     $ gel migrate
 
+Now that our schema is applied, let's quickly populate the database with some
+fake data in order to be able to test the queries.
+
+.. code-block:: bash
+    $ mkdir app/sample_data && cat << 'EOF' > app/sample_data/inserts.edgeql
+    # Create users first
+    insert User {
+        name := 'alice',
+    };
+    insert User {
+        name := 'bob',
+    };
+    # Insert chat histories for Alice
+    update User
+    filter .name = 'alice'
+    set {
+        chats := {
+            (insert Chat {
+                messages := {
+                    (insert Message {
+                        role := 'user',
+                        body := 'What are the main differences between GPT-3 and GPT-4?',
+                        timestamp := <datetime>'2024-01-07T10:00:00Z',
+                        sources := {'arxiv:2303.08774', 'openai.com/research/gpt-4'}
+                    }),
+                    (insert Message {
+                        role := 'assistant',
+                        body := 'The key differences include improved reasoning capabilities, better context understanding, and enhanced safety features...',
+                        timestamp := <datetime>'2024-01-07T10:00:05Z',
+                        sources := {'openai.com/blog/gpt-4-details', 'arxiv:2303.08774'}
+                    })
+                }
+            }),
+            (insert Chat {
+                messages := {
+                    (insert Message {
+                        role := 'user',
+                        body := 'Can you explain what policy gradient methods are in RL?',
+                        timestamp := <datetime>'2024-01-08T14:30:00Z',
+                        sources := {'Sutton-Barto-RL-Book-Ch13', 'arxiv:1904.12901'}
+                    }),
+                    (insert Message {
+                        role := 'assistant',
+                        body := 'Policy gradient methods are a class of reinforcement learning algorithms that directly optimize the policy...',
+                        timestamp := <datetime>'2024-01-08T14:30:10Z',
+                        sources := {'Sutton-Barto-RL-Book-Ch13', 'spinning-up.openai.com'}
+                    })
+                }
+            })
+        }
+    };
+    # Insert chat histories for Bob
+    update User
+    filter .name = 'bob'
+    set {
+        chats := {
+            (insert Chat {
+                messages := {
+                    (insert Message {
+                        role := 'user',
+                        body := 'What are the pros and cons of different sharding strategies?',
+                        timestamp := <datetime>'2024-01-05T16:15:00Z',
+                        sources := {'martin-kleppmann-ddia-ch6', 'aws.amazon.com/sharding-patterns'}
+                    }),
+                    (insert Message {
+                        role := 'assistant',
+                        body := 'The main sharding strategies include range-based, hash-based, and directory-based sharding...',
+                        timestamp := <datetime>'2024-01-05T16:15:08Z',
+                        sources := {'martin-kleppmann-ddia-ch6', 'mongodb.com/docs/sharding'}
+                    }),
+                    (insert Message {
+                        role := 'user',
+                        body := 'Could you elaborate on hash-based sharding?',
+                        timestamp := <datetime>'2024-01-05T16:16:00Z',
+                        sources := {'mongodb.com/docs/sharding'}
+                    })
+                }
+            })
+        }
+    };
+    EOF
+
+Make sure that the `app/sample_data/inserts.edgeql` popped up in your file
+system, then run:
+
+.. code-block:: bash
+    $ gel query -f app/sample_data/inserts.edgeql
+
+    {"id": "862de904-de39-11ef-9713-4fab09220c4a"}
+    {"id": "862e400c-de39-11ef-9713-2f81f2b67013"}
+    {"id": "862de904-de39-11ef-9713-4fab09220c4a"}
+    {"id": "862e400c-de39-11ef-9713-2f81f2b67013"}
+
+That's it! Now there's stuff in the database. Let's verify it by running:
+
+.. code-block:: bash
+    $ gel query "select User { name };"
+
+    {"name": "alice"}
+    {"name": "bob"}
+
 Writing queries
 ---------------
 
@@ -487,11 +588,472 @@ Writing queries
 .. note::
    we're assuming knowledge of EdgeQL here. If a refresher is needed, add link
 
+
 First, let's create a directory inside `app` called `queries` where we're going
 to put all of the EdgeQL-related stuff.
 
-Let's get the straightforward stuff out of the way first. Here're queries that
-fetch all the users, a single user, user's chats, and a particular chat.
+Let's start simple. We're going to write a query that fetches all of the users.
+In `queries` create a file named `get_users.edgeql` and put the following query
+in there:
+
+.. code-block:: edgeql
+    :caption: app/queries/get_users.edgeql
+
+    select User { name };
+
+
+Now run the code generator from the shell:
+
+.. code-block:: bash
+    $ gel-py
+
+It's going to automatically locate the `.edgeql` file and generate types for it.
+Once that is done, let's use those types to create the endpoint in ``main.py``:
+
+.. code-block:: python
+    from edgedb import create_async_client
+    from .queries.get_users_async_edgeql import get_users as get_users_query, GetUsersResult
+    gel_client = create_async_client()
+
+    @app.get("/users")
+    async def get_users() -> list[GetUsersResult]:
+        return await get_users_query(gel_client)
+
+With that, we've added our first CRUD endpoint! Let's verify it works as
+expected:
+
+.. code-block:: bash
+    $ curl -X 'GET' \
+    'http://127.0.0.1:8000/users' \
+    -H 'accept: application/json'
+
+    [
+      {
+        "id": "862de904-de39-11ef-9713-4fab09220c4a",
+        "name": "alice"
+      },
+      {
+        "id": "862e400c-de39-11ef-9713-2f81f2b67013",
+        "name": "bob"
+      }
+    ]
+
+
+While we're at it, let's also implement the option to fetch a user by their
+username. In order to do that, we need to write a new query in a separate file
+`app/queries/get_user_by_name.edgeql`:
+
+.. code-block:: edgeql
+    :caption: app/queries/get_users.edgeql
+
+    select User { name }
+    filter .name = <str>$name;
+
+After that, we will run the code generator again by calling `gel-py`.
+In the app, we are going to reuse the same endpoint that fetches the list of all
+users. From now on, if the user calls it without any arguments (e.g.
+`http://127.0.0.1/users`), they are going to receive the list of all users, same
+as before. But if they pass a username as a query argument like this:
+`http://127.0.0.1/users?username=bob`, the system will attempt to fetch a user
+named `bob`.
+
+In order to achieve this, we're going to need to add a `Query`-type argument to
+our endpoint function. It's default value is going to be `None`, which will
+enable us to implement out conditional logic:
+
+.. code-block:: python
+    :caption: app/main.py
+
+    from fastapi import Query, HTTPException
+    from http import HTTPStatus
+    from .queries.get_user_by_name_async_edgeql import (
+        get_user_by_name as get_user_by_name_query,
+        GetUserByNameResult,
+    )
+
+
+    @app.get("/users")
+    async def get_users(
+        username: str = Query(None),
+    ) -> list[GetUsersResult] | GetUserByNameResult:
+        """List all users or get a user by their username"""
+        if username:
+            user = await get_user_by_name_query(gel_client, name=username)
+            if not user:
+                raise HTTPException(
+                    HTTPStatus.NOT_FOUND,
+                    detail={"error": f"Error: user {username} does not exist."},
+                )
+            return user
+        else:
+            return await get_users_query(gel_client)
+
+
+And once again, let's verify that everything works:
+
+.. code-block:: bash
+    $ curl -X 'GET' \
+      'http://127.0.0.1:8000/users?username=alice' \
+      -H 'accept: application/json'
+
+    {
+      "id": "862de904-de39-11ef-9713-4fab09220c4a",
+      "name": "alice"
+    }
+
+
+Finally, let's also implement the option to add a new user. For this, just as
+before, we'll create a new file `app/queries/create_user.edgeql`, add a query to
+it and run code generation.
+
+.. code-block:: edgeql
+    select(
+        insert User {
+            name := <str>$username
+        }
+    ) {
+        name
+    }
+
+.. note::
+   trickery with the insert wrapped in select
+
+For this, we're going to add a new endpoint. Note that this one has the same
+name `/users`, but is for the POST HTTP method.
+
+.. code-block:: python
+    from gel import ConstraintViolationError
+    from .queries.create_user_async_edgeql import (
+        create_user as create_user_query,
+        CreateUserResult,
+    )
+
+    @app.post("/users", status_code=HTTPStatus.CREATED)
+    async def post_user(username: str = Query()) -> CreateUserResult:
+        try:
+            return await create_user_query(gel_client, username=username)
+        except ConstraintViolationError:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail={"error": f"Username '{username}' already exists."},
+            )
+
+Once more, let's verify that the new endpoint works as expected:
+
+.. code-block:: bash
+    $ curl -X 'POST' \
+      'http://127.0.0.1:8000/users?username=charlie' \
+      -H 'accept: application/json' \
+      -d ''
+
+    {
+      "id": "20372a1a-ded5-11ef-9a08-b329b578c45c",
+      "name": "charlie"
+    }
+
+This wraps things up for our user-related functionality. Of course, we now need
+to deal with Chats and Messages, too. We're not going to go in depth for those,
+since the process would be quite similar to what we just done. Instead, feel
+free to implement those endpoints yourself as an exercise, or copy the code
+below if you are in rush.
+
+.. code-block:: bash
+
+    $ echo 'select Chat {
+        messages,
+        user := .<chats[is User],
+    } filter .user.name = <str>$username;' > app/queries/get_chats.edgeql && echo 'select Chat {
+        messages,
+        user := .<chats[is User],
+    } filter .user.name = <str>$username and .id = <uuid>$chat_id;' > app/queries/get_chat_by_id.edgeql && echo 'with new_chat := (insert Chat)
+    select (
+        update User filter .name = <str>$username
+        set {
+            chats := assert_distinct(.chats union new_chat)
+        }
+    ) {
+        new_chat_id := new_chat.id
+    }' > app/queries/create_chat.edgeql && echo 'with
+        user := (select User filter .name = <str>$username),
+        chat := (
+            select Chat filter .<chats[is User] = user and .id = <uuid>$chat_id
+        )
+    select Message {
+        role,
+        body,
+        sources,
+        chat := .<messages[is Chat]
+    } filter .chat = chat;' > app/queries/get_messages.edgeql && echo 'with
+        user := (select User filter .name = <str>$username),
+    update Chat
+    filter .id = <uuid>$chat_id and .<chats[is User] = user
+    set {
+        messages := assert_distinct(.messages union (
+            insert Message {
+                role := <str>$message_role,
+                body := <str>$message_body,
+                sources := array_unpack(<array<str>>$sources)
+            }
+        ))
+    }' > app/queries/add_message.edgeql
+
+.. code-block:: python
+    :caption: app/main.py
+    from .queries.get_chats_async_edgeql import get_chats as get_chats_query, GetChatsResult
+    from .queries.get_chat_by_id_async_edgeql import (
+        get_chat_by_id as get_chat_by_id_query,
+        GetChatByIdResult,
+    )
+    from .queries.get_messages_async_edgeql import (
+        get_messages as get_messages_query,
+        GetMessagesResult,
+    )
+    from .queries.create_chat_async_edgeql import (
+        create_chat as create_chat_query,
+        CreateChatResult,
+    )
+    from .queries.add_message_async_edgeql import (
+        add_message as add_message_query,
+    )
+
+
+    @app.get("/chats")
+    async def get_chats(
+        username: str = Query(), chat_id: str = Query(None)
+    ) -> list[GetChatsResult] | GetChatByIdResult:
+        """List user's chats or get a chat by username and id"""
+        if chat_id:
+            chat = await get_chat_by_id_query(
+                gel_client, username=username, chat_id=chat_id
+            )
+            if not chat:
+                raise HTTPException(
+                    HTTPStatus.NOT_FOUND,
+                    detail={"error": f"Chat {chat_id} for user {username} does not exist."},
+                )
+            return chat
+        else:
+            return await get_chats_query(gel_client, username=username)
+
+
+    @app.post("/chats", status_code=HTTPStatus.CREATED)
+    async def post_chat(username: str) -> CreateChatResult:
+        return await create_chat_query(gel_client, username=username)
+
+
+    @app.get("/messages")
+    async def get_messages(
+        username: str = Query(), chat_id: str = Query()
+    ) -> list[GetMessagesResult]:
+        """Fetch all messages from a chat"""
+        return await get_messages_query(gel_client, username=username, chat_id=chat_id)
+
+
+For the `post_messages` function we're going to do something a little bit
+different though. Since this is now the primary way for the user to add their
+queries to the system, it functionally superceeds the `/search` endpoint we made
+before. To this end, this function is where we're going to handle saving
+messages, retrieving chat history, invoking web search and generating the
+answer.
+
+.. code-block:: python
+    @app.post("/messages", status_code=HTTPStatus.CREATED)
+    async def post_messages(
+        search_terms: SearchTerms,
+        username: str = Query(),
+        chat_id: str = Query(),
+    ) -> SearchResult:
+        chat_history = await get_messages_query(
+            gel_client, username=username, chat_id=chat_id
+        )
+
+        _ = await add_message_query(
+            gel_client,
+            username=username,
+            message_role="user",
+            message_body=search_terms.query,
+            sources=[],
+            chat_id=chat_id,
+        )
+
+        search_query = search_terms.query
+        web_sources = await search_web(search_query)
+
+        search_result = await generate_answer(
+            search_terms.query, chat_history, web_sources
+        )
+
+        _ = await add_message_query(
+            gel_client,
+            username=username,
+            message_role="assistant",
+            message_body=search_result.response,
+            sources=search_result.sources,
+            chat_id=chat_id,
+        )
+
+        return search_result
+
+
+Let's not forget to modify the `generate_answer` function, so it can also be
+history-aware.
+
+.. code-block:: python
+    async def generate_answer(
+        query: str,
+        chat_history: list[GetMessagesResult],
+        web_sources: list[WebSource],
+    ) -> SearchResult:
+        system_prompt = (
+            "You are a helpful assistant that answers user's questions"
+            + " by finding relevant information in web search results."
+        )
+
+        prompt = f"User search query: {query}\n\nWeb search results:\n"
+
+        for i, source in enumerate(web_sources):
+            prompt += f"Result {i} (URL: {source.url}):\n"
+            prompt += f"{source.text}\n\n"
+
+        completion = llm_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ],
+        )
+
+        llm_response = completion.choices[0].message.content
+        search_result = SearchResult(
+            response=llm_response, sources=[source.url for source in web_sources]
+        )
+
+        return search_result
+
+
+Ok, this should be it for setting up the chat history. Let's test it. First, we
+are going to start a new chat for our user:
+
+.. code-block:: bash
+    $ curl -X 'POST' \
+      'http://127.0.0.1:8000/chats?username=charlie' \
+      -H 'accept: application/json' \
+      -d ''
+
+    {
+      "id": "20372a1a-ded5-11ef-9a08-b329b578c45c",
+      "new_chat_id": "544ef3f2-ded8-11ef-ba16-f7f254b95e36"
+    }
+
+
+Next, let's add a couple messages and wait for the bot to respond:
+
+.. code-block:: bash
+    $ curl -X 'POST' \
+      'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
+      -H 'accept: application/json' \
+      -H 'Content-Type: application/json' \
+      -d '{
+      "query": "tell me about the best database in existence"
+    }'
+
+    {
+      "response": "Let me tell you about MS SQL Server...",
+      "sources": [
+        "https://www.itta.net/en/blog/top-10-best-databases-to-use-in-2024/"
+      ]
+    }
+
+    $ curl -X 'POST' \
+      'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
+      -H 'accept: application/json' \
+      -H 'Content-Type: application/json' \
+      -d '{
+      "query": "no i was talking about gel"
+    }'
+
+    {
+      "response": "Gel is an innovative open-source database ... "
+      "sources": [
+        "https://divan.dev/posts/edgedb/"
+      ]
+    }
+
+Finally, let's check that the messages we saw are in fact stored in the chat
+history:
+
+.. code-block:: bash
+    $ curl -X 'GET' \
+      'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
+      -H 'accept: application/json'
+
+    [
+      {
+        "id": "7e0a0f1a-ded8-11ef-ba16-2344d9519bcf",
+        "role": "user",
+        "body": "tell me about the best database in existence",
+        "sources": [],
+        "chat": [
+          {
+            "id": "544ef3f2-ded8-11ef-ba16-f7f254b95e36"
+          }
+        ]
+      },
+      {
+        "id": "8980413e-ded8-11ef-a67b-0bb26b4bb123",
+        "role": "assistant",
+        "body": "Let me tell you about MS SQL Server...",
+        "sources": [
+          "https://www.itta.net/en/blog/top-10-best-databases-to-use-in-2024/"
+        ],
+        "chat": [
+          {
+            "id": "544ef3f2-ded8-11ef-ba16-f7f254b95e36"
+          }
+        ]
+      },
+      {
+        "id": "a7fa9f4c-ded8-11ef-a67b-8394596c51b4",
+        "role": "user",
+        "body": "no i was talking about edgedb",
+        "sources": [],
+        "chat": [
+          {
+            "id": "544ef3f2-ded8-11ef-ba16-f7f254b95e36"
+          }
+        ]
+      },
+      {
+        "id": "ad60c43e-ded8-11ef-a67b-1fd15164d162",
+        "role": "assistant",
+        "body": "EdgeDB is an innovative open-source database ... "
+        "sources": [
+          "https://divan.dev/posts/edgedb/"
+        ],
+        "chat": [
+          {
+            "id": "544ef3f2-ded8-11ef-ba16-f7f254b95e36"
+          }
+        ]
+      }
+    ]
+
+
+In reality this workflow would've been handled by the frontend, providing the
+user with a nice inteface to interact with. But even without one we're built a
+fully functional chatbot already!
+
+.. note::
+   Describe how the post message kind of inherits the search functionality
+
+.. note::
+   Modify the generate too so it's history aware.
 
 .. note::
    Add a fold of some kind to streamline the text
@@ -502,54 +1064,101 @@ fetch all the users, a single user, user's chats, and a particular chat.
    is supposed to solve for us.
 
 
-.. note::
-   Provide the file with inserts that can be copied and pasted, explain how to
-   run it.
+Generating a Google search query
+--------------------------------
 
-.. code-block:: edgeql
-    :caption: app/queries/get_users.edgeql
+Congratulations! We just got done implementing multi-turn conversations for our
+search bot.
 
-    select User { name };
-
-    select User { name }
-    filter .name = <str>$name;
-
-    select Chat {
-        messages,
-        user := .<chats[is User],
-    } filter .user.name = <str>$username;
-
-    select Chat {
-        messages,
-        user := .<chats[is User],
-    } filter .user.name = <str>$username and .id = <uuid>$chat_id;
-
-
-.. note::
-   generate queries, import, run, make sure everything works.
-
-
-For messages we're going to need something slightly more involved.
-
-Finally, let's run the code generator and set up FastAPI endpoints.
-
-This is great, we now have multi-turn conversations. However, right now we're
+However, there's still one crucial piece missing. Right now we're
 simply forwarding the users message straight to Google search. But what happens
 if their message is a followup that cannot be used as a standalone search query?
 
-To amend that, we're going to implement an extra step in which the LLM is going
-to produce a query for us based on the entire chat history. That way we can be
-sure we're progressively working on our query rather than rewriting it from
-scratch every time.
+Ideally what we should do is we should infer the search query from the entire
+conversation, and use that to perform the search.
 
-Right now the user has to keep rewriting their own query, which is not very
-different from the Google itself. Let's make the conversation seem more natural.
+Let's implement an extra step in which the LLM is going to produce a query for
+us based on the entire chat history. That way we can be sure we're progressively
+working on our query rather than rewriting it from scratch every time.
 
-We've now successfully build a search bot that keeps track of the history. As a
-final cool feature, let's implement a capability for the bot to remember
-previous conversations with the user. That way, if you have to narrow down your
-search over multiple messages, the bot will be able to recall that and cut
-straight to the result next time.
+This is what we need to do: every time the user submits a message, we need to
+fetch the chat history, extract a search query from it using the LLM, and the
+other steps are going to the the same as before. Let's make the follwing
+modifications to the `main.py`:
+
+.. code-block:: python
+    :caption: app/main.py
+    @app.post("/messages", status_code=HTTPStatus.CREATED)
+    async def post_messages(
+        search_terms: SearchTerms,
+        username: str = Query(),
+        chat_id: str = Query(),
+    ) -> SearchResult:
+        chat_history = await get_messages_query(
+            gel_client, username=username, chat_id=chat_id
+        )
+
+        _ = await add_message_query(
+            gel_client,
+            username=username,
+            message_role="user",
+            message_body=search_terms.query,
+            sources=[],
+            chat_id=chat_id,
+        )
+
+        search_query = await generate_search_query(search_terms.query, chat_history)
+        web_sources = await search_web(search_query)
+
+        search_result = await generate_answer(
+            search_terms.query, chat_history, web_sources
+        )
+
+        _ = await add_message_query(
+            gel_client,
+            username=username,
+            message_role="assistant",
+            message_body=search_result.response,
+            sources=search_result.sources,
+            chat_id=chat_id,
+        )
+
+        return search_result
+
+    async def generate_search_query(
+        query: str, message_history: list[GetMessagesResult]
+    ) -> str:
+        system_prompt = (
+            "You are a helpful assistant."
+            + " Your job is to summarize chat history into a standalone google search query."
+            + " Only provide the query itself as your response."
+        )
+
+        formatted_history = "\n---\n".join(
+            [
+                f"{message.role}: {message.body} (sources: {message.sources})"
+                for message in message_history
+            ]
+        )
+        prompt = f"Chat history: {formatted_history}\n\nUser message: {query} \n\n"
+
+        completion = llm_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ],
+        )
+
+        llm_response = completion.choices[0].message.content
+        return llm_response
+
 
 Step 6. Use Gel's advanced features to create a RAG
 ====================================================
