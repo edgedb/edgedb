@@ -56,7 +56,9 @@ CREATE TYPE cfg::TestInstanceConfigStatTypes EXTENDING cfg::TestInstanceConfig {
 };
 
 
-CREATE SCALAR TYPE cfg::TestEnum extending enum<One, Two, Three>;
+CREATE SCALAR TYPE cfg::TestEnum EXTENDING enum<One, Two, Three>;
+CREATE SCALAR TYPE cfg::TestEnabledDisabledEnum
+    EXTENDING enum<Enabled, Disabled>;
 
 
 ALTER TYPE cfg::AbstractConfig {
@@ -140,6 +142,12 @@ ALTER TYPE cfg::AbstractConfig {
     CREATE PROPERTY __pg_max_connections -> std::int64 {
         CREATE ANNOTATION cfg::internal := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"max_connections"';
+    };
+
+    CREATE PROPERTY __check_function_bodies -> cfg::TestEnabledDisabledEnum {
+        CREATE ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::backend_setting := '"check_function_bodies"';
+        SET default := cfg::TestEnabledDisabledEnum.Enabled;
     };
 };
 

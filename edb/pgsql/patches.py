@@ -67,4 +67,18 @@ drop function if exists edgedbsql_v6_2f20b3fed0.uuid_to_oid(uuid) cascade
 '''),
     ('sql-introspection', ''),
     ('metaschema-sql', 'SysConfigFullFunction'),
+    # 6.0b3 or 6.0rc1
+    ('edgeql+schema+config+testmode', '''
+CREATE SCALAR TYPE cfg::TestEnabledDisabledEnum
+    EXTENDING enum<Enabled, Disabled>;
+ALTER TYPE cfg::AbstractConfig {
+    CREATE PROPERTY __check_function_bodies -> cfg::TestEnabledDisabledEnum {
+        CREATE ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::backend_setting := '"check_function_bodies"';
+        SET default := cfg::TestEnabledDisabledEnum.Enabled;
+    };
+};
+'''),
+    ('metaschema-sql', 'PostgresConfigValueToJsonFunction'),
+    ('metaschema-sql', 'SysConfigFullFunction'),
 ]

@@ -203,6 +203,11 @@ class CompositeConfigType(ConfigType, statypes.CompositeType):
                 and isinstance(value, str | int)
             ):
                 value = statypes.ConfigMemory(value)
+            elif (
+                _issubclass(f_type, statypes.EnumScalarType)
+                and isinstance(value, str)
+            ):
+                value = f_type(value)
 
             elif not isinstance(f_type, type) or not isinstance(value, f_type):
                 raise cls._err(

@@ -50,9 +50,10 @@ from edb import buildmeta
 from edb import errors
 
 from edb import edgeql
-from edb.ir import statypes
 from edb.ir import typeutils as irtyputils
 from edb.edgeql import ast as qlast
+from edb.edgeql import codegen as qlcodegen
+from edb.edgeql import qltypes
 
 from edb.common import debug
 from edb.common import devmode
@@ -71,6 +72,7 @@ from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
 from edb.schema import std as s_std
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.server import args as edbargs
 from edb.server import config
@@ -614,7 +616,6 @@ def compile_bootstrap_script(
     expected_cardinality_one: bool = False,
     output_format: edbcompiler.OutputFormat = edbcompiler.OutputFormat.JSON,
 ) -> Tuple[s_schema.Schema, str]:
-
     ctx = edbcompiler.new_compiler_context(
         compiler_state=compiler.state,
         user_schema=schema,
@@ -1956,13 +1957,13 @@ async def _configure(
                 backend_params.has_configfile_access
             )
         ):
-            if isinstance(setting.default, statypes.Duration):
-                val = f'<std::duration>"{setting.default.to_iso8601()}"'
-            else:
-                val = repr(setting.default)
-            script = f'''
-                CONFIGURE INSTANCE SET {setting.name} := {val};
-            '''
+            script = qlcodegen.generate_source(
+                qlast.ConfigSet(
+                    name=qlast.ObjectRef(name=setting.name),
+                    scope=qltypes.ConfigScope.INSTANCE,
+                    expr=s_utils.const_ast_from_python(setting.default),
+                )
+            )
             schema, sql = compile_bootstrap_script(compiler, schema, script)
             await _execute(ctx.conn, sql)
 
