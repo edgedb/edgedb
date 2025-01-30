@@ -179,61 +179,121 @@ Working with our data
 
 .. edb:split-section::
 
-  Now that we have a schema defined, let's create an API endpoint to insert a ``Deck`` of ``Card`` objects into the database.
+  Now that we have a schema defined, let's create an API endpoint to insert a ``Deck`` of ``Card`` objects into the database. We'll show you how to query the database by constructing an EdgeQL query string, but we also have a TypeScript query builder that will help you build queries in a type-safe manner. You can switch tabs to see what this same query looks like with our query builder. We will cover how to generate this query builder later in the tutorial.
 
   .. note::
       If you are seeing TypeScript or ESLint errors, you may need to restart the TypeScript language server, or the ESLint server. Sometimes when adding new files, the language server or ESLint will not pick up the new files until you restart the server. This will be true for the rest of the tutorial, but the majority of development is not creating new files, so after this initial onboarding pain, you'll find that editor tooling works well. This is not a Gel-specific issue, but rather a general issue with starting a new project.
 
-  .. code-block:: typescript
-    :caption: app/api/deck/route.ts
+  .. tabs::
 
-      import { NextRequest, NextResponse } from "next/server";
-      import { client } from "@/lib/gel";
+    .. code-tab:: typescript
+      :caption: app/api/deck/route.ts
 
-      interface CreateDeckBody {
-        name: string;
-        description?: string;
-        cards: { front: string; back: string }[];
-      }
+        import { NextRequest, NextResponse } from "next/server";
+        import { client } from "@/lib/gel";
 
-      interface CreateDeckResponse {
-        id: string;
-      }
+        interface CreateDeckBody {
+          name: string;
+          description?: string;
+          cards: { front: string; back: string }[];
+        }
 
-      export async function POST(req: NextRequest): Promise<NextResponse<CreateDeckResponse>> {
-        // Tip: Consider using a tool like Zod to validate the request body
-        const body = await req.json() as CreateDeckBody;
-        const deck = await client.querySingle<CreateDeckResponse>(
-          `
-            with
-              name := <str>$name,
-              description := <optional str>$description,
-              cards := enumerate(array_unpack(<array<tuple<front: str, back: str>>>$cards)),
-              new_deck := (
-                insert Deck {
-                  name := name,
-                  description := description,
-                }
-              ),
-              new_cards := (
-                for card in cards
-                insert Card {
-                  order := card.0,
-                  front := card.1.front,
-                  back := card.1.back,
-                  deck := new_deck,
-                }
-              ),
-            select new_deck;
-          `,
+        interface CreateDeckResponse {
+          id: string;
+        }
+
+        const createDeckQuery = `
+          with
+            name := <str>$name,
+            description := <optional str>$description,
+            cards := array_unpack(<array<tuple<front: str, back: str>>>$cards),
+            new_deck := (
+              insert Deck {
+                name := name,
+                description := description,
+              }
+            ),
+            new_cards := (
+              for card in cards
+              insert Card {
+                order := card.order,
+                front := card.front,
+                back := card.back,
+                deck := new_deck,
+              }
+            ),
+          select new_deck;
+        `;
+
+        export async function POST(req: NextRequest): Promise<NextResponse<CreateDeckResponse>> {
+          // Note: For production, validate the request body with a tool like Zod
+          const body = await req.json() as CreateDeckBody;
+          const deck = await client.querySingle<CreateDeckResponse>(
+            createDeckQuery,
+            {
+              name: body.name,
+              description: body.description,
+              cards: body.cards.map((card, index) => ({
+                order: index,
+                ...card,
+              })),
+            },
+          );
+          return NextResponse.json(deck);
+        }
+
+    .. code-tab:: typescript
+      :caption: With Query Builder
+
+        import { NextRequest, NextResponse } from "next/server";
+        import { client } from "@/lib/gel";
+        import e from "@/dbschema/edgeql-js";
+
+        interface CreateDeckBody {
+          name: string;
+          description?: string;
+          cards: { order: number; front: string; back: string }[];
+        }
+
+        interface CreateDeckResponse {
+          id: string;
+        }
+
+        const createDeckQuery = e.params(
           {
+            name: e.str,
+            description: e.optional(e.str),
+            cards: e.array(e.tuple({ order: e.int64, front: e.str, back: e.str })),
+          },
+          ({
+            cards,
+            ...deckData
+          }) => {
+            const newDeck = e.insert(e.Deck, deckData);
+            const newCards = e.for(e.array_unpack(cards), (card) =>
+              e.insert(e.Card, {
+                ...card,
+                deck: newDeck,
+              })
+            );
+            return e.with([newCards], e.select(newDeck));
+          }
+        );
+
+        export async function POST(
+          req: NextRequest
+        ): Promise<NextResponse<CreateDeckResponse>> {
+          // Note: For production, validate the request body with a tool like Zod
+          const body = (await req.json()) as CreateDeckBody;
+          const deck = await createDeckQuery.run(client, {
             name: body.name,
             description: body.description,
             cards: body.cards,
-          },
-        );
-        return NextResponse.json(deck);
-      }
+          });
+          return NextResponse.json(deck);
+        }
+
+
 
 .. edb:split-section::
 
@@ -318,25 +378,27 @@ Working with our data
 
       type GetDeckResponse = GetDeckSuccessResponse | GetDeckErrorResponse;
 
+      const getDeckQuery = `
+        with deckId := <uuid>$deckId,
+        select Deck {
+          id,
+          name,
+          description,
+          cards := (select .<deck[is Card] {
+            id,
+            front,
+            back,
+          } order by .order),
+        } filter .id = deckId
+      `;
+
       export async function GET(
         req: NextRequest,
         { params }: { params: Promise<{ id: string }> }
       ): Promise<NextResponse<GetDeckResponse>> {
         const { id: deckId } = await params;
         const deck = await client.querySingle<GetDeckResponse>(
-          `
-            with deckId := <uuid>$deckId,
-            select Deck {
-              id,
-              name,
-              description,
-              cards := (select .<deck[is Card] {
-                id,
-                front,
-                back,
-              } order by .order),
-            } filter .id = deckId
-          `,
+          getDeckQuery,
           { deckId }
         );
 
@@ -415,6 +477,19 @@ Working with our data
 
       type UpdateCardResponse = UpdateCardSuccessResponse | UpdateCardErrorResponse;
 
+      const updateCardQuery = `
+        with
+          cardId := <uuid>$cardId,
+          front := <str>$front,
+          back := <str>$back,
+        update Card
+        filter .id = cardId
+        set {
+          front := front,
+          back := back,
+        };
+      `;
+
       export async function PUT(
         req: NextRequest,
         { params }: { params: Promise<{ id: string }> }
@@ -422,18 +497,7 @@ Working with our data
         const { id: cardId } = await params;
         const body = (await req.json()) as UpdateCardBody;
         const card = await client.querySingle<UpdateCardSuccessResponse>(
-          `
-            with
-              cardId := <uuid>$cardId,
-              front := <str>$front,
-              back := <str>$back,
-            update Card
-            filter .id = cardId
-            set {
-              front := front,
-              back := back,
-            };
-          `,
+          updateCardQuery,
           { cardId, front: body.front, back: body.back }
         );
 
@@ -495,33 +559,35 @@ A Smoother Development Workflow
         id: string;
       }
 
+    - const createDeckQuery = `
+    -   with
+    -     name := <str>$name,
+    -     description := <optional str>$description,
+    -     cards := array_unpack(<array<tuple<front: str, back: str>>>$cards),
+    -     new_deck := (
+    -       insert Deck {
+    -         name := name,
+    -         description := description,
+    -       }
+    -     ),
+    -     new_cards := (
+    -       for card in cards
+    -       insert Card {
+    -         order := card.order,
+    -         front := card.front,
+    -         back := card.back,
+    -         deck := new_deck,
+    -       }
+    -     ),
+    -   select new_deck;
+    - `;
+    -
       export async function POST(req: NextRequest): Promise<NextResponse<CreateDeckResponse>> {
-        // Tip: Consider using a tool like Zod to validate the request body
+        // Note: For production, validate the request body with a tool like Zod
         const body = await req.json() as CreateDeckBody;
     -   const deck = await client.querySingle<CreateDeckResponse>(
     +   const deck = await createDeck(
-    -     `
-    -       with
-    -         name := <str>$name,
-    -         description := <optional str>$description,
-    -         cards := enumerate(array_unpack(<array<tuple<front: str, back: str>>>$cards)),
-    -         new_deck := (
-    -           insert Deck {
-    -             name := name,
-    -             description := description,
-    -           }
-    -         ),
-    -         new_cards := (
-    -           for card in cards
-    -           insert Card {
-    -             order := card.0,
-    -             front := card.1.front,
-    -             back := card.1.back,
-    -             deck := new_deck,
-    -           }
-    -         ),
-    -       select new_deck;
-    -     `,
+    -     createDeckQuery,
     +     client,
           {
             name: body.name,
@@ -534,7 +600,7 @@ A Smoother Development Workflow
 
 .. edb:split-section::
 
-  After removing the query from the route file, we can move it into a separate file.
+  After removing the query from the route file, we move it into a separate file.
 
   .. code-block:: edgeql
     :caption: app/api/deck/create-deck.edgeql
@@ -589,6 +655,20 @@ A Smoother Development Workflow
 
       type GetDeckResponse = GetDeckSuccessResponse | GetDeckErrorResponse;
 
+    - const getDeckQuery = `
+    -   with deckId := <uuid>$deckId,
+    -   select Deck {
+    -     id,
+    -     name,
+    -     description,
+    -     cards := (select .<deck[is Card] {
+    -       id,
+    -       front,
+    -       back,
+    -     } order by .order),
+    -   } filter .id = deckId
+    - `;
+    -
       export async function GET(
         req: NextRequest,
         { params }: { params: Promise<{ id: string }> }
@@ -596,19 +676,7 @@ A Smoother Development Workflow
         const { id: deckId } = await params;
     -   const deck = await client.querySingle<GetDeckResponse>(
     +   const deck = await getDeck(
-    -     `
-    -       with deckId := <uuid>$deckId,
-    -       select Deck {
-    -         id,
-    -         name,
-    -         description,
-    -         cards := (select .<deck[is Card] {
-    -           id,
-    -           front,
-    -           back,
-    -         } order by .order),
-    -       } filter .id = deckId
-    -     `,
+    -     getDeckQuery,
     +     client,
           { deckId }
         );
@@ -670,6 +738,19 @@ A Smoother Development Workflow
 
       type UpdateCardResponse = UpdateCardSuccessResponse | UpdateCardErrorResponse;
 
+    - const updateCardQuery = `
+    -   with
+    -     cardId := <uuid>$cardId,
+    -     front := <str>$front,
+    -     back := <str>$back,
+    -   update Card
+    -   filter .id = cardId
+    -   set {
+    -     front := front,
+    -     back := back,
+    -   };
+    - `;
+    -
       export async function PUT(
         req: NextRequest,
         { params }: { params: Promise<{ id: string }> }
@@ -678,18 +759,7 @@ A Smoother Development Workflow
         const body = (await req.json()) as UpdateCardBody;
     -   const card = await client.querySingle<UpdateCardSuccessResponse>(
     +   const card = await updateCard(
-    -     `
-    -       with
-    -         cardId := <uuid>$cardId,
-    -         front := <str>$front,
-    -         back := <str>$back,
-    -       update Card
-    -       filter .id = cardId
-    -       set {
-    -         front := front,
-    -         back := back,
-    -       };
-    -     `,
+    -     updateCardQuery,
     +     client,
           { cardId, front: body.front, back: body.back }
         );
@@ -992,13 +1062,13 @@ Adding some access control
         }
 
         export async function POST(req: NextRequest): Promise<NextResponse<CreateDeckResponse>> {
-          // Tip: Consider using a tool like Zod to validate the request body
       +   const client = getAuthenticatedClient(req);
       +
       +   if (!client) {
       +     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       +   }
       +
+          // Note: For production, validate the request body with a tool like Zod
           const body = await req.json() as CreateDeckBody;
           const deck = await createDeck(
             client,
