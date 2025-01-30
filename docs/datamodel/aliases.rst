@@ -4,6 +4,8 @@
 Aliases
 =======
 
+.. index:: alias, virtual type
+
 .. important::
 
   This section assumes a basic understanding of EdgeQL. If you aren't familiar

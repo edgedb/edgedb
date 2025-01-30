@@ -4,6 +4,8 @@
 Object Types
 ============
 
+.. index:: type, tables, models
+
 *Object types* are the primary components of an EdgeDB schema. They are
 analogous to SQL *tables* or ORM *models*, and consist of :ref:`properties
 <ref_datamodel_props>` and :ref:`links <ref_datamodel_links>`.
@@ -45,14 +47,17 @@ documentation on links, see :ref:`Links <ref_datamodel_links>`.
 IDs
 ---
 
+.. index:: uuid, primary key
+
 There's no need to manually declare a primary key on your object types. All
 object types automatically contain a property ``id`` of type ``UUID`` that's
 *required*, *globally unique*, and *readonly*. This ``id`` is assigned upon
 creation and never changes.
 
-
 Abstract types
 --------------
+
+.. index:: abstract, inheritance
 
 Object types can either be *abstract* or *non-abstract*. By default all object
 types are non-abstract. You can't create or store instances of abstract types,
@@ -80,6 +85,8 @@ Abstract types are commonly used in tandem with inheritance.
 
 Inheritance
 -----------
+
+.. index:: extending, extends, subtypes, supertypes
 
 Object types can *extend* other object types. The extending type (AKA the
 *subtype*) inherits all links, properties, indexes, constraints, etc. from its

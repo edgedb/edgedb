@@ -134,6 +134,8 @@ Booleans
 
 .. eql:operator:: or: bool or bool -> bool
 
+    :index: or
+
     Evaluates ``true`` if either boolean is ``true``.
 
     .. code-block:: edgeql-repl
@@ -166,6 +168,8 @@ Booleans
 
 .. eql:operator:: and: bool and bool -> bool
 
+    :index: and
+
     Evaluates ``true`` if both booleans are ``true``.
 
     .. code-block:: edgeql-repl
@@ -197,6 +201,8 @@ Booleans
 
 
 .. eql:operator:: not: not bool -> bool
+
+    :index: not
 
     Logically negates a given boolean value.
 

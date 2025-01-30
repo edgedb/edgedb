@@ -6,6 +6,9 @@
 Triggers
 ========
 
+.. index:: trigger, after insert, after update, after delete, for each, for all,
+           when, do, __new__, __old__
+
 .. edb:youtube-embed:: ImgMfb_jCJQ?start=41
 
 Triggers allow you to define an expression to be executed whenever a given
@@ -296,6 +299,8 @@ object instead of one ``Log`` object per row:
 
 Validation using triggers
 =========================
+
+.. index:: trigger, validate, assert
 
 Triggers may also be used for validation by calling :eql:func:`assert` inside
 the trigger. In this example, the ``Person`` type has two multi links to other

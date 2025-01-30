@@ -53,6 +53,8 @@ Generic
 
 .. eql:operator:: eq: anytype = anytype -> bool
 
+    :index: =, equal, comparison, compare
+
     Compares two values for equality.
 
     .. code-block:: edgeql-repl
@@ -88,6 +90,8 @@ Generic
 
 
 .. eql:operator:: neq: anytype != anytype -> bool
+
+    :index: !=, not equal, comparison, compare
 
     Compares two values for inequality.
 
@@ -127,6 +131,8 @@ Generic
 
 .. eql:operator:: coaleq: optional anytype ?= optional anytype -> bool
 
+    :index: ?=, coalesce equal, comparison, compare, empty set
+
     Compares two (potentially empty) values for equality.
 
     This works the same as a regular :eql:op:`=<eq>` operator, but also allows
@@ -147,6 +153,8 @@ Generic
 
 .. eql:operator:: coalneq: optional anytype ?!= optional anytype -> bool
 
+    :index: ?!=, coalesce not equal, comparison, compare
+
     Compares two (potentially empty) values for inequality.
 
     This works the same as a regular :eql:op:`=<eq>` operator, but also allows
@@ -166,6 +174,8 @@ Generic
 
 
 .. eql:operator:: lt: anytype < anytype -> bool
+
+    :index: <, less than, comparison, compare
 
     Less than operator.
 
@@ -208,6 +218,8 @@ Generic
 
 .. eql:operator:: gt: anytype > anytype -> bool
 
+    :index: >, greater than, comparison, compare
+
     Greater than operator.
 
     The operator returns ``true`` if the value of the left expression is
@@ -248,6 +260,8 @@ Generic
 
 
 .. eql:operator:: lteq: anytype <= anytype -> bool
+
+    :index: <=, less than or equal, comparison, compare
 
     Less or equal operator.
 
@@ -291,6 +305,8 @@ Generic
 
 
 .. eql:operator:: gteq: anytype >= anytype -> bool
+
+    :index: >=, greater than or equal, comparison, compare
 
     Greater or equal operator.
 

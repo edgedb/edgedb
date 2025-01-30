@@ -4,6 +4,7 @@
 Paths
 =====
 
+.. index:: links, relations
 
 A *path expression* (or simply a *path*) represents a set of values that are
 reachable by traversing a given sequence of links or properties from some
@@ -128,6 +129,8 @@ Paths can terminate with a property reference.
 
 Backlinks
 ---------
+
+.. index:: .<
 
 All examples thus far have traversed links in the *forward direction*, however
 it's also possible to traverse links *backwards* with ``.<`` notation. These
@@ -263,6 +266,8 @@ that the type name (in this case ``User``) doesn't need to be specified.
 
 Link properties
 ---------------
+
+.. index:: linkprops, @
 
 Paths can also reference :ref:`link properties <ref_datamodel_link_properties>`
 with ``@`` notation. To demonstrate this, let's add a property to the ``User.

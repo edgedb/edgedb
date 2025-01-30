@@ -3,6 +3,8 @@
 For
 ===
 
+.. index:: for in, union
+
 EdgeQL supports a top-level ``for`` statement. These "for loops" iterate over
 each element of some input set, execute some expression with it, and merge the
 results into a single output set.
@@ -41,6 +43,8 @@ are merged into a single output set.
 
 Bulk inserts
 ------------
+
+.. index:: bulk inserts
 
 The ``for`` statement is commonly used for bulk inserts.
 
@@ -86,6 +90,8 @@ A similar approach can be used for bulk updates.
 
 Conditional DML
 ---------------
+
+.. index:: for, if else, unless conflict
 
 .. versionadded:: 4.0
 

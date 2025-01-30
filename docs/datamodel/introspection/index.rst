@@ -3,6 +3,8 @@
 Introspection
 =============
 
+.. index:: describe, introspect, typeof, schema module
+
 All of the schema information in EdgeDB is stored in the ``schema``
 :ref:`module <ref_datamodel_modules>` and is accessible via
 *introspection queries*.

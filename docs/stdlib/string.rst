@@ -191,6 +191,8 @@ Strings
 
 .. eql:operator:: stridx: str [ int64 ] -> str
 
+    :index: [int], index access
+
     String indexing.
 
     Indexing starts at 0. Negative indexes are also valid and count from
@@ -229,6 +231,8 @@ Strings
 
 .. eql:operator:: strslice: str [ int64 : int64 ] -> str
 
+    :index: [int:int]
+
     String slicing.
 
     Indexing starts at 0. Negative indexes are also valid and count from
@@ -261,6 +265,8 @@ Strings
 
 .. eql:operator:: strplus: str ++ str -> str
 
+    :index: ++, string, concatenate, join, add
+
     String concatenation.
 
     .. code-block:: edgeql-repl
@@ -274,6 +280,8 @@ Strings
 
 .. eql:operator:: like: str like str -> bool
                         str not like str -> bool
+
+    :index: like, not like, case sensitive, string matching, comparison, compare
 
     Case-sensitive simple string matching.
 
@@ -324,6 +332,8 @@ Strings
 
 .. eql:operator:: ilike: str ilike str -> bool
                          str not ilike str -> bool
+
+    :index: ilike, not ilike, case insensitive, string matching, comparison, compare
 
     Case-insensitive simple string matching.
 

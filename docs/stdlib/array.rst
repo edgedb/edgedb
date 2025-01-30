@@ -153,6 +153,8 @@ Reference
 
 .. eql:operator:: arrayidx: array<anytype> [ int64 ] -> anytype
 
+    :index: [int], index access
+
     Accesses the array element at a given index.
 
     Example:
@@ -184,6 +186,8 @@ Reference
 
 
 .. eql:operator:: arrayslice: array<anytype> [ int64 : int64 ] -> anytype
+
+    :index: [int:int]
 
     Produces a sub-array from an existing array.
 
@@ -227,6 +231,8 @@ Reference
 
 
 .. eql:operator:: arrayplus: array<anytype> ++ array<anytype> -> array<anytype>
+
+    :index: ++, concatenate, join, add
 
     Concatenates two arrays of the same type into one.
 

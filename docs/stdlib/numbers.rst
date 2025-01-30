@@ -358,7 +358,7 @@ Definitions
 
 .. eql:operator:: plus: anyreal + anyreal -> anyreal
 
-    :index: plus add
+    :index: +, addition
 
     Arithmetic addition.
 
@@ -373,7 +373,7 @@ Definitions
 
 .. eql:operator:: minus: anyreal - anyreal -> anyreal
 
-    :index: minus subtract
+    :index: -, subtraction
 
     Arithmetic subtraction.
 
@@ -388,7 +388,7 @@ Definitions
 
 .. eql:operator:: uminus: - anyreal -> anyreal
 
-    :index: unary minus subtract
+    :index: -, unary minus, subtraction
 
     Arithmetic negation.
 
@@ -403,7 +403,7 @@ Definitions
 
 .. eql:operator:: mult: anyreal * anyreal -> anyreal
 
-    :index: multiply multiplication
+    :index: \*, multiply, multiplication
 
     Arithmetic multiplication.
 
@@ -418,7 +418,7 @@ Definitions
 
 .. eql:operator:: div: anyreal / anyreal -> anyreal
 
-    :index: divide division
+    :index: /, divide, division
 
     Arithmetic division.
 
@@ -440,7 +440,7 @@ Definitions
 
 .. eql:operator:: floordiv: anyreal // anyreal -> anyreal
 
-    :index: floor divide division
+    :index: //, floor divide, division
 
     Floor division.
 
@@ -479,7 +479,7 @@ Definitions
 
 .. eql:operator:: mod: anyreal % anyreal -> anyreal
 
-    :index: modulo mod division
+    :index: %, modulo division, remainder
 
     Remainder from division (modulo).
 
@@ -522,7 +522,7 @@ Definitions
 
 .. eql:operator:: pow: anyreal ^ anyreal -> anyreal
 
-    :index: power pow
+    :index: ^, power, exponentiation
 
     Power operation.
 

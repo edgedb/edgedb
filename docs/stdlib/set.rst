@@ -95,6 +95,8 @@ Sets
 
 .. eql:operator:: distinct: distinct set of anytype -> set of anytype
 
+    :index: distinct, unique, set of
+
     Produces a set of all unique elements in the given set.
 
     ``distinct`` is a set operator that returns a new set where
@@ -112,7 +114,7 @@ Sets
 .. eql:operator:: in: anytype in set of anytype -> bool
                       anytype not in set of anytype -> bool
 
-    :index: intersection
+    :index: in, not in, intersection, contains, set of
 
     Checks if a given element is a member of a given set.
 
@@ -148,6 +150,8 @@ Sets
 
 .. eql:operator:: union: set of anytype union set of anytype -> set of anytype
 
+    :index: union, merge, join, set of
+
     Merges two sets.
 
     Since EdgeDB sets are formally multisets, ``union`` is a *multiset sum*,
@@ -165,6 +169,8 @@ Sets
 
 .. eql:operator:: intersect: set of anytype intersect set of anytype \
                                 -> set of anytype
+
+    :index: intersect, common, set of
 
     .. versionadded:: 3.0
 
@@ -184,6 +190,8 @@ Sets
 .. eql:operator:: except: set of anytype except set of anytype \
                                 -> set of anytype
 
+    :index: except, set of
+
     .. versionadded:: 3.0
 
     Produces a set of all items in the first set which are not in the second.
@@ -202,7 +210,7 @@ Sets
 .. eql:operator:: if..else: set of anytype if bool else set of anytype \
                                 -> set of anytype
 
-    :index: if else ifelse elif ternary
+    :index: if else, ifelse, elif, ternary, conditional
 
     Produces one of two possible results based on a given condition.
 
@@ -258,6 +266,8 @@ Sets
 
 .. eql:operator:: if..then..else: if bool then set of anytype else set of \
                                 anytype -> set of anytype
+
+    :index: if then else, ifelse, elif, conditional
 
     .. versionadded:: 4.0
 
@@ -315,6 +325,8 @@ Sets
 .. eql:operator:: coalesce: optional anytype ?? set of anytype \
                               -> set of anytype
 
+    :index: ??, empty set
+
     Produces the first of its operands that is not an empty set.
 
     This evaluates to ``A`` for an non-empty ``A``, otherwise evaluates to
@@ -346,6 +358,8 @@ Sets
 .. _ref_stdlib_set_detached:
 
 .. eql:operator:: detached: detached set of anytype -> set of anytype
+
+    :index: detached, set of
 
     Detaches the input set reference from the current scope.
 
@@ -400,6 +414,8 @@ Sets
 
 .. eql:operator:: exists: exists set of anytype -> bool
 
+    :index: exists, set of, is empty
+
     Determines whether a set is empty or not.
 
     ``exists`` is an aggregate operator that returns a singleton set
@@ -417,7 +433,7 @@ Sets
 
 .. eql:operator:: isintersect: anytype [is type] -> anytype
 
-    :index: is type intersection
+    :index: [is type], type intersection, filter
 
     Filters a set based on its type. Will return back the specified type.
 

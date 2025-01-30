@@ -4,7 +4,7 @@
 Links
 =====
 
-:index: link one-to-one one-to-many many-to-one many-to-many
+.. index:: link, relation, source, target, backlinks, foreign key
 
 Links define a specific relationship between two :ref:`object
 types <ref_datamodel_object_types>`.
@@ -30,6 +30,8 @@ declared) and a *target* (the type they point to).
 
 Link cardinality
 ----------------
+
+.. index:: single, multi
 
 All links have a cardinality: either ``single`` or ``multi``. The default is
 ``single`` (a "to-one" link). Use the ``multi`` keyword to declare a "to-many"
@@ -75,6 +77,8 @@ declare a "to-one" backlink.
 
 Required links
 --------------
+
+.. index:: required, optional, not null
 
 All links are either ``optional`` or ``required``; the default is ``optional``.
 Use the ``required`` keyword to declare a required link. A required link must
@@ -125,6 +129,8 @@ Attempting to create a ``GroupChat`` with no members would fail.
 Exclusive constraints
 ---------------------
 
+.. index:: constraint exclusive
+
 You can add an ``exclusive`` constraint to a link to guarantee that no other
 instances can link to the same target(s).
 
@@ -162,6 +168,9 @@ objects.
 
 Modeling relations
 ------------------
+
+.. index:: cardinality, one-to-one, one-to-many, many-to-one, many-to-many,
+           link table, association table
 
 By combinining *link cardinality* and *exclusivity constraints*, we can model
 every kind of relationship: one-to-one, one-to-many, many-to-one, and
@@ -534,6 +543,8 @@ the link's shape:
 Default values
 --------------
 
+.. index:: default
+
 Like properties, links can declare a default value in the form of an EdgeQL
 expression, which will be executed upon insertion. In the example below, new
 people are automatically assigned three random friends.
@@ -561,6 +572,8 @@ people are automatically assigned three random friends.
 
 Link properties
 ---------------
+
+.. index:: linkprops, metadata, link table
 
 Like object types, links in EdgeDB can contain **properties**. Link properties
 can be used to store metadata about links, such as *when* they were created or
@@ -786,6 +799,9 @@ a shape on the link.
 Deletion policies
 -----------------
 
+.. index:: on target delete, on source delete, restrict, delete source, allow,
+           deferred restrict, delete target, if orphan
+
 Links can declare their own **deletion policy**. There are two kinds of events
 that might trigger these policies: *target deletion* and *source deletion*.
 
@@ -985,6 +1001,8 @@ deletion policy.
 Polymorphic links
 -----------------
 
+.. index:: abstract, subtypes
+
 Links can have ``abstract`` targets, in which case the link is considered
 **polymorphic**. Consider the following schema:
 
@@ -1044,6 +1062,8 @@ docs <ref_eql_select_polymorphic>`
 
 Abstract links
 --------------
+
+.. index:: abstract
 
 It's possible to define ``abstract`` links that aren't tied to a particular
 *source* or *target*. If you're declaring several links with the same set
