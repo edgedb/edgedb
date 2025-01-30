@@ -3518,7 +3518,7 @@ class PostgresConfigValueToJsonFunction(trampoline.VersionedFunction):
 
     text = r"""
         SELECT
-            edgedb_VER._postgres_json_config_value_to_gel_fe_value(
+            edgedb_VER._postgres_json_config_value_to_fe_config_value(
                 "setting_name",
                 backend_json_value.value
             )
@@ -3800,7 +3800,7 @@ class SysConfigFullFunction(trampoline.VersionedFunction):
         pg_config AS (
             SELECT
                 spec.name,
-                edgedb_VER._postgres_json_config_value_to_gel_fe_value(
+                edgedb_VER._postgres_json_config_value_to_fe_config_value(
                     settings.name,
                     edgedb_VER._interpret_config_value_to_json(
                         settings.setting,
