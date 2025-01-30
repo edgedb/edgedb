@@ -808,7 +808,7 @@ A Smoother Development Workflow
       server-version = 6.0
 
       [project-hooks]
-      migration.apply.after = "npx @edgedb/generate queries"
+    + migration.apply.after = "npx @edgedb/generate queries"
 
 .. edb:split-section::
 
@@ -962,7 +962,7 @@ Adding some access control
 
   Now we can create the route for creating a new user.
 
-  .. code-block:: typescript-diff
+  .. code-block:: typescript
     :caption: app/api/user/route.ts
 
       import { NextRequest, NextResponse } from "next/server";
@@ -1034,13 +1034,13 @@ Adding some access control
 
         export const client = createClient();
 
-        export function getAuthenticatedClient(request: NextRequest): Client | null {
-          const access_token = request.headers.get("Authorization")?.split(" ")[1];
-          if (!access_token) {
-            return null;
-          }
-          return client.withGlobals({ access_token });
-        }
+      + export function getAuthenticatedClient(request: NextRequest): Client | null {
+      +   const access_token = request.headers.get("Authorization")?.split(" ")[1];
+      +   if (!access_token) {
+      +     return null;
+      +   }
+      +   return client.withGlobals({ access_token });
+      + }
 
     .. code-tab:: typescript-diff
       :caption: app/api/deck/route.ts
