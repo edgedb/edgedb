@@ -3444,10 +3444,10 @@ class InterpretConfigValueToJsonFunction(trampoline.VersionedFunction):
         )
 
 
-class PostgresJsonConfigValueToGelConfigValueFunction(
+class PostgresJsonConfigValueToFrontendConfigValueFunction(
     trampoline.VersionedFunction,
 ):
-    """Convert a Postgres config value to Gel config value.
+    """Convert a Postgres config value to frontend config value.
 
     Most values are retained as-is, but some need translation, which
     is implemented as a to_frontend_expr() on the corresponding
@@ -3480,7 +3480,7 @@ class PostgresJsonConfigValueToGelConfigValueFunction(
         """
 
         super().__init__(
-            name=('edgedb', '_postgres_json_config_value_to_gel_config_value'),
+            name=('edgedb', '_postgres_json_config_value_to_fe_config_value'),
             args=[
                 ('setting_name', ('text',)),
                 ('value', ('jsonb',))
@@ -3518,7 +3518,7 @@ class PostgresConfigValueToJsonFunction(trampoline.VersionedFunction):
 
     text = r"""
         SELECT
-            edgedb_VER._postgres_json_config_value_to_gel_config_value(
+            edgedb_VER._postgres_json_config_value_to_gel_fe_value(
                 "setting_name",
                 backend_json_value.value
             )
@@ -3800,7 +3800,7 @@ class SysConfigFullFunction(trampoline.VersionedFunction):
         pg_config AS (
             SELECT
                 spec.name,
-                edgedb_VER._postgres_json_config_value_to_gel_config_value(
+                edgedb_VER._postgres_json_config_value_to_gel_fe_value(
                     settings.name,
                     edgedb_VER._interpret_config_value_to_json(
                         settings.setting,
@@ -5296,9 +5296,8 @@ def get_bootstrap_commands(
         dbops.CreateFunction(TypeIDToConfigType()),
         dbops.CreateFunction(ConvertPostgresConfigUnitsFunction()),
         dbops.CreateFunction(InterpretConfigValueToJsonFunction()),
-        dbops.CreateFunction(PostgresJsonConfigValueToGelConfigValueFunction(
-            config_spec,
-        )),
+        dbops.CreateFunction(
+            PostgresJsonConfigValueToFrontendConfigValueFunction(config_spec)),
         dbops.CreateFunction(PostgresConfigValueToJsonFunction()),
         dbops.CreateFunction(SysConfigFullFunction()),
         dbops.CreateFunction(SysConfigUncachedFunction()),

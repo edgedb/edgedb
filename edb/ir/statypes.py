@@ -580,6 +580,9 @@ class EnumScalarType(
     """Configuration value represented by a custom string enum type that
     supports arbitrary value mapping to backend (Postgres) configuration
     values, e.g mapping "Enabled"/"Disabled" enum to a bool value, etc.
+
+    We use SingleParametricType to obtain runtime access to the Generic
+    type arg to avoid having to copy-paste the constructors.
     """
 
     _val: E
