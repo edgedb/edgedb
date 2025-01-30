@@ -80,11 +80,10 @@ class EDBSplitSection(d_rst.Directive):
         node = d_nodes.container()
         node['split-section'] = True
         self.state.nested_parse(self.content, self.content_offset, node)
-        
+
         split_indexes = [
-            index for index,child in enumerate(node.children)
-            if isinstance(child, d_nodes.container)
-                and child.get('split-point') == True
+            index for index, child in enumerate(node.children)
+            if isinstance(child, d_nodes.container) and child.get('split-point')
         ]
         if len(split_indexes) > 1:
             raise Exception(
@@ -92,8 +91,8 @@ class EDBSplitSection(d_rst.Directive):
             )
         blocks = (
             node.children[:split_indexes[0]] if
-            node.children[split_indexes[0]].get('code-above') == True
-            else node.children[split_indexes[0]+1:]
+            node.children[split_indexes[0]].get('code-above')
+            else node.children[split_indexes[0] + 1:]
         ) if len(split_indexes) == 1 else [node.children[-1]]
         if len(blocks) < 1:
             raise Exception(
@@ -113,7 +112,7 @@ class EDBSplitSection(d_rst.Directive):
                     f'code block, code tabs, or image/figure'
                 )
         return [node]
-    
+
 
 class EDBSplitPoint(d_rst.Directive):
 

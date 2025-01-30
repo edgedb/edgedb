@@ -23,8 +23,6 @@ import re
 
 from typing import Any, Dict
 
-from docutils import nodes as d_nodes
-
 from sphinx import addnodes as s_nodes
 from sphinx import directives as s_directives
 from sphinx import domains as s_domains
@@ -102,7 +100,7 @@ class GoFunctionDirective(BaseGoDirective):
 
     def add_target_and_index(self, name, sig, signode):
         return super().add_target_and_index(name, sig, signode)
-    
+
 
 class GoMethodDirective(GoFunctionDirective):
     pass
@@ -148,8 +146,10 @@ class GolangDomain(s_domains.Domain):
             raise self.error('no fullname attribute')
         return fn
 
+
 def setup_domain(app):
     app.add_domain(GolangDomain)
+
 
 def setup(app):
     setup_domain(app)
