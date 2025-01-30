@@ -17415,6 +17415,16 @@ DDLStatement);
             [{}],
         )
 
+    async def test_edgeql_ddl_schema_repair(self):
+        await self.con.execute('''
+            create type Tgt {
+                create property lol := count(Object)
+            }
+        ''')
+        await self.con.execute('''
+            administer schema_repair()
+        ''')
+
     async def test_edgeql_ddl_alias_and_create_set_required(self):
         await self.con.execute(r"""
             create type T;
