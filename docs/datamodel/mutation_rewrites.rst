@@ -6,6 +6,9 @@
 Mutation rewrites
 =================
 
+.. index:: rewrite, insert, update, using, __subject__, __specified__, __old__,
+           modify, modification
+
 .. edb:youtube-embed:: ImgMfb_jCJQ?end=41
 
 Mutation rewrites allow you to intercept database mutations (i.e.,
@@ -112,6 +115,8 @@ while updates will set the ``modified`` property:
 
 Available variables
 ===================
+
+.. index:: rewrite, __subject__, __specified__, __old__
 
 Inside the rewrite rule's expression, you have access to a few special values:
 
@@ -285,6 +290,8 @@ containing the new author value.
 
 Mutation rewrite as cached computed
 ===================================
+
+..index:: cached computeds, caching computeds
 
 Mutation rewrites can be used to effectively create a cached computed value as
 demonstrated with the ``byline`` property in this schema:

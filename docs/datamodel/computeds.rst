@@ -6,6 +6,8 @@ Computeds
 
 :edb-alt-title: Computed properties and links
 
+.. index:: computeds, :=, __source__, backlinks
+
 .. important::
 
   This section assumes a basic understanding of EdgeQL. If you aren't familiar

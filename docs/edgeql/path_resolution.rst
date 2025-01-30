@@ -4,6 +4,8 @@
 Path scoping
 ============
 
+.. index:: using future simple_scoping, using future warn_old_scoping
+
 Beginning with EdgeDB 6.0, we are phasing out our historical (and
 somewhat notorious)
 :ref:`"path scoping" algorithm <ref_eql_old_path_resolution>`

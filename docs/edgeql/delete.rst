@@ -3,6 +3,8 @@
 Delete
 ======
 
+.. index:: delete
+
 The ``delete`` command is used to delete objects from the database.
 
 .. code-block:: edgeql
@@ -27,6 +29,8 @@ on these clauses.
 
 Link deletion
 -------------
+
+.. index:: ConstraintViolationError
 
 Every link is associated with a *link deletion policy*. By default, it isn't
 possible to delete an object linked to by another.
@@ -83,6 +87,8 @@ the ``allow`` deletion policy.
 Cascading deletes
 ^^^^^^^^^^^^^^^^^
 
+.. index:: delete cascade, delete source, delete target, deletion policy
+
 If a link uses the ``delete source`` policy, then deleting a *target* of the
 link will also delete the object that links to it (the *source*). This behavior
 can be used to implement cascading deletes; be careful with this power!
@@ -92,6 +98,8 @@ The full list of deletion policies is documented at :ref:`Schema > Links
 
 Return value
 ------------
+
+.. index:: delete, returning
 
 A ``delete`` statement returns the set of deleted objects. You can pass this
 set into ``select`` to fetch properties and links of the (now-deleted)

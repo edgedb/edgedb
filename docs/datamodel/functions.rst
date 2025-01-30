@@ -4,6 +4,8 @@
 Functions
 =========
 
+.. index:: function, using
+
 .. note::
 
   This page documents how to define custom functions, however EdgeDB provides a

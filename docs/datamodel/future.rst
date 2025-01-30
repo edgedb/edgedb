@@ -4,6 +4,8 @@
 Future Behavior
 ===============
 
+.. index:: future, nonrecursive_access_policies
+
 Any time that we add new functionality to EdgeDB we strive to do it in the
 least disruptive way possible. Deprecation warnings, documentation and guides
 can help make these transitions smoother, but sometimes the changes are just

@@ -4,6 +4,8 @@
 Indexes
 =======
 
+.. index:: index on, performance, postgres query planner
+
 An index is a data structure used internally to speed up filtering, ordering,
 and grouping operations. Indexes help accomplish this in two key ways:
 
@@ -100,6 +102,8 @@ references multiple properties of the enclosing object type.
 Index on multiple properties
 ----------------------------
 
+.. index:: tuple
+
 A *composite index* is an index that references multiple properties. This can
 speed up queries that filter, order, or group on both properties.
 
@@ -137,6 +141,8 @@ In EdgeDB, this index is created by indexing on a ``tuple`` of properties.
 Index on a link property
 ------------------------
 
+.. index:: __subject__, linkprops
+
 Link properties can also be indexed.
 
 .. code-block:: sdl
@@ -167,6 +173,8 @@ Link properties can also be indexed.
 
 Specify a Postgres index type
 -----------------------------
+
+.. index:: pg::hash, pg::btree, pg::gin, pg::gist, pg::spgist, pg::brin
 
 .. versionadded:: 3.0
 
@@ -200,6 +208,8 @@ You can use them like this:
 
 Annotate an index
 -----------------
+
+.. index:: annotation
 
 Indexes can be augmented with annotations.
 

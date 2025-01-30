@@ -139,6 +139,8 @@ Bytes
 
 .. eql:operator:: bytesidx: bytes [ int64 ] -> bytes
 
+    :index: [int]
+
     Accesses a byte at a given index.
 
     Examples:
@@ -156,6 +158,8 @@ Bytes
 
 .. eql:operator:: bytesslice: bytes [ int64 : int64 ] -> bytes
 
+    :index: [int:int]
+
     Produces a bytes sub-sequence from an existing bytes value.
 
     Examples:
@@ -171,7 +175,9 @@ Bytes
 ---------
 
 
-.. eql:operator:: bytesplus: bytes ++ bytes -> bytes
+.. eql:operator:: bytesplus: bytes ++ bytes -> 
+  
+    :index: ++, bytes, concatenate, join, add
 
     Concatenates two bytes values into one.
 

@@ -5,7 +5,7 @@
 Analyze
 =======
 
-:index: performance
+.. index:: analyze, explain, performance, postgres query planner
 
 Prefix an EdgeQL query with ``analyze`` to run a performance analysis of that
 query.
