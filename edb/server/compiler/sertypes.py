@@ -2098,11 +2098,29 @@ class EnumDesc(SchemaTypeDesc):
     names: list[str]
     ancestors: Optional[list[TypeDesc]]
 
-    def encode(self, data: str) -> bytes:
-        return _encode_str(data)
+    @functools.cached_property
+    def _decoder(self) -> Callable[[bytes], Any]:
+        assert self.name is not None
+        pytype = statypes.maybe_get_python_type_for_scalar_type_name(self.name)
+        if pytype is not None and issubclass(pytype, statypes.ScalarType):
+            return pytype.decode
+        else:
+            return _decode_str
 
-    def decode(self, data: bytes) -> str:
-        return _decode_str(data)
+    @functools.cached_property
+    def _encoder(self) -> Callable[[Any], bytes]:
+        assert self.name is not None
+        pytype = statypes.maybe_get_python_type_for_scalar_type_name(self.name)
+        if pytype is not None and issubclass(pytype, statypes.ScalarType):
+            return pytype.encode
+        else:
+            return _encode_str
+
+    def encode(self, data: Any) -> bytes:
+        return self._encoder(data)
+
+    def decode(self, data: bytes) -> Any:
+        return self._decoder(data)
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
