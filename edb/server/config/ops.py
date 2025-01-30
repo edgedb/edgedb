@@ -98,6 +98,9 @@ def coerce_single_value(setting: spec.Setting, value: Any) -> Any:
     elif (isinstance(value, (str, int)) and
           _issubclass(setting.type, statypes.ConfigMemory)):
         return statypes.ConfigMemory(value)
+    elif (isinstance(value, str) and
+          _issubclass(setting.type, statypes.EnumScalarType)):
+        return setting.type(value)
     else:
         raise errors.ConfigurationError(
             f'invalid value type for the {setting.name!r} setting')
@@ -352,6 +355,8 @@ def spec_to_json(spec: spec.Spec):
             typeid = s_obj.get_known_type_id('std::duration')
         elif _issubclass(setting.type, statypes.ConfigMemory):
             typeid = s_obj.get_known_type_id('cfg::memory')
+        elif _issubclass(setting.type, statypes.EnumScalarType):
+            typeid = setting.type.get_edgeql_typeid()
         elif isinstance(setting.type, types.ConfigTypeSpec):
             typeid = types.CompositeConfigType.get_edgeql_typeid()
         else:
@@ -420,6 +425,8 @@ def value_from_json_value(spec: spec.Spec, setting: spec.Setting, value: Any):
             return statypes.Duration.from_iso8601(value)
         elif _issubclass(setting.type, statypes.ConfigMemory):
             return statypes.ConfigMemory(value)
+        elif _issubclass(setting.type, statypes.EnumScalarType):
+            return setting.type(value)
         else:
             return value
 
