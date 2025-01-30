@@ -618,6 +618,7 @@ def apply_ddl_script_ex(
     stdmode: bool = False,
     internal_schema_mode: bool = False,
     testmode: bool = False,
+    store_migration_sdl: bool=False,
     schema_object_ids: Optional[
         Mapping[Tuple[sn.Name, Optional[str]], uuid.UUID]
     ]=None,
@@ -639,6 +640,7 @@ def apply_ddl_script_ex(
             stdmode=stdmode,
             internal_schema_mode=internal_schema_mode,
             testmode=testmode,
+            store_migration_sdl=store_migration_sdl,
             schema_object_ids=schema_object_ids,
             compat_ver=compat_ver,
         )
