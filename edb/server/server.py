@@ -1343,7 +1343,8 @@ class Server(BaseServer):
                     conn, f'patch_log_{idx}', pickle.dumps(entry))
 
             patches[num] = entry
-            _, _, updates, _ = entry
+            # FIXME: *_ for 6.x compat; 7.x can drop it
+            _, _, updates, *_ = entry
             if 'std_and_reflection_schema' in updates:
                 self._std_schema, self._refl_schema = updates[
                     'std_and_reflection_schema']
@@ -1378,16 +1379,17 @@ class Server(BaseServer):
     ) -> None:
         """Apply any un-applied patches to the database."""
         num_patches = await self.get_patch_count(conn)
-        for num, (sql_b, syssql, keys, repair) in patches.items():
+        # FIXME: *_ for 6.x compat; 7.x can drop it
+        for num, (sql_b, syssql, keys, *_) in patches.items():
             if num_patches <= num:
                 if sys:
                     sql_b += syssql
                 logger.info("applying patch %d to database '%s'", num, dbname)
                 sql = tuple(x.encode('utf-8') for x in sql_b)
 
-                # If we are doing a user_ext update, we need to
-                # actually run that against each user database.
-                if keys.get('is_user_ext_update'):
+                # For certain things, we need to actually run it
+                # against each user database.
+                if keys.get('is_user_update'):
                     from . import bootstrap
 
                     kind, patch = pg_patches.PATCHES[num]
@@ -1421,48 +1423,10 @@ class Server(BaseServer):
                         patch_info=patch_info,
                         user_schema=user_schema,
                         global_schema=global_schema,
+                        dbname=dbname,
                     )
 
                     sql += tuple(x.encode('utf-8') for x in entry[0])
-
-                # Only do repairs when they are the *last* pending
-                # repair in the patch queue. We make sure that every
-                # patch that changes the user schema is followed by a
-                # repair, so this allows us to only ever have to do
-                # repairs on up-to-date std schemas.
-                last_repair = repair and not any(
-                    patches[i][3] for i in range(num + 1, len(patches))
-                )
-                if last_repair:
-                    from . import bootstrap
-
-                    global_schema = await self.introspect_global_schema(conn)
-                    user_schema = await self._introspect_user_schema(
-                        conn, global_schema)
-                    config_json = await self.introspect_db_config(conn)
-                    db_config = self._parse_db_config(config_json, user_schema)
-                    try:
-                        logger.info("repairing database '%s'", dbname)
-                        rep_sql = bootstrap.prepare_repair_patch(
-                            self._std_schema,
-                            self._refl_schema,
-                            user_schema,
-                            global_schema,
-                            self._schema_class_layout,
-                            self._tenant.get_backend_runtime_params(),
-                            db_config,
-                        )
-                        sql += (rep_sql,)
-                    except errors.EdgeDBError as e:
-                        if isinstance(e, errors.InternalServerError):
-                            raise
-                        raise errors.SchemaError(
-                            f'Could not repair schema inconsistencies in '
-                            f'database "{dbname}". Probably the schema is '
-                            f'no longer valid due to a bug fix.\n'
-                            f'Downgrade to the last working version, fix '
-                            f'the schema issue, and try again.'
-                        ) from e
 
                 if sql:
                     await conn.sql_execute(sql)
