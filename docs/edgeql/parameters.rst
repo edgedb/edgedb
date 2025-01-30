@@ -3,6 +3,8 @@
 Parameters
 ==========
 
+.. index:: query params, query arguments, query args, $, < >$, input
+
 :edb-alt-title: Query Parameters
 
 EdgeQL queries can reference parameters with ``$`` notation. The value of these
@@ -96,6 +98,8 @@ language-native types.
 Parameter types and JSON
 ------------------------
 
+.. index:: complex parameters
+
 Prior to EdgeDB 3.0, parameters can be only :ref:`scalars
 <ref_datamodel_scalar_types>` or arrays of scalars. In EdgeDB 3.0, parameters
 can also be tuples. If you need to pass complex structures as parameters, use
@@ -128,6 +132,8 @@ properties.
 Optional parameters
 -------------------
 
+.. index:: <optional >$
+
 By default, query parameters are ``required``; the query will fail if the
 parameter value is an empty set. You can use an ``optional`` modifier inside
 the type cast if the parameter is optional.
@@ -150,6 +156,8 @@ the type cast if the parameter is optional.
 Default parameter values
 ------------------------
 
+.. index:: ??
+
 When using optional parameters, you may want to provide a default value to use
 in case the parameter is not passed. You can do this by using the
 :eql:op:`?? (coalesce) <coalesce>` operator.
@@ -166,6 +174,8 @@ in case the parameter is not passed. You can do this by using the
 
 What can be parameterized?
 --------------------------
+
+.. index:: order by parameters
 
 Any data manipulation language (DML) statement can be
 parameterized: ``select``, ``insert``, ``update``, and ``delete``. Since

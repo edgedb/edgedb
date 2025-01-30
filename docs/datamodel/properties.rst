@@ -4,7 +4,7 @@
 Properties
 ==========
 
-:index: property
+.. index:: property, primitive types, fields, columns
 
 Properties are used to associate primitive data with an :ref:`object type
 <ref_datamodel_object_types>` or :ref:`link <ref_datamodel_link_properties>`.
@@ -37,6 +37,8 @@ encompasses :ref:`scalar types <ref_datamodel_scalars>` like ``str`` and
 Required properties
 -------------------
 
+.. index:: required, optional, not null
+
 Properties can be either ``optional`` (the default) or ``required``.
 
 .. code-block:: sdl
@@ -56,6 +58,8 @@ Properties can be either ``optional`` (the default) or ``required``.
 
 Property cardinality
 --------------------
+
+.. index:: cardinality, single, multi
 
 Properties have a **cardinality**, either ``single`` (the default) or
 ``multi``. A ``multi`` property of type ``str`` points to an *unordered set* of
@@ -105,6 +109,8 @@ more involved discussion, see :ref:`EdgeQL > Sets
 Default values
 --------------
 
+.. index:: default
+
 Properties can have a default value. This default can be a static value or an
 arbitrary EdgeQL expression, which will be evaluated upon insertion.
 
@@ -136,6 +142,8 @@ arbitrary EdgeQL expression, which will be evaluated upon insertion.
 Readonly properties
 -------------------
 
+.. index:: readonly, immutable
+
 Properties can be marked as ``readonly``. In the example below, the
 ``User.external_id`` property can be set at the time of creation but not
 modified thereafter.
@@ -159,6 +167,8 @@ modified thereafter.
 
 Constraints
 -----------
+
+.. index:: constraint
 
 Properties can be augmented wth constraints. The example below showcases a
 subset of EdgeDB's built-in constraints.
@@ -240,6 +250,8 @@ reference <ref_std_constraints>`.
 Annotations
 -----------
 
+.. index:: annotation, metadata, title, description, deprecated
+
 Properties can contain annotations, small human-readable notes. The built-in
 annotations are ``title``, ``description``, and ``deprecated``. You may also
 declare :ref:`custom annotation types <ref_datamodel_inheritance_annotations>`.
@@ -268,6 +280,8 @@ declare :ref:`custom annotation types <ref_datamodel_inheritance_annotations>`.
 
 Abstract properties
 -------------------
+
+.. index:: abstract property
 
 Properties can be *concrete* (the default) or *abstract*. Abstract properties
 are declared independent of a source or target, can contain :ref:`annotations
@@ -303,6 +317,8 @@ are declared independent of a source or target, can contain :ref:`annotations
 
 Link properties
 ---------------
+
+.. index:: linkprops, relations, link table
 
 Properties can also be defined on **links**. For a full guide, refer to
 :ref:`Guides > Using link properties <ref_guide_linkprops>`.

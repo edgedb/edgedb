@@ -274,6 +274,8 @@ Reference
 .. eql:operator:: rangelt: range<anypoint> < range<anypoint> -> bool
                   multirange<anypoint> < multirange<anypoint> -> bool
 
+    :index: <, multirange, less than, before, comparison, compare
+
     One range or multirange is before the other.
 
     Returns ``true`` if the lower bound of the first range or multirange is
@@ -320,6 +322,8 @@ Reference
 .. eql:operator:: rangegt: range<anypoint> > range<anypoint> -> bool
                   multirange<anypoint> > multirange<anypoint> -> bool
 
+    :index: >, multirange, greater than, after, comparison, compare
+
     One range or multirange is after the other.
 
     Returns ``true`` if the lower bound of the first range  or multirange is
@@ -365,6 +369,8 @@ Reference
 
 .. eql:operator:: rangelteq: range<anypoint> <= range<anypoint> -> bool
                   multirange<anypoint> <= multirange<anypoint> -> bool
+
+    :index: <=, multirange, less than or equal, before, comparison, compare
 
     One range or multirange is before or same as the other.
 
@@ -419,6 +425,8 @@ Reference
 .. eql:operator:: rangegteq: range<anypoint> >= range<anypoint> -> bool
                   multirange<anypoint> >= multirange<anypoint> -> bool
 
+    :index: >=, multirange, greater than or equal, after, comparison, compare
+
     One range or multirange is after or same as the other.
 
     Returns ``true`` if the ranges or multiranges are identical or if the
@@ -471,7 +479,7 @@ Reference
                   multirange<anypoint> + multirange<anypoint> \
                     -> multirange<anypoint>
 
-    :index: plus add
+    :index: +, multirange, plus, addition, union
 
     Range or multirange union.
 
@@ -507,7 +515,7 @@ Reference
                   multirange<anypoint> - multirange<anypoint> \
                     -> multirange<anypoint>
 
-    :index: minus subtract
+    :index: -, multirange, minus, subtraction
 
     Range or multirange subtraction.
 
@@ -547,7 +555,7 @@ Reference
                   multirange<anypoint> * multirange<anypoint> \
                     -> multirange<anypoint>
 
-    :index: intersect intersection
+    :index: \*, multirange, intersection
 
     Range or multirnage intersection.
 

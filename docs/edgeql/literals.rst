@@ -3,6 +3,8 @@
 Literals
 ========
 
+.. index:: primitive types
+
 EdgeQL is *inextricably tied* to EdgeDB's rigorous type system. Below is an
 overview of how to declare a literal value of each *primitive type*. Click a
 link in the left column to jump to the associated section.
@@ -54,6 +56,8 @@ link in the left column to jump to the associated section.
 
 Strings
 -------
+
+.. index:: str, unicode, quotes, raw strings, escape character
 
 The :eql:type:`str` type is a variable-length string of Unicode characters. A
 string can be declared with either single or double quotes.
@@ -145,6 +149,8 @@ For a complete reference on strings, see :ref:`Standard Library > String
 
 Booleans
 --------
+
+.. index:: bool
 
 The :eql:type:`bool` type represents a true/false value.
 
@@ -296,6 +302,8 @@ Generate a random UUID.
 Enums
 -----
 
+.. index:: enums
+
 Enum types must be :ref:`declared in your schema <ref_datamodel_enums>`.
 
 .. code-block:: sdl
@@ -317,6 +325,8 @@ casting an appropriate string literal:
 
 Dates and times
 ---------------
+
+.. index:: temporal
 
 EdgeDB's typesystem contains several temporal types.
 
@@ -483,6 +493,9 @@ Ranges
 
 .. versionadded:: 2.0
 
+.. index:: ranges, lower bound, upper bound, inclusive, inc_lower, inc_upper,
+           empty
+
 Ranges represent a range of orderable scalar values. A range comprises a lower
 bound, upper bound, and two boolean flags indicating whether each bound is
 inclusive.
@@ -533,6 +546,8 @@ ranges cannot be unpacked.
 Bytes
 -----
 
+.. index:: binary, raw byte strings
+
 The ``bytes`` type represents raw binary data.
 
 .. code-block:: edgeql-repl
@@ -556,6 +571,8 @@ character.
 
 Arrays
 ------
+
+.. index:: collection, lists, ordered
 
 An array is an *ordered* collection of values of the *same type*. For example:
 
@@ -596,6 +613,8 @@ reference on array data types.
 
 Tuples
 ------
+
+.. index:: fixed length ordered collection, named tuples
 
 A tuple is *fixed-length*, *ordered* collection of values, each of which may
 have a *different type*. The elements of a tuple can be of any type, including
@@ -646,6 +665,8 @@ For a full reference on tuples, see :ref:`Standard Library > Tuple
 
 JSON
 ----
+
+.. index:: json
 
 The :eql:type:`json` scalar type is a stringified representation of structured
 data. JSON literals are declared by explicitly casting other values or passing

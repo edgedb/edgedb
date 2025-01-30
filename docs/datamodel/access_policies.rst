@@ -6,6 +6,9 @@
 Access Policies
 ===============
 
+.. index:: access policy, object-level security, row-level security, RLS,
+           allow, deny, using
+
 Object types can contain security policies that restrict the set of objects
 that can be selected, inserted, updated, or deleted by a particular query.
 This is known as *object-level security* and it is similar in function to SQL's
@@ -378,6 +381,9 @@ is visible to a particular query.
 Policy types
 ^^^^^^^^^^^^
 
+.. index:: accesss policy, select, insert, delete, update, update read,
+           update write, all
+
 For the most part, the policy types correspond to EdgeQL's *statement types*:
 
 - ``select``: Applies to all queries; objects without a ``select`` permission
@@ -523,6 +529,8 @@ Custom error messages
 
 .. versionadded:: 3.0
 
+.. index:: access policy, errmessage, using
+
 When you run a query that attempts a write and is restricted by an access
 policy, you will get a generic error message.
 
@@ -582,6 +590,8 @@ will receive this error:
 
 Disabling policies
 ^^^^^^^^^^^^^^^^^^
+
+.. index:: apply_access_policies
 
 You may disable all access policies by setting the ``apply_access_policies``
 :ref:`configuration parameter <ref_std_cfg>` to ``false``.

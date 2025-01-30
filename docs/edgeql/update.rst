@@ -3,6 +3,8 @@
 Update
 ======
 
+.. index:: update, filter, set
+
 The ``update`` command is used to update existing objects.
 
 .. code-block:: edgeql-repl
@@ -35,6 +37,8 @@ set is specified, then filters are applied, then the data is updated.
 Updating properties
 -------------------
 
+.. index:: unset
+
 To explicitly unset a property that is not required, set it to an empty set.
 
 .. code-block:: edgeql
@@ -43,6 +47,8 @@ To explicitly unset a property that is not required, set it to an empty set.
 
 Updating links
 --------------
+
+.. index:: :=, +=, -=
 
 When updating links, the ``:=`` operator will *replace* the set of linked
 values.
@@ -93,6 +99,8 @@ To remove items, use ``-=``.
 Returning data on update
 ------------------------
 
+.. index:: update, returning
+
 By default, ``update`` returns only the inserted object's ``id`` as seen in the
 examples above. If you want to get additional data back, you may wrap your
 ``update`` with a ``select`` and apply a shape specifying any properties and
@@ -113,6 +121,8 @@ links you want returned:
 
 With blocks
 -----------
+
+.. index:: with update
 
 All top-level EdgeQL statements (``select``, ``insert``, ``update``, and
 ``delete``) can be prefixed with a ``with`` block. This is useful for updating

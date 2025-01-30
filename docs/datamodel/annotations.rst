@@ -4,6 +4,8 @@
 Annotations
 ===========
 
+.. index:: annotation, title, description, deprecated
+
 *Annotations* are named values associated with schema items and
 are designed to hold arbitrary schema-level metadata represented as a
 :eql:type:`str`.
@@ -51,6 +53,8 @@ should be used instead.
 
 User-defined annotations
 ------------------------
+
+.. index:: abstract annotation
 
 To declare a custom annotation type beyond the three built-ins, add an abstract
 annotation type to your schema. A custom annotation could be used to attach

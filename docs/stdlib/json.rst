@@ -185,6 +185,8 @@ JSON array.
 
 .. eql:operator:: jsonidx: json [ int64 ] -> json
 
+    :index: [int], index access
+
     Accesses the element of the JSON string or array at a given index.
 
     The contents of JSON *arrays* and *strings* can also be
@@ -211,6 +213,8 @@ JSON array.
 
 .. eql:operator:: jsonslice: json [ int64 : int64 ] -> json
 
+    :index: [int:int]
+
     Produces a JSON value comprising a portion of the existing JSON value.
 
     JSON *arrays* and *strings* can be sliced in the same way as
@@ -236,6 +240,8 @@ JSON array.
 
 .. eql:operator:: jsonplus: json ++ json -> json
 
+    :index: ++, concatenate, join, add
+
     Concatenates two JSON arrays, objects, or strings into one.
 
     JSON arrays, objects and strings can be concatenated with JSON values of
@@ -260,6 +266,8 @@ JSON array.
 
 
 .. eql:operator:: jsonobjdest: json [ str ] -> json
+
+    :index: [str], json get key
 
     Accesses an element of a JSON object given its key.
 

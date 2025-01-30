@@ -3,6 +3,7 @@
 Select
 ======
 
+.. index:: select
 
 The ``select`` command retrieves or computes a set of values. We've already
 seen simple queries that select primitive values.
@@ -214,6 +215,8 @@ tutorial </tutorial/basic-queries/objects>`_.
 Shapes
 ------
 
+.. index:: select, shapes, { }
+
 To specify which properties to select, we attach a **shape** to ``Villain``. A
 shape can be attached to any object type expression in EdgeQL.
 
@@ -233,6 +236,8 @@ tutorial </tutorial/nested-structures/shapes>`_.
 
 Nested shapes
 ^^^^^^^^^^^^^
+
+.. index:: select, nested shapes
 
 Nested shapes can be used to fetch linked objects and their properties. Here we
 fetch all ``Villain`` objects and their nemeses.
@@ -280,6 +285,8 @@ Splats
 ^^^^^^
 
 .. versionadded:: 3.0
+
+.. index:: select, splats, *, **, select *, select all, [is ].*, [is ].**
 
 Splats allow you to select all properties of a type using the asterisk (``*``)
 or all properties of the type and a single level of linked types with a double
@@ -530,6 +537,8 @@ we wouldn't get those with this query either.
 Filtering
 ---------
 
+.. index:: select, filter, where
+
 To filter the set of selected objects, use a ``filter <expr>`` clause. The
 ``<expr>`` that follows the ``filter`` keyword can be *any boolean expression*.
 
@@ -676,6 +685,8 @@ traversing a backlink would look like this:
 Ordering
 --------
 
+.. index:: order by, sorting, asc, desc, then, empty first, empty last
+
 Order the result of a query with an ``order by`` clause.
 
 .. code-block:: edgeql-repl
@@ -734,6 +745,8 @@ are handled, see :ref:`Reference > Commands > Select
 
 Pagination
 ----------
+
+.. index:: limit, offset
 
 EdgeDB supports ``limit`` and ``offset`` clauses. These are
 typically used in conjunction with ``order by`` to maintain a consistent
@@ -798,6 +811,8 @@ providing one or the other.
 Computed fields
 ---------------
 
+.. index:: computeds, :=
+
 Shapes can contain *computed fields*. These are EdgeQL expressions that are
 computed on the fly during the execution of the query. As with other clauses,
 we can use :ref:`leading dot notation <ref_dot_notation>` (e.g. ``.name``) to
@@ -850,6 +865,8 @@ As with nested filters, the *current scope* changes inside nested shapes.
 
 Backlinks
 ---------
+
+.. index:: .<
 
 Fetching backlinks is a common use case for computed fields. To demonstrate
 this, let's fetch a list of all movies starring a particular Hero.
@@ -931,6 +948,9 @@ shapes just like a non-computed link.
 Subqueries
 ----------
 
+.. index:: nested queries, composition, composing queries, composable,
+           embedded queries, embedding queries
+
 There's no limit to the complexity of computed expressions. EdgeQL is designed
 to be fully composable; entire queries can be embedded inside each other.
 Below, we use a subquery to select all movies containing a villain's nemesis.
@@ -961,7 +981,7 @@ Below, we use a subquery to select all movies containing a villain's nemesis.
 Polymorphic queries
 -------------------
 
-:index: poly polymorphism nested shapes
+.. index:: polymorphism
 
 All queries thus far have referenced concrete object types: ``Hero`` and
 ``Villain``. However, both of these types extend the abstract type ``Person``,
@@ -1015,6 +1035,8 @@ abstract type (such as ``Movie.characters``) or a :eql:op:`union type
 
 Polymorphic fields
 ^^^^^^^^^^^^^^^^^^
+
+.. index:: [is ].
 
 We can fetch different properties *conditional* on the subtype of each object
 by prefixing property/link references with ``[is <type>]``. This is known as a
@@ -1195,6 +1217,8 @@ internals of EdgeDB.
 
 Free objects
 ------------
+
+.. index:: ad hoc type 
 
 To select several values simultaneously, you can "bundle" them into a "free
 object". Free objects are a set of key-value pairs that can contain any

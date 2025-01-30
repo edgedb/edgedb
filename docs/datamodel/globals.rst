@@ -6,6 +6,8 @@
 Globals
 =======
 
+.. index:: global, required global
+
 Schemas can contain scalar-typed *global variables*.
 
 .. code-block:: sdl
@@ -150,6 +152,8 @@ default value.
 
 Computed globals
 ----------------
+
+.. index:: global, :=
 
 Global variables can also be computed. The value of computed globals are
 dynamically computed when they are referenced in queries.

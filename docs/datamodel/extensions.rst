@@ -4,12 +4,17 @@
 Extensions
 ==========
 
+.. index:: using extension
+
 Extensions are the way EdgeDB adds more functionality. In principle,
 extensions could add new types, scalars, functions, etc., but, more
 importantly, they can add new ways of interacting with the database.
 
 Built-in extensions
 -------------------
+
+.. index:: edgeql_http, graphql, auth, ai, pg_trgm, pg_unaccent, pgcrypto,
+           pgvector
 
 There are a few built-in extensions available:
 
@@ -42,6 +47,8 @@ To enable these extensions, add a ``using`` statement at the top level of your s
 
 Standalone extensions
 ---------------------
+
+.. index:: postgis
 
 Additionally, standalone extension packages can be installed via the CLI.
 

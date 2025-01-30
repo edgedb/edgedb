@@ -573,6 +573,8 @@ functionality.
                               -> cal::local_datetime
                           cal::local_date + duration -> cal::local_datetime
 
+    :index: +, duration, datetime, add
+
     Adds a duration and any other datetime value.
 
     This operator is commutative.
@@ -620,6 +622,8 @@ functionality.
                                 -> cal::relative_duration
                            cal::relative_duration - duration\
                                 -> cal::relative_duration
+
+    :index: -, duration, datetime, subtract
 
     Subtracts two compatible datetime or duration values.
 

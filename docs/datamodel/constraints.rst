@@ -4,6 +4,10 @@
 Constraints
 ===========
 
+.. index:: constraint, validation, exclusive, expression on, one_of, max_value,
+           max_ex_value, min_value, min_ex_value, max_len_value, min_len_value,
+           regexp, __subject__
+
 .. important::
 
   This section assumes a basic understanding of EdgeQL.
@@ -202,6 +206,8 @@ Constraints can be defined on computed properties.
 Composite constraints
 ^^^^^^^^^^^^^^^^^^^^^
 
+.. index:: tuple
+
 To define a composite constraint, create an ``exclusive`` constraint on a
 tuple of properties or links.
 
@@ -238,6 +244,8 @@ Partial constraints
 ^^^^^^^^^^^^^^^^^^^
 
 .. versionadded:: 2.0
+
+.. index:: constraint exclusive on, except
 
 Constraints on object types can be made partial, so that they don't apply
 when some condition holds.
@@ -333,6 +341,8 @@ Link ``@source`` and ``@target`` constraints
 
 .. versionadded:: 4.0
 
+.. index:: constraint exclusive on, @source, @target
+
 .. note::
 
     ``@source`` and ``@target`` are available starting with version 4.3.
@@ -411,6 +421,8 @@ using arbitrary EdgeQL expressions. The example below uses the built-in
 
 Constraints and type inheritence
 --------------------------------
+
+.. index:: delegated constraint
 
 If you define a constraint on a type and then extend that type, the constraint
 will *not* be applied individually to each extending type. Instead, it will
