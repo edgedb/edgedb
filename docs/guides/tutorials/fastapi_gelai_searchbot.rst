@@ -10,14 +10,13 @@ In this tutorial we're going to walk you through building a chat bot with search
 capabilities using Gel and `FastAPI <https://fastapi.tiangolo.com/>`_.
 
 FastAPI is a framework designed to help you build a web app, well, fast. And Gel
-is a data layer designed to help you figure out storage  in your application,
-and also do it fast. By the end of this tutorial you will have tried out
-different aspects of using those two together, and hopefully come out with
-something useful on the other end.
+is a data layer designed to help you figure out storage in your application, and
+also do it fast. By the end of this tutorial you will have tried out different
+aspects of using those two together.
 
 We're going to start by creating an app with FastAPI, then add web search
 capabilities to it, and then put search results through a language model to get
-a human-friendly answer. After that we'll use Gel to add chat history, and
+a human-friendly answer. After that we'll use Gel to implement chat history, and
 finish it off with semantic search, so that the bot can remember previous
 interactions with the user.
 
@@ -46,13 +45,13 @@ the `documentation <https://docs.astral.sh/uv/guides/projects/>`_:
     $ uv init searchbot \
       && cd searchbot
 
-For now, we know we're going to need are Gel and FastAPI, so let's add those
+For now, we know we're going to need Gel and FastAPI, so let's add those
 following uv's instructions on `managing dependencies
 <https://docs.astral.sh/uv/concepts/projects/dependencies/#optional-dependencies>`_,
 as well as FastAPI's `installation docs
 <https://fastapi.tiangolo.com/#installation>`_. Running ``uv sync`` after that
 will create our virtual environment in a ``.venv`` directory and ensure it's
-ready. Finally, we'll activate the environment and get started.
+ready. As a last step, we'll activate the environment and get started.
 
 .. code-block:: bash
     $ uv add "fastapi[standard]" \
@@ -61,22 +60,25 @@ ready. Finally, we'll activate the environment and get started.
       && source .venv/bin/activate
 
 .. note::
-   Source the env every time you open a new terminal session.
+   Make sure to source the environment every time you open a new terminal
+   session before running `python`, `gel` or `fastapi`-related commands.
 
 
 Step 2. Get started with FastAPI
 ================================
 
 At this stage we need to follow FastAPI's `tutorial
-<https://fastapi.tiangolo.com/tutorial/>`_.
+<https://fastapi.tiangolo.com/tutorial/>`_ to create the foundation of our app.
 
-We're going to make a super simple app with one endpoint that takes in a user
-query as input and echoes it as an output. First, let's create a file called
-`main.py` inside out `app` directory and put the "Hello World" example in it:
+We're going to make a super simple web API with one endpoint that takes in a
+user query as an input and echoes it as an output. First, let's make a directory
+called `app` in our project root, and put an empty `__init__.py` there.
 
-.. note::
-   make a directory called app first and put init.py there
+.. code-block:: bash
+   $ mkdir app && touch app/__init__.py
 
+Create a file called `main.py` inside the `app` directory and put the "Hello
+World" example in it:
 
 .. code-block:: python
     :caption: app/main.py
@@ -90,13 +92,13 @@ query as input and echoes it as an output. First, let's create a file called
     async def root():
         return {"message": "Hello World"}
 
-To start the server, we need to run:
+To start the server, run:
 
 .. code-block:: bash
     $ fastapi dev app/main.py
 
 Once the server gets up and running, we can make sure it works using FastAPI's
-built-in UI at <http://127.0.0.1:8000/docs>_, or simply using `curl`:
+built-in UI at <http://127.0.0.1:8000/docs>_, or manually by using `curl`:
 
 .. code-block:: bash
     $ curl -X 'GET' \
@@ -105,18 +107,17 @@ built-in UI at <http://127.0.0.1:8000/docs>_, or simply using `curl`:
 
     {"message":"Hello World"}
 
-
 Now, in order to create the endpoint we set out to create, we need to pass our
 query as a parameter to it. We'd prefer to have it in the body of the request
 since user messages can get pretty long.
 
 In FastAPI land this is done by creating a Pydantic schema and making it the
 type of the input parameter. `Pydantic <https://docs.pydantic.dev/latest/>`_ is
-a data validation library for Python that's similar to standard dataclasses. It
-has many features, but we don't actually need to know about them for now. All we
-need to know is that FastAPI uses Pydantic types to automatically figure out
-schemae for `input <https://fastapi.tiangolo.com/tutorial/body/>`_, as well as
-`output <https://fastapi.tiangolo.com/tutorial/response-model/>`_.
+a data validation library for Python. It has many features, but we don't
+actually need to know about them for now. All we need to know is that FastAPI
+uses Pydantic types to automatically figure out schemae for `input
+<https://fastapi.tiangolo.com/tutorial/body/>`_, as well as `output
+<https://fastapi.tiangolo.com/tutorial/response-model/>`_.
 
 Let's add the following to our `main.py`:
 
@@ -164,20 +165,21 @@ Now that we have our web app infrastructure in place, let's add some substance
 to it by implementing web search capabilities.
 
 There're many powerful feature-rich products for LLM-driven web search (such as
-Brave for example). But for our purely educational purposes we will set our
-sails on the high seas 🏴‍☠️and scrape Google search results. Google tends to
-actively resist such behavior, so the most reliable way for us to get our links
-is to employ the `googlesearch-python` library:
+Brave for example). But for purely educational purposes in this tutorial we'll
+be sailing on the high seas 🏴‍☠️and scraping Google search results
+directly. Google tends to actively resist such behavior, so the most reliable
+way for us to get our search results is to employ the `googlesearch-python`
+library:
 
 .. code-block:: bash
     $ uv add googlesearch-python
 
-Having dealt with acquiring the links, we need to parse HTML in order to extract
-text. Rather than getting into the weeds, we can generate a reasonable solution
-using an LLM. After some cleanup, the end result should look similar to this:
-
-.. note::
-   create a new file called web.py
+As you can see from it's `repository
+<https://github.com/Nv7-GitHub/googlesearch?tab=readme-ov-file#additional-options>`_,
+it's incredibly straighforward to use. Having dealt with acquiring the links, we
+need to parse HTML in order to extract text. Rather than getting into the weeds,
+we can generate a reasonable solution using an LLM. After some cleanup, the end
+result should look similar to this:
 
 .. code-block:: python
     :caption: app/web.py
@@ -240,10 +242,11 @@ using an LLM. After some cleanup, the end result should look similar to this:
     if __name__ == "__main__":
         print(fetch_web_sources("gel database", limit=1)[0][0])
 
+Feel free to grab this snippet and save it to `app/web.py`, or make your own.
 
-Good enough for now! We need to add two extra dependencies: requests and
-Beautiful Soup, which is a commonly used HTML parsing library. Let's add it by
-running:
+Good enough for now! We need to add two extra dependencies: `requests` for
+making HTTP requests, and Beautiful Soup, which is a commonly used HTML parsing
+library. Let's add them by running:
 
 .. code-block:: bash
     $ uv add beautifulsoup4 requests
@@ -281,8 +284,9 @@ search function like this:
         ]
         return web_sources
 
-Testing it using the web UI, and sure enough, we get our sources in the
-response!
+Notice that we've created another Pydantic type to store our web search results.
+There's no framework-related reason for that, it's just nicer than passing
+dictionaries around.
 
 
 Step 4. Connect to the LLM
@@ -294,18 +298,17 @@ Step 4. Connect to the LLM
 Now that we're capable of scraping text from search results, we can forward
 those results to the LLM to get a nice-looking summary.
 
-The most straightforward way to do that is to set up some OpenAI chat
-completions. To avoid delicate fiddling with HTML requests, let's add their
-library as another dependency:
+There's a million different LLMs accessible via a web API, feel free to choose
+whichever you prefer. In this tutorial we will roll with OpenAI, primarily for
+how ubiquitous it is. To avoid delicate fiddling with HTML requests, let's add
+their library as another dependency:
 
 .. code-block:: bash
     $ uv add openai
 
-Then we can grab some code straight from their documentation, and set up LLM
+Then we can grab some code straight from their `API documentation
+<https://platform.openai.com/docs/api-reference/chat/create>`_, and set up LLM
 generation like this:
-
-.. note::
-    describe env management
 
 .. code-block:: python
     from openai import OpenAI
@@ -346,6 +349,18 @@ generation like this:
 
         llm_response = completion.choices[0].message.content
         return llm_response
+
+Note that this cloud LLM API (and many others) requires a secret key to be set
+as an environment variable. A common way to manage those is to use the
+`python-dotenv` library in combinations with a `.env` file. Feel free to browse
+`the readme
+<https://github.com/theskumar/python-dotenv?tab=readme-ov-file#getting-started>`_,
+although it's also quite simple to use. Create a file called `.env` in the root
+directory and put your api key in there:
+
+.. code-block:: bash
+   :caption: .env
+   OPENAI_API_KEY="sk-..."
 
 And as usual, let's reflect the new capabilities in the app and test it:
 
