@@ -55,8 +55,9 @@ def _setup_patches(patches: list[tuple[str, str]]) -> list[tuple[str, str]]:
     npatches = []
     for kind, patch in patches:
         npatches.append((kind, patch))
+        # TODO: Rip this out for the real thing once we forward port it.
         if kind.startswith('edgeql+schema') and seen_repair:
-            npatches.append(('repair', ''))
+            npatches.append(('edgeql', ''))
         seen_repair |= kind == 'repair'
     return npatches
 
