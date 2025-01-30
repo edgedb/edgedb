@@ -349,49 +349,21 @@ impl TlsDriver for OpensslDriver {
 }
 
 fn ssl_select_next_proto<'a, 'b>(server: &'a [u8], client: &'b [u8]) -> Option<&'b [u8]> {
-    let client_packet = client;
-
-    if client_packet.is_empty() {
-        return None;
-    }
-    let client_proto_len = client_packet[0] as usize;
-    if client_packet.len() < 1 + client_proto_len || client_proto_len == 0 {
-        return None;
-    }
-
     let mut server_packet = server;
     while !server_packet.is_empty() {
-        if server_packet.len() < 1 {
-            break;
-        }
-        let server_proto_len = server_packet[0] as usize;
-        if server_packet.len() < 1 + server_proto_len || server_proto_len == 0 {
-            break;
-        }
-        let server_proto = &server_packet[1..1 + server_proto_len];
-
-        let mut temp_client_packet = client;
-        while !temp_client_packet.is_empty() {
-            if temp_client_packet.len() < 1 {
-                break;
+        let server_proto_len = *server_packet.get(0)? as usize;
+        let server_proto = server_packet.get(1..1 + server_proto_len)?;
+        let mut client_packet = client;
+        while !client_packet.is_empty() {
+            let client_proto_len = *client_packet.get(0)? as usize;
+            let client_proto = client_packet.get(1..1 + client_proto_len)?;
+            if client_proto == server_proto {
+                return Some(client_proto);
             }
-            let temp_client_proto_len = temp_client_packet[0] as usize;
-            if temp_client_packet.len() < 1 + temp_client_proto_len || temp_client_proto_len == 0 {
-                break;
-            }
-            let temp_client_proto = &temp_client_packet[1..1 + temp_client_proto_len];
-
-            if temp_client_proto == server_proto {
-                return Some(temp_client_proto);
-            }
-
-            temp_client_packet = &temp_client_packet[1 + temp_client_proto_len..];
+            client_packet = client_packet.get(1 + client_proto_len..)?;
         }
-
-        server_packet = &server_packet[1 + server_proto_len..];
+        server_packet = server_packet.get(1 + server_proto_len..)?;
     }
-
-    // No match found, return the default opportunistic protocol
     None
 }
 
