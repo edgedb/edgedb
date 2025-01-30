@@ -1163,10 +1163,13 @@ modifications to the `main.py`:
 Step 6. Use Gel's advanced features to create a RAG
 ====================================================
 
+.. note::
+   mention httpx-sse
+
 At this point we have a decent search bot that can refine a search query over
 multiple turns of a conversation.
 
-It's time to add a final touch: we can make the bot remember previous similar
+It's time to add the final touch: we can make the bot remember previous similar
 interactions with the user using retrieval-augmented generation (RAG).
 
 To achieve this we need to implement similarity search across message history:
@@ -1186,19 +1189,24 @@ the `dbschema/default.esdl`:
 .. code-block:: sdl
     using extension ai;
 
-    module default {
-        # type definitions
-    }
+... and do the migration:
+
+
+.. code-block:: bash
+    $ gel migration create
+    $ gel migrate
 
 Next, we need to configure the API key in Gel for whatever embedding provider
-we're going to be using. As per documentation, let's open up `gel cli` and run
-the following command:
+we're going to be using. As per documentation, let's open up the CLI by typing
+`gel` and run the following command (assuming we're using OpenAI):
 
 .. code-block:: edgeql
-    configure current database
+    searchbot:main> configure current database
     insert ext::ai::OpenAIProviderConfig {
       secret := 'sk-....',
     };
+
+    OK: CONFIGURE DATABASE
 
 In order to get Gel to automatically keep track of creating and updating message
 embeddings, all we need to do is create a deferred index like this:
@@ -1216,12 +1224,16 @@ embeddings, all we need to do is create a deferred index like this:
             on (.body);
     }
 
+... and run a migration one more time.
+
 And we're done! Gel is going to cook in the background for a while and generate
 embedding vectors for our queries. To make sure nothing broke we can follow
 Gel's AI documentation and take a look at instance logs:
 
 .. code-block:: bash
-   $ gel instance logs -I searchbot
+    $ gel instance logs -I searchbot | grep api.openai.com
+
+    INFO 50121 searchbot 2025-01-30T14:39:53.364 httpx: HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
 
 It's time to create the second half of the similarity search - the search query.
 The query needs to fetch `k` chats in which there're messages that are most
@@ -1229,12 +1241,155 @@ similar to our current message. This can be a little difficult to visualize in
 your head, so here's the query itself:
 
 .. code-block:: edgeql
-    # queries
+    with
+        user := (select User filter .name = <str>$username),
+        chats := (select Chat filter .<chats[is User] = user)
 
-As before, let's run the query generator by calling `gel-py` in the terminal.
-Then we need to modify our `search` function to make sure we use the new
-capabilities.
+    select chats {
+        distance := min(
+            ext::ai::search(
+                .messages,
+                <array<float32>>$embedding,
+            ).distance,
+        ),
+        messages: {
+            role, body, sources
+        }
+    }
+
+    order by .distance
+    limit <int64>$limit;
+
+Let's place in in `app/queries/search_chats.edgeql`, run the codegen and modify
+our `post_messages` endpoint to keep track of those similar chats.
+
+.. code-block:: python
+    from edgedb.ai import create_async_ai, AsyncEdgeDBAI
+    from .queries.search_chats_async_edgeql import (
+        search_chats as search_chats_query,
+    )
+
+    @app.post("/messages", status_code=HTTPStatus.CREATED)
+    async def post_messages(
+        search_terms: SearchTerms,
+        username: str = Query(),
+        chat_id: str = Query(),
+    ) -> SearchResult:
+        # 1. Fetch chat history
+        chat_history = await get_messages_query(
+            gel_client, username=username, chat_id=chat_id
+        )
+
+        # 2. Add incoming message to Gel
+        _ = await add_message_query(
+            gel_client,
+            username=username,
+            message_role="user",
+            message_body=search_terms.query,
+            sources=[],
+            chat_id=chat_id,
+        )
+
+        # 3. Generate a query and perform googling
+        search_query = await generate_search_query(search_terms.query, chat_history)
+        web_sources = await search_web(search_query)
+
+        # 4. Fetch similar chats
+        db_ai: AsyncEdgeDBAI = await create_async_ai(gel_client, model="gpt-4o-mini")
+        embedding = await db_ai.generate_embeddings(
+            search_query, model="text-embedding-3-small"
+        )
+        similar_chats = await search_chats_query(
+            gel_client, username=username, embedding=embedding, limit=1
+        )
+
+        # 5. Generate answer
+        search_result = await generate_answer(
+            search_terms.query, chat_history, web_sources, similar_chats
+        )
+
+        # 6. Add LLM response to Gel
+        _ = await add_message_query(
+            gel_client,
+            username=username,
+            message_role="assistant",
+            message_body=search_result.response,
+            sources=search_result.sources,
+            chat_id=chat_id,
+        )
+
+        # 7. Send result back to the client
+        return search_result
+
+Finally, the answer generator needs to get updated one more time, since we need
+to inject the additional messages into the prompt.
+
+.. code-block:: python
+    async def generate_answer(
+        query: str,
+        chat_history: list[GetMessagesResult],
+        web_sources: list[WebSource],
+        similar_chats: list[list[GetMessagesResult]],
+    ) -> SearchResult:
+        system_prompt = (
+            "You are a helpful assistant that answers user's questions"
+            + " by finding relevant information in web search results."
+            + " You can reference previous conversation with the user that"
+            + " are provided to you, if they are relevant, by explicitly referring"
+            + " to them."
+        )
+
+        prompt = f"User search query: {query}\n\nWeb search results:\n"
+
+        for i, source in enumerate(web_sources):
+            prompt += f"Result {i} (URL: {source.url}):\n"
+            prompt += f"{source.text}\n\n"
+
+        prompt += "Similar chats with the same user:\n"
+
+        for i, chat in enumerate(similar_chats):
+            prompt += f"Chat {i}: \n"
+            for message in chat.messages:
+                prompt += f"{message.role}: {message.body} (sources: {message.sources})\n"
+
+        completion = llm_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ],
+        )
+
+        llm_response = completion.choices[0].message.content
+        search_result = SearchResult(
+            response=llm_response, sources=[source.url for source in web_sources]
+        )
+
+        return search_result
 
 
+And one last time, let's check to make sure everything works:
+
+.. code-block:: bash
+    $ curl -X 'POST' \
+      'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
+      -H 'accept: application/json' \
+      -H 'Content-Type: application/json' \
+      -d '{
+      "query": "how do i write a simple query in it?"
+    }'
+
+    {
+      "response": "To write a simple query in EdgeQL..."
+      "sources": [
+        "https://docs.edgedb.com/cli/edgedb_query"
+      ]
+    }
 
 
