@@ -8239,6 +8239,26 @@ async def generate_support_functions(
     return trampoline_functions(cmds)
 
 
+async def regenerate_config_support_functions(
+    conn: PGConnection,
+    config_spec: edbconfig.Spec,
+) -> None:
+    # Regenerate functions dependent on config spec.
+    commands = dbops.CommandGroup()
+
+    funcs = [
+        ApplySessionConfigFunction(config_spec),
+        PostgresJsonConfigValueToFrontendConfigValueFunction(config_spec),
+    ]
+
+    cmds = [dbops.CreateFunction(func, or_replace=True) for func in funcs]
+    commands.add_commands(cmds)
+
+    block = dbops.PLTopBlock()
+    commands.generate(block)
+    await _execute_block(conn, block)
+
+
 async def generate_more_support_functions(
     conn: PGConnection,
     compiler: edbcompiler.Compiler,
