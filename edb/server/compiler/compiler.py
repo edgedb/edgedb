@@ -2344,7 +2344,7 @@ def _inject_config_cache_clear(sql_ast: pgast.Base) -> pgast.Base:
             name='flag', val=pgast.BooleanConstant(val=True)
         )],
         relation=pgast.RelRangeVar(relation=pgast.Relation(
-            schemaname='edgedb', name='_dml_dummy')),
+            name='_dml_dummy')),
         where_clause=pgast.Expr(
             name="=",
             lexpr=pgast.ColumnRef(name=["id"]),
