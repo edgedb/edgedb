@@ -140,8 +140,10 @@ enum ServerStateImpl {
     Error,
 }
 
+#[derive(derive_more::Debug, Default)]
 pub struct ServerState {
     state: ServerStateImpl,
+    #[debug(skip)]
     buffer: StructBuffer<meta::Message>,
 }
 

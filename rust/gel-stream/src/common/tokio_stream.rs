@@ -2,13 +2,13 @@
 
 use std::net::{IpAddr, ToSocketAddrs};
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::TcpStream;
 #[cfg(unix)]
 use tokio::net::UnixStream;
+use tokio::net::{TcpListener, TcpStream, UnixListener};
 
-use super::target::ResolvedTarget;
+use super::target::{LocalAddress, ResolvedTarget};
 
 pub(crate) struct Resolver {
     #[cfg(feature = "hickory")]
@@ -51,7 +51,8 @@ impl Resolver {
 }
 
 impl ResolvedTarget {
-    /// Connects to the socket address and returns a TokioStream
+    #[cfg(feature = "client")]
+    /// Connects to the socket address and returns a [`TokioStream`].
     pub async fn connect(&self) -> std::io::Result<TokioStream> {
         match self {
             ResolvedTarget::SocketAddr(addr) => {
@@ -63,6 +64,76 @@ impl ResolvedTarget {
                 let stm = std::os::unix::net::UnixStream::connect_addr(path)?;
                 let stream = UnixStream::from_std(stm)?;
                 Ok(TokioStream::Unix(stream))
+            }
+        }
+    }
+
+    #[cfg(feature = "server")]
+    pub async fn listen(
+        &self,
+    ) -> std::io::Result<
+        impl futures::Stream<Item = std::io::Result<(TokioStream, ResolvedTarget)>> + LocalAddress,
+    > {
+        self.listen_raw().await
+    }
+
+    /// Listens for incoming connections on the socket address and returns a
+    /// [`futures::Stream`] of [`TokioStream`]s and the incoming address.
+    #[cfg(feature = "server")]
+    pub(crate) async fn listen_raw(&self) -> std::io::Result<TokioListenerStream> {
+        match self {
+            ResolvedTarget::SocketAddr(addr) => {
+                let listener = TcpListener::bind(addr).await?;
+                Ok(TokioListenerStream::Tcp(listener))
+            }
+            #[cfg(unix)]
+            ResolvedTarget::UnixSocketAddr(path) => {
+                let listener = std::os::unix::net::UnixListener::bind_addr(path)?;
+                listener.set_nonblocking(true)?;
+                let listener = tokio::net::UnixListener::from_std(listener)?;
+                Ok(TokioListenerStream::Unix(listener))
+            }
+        }
+    }
+}
+
+pub(crate) enum TokioListenerStream {
+    Tcp(TcpListener),
+    #[cfg(unix)]
+    Unix(UnixListener),
+}
+
+impl LocalAddress for TokioListenerStream {
+    fn local_address(&self) -> std::io::Result<ResolvedTarget> {
+        match self {
+            TokioListenerStream::Tcp(listener) => {
+                listener.local_addr().map(ResolvedTarget::SocketAddr)
+            }
+            #[cfg(unix)]
+            TokioListenerStream::Unix(listener) => listener
+                .local_addr()
+                .map(|addr| ResolvedTarget::UnixSocketAddr(addr.into())),
+        }
+    }
+}
+
+impl futures::Stream for TokioListenerStream {
+    type Item = std::io::Result<(TokioStream, ResolvedTarget)>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.get_mut() {
+            TokioListenerStream::Tcp(listener) => {
+                let (stream, addr) = ready!(listener.poll_accept(cx))?;
+                let stream = TokioStream::Tcp(stream);
+                let target = ResolvedTarget::SocketAddr(addr);
+                Poll::Ready(Some(Ok((stream, target))))
+            }
+            #[cfg(unix)]
+            TokioListenerStream::Unix(listener) => {
+                let (stream, addr) = ready!(listener.poll_accept(cx))?;
+                let stream = TokioStream::Unix(stream);
+                let target = ResolvedTarget::UnixSocketAddr(addr.into());
+                Poll::Ready(Some(Ok((stream, target))))
             }
         }
     }
