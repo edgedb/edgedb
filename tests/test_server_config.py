@@ -2366,7 +2366,7 @@ class TestStaticServerConfig(tb.TestCase):
         "cannot use CONFIGURE INSTANCE in multi-tenant mode",
     )
     async def test_server_config_default(self):
-        p1 = tb.find_available_port(max_value=50000)
+        p1 = tb.find_available_port()
         async with tb.start_edgedb_server(
             extra_args=["--port", str(p1)]
         ) as sd:
@@ -2378,7 +2378,7 @@ class TestStaticServerConfig(tb.TestCase):
                     """),
                     p1,
                 )
-                p2 = tb.find_available_port(p1 - 1)
+                p2 = tb.find_available_port()
                 await conn.execute(f"""\
                     configure instance set listen_port := {p2}
                 """)
