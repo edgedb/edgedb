@@ -417,3 +417,27 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
             await self.con.execute('''
                 drop type ext::_test::X;
             ''')
+
+    async def test_edgeql_userddl_all_extensions_01(self):
+        # Install all extensions and then delete them all
+        exts = await self.con.query('''
+            select distinct sys::ExtensionPackage.name
+        ''')
+
+        ext_commands = ''.join(f'using extension {ext};\n' for ext in exts)
+        await self.con.execute(f"""
+            START MIGRATION TO {{
+                {ext_commands}
+                module default {{ }}
+            }};
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.con.execute(f"""
+            START MIGRATION TO {{
+                module default {{ }}
+            }};
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
