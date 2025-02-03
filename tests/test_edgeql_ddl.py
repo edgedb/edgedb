@@ -16343,6 +16343,14 @@ DDLStatement);
             [dict(func=False, alias=False, query=False)],
         )
 
+    async def test_edgeql_ddl_scoping_future_02(self):
+        await self.con.execute("""
+            create future simple_scoping;
+        """)
+        await self.con.execute("""
+            drop future simple_scoping;
+        """)
+
     async def test_edgeql_ddl_no_volatile_computable_01(self):
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
