@@ -13,34 +13,38 @@ jobs:
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
         with:
           script: |
-            console.log(context);
-            // const res = await fetch(`https://api.vercel.com/v13/deployments?teamId=${process.env.VERCEL_TEAM_ID}`, {
-            //   "body": JSON.stringify({
-            //     name: "edgedb-docs",
-            //     gitSource: {
-            //       type: "github",
-            //       org: "edgedb",
-            //       repo: "edgedb.com",
-            //       ref: "docs-preview",
-            //     },
-            //     projectSettings: {
-            //       buildCommand:
-            //         `EDGEDB_REPO_BRANCH=${process.env.GITHUB_REF_NAME} yarn vercel-build`,
-            //     },
-            //   }),
-            //   "headers": {
-            //     "Authorization": `Bearer ${process.env.VERCEL_TOKEN}`,
-            //     "Content-Type": "application/json",
-            //   },
-            //   "method": "post"
-            // });
-            //
-            // if (res.ok) {
-            //   const deployment = await res.json();
-            //   console.log(deployment.url);
-            //   
-            // } else {
-            //   throw new Error(
-            //     `vercel create deployment api request failed: ${res.status} ${res.statusText}`
-            //   );
-            // }
+            const res = await fetch(`https://api.vercel.com/v13/deployments?teamId=${process.env.VERCEL_TEAM_ID}`, {
+              "body": JSON.stringify({
+                name: "edgedb-docs",
+                gitSource: {
+                  type: "github",
+                  org: "edgedb",
+                  repo: "edgedb.com",
+                  ref: "docs-preview",
+                },
+                projectSettings: {
+                  buildCommand:
+                    `EDGEDB_REPO_BRANCH=${process.env.GITHUB_REF_NAME} yarn vercel-build`,
+                },
+              }),
+              "headers": {
+                "Authorization": `Bearer ${process.env.VERCEL_TOKEN}`,
+                "Content-Type": "application/json",
+              },
+              "method": "post"
+            });
+            if (res.ok) {
+              const deployment = await res.json();
+              console.log(deployment.url);
+
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `Deployed docs preview: ${deployment.url}`,
+              });
+            } else {
+              throw new Error(
+                `vercel create deployment api request failed: ${res.status} ${res.statusText}`
+              );
+            }
