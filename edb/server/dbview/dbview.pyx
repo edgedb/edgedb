@@ -1689,6 +1689,14 @@ cdef class DatabaseConnectionView:
                 )
 
         if not self.in_tx() and query_capabilities & enums.Capability.WRITE:
+            isolation = self.config_lookup("default_transaction_isolation")
+            if isolation and isolation.to_str() != "Serializable":
+                raise query_capabilities.make_error(
+                    ~enums.Capability.WRITE,
+                    errors.TransactionError,
+                    f"default_transaction_isolation is set to "
+                    f"{isolation.to_str()}",
+                )
             access_mode = self.config_lookup("default_transaction_access_mode")
             if access_mode and access_mode.to_str() == "ReadOnly":
                 raise query_capabilities.make_error(
