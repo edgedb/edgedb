@@ -399,30 +399,42 @@ answer.
 
 However, right now it's hardly better than Google itself, since you have to
 basically start over every time you want to refine the query. To enable more
-organic multi-turn interaction we need to add chat history, and in order to
-enable gradual query refinement, we need to infer the query from the context of
-the entire conversation.
+organic multi-turn interaction we need to add chat history and infer the query
+from the context of the entire conversation.
 
-Let's do both using Gel.
+Now's a good time to introduce Gel.
 
-To get started with Gel, first we need to initialize the project using the
-command line interface.
+In case you need installation instructions, take a look at :ref:`Quickstart UI
+<_ref_quickstart>`. Once Gel CLI is present in your system, initialize the
+project like this:
 
 .. code-block:: bash
     $ gel project init --non-interactive
 
+This command is going to put some project scaffolding inside our app, spin up a
+local instace of Gel, and then link the two together. From now on, all
+Gel-related things that happen inside our project folder are going to be
+automatically run on the correct databaser instance, no need to worry about
+connection incantations.
+
+
 Defining the schema
 -------------------
 
-.. note::
-   add links to documentation
+The database :ref:`schema <_ref_datamodel_index>` in Gel is defined
+declaratively. The :ref:`gel project init <_ref_cli_edgedb_project_init>`
+command has created a file called `dbchema/default.esdl`, which we're going to
+use to define our types.
 
-The database schema in Gel is defined declaratively. The init command actually
-created a stub for it in `dbchema/default.esdl`, that we're going to extend now
-with our types.
-
-We obviously want to keep track of messages, so that should be there. By
-convention established in the LLM space, each message is going to have a role.
+We obviously want to keep track of messages, so we need to represent those in
+the schema. By convention established in the LLM space, each message is going to
+have a role in addition to the message content itself. We can also get Gel to
+automatically keep track of message's creation time by adding a property callled
+`timestamp` and setting its :ref:`default value <_ref_datamodel_props>` to the
+output of the :ref:`datetime_current() <_ref_std_datetime>` function. Finally,
+LLM messages in our searchbot have souce URLs associated with them. Let's keep
+track of those too, by adding a :ref:`multi-link property
+<_ref_datamodel_links>`.
 
 .. code-block:: sdl
     type Message {
@@ -434,14 +446,19 @@ convention established in the LLM space, each message is going to have a role.
         multi sources: str;
     }
 
-Messages are grouped together into a chat, so let's add that, too.
+Messages are grouped together into a chat, so let's add that entity to our
+schema too.
 
 .. code-block:: sdl
     type Chat {
         multi messages: Message;
     }
 
-And chats all belong to a certain user, making up their chat history:
+And chats all belong to a certain user, making up their chat history. One other
+thing we'd like to keep track of about our users is their username, and it would
+make sense for us to make sure that it's unique by using an `excusive`
+:ref:`constraint <_ref_datamodel_constraints>`.
+
 
 .. code-block:: sdl
     type User {
@@ -451,11 +468,11 @@ And chats all belong to a certain user, making up their chat history:
         multi chats: Chat;
     }
 
-We're going to keep our schema super simple for now. Some time down the road,
-you might wanna leverage Gel's powerful capabilities in order to add auth or AI
-features. But we're gonna come back to that.
+We're going to keep our schema super simple. One cool thing about Gel is that it
+will enable us to easily implement advanced features such as authentification or
+AI down the road, but we're gonna come back to that later.
 
-This is the entire schema we came up with:
+For now, this is the entire schema we came up with:
 
 .. code-block:: sdl
     module default {
@@ -480,10 +497,9 @@ This is the entire schema we came up with:
         }
     }
 
-For now, let's migrate to our new schema and proceed to writing some queries.
-
-.. note::
-   add links to documentation
+Let's use the :ref:`gel migration create <_ref_cli_edgedb_migration_create>` CLI
+command, followed by :ref:`gel migrate <_ref_cli_edgedb_migrate>` in order to
+migrate to our new schema and proceed to writing some queries.
 
 .. code-block:: sdl
     $ gel migration create
@@ -492,7 +508,9 @@ For now, let's migrate to our new schema and proceed to writing some queries.
     $ gel migrate
 
 Now that our schema is applied, let's quickly populate the database with some
-fake data in order to be able to test the queries.
+fake data in order to be able to test the queries. We're going to explore
+writing queries in a bit, but for now you can just run the following command in
+the shell:
 
 .. code-block:: bash
     $ mkdir app/sample_data && cat << 'EOF' > app/sample_data/inserts.edgeql
@@ -573,8 +591,8 @@ fake data in order to be able to test the queries.
     };
     EOF
 
-Make sure that the `app/sample_data/inserts.edgeql` popped up in your file
-system, then run:
+This created an `app/sample_data/inserts.edgeql` file, which we can now execute
+using the CLI like this:
 
 .. code-block:: bash
     $ gel query -f app/sample_data/inserts.edgeql
@@ -584,7 +602,9 @@ system, then run:
     {"id": "862de904-de39-11ef-9713-4fab09220c4a"}
     {"id": "862e400c-de39-11ef-9713-2f81f2b67013"}
 
-That's it! Now there's stuff in the database. Let's verify it by running:
+The :ref:`gel query <_ref_cli_edgedb_query>` command is one of many ways we can
+execute a query in Gel. Now that we've done it, there's stuff in the database.
+Let's verify it by running:
 
 .. code-block:: bash
     $ gel query "select User { name };"
