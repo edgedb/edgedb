@@ -1,6 +1,6 @@
 name: Docs Preview Deploy
 
-on: push
+on: pull_request
 
 jobs:
   deploy:
