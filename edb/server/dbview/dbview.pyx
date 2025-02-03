@@ -1182,17 +1182,22 @@ cdef class DatabaseConnectionView:
         self._reset_tx_state()
         return side_effects
 
+    cdef config_lookup(self, name):
+        return self.server.config_lookup(
+            name,
+            self.get_session_config(),
+            self.get_database_config(),
+            self.get_system_config(),
+        )
+
     async def recompile_cached_queries(self, user_schema, schema_version):
         compiler_pool = self.server.get_compiler_pool()
         compile_concurrency = max(1, compiler_pool.get_size_hint() // 2)
         concurrency_control = asyncio.Semaphore(compile_concurrency)
         rv = []
 
-        recompile_timeout = self.server.config_lookup(
+        recompile_timeout = self.config_lookup(
             "auto_rebuild_query_cache_timeout",
-            self.get_session_config(),
-            self.get_database_config(),
-            self.get_system_config(),
         )
 
         loop = asyncio.get_running_loop()
@@ -1418,9 +1423,6 @@ cdef class DatabaseConnectionView:
                     user_schema_version = unit.user_schema_version
             if user_schema and not self.server.config_lookup(
                 "auto_rebuild_query_cache",
-                self.get_session_config(),
-                self.get_database_config(),
-                self.get_system_config(),
             ):
                 user_schema = None
             if user_schema:
@@ -1684,6 +1686,15 @@ cdef class DatabaseConnectionView:
                     ~enums.Capability.WRITE,
                     errors.DisabledCapabilityError,
                     msg,
+                )
+
+        if not self.in_tx() and query_capabilities & enums.Capability.WRITE:
+            access_mode = self.config_lookup("default_transaction_access_mode")
+            if access_mode and access_mode.to_str() == "ReadOnly":
+                raise query_capabilities.make_error(
+                    ~enums.Capability.WRITE,
+                    errors.TransactionError,
+                    "default_transaction_access_mode is set to ReadOnly",
                 )
 
     async def reload_state_serializer(self):
