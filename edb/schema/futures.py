@@ -188,6 +188,7 @@ def toggle_scoping_future(
 
     all_expr_objects: list[so.Object] = list(schema.get_objects(
         exclude_stdlib=True,
+        exclude_extensions=True,
         extra_filters=[lambda _, x: isinstance(x, types)],
     ))
     extra_refs = {
