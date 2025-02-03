@@ -27,6 +27,7 @@ from typing import (
     Optional,
     Self,
     TypeVar,
+    TYPE_CHECKING,
 )
 
 import dataclasses
@@ -46,6 +47,9 @@ from edb.common import uuidgen
 
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
+
+if TYPE_CHECKING:
+    from edb.edgeql import qltypes
 
 MISSING: Any = object()
 
@@ -753,6 +757,16 @@ class TransactionAccessMode(
             TransactionAccessModeEnum.ReadOnly: "true",
             TransactionAccessModeEnum.ReadWrite: "false",
         }
+
+    def to_qltypes(self) -> qltypes.TransactionAccessMode:
+        from edb.edgeql import qltypes
+        match self._val:
+            case TransactionAccessModeEnum.ReadOnly:
+                return qltypes.TransactionAccessMode.READ_ONLY
+            case TransactionAccessModeEnum.ReadWrite:
+                return qltypes.TransactionAccessMode.READ_WRITE
+            case _:
+                raise AssertionError(f"unexpected value: {self._val!r}")
 
 
 class TransactionDeferrabilityEnum(enum.StrEnum):

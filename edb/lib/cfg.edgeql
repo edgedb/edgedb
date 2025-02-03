@@ -205,8 +205,7 @@ ALTER TYPE cfg::AbstractConfig {
     CREATE REQUIRED PROPERTY default_transaction_access_mode
         -> sys::TransactionAccessMode
     {
-        CREATE ANNOTATION cfg::backend_setting :=
-            '"default_transaction_read_only"';
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
         CREATE ANNOTATION std::description :=
             'Controls the default read-only status of each new transaction, \
             including implicit transactions. Defaults to `ReadWrite`. \

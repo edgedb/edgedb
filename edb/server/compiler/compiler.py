@@ -66,6 +66,7 @@ from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 
 from edb.ir import staeval as ireval
+from edb.ir import statypes
 from edb.ir import ast as irast
 
 from edb.schema import ddl as s_ddl
@@ -2166,7 +2167,12 @@ def _compile_ql_transaction(
                     hint=f"specify READ ONLY access mode",
                 )
             sqls += f' ISOLATION LEVEL {iso.value}'
-        if ql.access is not None:
+        if ql.access is None:
+            access_mode: statypes.TransactionAccessMode = _get_config_val(
+                ctx, "default_transaction_access_mode"
+            )
+            sqls += f' {access_mode.to_qltypes().value}'
+        else:
             sqls += f' {ql.access.value}'
         if ql.deferrable is not None:
             sqls += f' {ql.deferrable.value}'
