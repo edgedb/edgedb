@@ -615,25 +615,26 @@ Let's verify it by running:
 Writing queries
 ---------------
 
-.. note::
-   add links to documentation
+With schema in place, it's time to focus on getting the data in and out of the
+database.
 
-.. note::
-   we're assuming knowledge of EdgeQL here. If a refresher is needed, add link
+In this tutorial we're going to write queries using :ref:`EdgeQL
+<_ref_intro_edgeql>` and then use :ref:`codegen <_edgedb-python-codegen>` to
+generate typesafe function that we can plug directly into out Python code. If
+you are completely unfamiliar with EdgeQL, now is a good time to check out the
+basics before proceeding.
 
+Let's move on. First, create a directory inside `app` called `queries`. This is
+where we're going to put all of the EdgeQL-related stuff.
 
-First, let's create a directory inside `app` called `queries` where we're going
-to put all of the EdgeQL-related stuff.
-
-Let's start simple. We're going to write a query that fetches all of the users.
-In `queries` create a file named `get_users.edgeql` and put the following query
-in there:
+We're going to start by writing a query that fetches all of the users. In
+`queries` create a file named `get_users.edgeql` and put the following query in
+there:
 
 .. code-block:: edgeql
     :caption: app/queries/get_users.edgeql
 
     select User { name };
-
 
 Now run the code generator from the shell:
 
@@ -641,19 +642,21 @@ Now run the code generator from the shell:
     $ gel-py
 
 It's going to automatically locate the `.edgeql` file and generate types for it.
-Once that is done, let's use those types to create the endpoint in ``main.py``:
+We can inspect generated code in `app.queries/get_users_async_edgeql.py`. Once
+that is done, let's use those types to create the endpoint in `main.py`:
 
 .. code-block:: python
     from edgedb import create_async_client
     from .queries.get_users_async_edgeql import get_users as get_users_query, GetUsersResult
+
+
     gel_client = create_async_client()
 
     @app.get("/users")
     async def get_users() -> list[GetUsersResult]:
         return await get_users_query(gel_client)
 
-With that, we've added our first CRUD endpoint! Let's verify it works as
-expected:
+Let's verify it that works as expected:
 
 .. code-block:: bash
     $ curl -X 'GET' \
@@ -682,17 +685,19 @@ username. In order to do that, we need to write a new query in a separate file
     select User { name }
     filter .name = <str>$name;
 
-After that, we will run the code generator again by calling `gel-py`.
-In the app, we are going to reuse the same endpoint that fetches the list of all
-users. From now on, if the user calls it without any arguments (e.g.
+After that, we will run the code generator again by calling `gel-py`. In the
+app, we are going to reuse the same endpoint that fetches the list of all users.
+From now on, if the user calls it without any arguments (e.g.
 `http://127.0.0.1/users`), they are going to receive the list of all users, same
 as before. But if they pass a username as a query argument like this:
 `http://127.0.0.1/users?username=bob`, the system will attempt to fetch a user
 named `bob`.
 
 In order to achieve this, we're going to need to add a `Query`-type argument to
-our endpoint function. It's default value is going to be `None`, which will
-enable us to implement out conditional logic:
+our endpoint function. You can learn more about how to configure this type of
+arguments in `FastAPI's docs
+<https://fastapi.tiangolo.com/tutorial/query-params/>`_. It's default value is
+going to be `None`, which will enable us to implement our conditional logic:
 
 .. code-block:: python
     :caption: app/main.py
@@ -748,11 +753,13 @@ it and run code generation.
         name
     }
 
-.. note::
-   trickery with the insert wrapped in select
+Note that in this query we've wrapped the `insert` in a `select` statement. This
+is a common pattern in EdgeQL, that can be used whenever you would like to get
+something other than object ID when you just inserted it.
 
-For this, we're going to add a new endpoint. Note that this one has the same
-name `/users`, but is for the POST HTTP method.
+In order to integrate this query into our app, we're going to add a new
+endpoint. Note that this one has the same name `/users`, but is for the POST
+HTTP method.
 
 .. code-block:: python
     from gel import ConstraintViolationError
@@ -1081,20 +1088,6 @@ history:
 In reality this workflow would've been handled by the frontend, providing the
 user with a nice inteface to interact with. But even without one we're built a
 fully functional chatbot already!
-
-.. note::
-   Describe how the post message kind of inherits the search functionality
-
-.. note::
-   Modify the generate too so it's history aware.
-
-.. note::
-   Add a fold of some kind to streamline the text
-
-.. note::
-   Explain that for each query we want to create a separate file inside the
-   folder, and that we're doing it to use codegen. Explain what problem codegen
-   is supposed to solve for us.
 
 
 Generating a Google search query
