@@ -42,7 +42,7 @@ jobs:
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: `Deployed docs preview: ${deployment.url}`,
+                body: `Deployed docs preview: <https://${deployment.url}>`,
               });
             } else {
               throw new Error(
