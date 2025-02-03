@@ -397,21 +397,19 @@ So far we've built an application that can take in a query, fetch top 5 Google
 search results for it, sift through them using an LLM, and generate a nice
 answer.
 
-However, right now it's hardly better than google, since you have to basically
-start over every time you want to refine the query. To enable more organic
-multi-turn interaction we need to add chat history, and in order to enable
-gradual query refinement, we need to infer query from that history. Let's do
-both using Gel.
+However, right now it's hardly better than Google itself, since you have to
+basically start over every time you want to refine the query. To enable more
+organic multi-turn interaction we need to add chat history, and in order to
+enable gradual query refinement, we need to infer the query from the context of
+the entire conversation.
 
-To start using Gel, first we need to initialize the project using the command
-line interface.
+Let's do both using Gel.
+
+To get started with Gel, first we need to initialize the project using the
+command line interface.
 
 .. code-block:: bash
-    $ gel project init
-
-.. note::
-   accept all defaults
-
+    $ gel project init --non-interactive
 
 Defining the schema
 -------------------
