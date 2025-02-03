@@ -16282,6 +16282,7 @@ DDLStatement);
             create type T;
             insert T;
             insert T;
+            create function f(x: int64 = 0) -> int64 using (x);
             create function get_whatever() -> bool using (
                 all(T = T)
             );
