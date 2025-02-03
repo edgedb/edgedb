@@ -17,7 +17,7 @@ jobs:
           VERCEL_TEAM_ID: secrets.VERCEL_TEAM_ID
         with:
           script: |
-            const { Vercel } = require("@vercel/sdk");
+            const { Vercel } = await import("@vercel/sdk");
 
             const vercel = new Vercel({
               bearerToken: process.env.VERCEL_TOKEN,
