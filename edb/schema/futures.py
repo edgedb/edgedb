@@ -153,6 +153,7 @@ class AlterFutureBehavior(
 # any schema elements.
 @register_handler('simple_scoping')
 @register_handler('warn_old_scoping')
+@register_handler('_scoping_noop_test')
 def toggle_scoping_future(
     cmd: FutureBehaviorCommand,
     schema: s_schema.Schema,
