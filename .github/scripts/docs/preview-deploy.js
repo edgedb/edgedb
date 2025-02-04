@@ -8,6 +8,9 @@ module.exports = async ({ github, context }) => {
     );
   }
 
+  console.log(context);
+  return;
+
   const existingComments = (
     await github.rest.issues.listComments({
       owner: context.repo.owner,
