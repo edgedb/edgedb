@@ -417,3 +417,59 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
             await self.con.execute('''
                 drop type ext::_test::X;
             ''')
+
+    async def test_edgeql_userddl_all_extensions_01(self):
+        # Install all extensions and then delete them all
+        exts = await self.con.query('''
+            select distinct sys::ExtensionPackage.name
+        ''')
+
+        # This tests that toggling scoping futures works with
+        # extensions, and that the extensions work if it is enabled
+        # first.
+        await self.con.execute(f"""
+            START MIGRATION TO {{
+                using future warn_old_scoping;
+                module default {{ }}
+            }};
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        ext_commands = ''.join(f'using extension {ext};\n' for ext in exts)
+        await self.con.execute(f"""
+            START MIGRATION TO {{
+                using future warn_old_scoping;
+                {ext_commands}
+                module default {{ }}
+            }};
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.con.execute(f"""
+            START MIGRATION TO {{
+                {ext_commands}
+                module default {{ }}
+            }};
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.con.execute(f"""
+            START MIGRATION TO {{
+                using future warn_old_scoping;
+                {ext_commands}
+                module default {{ }}
+            }};
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.con.execute(f"""
+            START MIGRATION TO {{
+                module default {{ }}
+            }};
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)

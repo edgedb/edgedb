@@ -9452,30 +9452,6 @@ type default::Foo {
             DROP EXTENSION TestAuthExtension;
         """)
 
-    async def test_edgeql_ddl_all_extensions_01(self):
-        # Install all extensions and then delete them all
-        exts = await self.con.query('''
-            select distinct sys::ExtensionPackage.name
-        ''')
-
-        ext_commands = ''.join(f'using extension {ext};\n' for ext in exts)
-        await self.con.execute(f"""
-            START MIGRATION TO {{
-                {ext_commands}
-                module default {{ }}
-            }};
-            POPULATE MIGRATION;
-            COMMIT MIGRATION;
-        """)
-
-        await self.con.execute(f"""
-            START MIGRATION TO {{
-                module default {{ }}
-            }};
-            POPULATE MIGRATION;
-            COMMIT MIGRATION;
-        """)
-
     async def test_edgeql_ddl_role_01(self):
         if not self.has_create_role:
             self.skipTest("create role is not supported by the backend")
@@ -16326,6 +16302,7 @@ DDLStatement);
             create type T;
             insert T;
             insert T;
+            create function f(x: int64 = 0) -> int64 using (x);
             create function get_whatever() -> bool using (
                 all(T = T)
             );
@@ -16386,6 +16363,14 @@ DDLStatement);
             Q,
             [dict(func=False, alias=False, query=False)],
         )
+
+    async def test_edgeql_ddl_scoping_future_02(self):
+        await self.con.execute("""
+            create future simple_scoping;
+        """)
+        await self.con.execute("""
+            drop future simple_scoping;
+        """)
 
     async def test_edgeql_ddl_no_volatile_computable_01(self):
         async with self.assertRaisesRegexTx(
