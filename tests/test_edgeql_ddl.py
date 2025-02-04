@@ -4294,12 +4294,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """)
 
     async def test_edgeql_ddl_function_08(self):
-        with self.assertRaisesRegex(
+        async with self.assertRaisesRegexTx(
                 edgedb.InvalidFunctionDefinitionError,
                 r'invalid declaration.*unexpected type of the default'):
 
             await self.con.execute("""
                 CREATE FUNCTION ddlf_08(s: std::str = 1) -> std::str
+                    USING EdgeQL $$ SELECT "1" $$;
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidFunctionDefinitionError,
+                r'invalid declaration.*unexpected type of the default'):
+
+            await self.con.execute("""
+                CREATE FUNCTION ddlf_08(s: std::str = ()) -> std::str
                     USING EdgeQL $$ SELECT "1" $$;
             """)
 
@@ -6862,6 +6871,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 create type X {
                     create access policy test
                         allow all using (1);
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"using expression.* is of invalid type",
+        ):
+            await self.con.execute("""
+                create type X {
+                    create access policy test
+                        allow all using (());
                 };
             """)
 
