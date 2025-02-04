@@ -14,5 +14,5 @@ jobs:
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
         with:
           script: |
-            const script = require('../scripts/docs/preview-deploy.js');
+            const script = require('./.github/scripts/docs/preview-deploy.js');
             await script({github, context});
