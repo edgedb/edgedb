@@ -100,7 +100,7 @@ module.exports = async ({ github, context }) => {
           status === "READY"
             ? `\n✅ Successfully deployed docs preview for commit ${shortCommitSHA}:`
             : `\n❌ Docs preview deployment ${
-                status === "CANCELED" ? "failed" : "was canceled"
+                status === "CANCELED" ? "was canceled" : "failed"
               } for commit ${shortCommitSHA}:`
         }\n\n<https://${deployment.url}>\n\n(Last updated: ${formatDatetime(
           new Date()
