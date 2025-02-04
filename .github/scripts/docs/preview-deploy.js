@@ -2,11 +2,15 @@ module.exports = async ({ github, context }) => {
   const { VERCEL_TOKEN, VERCEL_TEAM_ID, GITHUB_HEAD_REF } = process.env;
 
   console.log(
-    await github.rest.issues.listComments({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      issue_number: context.issue.number,
-    })
+    JSON.stringify(
+      await github.rest.issues.listComments({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: context.issue.number,
+      }),
+      null,
+      2
+    )
   );
   return;
 
