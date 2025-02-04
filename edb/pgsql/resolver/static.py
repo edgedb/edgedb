@@ -216,6 +216,7 @@ ALLOWED_ADMIN_FUNCTIONS = frozenset(
         'pg_last_wal_replay_lsn',
         'pg_current_wal_flush_lsn',
         'pg_relation_is_publishable',
+        'pg_show_all_settings',
     }
 )
 
