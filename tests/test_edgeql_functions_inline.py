@@ -3133,6 +3133,45 @@ class TestEdgeQLFunctionsInline(tb.QueryTestCase):
             sort=True,
         )
 
+    async def test_edgeql_functions_inline_nested_basic_21(self):
+        # Inner function body is a statement with a parent statement
+        #
+        # A function body may be a statement which contains references to a
+        # parent statement. Ensure that this parent's parameters are not
+        # substituted while inlining the function parameters.
+        #
+        # In this case the outer function's `for` contains the parameter `x`
+        # which is at risk of being substituted when the inner function
+        # inlines its parameters.
+        await self.con.execute('''
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (select x)
+            };
+            create function foo(x: int64) -> set of int64 {
+                set is_inlined := true;
+                using (for y in {x, x + 1, x + 2} union (inner(y)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(10)',
+            [10, 11, 12],
+        )
+        await self.assert_query_result(
+            'select foo({10, 20, 30})',
+            [10, 11, 12, 20, 21, 22, 30, 31, 32],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {10, 20, 30} union (select foo(x))',
+            [10, 11, 12, 20, 21, 22, 30, 31, 32],
+            sort=True,
+        )
+
     async def test_edgeql_functions_inline_nested_array_01(self):
         # Return array from inner function
         await self.con.execute('''
