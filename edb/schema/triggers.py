@@ -153,8 +153,8 @@ class TriggerCommand(
                     raise errors.SchemaDefinitionError(
                         f'{vname} expression for {trig_name} is of invalid '
                         f'type: '
-                        f'{expr_type.get_displayname(schema)}, '
-                        f'expected {target.get_displayname(schema)}',
+                        f'{expr_type.get_displayname(expression.irast.schema)}'
+                        f', expected {target.get_displayname(schema)}',
                         span=span,
                     )
 

@@ -35,7 +35,7 @@ openssl req -new -x509 -key client_ca.key.pem -out client_ca.cert.pem -days 7300
 # Client cert
 openssl genrsa -out client.key.pem 4096
 openssl req -new -key client.key.pem -out client.csr.pem -subj "/C=US/ST=California/L=San Francisco/O=EdgeDB Inc./OU=EdgeDB tests/CN=ssl_user/emailAddress=hello@edgedb.com" -batch
-openssl x509 -req -in client.csr.pem -CA client_ca.cert.pem -CAkey client_ca.key.pem -CAcreateserial -out client.cert.pem -days 7300
+openssl x509 -req -in client.csr.pem -CA client_ca.cert.pem -CAkey client_ca.key.pem -CAcreateserial -out client.cert.pem -days 7300 -extensions v3_req -extfile ca.conf
 
 # Password protected client key
 openssl rsa -aes256 -in client.key.pem -out client.key.protected.pem -passout pass:secret1234

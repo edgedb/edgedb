@@ -7,7 +7,7 @@ use std::{
 
 use rustls_pki_types::ServerName;
 
-use super::TlsParameters;
+use crate::TlsParameters;
 
 /// A target name describes the TCP or Unix socket that a client will connect to.
 pub struct TargetName {
@@ -247,6 +247,19 @@ pub enum ResolvedTarget {
     SocketAddr(std::net::SocketAddr),
     #[cfg(unix)]
     UnixSocketAddr(std::os::unix::net::SocketAddr),
+}
+
+impl ResolvedTarget {
+    pub fn tcp(&self) -> Option<SocketAddr> {
+        match self {
+            ResolvedTarget::SocketAddr(addr) => Some(*addr),
+            _ => None,
+        }
+    }
+}
+
+pub trait LocalAddress {
+    fn local_address(&self) -> std::io::Result<ResolvedTarget>;
 }
 
 trait TcpResolve {

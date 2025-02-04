@@ -14,7 +14,7 @@ use crate::{
     protocol::postgres::{data::SSLResponse, meta, FrontendBuilder, InitialBuilder},
 };
 use db_proto::StructBuffer;
-use gel_stream::client::ResolvedTarget;
+use gel_stream::ResolvedTarget;
 use pyo3::{
     buffer::PyBuffer,
     exceptions::{PyException, PyRuntimeError},

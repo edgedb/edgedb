@@ -1781,8 +1781,10 @@ async def _init_stdlib(
             await conn.sql_execute(testmode_sql.encode("utf-8"))
             trampolines.extend(new_trampolines)
         # _testmode includes extra config settings, so make sure
-        # those are picked up.
+        # those are picked up...
         config_spec = config.load_spec_from_schema(stdlib.stdschema)
+        # ...and that config functions dependent on it are regenerated
+        await metaschema.regenerate_config_support_functions(conn, config_spec)
 
     logger.info('Finalizing database setup...')
 

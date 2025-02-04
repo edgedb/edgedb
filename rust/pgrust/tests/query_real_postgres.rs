@@ -6,7 +6,7 @@ use std::rc::Rc;
 // Constants
 use db_proto::match_message;
 use gel_auth::AuthType;
-use gel_stream::client::{Connector, ResolvedTarget, Target};
+use gel_stream::{Connector, ResolvedTarget, Target};
 use pgrust::connection::{
     Client, Credentials, FlowAccumulator, MaxRows, Oid, Param, PipelineBuilder, Portal, Statement,
 };

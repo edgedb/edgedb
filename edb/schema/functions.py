@@ -1940,13 +1940,16 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
 
             if check_default_type:
                 default_type = ir_default.stype
-                if not default_type.assignment_castable_to(p_type, schema):
+                if not default_type.assignment_castable_to(
+                    p_type, ir_default.schema
+                ):
                     raise errors.InvalidFunctionDefinitionError(
                         f'cannot create the `{signature}` function: '
                         f'invalid declaration of parameter '
                         f'{p.get_displayname(schema)!r}: '
                         f'unexpected type of the default expression: '
-                        f'{default_type.get_displayname(schema)}, expected '
+                        f'{default_type.get_displayname(ir_default.schema)}, '
+                        f'expected '
                         f'{p_type.get_displayname(schema)}',
                         span=self.span)
 
