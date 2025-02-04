@@ -1947,7 +1947,8 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         await self.scon.execute("SET DateStyle=ISO;")
         await self.scon.execute("SET client_min_messages=notice;")
         await self.scon.execute(
-            "SELECT set_config('bytea_output','hex',false) FROM pg_settings"
+            "SELECT set_config('bytea_output','hex',false)"
+            "  FROM pg_catalog.pg_show_all_settings()"
             " WHERE name = 'bytea_output'; "
         )
         await self.scon.execute("SET client_encoding='WIN874';")
