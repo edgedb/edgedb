@@ -82,4 +82,27 @@ ALTER TYPE cfg::AbstractConfig {
 '''),
     ('metaschema-sql', 'PostgresConfigValueToJsonFunction'),
     ('metaschema-sql', 'SysConfigFullFunction'),
+    ('edgeql', '''
+ALTER FUNCTION
+std::assert_single(
+    input: SET OF anytype,
+    NAMED ONLY message: OPTIONAL str = <str>{},
+) {
+    SET volatility := 'Immutable';
+};
+ALTER FUNCTION
+std::assert_exists(
+    input: SET OF anytype,
+    NAMED ONLY message: OPTIONAL str = <str>{},
+) {
+    SET volatility := 'Immutable';
+};
+ALTER FUNCTION
+std::assert_distinct(
+    input: SET OF anytype,
+    NAMED ONLY message: OPTIONAL str = <str>{},
+) {
+    SET volatility := 'Immutable';
+};
+'''),
 ]
