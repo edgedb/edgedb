@@ -191,6 +191,7 @@ ALTER TYPE cfg::AbstractConfig {
     CREATE REQUIRED PROPERTY default_transaction_isolation
         -> sys::TransactionIsolation
     {
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
         CREATE ANNOTATION cfg::backend_setting :=
             '"default_transaction_isolation"';
         CREATE ANNOTATION std::description :=

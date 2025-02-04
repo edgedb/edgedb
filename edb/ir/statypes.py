@@ -801,3 +801,13 @@ class TransactionIsolation(
             TransactionIsolationEnum.Serializable: "serializable",
             TransactionIsolationEnum.RepeatableRead: "repeatable read",
         }
+
+    def to_qltypes(self) -> qltypes.TransactionIsolationLevel:
+        from edb.edgeql import qltypes
+        match self._val:
+            case TransactionIsolationEnum.Serializable:
+                return qltypes.TransactionIsolationLevel.SERIALIZABLE
+            case TransactionIsolationEnum.RepeatableRead:
+                return qltypes.TransactionIsolationLevel.REPEATABLE_READ
+            case _:
+                raise AssertionError(f"unexpected value: {self._val!r}")

@@ -2153,27 +2153,39 @@ def _compile_ql_transaction(
 
         ctx.state.start_tx()
 
-        sqls = 'START TRANSACTION'
+        # Compute the effective isolation level
+        iso_config: statypes.TransactionIsolation = _get_config_val(
+            ctx, "default_transaction_isolation"
+        )
+        default_iso = iso_config.to_qltypes()
         iso = ql.isolation
-        if iso is not None:
-            if (
-                iso is not qltypes.TransactionIsolationLevel.SERIALIZABLE
-                and ql.access is not qltypes.TransactionAccessMode.READ_ONLY
-            ):
-                raise errors.TransactionError(
-                    f"{iso.value} transaction isolation level is only "
-                    "supported in read-only transactions",
-                    span=ql.span,
-                    hint=f"specify READ ONLY access mode",
+        if iso is None:
+            iso = default_iso
+
+        # Compute the effective access mode
+        access = ql.access
+        if access is None:
+            if default_iso is qltypes.TransactionIsolationLevel.SERIALIZABLE:
+                access_mode: statypes.TransactionAccessMode = _get_config_val(
+                    ctx, "default_transaction_access_mode"
                 )
-            sqls += f' ISOLATION LEVEL {iso.value}'
-        if ql.access is None:
-            access_mode: statypes.TransactionAccessMode = _get_config_val(
-                ctx, "default_transaction_access_mode"
+                access = access_mode.to_qltypes()
+            else:
+                access = qltypes.TransactionAccessMode.READ_ONLY
+
+        # Guard against unsupported isolation + access combinations
+        if (
+            iso is not qltypes.TransactionIsolationLevel.SERIALIZABLE
+            and access is not qltypes.TransactionAccessMode.READ_ONLY
+        ):
+            raise errors.TransactionError(
+                f"{iso.value} transaction isolation level is only "
+                "supported in read-only transactions",
+                span=ql.span,
+                hint=f"specify READ ONLY access mode",
             )
-            sqls += f' {access_mode.to_qltypes().value}'
-        else:
-            sqls += f' {ql.access.value}'
+
+        sqls = f'START TRANSACTION ISOLATION LEVEL {iso.value} {access.value}'
         if ql.deferrable is not None:
             sqls += f' {ql.deferrable.value}'
         sqls += ';'
