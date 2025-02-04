@@ -1,5 +1,5 @@
 module.exports = async ({ github, context }) => {
-  const { VERCEL_TOKEN, VERCEL_TEAM_ID, GITHUB_SHA } = process.env;
+  const { VERCEL_TOKEN, VERCEL_TEAM_ID } = process.env;
 
   if (!VERCEL_TOKEN || !VERCEL_TEAM_ID) {
     throw new Error(
@@ -8,8 +8,7 @@ module.exports = async ({ github, context }) => {
     );
   }
 
-  console.log(context.payload.pull_request.head);
-  return;
+  const commitSHA = context.payload.pull_request.head.sha;
 
   const existingComments = (
     await github.rest.issues.listComments({
@@ -39,17 +38,17 @@ module.exports = async ({ github, context }) => {
           ref: "docs-preview",
         },
         projectSettings: {
-          buildCommand: `EDGEDB_REPO_BRANCH=${GITHUB_HEAD_REF} yarn vercel-build`,
+          buildCommand: `EDGEDB_REPO_BRANCH=${commitSHA} yarn vercel-build`,
         },
       }
     );
 
-    commentMessage += `\n🔄 Deploying docs preview for commit ${GITHUB_SHA.slice(
+    commentMessage += `\n🔄 Deploying docs preview for commit ${commitSHA.slice(
       0,
       8
     )}:\n\n<https://${deployment.url}>`;
   } catch (e) {
-    commentMessage += `\n❌ Failed to deploy docs preview for commit ${GITHUB_SHA.slice(
+    commentMessage += `\n❌ Failed to deploy docs preview for commit ${commitSHA.slice(
       0,
       8
     )}:\n\n\`\`\`\n${e.message}\n\`\`\``;
