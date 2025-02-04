@@ -8,7 +8,9 @@ module.exports = async ({ github, context }) => {
     );
   }
 
+  const prBranch = context.payload.pull_request.head.ref;
   const commitSHA = context.payload.pull_request.head.sha;
+  const shortCommitSHA = commitSHA.slice(0, 8);
 
   const existingComments = (
     await github.rest.issues.listComments({
@@ -18,59 +20,97 @@ module.exports = async ({ github, context }) => {
     })
   ).data;
 
-  let commentMessage = `# Docs preview deploy\n`;
+  const commentHeader = `# Docs preview deploy\n`;
+  let commentMessage = commentHeader;
 
-  const updateComment = existingComments.find(
+  let updateComment = existingComments.find(
     (c) =>
       c.performed_via_github_app?.slug === "github-actions" &&
-      c.body?.startsWith(commentMessage)
+      c.body?.startsWith(commentHeader)
   );
 
+  let deployment;
   try {
-    const deployment = await vercelFetch(
-      "https://api.vercel.com/v13/deployments",
-      {
-        name: "edgedb-docs",
-        gitSource: {
-          type: "github",
-          org: "edgedb",
-          repo: "edgedb.com",
-          ref: "docs-preview",
-        },
-        projectSettings: {
-          buildCommand: `EDGEDB_REPO_BRANCH=${commitSHA} yarn vercel-build`,
-        },
-      }
-    );
+    deployment = await vercelFetch("https://api.vercel.com/v13/deployments", {
+      name: "edgedb-docs",
+      gitSource: {
+        type: "github",
+        org: "edgedb",
+        repo: "edgedb.com",
+        ref: "docs-preview",
+      },
+      projectSettings: {
+        buildCommand: `EDGEDB_REPO_BRANCH=${prBranch} EDGEDB_REPO_SHA=${commitSHA} yarn vercel-build`,
+      },
+    });
 
-    commentMessage += `\n🔄 Deploying docs preview for commit ${commitSHA.slice(
-      0,
-      8
-    )}:\n\n<https://${deployment.url}>`;
+    commentMessage += `\n🔄 Deploying docs preview for commit ${shortCommitSHA}:\n\n<https://${deployment.url}>`;
   } catch (e) {
-    commentMessage += `\n❌ Failed to deploy docs preview for commit ${commitSHA.slice(
-      0,
-      8
-    )}:\n\n\`\`\`\n${e.message}\n\`\`\``;
+    commentMessage += `\n❌ Failed to deploy docs preview for commit ${shortCommitSHA}:\n\n\`\`\`\n${e.message}\n\`\`\``;
   }
 
   commentMessage += `\n\n(Last updated: ${formatDatetime(new Date())})`;
 
   if (updateComment) {
-    github.rest.issues.updateComment({
+    await github.rest.issues.updateComment({
       owner: context.repo.owner,
       repo: context.repo.repo,
       comment_id: updateComment.id,
       body: commentMessage,
     });
   } else {
-    github.rest.issues.createComment({
+    updateComment = (
+      await github.rest.issues.createComment({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: context.issue.number,
+        body: commentMessage,
+      })
+    ).data;
+  }
+
+  let i = 0;
+  while (i < 40) {
+    await sleep(15_000);
+    i++;
+
+    const status = (
+      await vercelFetch(
+        `https://api.vercel.com/v13/deployments/${deployment.id}`
+      )
+    ).status;
+
+    const latestComment = await github.rest.issues.getComment({
       owner: context.repo.owner,
       repo: context.repo.repo,
-      issue_number: context.issue.number,
-      body: commentMessage,
+      comment_id: updateComment.id,
     });
+    console.log(latestComment);
+
+    if (!latestComment.data.body.includes(shortCommitSHA)) {
+      console.log("Skipping further updates, new deployment has started");
+      return;
+    }
+
+    if (status === "READY" || status === "ERROR" || status === "CANCELED") {
+      await github.rest.issues.updateComment({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        comment_id: updateComment.id,
+        body: `${commentHeader}${
+          status === "READY"
+            ? `\n✅ Successfully deployed docs preview for commit ${shortCommitSHA}:`
+            : `\n❌ Docs preview deployment ${
+                status === "CANCELED" ? "failed" : "was canceled"
+              } for commit ${shortCommitSHA}:`
+        }\n\n<https://${deloyment.url}>\n\n(Last updated: ${formatDatetime(
+          new Date()
+        )})`,
+      });
+      return;
+    }
   }
+  throw new Error("timed out waiting for deployment status to succeed or fail");
 };
 
 async function vercelFetch(url, body) {
@@ -83,12 +123,12 @@ async function vercelFetch(url, body) {
   let res;
   try {
     res = await fetch(url, {
-      body: JSON.stringify(body),
+      body: body ? JSON.stringify(body) : undefined,
       headers: {
         Authorization: `Bearer ${VERCEL_TOKEN}`,
-        "Content-Type": "application/json",
+        "Content-Type": body ? "application/json" : undefined,
       },
-      method: "post",
+      method: body ? "post" : "get",
     });
   } catch (e) {
     throw new Error(`vercel api request failed: ${e}`);
@@ -120,4 +160,8 @@ function formatDatetime(date) {
     hourCycle: "h24",
     timeZoneName: "short",
   });
+}
+
+function sleep(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
