@@ -20,7 +20,7 @@ module.exports = async ({ github, context }) => {
     })
   ).data;
 
-  const commentHeader = `# Docs preview deploy\n`;
+  const commentHeader = `## Docs preview deploy\n`;
   let commentMessage = commentHeader;
 
   let updateComment = existingComments.find(
@@ -103,7 +103,7 @@ module.exports = async ({ github, context }) => {
             : `\n❌ Docs preview deployment ${
                 status === "CANCELED" ? "failed" : "was canceled"
               } for commit ${shortCommitSHA}:`
-        }\n\n<https://${deloyment.url}>\n\n(Last updated: ${formatDatetime(
+        }\n\n<https://${deployment.url}>\n\n(Last updated: ${formatDatetime(
           new Date()
         )})`,
       });
