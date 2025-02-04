@@ -1372,7 +1372,7 @@ class TestTriggers(tb.QueryTestCase):
             ['c'],
         )
 
-    async def test_edgeql_triggers_when_bad(self):
+    async def test_edgeql_triggers_when_bad_01(self):
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaDefinitionError,
                 r"data-modifying statements are not allowed"):
@@ -1380,6 +1380,20 @@ class TestTriggers(tb.QueryTestCase):
                 alter type InsertTest {
                   create trigger log_new after insert, update for each
                   when (exists (insert Note { name := "!" }))
+                  do (
+                    insert Note { name := "new", note := __new__.name }
+                  );
+                };
+            ''')
+
+    async def test_edgeql_triggers_when_bad_02(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaDefinitionError,
+                r"when expression.*is of invalid type"):
+            await self.con.query('''
+                alter type InsertTest {
+                  create trigger log_new after insert, update for each
+                  when (())
                   do (
                     insert Note { name := "new", note := __new__.name }
                   );
