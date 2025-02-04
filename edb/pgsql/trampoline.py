@@ -97,6 +97,10 @@ class Trampoline:
     def make(self) -> dbops.Command:
         pass
 
+    @abc.abstractmethod
+    def drop(self) -> dbops.Command:
+        pass
+
 
 @dataclasses.dataclass
 class TrampolineFunction(Trampoline):
@@ -104,6 +108,14 @@ class TrampolineFunction(Trampoline):
 
     def make(self) -> dbops.Command:
         return dbops.CreateFunction(self.func, or_replace=True)
+
+    def drop(self) -> dbops.Command:
+        return dbops.DropFunction(
+            self.func.name,
+            args=self.func.args or (),
+            has_variadic=bool(self.func.has_variadic),
+            if_exists=True,
+        )
 
 
 @dataclasses.dataclass
@@ -115,6 +127,12 @@ class TrampolineView(Trampoline):
             PERFORM {V('edgedb')}._create_trampoline_view(
                 {ql(q(*self.old_name))}, {ql(self.name[0])}, {ql(self.name[1])})
         ''')
+
+    def drop(self) -> dbops.Command:
+        return dbops.DropView(
+            self.name,
+            conditions=[dbops.ViewExists(self.name)],
+        )
 
 
 def make_trampoline(func: dbops.Function) -> TrampolineFunction:
