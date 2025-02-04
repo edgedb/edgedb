@@ -8,7 +8,7 @@ module.exports = async ({ github, context }) => {
     );
   }
 
-  console.log(context);
+  console.log(context.payload.pull_request.head);
   return;
 
   const existingComments = (
