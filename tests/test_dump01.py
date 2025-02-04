@@ -1902,6 +1902,11 @@ class TestDump01(tb.StableDumpTestCase, DumpTestCaseMixin):
             include_data=True,
             check_method=DumpTestCaseMixin.ensure_schema_data_integrity)
 
+    async def test_dump01_future_scope(self):
+        await self.con.execute('''
+            create future _scoping_noop_test;
+        ''')
+
 
 class TestDump01Compat(
     tb.DumpCompatTestCase,

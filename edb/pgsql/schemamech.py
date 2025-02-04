@@ -62,8 +62,7 @@ def _get_exclusive_refs(tree: irast.Statement) -> Sequence[irast.Base] | None:
     # Check if the expression is
     #   std::_is_exclusive(<arg>) [and std::_is_exclusive(<arg>)...]
 
-    assert isinstance(tree.expr.expr, irast.SelectStmt)
-    expr = tree.expr.expr.result
+    expr = tree.expr.expr
 
     return irastexpr.get_constraint_references(expr)
 
@@ -256,7 +255,6 @@ def _compile_constraint_data(
         options=options,
     )
     assert isinstance(ir, irast.Statement)
-    assert isinstance(ir.expr.expr, irast.SelectStmt)
 
     except_ir: Optional[irast.Statement] = None
     except_data = None
@@ -273,7 +271,7 @@ def _compile_constraint_data(
         except_data = _edgeql_tree_to_expr_data(except_sql.ast)
 
     terminal_refs: set[irast.Set] = (
-        ir_utils.get_longest_paths(ir.expr.expr.result)
+        ir_utils.get_longest_paths(ir.expr.expr)
     )
     if except_ir is not None:
         terminal_refs.update(
