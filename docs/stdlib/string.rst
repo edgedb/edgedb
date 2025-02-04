@@ -165,11 +165,11 @@ Strings
 
     .. versionadded:: 6.0
 
-    Regular strings may use ``\(expr)`` to interpolate the value of
-    ``expr`` into the string. The value will be cast to ``str`` if it
-    is not already. For example:
+      Regular strings may use ``\(expr)`` to interpolate the value of
+      ``expr`` into the string. The value will be cast to ``str`` if it
+      is not already. For example:
 
-    .. code-block:: edgeql-repl
+      .. code-block:: edgeql-repl
 
         db> select '1 + 1 = \(1+1)';
         {'1 + 1 = 2'}
