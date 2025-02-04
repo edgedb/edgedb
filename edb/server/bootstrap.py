@@ -31,8 +31,10 @@ from typing import (
     Dict,
     List,
     Set,
+    Sequence,
     NamedTuple,
     TYPE_CHECKING,
+    cast,
 )
 
 import dataclasses
@@ -108,6 +110,7 @@ class ClusterMode(enum.IntEnum):
 
 
 _T = TypeVar("_T")
+_T_Schema = TypeVar("_T_Schema", bound=s_schema.Schema)
 
 
 # A simple connection proxy that reconnects and retries queries
@@ -555,11 +558,11 @@ async def _store_static_json_cache(
 
 
 def _process_delta_params(
-    delta, schema: s_schema.Schema, params,
+    delta, schema: _T_Schema, params,
     stdmode: bool=True,
     **kwargs,
 ) -> tuple[
-    s_schema.ChainedSchema,
+    _T_Schema,
     delta_cmds.MetaCommand,
     delta_cmds.CreateTrampolines,
 ]:
@@ -581,13 +584,15 @@ def _process_delta_params(
         backend_runtime_params=params,
         **kwargs,
     )
-    schema = sd.apply(delta, schema=schema, context=context)
+    schema = cast(
+        _T_Schema,
+        sd.apply(delta, schema=schema, context=context),
+    )
 
     if debug.flags.delta_pgsql_plan:
         debug.header('PgSQL Delta Plan')
         debug.dump(delta, schema=schema)
 
-    assert isinstance(schema, s_schema.ChainedSchema)
     if isinstance(delta, delta_cmds.DeltaRoot):
         out = delta.create_trampolines
     else:
@@ -744,7 +749,7 @@ async def gather_patch_info(
 
 
 def _generate_drop_views(
-    group: dbops.CommandGroup,
+    group: Sequence[dbops.Command | trampoline.Trampoline],
     preblock: dbops.PLBlock,
 ) -> None:
     for cv in reversed(list(group)):
@@ -770,6 +775,8 @@ def _generate_drop_views(
                 has_variadic=bool(cv.function.has_variadic),
                 if_exists=True,
             )
+        elif isinstance(cv, trampoline.Trampoline):
+            dv = cv.drop()
         else:
             raise AssertionError(f'unsupported support view command {cv}')
         dv.generate(preblock)
@@ -800,6 +807,12 @@ def prepare_patch(
     """)
 
     existing_view_columns = patch_info
+
+    if '+testmode' in kind:
+        if schema.get('cfg::TestSessionConfig', default=None):
+            kind = kind.replace('+testmode', '')
+        else:
+            return (update,), (), {}
 
     # Pure SQL patches are simple
     if kind == 'sql':
@@ -949,7 +962,7 @@ def prepare_patch(
         )
         support_view_commands.generate(subblock)
 
-        _generate_drop_views(support_view_commands, preblock)
+        _generate_drop_views(list(support_view_commands), preblock)
 
         metadata_user_schema = reflschema
 
@@ -1004,8 +1017,17 @@ def prepare_patch(
                 backend_params.instance_params.version
             )
         )
+        wrapper_views = metaschema._get_wrapper_views()
+        support_view_commands.add_commands(list(wrapper_views))
+        trampolines = metaschema.trampoline_command(wrapper_views)
 
-        _generate_drop_views(support_view_commands, preblock)
+        _generate_drop_views(
+            tuple(support_view_commands) + tuple(trampolines),
+            preblock,
+        )
+
+        # Now add the trampolines to support_view_commands
+        support_view_commands.add_commands([t.make() for t in trampolines])
 
         # We want to limit how much unconditional work we do, so only recreate
         # extension views if requested.
@@ -1014,15 +1036,21 @@ def prepare_patch(
                 support_view_commands.add_command(
                     dbops.CreateView(extview, or_replace=True))
 
-        # Similarly, only do config system updates if requested.
-        if '+config' in kind:
-            support_view_commands.add_command(
-                metaschema.get_config_views(schema, existing_view_columns))
-
         # Though we always update the instdata for the config system,
         # because it is currently the most convenient way to make sure
         # all the versioned fields get updated.
         config_spec = config.load_spec_from_schema(schema)
+
+        # Similarly, only do config system updates if requested.
+        if '+config' in kind:
+            support_view_commands.add_command(
+                metaschema.get_config_views(schema, existing_view_columns))
+            support_view_commands.add_command(
+                metaschema._get_regenerated_config_support_functions(
+                    config_spec
+                )
+            )
+
         (
             sysqueries,
             report_configs_typedesc_1_0,
