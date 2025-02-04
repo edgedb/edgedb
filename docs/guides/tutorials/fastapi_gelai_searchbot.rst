@@ -1189,9 +1189,6 @@ modifications to the ``main.py``:
 Step 6. Use Gel's advanced features to create a RAG
 ====================================================
 
-.. note::
-   mention httpx-sse
-
 At this point we have a decent search bot that can refine a search query over
 multiple turns of a conversation.
 
@@ -1285,6 +1282,13 @@ your head, so here's the query itself:
 
     order by .distance
     limit <int64>$limit;
+
+
+.. note::
+   Before we can integrate this query into out Python app, we also need to add a
+   new dependency for the Python binding: ``httpx-sse``. It's enables streaming
+   outputs, which we're not going to use right now, but we won't be able to
+   create the AI client without it.
 
 Let's place in in ``app/queries/search_chats.edgeql``, run the codegen and modify
 our ``post_messages`` endpoint to keep track of those similar chats.
