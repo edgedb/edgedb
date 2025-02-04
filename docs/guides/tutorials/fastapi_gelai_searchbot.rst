@@ -61,7 +61,7 @@ ready. As a last step, we'll activate the environment and get started.
 
 .. note::
    Make sure to source the environment every time you open a new terminal
-   session before running `python`, `gel` or `fastapi`-related commands.
+   session before running ``python``, ``gel`` or ``fastapi``-related commands.
 
 
 Step 2. Get started with FastAPI
@@ -72,12 +72,12 @@ At this stage we need to follow FastAPI's `tutorial
 
 We're going to make a super simple web API with one endpoint that takes in a
 user query as an input and echoes it as an output. First, let's make a directory
-called `app` in our project root, and put an empty `__init__.py` there.
+called ``app`` in our project root, and put an empty ``__init__.py`` there.
 
 .. code-block:: bash
    $ mkdir app && touch app/__init__.py
 
-Create a file called `main.py` inside the `app` directory and put the "Hello
+Create a file called ``main.py`` inside the ``app`` directory and put the "Hello
 World" example in it:
 
 .. code-block:: python
@@ -98,7 +98,7 @@ To start the server, run:
     $ fastapi dev app/main.py
 
 Once the server gets up and running, we can make sure it works using FastAPI's
-built-in UI at <http://127.0.0.1:8000/docs>_, or manually by using `curl`:
+built-in UI at <http://127.0.0.1:8000/docs>_, or manually by using ``curl``:
 
 .. code-block:: bash
     $ curl -X 'GET' \
@@ -119,7 +119,7 @@ uses Pydantic types to automatically figure out schemae for `input
 <https://fastapi.tiangolo.com/tutorial/body/>`_, as well as `output
 <https://fastapi.tiangolo.com/tutorial/response-model/>`_.
 
-Let's add the following to our `main.py`:
+Let's add the following to our ``main.py``:
 
 .. code-block:: python
     :caption: app/main.py
@@ -142,7 +142,7 @@ argument and return type.
         return SearchResult(response=search_terms.query)
 
 Same as before, we can test the endpoint using the UI, or by sending a request
-with `curl`:
+with ``curl``:
 
 .. code-block:: bash
    $ curl -X 'POST' \
@@ -168,7 +168,7 @@ There're many powerful feature-rich products for LLM-driven web search (such as
 Brave for example). But for purely educational purposes in this tutorial we'll
 be sailing on the high seas 🏴‍☠️and scraping Google search results
 directly. Google tends to actively resist such behavior, so the most reliable
-way for us to get our search results is to employ the `googlesearch-python`
+way for us to get our search results is to employ the ``googlesearch-python``
 library:
 
 .. code-block:: bash
@@ -242,9 +242,9 @@ result should look similar to this:
     if __name__ == "__main__":
         print(fetch_web_sources("gel database", limit=1)[0][0])
 
-Feel free to grab this snippet and save it to `app/web.py`, or make your own.
+Feel free to grab this snippet and save it to ``app/web.py``, or make your own.
 
-Good enough for now! We need to add two extra dependencies: `requests` for
+Good enough for now! We need to add two extra dependencies: ``requests`` for
 making HTTP requests, and Beautiful Soup, which is a commonly used HTML parsing
 library. Let's add them by running:
 
@@ -352,11 +352,11 @@ generation like this:
 
 Note that this cloud LLM API (and many others) requires a secret key to be set
 as an environment variable. A common way to manage those is to use the
-`python-dotenv` library in combinations with a `.env` file. Feel free to browse
-`the readme
+``python-dotenv`` library in combinations with a ``.env`` file. Feel free to
+browse `the readme
 <https://github.com/theskumar/python-dotenv?tab=readme-ov-file#getting-started>`_,
-although it's also quite simple to use. Create a file called `.env` in the root
-directory and put your api key in there:
+although it's also quite simple to use. Create a file called ``.env`` in the
+root directory and put your api key in there:
 
 .. code-block:: bash
    :caption: .env
@@ -423,14 +423,14 @@ Defining the schema
 
 The database :ref:`schema <_ref_datamodel_index>` in Gel is defined
 declaratively. The :ref:`gel project init <_ref_cli_edgedb_project_init>`
-command has created a file called `dbchema/default.esdl`, which we're going to
+command has created a file called ``dbchema/default.esdl``, which we're going to
 use to define our types.
 
 We obviously want to keep track of messages, so we need to represent those in
 the schema. By convention established in the LLM space, each message is going to
 have a role in addition to the message content itself. We can also get Gel to
 automatically keep track of message's creation time by adding a property callled
-`timestamp` and setting its :ref:`default value <_ref_datamodel_props>` to the
+``timestamp`` and setting its :ref:`default value <_ref_datamodel_props>` to the
 output of the :ref:`datetime_current() <_ref_std_datetime>` function. Finally,
 LLM messages in our searchbot have souce URLs associated with them. Let's keep
 track of those too, by adding a :ref:`multi-link property
@@ -456,7 +456,7 @@ schema too.
 
 And chats all belong to a certain user, making up their chat history. One other
 thing we'd like to keep track of about our users is their username, and it would
-make sense for us to make sure that it's unique by using an `excusive`
+make sense for us to make sure that it's unique by using an ``excusive``
 :ref:`constraint <_ref_datamodel_constraints>`.
 
 
@@ -591,7 +591,7 @@ the shell:
     };
     EOF
 
-This created an `app/sample_data/inserts.edgeql` file, which we can now execute
+This created an ``app/sample_data/inserts.edgeql`` file, which we can now execute
 using the CLI like this:
 
 .. code-block:: bash
@@ -624,12 +624,12 @@ generate typesafe function that we can plug directly into out Python code. If
 you are completely unfamiliar with EdgeQL, now is a good time to check out the
 basics before proceeding.
 
-Let's move on. First, create a directory inside `app` called `queries`. This is
-where we're going to put all of the EdgeQL-related stuff.
+Let's move on. First, create a directory inside ``app`` called ``queries``. This
+is where we're going to put all of the EdgeQL-related stuff.
 
 We're going to start by writing a query that fetches all of the users. In
-`queries` create a file named `get_users.edgeql` and put the following query in
-there:
+``queries`` create a file named ``get_users.edgeql`` and put the following query
+in there:
 
 .. code-block:: edgeql
     :caption: app/queries/get_users.edgeql
@@ -641,9 +641,9 @@ Now run the code generator from the shell:
 .. code-block:: bash
     $ gel-py
 
-It's going to automatically locate the `.edgeql` file and generate types for it.
-We can inspect generated code in `app.queries/get_users_async_edgeql.py`. Once
-that is done, let's use those types to create the endpoint in `main.py`:
+It's going to automatically locate the ``.edgeql`` file and generate types for
+it. We can inspect generated code in ``app.queries/get_users_async_edgeql.py``.
+Once that is done, let's use those types to create the endpoint in ``main.py``:
 
 .. code-block:: python
     from edgedb import create_async_client
@@ -677,7 +677,7 @@ Let's verify it that works as expected:
 
 While we're at it, let's also implement the option to fetch a user by their
 username. In order to do that, we need to write a new query in a separate file
-`app/queries/get_user_by_name.edgeql`:
+``app/queries/get_user_by_name.edgeql``:
 
 .. code-block:: edgeql
     :caption: app/queries/get_users.edgeql
@@ -685,19 +685,19 @@ username. In order to do that, we need to write a new query in a separate file
     select User { name }
     filter .name = <str>$name;
 
-After that, we will run the code generator again by calling `gel-py`. In the
+After that, we will run the code generator again by calling ``gel-py``. In the
 app, we are going to reuse the same endpoint that fetches the list of all users.
 From now on, if the user calls it without any arguments (e.g.
-`http://127.0.0.1/users`), they are going to receive the list of all users, same
-as before. But if they pass a username as a query argument like this:
-`http://127.0.0.1/users?username=bob`, the system will attempt to fetch a user
-named `bob`.
+``http://127.0.0.1/users``), they are going to receive the list of all users,
+same as before. But if they pass a username as a query argument like this:
+``http://127.0.0.1/users?username=bob``, the system will attempt to fetch a user
+named ``bob``.
 
-In order to achieve this, we're going to need to add a `Query`-type argument to
-our endpoint function. You can learn more about how to configure this type of
+In order to achieve this, we're going to need to add a ``Query``-type argument
+to our endpoint function. You can learn more about how to configure this type of
 arguments in `FastAPI's docs
 <https://fastapi.tiangolo.com/tutorial/query-params/>`_. It's default value is
-going to be `None`, which will enable us to implement our conditional logic:
+going to be ``None``, which will enable us to implement our conditional logic:
 
 .. code-block:: python
     :caption: app/main.py
@@ -741,8 +741,8 @@ And once again, let's verify that everything works:
 
 
 Finally, let's also implement the option to add a new user. For this, just as
-before, we'll create a new file `app/queries/create_user.edgeql`, add a query to
-it and run code generation.
+before, we'll create a new file ``app/queries/create_user.edgeql``, add a query
+to it and run code generation.
 
 .. code-block:: edgeql
     select(
@@ -753,12 +753,12 @@ it and run code generation.
         name
     }
 
-Note that in this query we've wrapped the `insert` in a `select` statement. This
-is a common pattern in EdgeQL, that can be used whenever you would like to get
-something other than object ID when you just inserted it.
+Note that in this query we've wrapped the ``insert`` in a ``select`` statement.
+This is a common pattern in EdgeQL, that can be used whenever you would like to
+get something other than object ID when you just inserted it.
 
 In order to integrate this query into our app, we're going to add a new
-endpoint. Note that this one has the same name `/users`, but is for the POST
+endpoint. Note that this one has the same name ``/users``, but is for the POST
 HTTP method.
 
 .. code-block:: python
@@ -889,10 +889,10 @@ below if you are in rush.
         return await get_messages_query(gel_client, username=username, chat_id=chat_id)
 
 
-For the `post_messages` function we're going to do something a little bit
+For the ``post_messages`` function we're going to do something a little bit
 different though. Since this is now the primary way for the user to add their
-queries to the system, it functionally superceeds the `/search` endpoint we made
-before. To this end, this function is where we're going to handle saving
+queries to the system, it functionally superceeds the ``/search`` endpoint we
+made before. To this end, this function is where we're going to handle saving
 messages, retrieving chat history, invoking web search and generating the
 answer.
 
@@ -935,7 +935,7 @@ answer.
         return search_result
 
 
-Let's not forget to modify the `generate_answer` function, so it can also be
+Let's not forget to modify the ``generate_answer`` function, so it can also be
 history-aware.
 
 .. code-block:: python
@@ -1110,7 +1110,7 @@ working on our query rather than rewriting it from scratch every time.
 This is what we need to do: every time the user submits a message, we need to
 fetch the chat history, extract a search query from it using the LLM, and the
 other steps are going to the the same as before. Let's make the follwing
-modifications to the `main.py`:
+modifications to the ``main.py``:
 
 .. code-block:: python
     :caption: app/main.py
@@ -1209,8 +1209,8 @@ what they are looking for.
 Gel enables us to implement such a system with only minor modifications to the
 schema.
 
-We begin by enabling the `ai` extension by adding the following like on top of
-the `dbschema/default.esdl`:
+We begin by enabling the ``ai`` extension by adding the following like on top of
+the ``dbschema/default.esdl``:
 
 .. code-block:: sdl
     using extension ai;
@@ -1224,7 +1224,7 @@ the `dbschema/default.esdl`:
 
 Next, we need to configure the API key in Gel for whatever embedding provider
 we're going to be using. As per documentation, let's open up the CLI by typing
-`gel` and run the following command (assuming we're using OpenAI):
+``gel`` and run the following command (assuming we're using OpenAI):
 
 .. code-block:: edgeql
     searchbot:main> configure current database
@@ -1262,7 +1262,7 @@ Gel's AI documentation and take a look at instance logs:
     INFO 50121 searchbot 2025-01-30T14:39:53.364 httpx: HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
 
 It's time to create the second half of the similarity search - the search query.
-The query needs to fetch `k` chats in which there're messages that are most
+The query needs to fetch ``k`` chats in which there're messages that are most
 similar to our current message. This can be a little difficult to visualize in
 your head, so here's the query itself:
 
@@ -1286,8 +1286,8 @@ your head, so here's the query itself:
     order by .distance
     limit <int64>$limit;
 
-Let's place in in `app/queries/search_chats.edgeql`, run the codegen and modify
-our `post_messages` endpoint to keep track of those similar chats.
+Let's place in in ``app/queries/search_chats.edgeql``, run the codegen and modify
+our ``post_messages`` endpoint to keep track of those similar chats.
 
 .. code-block:: python
     from edgedb.ai import create_async_ai, AsyncEdgeDBAI
