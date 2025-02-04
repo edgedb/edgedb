@@ -188,7 +188,7 @@ class AccessPolicyCommand(
                 span = self.get_attribute_span(field)
                 raise errors.SchemaDefinitionError(
                     f'{vname} expression for {pol_name} is of invalid type: '
-                    f'{expr_type.get_displayname(schema)}, '
+                    f'{expr_type.get_displayname(expression.irast.schema)}, '
                     f'expected {target.get_displayname(schema)}',
                     span=self.span,
                 )
