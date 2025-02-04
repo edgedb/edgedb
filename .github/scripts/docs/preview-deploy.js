@@ -20,7 +20,7 @@ module.exports = async ({ github, context }) => {
     })
   ).data;
 
-  const commentHeader = `## Docs preview deploy\n`;
+  const commentHeader = `### Docs preview deploy\n`;
   let commentMessage = commentHeader;
 
   let updateComment = existingComments.find(
@@ -85,7 +85,6 @@ module.exports = async ({ github, context }) => {
       repo: context.repo.repo,
       comment_id: updateComment.id,
     });
-    console.log(latestComment);
 
     if (!latestComment.data.body.includes(shortCommitSHA)) {
       console.log("Skipping further updates, new deployment has started");
