@@ -83,7 +83,7 @@ std::assert(
 {
     CREATE ANNOTATION std::description :=
         "Assert that a boolean value is true.";
-    SET volatility := 'Immutable';
+    SET volatility := 'Stable';
     USING SQL $$
     SELECT (
         edgedb_VER.raise_on_null(
