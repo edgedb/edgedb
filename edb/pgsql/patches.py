@@ -57,6 +57,7 @@ The current kinds are:
  * ext-pkg - installs an extension package given a name
  * repair - fix up inconsistencies in *user* schemas
  * sql-introspection - refresh all sql introspection views
+ * ...+testmode - only run the patch in testmode. Works with any patch kind.
 """
 PATCHES: list[tuple[str, str]] = [
 ]
