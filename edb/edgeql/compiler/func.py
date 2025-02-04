@@ -479,6 +479,10 @@ def compile_FunctionCall(
 
 class ArgumentInliner(ast.NodeTransformer):
 
+    # Don't look through hidden nodes, they may contain references to nodes
+    # which should not be modified. For example, irast.Stmt.parent_stmt.
+    skip_hidden = True
+
     mapped_args: dict[irast.PathId, irast.PathId]
     inlined_arg_keys: list[int | str]
 
