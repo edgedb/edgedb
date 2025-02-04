@@ -26,8 +26,9 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from . import delta as sd
-from . import objects as so
+from . import modules as s_mod
 from . import name as sn
+from . import objects as so
 from . import schema as s_schema
 
 
@@ -152,6 +153,7 @@ class AlterFutureBehavior(
 # any schema elements.
 @register_handler('simple_scoping')
 @register_handler('warn_old_scoping')
+@register_handler('_scoping_noop_test')
 def toggle_scoping_future(
     cmd: FutureBehaviorCommand,
     schema: s_schema.Schema,
@@ -165,7 +167,14 @@ def toggle_scoping_future(
 
     # We need a subcommand to apply the _propagate_if_expr_refs on, so
     # make an alter.
-    dummy_object = cmd.scls
+    dummy_object = (
+        cmd.scls if isinstance(cmd, sd.CreateObject)
+        # HACK: On drops, the future doesn't exist, so grab
+        # a nonsense object we know will be there.
+        # The drops *shouldn't* ever fail, so it *shouldn't*
+        # show up in messages.
+        else schema.get_global(s_mod.Module, '__derived__')
+    )
     alter_cmd = dummy_object.init_delta_command(
         schema, cmdtype=sd.AlterObject)
 
@@ -180,6 +189,7 @@ def toggle_scoping_future(
 
     all_expr_objects: list[so.Object] = list(schema.get_objects(
         exclude_stdlib=True,
+        exclude_extensions=True,
         extra_filters=[lambda _, x: isinstance(x, types)],
     ))
     extra_refs = {

@@ -2927,8 +2927,17 @@ def type_dummy_expr(
 ) -> Optional[s_expr.Expression]:
     if isinstance(typ, so.DerivableInheritingObject):
         typ = typ.get_nearest_non_derived_parent(schema)
-    text = f'assert_exists(<{typ.get_displayname(schema)}>{{}})'
-    return s_expr.Expression(text=text)
+
+    q = qlast.FunctionCall(
+        func=('__std__', 'assert_exists'),
+        args=[
+            qlast.TypeCast(
+                type=utils.typeref_to_ast(schema, typ),
+                expr=qlast.Set(elements=[]),
+            )
+        ],
+    )
+    return s_expr.Expression.from_ast(q, schema)
 
 
 class TypeCommand(sd.ObjectCommand[TypeT]):

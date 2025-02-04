@@ -558,6 +558,19 @@ class ParameterCommand(
             return super().compile_expr_field(
                 schema, context, field, value, track_schema_ref_exprs)
 
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'default':
+            type = self.scls.get_type(schema)
+            return s_types.type_dummy_expr(type, schema)
+        else:
+            raise NotImplementedError(f'unhandled field {field.name!r}')
+
 
 class CreateParameter(ParameterCommand, sd.CreateObject[Parameter]):
 
