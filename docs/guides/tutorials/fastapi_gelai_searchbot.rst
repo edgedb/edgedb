@@ -1,8 +1,8 @@
 .. _ref_guide_fastapi_gelai_searchbot:
 
-=======
+===================
 FastAPI (Searchbot)
-=======
+===================
 
 :edb-alt-title: Building a searchbot with memory using FastAPI and Gel AI
 
@@ -36,12 +36,14 @@ follow their `installation instructions
 <https://docs.astral.sh/uv/getting-started/installation/>`_ or simply run:
 
 .. code-block:: bash
+
     $ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 Once that is done, we can use uv to create scaffolding for our project following
 the `documentation <https://docs.astral.sh/uv/guides/projects/>`_:
 
 .. code-block:: bash
+
     $ uv init searchbot \
       && cd searchbot
 
@@ -54,6 +56,7 @@ will create our virtual environment in a ``.venv`` directory and ensure it's
 ready. As a last step, we'll activate the environment and get started.
 
 .. code-block:: bash
+
     $ uv add "fastapi[standard]" \
       && uv add gel \
       && uv sync \
@@ -75,6 +78,7 @@ user query as an input and echoes it as an output. First, let's make a directory
 called ``app`` in our project root, and put an empty ``__init__.py`` there.
 
 .. code-block:: bash
+
    $ mkdir app && touch app/__init__.py
 
 Create a file called ``main.py`` inside the ``app`` directory and put the "Hello
@@ -95,12 +99,14 @@ World" example in it:
 To start the server, run:
 
 .. code-block:: bash
+
     $ fastapi dev app/main.py
 
 Once the server gets up and running, we can make sure it works using FastAPI's
 built-in UI at <http://127.0.0.1:8000/docs>_, or manually by using ``curl``:
 
 .. code-block:: bash
+
     $ curl -X 'GET' \
       'http://127.0.0.1:8000/' \
       -H 'accept: application/json'
@@ -123,6 +129,7 @@ Let's add the following to our ``main.py``:
 
 .. code-block:: python
     :caption: app/main.py
+
     from pydantic import BaseModel
 
 
@@ -137,6 +144,7 @@ Now we can define our endpoint and set the two classes we just added as its
 argument and return type.
 
 .. code-block:: python
+
     @app.post("/search")
     async def search(search_terms: SearchTerms) -> SearchResult:
         return SearchResult(response=search_terms.query)
@@ -145,6 +153,7 @@ Same as before, we can test the endpoint using the UI, or by sending a request
 with ``curl``:
 
 .. code-block:: bash
+
    $ curl -X 'POST' \
       'http://127.0.0.1:8000/search' \
       -H 'accept: application/json' \
@@ -172,6 +181,7 @@ way for us to get our search results is to employ the ``googlesearch-python``
 library:
 
 .. code-block:: bash
+
     $ uv add googlesearch-python
 
 As you can see from it's `repository
@@ -249,11 +259,13 @@ making HTTP requests, and Beautiful Soup, which is a commonly used HTML parsing
 library. Let's add them by running:
 
 .. code-block:: bash
+
     $ uv add beautifulsoup4 requests
 
 ... and test out LLM-generated solution to see if it works:
 
 .. code-block:: bash
+
     $ python3 app/web.py
 
     https://www.geldata.com
@@ -293,6 +305,7 @@ Step 4. Connect to the LLM
 ==========================
 
 .. note::
+
    add links to documentation
 
 Now that we're capable of scraping text from search results, we can forward
@@ -304,6 +317,7 @@ how ubiquitous it is. To avoid delicate fiddling with HTML requests, let's add
 their library as another dependency:
 
 .. code-block:: bash
+
     $ uv add openai
 
 Then we can grab some code straight from their `API documentation
@@ -311,6 +325,7 @@ Then we can grab some code straight from their `API documentation
 generation like this:
 
 .. code-block:: python
+
     from openai import OpenAI
     from dotenv import load_dotenv()
 
@@ -360,6 +375,7 @@ root directory and put your api key in there:
 
 .. code-block:: bash
    :caption: .env
+
    OPENAI_API_KEY="sk-..."
 
 And as usual, let's reflect the new capabilities in the app and test it:
@@ -375,6 +391,7 @@ And as usual, let's reflect the new capabilities in the app and test it:
         )
 
 .. code-block:: bash
+
    curl -X 'POST' \
       'http://127.0.0.1:8000/search' \
       -H 'accept: application/json' \
@@ -405,10 +422,11 @@ from the context of the entire conversation.
 Now's a good time to introduce Gel.
 
 In case you need installation instructions, take a look at :ref:`Quickstart UI
-<_ref_quickstart>`. Once Gel CLI is present in your system, initialize the
+<ref_quickstart>`. Once Gel CLI is present in your system, initialize the
 project like this:
 
 .. code-block:: bash
+
     $ gel project init --non-interactive
 
 This command is going to put some project scaffolding inside our app, spin up a
@@ -421,8 +439,8 @@ connection incantations.
 Defining the schema
 -------------------
 
-The database :ref:`schema <_ref_datamodel_index>` in Gel is defined
-declaratively. The :ref:`gel project init <_ref_cli_edgedb_project_init>`
+The database :ref:`schema <ref_datamodel_index>` in Gel is defined
+declaratively. The :ref:`gel project init <ref_cli_edgedb_project_init>`
 command has created a file called ``dbchema/default.esdl``, which we're going to
 use to define our types.
 
@@ -430,13 +448,14 @@ We obviously want to keep track of messages, so we need to represent those in
 the schema. By convention established in the LLM space, each message is going to
 have a role in addition to the message content itself. We can also get Gel to
 automatically keep track of message's creation time by adding a property callled
-``timestamp`` and setting its :ref:`default value <_ref_datamodel_props>` to the
-output of the :ref:`datetime_current() <_ref_std_datetime>` function. Finally,
+``timestamp`` and setting its :ref:`default value <ref_datamodel_props>` to the
+output of the :ref:`datetime_current() <ref_std_datetime>` function. Finally,
 LLM messages in our searchbot have souce URLs associated with them. Let's keep
 track of those too, by adding a :ref:`multi-link property
-<_ref_datamodel_links>`.
+<ref_datamodel_links>`.
 
 .. code-block:: sdl
+
     type Message {
         role: str;
         body: str;
@@ -450,6 +469,7 @@ Messages are grouped together into a chat, so let's add that entity to our
 schema too.
 
 .. code-block:: sdl
+
     type Chat {
         multi messages: Message;
     }
@@ -457,10 +477,11 @@ schema too.
 And chats all belong to a certain user, making up their chat history. One other
 thing we'd like to keep track of about our users is their username, and it would
 make sense for us to make sure that it's unique by using an ``excusive``
-:ref:`constraint <_ref_datamodel_constraints>`.
+:ref:`constraint <ref_datamodel_constraints>`.
 
 
 .. code-block:: sdl
+
     type User {
         name: str {
             constraint exclusive;
@@ -475,6 +496,7 @@ AI down the road, but we're gonna come back to that later.
 For now, this is the entire schema we came up with:
 
 .. code-block:: sdl
+
     module default {
         type Message {
             role: str;
@@ -497,14 +519,16 @@ For now, this is the entire schema we came up with:
         }
     }
 
-Let's use the :ref:`gel migration create <_ref_cli_edgedb_migration_create>` CLI
-command, followed by :ref:`gel migrate <_ref_cli_edgedb_migrate>` in order to
+Let's use the :ref:`gel migration create <ref_cli_edgedb_migration_create>` CLI
+command, followed by :ref:`gel migrate <ref_cli_edgedb_migrate>` in order to
 migrate to our new schema and proceed to writing some queries.
 
-.. code-block:: sdl
+.. code-block:: bash
+
     $ gel migration create
 
-.. code-block:: sdl
+.. code-block:: bash
+
     $ gel migrate
 
 Now that our schema is applied, let's quickly populate the database with some
@@ -513,6 +537,7 @@ writing queries in a bit, but for now you can just run the following command in
 the shell:
 
 .. code-block:: bash
+
     $ mkdir app/sample_data && cat << 'EOF' > app/sample_data/inserts.edgeql
     # Create users first
     insert User {
@@ -595,6 +620,7 @@ This created an ``app/sample_data/inserts.edgeql`` file, which we can now execut
 using the CLI like this:
 
 .. code-block:: bash
+
     $ gel query -f app/sample_data/inserts.edgeql
 
     {"id": "862de904-de39-11ef-9713-4fab09220c4a"}
@@ -602,11 +628,12 @@ using the CLI like this:
     {"id": "862de904-de39-11ef-9713-4fab09220c4a"}
     {"id": "862e400c-de39-11ef-9713-2f81f2b67013"}
 
-The :ref:`gel query <_ref_cli_edgedb_query>` command is one of many ways we can
+The :ref:`gel query <ref_cli_edgedb_query>` command is one of many ways we can
 execute a query in Gel. Now that we've done it, there's stuff in the database.
 Let's verify it by running:
 
 .. code-block:: bash
+
     $ gel query "select User { name };"
 
     {"name": "alice"}
@@ -619,7 +646,7 @@ With schema in place, it's time to focus on getting the data in and out of the
 database.
 
 In this tutorial we're going to write queries using :ref:`EdgeQL
-<_ref_intro_edgeql>` and then use :ref:`codegen <_edgedb-python-codegen>` to
+<ref_intro_edgeql>` and then use :ref:`codegen <edgedb-python-codegen>` to
 generate typesafe function that we can plug directly into out Python code. If
 you are completely unfamiliar with EdgeQL, now is a good time to check out the
 basics before proceeding.
@@ -639,6 +666,7 @@ in there:
 Now run the code generator from the shell:
 
 .. code-block:: bash
+
     $ gel-py
 
 It's going to automatically locate the ``.edgeql`` file and generate types for
@@ -646,6 +674,7 @@ it. We can inspect generated code in ``app.queries/get_users_async_edgeql.py``.
 Once that is done, let's use those types to create the endpoint in ``main.py``:
 
 .. code-block:: python
+
     from edgedb import create_async_client
     from .queries.get_users_async_edgeql import get_users as get_users_query, GetUsersResult
 
@@ -659,6 +688,7 @@ Once that is done, let's use those types to create the endpoint in ``main.py``:
 Let's verify it that works as expected:
 
 .. code-block:: bash
+
     $ curl -X 'GET' \
     'http://127.0.0.1:8000/users' \
     -H 'accept: application/json'
@@ -730,6 +760,7 @@ going to be ``None``, which will enable us to implement our conditional logic:
 And once again, let's verify that everything works:
 
 .. code-block:: bash
+
     $ curl -X 'GET' \
       'http://127.0.0.1:8000/users?username=alice' \
       -H 'accept: application/json'
@@ -745,6 +776,7 @@ before, we'll create a new file ``app/queries/create_user.edgeql``, add a query
 to it and run code generation.
 
 .. code-block:: edgeql
+
     select(
         insert User {
             name := <str>$username
@@ -762,6 +794,7 @@ endpoint. Note that this one has the same name ``/users``, but is for the POST
 HTTP method.
 
 .. code-block:: python
+
     from gel import ConstraintViolationError
     from .queries.create_user_async_edgeql import (
         create_user as create_user_query,
@@ -781,6 +814,7 @@ HTTP method.
 Once more, let's verify that the new endpoint works as expected:
 
 .. code-block:: bash
+
     $ curl -X 'POST' \
       'http://127.0.0.1:8000/users?username=charlie' \
       -H 'accept: application/json' \
@@ -839,6 +873,7 @@ below if you are in rush.
 
 .. code-block:: python
     :caption: app/main.py
+
     from .queries.get_chats_async_edgeql import get_chats as get_chats_query, GetChatsResult
     from .queries.get_chat_by_id_async_edgeql import (
         get_chat_by_id as get_chat_by_id_query,
@@ -897,6 +932,7 @@ messages, retrieving chat history, invoking web search and generating the
 answer.
 
 .. code-block:: python
+
     @app.post("/messages", status_code=HTTPStatus.CREATED)
     async def post_messages(
         search_terms: SearchTerms,
@@ -939,6 +975,7 @@ Let's not forget to modify the ``generate_answer`` function, so it can also be
 history-aware.
 
 .. code-block:: python
+
     async def generate_answer(
         query: str,
         chat_history: list[GetMessagesResult],
@@ -981,6 +1018,7 @@ Ok, this should be it for setting up the chat history. Let's test it. First, we
 are going to start a new chat for our user:
 
 .. code-block:: bash
+
     $ curl -X 'POST' \
       'http://127.0.0.1:8000/chats?username=charlie' \
       -H 'accept: application/json' \
@@ -995,6 +1033,7 @@ are going to start a new chat for our user:
 Next, let's add a couple messages and wait for the bot to respond:
 
 .. code-block:: bash
+
     $ curl -X 'POST' \
       'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
       -H 'accept: application/json' \
@@ -1029,6 +1068,7 @@ Finally, let's check that the messages we saw are in fact stored in the chat
 history:
 
 .. code-block:: bash
+
     $ curl -X 'GET' \
       'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
       -H 'accept: application/json'
@@ -1114,6 +1154,7 @@ modifications to the ``main.py``:
 
 .. code-block:: python
     :caption: app/main.py
+
     @app.post("/messages", status_code=HTTPStatus.CREATED)
     async def post_messages(
         search_terms: SearchTerms,
@@ -1210,12 +1251,14 @@ We begin by enabling the ``ai`` extension by adding the following like on top of
 the ``dbschema/default.esdl``:
 
 .. code-block:: sdl
+
     using extension ai;
 
 ... and do the migration:
 
 
 .. code-block:: bash
+
     $ gel migration create
     $ gel migrate
 
@@ -1223,7 +1266,8 @@ Next, we need to configure the API key in Gel for whatever embedding provider
 we're going to be using. As per documentation, let's open up the CLI by typing
 ``gel`` and run the following command (assuming we're using OpenAI):
 
-.. code-block:: edgeql
+.. code-block:: edgeql-repl
+
     searchbot:main> configure current database
     insert ext::ai::OpenAIProviderConfig {
       secret := 'sk-....',
@@ -1235,6 +1279,7 @@ In order to get Gel to automatically keep track of creating and updating message
 embeddings, all we need to do is create a deferred index like this:
 
 .. code-block:: sdl
+
     type Message {
         role: str;
         body: str;
@@ -1254,6 +1299,7 @@ embedding vectors for our queries. To make sure nothing broke we can follow
 Gel's AI documentation and take a look at instance logs:
 
 .. code-block:: bash
+
     $ gel instance logs -I searchbot | grep api.openai.com
 
     INFO 50121 searchbot 2025-01-30T14:39:53.364 httpx: HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
@@ -1264,6 +1310,7 @@ similar to our current message. This can be a little difficult to visualize in
 your head, so here's the query itself:
 
 .. code-block:: edgeql
+
     with
         user := (select User filter .name = <str>$username),
         chats := (select Chat filter .<chats[is User] = user)
@@ -1285,7 +1332,8 @@ your head, so here's the query itself:
 
 
 .. note::
-   Before we can integrate this query into out Python app, we also need to add a
+
+   Before we can integrate this query into our Python app, we also need to add a
    new dependency for the Python binding: ``httpx-sse``. It's enables streaming
    outputs, which we're not going to use right now, but we won't be able to
    create the AI client without it.
@@ -1294,6 +1342,7 @@ Let's place in in ``app/queries/search_chats.edgeql``, run the codegen and modif
 our ``post_messages`` endpoint to keep track of those similar chats.
 
 .. code-block:: python
+
     from edgedb.ai import create_async_ai, AsyncEdgeDBAI
     from .queries.search_chats_async_edgeql import (
         search_chats as search_chats_query,
@@ -1355,6 +1404,7 @@ Finally, the answer generator needs to get updated one more time, since we need
 to inject the additional messages into the prompt.
 
 .. code-block:: python
+
     async def generate_answer(
         query: str,
         chat_history: list[GetMessagesResult],
@@ -1407,6 +1457,7 @@ to inject the additional messages into the prompt.
 And one last time, let's check to make sure everything works:
 
 .. code-block:: bash
+
     $ curl -X 'POST' \
       'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
       -H 'accept: application/json' \
