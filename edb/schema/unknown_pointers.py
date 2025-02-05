@@ -37,7 +37,6 @@ from edb.edgeql import parser as qlparser
 
 from . import delta as sd
 from . import objects as so
-from . import objtypes as s_objtypes
 from . import properties as s_props
 from . import pointers
 from . import sources
@@ -127,7 +126,7 @@ class CreateUnknownPointer(
             # It's a link if the target is an object and so is the source.
             # If the source isn't, it's a link property, which will fail.
             if target.is_object_type()
-            and isinstance(source, s_objtypes.ObjectType)
+            and not isinstance(source, pointers.Pointer)
             else qlast.CreateConcreteProperty
         )
         astnode = astnode.replace(__class__=astcls)
@@ -169,7 +168,7 @@ class AlterUnknownPointer(
         source = obj.get_source(schema)
         is_prop = (
             isinstance(obj, s_props.Property)
-            or not isinstance(source, s_objtypes.ObjectType)
+            or isinstance(source, pointers.Pointer)
         )
 
         astcls = (
