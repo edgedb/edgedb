@@ -1,0 +1,43 @@
+[package]
+name = "gel-jwt"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# This is required to be in sync w/jsonwebtoken
+rand = "0.8.5"
+md5 = "0.7.0"
+sha2 = "0.10.8"
+constant_time_eq = "0.3"
+base64 = "0.22"
+thiserror = "2"
+hmac = "0.12.1"
+derive_more = { version = "1", features = ["debug"] }
+
+rustls-pki-types = "1"
+serde = "1"
+serde_derive = "1"
+jsonwebtoken = { version = "9", default-features = false }
+ring = { version = "0.17", default-features = false }
+rsa = { version = "0.9.7", default-features = false, features = ["std"] }
+pkcs1 = "0.7.5"
+pkcs8 = "0.10.2"
+sec1 = { version = "0.7.3", features = ["der", "pkcs8", "alloc"] }
+pem = "3"
+const-oid = { version ="0.9.6", features = ["db"] }
+p256 = { version = "0.13.2", features = ["jwk"] }
+base64ct = { version = "1", features = ["alloc"] }
+der = "0.7.9"
+libc = "0.2"
+
+[dev-dependencies]
+pretty_assertions = "1"
+rstest = "0.24.0"
+hex-literal = "0.4.1"
+divan = "0.1.17"
+
+[[bench]]
+name = "encode"
+harness = false
+
+[lib]

@@ -1,0 +1,26 @@
+    0:d=0  hl=3 l= 135 cons: SEQUENCE          
+    3:d=1  hl=2 l=   1 prim: INTEGER           :00
+    6:d=1  hl=2 l=  19 cons: SEQUENCE          
+    8:d=2  hl=2 l=   7 prim: OBJECT            :id-ecPublicKey
+   17:d=2  hl=2 l=   8 prim: OBJECT            :prime256v1
+   27:d=1  hl=2 l= 109 prim: OCTET STRING      
+      0000 - 30 6b 02 01 01 04 20 28-30 0f f1 58 33 bd 38 f2   0k.... (0..X3.8.
+      0010 - 03 71 48 d0 63 19 bf 83-cd 13 65 c1 de fa cf e3   .qH.c.....e.....
+      0020 - f3 71 ee 12 47 a1 ff a1-44 03 42 00 04 c1 cf 62   .q..G...D.B....b
+      0030 - 6f 1c 6d 3d 02 70 13 6b-76 5d 3d 89 da bb 66 e8   o.m=.p.kv]=...f.
+      0040 - 95 fe ae fa e3 54 14 01-89 57 c4 f5 c0 56 14 cc   .....T...W...V..
+      0050 - 43 ec cd 8d d4 93 24 14-7b 7b 83 a7 f8 83 12 6f   C.....$.{{.....o
+      0060 - 80 3b eb a2 eb 43 97 3c-95 89 a1 68 21            .;...C.<...h!
+-- OCTET STRING at offset 27 --
+    0:d=0  hl=2 l= 107 cons: SEQUENCE          
+    2:d=1  hl=2 l=   1 prim: INTEGER           :01
+    5:d=1  hl=2 l=  32 prim: OCTET STRING      
+      0000 - 28 30 0f f1 58 33 bd 38-f2 03 71 48 d0 63 19 bf   (0..X3.8..qH.c..
+      0010 - 83 cd 13 65 c1 de fa cf-e3 f3 71 ee 12 47 a1 ff   ...e......q..G..
+   39:d=1  hl=2 l=  68 cons: cont [ 1 ]        
+   41:d=2  hl=2 l=  66 prim: BIT STRING        
+      0000 - 00 04 c1 cf 62 6f 1c 6d-3d 02 70 13 6b 76 5d 3d   ....bo.m=.p.kv]=
+      0010 - 89 da bb 66 e8 95 fe ae-fa e3 54 14 01 89 57 c4   ...f......T...W.
+      0020 - f5 c0 56 14 cc 43 ec cd-8d d4 93 24 14 7b 7b 83   ..V..C.....$.{{.
+      0030 - a7 f8 83 12 6f 80 3b eb-a2 eb 43 97 3c 95 89 a1   ....o.;...C.<...
+      0040 - 68 21                                             h!
