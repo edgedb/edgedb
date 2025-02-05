@@ -99,18 +99,6 @@ class EDBSplitSection(d_rst.Directive):
                 f'no content found at end of edb:split-section block, '
                 f'or before/after the edb:split-point in the edb:split-section'
             )
-        for block in blocks:
-            if (
-                not isinstance(block, d_nodes.literal_block)
-                and not isinstance(block, TabsNode)
-                and not isinstance(block, d_nodes.image)
-                and not isinstance(block, d_nodes.figure)
-            ):
-                raise Exception(
-                    f'expected all content before/after the edb:split-point or '
-                    f'at the end of the edb:split-section to be either a '
-                    f'code block, code tabs, or image/figure'
-                )
         return [node]
 
 
