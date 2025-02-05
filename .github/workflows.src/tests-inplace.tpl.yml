@@ -1,6 +1,6 @@
 <% from "tests.inc.yml" import build, calc_cache_key, restore_cache -%>
 
-name: Tests of in-place upgrades
+name: Tests of in-place upgrades and patching
 
 on:
   schedule:
@@ -22,7 +22,7 @@ jobs:
         << calc_cache_key()|indent >>
     <%- endcall %>
 
-  test:
+  test-inplace:
     runs-on: ubuntu-latest
     needs: build
     strategy:
@@ -47,12 +47,23 @@ jobs:
       run: |
         ./tests/inplace-testing/test.sh ${{ matrix.flags }} vt ${{ matrix.tests }}
 
+  test-patches:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    <<- restore_cache() >>
+
+    - name: Test performing in-place upgrades
+      run: |
+        ./tests/patch-testing/test.sh test-dir -k test_link_on_target_delete -k test_edgeql_select -k test_edgeql_scope -k test_dump
+
   workflow-notifications:
     if: failure() && github.event_name != 'pull_request'
     name: Notify in Slack on failures
     needs:
       - build
-      - test
+      - test-inplace
+      - test-patches
     runs-on: ubuntu-latest
     permissions:
       actions: 'read'

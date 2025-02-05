@@ -63,7 +63,7 @@ def is_possibly_wrapped_distinct_expr(
     if not isinstance(tree, irast.SelectStmt):
         return None
 
-    return is_pure_distinct_expr(tree.result)
+    return is_set_expr(tree.result)
 
 
 def is_set_expr(tree: irast.Base) -> Optional[List[irast.Base]]:

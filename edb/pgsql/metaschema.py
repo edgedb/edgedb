@@ -8110,6 +8110,17 @@ def get_synthetic_type_views(
     return commands
 
 
+def _get_wrapper_views() -> dbops.CommandGroup:
+    # Create some trampolined wrapper views around _Schema types we need
+    # to reference from functions.
+    wrapper_commands = dbops.CommandGroup()
+    wrapper_commands.add_command(
+        dbops.CreateView(ObjectAncestorsView(), or_replace=True))
+    wrapper_commands.add_command(
+        dbops.CreateView(LinksView(), or_replace=True))
+    return wrapper_commands
+
+
 def get_support_views(
     schema: s_schema.Schema,
     backend_params: params.BackendRuntimeParams,
@@ -8139,13 +8150,7 @@ def get_support_views(
     synthetic_types = get_synthetic_type_views(schema, backend_params)
     commands.add_command(synthetic_types)
 
-    # Create some trampolined wrapper views around _Schema types we need
-    # to reference from functions.
-    wrapper_commands = dbops.CommandGroup()
-    wrapper_commands.add_command(
-        dbops.CreateView(ObjectAncestorsView(), or_replace=True))
-    wrapper_commands.add_command(
-        dbops.CreateView(LinksView(), or_replace=True))
+    wrapper_commands = _get_wrapper_views()
     commands.add_command(wrapper_commands)
 
     sys_alias_views = _generate_schema_alias_views(
@@ -8209,10 +8214,9 @@ async def generate_support_functions(
     return trampoline_functions(cmds)
 
 
-async def regenerate_config_support_functions(
-    conn: PGConnection,
+def _get_regenerated_config_support_functions(
     config_spec: edbconfig.Spec,
-) -> None:
+) -> dbops.CommandGroup:
     # Regenerate functions dependent on config spec.
     commands = dbops.CommandGroup()
 
@@ -8224,6 +8228,15 @@ async def regenerate_config_support_functions(
     cmds = [dbops.CreateFunction(func, or_replace=True) for func in funcs]
     commands.add_commands(cmds)
 
+    return commands
+
+
+async def regenerate_config_support_functions(
+    conn: PGConnection,
+    config_spec: edbconfig.Spec,
+) -> None:
+    # Regenerate functions dependent on config spec.
+    commands = _get_regenerated_config_support_functions(config_spec)
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)

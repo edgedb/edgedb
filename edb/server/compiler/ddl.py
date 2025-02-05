@@ -1405,9 +1405,10 @@ def administer_repair_schema(
 
     return dbstate.DDLQuery(
         sql=sql,
-        user_schema=current_tx.get_user_schema_if_updated(),  # type: ignore
+        user_schema=current_tx.get_user_schema_if_updated(),
         global_schema=current_tx.get_global_schema_if_updated(),
         config_ops=config_ops,
+        feature_used_metrics={},
     )
 
 

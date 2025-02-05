@@ -1820,6 +1820,7 @@ def process_update_body(
         pathctx.put_path_source_rvar(
             update_stmt, subject_path_id, table_relation
         )
+        put_iterator_bond(ctx.enclosing_cte_iterator, update_stmt)
 
         update_cte.query = update_stmt
 
@@ -3104,6 +3105,8 @@ def process_delete_body(
     have work to do here if there are link tables to clean up.
     """
     ctx.toplevel_stmt.append_cte(delete_cte)
+
+    put_iterator_bond(ctx.enclosing_cte_iterator, delete_cte.query)
 
     pointers = ir_stmt.links_to_delete[typeref.id]
 

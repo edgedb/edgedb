@@ -229,6 +229,15 @@ class CompilerContextLevel(compiler.ContextLevel):
     dml_stmts: Dict[Union[irast.MutatingStmt, irast.Set],
                     pgast.CommonTableExpr]
 
+    #: Inline DML functions may require additional CTEs.
+    #: Record such CTEs as well as the path used by their iterators.
+    #: This ensures CTEs are created only once, and that the correct
+    #: iterator bonds are applied.
+    inline_dml_ctes: dict[
+        irast.PathId,
+        tuple[irast.PathId, pgast.CommonTableExpr],
+    ]
+
     #: SQL statement corresponding to the IR statement
     #: currently being compiled.
     stmt: pgast.SelectStmt
@@ -363,6 +372,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.type_inheritance_ctes = {}
             self.ordered_type_ctes = []
             self.dml_stmts = {}
+            self.inline_dml_ctes = {}
             self.parent_rel = None
             self.pending_query = None
             self.materializing = frozenset()
@@ -405,6 +415,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.type_inheritance_ctes = prevlevel.type_inheritance_ctes
             self.ordered_type_ctes = prevlevel.ordered_type_ctes
             self.dml_stmts = prevlevel.dml_stmts
+            self.inline_dml_ctes = prevlevel.inline_dml_ctes
             self.parent_rel = prevlevel.parent_rel
             self.pending_query = prevlevel.pending_query
             self.materializing = prevlevel.materializing
