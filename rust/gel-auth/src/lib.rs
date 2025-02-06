@@ -1,8 +1,6 @@
 pub mod handshake;
 pub mod md5;
 pub mod scram;
-pub mod stringprep;
-mod stringprep_table;
 
 use rand::Rng;
 

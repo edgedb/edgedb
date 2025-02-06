@@ -13,12 +13,12 @@ python_extension = ["pyo3/serde"]
 optimizer = []
 
 [dependencies]
-gel_auth.workspace = true
+gel-auth.workspace = true
+gel-stream = { workspace = true, features = ["client"] }
 pyo3.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 db_proto.workspace = true
-gel-stream = { workspace = true, features = ["client"] }
 
 futures = "0"
 thiserror = "1"

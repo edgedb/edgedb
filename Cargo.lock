@@ -303,7 +303,7 @@ checksum = "9ac0150caa2ae65ca5bd83f25c7de183dea78d4d366469f148435e2acfbad0da"
 name = "captive_postgres"
 version = "0.1.0"
 dependencies = [
- "gel_auth",
+ "gel-auth",
  "nix",
  "openssl",
  "socket2",
@@ -958,6 +958,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "gel-auth"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "constant_time_eq",
+ "derive_more",
+ "hex-literal",
+ "hmac",
+ "md5",
+ "pretty_assertions",
+ "pyo3",
+ "rand",
+ "roaring",
+ "rstest 0.24.0",
+ "sha2",
+ "thiserror 2.0.3",
+ "tracing",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "gel-stream"
 version = "0.1.0"
 dependencies = [
@@ -980,26 +1001,6 @@ dependencies = [
  "tokio",
  "tokio-openssl",
  "webpki",
-]
-
-[[package]]
-name = "gel_auth"
-version = "0.1.0"
-dependencies = [
- "base64",
- "constant_time_eq",
- "derive_more",
- "hex-literal",
- "hmac",
- "md5",
- "pretty_assertions",
- "rand",
- "roaring",
- "rstest 0.23.0",
- "sha2",
- "thiserror 2.0.3",
- "tracing",
- "unicode-normalization",
 ]
 
 [[package]]
@@ -1982,8 +1983,8 @@ dependencies = [
  "db_proto",
  "derive_more",
  "futures",
+ "gel-auth",
  "gel-stream",
- "gel_auth",
  "hex-literal",
  "hexdump",
  "libc",
