@@ -97,6 +97,9 @@ class Source:
     def __repr__(self):
         return f'<edgeql.Source text={self._text!r}>'
 
+    def denormalized(self) -> Source:
+        return self
+
 
 class NormalizedSource(Source):
     def __init__(
@@ -139,6 +142,9 @@ class NormalizedSource(Source):
     def from_string(text: str) -> NormalizedSource:
         normalized = _normalize(text)
         return NormalizedSource(normalized, text, normalized.pack())
+
+    def denormalized(self) -> Source:
+        return Source.from_string(self._text)
 
 
 def inflate_span(

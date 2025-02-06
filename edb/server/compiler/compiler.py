@@ -586,7 +586,7 @@ class Compiler:
             disambiguate_column_names=False,
             backend_runtime_params=self.state.backend_runtime_params,
             protocol_version=defines.POSTGRES_PROTOCOL,
-        )
+        )[0]
 
     def compile_serialized_request(
         self,
@@ -2682,7 +2682,7 @@ def compile_sql_as_unit_group(
         ],
     )
 
-    sql_units = sql.compile_sql(
+    sql_units, force_non_normalized = sql.compile_sql(
         source,
         schema=schema,
         tx_state=sql_tx_state,
@@ -2702,6 +2702,7 @@ def compile_sql_as_unit_group(
     qug = dbstate.QueryUnitGroup(
         cardinality=sql_units[-1].cardinality,
         cacheable=True,
+        force_non_normalized=force_non_normalized,
     )
 
     for sql_unit in sql_units:

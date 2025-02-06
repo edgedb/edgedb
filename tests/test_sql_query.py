@@ -2936,6 +2936,20 @@ class TestSQLQuery(tb.SQLQueryTestCase):
                 select (), asdf
             ''')
 
+    async def test_sql_native_query_28(self):
+        await self.assert_sql_query_result(
+            "SELECT current_setting('search_path') as path",
+            [{"path": 'public'}],
+        )
+
+        await self.assert_sql_query_result(
+            '''
+            SELECT pg_get_serial_sequence('"public"."Book"', 1)
+                ::regclass::text as seq;
+            ''',
+            [{"seq": None}],
+        )
+
 
 class TestSQLQueryNonTransactional(tb.SQLQueryTestCase):
 

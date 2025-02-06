@@ -81,7 +81,7 @@ def compile_sql(
     backend_runtime_params: pg_params.BackendRuntimeParams,
     protocol_version: defines.ProtocolVersion,
     implicit_limit: Optional[int] = None,
-) -> List[dbstate.SQLQueryUnit]:
+) -> tuple[list[dbstate.SQLQueryUnit], bool]:
     def _try(
         q: str, normalized_params: List[int]
     ) -> List[dbstate.SQLQueryUnit]:
@@ -108,7 +108,7 @@ def compile_sql(
     normalized_params = list(source.extra_type_oids())
     try:
         try:
-            return _try(source.text(), normalized_params)
+            return _try(source.text(), normalized_params), False
         except DisableNormalization:
             # compiler requested non-normalized query (it needs it for static
             # evaluation)
@@ -120,7 +120,7 @@ def compile_sql(
                     # TODO: Can we tell the server to cache using non-extracted?
                     for unit in units:
                         unit.cacheable = False
-                    return units
+                    return units, True
             except DisableNormalization:
                 pass
 

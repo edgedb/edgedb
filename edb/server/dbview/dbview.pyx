@@ -1417,6 +1417,8 @@ cdef class DatabaseConnectionView:
             )
 
         source = query_req.source
+        if query_unit_group.force_non_normalized:
+            source = source.denormalized()
         return CompiledQuery(
             query_unit_group=query_unit_group,
             first_extra=source.first_extra(),
@@ -1445,6 +1447,9 @@ cdef class DatabaseConnectionView:
 
         desc_map = {}
         source = query_req.source
+        if qug.force_non_normalized:
+            source = source.denormalized()
+
         first_extra = source.first_extra()
         num_injected_params = 0
         if qug.globals is not None:
