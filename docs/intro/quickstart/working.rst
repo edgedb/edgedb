@@ -13,12 +13,12 @@ Working with our data
     .. code-tab:: sh
       :caption: Query builder
 
-      $ npm generate edgeql-js
+      $ npx generate edgeql-js
 
     .. code-tab:: sh
       :caption: Queries generator
 
-      $ npm generate queries
+      $ npx generate queries
 
 .. edb:split-section::
 
