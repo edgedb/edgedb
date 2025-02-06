@@ -12,7 +12,6 @@ Using EdgeDB with...
     nextjs_pages_router
     rest_apis_with_fastapi
     rest_apis_with_flask
-    fastapi_gelai_searchbot
     jupyter_notebook
     phoenix_github_oauth
     graphql_apis_with_strawberry
