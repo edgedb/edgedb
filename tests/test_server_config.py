@@ -1706,6 +1706,11 @@ class TestSeparateCluster(tb.TestCaseWithHttpClient):
             http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
         ) as sd:
             con1 = await sd.connect()
+
+            # Shouldn't be anything in INSTANCE CONFIG, to start.
+            res = await con1.query_single('DESCRIBE INSTANCE CONFIG;')
+            self.assertEqual(res, '')
+
             con2 = await sd.connect()
 
             await con1.execute('''
