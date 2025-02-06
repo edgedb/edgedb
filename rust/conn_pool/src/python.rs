@@ -79,7 +79,7 @@ type PythonConnId = u64;
 #[derive(Debug, Default, Clone, Copy, Add, AddAssign, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct ConnHandleId(u64);
 
-impl From<ConnHandleId> for Box<(dyn derive_more::Error + std::marker::Send + Sync + 'static)> {
+impl From<ConnHandleId> for Box<(dyn std::error::Error + std::marker::Send + Sync + 'static)> {
     fn from(val: ConnHandleId) -> Self {
         Box::new(ConnError::Underlying(format!("{val:?}")))
     }

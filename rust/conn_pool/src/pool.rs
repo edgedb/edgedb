@@ -61,7 +61,7 @@ pub struct PoolHandle<C: Connector> {
     conn: ConsumeOnDrop<HandleAndPool<C>>,
 }
 
-impl<C: Connector> Debug for PoolHandle<C> {
+impl<C: Connector> std::fmt::Debug for PoolHandle<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.conn.0.fmt(f)
     }
