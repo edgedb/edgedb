@@ -188,6 +188,16 @@ def _describe_config_inner(
         condition = f'EXISTS json_get(conf, {ql(fpn)})'
         if is_internal:
             condition = f'({condition}) AND testmode'
+        # For INSTANCE, filter out configs that are set to the default.
+        # This is because we currently implement the defaults by
+        # setting them with CONFIGURE INSTANCE, so we can't detect
+        # defaults by seeing what is unset.
+        if (
+            scope == qltypes.ConfigScope.INSTANCE
+            and (default := p.get_default(schema))
+        ):
+            condition = f'({condition}) AND {psource} ?!= ({default.text})'
+
         items.append(f"(\n{item}\n    IF {condition} ELSE ''\n  )")
 
     return items
