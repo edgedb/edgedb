@@ -24,8 +24,6 @@ from docutils import nodes as d_nodes
 from docutils.parsers import rst as d_rst
 from docutils.parsers.rst import directives as d_directives  # type: ignore
 
-from sphinx_code_tabs import TabsNode
-
 
 class EDBYoutubeEmbed(d_rst.Directive):
 
