@@ -74,6 +74,13 @@ async def handle_request(
                     handle_liveness_query(request, response, tenant),
                     interruptable=False,
                 )
+        elif (
+            path_parts[:2] == ['testmode', 'connpool-gc'] and
+            request.method == b'GET' and
+            server.in_test_mode()
+        ):
+            await tenant.testmode_connpool_gc(path_parts[2])
+            _response_ok(response, b'"OK"')
         else:
             _response(
                 response,

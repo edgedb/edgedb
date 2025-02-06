@@ -1125,6 +1125,12 @@ class Tenant(ha_base.ClusterProtocol):
 
                 await self._pg_ensure_database_not_connected(dbname)
 
+    async def testmode_connpool_gc(self, dbname: str) -> None:
+        if self.server.in_test_mode():
+            await self._pg_pool.prune_inactive_connections(
+                self.resolve_branch_name(dbname, None)
+            )
+
     async def _pg_ensure_database_not_connected(self, dbname: str) -> None:
         async with self.use_sys_pgcon() as pgcon:
             conns = await pgcon.sql_fetch_col(

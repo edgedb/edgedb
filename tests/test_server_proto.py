@@ -31,6 +31,7 @@ import edgedb
 from edb.common import devmode
 from edb.common import asyncutil
 from edb.testbase import server as tb
+from edb.server import args
 from edb.server.compiler import enums
 from edb.tools import test
 
@@ -2366,6 +2367,252 @@ class TestServerProto(tb.QueryTestCase):
         self.assertEqual(
             await self.con.query('SELECT 42'),
             [42])
+
+    async def test_server_proto_tx_32(self):
+        # Test default_transaction_isolation is respected on system/database
+        # levels, and read-only is playing as planned accordingly. We use a
+        # separate Gel server here to avoid interference with other tests.
+
+        async with tb.start_edgedb_server(
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
+            net_worker_mode="disabled",
+        ) as sd:
+            conn = await sd.connect()
+            try:
+                await self._test_server_proto_tx_32(sd, conn)
+            finally:
+                await conn.aclose()
+
+    async def _test_server_proto_tx_32(self, sd, conn):
+        await conn.query('''
+            CREATE TYPE X;
+        ''')
+
+        # First, set default_transaction_isolation on the system level
+        await conn.query('''
+            CONFIGURE SYSTEM
+                SET default_transaction_isolation := 'RepeatableRead';
+        ''')
+
+        # Verify isolation and access-mode are correct
+        async for tr in self.try_until_succeeds(ignore=AssertionError):
+            async with tr:
+                self.assertEqual(
+                    await conn.query(
+                        'select <str>sys::get_transaction_isolation();',
+                    ),
+                    ["RepeatableRead"],
+                )
+        with self.assertRaisesRegex(
+            edgedb.TransactionError,
+            'cannot execute.*RepeatableRead',
+        ):
+            await conn.query('''
+                Insert X;
+            ''')
+
+        # Verify again in an explicit transaction
+        tx = conn.transaction()
+        await tx.start()
+        self.assertEqual(
+            await conn.query(
+                'select <str>sys::get_transaction_isolation();',
+            ),
+            ["RepeatableRead"],
+        )
+        with self.assertRaisesRegex(
+            edgedb.TransactionError,
+            'read-only transaction',
+        ):
+            await conn.query('''
+                Insert X;
+            ''')
+        await tx.rollback()
+
+        # Changes to default_transaction_access_mode should not take effect
+        await conn.query('''
+            CONFIGURE SESSION
+                SET default_transaction_isolation := 'Serializable';
+        ''')
+        await conn.query('''
+            CONFIGURE SYSTEM
+                SET default_transaction_access_mode := 'ReadWrite';
+        ''')
+        await conn.query('''
+            CONFIGURE SESSION
+                RESET default_transaction_isolation;
+        ''')
+        with self.assertRaisesRegex(
+            edgedb.TransactionError,
+            'cannot execute.*RepeatableRead',
+        ):
+            await conn.query('''
+                Insert X;
+            ''')
+        # Though, they are remembered - we'll verify this in the very end.
+        await conn.query('''
+            CONFIGURE SESSION
+                SET default_transaction_isolation := 'Serializable';
+        ''')
+        await conn.query('''
+            CONFIGURE SYSTEM
+                SET default_transaction_access_mode := 'ReadOnly';
+        ''')
+
+        # Now, set default_transaction_isolation on the database level
+        await conn.query('''
+            CONFIGURE SESSION
+                SET default_transaction_access_mode := 'ReadWrite';
+        ''')
+        await conn.query('''
+            CONFIGURE CURRENT DATABASE
+                SET default_transaction_isolation := 'Serializable';
+            CONFIGURE SESSION
+                RESET default_transaction_isolation;
+            CONFIGURE SESSION
+                RESET default_transaction_access_mode;
+        ''')
+        sd.call_system_api(f"/server/testmode/connpool-gc/{conn.dbname}")
+
+        # Verify isolation and access-mode (inherited from system) are correct
+        self.assertEqual(
+            await conn.query(
+                'select <str>sys::get_transaction_isolation();',
+            ),
+            ["Serializable"],
+        )
+        async for tr in self.try_until_fails(
+            wait_for=edgedb.TransactionError,
+            wait_for_regexp='cannot execute.*ReadOnly',
+        ):
+            async with tr:
+                await conn.query('''
+                    Insert X;
+                ''')
+
+        # Similarly in an explicit transaction
+        tx = conn.transaction()
+        await tx.start()
+        self.assertEqual(
+            await conn.query(
+                'select <str>sys::get_transaction_isolation();',
+            ),
+            ["Serializable"],
+        )
+        with self.assertRaisesRegex(
+            edgedb.TransactionError,
+            'read-only transaction',
+        ):
+            await conn.query('''
+                Insert X;
+            ''')
+        await tx.rollback()
+
+        # Also override access mode on the database level
+        await conn.query('''
+            CONFIGURE SESSION
+                SET default_transaction_access_mode := 'ReadWrite';
+        ''')
+        await conn.query('''
+            CONFIGURE CURRENT DATABASE
+                SET default_transaction_access_mode := 'ReadWrite';
+            CONFIGURE SESSION
+                RESET default_transaction_access_mode;
+        ''')
+        self.assertEqual(
+            await conn.query(
+                'select <str>sys::get_transaction_isolation();',
+            ),
+            ["Serializable"],
+        )
+        await conn.query('''
+            Insert X;
+        ''')
+        async with conn.transaction():
+            self.assertEqual(
+                await conn.query(
+                    'select <str>sys::get_transaction_isolation();',
+                ),
+                ["Serializable"],
+            )
+            await conn.query('''
+                Insert X;
+            ''')
+
+        # Now reset the database level settings, we should get back to the
+        # system level RepeatableRead + ReadOnly
+        await conn.query('''
+            CONFIGURE CURRENT DATABASE
+                RESET default_transaction_isolation;
+            CONFIGURE CURRENT DATABASE
+                RESET default_transaction_access_mode;
+        ''')
+        sd.call_system_api(f"/server/testmode/connpool-gc/{conn.dbname}")
+        self.assertEqual(
+            await conn.query(
+                'select <str>sys::get_transaction_isolation();',
+            ),
+            ["RepeatableRead"],
+        )
+        with self.assertRaisesRegex(
+            edgedb.TransactionError,
+            'cannot execute.*RepeatableRead',
+        ):
+            await conn.query('''
+                Insert X;
+            ''')
+
+        # Reset the isolation on the system level first, the Gel default
+        # should be effective instead of backend PG default.
+        await conn.query('''
+            CONFIGURE SESSION
+                SET default_transaction_isolation := 'Serializable';
+            CONFIGURE SESSION
+                SET default_transaction_access_mode := 'ReadWrite';
+        ''')
+        await conn.query('''
+            CONFIGURE SYSTEM
+                RESET default_transaction_isolation;
+        ''')
+        await conn.query('''
+            CONFIGURE SESSION
+                RESET default_transaction_isolation;
+            CONFIGURE SESSION
+                RESET default_transaction_access_mode;
+        ''')
+        async for tr in self.try_until_succeeds(ignore=AssertionError):
+            async with tr:
+                self.assertEqual(
+                    await conn.query(
+                        'select <str>sys::get_transaction_isolation();',
+                    ),
+                    ["Serializable"],
+                )
+        # The previously-remembered ReadOnly is now effective
+        with self.assertRaisesRegex(
+            edgedb.TransactionError,
+            'cannot execute.*ReadOnly',
+        ):
+            await conn.query('''
+                Insert X;
+            ''')
+
+        # Reset the access mode on the system level, everything is back
+        await conn.query('''
+            CONFIGURE SESSION
+                SET default_transaction_access_mode := 'ReadWrite';
+        ''')
+        await conn.query('''
+            CONFIGURE SYSTEM
+                RESET default_transaction_access_mode;
+        ''')
+        await conn.query('''
+            CONFIGURE SESSION
+                RESET default_transaction_access_mode;
+        ''')
+        await conn.query('''
+            Insert X;
+        ''')
 
 
 class TestServerProtoMigration(tb.QueryTestCase):
