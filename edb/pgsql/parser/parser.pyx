@@ -271,6 +271,9 @@ cdef class Source:
     def from_string(cls, text: str) -> Source:
         return Source(text)
 
+    def denormalized(self) -> Source:
+        return self
+
 
 cdef class NormalizedSource(Source):
     def __init__(
@@ -383,6 +386,8 @@ cdef class NormalizedSource(Source):
             serialized,
         )
 
+    def denormalized(self) -> Source:
+        return Source.from_string(self._orig_text)
 
 def deserialize(serialized: bytes) -> Source:
     if serialized[0] == 0:

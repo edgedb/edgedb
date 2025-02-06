@@ -423,6 +423,8 @@ class QueryUnitGroup:
     cache_state: int = 0
     tx_seq_id: int = 0
 
+    force_non_normalized: bool = False
+
     @property
     def units(self) -> List[QueryUnit]:
         if self._unpacked_units is None:
