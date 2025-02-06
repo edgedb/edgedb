@@ -344,6 +344,7 @@ def eval_FuncCall(
         )
 
     if fn_name == "pg_get_serial_sequence":
+        eval_list(expr.args, ctx=ctx)
         # we do not expose sequences, so any calls to this function returns NULL
         return pgast.NullConstant()
 
