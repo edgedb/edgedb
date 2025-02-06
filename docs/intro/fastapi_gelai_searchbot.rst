@@ -27,8 +27,8 @@ The end result is going to look something like this:
     :alt: Placeholder
     :width: 100%
 
-Step 1. Initialize the project
-==============================
+1. Initialize the project
+=========================
 
 We're going to start by installing `uv <https://docs.astral.sh/uv/>`_ - a Python
 package manager that's going to simplify environment management for us. You can
@@ -67,8 +67,8 @@ ready. As a last step, we'll activate the environment and get started.
    session before running ``python``, ``gel`` or ``fastapi``-related commands.
 
 
-Step 2. Get started with FastAPI
-================================
+2. Get started with FastAPI
+===========================
 
 At this stage we need to follow FastAPI's `tutorial
 <https://fastapi.tiangolo.com/tutorial/>`_ to create the foundation of our app.
@@ -144,6 +144,7 @@ Now we can define our endpoint and set the two classes we just added as its
 argument and return type.
 
 .. code-block:: python
+    :caption: app/main.py
 
     @app.post("/search")
     async def search(search_terms: SearchTerms) -> SearchResult:
@@ -158,27 +159,24 @@ with ``curl``:
       'http://127.0.0.1:8000/search' \
       -H 'accept: application/json' \
       -H 'Content-Type: application/json' \
-      -d '{
-      "query": "string"
-    }'
+      -d '{ "query": "string" }'
 
     {
       "response": "string",
       "sources": null
     }
 
-Step 3. Implement web search
-============================
+3. Implement web search
+=======================
 
 Now that we have our web app infrastructure in place, let's add some substance
 to it by implementing web search capabilities.
 
-There're many powerful feature-rich products for LLM-driven web search (such as
-Brave for example). But for purely educational purposes in this tutorial we'll
-be sailing on the high seas 🏴‍☠️and scraping Google search results
-directly. Google tends to actively resist such behavior, so the most reliable
-way for us to get our search results is to employ the ``googlesearch-python``
-library:
+There're many powerful feature-rich products for LLM-driven web search. But for
+purely educational purposes in this tutorial we'll be sailing on the high seas
+🏴‍☠️and scraping Google search results directly. Google tends to actively
+resist such behavior, so the most reliable way for us to get our search results
+is to employ the ``googlesearch-python`` library:
 
 .. code-block:: bash
 
@@ -270,43 +268,44 @@ library. Let's add them by running:
 
     https://www.geldata.com
 
-Now it's time to reflect the new capabilities in our web app. Let's update our
-search function like this:
+Now it's time to reflect the new capabilities in our web app. Let's call our
+newly generated search function like this: search function like this:
 
 .. code-block:: python
-    :caption: app/main.py
+     :caption: app/main.py
 
-    from .web import fetch_web_sources
+     from .web import fetch_web_sources
 
-    class WebSource(BaseModel):
-        url: str | None = None
-        text: str | None = None
+     class WebSource(BaseModel):
+         url: str | None = None
+         text: str | None = None
 
-    @app.post("/search")
-    async def search(search_terms: SearchTerms) -> SearchResult:
-        web_sources = await search_web(search_terms.query)
-        return SearchResult(
-            response=search_terms.query, sources=[source.url for source in web_sources]
-        )
-
-
-    async def search_web(query: str) -> list[WebSource]:
-        web_sources = [
-            WebSource(url=url, text=text) for url, text in fetch_web_sources(query, limit=1)
-        ]
-        return web_sources
+     async def search_web(query: str) -> list[WebSource]:
+         web_sources = [
+             WebSource(url=url, text=text) for url, text in fetch_web_sources(query, limit=1)
+         ]
+         return web_sources
 
 Notice that we've created another Pydantic type to store our web search results.
 There's no framework-related reason for that, it's just nicer than passing
 dictionaries around.
 
+Now we can update the ``/search`` endpoint as follows:
 
-Step 4. Connect to the LLM
-==========================
+.. code-block:: python-diff
+    :caption: app/main.py
 
-.. note::
+      @app.post("/search")
+      async def search(search_terms: SearchTerms) -> SearchResult:
+    +     web_sources = await search_web(search_terms.query)
+    -     return SearchResult(response=search_terms.query)
+    +     return SearchResult(
+    +         response=search_terms.query, sources=[source.url for source in web_sources]
+    +     )
 
-   add links to documentation
+
+4. Connect to the LLM
+=====================
 
 Now that we're capable of scraping text from search results, we can forward
 those results to the LLM to get a nice-looking summary.
@@ -325,6 +324,7 @@ Then we can grab some code straight from their `API documentation
 generation like this:
 
 .. code-block:: python
+    :caption: app/main.py
 
     from openai import OpenAI
     from dotenv import load_dotenv()
@@ -373,32 +373,32 @@ browse `the readme
 although it's also quite simple to use. Create a file called ``.env`` in the
 root directory and put your api key in there:
 
-.. code-block:: bash
-   :caption: .env
+.. code-block:: .env
+    :caption: .env
 
-   OPENAI_API_KEY="sk-..."
+    OPENAI_API_KEY="sk-..."
 
 And as usual, let's reflect the new capabilities in the app and test it:
 
-.. code-block:: python
+.. code-block:: python-diff
+    :caption: app/main.py
 
-    @app.post("/search")
-    async def search(search_terms: SearchTerms) -> SearchResult:
-        web_sources = await search_web(search_terms.query)
-        response = await generate_answer(search_terms.query, web_sources)
-        return SearchResult(
-            response=response, sources=[source.url for source in web_sources]
-        )
+      @app.post("/search")
+      async def search(search_terms: SearchTerms) -> SearchResult:
+          web_sources = await search_web(search_terms.query)
+    +     response = await generate_answer(search_terms.query, web_sources)
+          return SearchResult(
+    -         response=search_terms.query, sources=[source.url for source in web_sources]
+    +         response=response, sources=[source.url for source in web_sources]
+          )
 
 .. code-block:: bash
 
-   curl -X 'POST' \
-      'http://127.0.0.1:8000/search' \
-      -H 'accept: application/json' \
-      -H 'Content-Type: application/json' \
-      -d '{
-      "query": "what is gel"
-    }'
+    $ curl -X 'POST' \
+        'http://127.0.0.1:8000/search' \
+        -H 'accept: application/json' \
+        -H 'Content-Type: application/json' \
+        -d '{ "query": "what is gel" }'
 
     {
       "response": "Gel is a next-generation database ... "
@@ -407,8 +407,8 @@ And as usual, let's reflect the new capabilities in the app and test it:
       ]
     }
 
-Step 5. Use Gel to implement chat history
-=========================================
+5. Use Gel to implement chat history
+====================================
 
 So far we've built an application that can take in a query, fetch top 5 Google
 search results for it, sift through them using an LLM, and generate a nice
@@ -421,7 +421,7 @@ from the context of the entire conversation.
 
 Now's a good time to introduce Gel.
 
-In case you need installation instructions, take a look at :ref:`Quickstart UI
+In case you need installation instructions, take a look at the :ref:`Quickstart
 <ref_quickstart>`. Once Gel CLI is present in your system, initialize the
 project like this:
 
@@ -455,6 +455,7 @@ track of those too, by adding a :ref:`multi-link property
 <ref_datamodel_links>`.
 
 .. code-block:: sdl
+    :caption: dbschema/default.esdl
 
     type Message {
         role: str;
@@ -469,6 +470,7 @@ Messages are grouped together into a chat, so let's add that entity to our
 schema too.
 
 .. code-block:: sdl
+    :caption: dbschema/default.esdl
 
     type Chat {
         multi messages: Message;
@@ -481,6 +483,7 @@ make sense for us to make sure that it's unique by using an ``excusive``
 
 
 .. code-block:: sdl
+    :caption: dbschema/default.esdl
 
     type User {
         name: str {
@@ -496,6 +499,7 @@ AI down the road, but we're gonna come back to that later.
 For now, this is the entire schema we came up with:
 
 .. code-block:: sdl
+    :caption: dbschema/default.esdl
 
     module default {
         type Message {
@@ -674,6 +678,7 @@ it. We can inspect generated code in ``app.queries/get_users_async_edgeql.py``.
 Once that is done, let's use those types to create the endpoint in ``main.py``:
 
 .. code-block:: python
+    :caption: app/main.py
 
     from edgedb import create_async_client
     from .queries.get_users_async_edgeql import get_users as get_users_query, GetUsersResult
@@ -776,6 +781,7 @@ before, we'll create a new file ``app/queries/create_user.edgeql``, add a query
 to it and run code generation.
 
 .. code-block:: edgeql
+    :caption: app/queries/create_user.edgeql
 
     select(
         insert User {
@@ -794,6 +800,7 @@ endpoint. Note that this one has the same name ``/users``, but is for the POST
 HTTP method.
 
 .. code-block:: python
+    :caption: app/main.py
 
     from gel import ConstraintViolationError
     from .queries.create_user_async_edgeql import (
@@ -931,87 +938,105 @@ made before. To this end, this function is where we're going to handle saving
 messages, retrieving chat history, invoking web search and generating the
 answer.
 
-.. code-block:: python
+.. code-block:: python-diff
+    :caption: app/main.py
 
-    @app.post("/messages", status_code=HTTPStatus.CREATED)
-    async def post_messages(
-        search_terms: SearchTerms,
-        username: str = Query(),
-        chat_id: str = Query(),
-    ) -> SearchResult:
-        chat_history = await get_messages_query(
-            gel_client, username=username, chat_id=chat_id
-        )
+    - @app.post("/search")
+    - async def search(search_terms: SearchTerms) -> SearchResult:
+    -     web_sources = await search_web(search_terms.query)
+    -     response = await generate_answer(search_terms.query, web_sources)
+    -     return SearchResult(
+    -         response=search_terms.query, sources=[source.url for source in web_sources]
+    -         response=response, sources=[source.url for source in web_sources]
+    -     )
 
-        _ = await add_message_query(
-            gel_client,
-            username=username,
-            message_role="user",
-            message_body=search_terms.query,
-            sources=[],
-            chat_id=chat_id,
-        )
+    + @app.post("/messages", status_code=HTTPStatus.CREATED)
+    + async def post_messages(
+    +     search_terms: SearchTerms,
+    +     username: str = Query(),
+    +     chat_id: str = Query(),
+    + ) -> SearchResult:
+    +     chat_history = await get_messages_query(
+    +         gel_client, username=username, chat_id=chat_id
+    +     )
 
-        search_query = search_terms.query
-        web_sources = await search_web(search_query)
+    +     _ = await add_message_query(
+    +         gel_client,
+    +         username=username,
+    +         message_role="user",
+    +         message_body=search_terms.query,
+    +         sources=[],
+    +         chat_id=chat_id,
+    +     )
 
-        search_result = await generate_answer(
-            search_terms.query, chat_history, web_sources
-        )
+    +     search_query = search_terms.query
+    +     web_sources = await search_web(search_query)
 
-        _ = await add_message_query(
-            gel_client,
-            username=username,
-            message_role="assistant",
-            message_body=search_result.response,
-            sources=search_result.sources,
-            chat_id=chat_id,
-        )
+    +     search_result = await generate_answer(
+    +         search_terms.query, chat_history, web_sources
+    +     )
 
-        return search_result
+    +     _ = await add_message_query(
+    +         gel_client,
+    +         username=username,
+    +         message_role="assistant",
+    +         message_body=search_result.response,
+    +         sources=search_result.sources,
+    +         chat_id=chat_id,
+    +     )
+
+    +     return search_result
 
 
 Let's not forget to modify the ``generate_answer`` function, so it can also be
 history-aware.
 
-.. code-block:: python
+.. code-block:: python-diff
+    :caption: app/main.py
 
-    async def generate_answer(
-        query: str,
-        chat_history: list[GetMessagesResult],
-        web_sources: list[WebSource],
-    ) -> SearchResult:
-        system_prompt = (
-            "You are a helpful assistant that answers user's questions"
-            + " by finding relevant information in web search results."
-        )
+      async def generate_answer(
+          query: str,
+    +     chat_history: list[GetMessagesResult],
+          web_sources: list[WebSource],
+    - ) -> str:
+    + ) -> SearchResult:
+          system_prompt = (
+              "You are a helpful assistant that answers user's questions"
+              + " by finding relevant information in web search results."
+          )
 
-        prompt = f"User search query: {query}\n\nWeb search results:\n"
+          prompt = f"User search query: {query}\n\nWeb search results:\n"
 
-        for i, source in enumerate(web_sources):
-            prompt += f"Result {i} (URL: {source.url}):\n"
-            prompt += f"{source.text}\n\n"
+          for i, source in enumerate(web_sources):
+              prompt += f"Result {i} (URL: {source.url}):\n"
+              prompt += f"{source.text}\n\n"
 
-        completion = llm_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt,
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ],
-        )
+    +     prompt += "Chat history:\n"
 
-        llm_response = completion.choices[0].message.content
-        search_result = SearchResult(
-            response=llm_response, sources=[source.url for source in web_sources]
-        )
+    +     for i, message in enumerate(chat_history):
+    +         prompt += f"{message.role}: {message.body} (sources: {message.sources})\n"
 
-        return search_result
+           completion = llm_client.chat.completions.create(
+               model="gpt-4o-mini",
+               messages=[
+                   {
+                       "role": "system",
+                       "content": system_prompt,
+                   },
+                   {
+                       "role": "user",
+                       "content": prompt,
+                   },
+               ],
+           )
+
+           llm_response = completion.choices[0].message.content
+    +      search_result = SearchResult(
+    +          response=llm_response,
+    +      )
+
+    -      return llm_response
+    +      return search_result
 
 
 Ok, this should be it for setting up the chat history. Let's test it. First, we
@@ -1152,45 +1177,9 @@ fetch the chat history, extract a search query from it using the LLM, and the
 other steps are going to the the same as before. Let's make the follwing
 modifications to the ``main.py``:
 
+
 .. code-block:: python
     :caption: app/main.py
-
-    @app.post("/messages", status_code=HTTPStatus.CREATED)
-    async def post_messages(
-        search_terms: SearchTerms,
-        username: str = Query(),
-        chat_id: str = Query(),
-    ) -> SearchResult:
-        chat_history = await get_messages_query(
-            gel_client, username=username, chat_id=chat_id
-        )
-
-        _ = await add_message_query(
-            gel_client,
-            username=username,
-            message_role="user",
-            message_body=search_terms.query,
-            sources=[],
-            chat_id=chat_id,
-        )
-
-        search_query = await generate_search_query(search_terms.query, chat_history)
-        web_sources = await search_web(search_query)
-
-        search_result = await generate_answer(
-            search_terms.query, chat_history, web_sources
-        )
-
-        _ = await add_message_query(
-            gel_client,
-            username=username,
-            message_role="assistant",
-            message_body=search_result.response,
-            sources=search_result.sources,
-            chat_id=chat_id,
-        )
-
-        return search_result
 
     async def generate_search_query(
         query: str, message_history: list[GetMessagesResult]
@@ -1227,8 +1216,52 @@ modifications to the ``main.py``:
         return llm_response
 
 
-Step 6. Use Gel's advanced features to create a RAG
-====================================================
+.. code-block:: python-diff
+    :caption: app/main.py
+
+    + @app.post("/messages", status_code=HTTPStatus.CREATED)
+      async def post_messages(
+          search_terms: SearchTerms,
+          username: str = Query(),
+          chat_id: str = Query(),
+      ) -> SearchResult:
+          chat_history = await get_messages_query(
+              gel_client, username=username, chat_id=chat_id
+          )
+
+          _ = await add_message_query(
+              gel_client,
+              username=username,
+              message_role="user",
+              message_body=search_terms.query,
+              sources=[],
+              chat_id=chat_id,
+          )
+
+    -     search_query = search_terms.query
+    +     search_query = await generate_search_query(search_terms.query, chat_history)
+          web_sources = await search_web(search_query)
+
+          search_result = await generate_answer(
+              search_terms.query, chat_history, web_sources
+          )
+
+          _ = await add_message_query(
+              gel_client,
+              username=username,
+              message_role="assistant",
+              message_body=search_result.response,
+              sources=search_result.sources,
+              chat_id=chat_id,
+          )
+
+          return search_result
+
+
+
+
+6. Use Gel's advanced features to create a RAG
+==============================================
 
 At this point we have a decent search bot that can refine a search query over
 multiple turns of a conversation.
@@ -1250,9 +1283,10 @@ schema.
 We begin by enabling the ``ai`` extension by adding the following like on top of
 the ``dbschema/default.esdl``:
 
-.. code-block:: sdl
+.. code-block:: sdl-diff
+    :caption: dbschema/default.esdl
 
-    using extension ai;
+    + using extension ai;
 
 ... and do the migration:
 
@@ -1278,19 +1312,19 @@ we're going to be using. As per documentation, let's open up the CLI by typing
 In order to get Gel to automatically keep track of creating and updating message
 embeddings, all we need to do is create a deferred index like this:
 
-.. code-block:: sdl
+.. code-block:: sdl-diff
 
-    type Message {
-        role: str;
-        body: str;
-        timestamp: datetime {
-            default := datetime_current();
-        }
-        multi sources: str;
+      type Message {
+          role: str;
+          body: str;
+          timestamp: datetime {
+              default := datetime_current();
+          }
+          multi sources: str;
 
-        deferred index ext::ai::index(embedding_model := 'text-embedding-3-small')
-            on (.body);
-    }
+    +     deferred index ext::ai::index(embedding_model := 'text-embedding-3-small')
+    +         on (.body);
+      }
 
 ... and run a migration one more time.
 
@@ -1310,6 +1344,7 @@ similar to our current message. This can be a little difficult to visualize in
 your head, so here's the query itself:
 
 .. code-block:: edgeql
+    :caption: app/queries/search_chats.edgeql
 
     with
         user := (select User filter .name = <str>$username),
@@ -1341,117 +1376,125 @@ your head, so here's the query itself:
 Let's place in in ``app/queries/search_chats.edgeql``, run the codegen and modify
 our ``post_messages`` endpoint to keep track of those similar chats.
 
-.. code-block:: python
+.. code-block:: python-diff
+    :caption: app.main.py
 
-    from edgedb.ai import create_async_ai, AsyncEdgeDBAI
-    from .queries.search_chats_async_edgeql import (
-        search_chats as search_chats_query,
-    )
+    + from edgedb.ai import create_async_ai, AsyncEdgeDBAI
+    + from .queries.search_chats_async_edgeql import (
+    +     search_chats as search_chats_query,
+    + )
 
-    @app.post("/messages", status_code=HTTPStatus.CREATED)
-    async def post_messages(
-        search_terms: SearchTerms,
-        username: str = Query(),
-        chat_id: str = Query(),
-    ) -> SearchResult:
-        # 1. Fetch chat history
-        chat_history = await get_messages_query(
-            gel_client, username=username, chat_id=chat_id
-        )
+      @app.post("/messages", status_code=HTTPStatus.CREATED)
+      async def post_messages(
+          search_terms: SearchTerms,
+          username: str = Query(),
+          chat_id: str = Query(),
+      ) -> SearchResult:
+          # 1. Fetch chat history
+          chat_history = await get_messages_query(
+              gel_client, username=username, chat_id=chat_id
+          )
 
-        # 2. Add incoming message to Gel
-        _ = await add_message_query(
-            gel_client,
-            username=username,
-            message_role="user",
-            message_body=search_terms.query,
-            sources=[],
-            chat_id=chat_id,
-        )
+          # 2. Add incoming message to Gel
+          _ = await add_message_query(
+              gel_client,
+              username=username,
+              message_role="user",
+              message_body=search_terms.query,
+              sources=[],
+              chat_id=chat_id,
+          )
 
-        # 3. Generate a query and perform googling
-        search_query = await generate_search_query(search_terms.query, chat_history)
-        web_sources = await search_web(search_query)
+          # 3. Generate a query and perform googling
+          search_query = await generate_search_query(search_terms.query, chat_history)
+          web_sources = await search_web(search_query)
 
-        # 4. Fetch similar chats
-        db_ai: AsyncEdgeDBAI = await create_async_ai(gel_client, model="gpt-4o-mini")
-        embedding = await db_ai.generate_embeddings(
-            search_query, model="text-embedding-3-small"
-        )
-        similar_chats = await search_chats_query(
-            gel_client, username=username, embedding=embedding, limit=1
-        )
+    +     # 4. Fetch similar chats
+    +     db_ai: AsyncEdgeDBAI = await create_async_ai(gel_client, model="gpt-4o-mini")
+    +     embedding = await db_ai.generate_embeddings(
+    +         search_query, model="text-embedding-3-small"
+    +     )
+    +     similar_chats = await search_chats_query(
+    +         gel_client, username=username, embedding=embedding, limit=1
+    +     )
 
-        # 5. Generate answer
-        search_result = await generate_answer(
-            search_terms.query, chat_history, web_sources, similar_chats
-        )
+          # 5. Generate answer
+          search_result = await generate_answer(
+    -         search_terms.query, chat_history, web_sources
+    +         search_terms.query, chat_history, web_sources, similar_chats
+          )
 
-        # 6. Add LLM response to Gel
-        _ = await add_message_query(
-            gel_client,
-            username=username,
-            message_role="assistant",
-            message_body=search_result.response,
-            sources=search_result.sources,
-            chat_id=chat_id,
-        )
+          # 6. Add LLM response to Gel
+          _ = await add_message_query(
+              gel_client,
+              username=username,
+              message_role="assistant",
+              message_body=search_result.response,
+              sources=search_result.sources,
+              chat_id=chat_id,
+          )
 
-        # 7. Send result back to the client
-        return search_result
+          # 7. Send result back to the client
+          return search_result
 
 Finally, the answer generator needs to get updated one more time, since we need
 to inject the additional messages into the prompt.
 
-.. code-block:: python
+.. code-block:: python-diff
+    :caption: app/main.py
 
-    async def generate_answer(
-        query: str,
-        chat_history: list[GetMessagesResult],
-        web_sources: list[WebSource],
-        similar_chats: list[list[GetMessagesResult]],
-    ) -> SearchResult:
-        system_prompt = (
-            "You are a helpful assistant that answers user's questions"
-            + " by finding relevant information in web search results."
-            + " You can reference previous conversation with the user that"
-            + " are provided to you, if they are relevant, by explicitly referring"
-            + " to them."
-        )
+      async def generate_answer(
+          query: str,
+          chat_history: list[GetMessagesResult],
+          web_sources: list[WebSource],
+    +     similar_chats: list[list[GetMessagesResult]],
+      ) -> SearchResult:
+          system_prompt = (
+              "You are a helpful assistant that answers user's questions"
+              + " by finding relevant information in web search results."
+    +         + " You can reference previous conversation with the user that"
+    +         + " are provided to you, if they are relevant, by explicitly referring"
+    +         + " to them."
+    +     )
 
-        prompt = f"User search query: {query}\n\nWeb search results:\n"
+          prompt = f"User search query: {query}\n\nWeb search results:\n"
 
-        for i, source in enumerate(web_sources):
-            prompt += f"Result {i} (URL: {source.url}):\n"
-            prompt += f"{source.text}\n\n"
+          for i, source in enumerate(web_sources):
+              prompt += f"Result {i} (URL: {source.url}):\n"
+              prompt += f"{source.text}\n\n"
 
-        prompt += "Similar chats with the same user:\n"
+          prompt += "Chat history:\n"
 
-        for i, chat in enumerate(similar_chats):
-            prompt += f"Chat {i}: \n"
-            for message in chat.messages:
-                prompt += f"{message.role}: {message.body} (sources: {message.sources})\n"
+          for i, message in enumerate(chat_history):
+              prompt += f"{message.role}: {message.body} (sources: {message.sources})\n"
 
-        completion = llm_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt,
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ],
-        )
+    +     prompt += "Similar chats with the same user:\n"
 
-        llm_response = completion.choices[0].message.content
-        search_result = SearchResult(
-            response=llm_response, sources=[source.url for source in web_sources]
-        )
+    +     for i, chat in enumerate(similar_chats):
+    +         prompt += f"Chat {i}: \n"
+    +         for message in chat.messages:
+    +             prompt += f"{message.role}: {message.body} (sources: {message.sources})\n"
 
-        return search_result
+          completion = llm_client.chat.completions.create(
+              model="gpt-4o-mini",
+              messages=[
+                  {
+                      "role": "system",
+                      "content": system_prompt,
+                  },
+                  {
+                      "role": "user",
+                      "content": prompt,
+                  },
+              ],
+          )
+
+          llm_response = completion.choices[0].message.content
+          search_result = SearchResult(
+              response=llm_response, sources=[source.url for source in web_sources]
+          )
+
+          return search_result
 
 
 And one last time, let's check to make sure everything works:
@@ -1462,9 +1505,7 @@ And one last time, let's check to make sure everything works:
       'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
       -H 'accept: application/json' \
       -H 'Content-Type: application/json' \
-      -d '{
-      "query": "how do i write a simple query in it?"
-    }'
+      -d '{ "query": "how do i write a simple query in it?" }'
 
     {
       "response": "To write a simple query in EdgeQL..."
