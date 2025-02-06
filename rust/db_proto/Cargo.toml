@@ -9,9 +9,9 @@ edition = "2021"
 workspace = true
 
 [dependencies]
-thiserror = "1"
+thiserror = "2"
 paste = "1"
-derive_more = { version = "1", features = ["full"] }
+derive_more = { version = "2", features = ["full"] }
 uuid = "1"
 
 [dev-dependencies]

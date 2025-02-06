@@ -13,17 +13,16 @@ python_extension = ["pyo3/serde"]
 optimizer = []
 
 [dependencies]
-gel_auth.workspace = true
+gel-auth.workspace = true
+gel-stream = { workspace = true, features = ["client"] }
 pyo3.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 db_proto.workspace = true
-gel-stream = { workspace = true, features = ["client"] }
 
 futures = "0"
-thiserror = "1"
+thiserror = "2"
 openssl = { version = "0.10.70", features = ["v111"] }
-tokio-openssl = "0.6.4"
 paste = "1"
 base64 = "0.22"
 rand = "0"
@@ -33,10 +32,7 @@ serde = "1"
 serde_derive = "1"
 percent-encoding = "2"
 bytemuck = { version = "1", features = ["derive"] }
-
-[dependencies.derive_more]
-version = "1.0.0-beta.6"
-features = ["full"]
+derive_more = { version = "2", features = ["full"] }
 
 [dev-dependencies]
 tracing-subscriber.workspace = true

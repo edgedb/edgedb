@@ -21,7 +21,7 @@ tracing.workspace = true
 futures = "0"
 scopeguard = "1"
 itertools = "0"
-thiserror = "1"
+thiserror = "2"
 strum = { version = "0.26", features = ["derive"] }
 consume_on_drop = "0"
 smart-default = "0"
@@ -35,9 +35,7 @@ rand = { version = "0.8.5", optional = true }
 statrs = { version = "0.17.1", optional = true }
 anyhow = { version = "1", optional = true }
 
-[dependencies.derive_more]
-version = "1.0.0-beta.6"
-features = ["full"]
+derive_more = { version = "2", features = ["full"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

@@ -187,7 +187,7 @@ impl TlsDriver for OpensslDriver {
         if let (Some(cert), Some(key)) = (cert.as_ref(), key.as_ref()) {
             let builder = openssl::x509::X509::from_der(cert.as_ref())?;
             ssl.set_certificate(&builder)?;
-            let builder = openssl::pkey::PKey::private_key_from_der(&key.secret_der())?;
+            let builder = openssl::pkey::PKey::private_key_from_der(key.secret_der())?;
             ssl.set_private_key(&builder)?;
         }
 
@@ -249,8 +249,8 @@ impl TlsDriver for OpensslDriver {
         } = params;
 
         let mut ssl = SslAcceptor::mozilla_intermediate_v5(SslMethod::tls_server())?;
-        let cert = openssl::x509::X509::from_der(&server_certificate.cert.as_ref())?;
-        let key = openssl::pkey::PKey::private_key_from_der(&server_certificate.key.secret_der())?;
+        let cert = openssl::x509::X509::from_der(server_certificate.cert.as_ref())?;
+        let key = openssl::pkey::PKey::private_key_from_der(server_certificate.key.secret_der())?;
         ssl.set_certificate(&cert)?;
         ssl.set_private_key(&key)?;
         ssl.set_min_proto_version(min_protocol_version.map(|s| s.into()))?;
@@ -290,10 +290,8 @@ impl TlsDriver for OpensslDriver {
 
         let mut stream = tokio_openssl::SslStream::new(params, stream)?;
         let res = Pin::new(&mut stream).do_handshake().await;
-        if res.is_err() {
-            if stream.ssl().verify_result() != X509VerifyResult::OK {
-                return Err(SslError::OpenSslErrorVerify(stream.ssl().verify_result()));
-            }
+        if res.is_err() && stream.ssl().verify_result() != X509VerifyResult::OK {
+            return Err(SslError::OpenSslErrorVerify(stream.ssl().verify_result()));
         }
 
         let alpn = stream
@@ -348,14 +346,14 @@ impl TlsDriver for OpensslDriver {
     }
 }
 
-fn ssl_select_next_proto<'a, 'b>(server: &'a [u8], client: &'b [u8]) -> Option<&'b [u8]> {
+fn ssl_select_next_proto<'b>(server: &[u8], client: &'b [u8]) -> Option<&'b [u8]> {
     let mut server_packet = server;
     while !server_packet.is_empty() {
-        let server_proto_len = *server_packet.get(0)? as usize;
+        let server_proto_len = *server_packet.first()? as usize;
         let server_proto = server_packet.get(1..1 + server_proto_len)?;
         let mut client_packet = client;
         while !client_packet.is_empty() {
-            let client_proto_len = *client_packet.get(0)? as usize;
+            let client_proto_len = *client_packet.first()? as usize;
             let client_proto = client_packet.get(1..1 + client_proto_len)?;
             if client_proto == server_proto {
                 return Some(client_proto);

@@ -17,7 +17,7 @@ hickory = ["dep:hickory-resolver"]
 __manual_tests = []
 
 [dependencies]
-derive_more = { version = "1", features = ["full"] }
+derive_more = { version = "2", features = ["full"] }
 thiserror = "2"
 futures = "0.3"
 
@@ -51,7 +51,6 @@ tokio = { version = "1", features = ["full"] }
 tempfile = "3"
 ntest = "0.9.3"
 rustls-pemfile = "2"
-rstest = "0.24.0"
 
 [lints]
 workspace = true

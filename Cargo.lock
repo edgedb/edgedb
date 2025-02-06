@@ -303,7 +303,7 @@ checksum = "9ac0150caa2ae65ca5bd83f25c7de183dea78d4d366469f148435e2acfbad0da"
 name = "captive_postgres"
 version = "0.1.0"
 dependencies = [
- "gel_auth",
+ "gel-auth",
  "nix",
  "openssl",
  "socket2",
@@ -438,7 +438,7 @@ dependencies = [
  "statrs",
  "strum",
  "test-log",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "tokio",
  "tracing",
 ]
@@ -457,9 +457,9 @@ checksum = "47d91586aac6b9f9e32032b8ebf58a8eb03f4b58d3e18ea493b8b2083cb7b88e"
 
 [[package]]
 name = "convert_case"
-version = "0.6.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
+checksum = "bb402b8d4c85569410425650ce3eddc7d698ed96d39a73f941b08fb63082f1e7"
 dependencies = [
  "unicode-segmentation",
 ]
@@ -577,24 +577,24 @@ dependencies = [
  "derive_more",
  "paste",
  "pretty_assertions",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "uuid",
 ]
 
 [[package]]
 name = "derive_more"
-version = "1.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
+checksum = "093242cf7570c207c83073cf82f79706fe7b8317e98620a47d5be7c3d8497678"
 dependencies = [
  "derive_more-impl",
 ]
 
 [[package]]
 name = "derive_more-impl"
-version = "1.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
+checksum = "bda628edc44c4bb645fbe0f758797143e4e07926f7ebf4e9bdfbd3d2ce621df3"
 dependencies = [
  "convert_case",
  "proc-macro2",
@@ -683,7 +683,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "snafu",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "unicode-width",
 ]
 
@@ -958,6 +958,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "gel-auth"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "constant_time_eq",
+ "derive_more",
+ "hex-literal",
+ "hmac",
+ "md5",
+ "pretty_assertions",
+ "pyo3",
+ "rand",
+ "roaring",
+ "rstest 0.24.0",
+ "sha2",
+ "thiserror 2.0.3",
+ "tracing",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "gel-stream"
 version = "0.1.0"
 dependencies = [
@@ -969,7 +990,6 @@ dependencies = [
  "ntest",
  "openssl",
  "openssl-sys",
- "rstest 0.24.0",
  "rustls",
  "rustls-pemfile",
  "rustls-pki-types",
@@ -980,26 +1000,6 @@ dependencies = [
  "tokio",
  "tokio-openssl",
  "webpki",
-]
-
-[[package]]
-name = "gel_auth"
-version = "0.1.0"
-dependencies = [
- "base64",
- "constant_time_eq",
- "derive_more",
- "hex-literal",
- "hmac",
- "md5",
- "pretty_assertions",
- "rand",
- "roaring",
- "rstest 0.23.0",
- "sha2",
- "thiserror 2.0.3",
- "tracing",
- "unicode-normalization",
 ]
 
 [[package]]
@@ -1065,7 +1065,7 @@ dependencies = [
  "num-traits",
  "pretty_assertions",
  "pyo3",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
 ]
 
 [[package]]
@@ -1982,8 +1982,8 @@ dependencies = [
  "db_proto",
  "derive_more",
  "futures",
+ "gel-auth",
  "gel-stream",
- "gel_auth",
  "hex-literal",
  "hexdump",
  "libc",
@@ -1998,9 +1998,8 @@ dependencies = [
  "serde",
  "serde_derive",
  "test-log",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "tokio",
- "tokio-openssl",
  "tracing",
  "tracing-subscriber",
  "url",
@@ -2177,11 +2176,8 @@ dependencies = [
 name = "pyo3_util"
 version = "0.1.0"
 dependencies = [
- "nix",
  "pyo3",
  "scopeguard",
- "thiserror 1.0.69",
- "tokio",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2530,7 +2526,6 @@ dependencies = [
  "pgrust",
  "pyo3",
  "pyo3_util",
- "tokio",
 ]
 
 [[package]]

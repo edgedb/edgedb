@@ -74,7 +74,10 @@ use sha2::{digest::FixedOutput, Digest, Sha256};
 use std::borrow::Cow;
 use std::str::FromStr;
 
-use crate::stringprep::sasl_normalize_password_bytes;
+pub mod stringprep;
+mod stringprep_table;
+
+use stringprep::sasl_normalize_password_bytes;
 
 const CHANNEL_BINDING_ENCODED: &str = "biws";
 const MINIMUM_NONCE_LENGTH: usize = 16;
