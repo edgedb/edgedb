@@ -4294,12 +4294,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """)
 
     async def test_edgeql_ddl_function_08(self):
-        with self.assertRaisesRegex(
+        async with self.assertRaisesRegexTx(
                 edgedb.InvalidFunctionDefinitionError,
                 r'invalid declaration.*unexpected type of the default'):
 
             await self.con.execute("""
                 CREATE FUNCTION ddlf_08(s: std::str = 1) -> std::str
+                    USING EdgeQL $$ SELECT "1" $$;
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidFunctionDefinitionError,
+                r'invalid declaration.*unexpected type of the default'):
+
+            await self.con.execute("""
+                CREATE FUNCTION ddlf_08(s: std::str = ()) -> std::str
                     USING EdgeQL $$ SELECT "1" $$;
             """)
 
@@ -6862,6 +6871,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 create type X {
                     create access policy test
                         allow all using (1);
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"using expression.* is of invalid type",
+        ):
+            await self.con.execute("""
+                create type X {
+                    create access policy test
+                        allow all using (());
                 };
             """)
 
@@ -9430,30 +9450,6 @@ type default::Foo {
 
         await self.con.execute(r"""
             DROP EXTENSION TestAuthExtension;
-        """)
-
-    async def test_edgeql_ddl_all_extensions_01(self):
-        # Install all extensions and then delete them all
-        exts = await self.con.query('''
-            select distinct sys::ExtensionPackage.name
-        ''')
-
-        ext_commands = ''.join(f'using extension {ext};\n' for ext in exts)
-        await self.con.execute(f"""
-            START MIGRATION TO {{
-                {ext_commands}
-                module default {{ }}
-            }};
-            POPULATE MIGRATION;
-            COMMIT MIGRATION;
-        """)
-
-        await self.con.execute(f"""
-            START MIGRATION TO {{
-                module default {{ }}
-            }};
-            POPULATE MIGRATION;
-            COMMIT MIGRATION;
         """)
 
     async def test_edgeql_ddl_role_01(self):
@@ -16306,6 +16302,7 @@ DDLStatement);
             create type T;
             insert T;
             insert T;
+            create function f(x: int64 = 0) -> int64 using (x);
             create function get_whatever() -> bool using (
                 all(T = T)
             );
@@ -16366,6 +16363,14 @@ DDLStatement);
             Q,
             [dict(func=False, alias=False, query=False)],
         )
+
+    async def test_edgeql_ddl_scoping_future_02(self):
+        await self.con.execute("""
+            create future simple_scoping;
+        """)
+        await self.con.execute("""
+            drop future simple_scoping;
+        """)
 
     async def test_edgeql_ddl_no_volatile_computable_01(self):
         async with self.assertRaisesRegexTx(

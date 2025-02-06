@@ -31,7 +31,7 @@ std::assert_single(
     CREATE ANNOTATION std::description :=
         "Check that the input set contains at most one element, raise
          CardinalityViolationError otherwise.";
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     SET preserves_optionality := true;
     USING SQL EXPRESSION;
 };
@@ -49,7 +49,7 @@ std::assert_exists(
     CREATE ANNOTATION std::description :=
         "Check that the input set contains at least one element, raise
          CardinalityViolationError otherwise.";
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     SET preserves_upper_cardinality := true;
     USING SQL EXPRESSION;
 };
@@ -67,7 +67,7 @@ std::assert_distinct(
     CREATE ANNOTATION std::description :=
         "Check that the input set is a proper set, i.e. all elements
          are unique";
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     SET preserves_optionality := true;
     SET preserves_upper_cardinality := true;
     USING SQL EXPRESSION;

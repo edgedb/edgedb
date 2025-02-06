@@ -3133,6 +3133,45 @@ class TestEdgeQLFunctionsInline(tb.QueryTestCase):
             sort=True,
         )
 
+    async def test_edgeql_functions_inline_nested_basic_21(self):
+        # Inner function body is a statement with a parent statement
+        #
+        # A function body may be a statement which contains references to a
+        # parent statement. Ensure that this parent's parameters are not
+        # substituted while inlining the function parameters.
+        #
+        # In this case the outer function's `for` contains the parameter `x`
+        # which is at risk of being substituted when the inner function
+        # inlines its parameters.
+        await self.con.execute('''
+            create function inner(x: int64) -> int64 {
+                set is_inlined := true;
+                using (select x)
+            };
+            create function foo(x: int64) -> set of int64 {
+                set is_inlined := true;
+                using (for y in {x, x + 1, x + 2} union (inner(y)));
+            };
+        ''')
+        await self.assert_query_result(
+            'select foo(<int64>{})',
+            [],
+        )
+        await self.assert_query_result(
+            'select foo(10)',
+            [10, 11, 12],
+        )
+        await self.assert_query_result(
+            'select foo({10, 20, 30})',
+            [10, 11, 12, 20, 21, 22, 30, 31, 32],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'for x in {10, 20, 30} union (select foo(x))',
+            [10, 11, 12, 20, 21, 22, 30, 31, 32],
+            sort=True,
+        )
+
     async def test_edgeql_functions_inline_nested_array_01(self):
         # Return array from inner function
         await self.con.execute('''
@@ -5551,6 +5590,155 @@ class TestEdgeQLFunctionsInline(tb.QueryTestCase):
             'select Bar{a, b}'
             'order by .a then .b',
             [{'a': 1, 'b': 10}],
+        )
+
+    async def test_edgeql_functions_inline_insert_basic_11(self):
+        # Check dml function in with clause has effect
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function foo(x: int64) -> Bar {
+                set is_inlined := true;
+                using ((insert Bar{ a := x }))
+            };
+        ''')
+
+        await self.assert_query_result(
+            'with temp := foo(1)'
+            'select temp.a',
+            [1],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1],
+        )
+
+        await self.assert_query_result(
+            'with temp := (for x in {2, 3, 4} union (select foo(x)))'
+            'select temp.a',
+            [2, 3, 4],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4],
+            sort=True,
+        )
+
+        await self.assert_query_result(
+            'with temp := (if true then foo(5) else <Bar>{})'
+            'select temp.a',
+            [5],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'with temp := (if false then foo(6) else <Bar>{})'
+            'select temp.a',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'with temp := (if true then <Bar>{} else foo(7))'
+            'select temp.a',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'with temp := (if false then <Bar>{} else foo(8))'
+            'select temp.a',
+            [8],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5, 8],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_insert_basic_12(self):
+        # Check dml function in with clause has effect but is not used
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function foo(x: int64) -> Bar {
+                set is_inlined := true;
+                using ((insert Bar{ a := x }))
+            };
+        ''')
+
+        await self.assert_query_result(
+            'with temp := foo(1)'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1],
+        )
+
+        await self.assert_query_result(
+            'with temp := (for x in {2, 3, 4} union (select foo(x)))'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4],
+            sort=True,
+        )
+
+        await self.assert_query_result(
+            'with temp := (if true then foo(5) else <Bar>{})'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'with temp := (if false then foo(6) else <Bar>{})'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'with temp := (if true then <Bar>{} else foo(7))'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'with temp := (if false then <Bar>{} else foo(8))'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5, 8],
+            sort=True,
         )
 
     async def test_edgeql_functions_inline_insert_iterator_01(self):
@@ -8003,6 +8191,192 @@ class TestEdgeQLFunctionsInline(tb.QueryTestCase):
             sort=True,
         )
 
+    async def test_edgeql_functions_inline_update_basic_06(self):
+        # Check dml function in with clause has effect
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function foo(x: int64, y: int64) -> set of Bar {
+                set is_inlined := true;
+                using ((update Bar filter .a <= y set { a := x }));
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+                insert Bar{a := 4};
+                insert Bar{a := 5};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := foo(0, 2)'
+            'select temp.a',
+            [0, 0],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [0, 0, 3, 4, 5],
+            sort=True,
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (for x in {1, 2, 3} union (select foo(x-1, x)))'
+            'select temp.a',
+            [0, 1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [0, 1, 2, 4, 5],
+            sort=True,
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if true then foo(0, 2) else <Bar>{})'
+            'select temp.a',
+            [0, 0],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [0, 0, 3, 4, 5],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if false then foo(0, 2) else <Bar>{})'
+            'select temp.a',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if true then <Bar>{} else foo(0, 2))'
+            'select temp.a',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if false then <Bar>{} else foo(0, 2))'
+            'select temp.a',
+            [0, 0],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [0, 0, 3, 4, 5],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_update_basic_07(self):
+        # Check dml function in with clause has effect but is not used
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function foo(x: int64, y: int64) -> set of Bar {
+                set is_inlined := true;
+                using ((update Bar filter .a <= y set { a := x }));
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+                insert Bar{a := 4};
+                insert Bar{a := 5};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := foo(0, 2)'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [0, 0, 3, 4, 5],
+            sort=True,
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (for x in {1, 2, 3} union (select foo(x-1, x)))'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [0, 1, 2, 4, 5],
+            sort=True,
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if true then foo(0, 2) else <Bar>{})'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [0, 0, 3, 4, 5],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if false then foo(0, 2) else <Bar>{})'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if true then <Bar>{} else foo(0, 2))'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if false then <Bar>{} else foo(0, 2))'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [0, 0, 3, 4, 5],
+            sort=True,
+        )
+
     async def test_edgeql_functions_inline_update_iterator_01(self):
         await self.con.execute('''
             create type Bar {
@@ -9932,6 +10306,192 @@ class TestEdgeQLFunctionsInline(tb.QueryTestCase):
         await self.assert_query_result(
             'select Bar.a',
             [],
+        )
+
+    async def test_edgeql_functions_inline_delete_basic_06(self):
+        # Check dml function in with clause has effect
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function foo(x: int64) -> set of Bar {
+                set is_inlined := true;
+                using ((delete Bar filter .a <= x));
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+                insert Bar{a := 4};
+                insert Bar{a := 5};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := foo(2)'
+            'select temp.a',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3, 4, 5],
+            sort=True,
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (for x in {1, 2, 3} union (select foo(x)))'
+            'select temp.a',
+            [1, 2, 3],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [4, 5],
+            sort=True,
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if true then foo(2) else <Bar>{})'
+            'select temp.a',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3, 4, 5],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if false then foo(2) else <Bar>{})'
+            'select temp.a',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if true then <Bar>{} else foo(2))'
+            'select temp.a',
+            [],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if false then <Bar>{} else foo(2))'
+            'select temp.a',
+            [1, 2],
+            sort=True,
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3, 4, 5],
+            sort=True,
+        )
+
+    async def test_edgeql_functions_inline_delete_basic_07(self):
+        # Check dml function in with clause has effect but is not used
+        await self.con.execute('''
+            create type Bar {
+                create required property a -> int64;
+            };
+            create function foo(x: int64) -> set of Bar {
+                set is_inlined := true;
+                using ((delete Bar filter .a <= x));
+            };
+        ''')
+
+        async def reset_data():
+            await self.con.execute('''
+                delete Bar;
+                insert Bar{a := 1};
+                insert Bar{a := 2};
+                insert Bar{a := 3};
+                insert Bar{a := 4};
+                insert Bar{a := 5};
+            ''')
+
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := foo(2)'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3, 4, 5],
+            sort=True,
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (for x in {1, 2, 3} union (select foo(x)))'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [4, 5],
+            sort=True,
+        )
+
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if true then foo(2) else <Bar>{})'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3, 4, 5],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if false then foo(2) else <Bar>{})'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if true then <Bar>{} else foo(2))'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [1, 2, 3, 4, 5],
+            sort=True,
+        )
+        await reset_data()
+        await self.assert_query_result(
+            'with temp := (if false then <Bar>{} else foo(2))'
+            'select 99',
+            [99],
+        )
+        await self.assert_query_result(
+            'select Bar.a',
+            [3, 4, 5],
+            sort=True,
         )
 
     async def test_edgeql_functions_inline_delete_iterator_01(self):

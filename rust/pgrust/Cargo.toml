@@ -22,7 +22,7 @@ db_proto.workspace = true
 
 futures = "0"
 thiserror = "2"
-openssl = { version = "0.10.66", features = ["v111"] }
+openssl = { version = "0.10.70", features = ["v111"] }
 paste = "1"
 base64 = "0.22"
 rand = "0"

@@ -64,6 +64,12 @@ class NodeTransformer(visitor.NodeVisitor):
             changes = {}
 
             for field, old_value in base.iter_fields(node, include_meta=False):
+                field_spec = node._fields[field]
+                if self.skip_hidden and field_spec.hidden:
+                    continue
+                if field in self.extra_skips:
+                    continue
+
                 old_value = getattr(node, field, None)
 
                 if typeutils.is_container(old_value):
@@ -79,6 +85,12 @@ class NodeTransformer(visitor.NodeVisitor):
 
         else:
             for field, old_value in base.iter_fields(node, include_meta=False):
+                field_spec = node._fields[field]
+                if self.skip_hidden and field_spec.hidden:
+                    continue
+                if field in self.extra_skips:
+                    continue
+
                 old_value = getattr(node, field, None)
 
                 if typeutils.is_container(old_value):

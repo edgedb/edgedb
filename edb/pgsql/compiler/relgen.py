@@ -3509,42 +3509,57 @@ def _compile_inlined_call_args(
     if irutils.contains_dml(expr.body):
         last_iterator = ctx.enclosing_cte_iterator
 
-        # Compile args into an iterator CTE
-        with ctx.newrel() as arg_ctx:
-            dml.merge_iterator(last_iterator, arg_ctx.rel, ctx=arg_ctx)
-            clauses.setup_iterator_volatility(last_iterator, ctx=arg_ctx)
+        # If this function call has already been compiled to a CTE, don't
+        # recompile the arguments.
+        # (This will happen when a DML-containing funcion in a FOR loop is
+        # WITH bound, for example.)
+        if ir_set.path_id in ctx.inline_dml_ctes:
+            args_pathid, arg_cte = ctx.inline_dml_ctes[ir_set.path_id]
 
-            _compile_call_args(ir_set, ctx=arg_ctx)
+        else:
+            # Compile args into an iterator CTE
+            with ctx.newrel() as arg_ctx:
+                dml.merge_iterator(last_iterator, arg_ctx.rel, ctx=arg_ctx)
+                clauses.setup_iterator_volatility(last_iterator, ctx=arg_ctx)
 
-            # Add iterator identity
-            args_pathid = irast.PathId.new_dummy(ctx.env.aliases.get('args'))
-            with arg_ctx.subrel() as args_pathid_ctx:
-                relctx.create_iterator_identity_for_path(
-                    args_pathid, args_pathid_ctx.rel, ctx=args_pathid_ctx
+                _compile_call_args(ir_set, ctx=arg_ctx)
+
+                # Add iterator identity
+                args_pathid = irast.PathId.new_dummy(
+                    ctx.env.aliases.get('args')
                 )
-            args_id_rvar = relctx.rvar_for_rel(
-                args_pathid_ctx.rel, lateral=True, ctx=arg_ctx
-            )
-            relctx.include_rvar(
-                arg_ctx.rel, args_id_rvar, path_id=args_pathid, ctx=arg_ctx
-            )
-
-            for ir_arg in expr.args.values():
-                arg_path_id = ir_arg.expr.path_id
-                # Ensure args appear in arg CTE
-                pathctx.get_path_output(
-                    arg_ctx.rel,
-                    arg_path_id,
-                    aspect=pgce.PathAspect.VALUE,
-                    env=arg_ctx.env,
+                with arg_ctx.subrel() as args_pathid_ctx:
+                    relctx.create_iterator_identity_for_path(
+                        args_pathid, args_pathid_ctx.rel, ctx=args_pathid_ctx
+                    )
+                args_id_rvar = relctx.rvar_for_rel(
+                    args_pathid_ctx.rel, lateral=True, ctx=arg_ctx
                 )
-                pathctx.put_path_bond(arg_ctx.rel, arg_path_id, iterator=True)
+                relctx.include_rvar(
+                    arg_ctx.rel, args_id_rvar, path_id=args_pathid, ctx=arg_ctx
+                )
 
-        arg_cte = pgast.CommonTableExpr(
-            name=ctx.env.aliases.get('args'),
-            query=arg_ctx.rel,
-            materialized=False,
-        )
+                for ir_arg in expr.args.values():
+                    arg_path_id = ir_arg.expr.path_id
+                    # Ensure args appear in arg CTE
+                    pathctx.get_path_output(
+                        arg_ctx.rel,
+                        arg_path_id,
+                        aspect=pgce.PathAspect.VALUE,
+                        env=arg_ctx.env,
+                    )
+                    pathctx.put_path_bond(
+                        arg_ctx.rel, arg_path_id, iterator=True
+                    )
+
+            arg_cte = pgast.CommonTableExpr(
+                name=ctx.env.aliases.get('args'),
+                query=arg_ctx.rel,
+                materialized=False,
+            )
+            ctx.toplevel_stmt.append_cte(arg_cte)
+
+            ctx.inline_dml_ctes[ir_set.path_id] = (args_pathid, arg_cte)
 
         arg_iterator = pgast.IteratorCTE(
             path_id=args_pathid,
@@ -3556,7 +3571,6 @@ def _compile_inlined_call_args(
             ),
             iterator_bond=True,
         )
-        ctx.toplevel_stmt.append_cte(arg_cte)
 
         # Merge the new iterator
         ctx.path_scope = ctx.path_scope.new_child()

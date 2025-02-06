@@ -1,0 +1,480 @@
+diff --git a/edb/edgeql/ast.py b/edb/edgeql/ast.py
+index 4c7bc4d3c..70a30b9c1 100644
+--- a/edb/edgeql/ast.py
++++ b/edb/edgeql/ast.py
+@@ -1149,6 +1149,23 @@ class SetGlobalType(SetField):
+     reset_value: bool = False
+ 
+ 
++class BlobalCommand(ObjectDDL):
++
++    __abstract_node__ = True
++
++
++class CreateBlobal(CreateObject, BlobalCommand):
++    pass
++
++
++class AlterBlobal(AlterObject, BlobalCommand):
++    pass
++
++
++class DropBlobal(DropObject, BlobalCommand):
++    pass
++
++
+ class LinkCommand(ObjectDDL):
+ 
+     __abstract_node__ = True
+diff --git a/edb/edgeql/codegen.py b/edb/edgeql/codegen.py
+index c131325c7..00fbaec63 100644
+--- a/edb/edgeql/codegen.py
++++ b/edb/edgeql/codegen.py
+@@ -2461,6 +2461,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
+     def visit_DropGlobal(self, node: qlast.DropGlobal) -> None:
+         self._visit_DropObject(node, 'GLOBAL')
+ 
++    def visit_CreateBlobal(self, node: qlast.CreateGlobal) -> None:
++        self._visit_CreateObject(node, 'BLOBAL')
++
++    def visit_DropBlobal(self, node: qlast.DropGlobal) -> None:
++        self._visit_DropObject(node, 'BLOBAL')
++
+     def visit_ConfigSet(self, node: qlast.ConfigSet) -> None:
+         if node.scope == qltypes.ConfigScope.GLOBAL:
+             self._write_keywords('SET GLOBAL ')
+diff --git a/edb/edgeql/parser/grammar/ddl.py b/edb/edgeql/parser/grammar/ddl.py
+index d6e6b73ec..94f4df8e6 100644
+--- a/edb/edgeql/parser/grammar/ddl.py
++++ b/edb/edgeql/parser/grammar/ddl.py
+@@ -247,6 +247,14 @@ class InnerDDLStmt(Nonterm):
+     def reduce_DropGlobalStmt(self, *_):
+         pass
+ 
++    @parsing.inline(0)
++    def reduce_CreateBlobalStmt(self, *_):
++        pass
++
++    @parsing.inline(0)
++    def reduce_DropBlobalStmt(self, *_):
++        pass
++
+     @parsing.inline(0)
+     def reduce_DropCastStmt(self, *_):
+         pass
+@@ -3566,6 +3574,38 @@ class DropGlobalStmt(Nonterm):
+             name=kids[2].val
+         )
+ 
++#
++# CREATE BLOBAL
++#
++
++
++commands_block(
++    'CreateBlobal',
++    SetFieldStmt,
++    CreateAnnotationValueStmt,
++)
++
++
++class CreateBlobalStmt(Nonterm):
++    def reduce_CreateBlobal(self, *kids):
++        """%reduce
++            CREATE BLOBAL NodeName
++            OptCreateBlobalCommandsBlock
++        """
++        self.val = qlast.CreateBlobal(
++            name=kids[2].val,
++            commands=kids[3].val,
++        )
++
++
++class DropBlobalStmt(Nonterm):
++    def reduce_DropBlobal(self, *kids):
++        r"""%reduce DROP BLOBAL NodeName"""
++        self.val = qlast.DropBlobal(
++            name=kids[2].val
++        )
++
++
+ #
+ # MIGRATIONS
+ #
+diff --git a/edb/lib/_testmode.edgeql b/edb/lib/_testmode.edgeql
+index 761a5dc53..d9a70f541 100644
+--- a/edb/lib/_testmode.edgeql
++++ b/edb/lib/_testmode.edgeql
+@@ -232,6 +232,15 @@ create extension package _conf VERSION '1.0' {
+ 
+ # std::_gen_series
+ 
++CREATE FUNCTION
++std::_upgrade_test(
++) -> std::str
++{
++    SET volatility := 'Immutable';
++    USING ('asdf');
++};
++
++
+ CREATE FUNCTION
+ std::_gen_series(
+     `start`: std::int64,
+diff --git a/edb/lib/schema.edgeql b/edb/lib/schema.edgeql
+index ae5c70d5b..b7692b16c 100644
+--- a/edb/lib/schema.edgeql
++++ b/edb/lib/schema.edgeql
+@@ -526,9 +526,17 @@ CREATE TYPE schema::Global EXTENDING schema::AnnotationSubject {
+ };
+ 
+ 
++CREATE TYPE schema::Blobal EXTENDING schema::AnnotationSubject {
++    CREATE PROPERTY required -> std::bool;
++};
++
++
+ CREATE TYPE schema::Function
+     EXTENDING schema::CallableObject, schema::VolatilitySubject
+ {
++    CREATE PROPERTY test_field_a -> std::str;
++    CREATE PROPERTY test_nativecode_size -> std::int64;
++
+     CREATE PROPERTY preserves_optionality -> std::bool {
+         SET default := false;
+     };
+diff --git a/edb/pgsql/delta.py b/edb/pgsql/delta.py
+index b447e6a4c..fc7ee4a74 100644
+--- a/edb/pgsql/delta.py
++++ b/edb/pgsql/delta.py
+@@ -748,6 +748,38 @@ class DeleteGlobal(
+     pass
+ 
+ 
++class BlobalCommand(MetaCommand):
++    pass
++
++
++class CreateBlobal(
++    BlobalCommand,
++    adapts=s_globals.CreateBlobal,
++):
++    pass
++
++
++class RenameBlobal(
++    BlobalCommand,
++    adapts=s_globals.RenameBlobal,
++):
++    pass
++
++
++class AlterBlobal(
++    BlobalCommand,
++    adapts=s_globals.AlterBlobal,
++):
++    pass
++
++
++class DeleteBlobal(
++    BlobalCommand,
++    adapts=s_globals.DeleteBlobal,
++):
++    pass
++
++
+ class AccessPolicyCommand(MetaCommand):
+     pass
+ 
+diff --git a/edb/pgsql/patches.py b/edb/pgsql/patches.py
+index 9d63263a9..0a6f9eca6 100644
+--- a/edb/pgsql/patches.py
++++ b/edb/pgsql/patches.py
+@@ -60,4 +60,38 @@ The current kinds are:
+  * ...+testmode - only run the patch in testmode. Works with any patch kind.
+ """
+ PATCHES: list[tuple[str, str]] = [
++    ('edgeql', '''
++CREATE FUNCTION
++std::_upgrade_test(
++) -> std::str
++{
++    SET volatility := 'Immutable';
++    USING ('asdf');
++};
++'''),
++    ('edgeql+schema', '''
++CREATE TYPE schema::Blobal EXTENDING schema::AnnotationSubject {
++    CREATE PROPERTY required -> std::bool;
++};
++# ASDF! We can't apply these separately because it gets picked up from
++# the present schema nonsense!
++# The patch system is so janky.
++# Worse, adding these publically only works in the *first* +schema patch.
++ALTER TYPE schema::Function
++{
++    CREATE PROPERTY test_field_a -> std::str;
++    CREATE PROPERTY test_nativecode_size -> std::int64;
++};
++'''),
++    ('repair', ''),
++    ('edgeql+schema+config+testmode', '''
++ALTER TYPE cfg::AbstractConfig {
++    CREATE PROPERTY __internal_sess_testvalue2 -> std::str {
++        CREATE ANNOTATION cfg::internal := 'true';
++        SET default := '!';
++    };
++};
++'''),
++    ('sql-introspection', ''),
++    ('metaschema-sql', 'SysConfigFullFunction'),
+ ]
+diff --git a/edb/schema/functions.py b/edb/schema/functions.py
+index 5e96de151..96f87b6b6 100644
+--- a/edb/schema/functions.py
++++ b/edb/schema/functions.py
+@@ -1257,6 +1257,31 @@ class Function(
+     data_safe=True,
+ ):
+ 
++    ##
++    test_field_a = so.SchemaField(
++        str,
++        default=None,
++        compcoef=0.4,
++        allow_ddl_set=True,
++        patch_level=1,
++    )
++
++    test_field_b = so.SchemaField(
++        str,
++        default=None,
++        compcoef=0.4,
++        allow_ddl_set=True,
++        patch_level=1,
++    )
++
++    test_nativecode_size = so.SchemaField(
++        int,
++        default=None,
++        compcoef=0.99,
++        patch_level=1,
++    )
++    ##
++
+     used_globals = so.SchemaField(
+         so.ObjectSet[s_globals.Global],
+         coerce=True, default=so.DEFAULT_CONSTRUCTOR,
+@@ -1628,6 +1653,10 @@ class FunctionCommand(
+                 nativecode.not_compiled()
+             )
+ 
++        if self.has_attribute_value('nativecode'):
++            code = self.get_attribute_value('nativecode')
++            self.set_attribute_value('test_nativecode_size', len(code.text))
++
+         # Resolving 'nativecode' has side effects on has_dml and
+         # volatility, so force it to happen as part of
+         # canonicalization of attributes.
+diff --git a/edb/schema/globals.py b/edb/schema/globals.py
+index 76ec833f4..460ea0a67 100644
+--- a/edb/schema/globals.py
++++ b/edb/schema/globals.py
+@@ -619,3 +619,60 @@ class DeleteGlobal(
+     GlobalCommand,
+ ):
+     astnode = qlast.DropGlobal
++
++
++class Blobal(
++    so.QualifiedObject,
++    s_anno.AnnotationSubject,
++    qlkind=qltypes.SchemaObjectClass.GLOBAL,
++    data_safe=True,
++):
++
++    required = so.SchemaField(
++        bool,
++        default=False,
++        compcoef=0.909,
++        allow_ddl_set=True,
++    )
++
++
++class BlobalCommandContext(
++    sd.ObjectCommandContext[so.Object],
++    s_anno.AnnotationSubjectCommandContext
++):
++    pass
++
++
++class BlobalCommand(
++    sd.QualifiedObjectCommand[Blobal],
++    context_class=BlobalCommandContext,
++):
++    pass
++
++
++class CreateBlobal(
++    sd.CreateObject[Blobal],
++    BlobalCommand,
++):
++    astnode = qlast.CreateBlobal
++
++
++class RenameBlobal(
++    sd.RenameObject[Blobal],
++    BlobalCommand,
++):
++    pass
++
++
++class AlterBlobal(
++    sd.AlterObject[Blobal],
++    BlobalCommand,
++):
++    astnode = qlast.AlterBlobal
++
++
++class DeleteBlobal(
++    sd.DeleteObject[Blobal],
++    BlobalCommand,
++):
++    astnode = qlast.DropBlobal
+diff --git a/edb/server/compiler/status.py b/edb/server/compiler/status.py
+index d6ed5cf80..9fe61ecb0 100644
+--- a/edb/server/compiler/status.py
++++ b/edb/server/compiler/status.py
+@@ -68,6 +68,8 @@ def get_schema_class(ql: qlast.ObjectDDL) -> qltypes.SchemaObjectClass:
+             return osc.ALIAS
+         case qlast.GlobalCommand():
+             return osc.GLOBAL
++        case qlast.BlobalCommand():
++            return osc.GLOBAL
+         case qlast.LinkCommand():
+             return osc.LINK
+         case qlast.IndexCommand():
+diff --git a/tests/test_edgeql_select.py b/tests/test_edgeql_select.py
+index 94fd98cf1..12c02055b 100644
+--- a/tests/test_edgeql_select.py
++++ b/tests/test_edgeql_select.py
+@@ -1964,6 +1964,56 @@ class TestEdgeQLSelect(tb.QueryTestCase):
+             ]),
+         )
+ 
++    @test.xfail('Not fixed for patches; see #5844')
++    async def test_edgeql_select_baseobject_function_01(self):
++        # HACK: special inplace-upgrade test
++        await self.con.execute('''
++            CREATE BLOBAL asdf { set required := true; };
++        ''')
++        await self.assert_query_result(
++            r'''
++            select all_objects()[is schema::Blobal] { name };
++            ''',
++            [{"name": "default::asdf"}],
++        )
++
++    async def test_edgeql_select_nativecode_size_01(self):
++        # HACK: special inplace-upgrade test
++        await self.assert_query_result(
++            r'''
++            select schema::Function { test_nativecode_size }
++            filter .name = 'default::ident'
++            ''',
++            [{"test_nativecode_size": 8}],
++        )
++
++    async def test_edgeql_select_config_hack_01(self):
++        # HACK: special inplace-upgrade test
++        await self.assert_query_result(
++            r'''
++            select cfg::Config.__internal_sess_testvalue2
++            ''',
++            ['!']
++        )
++        await self.con.execute(
++            r'''
++            configure session set __internal_sess_testvalue2 := 'asdf';
++            '''
++        )
++        await self.assert_query_result(
++            r'''
++            select cfg::Config.__internal_sess_testvalue2
++            ''',
++            ['asdf']
++        )
++
++        await self.assert_query_result(
++            r'''
++            select _upgrade_test()
++            ''',
++            ['asdf']
++        )
++
+     async def test_edgeql_select_id_01(self):
+         # allow assigning id to a computed (#4781)
+         await self.con.query('SELECT schema::Type { XYZ := .id};')
+diff --git a/tests/test_link_target_delete.py b/tests/test_link_target_delete.py
+index 8982b3113..de1632b0a 100644
+--- a/tests/test_link_target_delete.py
++++ b/tests/test_link_target_delete.py
+@@ -29,6 +29,7 @@ from edb.schema import links as s_links
+ from edb.schema import name as s_name
+ 
+ from edb.testbase import server as stb
++from edb.tools import test
+ 
+ 
+ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
+@@ -307,6 +308,50 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
+                     DELETE (SELECT Target1 FILTER .name = 'Target1.1');
+                 """)
+ 
++    @test.xfail('Not fixed for patches; see #5844')
++    async def test_link_on_target_delete_restrict_schema_01(self):
++        # HACK: special inplace-upgrade test
++        async with self._run_and_rollback():
++            await self.con.execute("""
++                CREATE BLOBAL asdf2 { set required := true; };
++
++                INSERT SchemaSource {
++                    name := 'Source1.1',
++                    schema_restrict := (
++                        SELECT schema::Blobal LIMIT 1
++                    )
++                };
++            """)
++
++            with self.assertRaisesRegex(
++                    edgedb.ConstraintViolationError,
++                    'prohibited by link'):
++                await self.con.execute("""
++                    DROP BLOBAL asdf2;
++                """)
++
++    @test.xfail('Not fixed for patches; see #5844')
++    async def test_link_on_target_delete_restrict_schema_02(self):
++        # HACK: special inplace-upgrade test
++        async with self._run_and_rollback():
++            await self.con.execute("""
++                CREATE BLOBAL asdf2 { set required := true; };
++
++                INSERT SchemaSource {
++                    name := 'Source1.1',
++                    schema_m_restrict := (
++                        SELECT schema::Blobal LIMIT 1
++                    )
++                };
++            """)
++
++            with self.assertRaisesRegex(
++                    edgedb.ConstraintViolationError,
++                    'prohibited by link'):
++                await self.con.execute("""
++                    DROP BLOBAL asdf2;
++                """)
++
+     async def test_link_on_target_delete_deferred_restrict_01(self):
+         exception_is_deferred = False
+ 

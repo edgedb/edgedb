@@ -37,7 +37,7 @@ rustls-platform-verifier = { version = "0.5.0", optional = true }
 webpki = { version = "0.22", optional = true }
 
 # feature = "openssl"
-openssl = { version = "0.10.55", optional = true, default-features = false }
+openssl = { version = "0.10.70", optional = true, default-features = false }
 tokio-openssl = { version = "0.6.5", optional = true, default-features = false }
 # Get these from openssl
 foreign-types = { version = "*", optional = true, default-features = false }

@@ -558,6 +558,19 @@ class ParameterCommand(
             return super().compile_expr_field(
                 schema, context, field, value, track_schema_ref_exprs)
 
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'default':
+            type = self.scls.get_type(schema)
+            return s_types.type_dummy_expr(type, schema)
+        else:
+            raise NotImplementedError(f'unhandled field {field.name!r}')
+
 
 class CreateParameter(ParameterCommand, sd.CreateObject[Parameter]):
 
@@ -1940,13 +1953,16 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
 
             if check_default_type:
                 default_type = ir_default.stype
-                if not default_type.assignment_castable_to(p_type, schema):
+                if not default_type.assignment_castable_to(
+                    p_type, ir_default.schema
+                ):
                     raise errors.InvalidFunctionDefinitionError(
                         f'cannot create the `{signature}` function: '
                         f'invalid declaration of parameter '
                         f'{p.get_displayname(schema)!r}: '
                         f'unexpected type of the default expression: '
-                        f'{default_type.get_displayname(schema)}, expected '
+                        f'{default_type.get_displayname(ir_default.schema)}, '
+                        f'expected '
                         f'{p_type.get_displayname(schema)}',
                         span=self.span)
 
