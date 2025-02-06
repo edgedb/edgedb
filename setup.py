@@ -80,6 +80,10 @@ if platform.uname().system != 'Windows':
     ])
 
 
+def _is_langserver_build() -> bool:
+    return os.environ.get("EDGEDB_BUILD_PACKAGE", "") == "language-server"
+
+
 def _compile_build_meta(build_lib, version, pg_config, runstate_dir,
                         shared_dir, version_suffix):
     from edb.common import verutils
@@ -917,6 +921,9 @@ class build_ui(setuptools.Command):
         self.set_undefined_options("build_py", ("build_lib", "build_lib"))
 
     def run(self, *args, **kwargs):
+        if _is_langserver_build():
+            return
+
         from edb import buildmeta
         from edb.common import devmode
 
