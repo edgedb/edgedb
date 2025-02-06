@@ -16,7 +16,7 @@ default = ["python_extension"]
 pyo3 = { workspace = true, optional = true }
 
 combine = "3.8"
-thiserror = "1.0.11"
+thiserror = "2"
 num-bigint = "0.4.3"
 num-traits = "0.2.11"
 edb-graphql-parser = { git="https://github.com/edgedb/graphql-parser" }

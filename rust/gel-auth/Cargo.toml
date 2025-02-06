@@ -16,7 +16,7 @@ pyo3 = { workspace = true, optional = true }
 tracing.workspace = true
 md5 = "0.7.0"
 constant_time_eq = "0.3"
-derive_more = { version = "1", features = ["debug"] }
+derive_more = { version = "2", features = ["debug"] }
 rand = "0.8.5"
 unicode-normalization = "0.1.23"
 base64 = "0.22"

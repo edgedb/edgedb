@@ -21,7 +21,7 @@ tracing.workspace = true
 db_proto.workspace = true
 
 futures = "0"
-thiserror = "1"
+thiserror = "2"
 openssl = { version = "0.10.66", features = ["v111"] }
 paste = "1"
 base64 = "0.22"
@@ -32,10 +32,7 @@ serde = "1"
 serde_derive = "1"
 percent-encoding = "2"
 bytemuck = { version = "1", features = ["derive"] }
-
-[dependencies.derive_more]
-version = "2"
-features = ["full"]
+derive_more = { version = "2", features = ["full"] }
 
 [dev-dependencies]
 tracing-subscriber.workspace = true
