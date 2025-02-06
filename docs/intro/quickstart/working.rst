@@ -6,28 +6,123 @@ Working with our data
 
 .. edb:split-section::
 
-  Now that we have a schema defined, let's create an API endpoint to insert a ``Deck`` of ``Card`` objects into the database. We'll show you how to query the database by constructing an EdgeQL query string, but we also have a TypeScript query builder that will help you build queries in a type-safe manner. You can switch tabs to see what this same query looks like with our query builder. We will cover how to generate this query builder later in the tutorial.
+  With TypeScript, there are three ways to run a query: use a string EdgeQL query, use our ``queries`` generator to turn a string of EdgeQL into a TypeScript function, or use our query builder API to build queries dynamically in a type-safe manner. In the next example, we'll show you each of these methods, but for the rest of the tutorial we'll use the query builder API.
+
+  .. tabs::
+
+    .. code-tab:: sh
+      :caption: Query builder
+
+      $ npm generate edgeql-js
+
+    .. code-tab:: sh
+      :caption: Queries generator
+
+      $ npm generate queries
+
+.. edb:split-section::
+
+  Now that we have a schema defined, let's create a simple page with a button that allows users to import a deck of cards from a JSON file. We'll use Next.js server actions to handle the file upload and insert the data into our database. The JSON file will contain the deck name, optional description, and an array of cards with front and back text.
 
   .. note::
       If you are seeing TypeScript or ESLint errors, you may need to restart the TypeScript language server, or the ESLint server. Sometimes when adding new files, the language server or ESLint will not pick up the new files until you restart the server. This will be true for the rest of the tutorial, but the majority of development is not creating new files, so after this initial onboarding pain, you'll find that editor tooling works well. This is not a Gel-specific issue, but rather a general issue with starting a new project.
 
+  .. edb:split-point::
+
   .. tabs::
 
     .. code-tab:: typescript
-      :caption: app/api/deck/route.ts
+      :caption: app/page.tsx
 
-        import { NextRequest, NextResponse } from "next/server";
+        import { ImportForm } from "./form";
+
+        export default function Page() {
+          return <ImportForm />;
+        }
+
+    .. code-tab:: typescript
+      :caption: app/form.tsx
+
+        "use client";
+        import { useTransition } from "react";
+        import { createDeck } from "./actions";
+
+        export function ImportForm() {
+          const [isPending, startTransition] = useTransition();
+
+          const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+
+            startTransition(async () => {
+              const deck = await file.text();
+
+              const formData = new FormData();
+              formData.set("deck", deck);
+              const deck = await createDeck(formData);
+              console.log(deck.id);
+            });
+          }
+
+          return (
+            <form>
+              <label htmlFor="file">Upload a deck of cards</label>
+              <input type="file" id="file" onChange={handleFileChange} disabled={isPending} />
+            </form>
+          )
+        }
+
+    .. code-tab:: typescript
+      :caption: app/actions.ts
+
+        "use server";
+        import { redirect } from "next/navigation";
         import { client } from "@/lib/gel";
+        import { createDeck } from "./create-deck.query";
 
-        interface CreateDeckBody {
-          name: string;
-          description?: string;
-          cards: { front: string; back: string }[];
+        export async function createDeck(formData: FormData) {
+          const deck = formData.get("deck");
+          if (typeof deck !== "string") {
+            return;
+          }
+
+          const { id } = await createDeck(client, JSON.parse(deck));
+          redirect(`/deck/${id}`);
         }
 
-        interface CreateDeckResponse {
-          id: string;
-        }
+    .. code-tab:: typescript
+      :caption: app/create-deck.query.ts (query builder)
+
+        // Run `npm generate edgeql-js` to generate the `e` query builder module.
+        import e from "@/dbschema/edgeql-js";
+
+        const createDeckQuery = e.params(
+          {
+            name: e.str,
+            description: e.optional(e.str),
+            cards: e.array(e.tuple({ order: e.int64, front: e.str, back: e.str })),
+          },
+          ({
+            cards,
+            ...deckData
+          }) => {
+            const newDeck = e.insert(e.Deck, deckData);
+            const newCards = e.for(e.array_unpack(cards), (card) =>
+              e.insert(e.Card, {
+                ...card,
+                deck: newDeck,
+              })
+            );
+            return e.with([newCards], e.select(newDeck));
+          }
+        );
+
+        export const createDeck = createDeckQuery.run.bind(createDeckQuery);
+
+    .. code-tab:: typescript
+      :caption: app/create-deck.query.ts (string query)
+
+        import { type Client } from "@/lib/gel";
 
         const createDeckQuery = `
           with
@@ -52,113 +147,100 @@ Working with our data
           select new_deck;
         `;
 
-        export async function POST(req: NextRequest): Promise<NextResponse<CreateDeckResponse>> {
-          // Note: For production, validate the request body with a tool like Zod
-          const body = await req.json() as CreateDeckBody;
-          const deck = await client.querySingle<CreateDeckResponse>(
-            createDeckQuery,
-            {
-              name: body.name,
-              description: body.description,
-              cards: body.cards.map((card, index) => ({
-                order: index,
-                ...card,
-              })),
-            },
-          );
-          return NextResponse.json(deck);
-        }
-
-    .. code-tab:: typescript
-      :caption: With Query Builder
-
-        import { NextRequest, NextResponse } from "next/server";
-        import { client } from "@/lib/gel";
-        import e from "@/dbschema/edgeql-js";
-
-        interface CreateDeckBody {
-          name: string;
-          description?: string;
-          cards: { order: number; front: string; back: string }[];
-        }
-
-        interface CreateDeckResponse {
-          id: string;
-        }
-
-        const createDeckQuery = e.params(
-          {
-            name: e.str,
-            description: e.optional(e.str),
-            cards: e.array(e.tuple({ order: e.int64, front: e.str, back: e.str })),
-          },
-          ({
-            cards,
-            ...deckData
-          }) => {
-            const newDeck = e.insert(e.Deck, deckData);
-            const newCards = e.for(e.array_unpack(cards), (card) =>
-              e.insert(e.Card, {
-                ...card,
-                deck: newDeck,
-              })
-            );
-            return e.with([newCards], e.select(newDeck));
+        export async function createDeck(
+          client: Client,
+          args: {
+            name: string;
+            description?: string;
+            cards: { order: number; front: string; back: string }[];
           }
-        );
-
-        export async function POST(
-          req: NextRequest
-        ): Promise<NextResponse<CreateDeckResponse>> {
-          // Note: For production, validate the request body with a tool like Zod
-          const body = (await req.json()) as CreateDeckBody;
-          const deck = await createDeckQuery.run(client, {
-            name: body.name,
-            description: body.description,
-            cards: body.cards,
-          });
-          return NextResponse.json(deck);
+        ): Promise<{ id: string }> {
+          return client.queryRequiredSingle(createDeckQuery, args);
         }
 
+    .. code-tab:: edgeql
+      :caption: app/create-deck.edgeql (queries)
 
+        # Run `npm generate queries` to generate the create-deck.query.ts file.
+        with
+          name := <str>$name,
+          description := <optional str>$description,
+          cards := array_unpack(<array<tuple<front: str, back: str>>>$cards),
+          new_deck := (
+            insert Deck {
+              name := name,
+              description := description,
+            }
+          ),
+          new_cards := (
+            for card in cards
+            insert Card {
+              order := card.order,
+              front := card.front,
+              back := card.back,
+              deck := new_deck,
+            }
+          ),
+        select new_deck;
 
 .. edb:split-section::
 
   Let's make a static JSON file to seed our database with a deck of trivia cards.
 
   .. code-block:: json
-    :caption: trivia-geography.json
+    :caption: deck-edgeql.json
 
       {
-        "name": "Geography",
-        "description": "Questions about countries, cities, and other geographical features.",
+        "name": "Learning EdgeQL",
+        "description": "A progressive guide to learning EdgeQL and SDL from basics to advanced concepts",
         "cards": [
           {
-            "front": "What is the tallest mountain on Earth?",
-            "back": "Mount Everest"
+            "front": "What data structure is used as a container for all values in EdgeQL?",
+            "back": "Sets. Even single values are treated as sets with one element (singletons)."
           },
           {
-            "front": "What is the deepest trench on Earth?",
-            "back": "The Mariana Trench"
+            "front": "Can EdgeQL sets contain the same value multiple times?",
+            "back": "Yes, EdgeQL sets are mutli-sets."
           },
           {
-            "front": "What is the widest river on Earth?",
-            "back": "The Amazon River"
+            "front": "How does EdgeQL represent no value?",
+            "back": "A typed empty set."
           },
           {
-            "front": "What is the largest ocean on Earth?",
-            "back": "The Pacific Ocean"
+            "front": "What are the string scalar types in EdgeQL?",
+            "back": "str"
           },
           {
-            "front": "What is the highest freshwater lake on Earth?",
-            "back": "Lake Titicaca"
+            "front": "What are the numeric scalar types in EdgeQL?",
+            "back": "int16, int32, int64, float32, float64, bigint, decimal"
+          },
+          {
+            "front": "By default, are properties of an Object type required?",
+            "back": "No, unless marked as required, properties are optional."
+          },
+          {
+            "front": "How do you define a one-to-one relationship between two object types?",
+            "back": "You define a single, exclusive link from one of the types to the other."
+          },
+          {
+            "front": "How do you define a one-to-many relationship between two object types?",
+            "back": "You define a multi, exclusive link from the one-typed object to the many-typed object."
+          },
+          {
+            "front": "How do you define a many-to-one relationship between two object types?",
+            "back": "You define a single, non-exclusive link from the many-type to the one-type."
+          },
+          {
+            "front": "How do you define a many-to-many relationship between two object types?",
+            "back": "You define a multi, non-exclusive link from one of the types to the other."
           }
         ]
       }
 
+
 .. edb:split-section::
 
-  In one terminal, we will run the Next.js development server.
+  In the terminal, we will run the Next.js development server.
 
   .. code-block:: sh
 
@@ -166,188 +248,74 @@ Working with our data
 
 .. edb:split-section::
 
-  We can use a tool like Postman, httpie, or curl to insert the deck into the database using the API endpoint we just created. Since curl is a common tool, here's an example of how to do this. Start a new terminal session, and run this curl command to send the JSON file we created earlier to the API endpoint.
+  We should see our app running at http://localhost:3000.
 
   .. code-block:: sh
 
-      $ curl -X POST \
-        --header "Content-Type: application/json" \
-        --data @trivia-geography.json \
-        http://localhost:3000/api/deck
-      {
-        "id": "123e4567-e89b-12d3-a456-426614173000"
-      }
+    # TODO: replace me with an image
+    $ echo
 
 .. edb:split-section::
 
-  Next, let's define a route to fetch a deck by its ID, which will return an ordered list of cards along with the deck's name and description.
+  Next, let's define a page for viewing a deck of cards.
 
   .. code-block:: typescript
-    :caption: app/api/deck/[id]/route.ts
+    :caption: app/deck/[id]/page.tsx
 
-      import { NextRequest, NextResponse } from "next/server";
+      import { redirect } from "next/navigation";
       import { client } from "@/lib/gel";
+      import e from "@/dbschema/edgeql-js";
 
-      interface GetDeckSuccessResponse {
-        id: string;
-        name: string;
-        description: string | null;
-        cards: {
-          id: string;
-          front: string;
-          back: string;
-        }[];
-      }
+      const getDeckQuery = e.params({ deckId: e.uuid }, (params) =>
+        e.select(e.Deck, (d) => ({
+          filter_single: e.op(d.id, "=", params.deckId),
+          id: true,
+          name: true,
+          description: true,
+          cards: e.select(d["<deck[is Card]"], (c) => ({
+            id: true,
+            front: true,
+            back: true,
+            order: true,
+            order_by: c.order,
+          })),
+        }))
+      );
 
-      interface GetDeckErrorResponse {
-        error: string;
-      }
-
-      type GetDeckResponse = GetDeckSuccessResponse | GetDeckErrorResponse;
-
-      const getDeckQuery = `
-        with deckId := <uuid>$deckId,
-        select Deck {
-          id,
-          name,
-          description,
-          cards := (select .<deck[is Card] {
-            id,
-            front,
-            back,
-          } order by .order),
-        } filter .id = deckId
-      `;
-
-      export async function GET(
-        req: NextRequest,
+      export default async function DeckPage(
         { params }: { params: Promise<{ id: string }> }
-      ): Promise<NextResponse<GetDeckResponse>> {
+      ) {
         const { id: deckId } = await params;
-        const deck = await client.querySingle<GetDeckResponse>(
-          getDeckQuery,
-          { deckId }
-        );
+        const deck = await getDeckQuery.run(client, { deckId });
 
         if (!deck) {
-          return NextResponse.json(
-            { error: `Deck (${deckId}) not found` },
-            { status: 404 }
-          );
+          redirect("/");
         }
 
-        return NextResponse.json(deck);
+        return (
+          <div>
+            <h1>{deck.name}</h1>
+            <p>{deck.description}</p>
+            <ul>
+              {deck.cards.map((card) => (
+                <dl key={card.id}>
+                  <dt>{card.front}</dt>
+                  <dd>{card.back}</dd>
+                </dl>
+              ))}
+            </ul>
+          </div>
+        )
       }
 
 .. edb:split-section::
 
-  Now we can fetch the deck we created earlier by referencing its ID in the URL.
+  Which should look something like this:
 
   .. code-block:: sh
 
-      $ curl http://localhost:3000/api/deck/123e4567-e89b-12d3-a456-426614173000
-      {
-        "id": "123e4567-e89b-12d3-a456-426614173000",
-        "name": "Geography",
-        "description": "Questions about countries, cities, and other geographical features.",
-        "cards": [
-          {
-            "id": "123e4567-e89b-12d3-a456-426614174000",
-            "front": "What is the tallest mountain on Earth?",
-            "back": "Mount Everest"
-          },
-          {
-            "id": "123e4567-e89b-12d3-a456-426614174001",
-            "front": "What is the deepest trench on Earth?",
-            "back": "The Mariana Trench"
-          },
-          {
-            "id": "123e4567-e89b-12d3-a456-426614174002",
-            "front": "What is the widest river on Earth?",
-            "back": "The Amazon River"
-          },
-          {
-            "id": "123e4567-e89b-12d3-a456-426614174003",
-            "front": "What is the largest ocean on Earth?",
-            "back": "The Pacific Ocean"
-          },
-          {
-            "id": "123e4567-e89b-12d3-a456-426614174004",
-            "front": "What is the highest freshwater lake on Earth?",
-            "back": "Lake Titicaca"
-          }
-        ]
-      }
-
-.. edb:split-section::
-
-  As time goes on, and our planet changes, perhaps we'll want to update one of the cards with the latest in geographical knowledge. Let's add a route to update a card by its ID.
-
-  .. code-block:: typescript
-    :caption: app/api/card/[id]/route.ts
-
-      import { NextRequest, NextResponse } from "next/server";
-      import { client } from "@/lib/gel";
-
-      interface UpdateCardBody {
-        front: string;
-        back: string;
-      }
-
-      interface UpdateCardSuccessResponse {
-        id: string;
-      }
-
-      interface UpdateCardErrorResponse {
-        error: string;
-      }
-
-      type UpdateCardResponse = UpdateCardSuccessResponse | UpdateCardErrorResponse;
-
-      const updateCardQuery = `
-        with
-          cardId := <uuid>$cardId,
-          front := <str>$front,
-          back := <str>$back,
-        update Card
-        filter .id = cardId
-        set {
-          front := front,
-          back := back,
-        };
-      `;
-
-      export async function PUT(
-        req: NextRequest,
-        { params }: { params: Promise<{ id: string }> }
-      ): Promise<NextResponse<UpdateCardResponse>> {
-        const { id: cardId } = await params;
-        const body = (await req.json()) as UpdateCardBody;
-        const card = await client.querySingle<UpdateCardSuccessResponse>(
-          updateCardQuery,
-          { cardId, front: body.front, back: body.back }
-        );
-
-        if (!card) {
-          return NextResponse.json({ error: "Card not found" }, { status: 404 });
-        }
-
-        return NextResponse.json(card);
-      }
-
-.. edb:split-section::
-
-  Now we can update a card by referencing its ID in the URL.
-
-  .. code-block:: sh
-
-      $ curl -X PUT \
-        --header "Content-Type: application/json" \
-        --data '{"front": "What is the tallest mountain on Earth?", "back": "Mount Quux"}' \
-        http://localhost:3000/api/card/123e4567-e89b-12d3-a456-426614174000
-      {
-        "id": "123e4567-e89b-12d3-a456-426614174000"
-      }
+      # TODO: replace me with an image
+      $ echo
 
 .. edb:split-section::
 

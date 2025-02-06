@@ -29,8 +29,6 @@ Adding Shared Properties
     -   type User {
     +   type User extends Timestamped {
           required name: str;
-
-          tokens := (select .<user[is AccessToken]);
         }
 
     -   type AccessToken {
@@ -75,7 +73,7 @@ Adding Shared Properties
 
 .. edb:split-section::
 
-  This will require that we make a manual migration since we will need to backfill the ``created_at`` and ``updated_at`` properties for all existing objects. We will just set the value to be the current wall time since we do not have a meaningful way to backfill the values for existing objects.
+  When we create a migration, we need to set initial values for the ``created_at`` and ``updated_at`` properties on all existing objects. Since we don't have historical data for when these objects were actually created or modified, we'll set both timestamps to the current time when the migration runs by using ``datetime_of_statement()``.
 
   .. code-block:: sh
 
@@ -88,3 +86,6 @@ Adding Shared Properties
 
   Now when we look at the data in the UI, we will see the new properties on each of our object types.
 
+  .. code-block:: sh
+
+    $ echo

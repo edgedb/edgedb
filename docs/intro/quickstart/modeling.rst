@@ -6,7 +6,7 @@ Modeling our data
 
 .. edb:split-section::
 
-  Our flashcards application has a simple data model, but it's interesting enough to get a taste of many of the features of the Gel schema language. We have a ``Card`` type that describes an single flashcard, which for now contains two required string properties: ``front`` and ``back``. Each ``Card`` belongs to a ``Deck``, and there is a natural ordering to the cards in a given deck.
+  Our flashcards application has a simple data model, but it's interesting enough to get a taste of many of the features of the Gel schema language. We have a ``Card`` type that describes an single flashcard, which for now contains two required string properties: ``front`` and ``back``. Each ``Card`` belongs to a ``Deck``, and there is an explicit ordering to the cards in a given deck.
 
   Starting with this simple model, let's express these types in the ``default.gel`` schema file.
 

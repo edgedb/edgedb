@@ -26,7 +26,7 @@ Our Flashcards app will be a modern web application with the following features:
 * Create, edit and delete flashcard decks
 * Add and remove cards from decks
 * Display cards with front/back text content
-* Simple HTTP API for managing cards and decks
+* Simple UI with Next.js and Tailwind CSS
 * Clean, type-safe data modeling using Gel's schema system
 
 Before you start, you'll need:

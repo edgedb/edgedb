@@ -18,22 +18,17 @@ Adding Access Control
     :caption: dbschema/default.gel
 
       module default {
-    +   single optional global access_token: str;
+    +   single optional global access_token: uuid;
     +   single optional global current_user := (
-    +     select AccessToken filter .token = access_token
+    +     select AccessToken filter .id = global access_token
     +   ).user;
     +
     +   type User {
     +     required name: str;
-    +
-    +     tokens := (select .<user[is AccessToken]);
     +   }
     +
     +   type AccessToken {
     +     required user: User;
-    +     required token: str {
-    +       constraint exclusive;
-    +     };
     +   }
     +
         type Deck {
@@ -68,342 +63,268 @@ Adding Access Control
 
 .. edb:split-section::
 
-  Let's create the route for creating a new user and getting an access token. Let's start by creating the query to create a new user which will return a randomly generated access token using the ``uuid_generate_v4()`` function. Don't forget to run the code generator after creating the query file.
+  Let's create a page for creating a new user and getting an access token. Let's start by creating the query to create a new user which will return the ``AccessToken.id`` which we will use as the access token itself. We will save this access token in a cookie so that we can authenticate requests in other server actions and route handlers.
 
   .. tabs::
-
-    .. code-tab:: edgeql
-      :caption: app/api/user/create-user.edgeql
-
-        with
-          name := <str>$name,
-          new_user := (
-            insert User {
-              name := name,
-            }
-          ),
-          new_access_token := (
-            insert AccessToken {
-              user := new_user,
-              token := <str>uuid_generate_v4(),
-            }
-          ),
-        select new_access_token.token;
 
     .. code-tab:: typescript
-      :caption: app/api/user/route.ts
+      :caption: app/signup/actions.ts
 
-        import { NextRequest, NextResponse } from "next/server";
+        "use server";
+
+        import { redirect } from "next/navigation";
+        import { cookies } from "next/headers";
+
         import { client } from "@/lib/gel";
+        import e from "@/dbschema/edgeql-js";
 
-        import { createUser } from "./create-user.query";
+        const createUser = e.params(
+          {
+            name: e.str,
+          },
+          (params) =>
+            e.insert(e.AccessToken, {
+              user: e.insert(e.User, { name: params.name }),
+            })
+        );
 
-        interface CreateUserBody {
-          name: string;
-        }
-
-        interface CreateUserSuccessResponse {
-          access_token: string;
-        }
-
-        interface CreateUserErrorResponse {
-          error: string;
-        }
-
-        type CreateUserResponse = CreateUserSuccessResponse | CreateUserErrorResponse;
-
-        export async function POST(req: NextRequest): Promise<NextResponse<CreateUserResponse>> {
-          const body = (await req.json()) as CreateUserBody;
-          try {
-            const access_token = await createUser(client, body.name);
-
-            return NextResponse.json({ access_token });
-          } catch (error) {
-            console.error(error);
-            return NextResponse.json(
-              { error: "Failed to create user" },
-              { status: 500 }
-            );
+        export async function signUp(formData: FormData) {
+          const name = formData.get("name");
+          if (typeof name !== "string") {
+            console.error("Name is required");
+            return;
           }
+
+          const access_token = await createUser(client, { name });
+          (await cookies()).set("flashcards_access_token", access_token.id);
+          redirect("/");
         }
+
+
+    .. code-tab:: typescript
+      :caption: app/signup/page.tsx
+
+        import { Button } from "@/components/ui/button";
+        import {
+          Card,
+          CardContent,
+          CardDescription,
+          CardHeader,
+          CardTitle,
+        } from "@/components/ui/card";
+        import { Input } from "@/components/ui/input";
+        import { Label } from "@/components/ui/label";
+
+        import { signUp } from "./actions";
+
+        export default function SignUpPage() {
+          return (
+            <div className="flex flex-col items-center justify-center gap-6">
+              <Card className="w-full max-w-md">
+                <CardHeader>
+                  <CardTitle className="text-2xl">Sign Up</CardTitle>
+                  <CardDescription>
+                    Enter your name below to create an account
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form action={signUp}>
+                    <div className="flex flex-col gap-6">
+                      <div className="grid gap-2">
+                        <Label htmlFor="name">Name</Label>
+                        <Input
+                          id="name"
+                          name="name"
+                          type="text"
+                          placeholder="John Doe"
+                          required
+                        />
+                      </div>
+                      <Button type="submit" className="w-full">
+                        Sign Up
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+          );
+        }
+
 
 .. edb:split-section::
 
-  Let's create a new user and get the access token.
+  We should see this page when we navigate to the signup page.
 
   .. code-block:: sh
 
-    $ curl -X POST \
-      --header "Content-Type: application/json" \
-      --data '{"name": "John Doe"}' \
-      http://localhost:3000/api/user
-    {
-      "access_token": "..."
-    }
+    $ echo
 
-    $ export FLASHCARDS_ACCESS_TOKEN="..."
+Limiting access
+===============
 
 .. edb:split-section::
 
-  Next we'll update the create deck query and route with our new authentication logic and ``creator`` property. We add a new function to our ``gel`` library module which will extract our access token from the ``Authorization`` header, and return a new client with the access token global set. That will cause the ``current_user`` global variable to be set to the user that owns the access token.
+  Now that we have our access token in a cookie, we can create a helper function to extract it and add it as a global to our client.
 
-  .. note::
+  .. code-block:: typescript-diff
+    :caption: app/lib/gel.ts
 
-    We could insist that the ``creator`` link is set by using ``assert_exists`` around our ``global current_user`` in our query, but for now, we'll allow decks to be created without a creator using this query, even though we will block it at the API layer.
+    + import { createClient, type Client } from "gel";
+    - import { createClient } from "gel";
+    + import { cookies } from "next/headers";
+
+      export const client = createClient();
+
+    + export async function getAuthenticatedClient(): Promise<Client | null> {
+    +   const access_token = (await cookies()).get("flashcards_access_token")?.value;
+    +   if (!access_token) {
+    +     return null;
+    +   }
+    +   return client.withGlobals({ access_token });
+    + }
+
+.. edb:split-section::
+
+  Along with allowing us to take advantage of our access policies in our queries, this will also allow us to redirect unauthenticated users to the signup page from any of our pages which should require authentication. Let's update our ``page.tsx`` file to redirect to the signup page if the user is not authenticated.
+
+  .. code-block:: typescript-diff
+    :caption: app/page.tsx
+
+      import { ImportForm } from "./form";
+    + import { getAuthenticatedClient } from "@/lib/gel";
+    + import { redirect } from "next/navigation";
+
+      export default async function Page() {
+    +   const client = await getAuthenticatedClient();
+    +   if (!client) {
+    +     redirect("/signup");
+    +   }
+    +
+        return <ImportForm />;
+      }
+
+.. edb:split-section::
+
+  Next we'll update the create deck query and server action with our new authentication logic and ``creator`` property.
 
   .. tabs::
 
     .. code-tab:: typescript-diff
-      :caption: app/lib/gel.ts
+      :caption: app/actions.ts
 
-      + import { createClient, type Client } from "gel";
-      - import { createClient } from "gel";
-      + import { type NextRequest } from "next/server";
-
-        export const client = createClient();
-
-      + export function getAuthenticatedClient(request: NextRequest): Client | null {
-      +   const access_token = request.headers.get("Authorization")?.split(" ")[1];
-      +   if (!access_token) {
-      +     return null;
-      +   }
-      +   return client.withGlobals({ access_token });
-      + }
-
-    .. code-tab:: typescript-diff
-      :caption: app/api/deck/route.ts
-
-        import { NextRequest, NextResponse } from "next/server";
-      + import { getAuthenticatedClient } from "@/lib/gel";
+        "use server";
+        import { redirect } from "next/navigation";
       - import { client } from "@/lib/gel";
-
+      + import { getAuthenticatedClient } from "@/lib/gel";
         import { createDeck } from "./create-deck.query";
 
-        interface CreateDeckBody {
-          name: string;
-          description?: string;
-          cards: { front: string; back: string }[];
-        }
-
-        interface CreateDeckResponse {
-          id: string;
-        }
-
-        export async function POST(req: NextRequest): Promise<NextResponse<CreateDeckResponse>> {
-      +   const client = getAuthenticatedClient(req);
-      +
-      +   if (!client) {
-      +     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      +   }
-      +
-          // Note: For production, validate the request body with a tool like Zod
-          const body = await req.json() as CreateDeckBody;
-          const deck = await createDeck(
-            client,
-            {
-              name: body.name,
-              description: body.description,
-              cards: body.cards,
-            },
-          );
-          return NextResponse.json(deck);
-        }
-
-    .. code-tab:: edgeql-diff
-      :caption: app/api/deck/create-deck.edgeql
-
-        with
-          name := <str>$name,
-          description := <optional str>$description,
-          cards := enumerate(array_unpack(<array<tuple<front: str, back: str>>>$cards)),
-          new_deck := (
-            insert Deck {
-              name := name,
-              description := description,
-      +       creator := global current_user,
-            }
-          ),
-          new_cards := (
-            for card in cards
-            insert Card {
-              order := card.0,
-              front := card.1.front,
-              back := card.1.back,
-              deck := new_deck,
-            }
-          ),
-        select new_deck;
-
-.. edb:split-section::
-
-  After running the code generator again, we can create a deck and see that it is created successfully. First we will try to create a deck without an access token and notice that it is rejected. Adding our access token to the request will allow us to create a deck successfully.
-
-  .. code-block:: sh
-
-    $ npx @gel/generate queries
-
-    $ curl -X POST \
-        --header "Content-Type: application/json" \
-        --data @trivia-geography.json \
-        http://localhost:3000/api/deck
-    {
-      "error": "Unauthorized"
-    }
-
-    $ curl -X POST \
-        --header "Content-Type: application/json" \
-        --header "Authorization: Bearer $FLASHCARDS_ACCESS_TOKEN" \
-        --data @trivia-geography.json \
-        http://localhost:3000/api/deck
-    {
-      "id": "..."
-      ...
-    }
-
-.. edb:split-section::
-
-  Let's update the rest of the application and queries with the authentication logic.
-
-  .. tabs::
-
-    .. code-tab:: typescript-diff
-      :caption: app/api/deck/[id]/route.ts
-
-        import { NextRequest, NextResponse } from "next/server";
-      + import { getAuthenticatedClient } from "@/lib/gel";
-      - import { client } from "@/lib/gel";
-
-        import { getDeck } from "./get-deck.query";
-
-        interface GetDeckSuccessResponse {
-          id: string;
-          name: string;
-          description: string | null;
-      +   creator: {
-      +     id: string;
-      +     name: string;
-      +   } | null;
-          cards: {
-            id: string;
-            front: string;
-            back: string;
-          }[];
-        }
-
-        interface GetDeckErrorResponse {
-          error: string;
-        }
-
-        type GetDeckResponse = GetDeckSuccessResponse | GetDeckErrorResponse;
-
-        export async function GET(
-          req: NextRequest,
-          { params }: { params: Promise<{ id: string }> }
-        ): Promise<NextResponse<GetDeckResponse>> {
-      +   const client = getAuthenticatedClient(req);
-      +
-      +   if (!client) {
-      +     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      +   }
-      +
-          const { id: deckId } = await params;
-          const deck = await getDeck(
-            client,
-            { deckId }
-          );
-
-          if (!deck) {
-            return NextResponse.json(
-              { error: `Deck (${deckId}) not found` },
-              { status: 404 }
-            );
+        export async function createDeck(formData: FormData) {
+          const deck = formData.get("deck");
+          if (typeof deck !== "string") {
+            return;
           }
 
-          return NextResponse.json(deck);
+          const client = await getAuthenticatedClient();
+          if (!client) {
+            return;
+          }
+
+          const { id } = await createDeck(client, JSON.parse(deck));
+          redirect(`/deck/${id}`);
         }
 
-    .. code-tab:: edgeql-diff
-      :caption: app/api/deck/[id]/get-deck.edgeql
+    .. code-tab:: typescript-diff
+      :caption: app/create-deck.query.ts (query builder)
 
-        with deckId := <uuid>$deckId,
-        select Deck {
-          id,
-          name,
-          description,
-      +   creator: {
-      +     id,
-      +     name,
-      +   },
-          cards: {
-            id,
-            front,
-            back,
+        // Run `npm generate edgeql-js` to generate the `e` query builder module.
+        import e from "@/dbschema/edgeql-js";
+
+        const createDeckQuery = e.params(
+          {
+            name: e.str,
+            description: e.optional(e.str),
+            cards: e.array(e.tuple({ order: e.int64, front: e.str, back: e.str })),
           },
-        } filter .id = deckId
-
-    .. code-tab:: typescript-diff
-      :caption: app/api/card/[id]/route.ts
-
-        import { NextRequest, NextResponse } from "next/server";
-      + import { getAuthenticatedClient } from "@/lib/gel";
-      - import { client } from "@/lib/gel";
-
-        interface UpdateCardBody {
-          front: string;
-          back: string;
-        }
-
-        interface UpdateCardSuccessResponse {
-          id: string;
-        }
-
-        interface UpdateCardErrorResponse {
-          error: string;
-        }
-
-        type UpdateCardResponse = UpdateCardSuccessResponse | UpdateCardErrorResponse;
-
-        export async function PUT(
-          req: NextRequest,
-          { params }: { params: Promise<{ id: string }> }
-        ): Promise<NextResponse<UpdateCardResponse>> {
-      +   const client = getAuthenticatedClient(req);
-      +
-      +   if (!client) {
-      +     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      +   }
-      +
-          const { id: cardId } = await params;
-          const body = (await req.json()) as UpdateCardBody;
-          const card = await client.querySingle<UpdateCardSuccessResponse>(
-            `
-              with
-                cardId := <uuid>$cardId,
-                front := <str>$front,
-                back := <str>$back,
-              update Card
-              filter .id = cardId
-              set {
-                front := front,
-                back := back,
-              };
-            `,
-            { cardId, front: body.front, back: body.back }
-          );
-
-          if (!card) {
-            return NextResponse.json({ error: "Card not found" }, { status: 404 });
+          ({
+            cards,
+            ...deckData
+          }) => {
+      -     const newDeck = e.insert(e.Deck, deckData);
+      +     const newDeck = e.insert(e.Deck, {
+      +       ...deckData,
+      +       creator: e.assert_exists(e.global.current_user),
+      +     });
+            const newCards = e.for(e.array_unpack(cards), (card) =>
+              e.insert(e.Card, {
+                ...card,
+                deck: newDeck,
+              })
+            );
+            return e.with([newCards], e.select(newDeck));
           }
+        );
 
-          return NextResponse.json(card);
-        }
+        export const createDeck = createDeckQuery.run.bind(createDeckQuery);
 
 .. edb:split-section::
 
-  Let's run the code generator again to update the generated functions with the changes we made to the query files. Feel free to play around at this point. Make some more decks, create a new user, and try to update a card that you don't own.
+  Finally, let's update the deck page to require an authenticated user, and to return the deck's creator.
 
-  .. code-block:: sh
+  .. code-block:: typescript-diff
+    :caption: app/deck/[id]/page.tsx
 
-    $ npx @gel/generate queries
+      import { redirect } from "next/navigation";
+    - import { client } from "@/lib/gel";
+    + import { getAuthenticatedClient } from "@/lib/gel";
+      import e from "@/dbschema/edgeql-js";
 
+      const getDeckQuery = e.params({ deckId: e.uuid }, (params) =>
+        e.select(e.Deck, (d) => ({
+          filter_single: e.op(d.id, "=", params.deckId),
+          id: true,
+          name: true,
+          description: true,
+          cards: {
+            id: true,
+            front: true,
+            back: true,
+            order: true,
+          },
+    +     creator: {
+    +       id: true,
+    +       name: true,
+    +     },
+        }))
+      );
 
+      export default async function DeckPage(
+        { params }: { params: Promise<{ id: string }> }
+      ) {
+        const { id: deckId } = await params;
+    +   const client = await getAuthenticatedClient();
+    +   if (!client) {
+    +     redirect("/signup");
+    +   }
+
+        const deck = await getDeckQuery.run(client, { deckId });
+
+        if (!deck) {
+          redirect("/");
+        }
+
+        return (
+          <div>
+            <h1>{deck.name}</h1>
+            <p>{deck.description}</p>
+            <ul>
+              {deck.cards.map((card) => (
+                <dl key={card.id}>
+                  <dt>{card.front}</dt>
+                  <dd>{card.back}</dd>
+                </dl>
+              ))}
+            </ul>
+          </div>
+        )
+      }
