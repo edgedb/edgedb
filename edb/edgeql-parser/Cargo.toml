@@ -18,7 +18,7 @@ sha2 = "0.10.2"
 snafu = "0.8.1"
 memchr = "2.5.0"
 serde = { version = "1.0.106", features = ["derive"], optional = true }
-thiserror = "1.0.23"
+thiserror = "2"
 unicode-width = "0.1.8"
 edgeql-parser-derive = { path = "edgeql-parser-derive", optional = true }
 indexmap = "2.4.0"

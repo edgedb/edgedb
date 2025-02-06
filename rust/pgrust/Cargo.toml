@@ -23,7 +23,6 @@ db_proto.workspace = true
 futures = "0"
 thiserror = "1"
 openssl = { version = "0.10.66", features = ["v111"] }
-tokio-openssl = "0.6.4"
 paste = "1"
 base64 = "0.22"
 rand = "0"
@@ -35,7 +34,7 @@ percent-encoding = "2"
 bytemuck = { version = "1", features = ["derive"] }
 
 [dependencies.derive_more]
-version = "1.0.0-beta.6"
+version = "2"
 features = ["full"]
 
 [dev-dependencies]

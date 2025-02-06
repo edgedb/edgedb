@@ -421,7 +421,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "consume_on_drop",
- "derive_more",
+ "derive_more 1.0.0",
  "futures",
  "genetic_algorithm",
  "itertools 0.13.0",
@@ -460,6 +460,15 @@ name = "convert_case"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "convert_case"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb402b8d4c85569410425650ce3eddc7d698ed96d39a73f941b08fb63082f1e7"
 dependencies = [
  "unicode-segmentation",
 ]
@@ -574,7 +583,7 @@ checksum = "0e60eed09d8c01d3cee5b7d30acb059b76614c918fa0f992e0dd6eeb10daad6f"
 name = "db_proto"
 version = "0.1.0"
 dependencies = [
- "derive_more",
+ "derive_more 1.0.0",
  "paste",
  "pretty_assertions",
  "thiserror 1.0.69",
@@ -587,7 +596,16 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
 dependencies = [
- "derive_more-impl",
+ "derive_more-impl 1.0.0",
+]
+
+[[package]]
+name = "derive_more"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "093242cf7570c207c83073cf82f79706fe7b8317e98620a47d5be7c3d8497678"
+dependencies = [
+ "derive_more-impl 2.0.1",
 ]
 
 [[package]]
@@ -596,7 +614,20 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
 dependencies = [
- "convert_case",
+ "convert_case 0.6.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.89",
+ "unicode-xid",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bda628edc44c4bb645fbe0f758797143e4e07926f7ebf4e9bdfbd3d2ce621df3"
+dependencies = [
+ "convert_case 0.7.1",
  "proc-macro2",
  "quote",
  "syn 2.0.89",
@@ -683,7 +714,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "snafu",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "unicode-width",
 ]
 
@@ -963,7 +994,7 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "constant_time_eq",
- "derive_more",
+ "derive_more 1.0.0",
  "hex-literal",
  "hmac",
  "md5",
@@ -982,7 +1013,7 @@ dependencies = [
 name = "gel-stream"
 version = "0.1.0"
 dependencies = [
- "derive_more",
+ "derive_more 1.0.0",
  "foreign-types",
  "futures",
  "gel-stream",
@@ -990,7 +1021,6 @@ dependencies = [
  "ntest",
  "openssl",
  "openssl-sys",
- "rstest 0.24.0",
  "rustls",
  "rustls-pemfile",
  "rustls-pki-types",
@@ -1981,7 +2011,7 @@ dependencies = [
  "clap",
  "clap_derive",
  "db_proto",
- "derive_more",
+ "derive_more 2.0.1",
  "futures",
  "gel-auth",
  "gel-stream",
@@ -2001,7 +2031,6 @@ dependencies = [
  "test-log",
  "thiserror 1.0.69",
  "tokio",
- "tokio-openssl",
  "tracing",
  "tracing-subscriber",
  "url",
@@ -2178,11 +2207,8 @@ dependencies = [
 name = "pyo3_util"
 version = "0.1.0"
 dependencies = [
- "nix",
  "pyo3",
  "scopeguard",
- "thiserror 1.0.69",
- "tokio",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2531,7 +2557,6 @@ dependencies = [
  "pgrust",
  "pyo3",
  "pyo3_util",
- "tokio",
 ]
 
 [[package]]

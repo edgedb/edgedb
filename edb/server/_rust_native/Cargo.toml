@@ -13,7 +13,6 @@ python_extension = ["pyo3/extension-module", "pyo3/serde"]
 
 [dependencies]
 pyo3 = { workspace = true }
-tokio.workspace = true
 pyo3_util.workspace = true
 conn_pool = { workspace = true, features = [ "python_extension" ] }
 pgrust = { workspace = true, features = [ "python_extension" ] }
