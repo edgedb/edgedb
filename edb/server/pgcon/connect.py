@@ -61,6 +61,20 @@ SETUP_CONFIG_CACHE_SCRIPT = '''
             value edgedb._sys_config_val_t NOT NULL
         );
 '''.strip()
+
+# A empty dummy table used when we need to emit no-op DML.
+#
+# This is used by scan_check_ctes in the pgsql compiler to
+# force the evaluation of error checking.
+SETUP_DML_DUMMY_TABLE_SCRIPT = '''
+        CREATE TEMPORARY TABLE _dml_dummy (
+            id int8,
+            flag bool,
+            unique(id)
+        );
+        INSERT INTO _dml_dummy VALUES (0, false);
+'''.strip()
+
 RESET_STATIC_CFG_SCRIPT: bytes = b'''
     WITH x1 AS (
         DELETE FROM _config_cache
@@ -88,6 +102,7 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
 
         {SETUP_TEMP_TABLE_SCRIPT}
         {SETUP_CONFIG_CACHE_SCRIPT}
+        {SETUP_DML_DUMMY_TABLE_SCRIPT}
 
         PREPARE _clear_state AS
             WITH x1 AS (

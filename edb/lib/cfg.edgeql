@@ -188,6 +188,47 @@ ALTER TYPE cfg::AbstractConfig {
         SET default := <std::duration>'60 seconds';
     };
 
+    CREATE REQUIRED PROPERTY default_transaction_isolation
+        -> sys::TransactionIsolation
+    {
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
+        CREATE ANNOTATION cfg::backend_setting :=
+            '"default_transaction_isolation"';
+        CREATE ANNOTATION std::description :=
+            'Controls the default isolation level of each new transaction, \
+            including implicit transactions. Defaults to `Serializable`. \
+            Note that changing this to a lower isolation level implies \
+            that the transactions are also read-only by default regardless \
+            of the value of the `default_transaction_access_mode` setting.';
+        SET default := sys::TransactionIsolation.Serializable;
+    };
+
+    CREATE REQUIRED PROPERTY default_transaction_access_mode
+        -> sys::TransactionAccessMode
+    {
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
+        CREATE ANNOTATION std::description :=
+            'Controls the default read-only status of each new transaction, \
+            including implicit transactions. Defaults to `ReadWrite`. \
+            Note that if `default_transaction_isolation` is set to any value \
+            other than Serializable this parameter is implied to be \
+            `ReadOnly` regardless of the actual value.';
+        SET default := sys::TransactionAccessMode.ReadWrite;
+    };
+
+    CREATE REQUIRED PROPERTY default_transaction_deferrable
+        -> sys::TransactionDeferrability
+    {
+        CREATE ANNOTATION cfg::backend_setting :=
+            '"default_transaction_deferrable"';
+        CREATE ANNOTATION std::description :=
+            'Controls the default deferrable status of each new transaction. \
+            It currently has no effect on read-write transactions or those \
+            operating at isolation levels lower than `Serializable`. \
+            The default is `NotDeferrable`.';
+        SET default := sys::TransactionDeferrability.NotDeferrable;
+    };
+
     CREATE REQUIRED PROPERTY session_idle_transaction_timeout -> std::duration {
         CREATE ANNOTATION cfg::backend_setting :=
             '"idle_in_transaction_session_timeout"';
