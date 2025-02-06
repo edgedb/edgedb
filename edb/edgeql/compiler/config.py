@@ -150,18 +150,19 @@ def compile_ConfigReset(
         expr.scope == qltypes.ConfigScope.INSTANCE and
         info.backend_setting == 'default_transaction_isolation'
     ):
-        # Special case for default_transaction_isolation:
+        # HACK: special case for default_transaction_isolation:
         # Gel default is `serializable`, while PG default is `read committed`.
-        default = info.ptr.get_default(ctx.env.schema)
-        if default is not None:
-            return compile_ConfigSet(
-                qlast.ConfigSet(
-                    name=expr.name,
-                    scope=expr.scope,
-                    expr=default.parse(),
-                ),
-                ctx=ctx,
-            )
+        if info.ptr is not None:
+            default = info.ptr.get_default(ctx.env.schema)
+            if default is not None:
+                return compile_ConfigSet(
+                    qlast.ConfigSet(
+                        name=expr.name,
+                        scope=expr.scope,
+                        expr=default.parse(),
+                    ),
+                    ctx=ctx,
+                )
 
     if isinstance(info.param_type, s_objtypes.ObjectType):
         param_type_name = info.param_type.get_name(ctx.env.schema)
