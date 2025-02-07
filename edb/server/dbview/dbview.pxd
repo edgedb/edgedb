@@ -247,6 +247,7 @@ cdef class DatabaseConnectionView:
     cdef describe_state(self)
     cdef encode_state(self)
     cdef decode_state(self, type_id, data)
+    cdef bint needs_commit_after_state_sync(self)
 
     cdef check_capabilities(
         self,
