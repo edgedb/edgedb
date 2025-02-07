@@ -26,11 +26,17 @@ The second approach using dynamic queries tends to be more performant and mainta
 
         import { revalidatePath } from "next/cache";
         import e from "@/dbschema/edgeql-js";
+        import { getAuthenticatedClient } from "@/lib/gel";
 
         export async function updateDeck(data: FormData) {
           const id = data.get("id");
           if (!id) {
-            return;
+            throw new Error("Missing deck ID");
+          }
+
+          const client = await getAuthenticatedClient();
+          if (!client) {
+            throw new Error("Unauthorized");
           }
 
           const name = data.get("name");
@@ -44,7 +50,7 @@ The second approach using dynamic queries tends to be more performant and mainta
 
           await e
             .update(e.Deck, (d) => ({
-              filter_single: e.op(d.id, "=", id),
+              filter_single: e.op(d.id, "=", e.uuid(id)),
               set: {
                 ...nameSet,
                 ...descriptionSet,
@@ -109,11 +115,11 @@ The second approach using dynamic queries tends to be more performant and mainta
       +         />
       +         <input
       +           name="name"
-      +           initialValue={deck.name}
+      +           defaultValue={deck.name}
       +         />
       +         <textarea
       +           name="description"
-      +           initialValue={deck.description}
+      +           defaultValue={deck.description}
       +         />
       +         <button type="submit">Update</button>
       +       </form>

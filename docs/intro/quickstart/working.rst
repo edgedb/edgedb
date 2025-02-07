@@ -44,50 +44,67 @@ Working with our data
       :caption: app/form.tsx
 
         "use client";
-        import { useTransition } from "react";
-        import { createDeck } from "./actions";
+        import { useTransition, useState } from "react";
+        import { importDeck } from "./actions";
 
         export function ImportForm() {
           const [isPending, startTransition] = useTransition();
+          const [importState, setImportState] = useState<
+            "idle" | "loading" | "success" | "error"
+          >("idle");
 
-          const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+          const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
             const file = event.target.files?.[0];
             if (!file) return;
 
+            setImportState("loading");
             startTransition(async () => {
               const deck = await file.text();
 
               const formData = new FormData();
               formData.set("deck", deck);
-              const deck = await createDeck(formData);
-              console.log(deck.id);
+              try {
+                await importDeck(formData);
+                setImportState("success");
+                event.target.form?.reset();
+              } catch (error) {
+                console.error(error);
+                setImportState("error");
+              }
             });
-          }
+          };
 
           return (
             <form>
               <label htmlFor="file">Upload a deck of cards</label>
-              <input type="file" id="file" onChange={handleFileChange} disabled={isPending} />
+              {importState === "loading" && <p>Importing...</p>}
+              {importState === "success" && <p>Imported successfully</p>}
+              {importState === "error" && <p>Error importing</p>}
+              <input
+                type="file"
+                id="file"
+                onChange={handleFileChange}
+                disabled={isPending}
+              />
             </form>
-          )
+          );
         }
+
 
     .. code-tab:: typescript
       :caption: app/actions.ts
 
         "use server";
-        import { redirect } from "next/navigation";
         import { client } from "@/lib/gel";
         import { createDeck } from "./create-deck.query";
 
-        export async function createDeck(formData: FormData) {
+        export async function importDeck(formData: FormData) {
           const deck = formData.get("deck");
           if (typeof deck !== "string") {
             return;
           }
 
-          const { id } = await createDeck(client, JSON.parse(deck));
-          redirect(`/deck/${id}`);
+          await createDeck(client, JSON.parse(deck));
         }
 
     .. code-tab:: typescript
@@ -250,72 +267,140 @@ Working with our data
 
   We should see our app running at http://localhost:3000.
 
-  .. code-block:: sh
-
-    # TODO: replace me with an image
-    $ echo
+  .. image:: https://placehold.co/600x400?text=Show+import+form+ui
 
 .. edb:split-section::
 
-  Next, let's define a page for viewing a deck of cards.
+  Next, let's define a page for viewing a deck of cards, and update our import form to redirect to the deck page after importing.
 
-  .. code-block:: typescript
-    :caption: app/deck/[id]/page.tsx
+  .. tabs::
 
-      import { redirect } from "next/navigation";
-      import { client } from "@/lib/gel";
-      import e from "@/dbschema/edgeql-js";
+    .. code-tab:: typescript-diff
+      :caption: app/actions.ts
 
-      const getDeckQuery = e.params({ deckId: e.uuid }, (params) =>
-        e.select(e.Deck, (d) => ({
-          filter_single: e.op(d.id, "=", params.deckId),
-          id: true,
-          name: true,
-          description: true,
-          cards: e.select(d["<deck[is Card]"], (c) => ({
-            id: true,
-            front: true,
-            back: true,
-            order: true,
-            order_by: c.order,
-          })),
-        }))
-      );
+        "use server";
+      + import { redirect } from "next/navigation";
+        import { client } from "@/lib/gel";
+        import { createDeck } from "./create-deck.query";
 
-      export default async function DeckPage(
-        { params }: { params: Promise<{ id: string }> }
-      ) {
-        const { id: deckId } = await params;
-        const deck = await getDeckQuery.run(client, { deckId });
+        export async function importDeck(formData: FormData) {
+          const deck = formData.get("deck");
+          if (typeof deck !== "string") {
+            return;
+          }
 
-        if (!deck) {
-          redirect("/");
+          await createDeck(client, JSON.parse(deck));
+      +   redirect(`/deck/${id}`);
         }
 
-        return (
-          <div>
-            <h1>{deck.name}</h1>
-            <p>{deck.description}</p>
-            <ul>
-              {deck.cards.map((card) => (
-                <dl key={card.id}>
-                  <dt>{card.front}</dt>
-                  <dd>{card.back}</dd>
-                </dl>
-              ))}
-            </ul>
-          </div>
-        )
-      }
+    .. code-tab:: typescript
+      :caption: app/deck/[id]/page.tsx
+
+        import { notFound } from "next/navigation";
+        import { client } from "@/lib/gel";
+        import e from "@/dbschema/edgeql-js";
+        import { Fragment } from "react";
+
+        const getDeckQuery = e.params({ id: e.uuid }, (params) =>
+          e.select(e.Deck, (d) => ({
+            filter_single: e.op(d.id, "=", params.id),
+            id: true,
+            name: true,
+            description: true,
+            cards: e.select(d["<deck[is Card]"], (c) => ({
+              id: true,
+              front: true,
+              back: true,
+              order: true,
+              order_by: c.order,
+            }))
+          }))
+        );
+
+        export default async function DeckPage(
+          { params }: { params: Promise<{ id: string }> }
+        ) {
+          const { id } = await params;
+          const deck = await getDeckQuery.run(client, { id });
+
+          if (!deck) {
+            notFound();
+          }
+
+          return (
+            <div>
+              <h1>{deck.name}</h1>
+              <p>{deck.description}</p>
+              <dl>
+                {deck.cards.map((card) => (
+                  <Fragment key={card.id}>
+                    <dt>{card.front}</dt>
+                    <dd>{card.back}</dd>
+                  </Fragment>
+                ))}
+              </dl>
+            </div>
+          )
+        }
+
+    .. code-tab:: typescript-diff
+      :caption: app/form.tsx
+
+        "use client";
+      - import { useTransition, useState } from "react";
+      + import { useTransition } from "react";
+        import { importDeck } from "./actions";
+
+        export function ImportForm() {
+          const [isPending, startTransition] = useTransition();
+      -   const [importState, setImportState] = useState<
+      -     "idle" | "loading" | "success" | "error"
+      -   >("idle");
+
+          const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+
+      -     setImportState("loading");
+            startTransition(async () => {
+              const deck = await file.text();
+
+              const formData = new FormData();
+              formData.set("deck", deck);
+              try {
+                await importDeck(formData);
+      -         setImportState("success");
+                event.target.form?.reset();
+              } catch (error) {
+                console.error(error);
+      -         setImportState("error");
+              }
+            });
+          };
+
+          return (
+            <form>
+              <label htmlFor="file">Upload a deck of cards</label>
+      -       {importState === "loading" && <p>Importing...</p>}
+      +       {isPending && <p>Importing...</p>}
+      -       {importState === "success" && <p>Imported successfully</p>}
+      -       {importState === "error" && <p>Error importing</p>}
+              <input
+                type="file"
+                id="file"
+                onChange={handleFileChange}
+                disabled={isPending}
+              />
+            </form>
+          );
+        }
+
 
 .. edb:split-section::
 
   Which should look something like this:
 
-  .. code-block:: sh
-
-      # TODO: replace me with an image
-      $ echo
+  .. image:: https://placehold.co/600x400?text=Show+deck+page
 
 .. edb:split-section::
 

@@ -27,12 +27,12 @@ Adding Shared Properties
     +   }
     +
     -   type User {
-    +   type User extends Timestamped {
+    +   type User extending Timestamped {
           required name: str;
         }
 
     -   type AccessToken {
-    +   type AccessToken extends Timestamped {
+    +   type AccessToken extending Timestamped {
           required user: User;
           required token: str {
             constraint exclusive;
@@ -40,7 +40,7 @@ Adding Shared Properties
         }
 
     -   type Deck {
-    +   type Deck extends Timestamped {
+    +   type Deck extending Timestamped {
           required name: str;
           description: str;
 
@@ -56,7 +56,7 @@ Adding Shared Properties
         };
 
     -   type Card {
-    +   type Card extends Timestamped {
+    +   type Card extending Timestamped {
           required order: int64;
           required front: str;
           required back: str;
@@ -73,19 +73,30 @@ Adding Shared Properties
 
 .. edb:split-section::
 
-  When we create a migration, we need to set initial values for the ``created_at`` and ``updated_at`` properties on all existing objects. Since we don't have historical data for when these objects were actually created or modified, we'll set both timestamps to the current time when the migration runs by using ``datetime_of_statement()``.
+  When we create a migration, we need to set initial values for the ``created_at`` and ``updated_at`` properties on all existing objects. Since we don't have historical data for when these objects were actually created or modified, the migration will fall back to the default values we set in the ``Timestamped`` type.
 
   .. code-block:: sh
 
     $ npx gel migration create
-    fill_expr> datetime_of_statement()
+    did you create object type 'default::Timestamped'? [y,n,l,c,b,s,q,?]
+    > y
+    did you alter object type 'default::AccessToken'? [y,n,l,c,b,s,q,?]
+    > y
+    did you alter object type 'default::User'? [y,n,l,c,b,s,q,?]
+    > y
+    did you alter object type 'default::Card'? [y,n,l,c,b,s,q,?]
+    > y
+    did you alter object type 'default::Deck'? [y,n,l,c,b,s,q,?]
+    > y
+    Created /home/strinh/projects/flashcards/dbschema/migrations/00004-m1d2m5n.edgeql, id: m1d2m5n5ajkalyijrxdliioyginonqbtfzihvwdfdmfwodunszstya
 
     $ npx gel migrate
+    Applying m1d2m5n5ajkalyijrxdliioyginonqbtfzihvwdfdmfwodunszstya (00004-m1d2m5n.edgeql)
+    ... parsed
+    ... applied
 
 .. edb:split-section::
 
   Now when we look at the data in the UI, we will see the new properties on each of our object types.
 
-  .. code-block:: sh
-
-    $ echo
+  .. image:: https://placehold.co/600x400?text=Show+timestamped+properties

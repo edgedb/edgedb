@@ -63,6 +63,48 @@ Adding Access Control
 
 .. edb:split-section::
 
+  We will create this migration which will also trigger the query builder to be regenerated.
+
+  .. code-block:: sh
+
+    $ npx gel migration create
+    did you create global 'default::access_token'? [y,n,l,c,b,s,q,?]
+    > y
+    did you create object type 'default::User'? [y,n,l,c,b,s,q,?]
+    > y
+    did you create object type 'default::AccessToken'? [y,n,l,c,b,s,q,?]
+    > y
+    did you create global 'default::current_user'? [y,n,l,c,b,s,q,?]
+    > y
+    did you alter object type 'default::Deck'? [y,n,l,c,b,s,q,?]
+    > y
+    did you create access policy 'deck_creator_has_full_access' of object type 'default::Card'? [y,n,l,c,b,s,q,?]
+    > y
+    Created /home/strinh/projects/flashcards/dbschema/migrations/00003-m1solvt.edgeql, id: m1solvta35uzsbs4axzqmkwfx7zatjtkozpr43cjs56fp75qzbrg5q
+
+    $ npx gel migrate
+    Applying m1solvta35uzsbs4axzqmkwfx7zatjtkozpr43cjs56fp75qzbrg5q (00003-m1solvt.edgeql)
+    ... parsed
+    ... applied
+    Generating query builder...
+    Detected tsconfig.json, generating TypeScript files.
+    To override this, use the --target flag.
+    Run `npx @gel/generate --help` for full options.
+    Introspecting database schema...
+    Generating runtime spec...
+    Generating cast maps...
+    Generating scalars...
+    Generating object types...
+    Generating function types...
+    Generating operators...
+    Generating set impl...
+    Generating globals...
+    Generating index...
+    Writing files to ./dbschema/edgeql-js
+    Generation complete! 🤘
+
+.. edb:split-section::
+
   Let's create a page for creating a new user and getting an access token. Let's start by creating the query to create a new user which will return the ``AccessToken.id`` which we will use as the access token itself. We will save this access token in a cookie so that we can authenticate requests in other server actions and route handlers.
 
   .. tabs::
@@ -151,7 +193,6 @@ Adding Access Control
           );
         }
 
-
 .. edb:split-section::
 
   We should see this page when we navigate to the signup page.
@@ -186,23 +227,74 @@ Limiting access
 
 .. edb:split-section::
 
-  Along with allowing us to take advantage of our access policies in our queries, this will also allow us to redirect unauthenticated users to the signup page from any of our pages which should require authentication. Let's update our ``page.tsx`` file to redirect to the signup page if the user is not authenticated.
+  Along with allowing us to take advantage of our access policies in our queries, this will also allow us to redirect unauthenticated users to the signup page from any of our pages which should require authentication. Let's update our ``page.tsx`` file to redirect to the signup page if the user is not authenticated. We will also show the list of decks on this page.
 
-  .. code-block:: typescript-diff
-    :caption: app/page.tsx
+  .. tabs::
 
-      import { ImportForm } from "./form";
-    + import { getAuthenticatedClient } from "@/lib/gel";
-    + import { redirect } from "next/navigation";
+    .. code-tab:: typescript-diff
+      :caption: app/actions.ts
 
-      export default async function Page() {
-    +   const client = await getAuthenticatedClient();
-    +   if (!client) {
-    +     redirect("/signup");
-    +   }
-    +
-        return <ImportForm />;
-      }
+        "use server";
+      - import { client } from "@/lib/gel";
+      + import { getAuthenticatedClient } from "@/lib/gel";
+        import { createDeck } from "./create-deck.query";
+      + import e from "@/dbschema/edgeql-js";
+
+        export async function importDeck(formData: FormData) {
+          const deck = formData.get("deck");
+          if (typeof deck !== "string") {
+            return;
+          }
+      +
+      +   const client = await getAuthenticatedClient();
+      +   if (!client) {
+      +     return;
+      +   }
+
+          await createDeck(client, JSON.parse(deck));
+        }
+      +
+      + export async function getDecks() {
+      +   const client = await getAuthenticatedClient();
+      +   if (!client) {
+      +     return [];
+      +   }
+      +
+      +   return e.select(e.Deck, (d) => ({
+      +     id: true,
+      +     name: true,
+      +   })).run(client);
+      + }
+
+    .. code-tab:: typescript-diff
+      :caption: app/page.tsx
+
+        import { ImportForm } from "./form";
+      + import { getAuthenticatedClient } from "@/lib/gel";
+      + import { redirect } from "next/navigation";
+      + import { getDecks } from "./actions";
+
+        export default async function Page() {
+      +   const client = await getAuthenticatedClient();
+      +   if (!client) {
+      +     redirect("/signup");
+      +   }
+      +
+      +   const decks = await getDecks(client);
+      +
+      -   return <ImportForm />;
+      +   return (
+      +     <div>
+      +       <h1>Decks</h1>
+      +       <ul>
+      +         {decks.map((deck) => (
+      +           <li key={deck.id}>{deck.name}</li>
+      +         ))}
+      +       </ul>
+      +       <ImportForm />
+      +     </div>
+      +   );
+        }
 
 .. edb:split-section::
 
@@ -274,14 +366,15 @@ Limiting access
   .. code-block:: typescript-diff
     :caption: app/deck/[id]/page.tsx
 
-      import { redirect } from "next/navigation";
+      import { notFound } from "next/navigation";
     - import { client } from "@/lib/gel";
     + import { getAuthenticatedClient } from "@/lib/gel";
       import e from "@/dbschema/edgeql-js";
+      import { Fragment } from "react";
 
-      const getDeckQuery = e.params({ deckId: e.uuid }, (params) =>
+      const getDeckQuery = e.params({ id: e.uuid }, (params) =>
         e.select(e.Deck, (d) => ({
-          filter_single: e.op(d.id, "=", params.deckId),
+          filter_single: e.op(d.id, "=", params.id),
           id: true,
           name: true,
           description: true,
@@ -301,30 +394,30 @@ Limiting access
       export default async function DeckPage(
         { params }: { params: Promise<{ id: string }> }
       ) {
-        const { id: deckId } = await params;
+        const { id } = await params;
     +   const client = await getAuthenticatedClient();
     +   if (!client) {
-    +     redirect("/signup");
+    +     notFound();
     +   }
-
-        const deck = await getDeckQuery.run(client, { deckId });
+    +
+        const deck = await getDeckQuery.run(client, { id });
 
         if (!deck) {
-          redirect("/");
+          notFound();
         }
 
         return (
           <div>
             <h1>{deck.name}</h1>
             <p>{deck.description}</p>
-            <ul>
+            <dl>
               {deck.cards.map((card) => (
-                <dl key={card.id}>
+                <Fragment key={card.id}>
                   <dt>{card.front}</dt>
                   <dd>{card.back}</dd>
-                </dl>
+                </Fragment>
               ))}
-            </ul>
+            </dl>
           </div>
         )
       }
