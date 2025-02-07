@@ -27,7 +27,6 @@ from typing import (
     Optional,
     Self,
     TypeVar,
-    TYPE_CHECKING,
 )
 
 import dataclasses
@@ -47,9 +46,6 @@ from edb.common import uuidgen
 
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
-
-if TYPE_CHECKING:
-    from edb.edgeql import qltypes
 
 MISSING: Any = object()
 
@@ -740,74 +736,3 @@ class EnabledDisabledType(
             EnabledDisabledEnum.Enabled: "true",
             EnabledDisabledEnum.Disabled: "false",
         }
-
-
-class TransactionAccessModeEnum(enum.StrEnum):
-    ReadOnly = "ReadOnly"
-    ReadWrite = "ReadWrite"
-
-
-class TransactionAccessMode(
-    EnumScalarType[TransactionAccessModeEnum],
-    edgeql_type="sys::TransactionAccessMode",
-):
-    @classmethod
-    def get_translation_map(cls) -> Mapping[TransactionAccessModeEnum, str]:
-        return {
-            TransactionAccessModeEnum.ReadOnly: "true",
-            TransactionAccessModeEnum.ReadWrite: "false",
-        }
-
-    def to_qltypes(self) -> qltypes.TransactionAccessMode:
-        from edb.edgeql import qltypes
-        match self._val:
-            case TransactionAccessModeEnum.ReadOnly:
-                return qltypes.TransactionAccessMode.READ_ONLY
-            case TransactionAccessModeEnum.ReadWrite:
-                return qltypes.TransactionAccessMode.READ_WRITE
-            case _:
-                raise AssertionError(f"unexpected value: {self._val!r}")
-
-
-class TransactionDeferrabilityEnum(enum.StrEnum):
-    Deferrable = "Deferrable"
-    NotDeferrable = "NotDeferrable"
-
-
-class TransactionDeferrability(
-    EnumScalarType[TransactionDeferrabilityEnum],
-    edgeql_type="sys::TransactionDeferrability",
-):
-    @classmethod
-    def get_translation_map(cls) -> Mapping[TransactionDeferrabilityEnum, str]:
-        return {
-            TransactionDeferrabilityEnum.Deferrable: "true",
-            TransactionDeferrabilityEnum.NotDeferrable: "false",
-        }
-
-
-class TransactionIsolationEnum(enum.StrEnum):
-    Serializable = "Serializable"
-    RepeatableRead = "RepeatableRead"
-
-
-class TransactionIsolation(
-    EnumScalarType[TransactionIsolationEnum],
-    edgeql_type="sys::TransactionIsolation",
-):
-    @classmethod
-    def get_translation_map(cls) -> Mapping[TransactionIsolationEnum, str]:
-        return {
-            TransactionIsolationEnum.Serializable: "serializable",
-            TransactionIsolationEnum.RepeatableRead: "repeatable read",
-        }
-
-    def to_qltypes(self) -> qltypes.TransactionIsolationLevel:
-        from edb.edgeql import qltypes
-        match self._val:
-            case TransactionIsolationEnum.Serializable:
-                return qltypes.TransactionIsolationLevel.SERIALIZABLE
-            case TransactionIsolationEnum.RepeatableRead:
-                return qltypes.TransactionIsolationLevel.REPEATABLE_READ
-            case _:
-                raise AssertionError(f"unexpected value: {self._val!r}")

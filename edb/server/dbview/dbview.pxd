@@ -237,7 +237,6 @@ cdef class DatabaseConnectionView:
 
     cdef get_system_config(self)
     cpdef get_compilation_system_config(self)
-    cdef config_lookup(self, name)
 
     cdef set_modaliases(self, new_aliases)
     cpdef get_modaliases(self)

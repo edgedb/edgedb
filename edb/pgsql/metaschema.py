@@ -186,6 +186,32 @@ class InstDataTable(dbops.Table):
         )
 
 
+class DMLDummyTable(dbops.Table):
+    """A empty dummy table used when we need to emit no-op DML.
+
+    This is used by scan_check_ctes in the pgsql compiler to
+    force the evaluation of error checking.
+    """
+    def __init__(self) -> None:
+        super().__init__(name=('edgedb', '_dml_dummy'))
+
+        self.add_columns([
+            dbops.Column(name='id', type='int8'),
+            dbops.Column(name='flag', type='bool'),
+        ])
+
+        self.add_constraint(
+            dbops.UniqueConstraint(
+                table_name=('edgedb', '_dml_dummy'),
+                columns=['id'],
+            ),
+        )
+
+    SETUP_QUERY = '''
+        INSERT INTO edgedb._dml_dummy VALUES (0, false)
+    '''
+
+
 class QueryCacheTable(dbops.Table):
     def __init__(self) -> None:
         super().__init__(name=('edgedb', '_query_cache'))
@@ -5130,7 +5156,11 @@ def get_fixed_bootstrap_commands() -> dbops.CommandGroup:
             DBConfigTable(),
         ),
         # TODO: SHOULD THIS BE VERSIONED?
+        dbops.CreateTable(DMLDummyTable()),
+        # TODO: SHOULD THIS BE VERSIONED?
         dbops.CreateTable(QueryCacheTable()),
+
+        dbops.Query(DMLDummyTable.SETUP_QUERY),
 
         dbops.CreateDomain(BigintDomain()),
         dbops.CreateDomain(ConfigMemoryDomain()),
