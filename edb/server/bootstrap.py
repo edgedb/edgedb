@@ -1974,6 +1974,7 @@ async def _configure(
     await _execute_block(ctx.conn, block)
 
     backend_params = ctx.cluster.get_runtime_params()
+    need_reload = False
     for setname in config_spec:
         setting = config_spec[setname]
         if (
@@ -1984,9 +1985,12 @@ async def _configure(
                 # backends that don't support it.
                 # TODO: this should be replaced by instance-wide
                 #       emulation at backend connection time.
+                #       fantix: +1 to the above, also needed by
+                #       `default_transaction_isolation=serializable`
                 backend_params.has_configfile_access
             )
         ):
+            need_reload = True
             script = qlcodegen.generate_source(
                 qlast.ConfigSet(
                     name=qlast.ObjectRef(name=setting.name),
@@ -1996,6 +2000,8 @@ async def _configure(
             )
             schema, sql = compile_bootstrap_script(compiler, schema, script)
             await _execute(ctx.conn, sql)
+    if need_reload:
+        await _execute(ctx.conn, 'SELECT pg_reload_conf()')
 
 
 def compile_sys_queries(

@@ -87,7 +87,6 @@ EDGEDB_SERVER_SETTINGS = {
     'timezone': 'UTC',
     'intervalstyle': 'iso_8601',
     'jit': 'off',
-    'default_transaction_isolation': 'serializable',
 }
 
 
@@ -497,6 +496,7 @@ class Cluster(BaseCluster):
 
             have_c_utf8 = self.get_runtime_params().has_c_utf8_locale
             await self.init(
+                "default_transaction_isolation='serializable'",
                 username='postgres',
                 locale='C.UTF-8' if have_c_utf8 else 'en_US.UTF-8',
                 lc_collate='C',
@@ -513,16 +513,18 @@ class Cluster(BaseCluster):
         else:
             return False
 
-    async def init(self, **settings: str) -> None:
+    async def init(self, *server_config: str, **settings: str) -> None:
         """Initialize cluster."""
         if await self.get_status() != 'not-initialized':
             raise ClusterError(
                 'cluster in {!r} has already been initialized'.format(
                     self._data_dir))
 
-        if settings:
+        if settings or server_config:
             settings_args = ['--{}={}'.format(k.replace('_', '-'), v)
                              for k, v in settings.items()]
+            for conf in server_config:
+                settings_args.append('-c {}'.format(conf))
             extra_args = ['-o'] + [' '.join(settings_args)]
         else:
             extra_args = []
