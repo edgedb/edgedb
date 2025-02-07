@@ -2152,24 +2152,35 @@ def _compile_ql_transaction(
         ctx._assert_not_in_migration_block(ql)
 
         ctx.state.start_tx()
+        current_tx = ctx.state.current_tx()
 
         # Compute the effective isolation level
         iso_config: statypes.TransactionIsolation = _get_config_val(
             ctx, "default_transaction_isolation"
         )
         default_iso = iso_config.to_qltypes()
-        iso = ql.isolation
+        iso = spec_iso = ql.isolation
         if iso is None:
             iso = default_iso
+            if (
+                'default_transaction_isolation'
+                in current_tx.get_session_config()
+            ):
+                spec_iso = default_iso
 
         # Compute the effective access mode
         access = ql.access
         if access is None:
+            # XXX: should be regular iso??
             if default_iso is qltypes.TransactionIsolationLevel.SERIALIZABLE:
                 access_mode: statypes.TransactionAccessMode = _get_config_val(
                     ctx, "default_transaction_access_mode"
                 )
-                access = access_mode.to_qltypes()
+                if (
+                    "default_transaction_access_mode"
+                    in current_tx.get_session_config()
+                ):
+                    access = access_mode.to_qltypes()
             else:
                 access = qltypes.TransactionAccessMode.READ_ONLY
 
@@ -2185,9 +2196,14 @@ def _compile_ql_transaction(
                 hint=f"specify READ ONLY access mode",
             )
 
-        sqls = f'START TRANSACTION ISOLATION LEVEL {iso.value} {access.value}'
+        sqls = f'START TRANSACTION'
+        if spec_iso is not None:
+            sqls += f' ISOLATION LEVEL {spec_iso.value}'
+        if access is not None:
+            sqls += f' {access.value}'
         if ql.deferrable is not None:
             sqls += f' {ql.deferrable.value}'
+        # print("???", sqls)
         sqls += ';'
         sql = sqls.encode()
 
