@@ -489,7 +489,7 @@ def scan_check_ctes(
             name='flag', val=pgast.BooleanConstant(val=True)
         )],
         relation=pgast.RelRangeVar(relation=pgast.Relation(
-            name='_dml_dummy')),
+            schemaname='edgedb', name='_dml_dummy')),
         where_clause=pgast.Expr(
             name="=",
             lexpr=pgast.ColumnRef(name=["id"]),

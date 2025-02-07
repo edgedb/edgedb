@@ -2591,11 +2591,9 @@ async def _bootstrap(
         await tpl_ctx.conn.sql_execute(b"SELECT pg_advisory_lock(3987734529)")
 
     try:
-        # Some of the views need access to the _edgecon_state table and the
-        # _dml_dummy table, so set it up.
-        tmp_table_query = (
-            pgcon.SETUP_TEMP_TABLE_SCRIPT + pgcon.SETUP_DML_DUMMY_TABLE_SCRIPT
-        )
+        # Some of the views need access to the _edgecon_state table,
+        # so set it up.
+        tmp_table_query = pgcon.SETUP_TEMP_TABLE_SCRIPT
         await _execute(tpl_ctx.conn, tmp_table_query)
 
         stdlib, config_spec, compiler = await _init_stdlib(
