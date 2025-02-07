@@ -138,6 +138,7 @@ cdef class PGConnection:
         public object pinned_by
 
         object last_state
+        bint state_reset_needs_commit
         public object last_init_con_data
 
         str last_indirect_return
@@ -165,6 +166,7 @@ cdef class PGConnection:
         object bind_datas, bytes state,
         ssize_t start, ssize_t end, int dbver, object parse_array,
         object query_prefix,
+        bint needs_commit_state,
     )
 
     cdef _rewrite_copy_data(
