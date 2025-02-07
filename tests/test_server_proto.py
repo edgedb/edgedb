@@ -2070,7 +2070,7 @@ class TestServerProto(tb.QueryTestCase):
         self.assertEqual(await self.con.query_single('SELECT 42'), 42)
 
     async def assert_tx_isolation_and_default(
-        self, expected: str, *, default : str | None = None, conn=None
+        self, expected: str, *, default: str | None = None, conn=None
     ):
         if conn is None:
             conn = self.con
