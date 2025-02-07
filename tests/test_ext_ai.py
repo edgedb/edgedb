@@ -20,6 +20,8 @@ import json
 import pathlib
 import unittest
 
+import edgedb
+
 from edb.server.protocol import ai_ext
 from edb.testbase import http as tb
 
@@ -255,20 +257,32 @@ class TestExtAI(tb.BaseHttpExtensionTest):
             # updating an object should make it disappear from results.
             # (the read is done in the same tx, so there is no possible
             # race where the worker picks it up before the read)
-            await self.assert_query_result(
-                """
-                update Stuff filter .content like '%Earth'
-                set { content2 := ' are often grey' };
-                """ + qry,
-                [
-                    {
-                        'content': 'Skies on Mars',
-                        'content2': ' are red',
-                        'distance': 0.4284523933505918,
-                    },
-                ],
-                variables=dict(qv=qv),
-            )
+            async for tr in self.try_until_succeeds(
+                ignore=(
+                    edgedb.TransactionConflictError,
+                    edgedb.TransactionSerializationError,
+                ),
+                timeout=30.0,
+            ):
+                async with tr:
+                    try:
+                        await self.assert_query_result(
+                            """
+                            update Stuff filter .content like '%Earth'
+                            set { content2 := ' are often grey' };
+                            """ + qry,
+                            [
+                                {
+                                    'content': 'Skies on Mars',
+                                    'content2': ' are red',
+                                    'distance': 0.4284523933505918,
+                                },
+                            ],
+                            variables=dict(qv=qv),
+                        )
+                    except Exception as ex:
+                        print("FUCK", ex)
+                        raise
 
         finally:
             await self.con.execute('''
