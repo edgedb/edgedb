@@ -2366,6 +2366,69 @@ class TestServerProto(tb.QueryTestCase):
         finally:
             await con2.aclose()
 
+    async def _test_with_sql_connection(self, test_func):
+        # Test state sync across EdgeQL / SQL interfaces
+        try:
+            import asyncpg
+        except ImportError:
+            self.skipTest("asyncpg is not installed")
+
+        conn_args = self.get_connect_args(database=self.con.dbname)
+        scon = await asyncpg.connect(
+            host=conn_args['host'],
+            port=conn_args['port'],
+            user=conn_args['user'],
+            database=conn_args['database'],
+            password=conn_args['password'],
+            ssl='require'
+        )
+
+        try:
+            await test_func(scon)
+        finally:
+            await self.con.query('''
+                CONFIGURE SESSION
+                    RESET default_transaction_isolation;
+            ''')
+            await scon.close()
+
+    async def test_server_proto_tx_33(self):
+        async def test(scon):
+            await scon.execute('''
+                set default_transaction_isolation to 'repeatable read';
+            ''')
+            for _ in range(5):
+                await self.assert_tx_isolation_and_default('Serializable')
+                self.assertEqual(
+                    await scon.fetchval('show transaction_isolation'),
+                    'repeatable read',
+                )
+                self.assertEqual(
+                    await scon.fetchval('show default_transaction_isolation'),
+                    'repeatable read',
+                )
+
+        await self._test_with_sql_connection(test)
+
+    async def test_server_proto_tx_34(self):
+        async def test(scon):
+            await self.con.query('''
+                CONFIGURE SESSION
+                    SET default_transaction_isolation := 'RepeatableRead';
+            ''')
+            for _ in range(5):
+                await self.assert_tx_isolation_and_default('RepeatableRead')
+                self.assertEqual(
+                    await scon.fetchval('show transaction_isolation'),
+                    'serializable',
+                )
+                self.assertEqual(
+                    await scon.fetchval('show default_transaction_isolation'),
+                    'serializable',
+                )
+
+        await self._test_with_sql_connection(test)
+
 
 class TestServerProtoMigration(tb.QueryTestCase):
 
