@@ -37,11 +37,13 @@ libraries* for the following languages.
 - :ref:`JavaScript/TypeScript <edgedb-js-intro>`
 - :ref:`Go <edgedb-go-intro>`
 - :ref:`Python <edgedb-python-intro>`
-- :ref:`Rust <ref_rust_index>`
-- :ref:`C# and F# <edgedb-dotnet-intro>`
-- :ref:`Java <edgedb-java-intro>`
-- :ref:`Dart <edgedb-dart-intro>`
-- :ref:`Elixir <edgedb-elixir-intro>`
+
+.. XXX: link to third-party doc websites
+.. - :ref:`Rust <ref_rust_index>`
+.. - :ref:`C# and F# <edgedb-dotnet-intro>`
+.. - :ref:`Java <edgedb-java-intro>`
+.. - :ref:`Dart <edgedb-dart-intro>`
+.. - :ref:`Elixir <edgedb-elixir-intro>`
 
 Usage
 =====
