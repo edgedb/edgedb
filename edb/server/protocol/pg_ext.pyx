@@ -360,6 +360,16 @@ cdef class ConnectionView:
         self._session_state_db_cache = (self._settings, rv)
         return rv
 
+    cdef bint needs_commit_after_state_sync(self):
+        return any(
+            tx_conf in self._settings
+            for tx_conf in [
+                "default_transaction_isolation",
+                "default_transaction_deferrable",
+                "default_transaction_read_only",
+            ]
+        )
+
 
 cdef class PgConnection(frontend.FrontendConnection):
     interface = "sql"

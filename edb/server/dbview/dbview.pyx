@@ -922,6 +922,16 @@ cdef class DatabaseConnectionView:
             aliases, session_config, globals_, type_id, data
         )
 
+    cdef bint needs_commit_after_state_sync(self):
+        return any(
+            tx_conf in self._config
+            for tx_conf in [
+                "default_transaction_isolation",
+                "default_transaction_deferrable",
+                # default_transaction_access_mode is not yet a backend config
+            ]
+        )
+
     property txid:
         def __get__(self):
             return self._txid

@@ -77,6 +77,7 @@ cdef class ExecutionGroup:
         object dbv,  # can be DatabaseConnectionView or Database
         fe_conn: frontend.AbstractFrontendConnection = None,
         bytes state = None,
+        bint needs_commit_state = False,
     ):
         cdef int dbver
 
@@ -94,9 +95,14 @@ cdef class ExecutionGroup:
                 dbver,
                 parse_array,
                 None,  # query_prefix
+                needs_commit_state,
             )
             if state is not None:
-                await be_conn.wait_for_state_resp(state, state_sync=0)
+                await be_conn.wait_for_state_resp(
+                    state,
+                    state_sync=needs_commit_state,
+                    needs_commit_state=needs_commit_state,
+                )
             for i, unit in enumerate(self.group):
                 ignore_data = unit.output_format == FMT_NONE
                 rv = await be_conn.wait_for_command(
@@ -238,11 +244,13 @@ async def execute(
     cdef:
         bytes state = None, orig_state = None
         WriteBuffer bound_args_buf
+        bint needs_commit_state = False
 
     query_unit = compiled.query_unit_group[0]
 
     if not dbv.in_tx():
         orig_state = state = dbv.serialize_state()
+        needs_commit_state = dbv.needs_commit_after_state_sync()
 
     new_types = None
     server = dbv.server
@@ -269,13 +277,19 @@ async def execute(
                 close_frontend_conns=query_unit.drop_db_reset_connections,
             )
         if query_unit.system_config:
+            # execute_system_config() always sync state in a separate tx,
+            # so we don't need to pass down the needs_commit_state here
             await execute_system_config(be_conn, dbv, query_unit, state)
         else:
             config_ops = query_unit.config_ops
 
             if query_unit.sql:
                 if query_unit.user_schema:
-                    await be_conn.parse_execute(query=query_unit, state=state)
+                    await be_conn.parse_execute(
+                        query=query_unit,
+                        state=state,
+                        needs_commit_state=needs_commit_state,
+                    )
                     if query_unit.ddl_stmt_id is not None:
                         ddl_ret = be_conn.load_last_ddl_return(query_unit)
                         if ddl_ret and ddl_ret['new_types']:
@@ -299,6 +313,7 @@ async def execute(
                         param_data_types=data_types,
                         use_prep_stmt=use_prep_stmt,
                         state=state,
+                        needs_commit_state=needs_commit_state,
                         dbver=dbv.dbver,
                         use_pending_func_cache=compiled.use_pending_func_cache,
                         tx_isolation=tx_isolation,
@@ -411,6 +426,8 @@ async def execute(
                 #   1. An orphan ROLLBACK command without a paring start tx
                 #   2. There was no SQL, so the state can't have been synced.
                 be_conn.last_state = state
+                be_conn.state_reset_needs_commit = (
+                    dbv.needs_commit_after_state_sync())
         if compiled.recompiled_cache:
             for req, qu_group in compiled.recompiled_cache:
                 dbv.cache_compiled_query(req, qu_group)
@@ -437,7 +454,7 @@ async def execute_script(
         object global_schema, roles
         WriteBuffer bind_data
         int dbver = dbv.dbver
-        bint parse
+        bint parse, needs_commit_state = False
 
     user_schema = extensions = ext_config_settings = cached_reflection = None
     feature_used_metrics = None
@@ -451,6 +468,7 @@ async def execute_script(
     in_tx = dbv.in_tx()
     if not in_tx:
         orig_state = state = dbv.serialize_state()
+        needs_commit_state = dbv.needs_commit_after_state_sync()
 
     data = None
 
@@ -503,10 +521,16 @@ async def execute_script(
                         dbver,
                         parse_array,
                         query_prefix,
+                        needs_commit_state,
                     )
 
                 if idx == 0 and state is not None:
-                    await conn.wait_for_state_resp(state, state_sync=0)
+                    await conn.wait_for_state_resp(
+                        state,
+                        state_sync=needs_commit_state,
+                        needs_commit_state=needs_commit_state,
+                    )
+                    conn.state_reset_needs_commit = needs_commit_state
                     # state is restored, clear orig_state so that we can
                     # set conn.last_state correctly later
                     orig_state = None
@@ -622,6 +646,8 @@ async def execute_script(
             state = dbv.serialize_state()
             if state is not orig_state:
                 conn.last_state = state
+                conn.state_reset_needs_commit = (
+                    dbv.needs_commit_after_state_sync())
         elif updated_user_schema:
             dbv._in_tx_user_schema_pickle = user_schema
 

@@ -261,7 +261,51 @@ cdef class PGConnection:
         # by the backend.
         self.aborted_with_error = None
 
+        # Session State Management
+        # ------------------------
+        # Due to the fact that backend sessions are not pinned to frontend
+        # sessions (EdgeQL, SQL, etc.) out of transactions, we need to sync
+        # the backend state with the frontend state before executing queries.
+        #
+        # For performance reasons, we try to avoid syncing the state by
+        # remembering the last state we've synced (last_state), and prefer
+        # backend connection with the same state as the frontend.
+        #
+        # Syncing the state is done by resetting the session state as a whole,
+        # followed by applying the new state, so that we don't have to track
+        # individual config resets. Again for performance reasons, the state
+        # sync is usually applied in the same implicit transaction as the
+        # actual query in order to avoid extra round trips.
+        #
+        # Though, there are exceptions when we need to sync the state in a
+        # separate transaction by inserting a SYNC message before the actual
+        # query. This is because either that the query itself is a START
+        # TRANSACTION / non-transactional command and a few other cases (see
+        # _parse_execute() below), or the state change affects new transaction
+        # creation like changing the `default_transaction_isolation` or its
+        # siblings (see `needs_commit_state` parameters). In such cases, we
+        # remember the `last_state` immediately after we received the
+        # ReadyForQuery message caused by the SYNC above, if there are no
+        # errors happened during state sync. Otherwise, we only remember
+        # `last_state` after the implicit transaction ends successfully, when
+        # we're sure the state is synced permanently.
+        #
+        # The actual queries may also change the session state. Regardless of
+        # how we synced state previously, we always remember the `last_state`
+        # after successful executions (also after transactions without errors,
+        # implicit or explicit).
+        #
+        # Finally, resetting an existing session state that was positive in
+        # `needs_commit_state` also requires a commit, because the new state
+        # may not have `needs_commit_state`. To achieve this, we remember the
+        # previous `needs_commit_state` in `state_reset_needs_commit` and
+        # always insert a SYNC in the next state sync if it's True. Also, if
+        # the actual queries modified those `default_transaction_*` settings,
+        # we also need to set `state_reset_needs_commit` to True for the next
+        # state sync(reset). See `needs_commit_after_state_sync()` functions
+        # in dbview classes (EdgeQL and SQL).
         self.last_state = dbview.DEFAULT_STATE
+        self.state_reset_needs_commit = False
 
     cpdef set_stmt_cache_size(self, int maxsize):
         self.prep_stmts.resize(maxsize)
@@ -590,6 +634,7 @@ cdef class PGConnection:
         object bind_datas, bytes state,
         ssize_t start, ssize_t end, int dbver, object parse_array,
         object query_prefix,
+        bint needs_commit_state,
     ):
         # parse_array is an array of booleans for output with the same size as
         # the query_unit_group, indicating if each unit is freshly parsed
@@ -607,6 +652,8 @@ cdef class PGConnection:
 
         if state is not None and start == 0:
             self._build_apply_state_req(state, out)
+            if needs_commit_state or self.state_reset_needs_commit:
+                self.write_sync(out)
 
         # Build the parse_array first, closing statements if needed before
         # actually executing any command that may fail, in order to ensure
@@ -716,13 +763,16 @@ cdef class PGConnection:
         finally:
             await self.after_command()
 
-    async def wait_for_state_resp(self, bytes state, bint state_sync):
+    async def wait_for_state_resp(
+        self, bytes state, bint state_sync, bint needs_commit_state
+    ):
         if state_sync:
             try:
                 await self._parse_apply_state_resp(2 if state is None else 3)
             finally:
                 await self.wait_for_sync()
             self.last_state = state
+            self.state_reset_needs_commit = needs_commit_state
         else:
             await self._parse_apply_state_resp(2 if state is None else 3)
 
@@ -973,6 +1023,7 @@ cdef class PGConnection:
         tx_isolation,
         list param_data_types,
         bytes query_prefix,
+        bint needs_commit_state,
     ):
         cdef:
             WriteBuffer out
@@ -1005,6 +1056,8 @@ cdef class PGConnection:
                 or not query.is_transactional
                 or query.run_and_rollback
                 or tx_isolation is not None
+                or needs_commit_state
+                or self.state_reset_needs_commit
             ):
                 # This query has START TRANSACTION or non-transactional command
                 # like CREATE DATABASE in it.
@@ -1194,7 +1247,8 @@ cdef class PGConnection:
 
         try:
             if state is not None:
-                await self.wait_for_state_resp(state, state_sync)
+                await self.wait_for_state_resp(
+                    state, state_sync, needs_commit_state)
 
             if query.run_and_rollback or tx_isolation is not None:
                 await self.wait_for_sync()
@@ -1304,6 +1358,7 @@ cdef class PGConnection:
         bint use_pending_func_cache = 0,
         tx_isolation = None,
         query_prefix = None,
+        bint needs_commit_state = False,
     ):
         self.before_command()
         started_at = time.monotonic()
@@ -1319,6 +1374,7 @@ cdef class PGConnection:
                 tx_isolation,
                 param_data_types,
                 query_prefix or b'',
+                needs_commit_state,
             )
         finally:
             metrics.backend_query_duration.observe(
@@ -1493,6 +1549,8 @@ cdef class PGConnection:
                 )
                 await self.wait_for_sync()
                 self.last_state = state
+                self.state_reset_needs_commit = (
+                    dbv.needs_commit_after_state_sync())
         finally:
             await self.after_command()
 
@@ -1512,6 +1570,8 @@ cdef class PGConnection:
                 )
                 await self.wait_for_sync()
                 self.last_state = state
+                self.state_reset_needs_commit = (
+                    dbv.needs_commit_after_state_sync())
             try:
                 return await self._parse_sql_extended_query(
                     actions,
@@ -1522,6 +1582,8 @@ cdef class PGConnection:
             finally:
                 if not dbv.in_tx():
                     self.last_state = dbv.serialize_state()
+                    self.state_reset_needs_commit = (
+                        dbv.needs_commit_after_state_sync())
         finally:
             await self.after_command()
 
