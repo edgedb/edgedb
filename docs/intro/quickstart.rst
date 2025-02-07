@@ -191,7 +191,7 @@ This did a couple things.
 
 Let's connect to our new instance! Run ``edgedb`` in your terminal to open an
 interactive REPL to your instance. You're now connected to a live EdgeDB
-instance running on your computer! Try executing a simple query (``select 1 + 1;``) after the 
+instance running on your computer! Try executing a simple query (``select 1 + 1;``) after the
 REPL prompt (``quickstart:main>``):
 
 .. code-block:: edgeql-repl
@@ -511,11 +511,13 @@ provides official libraries for many langauges:
 - :ref:`JavaScript/TypeScript <edgedb-js-intro>`
 - :ref:`Go <edgedb-go-intro>`
 - :ref:`Python <edgedb-python-intro>`
-- :ref:`Rust <ref_rust_index>`
-- :ref:`C# and F# <edgedb-dotnet-intro>`
-- :ref:`Java <edgedb-java-intro>`
-- :ref:`Dart <edgedb-dart-intro>`
-- :ref:`Elixir <edgedb-elixir-intro>`
+
+.. XXX: link to third-party doc websites
+.. - :ref:`Rust <ref_rust_index>`
+.. - :ref:`C# and F# <edgedb-dotnet-intro>`
+.. - :ref:`Java <edgedb-java-intro>`
+.. - :ref:`Dart <edgedb-dart-intro>`
+.. - :ref:`Elixir <edgedb-elixir-intro>`
 
 Check out the :ref:`Clients
 <ref_intro_clients>` guide to get started with the language of your choice.
@@ -554,8 +556,10 @@ and used a client library.
   - :ref:`JavaScript/TypeScript <edgedb-js-intro>`
   - :ref:`Go <edgedb-go-intro>`
   - :ref:`Python <edgedb-python-intro>`
-  - :ref:`Rust <ref_rust_index>`
-  - :ref:`C# and F# <edgedb-dotnet-intro>`
-  - :ref:`Java <edgedb-java-intro>`
-  - :ref:`Dart <edgedb-dart-intro>`
-  - :ref:`Elixir <edgedb-elixir-intro>`
+
+.. XXX: link to third-party doc websites
+.. - :ref:`Rust <ref_rust_index>`
+.. - :ref:`C# and F# <edgedb-dotnet-intro>`
+.. - :ref:`Java <edgedb-java-intro>`
+.. - :ref:`Dart <edgedb-dart-intro>`
+.. - :ref:`Elixir <edgedb-elixir-intro>`

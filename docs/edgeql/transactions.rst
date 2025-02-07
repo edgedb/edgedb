@@ -165,4 +165,5 @@ Rust
       .await
       .expect("Transaction should have worked");
 
-Full documentation at :ref:`Client Libraries > Rust <ref_rust_index>`.
+.. XXX: Add Rust docs
+.. Full documentation at :ref:`Client Libraries > Rust <ref_rust_index>`.
