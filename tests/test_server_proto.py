@@ -2069,6 +2069,46 @@ class TestServerProto(tb.QueryTestCase):
 
         self.assertEqual(await self.con.query_single('SELECT 42'), 42)
 
+    async def assert_tx_isolation_and_default(
+        self, expected: str, *, default : str | None = None, conn=None
+    ):
+        if conn is None:
+            conn = self.con
+        if default is None:
+            default = expected
+        self.assertEqual(
+            await conn.query_single('''
+                select (
+                    <str>sys::get_transaction_isolation(),
+                    <str>assert_single(cfg::Config)
+                        .default_transaction_isolation,
+                );
+            '''),
+            (expected, default),
+        )
+
+    async def assert_read_only_and_default(
+        self, reason: str, *, default: str = 'ReadOnly', conn=None
+    ):
+        if conn is None:
+            conn = self.con
+        self.assertEqual(
+            await conn.query_single(
+                'select <str>assert_single(cfg::Config)'
+                '.default_transaction_access_mode;',
+            ),
+            default,
+        )
+        with self.assertRaisesRegex(
+            edgedb.TransactionError,
+            reason,
+        ):
+            await self.con.query('''
+                INSERT Tmp {
+                    tmp := 'aaa'
+                };
+            ''')
+
     async def test_server_proto_tx_23(self):
         # Test that default_transaction_isolation is respected
 
@@ -2078,12 +2118,7 @@ class TestServerProto(tb.QueryTestCase):
         ''')
 
         try:
-            self.assertEqual(
-                await self.con.query(
-                    'select <str>sys::get_transaction_isolation();',
-                ),
-                ["RepeatableRead"],
-            )
+            await self.assert_tx_isolation_and_default('RepeatableRead')
         finally:
             await self.con.query('''
                 CONFIGURE SESSION
@@ -2099,15 +2134,10 @@ class TestServerProto(tb.QueryTestCase):
         ''')
 
         try:
-            with self.assertRaisesRegex(
-                edgedb.TransactionError,
-                'cannot execute.*RepeatableRead',
-            ):
-                await self.con.query('''
-                        INSERT Tmp {
-                            tmp := 'aaa'
-                        };
-                    ''')
+            await self.assert_read_only_and_default(
+                "cannot execute.*RepeatableRead",
+                default='ReadWrite',
+            )
         finally:
             await self.con.query('''
                 CONFIGURE SESSION
@@ -2131,15 +2161,10 @@ class TestServerProto(tb.QueryTestCase):
                     SET default_transaction_access_mode := 'ReadWrite';
             ''')
 
-            with self.assertRaisesRegex(
-                edgedb.TransactionError,
-                'cannot execute.*RepeatableRead',
-            ):
-                await self.con.query('''
-                        INSERT Tmp {
-                            tmp := 'aaa'
-                        };
-                    ''')
+            await self.assert_read_only_and_default(
+                "cannot execute.*RepeatableRead",
+                default='ReadWrite',
+            )
         finally:
             await self.con.query('''
                 CONFIGURE SESSION
@@ -2163,22 +2188,8 @@ class TestServerProto(tb.QueryTestCase):
         ''')
 
         try:
-            self.assertEqual(
-                await self.con.query(
-                    'select <str>sys::get_transaction_isolation();',
-                ),
-                ["Serializable"],
-            )
-
-            with self.assertRaisesRegex(
-                edgedb.TransactionError,
-                'cannot execute.*ReadOnly',
-            ):
-                await self.con.query('''
-                        INSERT Tmp {
-                            tmp := 'aaa'
-                        };
-                    ''')
+            await self.assert_tx_isolation_and_default('Serializable')
+            await self.assert_read_only_and_default('cannot execute.*ReadOnly')
         finally:
             await self.con.query('''
                 CONFIGURE SESSION
@@ -2201,12 +2212,7 @@ class TestServerProto(tb.QueryTestCase):
                 START TRANSACTION;
             ''')
 
-            self.assertEqual(
-                await self.con.query(
-                    'select <str>sys::get_transaction_isolation();',
-                ),
-                ["RepeatableRead"],
-            )
+            await self.assert_tx_isolation_and_default('RepeatableRead')
 
         finally:
             await self.con.query(f'''
@@ -2233,15 +2239,9 @@ class TestServerProto(tb.QueryTestCase):
                 START TRANSACTION;
             ''')
 
-            with self.assertRaisesRegex(
-                edgedb.TransactionError,
-                'read-only transaction'):
-
-                await self.con.query('''
-                    INSERT Tmp {
-                        tmp := 'aaa'
-                    };
-                ''')
+            await self.assert_read_only_and_default(
+                'read-only transaction', default='ReadWrite'
+            )
         finally:
             await self.con.query(f'''
                 ROLLBACK;
@@ -2267,22 +2267,8 @@ class TestServerProto(tb.QueryTestCase):
                 START TRANSACTION;
             ''')
 
-            self.assertEqual(
-                await self.con.query(
-                    'select <str>sys::get_transaction_isolation();',
-                ),
-                ["Serializable"],
-            )
-
-            with self.assertRaisesRegex(
-                edgedb.TransactionError,
-                'read-only transaction'):
-
-                await self.con.query('''
-                    INSERT Tmp {
-                        tmp := 'aaa'
-                    };
-                ''')
+            await self.assert_tx_isolation_and_default('Serializable')
+            await self.assert_read_only_and_default('read-only transaction')
         finally:
             await self.con.query(f'''
                 ROLLBACK;
@@ -2338,22 +2324,10 @@ class TestServerProto(tb.QueryTestCase):
                 START TRANSACTION ISOLATION REPEATABLE READ;
             ''')
 
-            self.assertEqual(
-                await self.con.query(
-                    'select <str>sys::get_transaction_isolation();',
-                ),
-                ["RepeatableRead"],
+            await self.assert_tx_isolation_and_default(
+                'RepeatableRead', default='Serializable'
             )
-
-            with self.assertRaisesRegex(
-                edgedb.TransactionError,
-                'read-only transaction'):
-
-                await self.con.query('''
-                    INSERT Tmp {
-                        tmp := 'aaa'
-                    };
-                ''')
+            await self.assert_read_only_and_default('read-only transaction')
         finally:
             await self.con.query(f'''
                 ROLLBACK;
@@ -2366,6 +2340,31 @@ class TestServerProto(tb.QueryTestCase):
         self.assertEqual(
             await self.con.query('SELECT 42'),
             [42])
+
+    async def test_server_proto_tx_32(self):
+        # Test state sync across 2 frontend connections works fine
+        con2 = await self.connect(database=self.con.dbname)
+        try:
+            await con2.query('''
+                CONFIGURE SESSION
+                    SET default_transaction_isolation := 'RepeatableRead';
+            ''')
+            await self.assert_tx_isolation_and_default(
+                'RepeatableRead', conn=con2
+            )
+
+            # Try a few times back and forth - this should be enough to hit
+            # the same backend connection.
+            for _ in range(5):
+                # Test state reset
+                await self.assert_tx_isolation_and_default('Serializable')
+
+                # Test state sync
+                await self.assert_tx_isolation_and_default(
+                    'RepeatableRead', conn=con2
+                )
+        finally:
+            await con2.aclose()
 
 
 class TestServerProtoMigration(tb.QueryTestCase):
