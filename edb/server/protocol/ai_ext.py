@@ -289,40 +289,49 @@ async def _ext_ai_index_builder_controller_loop(
     naptime = naptime_cfg.to_microseconds() / 1000000
 
     provider_schedulers: dict[str, ProviderScheduler] = {}
+    pgconn = None
 
     try:
         while True:
-            models = []
             sleep_timer: rs.Timer = rs.Timer(None, False)
             try:
-                async with tenant.with_pgcon(dbname) as pgconn:
-                    models = await _ext_ai_fetch_active_models(pgconn)
-                    if models:
-                        if not holding_lock:
-                            holding_lock = await _ext_ai_lock(pgconn)
-                        if holding_lock:
-                            provider_contexts = _prepare_provider_contexts(
-                                db,
-                                pgconn,
-                                tenant.get_http_client(originator="ai/index"),
-                                models,
-                                provider_schedulers,
-                                naptime,
-                            )
-                            try:
-                                sleep_timer = (
-                                    await _ext_ai_index_builder_work(
-                                        provider_schedulers,
-                                        provider_contexts,
-                                    )
+                if pgconn is None:
+                    pgconn = await tenant.acquire_pgcon(dbname)
+                models = await _ext_ai_fetch_active_models(pgconn)
+                if models:
+                    if not holding_lock:
+                        holding_lock = await _ext_ai_lock(pgconn)
+                    if holding_lock:
+                        provider_contexts = _prepare_provider_contexts(
+                            db,
+                            pgconn,
+                            tenant.get_http_client(originator="ai/index"),
+                            models,
+                            provider_schedulers,
+                            naptime,
+                        )
+                        try:
+                            sleep_timer = (
+                                await _ext_ai_index_builder_work(
+                                    provider_schedulers,
+                                    provider_contexts,
                                 )
-                            finally:
-                                if not sleep_timer.is_ready_and_urgent():
-                                    await asyncutil.deferred_shield(
-                                        _ext_ai_unlock(pgconn))
-                                    holding_lock = False
+                            )
+                        finally:
+                            if not sleep_timer.is_ready_and_urgent():
+                                await asyncutil.deferred_shield(
+                                    _ext_ai_unlock(pgconn))
+                                tenant.release_pgcon(dbname, pgconn)
+                                pgconn = None
+                                holding_lock = False
+
             except Exception:
                 logger.exception(f"caught error in {task_name}")
+
+            finally:
+                if pgconn is not None and not holding_lock:
+                    tenant.release_pgcon(dbname, pgconn)
+                    pgconn = None
 
             if not sleep_timer.is_ready_and_urgent():
                 delay = sleep_timer.remaining_time(naptime)
@@ -334,6 +343,10 @@ async def _ext_ai_index_builder_controller_loop(
                 await asyncio.sleep(delay)
 
     finally:
+        if pgconn is not None:
+            if holding_lock:
+                await asyncutil.deferred_shield(_ext_ai_unlock(pgconn))
+            tenant.release_pgcon(dbname, pgconn)
         logger.info(f"stopped {task_name}")
 
 
