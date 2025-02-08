@@ -1821,7 +1821,9 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
         assert mtargs.srv.proc is not None
         mtargs.srv.proc.send_signal(signal.SIGHUP)
 
-        async for tr in self.try_until_succeeds(ignore=AssertionError):
+        async for tr in self.try_until_succeeds(
+            ignore=AssertionError, timeout=30
+        ):
             async with tr:
                 self.assertEqual(
                     (await mtargs.current_email_provider(1))["sender"],
