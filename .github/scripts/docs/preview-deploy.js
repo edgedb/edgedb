@@ -1,3 +1,9 @@
+const DOCS_SITE_REPO = {
+  org: "edgedb",
+  repo: "edgedb.com",
+  ref: "new-new-docs",
+};
+
 module.exports = async ({ github, context }) => {
   const { VERCEL_TOKEN, VERCEL_TEAM_ID } = process.env;
 
@@ -35,9 +41,7 @@ module.exports = async ({ github, context }) => {
       name: "edgedb-docs",
       gitSource: {
         type: "github",
-        org: "edgedb",
-        repo: "edgedb.com",
-        ref: "docs-preview",
+        ...DOCS_SITE_REPO,
       },
       projectSettings: {
         buildCommand: `EDGEDB_REPO_BRANCH=${prBranch} EDGEDB_REPO_SHA=${commitSHA} yarn vercel-build`,
