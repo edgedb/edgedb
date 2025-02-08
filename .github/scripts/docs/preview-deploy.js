@@ -1,3 +1,9 @@
+const DOCS_SITE_REPO = {
+  org: "edgedb",
+  repo: "edgedb.com",
+  ref: "new-new-docs",
+};
+
 module.exports = async ({ github, context }) => {
   const { VERCEL_TOKEN, VERCEL_TEAM_ID } = process.env;
 
@@ -29,15 +35,14 @@ module.exports = async ({ github, context }) => {
       c.body?.startsWith(commentHeader)
   );
 
+  let deploymentError = null;
   let deployment;
   try {
     deployment = await vercelFetch("https://api.vercel.com/v13/deployments", {
       name: "edgedb-docs",
       gitSource: {
         type: "github",
-        org: "edgedb",
-        repo: "edgedb.com",
-        ref: "docs-preview",
+        ...DOCS_SITE_REPO,
       },
       projectSettings: {
         buildCommand: `EDGEDB_REPO_BRANCH=${prBranch} EDGEDB_REPO_SHA=${commitSHA} yarn vercel-build`,
@@ -46,6 +51,7 @@ module.exports = async ({ github, context }) => {
 
     commentMessage += `\n🔄 Deploying docs preview for commit ${shortCommitSHA}:\n\n<https://${deployment.url}>`;
   } catch (e) {
+    deploymentError = e;
     commentMessage += `\n❌ Failed to deploy docs preview for commit ${shortCommitSHA}:\n\n\`\`\`\n${e.message}\n\`\`\``;
   }
 
@@ -67,6 +73,10 @@ module.exports = async ({ github, context }) => {
         body: commentMessage,
       })
     ).data;
+  }
+
+  if (deploymentError) {
+    throw new Error(`Docs preview deployment failed: ${e.message}`);
   }
 
   let i = 0;
@@ -106,10 +116,25 @@ module.exports = async ({ github, context }) => {
           new Date()
         )})`,
       });
+      if (status !== "READY") {
+        throw new Error(
+          `Docs preview deployment failed with status ${status}: https://${deployment.url}`
+        );
+      }
       return;
     }
   }
-  throw new Error("timed out waiting for deployment status to succeed or fail");
+
+  await github.rest.issues.updateComment({
+    owner: context.repo.owner,
+    repo: context.repo.repo,
+    comment_id: updateComment.id,
+    body: `${commentHeader}
+❌ Timed out waiting for deployment status to succeed or fail for commit ${shortCommitSHA}:\n\n<https://${
+      deployment.url
+    }>\n\n(Last updated: ${formatDatetime(new Date())})`,
+  });
+  throw new Error("Timed out waiting for deployment status to succeed or fail");
 };
 
 async function vercelFetch(url, body) {
