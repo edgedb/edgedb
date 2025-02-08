@@ -33,6 +33,7 @@ import functools
 import random
 import socket
 import ssl
+import sys
 import time
 
 from gel import abstract
@@ -422,6 +423,8 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             ):
                 if i >= 5 or self.is_in_transaction():
                     raise
+                print("RETRY", i, self.dbname)
+                sys.stdout.flush()
                 await asyncio.sleep(
                     min((2 ** i) * 0.1, 10)
                     + random.randrange(100) * 0.001
