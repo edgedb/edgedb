@@ -858,6 +858,13 @@ class Transaction:
         self._state0 = self._current
         self._savepoints = {}
 
+    def get_state_key(self) -> tuple[int, tuple[int, ...], TransactionState]:
+        return (
+            self._id,
+            tuple(self._savepoints.keys()),
+            self._current,  # TransactionState is immutable
+        )
+
     @property
     def id(self) -> int:
         return self._id
@@ -1075,6 +1082,16 @@ class CompilerConnectionState:
             cached_reflection=cached_reflection,
         )
         self._savepoints_log = {}
+
+    def get_state_key(self) -> tuple[tuple[int, ...], int, tuple[Any, ...]]:
+        # This would be much more efficient if CompilerConnectionState
+        # and TransactionState objects were immutable. But they are not,
+        # so we have
+        return (
+            tuple(self._savepoints_log.keys()),
+            self._tx_count,
+            self._current_tx.get_state_key(),
+        )
 
     def __getstate__(self) -> CStateStateType:
         return self._savepoints_log, self._current_tx, self._tx_count
