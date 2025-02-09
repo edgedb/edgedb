@@ -2100,7 +2100,6 @@ class TestSQLQuery(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [["user_robin"]])
 
-    @test.skip("This is flaking in CI")
     async def test_sql_query_computed_11(self):
         # globals
 
