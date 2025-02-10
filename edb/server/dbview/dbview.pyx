@@ -75,6 +75,17 @@ cdef int VER_COUNTER = 0
 cdef DICTDEFAULT = (None, None)
 cdef object logger = logging.getLogger('edb.server')
 
+# Mapping from oids of PostgreSQL types into corresponding EdgeQL type.
+# Needed only for pg types that do not exist in EdgeQL, such as pg_catalog.name
+cdef TYPES_SQL_ONLY = immutables.Map({
+    18: "00000000-0000-0000-0000-000000000101", # char -> str
+    19: "00000000-0000-0000-0000-000000000101", # pgcatalog.name -> str
+    24: "00000000-0000-0000-0000-000000000101", # regproc -> str
+    26: "00000000-0000-0000-0000-000000000104", # oid -> int32
+    28: "00000000-0000-0000-0000-000000000104", # xid -> int32
+    29: "00000000-0000-0000-0000-000000000104", # cid -> int32
+    194: "00000000-0000-0000-0000-000000000101", # pg_node_tree -> str
+ })
 
 cdef next_dbver():
     global VER_COUNTER
@@ -175,14 +186,7 @@ cdef class Database:
         if ext_config_settings is not None:
             self.user_config_spec = config.FlatSpec(*ext_config_settings)
         self.reflection_cache = reflection_cache
-        self.backend_ids = backend_ids
-        if backend_ids is not None:
-            self.backend_oid_to_id = {
-                v[0]: k for k, v in backend_ids.items()
-                if v[0] is not None
-            }
-        else:
-            self.backend_oid_to_id = {}
+        self._set_backend_ids(backend_ids)
         self.extensions = set()
         self._set_extensions(extensions)
         self._observe_auth_ext_config()
@@ -389,11 +393,7 @@ cdef class Database:
         self._set_feature_used_metrics(feature_used_metrics)
 
         if backend_ids is not None:
-            self.backend_ids = backend_ids
-            self.backend_oid_to_id = {
-                v[0]: k for k, v in backend_ids.items()
-                if v[0] is not None
-            }
+            self._set_backend_ids(backend_ids)
         if reflection_cache is not None:
             self.reflection_cache = reflection_cache
         if db_config is not None:
@@ -426,6 +426,12 @@ cdef class Database:
                 self.tenant.get_instance_name(),
                 self.name,
             )
+
+    cdef _set_backend_ids(self, types):
+        self.backend_ids = {}
+        self.backend_oid_to_id = dict(TYPES_SQL_ONLY)
+        if types != None:
+            self._update_backend_ids(types)
 
     cdef _update_backend_ids(self, new_types):
         self.backend_ids.update(new_types)
