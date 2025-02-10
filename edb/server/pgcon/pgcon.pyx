@@ -1389,6 +1389,7 @@ cdef class PGConnection:
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
         state: Optional[bytes] = None,
+        tx_isolation: defines.TxIsolationLevel | None = None,
     ) -> list[tuple[bytes, ...]]:
         if use_prep_stmt:
             sql_digest = hashlib.sha1()
@@ -1408,6 +1409,7 @@ cdef class PGConnection:
             bind_data=args_ser.combine_raw_args(args),
             use_prep_stmt=use_prep_stmt,
             state=state,
+            tx_isolation=tx_isolation,
         )
 
     async def sql_fetch_val(
@@ -1417,12 +1419,14 @@ cdef class PGConnection:
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
         state: Optional[bytes] = None,
+        tx_isolation: defines.TxIsolationLevel | None = None,
     ) -> bytes:
         data = await self.sql_fetch(
             sql,
             args=args,
             use_prep_stmt=use_prep_stmt,
             state=state,
+            tx_isolation=tx_isolation,
         )
         if data is None or len(data) == 0:
             return None
@@ -1442,12 +1446,14 @@ cdef class PGConnection:
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
         state: Optional[bytes] = None,
+        tx_isolation: defines.TxIsolationLevel | None = None,
     ) -> list[bytes]:
         data = await self.sql_fetch(
             sql,
             args=args,
             use_prep_stmt=use_prep_stmt,
             state=state,
+            tx_isolation=tx_isolation,
         )
         if not data:
             return []
