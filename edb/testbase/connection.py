@@ -420,7 +420,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
                 errors.TransactionConflictError,
                 errors.TransactionSerializationError,
             ):
-                if i >= 5 or self.is_in_transaction():
+                if i >= 10 or self.is_in_transaction():
                     raise
                 await asyncio.sleep(
                     min((2 ** i) * 0.1, 10)
