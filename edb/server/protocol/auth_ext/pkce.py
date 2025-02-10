@@ -25,6 +25,7 @@ import logging
 import dataclasses
 
 from edb.ir import statypes
+from edb.server import defines
 from edb.server.protocol import execute
 
 if typing.TYPE_CHECKING:
@@ -181,6 +182,7 @@ async def _delete_challenge(db: edbtenant.dbview.Database) -> None:
             <duration>$validity
         """,
         variables={"validity": VALIDITY.to_backend_str()},
+        tx_isolation=defines.TxIsolationLevel.RepeatableRead,
         cached_globally=True,
         query_tag='gel/auth',
     )
