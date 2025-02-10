@@ -85,6 +85,7 @@
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/<< plat_id >>@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         <%- if subdist != "" %>
@@ -167,6 +168,7 @@
 
     - name: Build
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         <%- if subdist != "nightly" %>
         BUILD_IS_RELEASE: "true"
