@@ -50,6 +50,7 @@ from edb.common import markup
 from edb.common import uuidgen
 
 from edb.server import compiler, http
+from edb.server import defines as edbdef
 from edb.server.compiler import sertypes
 from edb.server.protocol import execute
 from edb.server.protocol import request_scheduler as rs
@@ -892,7 +893,8 @@ async def _get_pending_embeddings(
         {where_clause}
         ORDER BY
             q."target_dims_shortening"
-        """.encode()
+        """.encode(),
+        tx_isolation=edbdef.TxIsolationLevel.RepeatableRead,
     )
 
     if not entries:
@@ -1028,6 +1030,7 @@ async def _update_embeddings_in_db(
             f'{{"{id_array}"}}'.encode(),
             str(offset).encode(),
         ),
+        tx_isolation=edbdef.TxIsolationLevel.RepeatableRead,
     )
 
     return int(entries.decode())

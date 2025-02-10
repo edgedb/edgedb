@@ -26,6 +26,7 @@ from typing import (
 
 import asyncio
 
+from edb.server import defines as edbdef
 from edb.server import pgconnparams
 
 class BackendError(Exception):
@@ -49,7 +50,12 @@ class PGConnection(asyncio.Protocol):
 
     def __init__(self, dbname): ...
     async def close(self): ...
-    async def sql_execute(self, sql: bytes | tuple[bytes, ...]) -> None: ...
+    async def sql_execute(
+        self,
+        sql: bytes | tuple[bytes, ...],
+        *,
+        tx_isolation: edbdef.TxIsolationLevel | None = None,
+    ) -> None: ...
     async def sql_fetch(
         self,
         sql: bytes,
@@ -57,6 +63,7 @@ class PGConnection(asyncio.Protocol):
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
         state: Optional[bytes] = None,
+        tx_isolation: edbdef.TxIsolationLevel | None = None,
     ) -> list[tuple[bytes, ...]]: ...
     async def sql_fetch_val(
         self,
@@ -65,6 +72,7 @@ class PGConnection(asyncio.Protocol):
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
         state: Optional[bytes] = None,
+        tx_isolation: edbdef.TxIsolationLevel | None = None,
     ) -> bytes: ...
     async def sql_fetch_col(
         self,
@@ -73,6 +81,7 @@ class PGConnection(asyncio.Protocol):
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
         state: Optional[bytes] = None,
+        tx_isolation: edbdef.TxIsolationLevel | None = None,
     ) -> list[bytes]: ...
     async def sql_describe(
         self,
