@@ -22,6 +22,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
@@ -44,6 +45,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
@@ -66,6 +68,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
@@ -88,6 +91,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
@@ -110,6 +114,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
@@ -132,6 +137,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bookworm@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
@@ -154,6 +160,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
@@ -176,6 +183,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
@@ -198,6 +206,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
@@ -220,6 +229,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
@@ -242,6 +252,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
@@ -264,6 +275,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
@@ -286,6 +298,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-noble@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
@@ -308,6 +321,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-noble@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
@@ -330,6 +344,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "centos"
@@ -352,6 +367,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "centos"
@@ -374,6 +390,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "rockylinux"
@@ -396,6 +413,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/rockylinux-9@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "rockylinux"
@@ -418,6 +436,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "linux"
@@ -441,6 +460,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linux-aarch64@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "linux"
@@ -464,6 +484,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-x86_64@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "linux"
@@ -488,6 +509,7 @@ jobs:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-aarch64@master
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "linux"
@@ -555,6 +577,7 @@ jobs:
 
     - name: Build
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         BUILD_IS_RELEASE: "true"
         PKG_REVISION: "<current-date>"
@@ -624,6 +647,7 @@ jobs:
 
     - name: Build
       env:
+        PACKAGE: edgedbpkg.edgedb:Gel
         SRC_REF: "${{ github.sha }}"
         BUILD_IS_RELEASE: "true"
         PKG_REVISION: "<current-date>"
