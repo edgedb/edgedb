@@ -2971,6 +2971,30 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             [{"seq": None}],
         )
 
+    async def test_sql_native_query_29(self):
+        # test that we can query internal pg_catalog types
+        # (such as oid and name)
+
+        await self.con.query_sql('''
+            select oid, relname from pg_class limit 1
+        ''')
+        await self.con.query_sql('''
+            select oid, typname, typtype, typsubscript, typdefaultbin
+            from pg_type limit 1
+        ''')
+
+    async def test_sql_native_query_30(self):
+        # there are pg_catalog types that don't have a binary repr
+        # so they cannot be sent over edgeql protocol without casting
+
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            'unsupported SQL type in column',
+        ):
+            await self.con.query_sql('''
+                select relacl from pg_class limit 1
+            ''')
+
 
 class TestSQLQueryNonTransactional(tb.SQLQueryTestCase):
 
