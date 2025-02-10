@@ -438,7 +438,7 @@ dependencies = [
  "statrs",
  "strum",
  "test-log",
- "thiserror 2.0.3",
+ "thiserror 2.0.11",
  "tokio",
  "tracing",
 ]
@@ -577,7 +577,7 @@ dependencies = [
  "derive_more",
  "paste",
  "pretty_assertions",
- "thiserror 2.0.3",
+ "thiserror 2.0.11",
  "uuid",
 ]
 
@@ -683,7 +683,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "snafu",
- "thiserror 2.0.3",
+ "thiserror 2.0.11",
  "unicode-width",
 ]
 
@@ -973,7 +973,7 @@ dependencies = [
  "roaring",
  "rstest 0.24.0",
  "sha2",
- "thiserror 2.0.3",
+ "thiserror 2.0.11",
  "tracing",
  "unicode-normalization",
 ]
@@ -996,7 +996,7 @@ dependencies = [
  "rustls-platform-verifier",
  "rustls-tokio-stream",
  "tempfile",
- "thiserror 2.0.3",
+ "thiserror 2.0.11",
  "tokio",
  "tokio-openssl",
  "webpki",
@@ -1065,7 +1065,7 @@ dependencies = [
  "num-traits",
  "pretty_assertions",
  "pyo3",
- "thiserror 2.0.3",
+ "thiserror 2.0.11",
 ]
 
 [[package]]
@@ -1127,9 +1127,9 @@ dependencies = [
 
 [[package]]
 name = "hickory-proto"
-version = "0.24.2"
+version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "447afdcdb8afb9d0a852af6dc65d9b285ce720ed7a59e42a8bf2e931c67bc1b5"
+checksum = "2ad3d6d98c648ed628df039541a5577bee1a7c83e9e16fe3dbedeea4cdfeb971"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -1151,9 +1151,9 @@ dependencies = [
 
 [[package]]
 name = "hickory-resolver"
-version = "0.24.2"
+version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a2e2aba9c389ce5267d31cf1e4dace82390ae276b0b364ea55630b1fa1b44b4"
+checksum = "dcf287bde7b776e85d7188e6e5db7cf410a2f9531fe82817eb87feed034c8d14"
 dependencies = [
  "cfg-if",
  "futures-util",
@@ -1998,7 +1998,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "test-log",
- "thiserror 2.0.3",
+ "thiserror 2.0.11",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2201,7 +2201,7 @@ dependencies = [
  "rustc-hash",
  "rustls",
  "socket2",
- "thiserror 2.0.3",
+ "thiserror 2.0.11",
  "tokio",
  "tracing",
 ]
@@ -2220,7 +2220,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.3",
+ "thiserror 2.0.11",
  "tinyvec",
  "tracing",
  "web-time",
@@ -3062,11 +3062,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.3"
+version = "2.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c006c85c7651b3cf2ada4584faa36773bd07bac24acfb39f3c431b36d7e667aa"
+checksum = "d452f284b73e6d76dd36758a0c8684b1d5be31f92b89d07fd5822175732206fc"
 dependencies = [
- "thiserror-impl 2.0.3",
+ "thiserror-impl 2.0.11",
 ]
 
 [[package]]
@@ -3082,9 +3082,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.3"
+version = "2.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f077553d607adc1caf65430528a576c757a71ed73944b66ebb58ef2bbd243568"
+checksum = "26afc1baea8a989337eeb52b6e72a039780ce45c3edfcc9c5b9d112feeb173c2"
 dependencies = [
  "proc-macro2",
  "quote",
