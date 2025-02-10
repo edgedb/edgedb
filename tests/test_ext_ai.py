@@ -265,24 +265,20 @@ class TestExtAI(tb.BaseHttpExtensionTest):
                 timeout=30.0,
             ):
                 async with tr:
-                    try:
-                        await self.assert_query_result(
-                            """
-                            update Stuff filter .content like '%Earth'
-                            set { content2 := ' are often grey' };
-                            """ + qry,
-                            [
-                                {
-                                    'content': 'Skies on Mars',
-                                    'content2': ' are red',
-                                    'distance': 0.4284523933505918,
-                                },
-                            ],
-                            variables=dict(qv=qv),
-                        )
-                    except Exception as ex:
-                        print("FUCK", ex)
-                        raise
+                    await self.assert_query_result(
+                        """
+                        update Stuff filter .content like '%Earth'
+                        set { content2 := ' are often grey' };
+                        """ + qry,
+                        [
+                            {
+                                'content': 'Skies on Mars',
+                                'content2': ' are red',
+                                'distance': 0.4284523933505918,
+                            },
+                        ],
+                        variables=dict(qv=qv),
+                    )
 
         finally:
             await self.con.execute('''
