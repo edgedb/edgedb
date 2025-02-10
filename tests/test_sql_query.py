@@ -2983,6 +2983,18 @@ class TestSQLQuery(tb.SQLQueryTestCase):
             from pg_type limit 1
         ''')
 
+    async def test_sql_native_query_30(self):
+        # there are pg_catalog types that don't have a binary repr
+        # so they cannot be sent over edgeql protocol without casting
+
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            'unsupported SQL type in column',
+        ):
+            await self.con.query_sql('''
+                select relacl from pg_class limit 1
+            ''')
+
 
 class TestSQLQueryNonTransactional(tb.SQLQueryTestCase):
 
