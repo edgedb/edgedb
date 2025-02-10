@@ -363,39 +363,61 @@ async def _ext_ai_fetch_active_models(
     return result
 
 
-_EXT_AI_ADVISORY_LOCK_LOCK = b"3987734540"
-_EXT_AI_ADVISORY_LOCK = b"3987734541"
+# The _ext_ai_lock() is a long-term lock held in the system pgcon. It is used
+# in the index builder job above guarding multiple alternating database pgcons
+# and outgoing HTTP requests (free up pgcons while waiting for a response from
+# external services), so that different Gel tenants on the same backend
+# run this job exclusively.
+#
+# The following implementation is also safe to be used by multiple tasks within
+# the same tenant (though at the time of writing, there is only one such task
+# per tenant). To achieve this, we added an extra query on pg_locks to check if
+# it's already held by another task, because advisory locks allow reentrancy
+# from the same session (the same sys_pgcon). And to avoid racing conditions,
+# we use another advisory lock over the 2 queries of check-and-lock in the
+# local session. This also means, one must use _ext_ai_lock() instead of an
+# individual lock of the 2 locks here to avoid misuse.
+#
+# If you are editing the magic numbers here: make sure it fits in a Postgres
+# Oid type (uint32), or you'll need to change the `classid` query below.
+_EXT_AI_ADVISORY_LOCK = b"3987734540"
+_EXT_AI_ADVISORY_LOCK_LOCK = b"3987734541"
 
 
 async def _ext_ai_lock(
     tenant: srv_tenant.Tenant,
     pgconn: pgcon.PGConnection,
 ) -> bool:
-    async def _try_xact_lock(lock: bytes) -> bool:
-        b = await pgconn.sql_fetch_val(
-            b"SELECT pg_try_advisory_xact_lock(" + lock + b")")
-        return b == b'\x01'
-
     # We use transaction-level advisory locks to ensure releasing
     await pgconn.sql_execute(b"START TRANSACTION")
     try:
-        # Acquire the outer lock to operate on the real lock
-        if await _try_xact_lock(_EXT_AI_ADVISORY_LOCK_LOCK):
-            # If success, acquire the real lock in the current session
-            # temporarily to make sure it's not locked by system session
-            sp = b"ext_ai_lock_sp"
-            await pgconn.sql_execute(b"SAVEPOINT " + sp)
-            if await _try_xact_lock(_EXT_AI_ADVISORY_LOCK):
-                # If success, move the lock to the system session
-                await pgconn.sql_execute(b"ROLLBACK TO SAVEPOINT " + sp)
+        b = await pgconn.sql_fetch_val(
+            b"SELECT pg_try_advisory_xact_lock("
+            + _EXT_AI_ADVISORY_LOCK_LOCK
+            + b")"
+        )
+        if b == b'\x01':
+            lock_free = await pgconn.sql_fetch_val(
+                b'''
+                SELECT NOT EXISTS (
+                    SELECT
+                        1
+                    FROM
+                        pg_locks
+                    WHERE
+                        locktype = 'advisory'
+                        AND classid = 0
+                        AND objid = \
+                ''' + _EXT_AI_ADVISORY_LOCK + b')')
+            if lock_free == b'\x01':
                 async with tenant.use_sys_pgcon() as syscon:
                     # The long-term holding lock must be on session-level
-                    await syscon.sql_execute(
-                        b"SELECT pg_advisory_lock("
+                    b = await syscon.sql_fetch_val(
+                        b"SELECT pg_try_advisory_lock("
                         + _EXT_AI_ADVISORY_LOCK
                         + b")"
                     )
-                return True
+                    return b == b'\x01'
     finally:
         await pgconn.sql_execute(b"ROLLBACK")
 
