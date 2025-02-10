@@ -1059,11 +1059,10 @@ fn handle_rsa_pubkey(key: &Pem) -> Result<BarePublicKeyInner, KeyError> {
 /// Decode a base64 string with optional padding, since jwcrypto also seems to
 /// accept this.
 ///
-/// :JWKs make use of the base64url encoding as defined in RFC 4648 [RFC4648].
-/// As allowed by Section 3.2 of the RFC, this specification mandates that
-/// base64url encoding when used with JWKs MUST NOT use padding. Notes on
-/// implementing base64url encoding can be found in the JWS [JWS]
-/// specification.""
+/// > JWKs make use of the base64url encoding as defined in RFC 4648 As allowed
+/// > by Section 3.2 of the RFC, this specification mandates that base64url
+/// > encoding when used with JWKs MUST NOT use padding. Notes on implementing
+/// > base64url encoding can be found in the JWS specification.
 fn b64_decode(s: &str) -> Result<zeroize::Zeroizing<Vec<u8>>, KeyError> {
     let vec = if s.ends_with('=') {
         base64ct::Base64Url::decode_vec(s).map_err(|_| KeyError::DecodeError)?

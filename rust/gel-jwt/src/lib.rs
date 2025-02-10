@@ -1,16 +1,18 @@
 #[cfg(feature = "python_extension")]
 pub mod python;
 
-use std::{borrow::Cow, collections::HashMap, fmt::Debug};
+use std::fmt::Debug;
 use thiserror::Error;
 
 mod bare_key;
 mod key;
 mod registry;
+mod sig;
 
 pub use bare_key::{BareKey, BarePrivateKey, BarePublicKey};
-pub use key::{Key, KeyType, PrivateKey, PublicKey, SigningContext};
+pub use key::{Key, KeyType, PrivateKey, PublicKey};
 pub use registry::KeyRegistry;
+pub use sig::{Any, SigningContext, ValidationContext, ValidationType};
 
 #[derive(Error, Debug, Eq, PartialEq)]
 pub enum ValidationError {
@@ -107,117 +109,9 @@ pub enum KeyError {
 #[derive(Debug, Eq, PartialEq)]
 pub struct KeyValidationError(String);
 
-#[derive(Clone, serde::Serialize, serde::Deserialize, Debug, PartialEq)]
-#[serde(untagged)]
-pub enum Any {
-    None,
-    String(Cow<'static, str>),
-    Bool(bool),
-    Number(isize),
-    Array(Vec<Any>),
-    Object(HashMap<Cow<'static, str>, Any>),
-}
-
-impl From<bool> for Any {
-    fn from(value: bool) -> Self {
-        Any::Bool(value)
-    }
-}
-
-impl From<&'static str> for Any {
-    fn from(value: &'static str) -> Self {
-        Any::String(Cow::Borrowed(value))
-    }
-}
-
-impl From<String> for Any {
-    fn from(value: String) -> Self {
-        Any::String(Cow::Owned(value))
-    }
-}
-
-impl<T> From<Option<T>> for Any
-where
-    T: Into<Any>,
-{
-    fn from(value: Option<T>) -> Self {
-        value.map(T::into).unwrap_or(Any::None)
-    }
-}
-
-impl<T> From<Vec<T>> for Any
-where
-    T: Into<Any>,
-{
-    fn from(value: Vec<T>) -> Self {
-        Any::Array(value.into_iter().map(T::into).collect())
-    }
-}
-
-#[cfg(feature = "python_extension")]
-impl<'py> pyo3::FromPyObject<'py> for Any {
-    fn extract_bound(ob: &pyo3::Bound<'py, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        use pyo3::types::PyAnyMethods;
-        if ob.is_none() {
-            return Ok(Any::None);
-        }
-        if let Ok(value) = ob.extract::<bool>() {
-            return Ok(Any::Bool(value));
-        }
-        if let Ok(value) = ob.extract::<isize>() {
-            return Ok(Any::Number(value));
-        }
-        if let Ok(value) = ob.extract::<String>() {
-            return Ok(Any::String(Cow::Owned(value)));
-        }
-        let res: Result<pyo3::Bound<pyo3::types::PyList>, pyo3::PyErr> = ob.extract();
-        if let Ok(list) = res {
-            let mut items = Vec::new();
-            for item in list {
-                items.push(Any::extract_bound(&item)?);
-            }
-            return Ok(Any::Array(items));
-        }
-        let res: Result<pyo3::Bound<pyo3::types::PyDict>, pyo3::PyErr> = ob.extract();
-        if let Ok(dict) = res {
-            let mut items = HashMap::new();
-            for (k, v) in dict {
-                items.insert(Cow::Owned(k.extract::<String>()?), Any::extract_bound(&v)?);
-            }
-            return Ok(Any::Object(items));
-        }
-        Err(pyo3::PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-            "Invalid Any value",
-        ))
-    }
-}
-
-#[cfg(feature = "python_extension")]
-impl<'py> pyo3::IntoPyObject<'py> for Any {
-    type Target = pyo3::PyAny;
-    type Output = pyo3::Bound<'py, pyo3::PyAny>;
-    type Error = pyo3::PyErr;
-    fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, Self::Error> {
-        use pyo3::IntoPyObjectExt;
-
-        Ok(match self {
-            Any::None => py.None(),
-            Any::String(s) => s.as_ref().into_py_any(py)?,
-            Any::Bool(b) => b.into_py_any(py)?,
-            Any::Number(n) => n.into_py_any(py)?,
-            Any::Array(a) => a.into_py_any(py)?,
-            Any::Object(o) => o.into_py_any(py)?,
-        }
-        .into_bound(py))
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::{HashMap, HashSet},
-        time::Duration,
-    };
+    use std::{collections::HashMap, time::Duration};
 
     use super::*;
 
@@ -278,14 +172,18 @@ mod tests {
         let key = PrivateKey::generate(Some("1".to_owned()), KeyType::HS256).unwrap();
         let claims = HashMap::from([("hello".to_owned(), "world".into())]);
         let signing_ctx = SigningContext {
-            expiry: Some(Duration::from_secs(10)),
+            expiry: Some(Duration::from_secs(600)),
             issuer: Some("issuer".to_owned()),
             audience: Some("audience".to_owned()),
             ..Default::default()
         };
+        let mut validation_ctx = ValidationContext::default();
+        validation_ctx.require_claim("aud");
+        validation_ctx.require_claim_with_allow_list("iss", &["issuer"]);
+
         let token = key.sign(claims.clone(), &signing_ctx).unwrap();
         println!("token: {}", token);
-        let decoded = key.validate(&token, &signing_ctx).unwrap();
+        let decoded = key.validate(&token, &validation_ctx).unwrap();
         assert_eq!(decoded, claims);
     }
 
@@ -299,7 +197,13 @@ mod tests {
             ..Default::default()
         };
         let token = key.sign(claims.clone(), &signing_ctx).unwrap();
-        let decoded = key.validate(&token, &signing_ctx).unwrap();
+        let mut validation_ctx = ValidationContext::default();
+        validation_ctx.require_claim("aud");
+        validation_ctx.require_claim_with_allow_list("iss", &["issuer"]);
+        let decoded = key
+            .validate(&token, &validation_ctx)
+            .map_err(|e| e.error_string_not_for_user())
+            .unwrap();
         assert_eq!(decoded, claims);
     }
 
@@ -397,11 +301,14 @@ mod tests {
             audience: Some("test-audience".to_owned()),
             ..Default::default()
         };
+        let mut validation_ctx = ValidationContext::default();
+        validation_ctx.require_claim_with_allow_list("iss", &["test-issuer"]);
+        validation_ctx.require_claim_with_allow_list("aud", &["test-audience"]);
 
         // Generate and validate a token with each key
         for key in &keys {
             let token = key.sign(claims.clone(), &signing_ctx).unwrap();
-            let decoded = registry.validate(&token, &signing_ctx).unwrap();
+            let decoded = registry.validate(&token, &validation_ctx).unwrap();
             assert_eq!(decoded, claims);
         }
 
@@ -412,7 +319,7 @@ mod tests {
             .unwrap();
         for key in &keys {
             let token = key.sign(claims.clone(), &signing_ctx).unwrap();
-            let decoded = registry.validate(&token, &signing_ctx).unwrap();
+            let decoded = registry.validate(&token, &validation_ctx).unwrap();
             assert_eq!(decoded, claims);
         }
     }
@@ -428,6 +335,7 @@ mod tests {
             audience: Some("test-audience".to_owned()),
             ..Default::default()
         };
+        let validation_ctx = ValidationContext::default();
         let token = key1.sign(claims, &signing_ctx).unwrap();
 
         // Swap the keys so the signature is no longer valid with the specified kid
@@ -438,7 +346,7 @@ mod tests {
         registry.add_key(key1);
         registry.add_key(key2);
 
-        let decoded = registry.validate(&token, &signing_ctx).unwrap_err();
+        let decoded = registry.validate(&token, &validation_ctx).unwrap_err();
         assert_eq!(
             decoded,
             ValidationError::Invalid(OpaqueValidationFailureReason::InvalidSignature),
@@ -454,19 +362,35 @@ mod tests {
         registry.add_key(key);
 
         let claims = HashMap::from([("jti".to_owned(), "1234".into())]);
-        let signing_ctx = SigningContext {
-            allow: HashMap::from([("jti".to_owned(), HashSet::from(["1234".to_owned()]))]),
-            ..Default::default()
-        };
-
+        let signing_ctx = SigningContext::default();
+        let mut validation_ctx = ValidationContext::default();
         let token = registry.sign(claims.clone(), &signing_ctx).unwrap();
-        let decoded = registry.validate(&token, &signing_ctx).unwrap();
-        assert_eq!(decoded, claims);
+
+        // With no claim validation, the token should be valid
+        let res = registry.validate(&token, &validation_ctx);
+        assert!(
+            matches!(res, Ok(_)),
+            "{}",
+            res.unwrap_err().error_string_not_for_user()
+        );
+
+        validation_ctx.require_claim_with_allow_list("jti", &["1234"]);
+        let decoded = registry.validate(&token, &validation_ctx).unwrap();
+        assert_eq!(decoded, Default::default());
 
         let claims = HashMap::from([("jti".to_owned(), "bad".into())]);
         let token = registry.sign(claims, &signing_ctx).unwrap();
-        let decoded = registry.validate(&token, &signing_ctx).unwrap_err();
+        let decoded = registry.validate(&token, &validation_ctx).unwrap_err();
+        assert_eq!(
+            decoded,
+            ValidationError::Invalid(OpaqueValidationFailureReason::InvalidClaimValue(
+                "jti".to_string(),
+                Some("bad".to_string())
+            ))
+        );
 
+        validation_ctx.require_claim_with_deny_list("jti", &["bad"]);
+        let decoded = registry.validate(&token, &validation_ctx).unwrap_err();
         assert_eq!(
             decoded,
             ValidationError::Invalid(OpaqueValidationFailureReason::InvalidClaimValue(
@@ -485,7 +409,7 @@ mod tests {
             ("number".to_owned(), Any::Number(123)),
             (
                 "array".to_owned(),
-                Any::Array(vec![Any::String("1".into()), Any::String("2".into())].into()),
+                Any::Array(vec![Any::String("1".into()), Any::String("2".into())]),
             ),
         ]);
         let json = serde_json::to_string(&map).unwrap();

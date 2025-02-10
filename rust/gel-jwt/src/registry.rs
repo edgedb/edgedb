@@ -1,7 +1,8 @@
 use crate::{
     bare_key::{SerializedKey, SerializedKeys},
     key::*,
-    Any, KeyError, OpaqueValidationFailureReason, SignatureError, ValidationError,
+    Any, KeyError, OpaqueValidationFailureReason, SignatureError, SigningContext,
+    ValidationContext, ValidationError,
 };
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
@@ -224,7 +225,7 @@ impl<K: IsKey> KeyRegistry<K> {
     pub fn validate(
         &self,
         token: &str,
-        ctx: &SigningContext,
+        ctx: &ValidationContext,
     ) -> Result<HashMap<String, Any>, ValidationError> {
         // If we have a named key that matches, use that.
         if !self.named_keys.is_empty() {
@@ -257,12 +258,6 @@ impl<K: IsKey> KeyRegistry<K> {
         Err(result.unwrap_or(OpaqueValidationFailureReason::NoAppropriateKey.into()))
     }
 
-    pub fn can_sign(&self) -> bool {
-        self.active_key()
-            .map(|(_, k)| K::encoding_key(k).is_some())
-            .unwrap_or(false)
-    }
-
     pub fn sign(
         &self,
         claims: HashMap<String, Any>,
@@ -274,11 +269,97 @@ impl<K: IsKey> KeyRegistry<K> {
     }
 }
 
-impl KeyRegistry<PrivateKey> {}
+impl KeyRegistry<PrivateKey> {
+    pub fn can_sign(&self) -> bool {
+        self.has_private_keys() || self.has_symmetric_keys()
+    }
 
-impl KeyRegistry<PublicKey> {}
+    pub fn can_validate(&self) -> bool {
+        self.has_public_keys() || self.has_symmetric_keys()
+    }
+
+    pub fn has_private_keys(&self) -> bool {
+        !self.is_empty()
+    }
+
+    pub fn has_public_keys(&self) -> bool {
+        self.key_to_ordinal
+            .iter()
+            .any(|(k, _)| k.bare_key.key_type() != KeyType::HS256)
+    }
+
+    pub fn has_symmetric_keys(&self) -> bool {
+        self.key_to_ordinal
+            .iter()
+            .any(|(k, _)| k.bare_key.key_type() == KeyType::HS256)
+    }
+}
+
+impl KeyRegistry<PublicKey> {
+    pub fn can_sign(&self) -> bool {
+        self.has_private_keys() || self.has_symmetric_keys()
+    }
+
+    pub fn can_validate(&self) -> bool {
+        self.has_public_keys() || self.has_symmetric_keys()
+    }
+
+    pub fn has_public_keys(&self) -> bool {
+        !self.is_empty()
+    }
+
+    pub fn has_private_keys(&self) -> bool {
+        false
+    }
+
+    pub fn has_symmetric_keys(&self) -> bool {
+        false
+    }
+}
 
 impl KeyRegistry<Key> {
+    pub fn can_sign(&self) -> bool {
+        self.has_private_keys() || self.has_symmetric_keys()
+    }
+
+    pub fn can_validate(&self) -> bool {
+        self.has_public_keys() || self.has_symmetric_keys()
+    }
+
+    pub fn has_private_keys(&self) -> bool {
+        for k in self.key_to_ordinal.keys() {
+            if let KeyInner::Private(_) = k {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn has_public_keys(&self) -> bool {
+        for k in self.key_to_ordinal.keys() {
+            if let KeyInner::Public(_) = k {
+                return true;
+            }
+            if let KeyInner::Private(k) = k {
+                if k.bare_key.key_type() != KeyType::HS256 {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    pub fn has_symmetric_keys(&self) -> bool {
+        for k in self.key_to_ordinal.keys() {
+            if let KeyInner::Private(k) = k {
+                if k.bare_key.key_type() == KeyType::HS256 {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     /// Export the registry as a PEM file containing only the public keys.
     /// This will fail if the registry contains symmetric keys.
     pub fn to_pem_public(&self) -> Result<String, KeyError> {

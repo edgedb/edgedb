@@ -1,17 +1,12 @@
 use jsonwebtoken::{Algorithm, Header, Validation};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use crate::{
     bare_key::{BareKeyInner, SerializedKey},
     registry::IsKey,
     Any, BareKey, BarePrivateKey, BarePublicKey, KeyError, OpaqueValidationFailureReason,
-    SignatureError, ValidationError,
+    SignatureError, SigningContext, ValidationContext, ValidationError, ValidationType,
 };
 
 #[derive(Clone, Copy, Debug, derive_more::Display, PartialEq, Eq)]
@@ -19,16 +14,6 @@ pub enum KeyType {
     RS256,
     ES256,
     HS256,
-}
-
-#[derive(Clone, Serialize, Deserialize, Default)]
-pub struct SigningContext {
-    pub expiry: Option<Duration>,
-    pub issuer: Option<String>,
-    pub audience: Option<String>,
-    pub allow: HashMap<String, HashSet<String>>,
-    pub deny: HashMap<String, HashSet<String>>,
-    pub not_before: Option<Duration>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -106,7 +91,7 @@ impl PrivateKey {
     pub fn validate(
         &self,
         token: &str,
-        ctx: &SigningContext,
+        ctx: &ValidationContext,
     ) -> Result<HashMap<String, Any>, ValidationError> {
         validate_token(
             self.key_type(),
@@ -202,8 +187,18 @@ pub(crate) fn sign_token(
         (None, None)
     };
 
+    let expiry = ctx.expiry.map(|d| d.as_secs() as isize);
+    let expiry = if expiry == Some(0) {
+        // Ensure that a token that expires now expires with enough notice for
+        // the leeway option to be ignored. This isn't a great solution, but
+        // it's challenging to test expiring tokens otherwise.
+        Some(now.saturating_sub(120))
+    } else {
+        expiry.map(|d| now.saturating_add_signed(d))
+    };
+
     let token = Token {
-        expiry: ctx.expiry.map(|d| now.saturating_add(d.as_secs() as _)),
+        expiry,
         issuer: ctx.issuer.clone(),
         audience: ctx.audience.clone(),
         issued_at,
@@ -222,7 +217,7 @@ pub(crate) fn validate_token(
     decoding_key: &jsonwebtoken::DecodingKey,
     kid: Option<&str>,
     token: &str,
-    ctx: &SigningContext,
+    ctx: &ValidationContext,
 ) -> Result<HashMap<String, Any>, ValidationError> {
     let mut validation = Validation::new(match key_type {
         KeyType::ES256 => Algorithm::ES256,
@@ -230,17 +225,40 @@ pub(crate) fn validate_token(
         KeyType::RS256 => Algorithm::RS256,
     });
 
-    if ctx.expiry.is_none() {
-        validation.required_spec_claims.remove("exp");
+    validation.validate_aud = false;
+
+    match ctx.expiry {
+        ValidationType::Ignore => {
+            validation.required_spec_claims.remove("exp");
+            validation.validate_exp = false;
+        }
+        ValidationType::Allow => {
+            validation.required_spec_claims.remove("exp");
+            validation.validate_exp = true;
+        }
+        ValidationType::Reject => {
+            validation.required_spec_claims.remove("exp");
+            validation.validate_exp = false;
+        }
+        ValidationType::Require => {
+            // The default
+        }
     }
-    if ctx.not_before.is_none() {
-        validation.required_spec_claims.remove("nbf");
-    }
-    if let Some(aud) = &ctx.audience {
-        validation.set_audience(&[aud]);
-    }
-    if let Some(iss) = &ctx.issuer {
-        validation.set_issuer(&[iss]);
+
+    match ctx.not_before {
+        ValidationType::Ignore => {
+            validation.validate_nbf = false;
+        }
+        ValidationType::Allow => {
+            validation.validate_nbf = true;
+        }
+        ValidationType::Reject => {
+            validation.validate_nbf = false;
+        }
+        ValidationType::Require => {
+            validation.required_spec_claims.insert("nbf".to_string());
+            validation.validate_nbf = true;
+        }
     }
 
     let token = jsonwebtoken::decode::<HashMap<String, Any>>(token, decoding_key, &validation)
@@ -262,7 +280,7 @@ pub(crate) fn validate_token(
         }
     }
 
-    for (claim, values) in &ctx.allow {
+    for (claim, values) in &ctx.allow_list {
         let value = token.claims.get(claim);
         match value {
             Some(Any::String(value)) => {
@@ -274,26 +292,23 @@ pub(crate) fn validate_token(
                     .into());
                 }
             }
-            _ => {
-                return Err(OpaqueValidationFailureReason::InvalidClaimValue(
-                    claim.to_string(),
-                    None,
-                )
-                .into());
-            }
-        }
-    }
-
-    for (claim, values) in &ctx.deny {
-        let value = token.claims.get(claim);
-        match value {
-            Some(Any::String(value)) => {
-                if values.contains(value.as_ref()) {
-                    return Err(OpaqueValidationFailureReason::InvalidClaimValue(
-                        claim.to_string(),
-                        Some(value.to_string()),
-                    )
-                    .into());
+            Some(Any::Array(array_values)) => {
+                for v in array_values.iter() {
+                    if let Any::String(v) = v {
+                        if !values.contains(v.as_ref()) {
+                            return Err(OpaqueValidationFailureReason::InvalidClaimValue(
+                                claim.to_string(),
+                                Some(v.to_string()),
+                            )
+                            .into());
+                        }
+                    } else {
+                        return Err(OpaqueValidationFailureReason::InvalidClaimValue(
+                            claim.to_string(),
+                            None,
+                        )
+                        .into());
+                    }
                 }
             }
             _ => {
@@ -306,19 +321,72 @@ pub(crate) fn validate_token(
         }
     }
 
-    // Remove any claims that were validated automatically
+    for (claim, values) in &ctx.deny_list {
+        let value = token.claims.get(claim);
+        match value {
+            Some(Any::String(value)) => {
+                if values.contains(value.as_ref()) {
+                    return Err(OpaqueValidationFailureReason::InvalidClaimValue(
+                        claim.to_string(),
+                        Some(value.to_string()),
+                    )
+                    .into());
+                }
+            }
+            Some(Any::Array(array_values)) => {
+                for v in array_values.iter() {
+                    if let Any::String(v) = v {
+                        if values.contains(v.as_ref()) {
+                            return Err(OpaqueValidationFailureReason::InvalidClaimValue(
+                                claim.to_string(),
+                                Some(v.to_string()),
+                            )
+                            .into());
+                        }
+                    } else {
+                        return Err(OpaqueValidationFailureReason::InvalidClaimValue(
+                            claim.to_string(),
+                            None,
+                        )
+                        .into());
+                    }
+                }
+            }
+            _ => {
+                return Err(OpaqueValidationFailureReason::InvalidClaimValue(
+                    claim.to_string(),
+                    None,
+                )
+                .into());
+            }
+        }
+    }
+
+    // Remove any claims that were validated automatically and reject any that should not
+    // be present.
     let mut claims = token.claims;
-    if ctx.audience.is_some() {
-        claims.remove("aud");
+    claims.remove("exp");
+    for claim in ctx.claims.iter() {
+        claims.remove(claim.0);
     }
-    if ctx.issuer.is_some() {
-        claims.remove("iss");
+
+    if ctx.expiry == ValidationType::Reject {
+        if let Some(exp) = claims.remove("exp") {
+            return Err(OpaqueValidationFailureReason::InvalidClaimValue(
+                "exp".to_string(),
+                Some(format!("{exp:?}")),
+            )
+            .into());
+        }
     }
-    if ctx.expiry.is_some() {
-        claims.remove("exp");
-    }
-    if ctx.not_before.is_some() {
-        claims.remove("nbf");
+    if ctx.not_before == ValidationType::Reject {
+        if let Some(nbf) = claims.remove("nbf") {
+            return Err(OpaqueValidationFailureReason::InvalidClaimValue(
+                "nbf".to_string(),
+                Some(format!("{nbf:?}")),
+            )
+            .into());
+        }
     }
 
     Ok(claims)
@@ -379,7 +447,7 @@ impl PublicKey {
     pub fn validate(
         &self,
         token: &str,
-        ctx: &SigningContext,
+        ctx: &ValidationContext,
     ) -> Result<HashMap<String, Any>, ValidationError> {
         validate_token(
             self.key_type(),

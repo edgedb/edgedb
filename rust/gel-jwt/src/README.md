@@ -1,6 +1,8 @@
 # JWT support
 
-This crate provides support for JWT tokens.
+This crate provides support for JWT tokens. The JWT signing and verification is done
+using the `jsonwebtoken` crate, while the key loading is performed here via the
+`rsa`/`p256` crates.
 
 ## Key types
 

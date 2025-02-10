@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use gel_jwt::{KeyType, PrivateKey, SigningContext};
+use gel_jwt::{KeyType, PrivateKey, SigningContext, ValidationContext};
 
 #[divan::bench(args = [&KeyType::ES256, &KeyType::RS256, &KeyType::HS256])]
 fn bench_jwt_signing(b: divan::Bencher, key_type: &KeyType) {
@@ -17,6 +17,7 @@ fn bench_jwt_validation(b: divan::Bencher, key_type: &KeyType) {
     let claims = HashMap::from([("sub".to_string(), "test".into())]);
     let ctx = SigningContext::default();
     let token = key.sign(claims, &ctx).unwrap();
+    let ctx = ValidationContext::default();
 
     b.bench_local(move || key.validate(&token, &ctx));
 }

@@ -9,6 +9,7 @@ python_extension = ["pyo3/extension-module"]
 [dependencies]
 pyo3 = { workspace = true, optional = true }
 pyo3_util.workspace = true
+tracing.workspace = true
 
 # This is required to be in sync w/jsonwebtoken
 rand = "0.8.5"
