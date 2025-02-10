@@ -192,20 +192,21 @@ search query:
 
 .. code-block:: bash
 
-    $ curl --user edgedb:Y2wnhFrifRAkG0YL4zove9D0 \
+    $ curl --user user:password \
       --json '{"input": "Who helps Komi make friends?", "model": "text-embedding-3-small"}' \
-      http://localhost:10719/branch/main/ai/embeddings \
+      http://localhost:<port>/branch/main/ai/embeddings \
       | jq -r '.data[0].embedding' \                                                    # extract the embedding out of the JSON
       | tr -d '\n' \                                                                    # remove newlines
       | sed 's/^\[//;s/\]$//' \                                                         # remove square brackets
       | awk '{print "select ext::ai::search(Friend, <array<float32>>[" $0 "]);"}' \     # assemble the query
-      | edgedb query --file -  # pass the query into Gel CLI
+      | gel query --file -  # pass the query into Gel CLI
 
 .. note::
 
     Note that we're passing our login and password in order to autheticate the
-    request. Learn about all the other ways you can do it :ref:`here
-    <ref_http_auth>`.
+    request. We can find those using the CLI: ``gel instance credentials
+    --json``. Learn about all the other ways you can authenticate a request
+    :ref:`here <ref_http_auth>`.
 
 
 Use the built-in RAG
@@ -222,11 +223,11 @@ HTTP endpoint:
 
 .. code-block:: bash
 
-    $ curl --user edgedb:Y2wnhFrifRAkG0YL4zove9D0 --json '{
+    $ curl --user user:password --json '{
         "query": "Who helps Komi make friends?",
         "model": "gpt-4-turbo-preview",
         "context": {"query":"select Friend"}
-      }' http://localhost:10719/branch/main/ai/rag
+      }' http://localhost:<port>/branch/main/ai/rag
 
 
 We can also stream the response like this:
@@ -234,12 +235,12 @@ We can also stream the response like this:
 
 .. code-block:: bash-diff
 
-      $ curl --user edgedb:Y2wnhFrifRAkG0YL4zove9D0 --json '{
+      $ curl --user user:password --json '{
           "query": "Who helps Komi make friends?",
           "model": "gpt-4-turbo-preview",
           "context": {"query":"select Friend"},
     +     "stream": true,
-        }' http://localhost:10719/branch/main/ai/rag
+        }' http://localhost:<port>/branch/main/ai/rag
 
 
 Keep going!

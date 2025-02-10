@@ -53,109 +53,282 @@ capabilities.
    Most API providers charge money, make sure you have that.
 
 
-Add vectors and perform similarity search
-=========================================
+Add vectors
+===========
 
-To start using EdgeDB AI on a type, create an index:
+Before we start introducing AI capabilities, let's set up our database with a
+schema and populate it with some data (we're going to be helping Komi-san keep
+track of her friends).
+
+.. code-block:: sdl
+
+    module default {
+        type Friend {
+            required name: str {
+                constraint exclusive;
+            };
+
+            summary: str;               # A brief description of personality and role
+            relationship_to_komi: str;  # Relationship with Komi
+            defining_trait: str;        # Primary character trait or quirk
+        }
+    }
+
+.. code-block:: bash
+    :class: collapsible
+
+    $ cat << 'EOF' > populate_db.edgeql
+    insert Friend {
+        name := 'Tadano Hitohito',
+        summary := 'An extremely average high school boy with a remarkable ability to read the atmosphere and understand others\' feelings, especially Komi\'s.',
+        relationship_to_komi := 'First friend and love interest',
+        defining_trait := 'Perceptiveness',
+    };
+
+    insert Friend {
+        name := 'Osana Najimi',
+        summary := 'An extremely outgoing person who claims to have been everyone\'s childhood friend. Gender: Najimi.',
+        relationship_to_komi := 'Second friend and social catalyst',
+        defining_trait := 'Universal childhood friend',
+    };
+
+    insert Friend {
+        name := 'Yamai Ren',
+        summary := 'An intense and sometimes obsessive classmate who is completely infatuated with Komi.',
+        relationship_to_komi := 'Self-proclaimed guardian and admirer',
+        defining_trait := 'Obsessive devotion',
+    };
+
+    insert Friend {
+        name := 'Katai Makoto',
+        summary := 'A intimidating-looking but shy student who shares many communication problems with Komi.',
+        relationship_to_komi := 'Fellow communication-challenged friend',
+        defining_trait := 'Scary appearance but gentle nature',
+    };
+
+    insert Friend {
+        name := 'Nakanaka Omoharu',
+        summary := 'A self-proclaimed wielder of dark powers who acts like an anime character and is actually just a regular gaming enthusiast.',
+        relationship_to_komi := 'Gaming buddy and chuunibyou friend',
+        defining_trait := 'Chuunibyou tendencies',
+    };
+    EOF
+    $ gel query -f populate_db.edgeql
+
+
+In order to get Gel to produce embedding vectors, we need to create a special
+``deferred index`` on the type we would like to perform similarity search on.
+More specifically, we need to specify an EdgeQL expression that produces a
+string that we're going to create an embedding vector for. This is how we would
+set up an index if we wanted to perform similarity search on
+``Friend.summary``:
 
 .. code-block:: sdl-diff
 
       module default {
-        type Astronomy {
-          content: str;
-    +     deferred index ext::ai::index(embedding_model := 'text-embedding-3-small')
-    +       on (.content);
-        }
-      };
+          type Friend {
+              required name: str {
+                  constraint exclusive;
+              };
 
-In this example, we have added an AI index on the ``Astronomy`` type's
-``content`` property using the ``text-embedding-3-small`` model. Once you have
-the index in your schema, :ref:`create <ref_cli_edgedb_migration_create>` and
-:ref:`apply <ref_cli_edgedb_migration_apply>` your migration, and you're ready
-to start running queries!
+              summary: str;               # A brief description of personality and role
+              relationship_to_komi: str;  # Relationship with Komi
+              defining_trait: str;        # Primary character trait or quirk
 
-You may want to include multiple properties in your AI index. Fortunately, you
-can define an AI index on an expression:
+    +         deferred index ext::ai::index(embedding_model := 'text-embedding-3-small')
+    +             on (.summary);
+          }
+      }
 
-.. code-block:: sdl
+
+But actually, in our case it would be better if we could similarity search
+across all properties at the same time. We can define the index on a more
+complex expression - like a concatenation of string properties - like this:
+
+
+.. code-block:: sdl-diff
 
       module default {
-        type Astronomy {
-          climate: str;
-          atmosphere: str;
-          deferred index ext::ai::index(embedding_model := 'text-embedding-3-small')
-            on (.climate ++ ' ' ++ .atmosphere);
-        }
-      };
+          type Friend {
+              required name: str {
+                  constraint exclusive;
+              };
 
-Once your index has been migrated, running a query against the embeddings is
-super simple:
+              summary: str;               # A brief description of personality and role
+              relationship_to_komi: str;  # Relationship with Komi
+              defining_trait: str;        # Primary character trait or quirk
+
+              deferred index ext::ai::index(embedding_model := 'text-embedding-3-small')
+    -             on (.summary);
+    +             on (
+    +                 .name ++ ' ' ++ .summary ++ ' '
+    +                 ++ .relationship_to_komi ++ ' '
+    +                 ++ .defining_trait
+    +             );
+          }
+      }
+
+
+Once we're done with schema modification, we need to apply them by going
+through a migration:
+
+.. code-block:: bash
+
+    $ gel migration create
+    $ gel migrate
+
+
+That's it! Gel will make necessary API requests in the background and create an
+index that will enable us to perform efficient similarity search.
+
+
+Perform similarity search in Python
+===================================
+
+In order to run queries against the index we just created, we need to create a
+Gel client and pass it to a Gel AI instance.
 
 .. code-block:: python
 
-    client = edgedb.create_async_client()
+    import gel
+    import gel.ai
+
+    gel_client = gel.create_client()
+    gel_ai = edgedb.ai.create_ai(client)
+
+    text = "Who helps Komi make friends?"
+    vector = gel_ai.generate_embeddings(
+        text,
+        "text-embedding-3-small",
+    )
+
+    gel_client.query(
+        "select ext::ai::search(Friend, <array<float32>>$embedding_vector",
+        embedding_vector=vector,
+    )
 
 
-    select ext::ai::search(Astronomy, query_vector)
+We are going to execute a query that calls a single function:
+``ext::ai::search(<type>, <search_vector>)``. That function accepts an
+embedding vector as the second argument, not a text string. This means that in
+order to similarity search for a string, we need to create a vector embedding
+for it using the same model as we used to create the index. The Gel AI binding
+in Python comes with a ``generate_embeddings`` function that does exactly that:
 
-Simple, but you'll still need to generate embeddings from your query or pass in
-existing embeddings. This is how we can procure an embedding via HTTP:
 
-.. code-block:: python
+.. code-block:: python-diff
 
-   $ curl
+      import gel
+      import gel.ai
+
+      gel_client = gel.create_client()
+      gel_ai = edgedb.ai.create_ai(client)
+
+    + text = "Who helps Komi make friends?"
+    + vector = gel_ai.generate_embeddings(
+    +     text,
+    +     "text-embedding-3-small",
+    + )
+
+
+Now we can plug that vector directly into our query to get similarity search
+results:
+
+
+.. code-block:: python-diff
+
+      import gel
+      import gel.ai
+
+      gel_client = gel.create_client()
+      gel_ai = edgedb.ai.create_ai(client)
+
+      text = "Who helps Komi make friends?"
+      vector = gel_ai.generate_embeddings(
+          text,
+          "text-embedding-3-small",
+      )
+
+    + gel_client.query(
+    +     "select ext::ai::search(Friend, <array<float32>>$embedding_vector",
+    +     embedding_vector=vector,
+    + )
 
 
 Use the built-in RAG
 ====================
 
-By making an HTTP request to
-``https://<edgedb-host>:<port>/branch/<branch-name>/ai/rag``, you can generate
-text via the generative AI API of your choice within the context of a type with
-a deferred embedding index.
+One more feature Gel AI offers is built-in retrieval-augmented generation, also
+known as RAG.
 
-.. note::
-
-    Making HTTP requests to EdgeDB requires :ref:`authentication
-    <ref_http_auth>`.
-
-.. code-block:: python
-
-    gpt4ai = await edgedb.ai.create_async_ai(
-        client,
-        model="gpt-4-turbo-preview"
-    )
-
-    astronomy_ai = gpt4ai.with_context(
-        query="Astronomy"
-    )
+Gel comes preconfigured to be able to process our text query, perform
+similarity search across the index we just created, pass the results to an LLM
+and return a response. In order to access the built-in RAG, we need to start by
+selecting an LLM and passing its name to the Gel AI instance constructor:
 
 
-The default text generation prompt will ask your selected provider to limit
-answer to information provided in the context and will pass the queried
-objects' AI index as context along with that prompt.
+.. code-block:: python-diff
 
-.. code-block:: python
+      import gel
+      import gel.ai
 
-    import asyncio  # alongside the EdgeDB imports
+      gel_client = gel.create_client()
+      gel_ai = edgedb.ai.create_ai(
+          client,
+    +     model="gpt-4-turbo-preview"
+      )
 
-    client = edgedb.create_async_client()
 
-    async def main():
-        gpt4ai = await edgedb.ai.create_async_ai(
-            client,
-            model="gpt-4-turbo-preview"
-        )
-        astronomy_ai = gpt4ai.with_context(
-            query="Astronomy"
-        )
-        query = "What color is the sky on Mars?"
-        print(
-            await astronomy_ai.query_rag(query)
-        );
+Now we can access the RAG using the ``query_rag`` function like this:
 
-        #or streamed
-        async for data in blog_ai.stream_rag(query):
-            print(data)
 
-    asyncio.run(main())
+.. code-block:: python-diff
+
+      import gel
+      import gel.ai
+
+      gel_client = gel.create_client()
+      gel_ai = edgedb.ai.create_ai(
+          client,
+          model="gpt-4-turbo-preview"
+      )
+
+    + gel_ai.query_rag(
+    +     "Who helps Komi make friends?",
+    +     context="Friend",
+    + )
+
+We can also stream the response like this:
+
+
+.. code-block:: python-diff
+
+      import gel
+      import gel.ai
+
+      gel_client = gel.create_client()
+      gel_ai = edgedb.ai.create_ai(
+          client,
+          model="gpt-4-turbo-preview"
+      )
+
+    - gel_ai.query_rag(
+    + gel_ai.stream_rag(
+          "Who helps Komi make friends?",
+          context="Friend",
+      )
+
+Keep going!
+===========
+
+You are now sufficiently equipped to use Gel AI in your applications.
+
+If you'd like to build something on your own, make sure to check out the
+Reference manual in order to learn the details about using different APIs and
+models, configuring prompts or using the UI.
+
+And if you would like more guidance for how Gel AI can be fit into an
+application, take a look at the FastAPI Gel AI Tutorial, where we're building a
+search bot using features you learned about above.
+
+
