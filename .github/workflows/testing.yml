@@ -2499,12 +2499,12 @@ jobs:
     - name: Publish Docker Image (docker.io)
       uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b  # v5
       with:
-        name: edgedb/edgedb
+        name: geldata/gel
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
         tags: "${{ steps.tags.outputs.tags }}"
         workdir: dockerfile
-        buildargs: version=${{ needs.check-published-debian-bookworm-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-bookworm-x86_64.outputs.version-core }},subdist=testing
+        buildargs: branding=gel,version=${{ needs.check-published-debian-bookworm-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-bookworm-x86_64.outputs.version-core }},subdist=testing
         platforms: linux/amd64,linux/arm64
 
     - name: Publish Docker Image (ghcr.io)
