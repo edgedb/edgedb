@@ -78,6 +78,52 @@ class HttpTest(BaseHttpAsyncTest):
             self.assertEqual(result.status_code, 200)
             self.assertEqual(result.json(), {"message": "Hello, world!"})
 
+    async def test_get_with_cache(self):
+        async with http.HttpClient(100) as client:
+            example_request = (
+                'GET',
+                self.base_url,
+                '/test-get-cache',
+            )
+            url = f"{example_request[1]}{example_request[2]}"
+
+            # Register handler that returns different data each time
+            counter = 0
+
+            def handler(_handler, _request):
+                nonlocal counter
+                counter += 1
+                return (
+                    json.dumps({"count": counter}),
+                    200,
+                    {
+                        "Content-Type": "application/json",
+                        "Cache-Control": "max-age=3600",
+                    },
+                )
+
+            self.mock_server.register_route_handler(*example_request)(handler)
+
+            # First request should get count=1
+            result = await client.get(url, cache=True)
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json(), {"count": 1})
+
+            # Second request with cache should get same response
+            result = await client.get(url, cache=True)
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json(), {"count": 1})
+
+            # Request without cache should get new response
+            result = await client.get(url, cache=False)
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json(), {"count": 2})
+
+            # Re-using cache will get the old response
+            result = await client.get(url, cache=True)
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json(), {"count": 1})
+
     async def test_post(self):
         async with http.HttpClient(100) as client:
             example_request = (

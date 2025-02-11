@@ -1,5 +1,7 @@
 use eventsource_stream::Eventsource;
 use futures::{future::poll_fn, TryStreamExt};
+use http::{HeaderMap, HeaderName, HeaderValue, Uri};
+use http_body_util::BodyExt;
 use pyo3::{exceptions::PyException, prelude::*, types::PyByteArray};
 use pyo3_util::logging::{get_python_logger_level, initialize_logging_in_thread};
 use reqwest::Method;
@@ -10,6 +12,7 @@ use std::{
     os::fd::IntoRawFd,
     pin::Pin,
     rc::Rc,
+    str::FromStr,
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -20,6 +23,8 @@ use tokio::{
     task::{JoinHandle, LocalSet},
 };
 use tracing::{error, info, trace};
+
+use crate::cache::{Cache, CacheBefore};
 
 pyo3::create_exception!(_http, InternalError, PyException);
 
@@ -60,7 +65,14 @@ enum PythonToRustMessage {
     /// Update the inflight limit
     UpdateLimit(usize),
     /// Perform a request
-    Request(PythonConnId, String, String, Vec<u8>, Vec<(String, String)>),
+    Request(
+        PythonConnId,
+        String,
+        String,
+        Vec<u8>,
+        Vec<(String, String)>,
+        bool,
+    ),
     /// Perform a request with SSE
     RequestSse(PythonConnId, String, String, Vec<u8>, Vec<(String, String)>),
     /// Close an SSE connection
@@ -117,32 +129,87 @@ fn internal_error(message: &str) -> PyErr {
     InternalError::new_err(())
 }
 
+/// If this is likely a stream, returns the `Stream` variant.
+/// Otherwise, returns the `Bytes` variant.
+enum MaybeResponse {
+    Bytes(Vec<u8>),
+    Stream(reqwest::Body),
+}
+
+impl MaybeResponse {
+    async fn try_into_bytes(self) -> Result<Vec<u8>, String> {
+        match self {
+            MaybeResponse::Bytes(bytes) => Ok(bytes),
+            MaybeResponse::Stream(body) => Ok(http_body_util::BodyExt::collect(body)
+                .await
+                .map_err(|e| format!("Failed to read response body: {e:?}"))?
+                .to_bytes()
+                .to_vec()),
+        }
+    }
+}
+
 async fn request(
     client: reqwest::Client,
     url: String,
     method: String,
     body: Vec<u8>,
     headers: Vec<(String, String)>,
-) -> Result<reqwest::Response, String> {
+    allow_cache: bool,
+    cache: Cache,
+) -> Result<http::Response<MaybeResponse>, String> {
+    let headers = parse_headers(headers)?;
     let method =
         Method::from_bytes(method.as_bytes()).map_err(|e| format!("Invalid HTTP method: {e:?}"))?;
+    let uri = Uri::from_str(&url).map_err(|e| format!("Invalid URL: {e:?}"))?;
 
-    let mut req = client.request(method, url);
+    let req = match cache.before_request(allow_cache, &method, &uri, &headers, body) {
+        CacheBefore::Request(req) => req,
+        CacheBefore::Response(resp) => {
+            return Ok(resp.map(MaybeResponse::Bytes));
+        }
+    };
 
-    for (key, value) in headers {
-        req = req.header(key, value);
-    }
-
-    if !body.is_empty() {
-        req = req.body(body);
-    }
-
-    let resp = req
-        .send()
+    let resp = client
+        .execute(
+            req.try_into()
+                .map_err(|e| format!("Invalid request: {e:?}"))?,
+        )
         .await
         .map_err(|e| format!("Request failed: {e:?}"))?;
+    let resp: http::Response<_> = resp.into();
 
-    Ok(resp)
+    let content_type = resp.headers().get("content-type");
+    let is_event_stream = content_type
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.starts_with("text/event-stream"))
+        .unwrap_or(false);
+
+    let mut resp = if is_event_stream {
+        return Ok(resp.map(MaybeResponse::Stream));
+    } else {
+        let (parts, body) = resp.into_parts();
+        let bytes = http_body_util::BodyExt::collect(body)
+            .await
+            .map_err(|e| format!("Failed to read response body: {e:?}"))?
+            .to_bytes();
+        http::Response::from_parts(parts, bytes.to_vec())
+    };
+
+    cache.after_request(allow_cache, method, uri, headers, &mut resp);
+
+    Ok(resp.map(MaybeResponse::Bytes))
+}
+
+fn parse_headers(headers: Vec<(String, String)>) -> Result<HeaderMap, String> {
+    let mut header_map = HeaderMap::new();
+    for (key, value) in headers {
+        header_map.insert(
+            HeaderName::from_str(&key).map_err(|e| format!("Invalid header name: {e:?}"))?,
+            HeaderValue::from_str(&value).map_err(|e| format!("Invalid header value: {e:?}"))?,
+        );
+    }
+    Ok(header_map)
 }
 
 async fn request_bytes(
@@ -151,15 +218,15 @@ async fn request_bytes(
     method: String,
     body: Vec<u8>,
     headers: Vec<(String, String)>,
-) -> Result<(reqwest::StatusCode, Vec<u8>, HashMap<String, String>), String> {
-    let resp = request(client, url, method, body, headers).await?;
-    let status = resp.status();
-    let headers = process_headers(resp.headers());
-    let body = resp
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read response body: {e:?}"))?
-        .to_vec();
+    allow_cache: bool,
+    cache: Cache,
+) -> Result<(http::StatusCode, Vec<u8>, HashMap<String, String>), String> {
+    let (parts, body) = request(client, url, method, body, headers, allow_cache, cache)
+        .await?
+        .into_parts();
+    let status = parts.status;
+    let headers = process_headers(&parts.headers);
+    let body = body.try_into_bytes().await?;
 
     Ok((status, body, headers))
 }
@@ -174,40 +241,35 @@ async fn request_sse(
     body: Vec<u8>,
     headers: Vec<(String, String)>,
     rpc_pipe: Rc<RpcPipe>,
+    cache: Cache,
 ) -> Result<(), String> {
     trace!("Entering SSE");
     let guard = guard((), |_| trace!("Exiting SSE due to cancellation"));
-    let response = request(client, url, method, body, headers).await?;
+    let (parts, body) = request(client, url, method, body, headers, false, cache)
+        .await?
+        .into_parts();
 
-    let content_type = response.headers().get("content-type");
-    let is_event_stream = content_type
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.starts_with("text/event-stream"))
-        .unwrap_or(false);
+    let mut stream = match body {
+        MaybeResponse::Bytes(bytes) => {
+            let headers = process_headers(&parts.headers);
+            let status = parts.status;
+            let body = bytes;
+            _ = rpc_pipe
+                .write(RustToPythonMessage::Response(
+                    id,
+                    (status.as_u16(), body, headers),
+                ))
+                .await;
 
-    if !is_event_stream {
-        let headers = process_headers(response.headers());
-        let status = response.status();
-        let body = match response.bytes().await {
-            Ok(bytes) => bytes.to_vec(),
-            Err(e) => {
-                return Err(format!("Failed to read response body: {e:?}"));
-            }
-        };
-        _ = rpc_pipe
-            .write(RustToPythonMessage::Response(
-                id,
-                (status.as_u16(), body, headers),
-            ))
-            .await;
+            trace!("Exiting SSE due to non-SSE response");
+            ScopeGuard::into_inner(guard);
+            return Ok(());
+        }
+        MaybeResponse::Stream(body) => body.into_data_stream().eventsource(),
+    };
 
-        trace!("Exiting SSE due to non-SSE response");
-        ScopeGuard::into_inner(guard);
-        return Ok(());
-    }
-
-    let headers = process_headers(response.headers());
-    let status = response.status();
+    let headers = process_headers(&parts.headers);
+    let status = parts.status;
     _ = rpc_pipe
         .write(RustToPythonMessage::SSEStart(
             id,
@@ -215,7 +277,6 @@ async fn request_sse(
         ))
         .await;
 
-    let mut stream = response.bytes_stream().eventsource();
     loop {
         let chunk = match stream.try_next().await {
             Ok(None) => break,
@@ -247,7 +308,7 @@ async fn request_sse(
     Ok(())
 }
 
-fn process_headers(headers: &reqwest::header::HeaderMap) -> HashMap<String, String> {
+fn process_headers(headers: &HeaderMap) -> HashMap<String, String> {
     headers
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
@@ -411,6 +472,8 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
         .pool_idle_timeout(POOL_IDLE_TIMEOUT);
     let client_sse = client_sse.build().unwrap();
 
+    let cache = Cache::new();
+
     let permit_manager = Rc::new(PermitManager::new(capacity));
     let tasks = Arc::new(Mutex::new(HashMap::<PythonConnId, HttpTask>::new()));
 
@@ -442,6 +505,7 @@ async fn run_and_block(capacity: usize, rpc_pipe: RpcPipe) {
             client,
             client_sse,
             rpc_pipe,
+            cache.clone(),
         ));
         if let (Some(id), Some(backpressure)) = (id, backpressure) {
             tasks
@@ -462,6 +526,7 @@ async fn execute(
     client: reqwest::Client,
     client_sse: reqwest::Client,
     rpc_pipe: Rc<RpcPipe>,
+    cache: Cache,
 ) {
     // If a request task was booted by this request, remove it from the list of
     // tasks when we exit.
@@ -474,11 +539,11 @@ async fn execute(
         UpdateLimit(limit) => {
             permit_manager.update_limit(limit);
         }
-        Request(id, url, method, body, headers) => {
+        Request(id, url, method, body, headers, allow_cache) => {
             let Ok(permit) = permit_manager.acquire().await else {
                 return;
             };
-            match request_bytes(client, url, method, body, headers).await {
+            match request_bytes(client, url, method, body, headers, allow_cache, cache).await {
                 Ok((status, body, headers)) => {
                     _ = rpc_pipe
                         .write(RustToPythonMessage::Response(
@@ -513,6 +578,7 @@ async fn execute(
                 body,
                 headers,
                 rpc_pipe.clone(),
+                cache,
             )
             .await
             {
@@ -609,8 +675,11 @@ impl Http {
         method: String,
         body: Vec<u8>,
         headers: Vec<(String, String)>,
+        cache: bool,
     ) -> PyResult<()> {
-        self.send(PythonToRustMessage::Request(id, url, method, body, headers))
+        self.send(PythonToRustMessage::Request(
+            id, url, method, body, headers, cache,
+        ))
     }
 
     fn _request_sse(
@@ -671,7 +740,7 @@ impl Http {
 }
 
 #[pymodule]
-pub fn _http(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
+pub fn _gel_http(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Http>()?;
     m.add("InternalError", py.get_type::<InternalError>())?;
 

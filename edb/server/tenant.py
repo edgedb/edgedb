@@ -300,7 +300,7 @@ class Tenant(ha_base.ClusterProtocol):
                 user_agent=f"EdgeDB {buildmeta.get_version_string(short=True)}",
                 stat_callback=lambda stat: logger.debug(
                     f"HTTP stat: {originator} {stat}"
-                ),
+                )
             )
         return self._http_client
 

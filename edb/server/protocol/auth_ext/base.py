@@ -151,7 +151,7 @@ class OpenIDConnectProvider(BaseProvider):
         async with self.http_factory(
             base_url=f"{jwks_uri.scheme}://{jwks_uri.netloc}"
         ) as client:
-            r = await client.get(jwks_uri.path)
+            r = await client.get(jwks_uri.path, cache=True)
 
         # Load the token as a JWT object and verify it directly
         try:
@@ -178,6 +178,9 @@ class OpenIDConnectProvider(BaseProvider):
 
     async def _get_oidc_config(self) -> data.OpenIDConfig:
         client = self.http_factory(base_url=self.issuer_url)
-        response = await client.get('/.well-known/openid-configuration')
+        response = await client.get(
+            '/.well-known/openid-configuration',
+            cache=True
+        )
         config = response.json()
         return data.OpenIDConfig(**config)
