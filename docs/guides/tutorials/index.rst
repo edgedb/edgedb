@@ -18,4 +18,8 @@ Using EdgeDB with...
     chatgpt_bot
     cloudflare_workers
     trpc
+    sqlalchemy
+    sqlmodel
+    django
+    prisma
     Bun <https://bun.sh/guides/ecosystem/edgedb>
