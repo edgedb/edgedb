@@ -6,7 +6,7 @@ Setting up your environment
 
 .. edb:split-section::
 
-  We will clone our Next.js starter template into a new directory called ``flashcards``. This will create a fully configured Next.js project and a local Gel instance with an empty schema. You should see the test suite pass, indicating that the database instance was created successfully, and we're ready to start building our application.
+  We will clone our Next.js starter template into a new directory called ``flashcards``. This will create a fully configured Next.js project and a local Gel instance with an empty schema. You should see database instance being installed and the project being initialized, and we're ready to start building our application.
 
   .. code-block:: sh
 
@@ -15,7 +15,7 @@ Setting up your environment
           flashcards
       $ cd flashcards
       $ npm install
-      $ npm run test
+      $ npx gel project init
 
 
 .. edb:split-section::
