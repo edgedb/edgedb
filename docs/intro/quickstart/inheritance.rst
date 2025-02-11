@@ -6,7 +6,7 @@ Adding Shared Properties
 
 .. edb:split-section::
 
-  One common pattern in applications is to add shared properties to the schema that are used by multiple modules. For example, we might want to add a ``created_at`` and ``updated_at`` property to every object in our schema. We can do this by adding an abstract type and using it as a mixin for our other object types.
+  One common pattern in applications is to add shared properties to the schema that are used by multiple objects. For example, you might want to add a ``created_at`` and ``updated_at`` property to every object in your schema. You can do this by adding an abstract type and using it as a mixin for your other object types.
 
   .. code-block:: sdl-diff
     :caption: dbschema/default.gel
@@ -73,7 +73,7 @@ Adding Shared Properties
 
 .. edb:split-section::
 
-  When we create a migration, we need to set initial values for the ``created_at`` and ``updated_at`` properties on all existing objects. Since we don't have historical data for when these objects were actually created or modified, the migration will fall back to the default values we set in the ``Timestamped`` type.
+  Since you don't have historical data for when these objects were actually created or modified, the migration will fall back to the default values set in the ``Timestamped`` type.
 
   .. code-block:: sh
 
@@ -97,6 +97,6 @@ Adding Shared Properties
 
 .. edb:split-section::
 
-  Now when we look at the data in the UI, we will see the new properties on each of our object types.
+  Now when you look at the data in the UI, you will see the new properties on each of your object types.
 
   .. image:: https://placehold.co/600x400?text=Show+timestamped+properties

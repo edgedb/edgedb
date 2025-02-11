@@ -6,7 +6,7 @@ Setting up your environment
 
 .. edb:split-section::
 
-  We will clone our Next.js starter template into a new directory called ``flashcards``. This will create a fully configured Next.js project and a local Gel instance with an empty schema. You should see database instance being installed and the project being initialized, and we're ready to start building our application.
+  Use git to clone the Next.js starter template into a new directory called ``flashcards``. This will create a fully configured Next.js project and a local Gel instance with an empty schema. You will see the database instance being installed and the project being initialized. You are now ready to start building the application.
 
   .. code-block:: sh
 
@@ -20,7 +20,7 @@ Setting up your environment
 
 .. edb:split-section::
 
-  Let's quickly take a poke around the empty database with our CLI REPL.
+  Quickly take a poke around the empty database with the CLI REPL.
 
   .. code-block:: sh
 
@@ -56,12 +56,12 @@ Setting up your environment
 
 .. edb:split-section::
 
-  Fun! We'll create a proper data model for our application in the next step, but for now, let's take a look around the project we've just created. Most of the project files will be familiar to you if you've worked with Next.js before. So let's focus on the new files that integrate Gel.
+  Fun! You will create a proper data model for the application in the next step, but for now, take a look around the project you've just created. Most of the project files will be familiar if you've worked with Next.js before. Focus on the new files that integrate Gel.
 
   - ``gel.toml``: This is the configuration file for the Gel project instance.
   - ``dbschema/``: This directory contains the schema for the database, and later supporting files like migrations, and generated code.
-  - ``dbschema/default.gel``: This is the default schema file that we'll use to define our data model. It is empty for now, but we'll add our data model to this file in the next step.
-  - ``lib/gel.ts``: This file contains the Gel client, which we'll use to interact with the database.
+  - ``dbschema/default.gel``: This is the default schema file that you'll use to define your data model. It is empty for now, but you'll add your data model to this file in the next step.
+  - ``lib/gel.ts``: This file contains the Gel client, which you'll use to interact with the database.
 
   .. code-block:: sh
 

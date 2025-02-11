@@ -4,7 +4,7 @@
 Dynamic Queries
 ===============
 
-When updating data, we often want to modify only specific fields while leaving others unchanged. For example, we might want to update just the front text of a flashcard or only the description of a deck. There are two main approaches to handle these partial updates:
+When updating data, you often want to modify only specific fields while leaving others unchanged. For example, you might want to update just the front text of a flashcard or only the description of a deck. There are two main approaches to handle these partial updates:
 
 1. Write a single complex query that conditionally handles optional parameters
 2. Build the query dynamically in the application code based on which fields need updating
@@ -13,9 +13,9 @@ The second approach using dynamic queries tends to be more performant and mainta
 
 .. edb:split-section::
 
-  Let's create a server action that updates a deck's ``name`` and/or ``description``. Since the description is optional, we will treat clearing the ``description`` form field as unsetting the ``description`` property.
+  Create a server action that updates a deck's ``name`` and/or ``description``. Since the description is optional, treat clearing the ``description`` form field as unsetting the ``description`` property.
 
-  Let's update the deck page to allow updating a deck's ``name`` and/or ``description``. We will treat the request body as a partial update, and only update the fields that are provided. Since the description is optional, we will treat clearing the ``description`` form field as unsetting the ``description`` property.
+  Update the deck page to allow updating a deck's ``name`` and/or ``description``. Treat the request body as a partial update, and only update the fields that are provided. Since the description is optional, treat clearing the ``description`` form field as unsetting the ``description`` property.
 
   .. tabs::
 

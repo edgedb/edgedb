@@ -1,12 +1,12 @@
 .. _ref_quickstart_working:
 
 =====================
-Working with our data
+Working with the data
 =====================
 
 .. edb:split-section::
 
-  With TypeScript, there are three ways to run a query: use a string EdgeQL query, use our ``queries`` generator to turn a string of EdgeQL into a TypeScript function, or use our query builder API to build queries dynamically in a type-safe manner. In the next example, we'll show you each of these methods, but for the rest of the tutorial we'll use the query builder API.
+  With TypeScript, there are three ways to run a query: use a string EdgeQL query, use the ``queries`` generator to turn a string of EdgeQL into a TypeScript function, or use the query builder API to build queries dynamically in a type-safe manner. In the next example, you will see each of these methods, but the rest of the tutorial will use the query builder API.
 
   .. tabs::
 
@@ -22,10 +22,10 @@ Working with our data
 
 .. edb:split-section::
 
-  Now that we have a schema defined, let's create a simple page with a button that allows users to import a deck of cards from a JSON file. We'll use Next.js server actions to handle the file upload and insert the data into our database. The JSON file will contain the deck name, optional description, and an array of cards with front and back text.
+  Now that you have a schema defined, create a simple page with a button that allows users to import a deck of cards from a JSON file. Use Next.js server actions to handle the file upload and insert the data into your database. The JSON file will contain the deck name, optional description, and an array of cards with front and back text.
 
   .. note::
-      If you are seeing TypeScript or ESLint errors, you may need to restart the TypeScript language server, or the ESLint server. Sometimes when adding new files, the language server or ESLint will not pick up the new files until you restart the server. This will be true for the rest of the tutorial, but the majority of development is not creating new files, so after this initial onboarding pain, you'll find that editor tooling works well. This is not a Gel-specific issue, but rather a general issue with starting a new project.
+      If you are seeing TypeScript or ESLint errors, you may need to restart the TypeScript language server, or the ESLint server. Sometimes when adding new files, the language server or ESLint will not pick up the new files until you restart the server. This will be true for the rest of the tutorial, but the majority of development is not creating new files, so after this initial onboarding pain, you will find that editor tooling works well. This is not a Gel-specific issue, but rather a general issue with starting a new project.
 
   .. edb:split-point::
 
@@ -202,7 +202,7 @@ Working with our data
 
 .. edb:split-section::
 
-  Let's make a static JSON file to seed our database with a deck of trivia cards.
+  Create a static JSON file to seed your database with a deck of trivia cards.
 
   .. code-block:: json
     :caption: deck-edgeql.json

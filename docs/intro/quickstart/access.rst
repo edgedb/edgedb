@@ -6,13 +6,13 @@ Adding Access Control
 
 .. edb:split-section::
 
-  Let's add a concept of a user to our application, and update our data model to limit access to the decks and cards to only the user's own decks. Our ``User`` type will be very simple, and for authentication we will use a simple ``AccessToken`` type that gets returned from the user creation endpoint when you make a new user. Gel has some really powerful tools available in our authentication extension, but for now we will just use a simple token that we will store in the database.
+  In this section, you will add a concept of a user to your application, and update your data model to limit access to the decks and cards to only the user's own decks. The ``User`` type will be very simple, and for authentication, use a simple ``AccessToken`` type that gets returned from the user creation endpoint when you make a new user. Gel has some really powerful tools available in our authentication extension, but for now, just use a simple token that you will store in the database.
 
-  Along with this user type, we will add some ``global`` values that will use the access token provided by the client to set a global ``current_user`` variable that we can use in our queries to limit access to the decks and cards to only the user's own decks.
+  Along with this user type, add some ``global`` values that will use the access token provided by the client to set a global ``current_user`` variable that you can use in your queries to limit access to the decks and cards to only the user's own decks.
 
   .. note::
 
-    Deck creators should be required, but since we are adding this to an existing dataset, we will set the new ``creator`` property to optional. That will effectively make the existing cards and decks invisible since they don't have a creator. We can update the existing data in the database to set the ``creator`` property for all of the existing decks and cards after making the first user, or reinsert the deck and the creator will be set in our updated query.
+    Deck creators should be required, but since you are adding this to an existing dataset, set the new ``creator`` property to optional. That will effectively make the existing cards and decks invisible since they don't have a creator. You can update the existing data in the database to set the ``creator`` property for all of the existing decks and cards after making the first user, or reinsert the deck and the creator will be set in your updated query.
 
   .. code-block:: sdl-diff
     :caption: dbschema/default.gel
@@ -63,7 +63,7 @@ Adding Access Control
 
 .. edb:split-section::
 
-  We will create this migration which will also trigger the query builder to be regenerated.
+  Create this migration which will also trigger the query builder to be regenerated.
 
   .. code-block:: sh
 
@@ -105,7 +105,7 @@ Adding Access Control
 
 .. edb:split-section::
 
-  Let's create a page for creating a new user and getting an access token. Let's start by creating the query to create a new user which will return the ``AccessToken.id`` which we will use as the access token itself. We will save this access token in a cookie so that we can authenticate requests in other server actions and route handlers.
+  Create a page for creating a new user and getting an access token. Start by creating the query to create a new user which will return the ``AccessToken.id`` which you will use as the access token itself. Save this access token in a cookie so that you can authenticate requests in other server actions and route handlers.
 
   .. tabs::
 
@@ -195,7 +195,7 @@ Adding Access Control
 
 .. edb:split-section::
 
-  We should see this page when we navigate to the signup page.
+  You should see this page when you navigate to the signup page.
 
   .. code-block:: sh
 
@@ -206,7 +206,7 @@ Limiting access
 
 .. edb:split-section::
 
-  Now that we have our access token in a cookie, we can create a helper function to extract it and add it as a global to our client.
+  Now that you have your access token in a cookie, create a helper function to extract it and add it as a global to your client.
 
   .. code-block:: typescript-diff
     :caption: app/lib/gel.ts
@@ -227,7 +227,7 @@ Limiting access
 
 .. edb:split-section::
 
-  Along with allowing us to take advantage of our access policies in our queries, this will also allow us to redirect unauthenticated users to the signup page from any of our pages which should require authentication. Let's update our ``page.tsx`` file to redirect to the signup page if the user is not authenticated. We will also show the list of decks on this page.
+  Along with allowing you to take advantage of your access policies in your queries, this will also allow you to redirect unauthenticated users to the signup page from any of your pages which should require authentication. Update your ``page.tsx`` file to redirect to the signup page if the user is not authenticated. Also, show the list of decks on this page.
 
   .. tabs::
 
@@ -298,7 +298,7 @@ Limiting access
 
 .. edb:split-section::
 
-  Next we'll update the create deck query and server action with our new authentication logic and ``creator`` property.
+  Next update the create deck query and server action with the authentication logic and ``creator`` property.
 
   .. tabs::
 
@@ -361,7 +361,7 @@ Limiting access
 
 .. edb:split-section::
 
-  Finally, let's update the deck page to require an authenticated user, and to return the deck's creator.
+  Finally, update the deck page to require an authenticated user, and to return the deck's creator.
 
   .. code-block:: typescript-diff
     :caption: app/deck/[id]/page.tsx

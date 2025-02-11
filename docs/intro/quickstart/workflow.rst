@@ -4,14 +4,14 @@
 A Smoother Development Workflow
 ===============================
 
-Part of building an application involves making changes to the schema, so let's take some time to make a comfortable development workflow for ourselves. Spending a bit of time now will make it easier to stay in the flow of development.
+Part of building an application involves making changes to the schema, so take some time to make a comfortable development workflow for yourself. Spending a bit of time now will make it easier to stay in the flow of development.
 
 Staying in sync
 ===============
 
 .. edb:split-section::
 
-  When your schema changes, we need to regenerate the query builder files to pick up the new changes. This slows us down a bit, so the next workflow improvement is to add a hook script so that any time the schema changes, the query builder files are regenerated automatically after the migration is applied.
+  When your schema changes, the query builder files need to be regenerated to pick up the new changes. This can slow you down a bit, so the next workflow improvement is to add a hook script that will regenerate the query builder files after the migration is applied.
 
   .. code-block:: toml-diff
     :caption: gel.toml
@@ -24,7 +24,7 @@ Staying in sync
 
 .. edb:split-section::
 
-  Let's make some changes to our schema and update our code. Our first change will be to add a property to our ``Deck`` type that stores the link to all of the cards in the deck ordered by the ``order`` property on the ``Card`` type. We will create a computed property, and use a back link from the ``Card`` type to the ``Deck`` type.
+  Make some changes to your schema and update your code. The first change will be to add a property to the ``Deck`` type that stores the link to all of the cards in the deck ordered by the ``order`` property on the ``Card`` type. Create a computed property, and use a back link from the ``Card`` type to the ``Deck`` type.
 
   .. code-block:: sdl-diff
     :caption: dbschema/default.gel
@@ -48,7 +48,7 @@ Staying in sync
 
 .. edb:split-section::
 
-  Now that we've made our changes, we can create a migration to apply the changes to the database, and we'll see that it also regenerates the query builder files.
+  Now that you've made your changes, create a migration to apply the changes to the database, and you will see that it also regenerates the query builder files.
 
   .. code-block:: sh
 
@@ -57,7 +57,7 @@ Staying in sync
 
 .. edb:split-section::
 
-  At the moment, in our ``getDeck`` query, we are defining this ``cards`` property explicitly. Now that we've added the computed property, we can remove the explicit definition.
+  At the moment, in the ``getDeck`` query, you are defining this ``cards`` property explicitly. Now that you've added the computed property, remove the explicit definition.
 
   .. code-block:: typescript-diff
     :caption: app/deck/[id]/page.tsx

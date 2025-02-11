@@ -1,14 +1,14 @@
 .. _ref_quickstart_modeling:
 
 =================
-Modeling our data
+Modeling your data
 =================
 
 .. edb:split-section::
 
-  Our flashcards application has a simple data model, but it's interesting enough to get a taste of many of the features of the Gel schema language. We have a ``Card`` type that describes an single flashcard, which for now contains two required string properties: ``front`` and ``back``. Each ``Card`` belongs to a ``Deck``, and there is an explicit ordering to the cards in a given deck.
+  The flashcards application has a simple data model, but it's interesting enough to get a taste of many of the features of the Gel schema language. You have a ``Card`` type that describes a single flashcard, which for now contains two required string properties: ``front`` and ``back``. Each ``Card`` belongs to a ``Deck``, and there is an explicit ordering to the cards in a given deck.
 
-  Starting with this simple model, let's express these types in the ``default.gel`` schema file.
+  Starting with this simple model, express these types in the ``default.gel`` schema file.
 
   .. code-block:: sdl-diff
     :caption: dbschema/default.gel
@@ -30,7 +30,7 @@ Modeling our data
 
 .. edb:split-section::
 
-  Now that we've written our first version of our data model's schema, we will create a migration to apply this schema to the database. When making changes to our schema, the CLI migration tool will ask some questions to ensure that the changes we are making are what we expect. Since we had an empty schema before, the CLI will skip asking any questions and simply create the migration file.
+  Now that you've written the first version of your data model's schema, create a migration to apply this schema to the database. When making changes to your schema, the CLI migration tool will ask some questions to ensure that the changes you are making are what you expect. Since you had an empty schema before, the CLI will skip asking any questions and simply create the migration file.
 
   .. code-block:: sh
 
@@ -44,7 +44,7 @@ Modeling our data
 
 .. edb:split-section::
 
-  Let's take a look at the schema we've generated in our built-in database UI. We can use this tool to visualize our data model and see the object types and links we've defined.
+  Take a look at the schema you've generated in the built-in database UI. Use this tool to visualize your data model and see the object types and links you've defined.
 
   .. code-block:: sh
 
