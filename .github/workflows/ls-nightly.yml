@@ -45,7 +45,7 @@ jobs:
       shell: bash
       run: |
         rev=$(git rev-parse HEAD)
-        jq_filter='.packages[] | select(.basename == "edgedb-server") | select(.architecture == $ARCH) | .version_details.metadata.scm_revision | . as $rev | select(($rev != null) and ($REV | startswith($rev)))'
+        jq_filter='.packages[] | select(.basename == "gel-ls") | select(.architecture == $ARCH) | .version_details.metadata.scm_revision | . as $rev | select(($rev != null) and ($REV | startswith($rev)))'
 
         val=true
 
