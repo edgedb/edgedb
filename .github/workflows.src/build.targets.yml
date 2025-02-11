@@ -43,18 +43,6 @@ targets:
           family: debian
           runs_on: [package-builder, self-hosted, linux, arm64]
           docker_arch: linux/arm64
-        - name: ubuntu-bionic-x86_64
-          arch: x86_64
-          platform: ubuntu
-          platform_version: bionic
-          family: debian
-          runs_on: [package-builder, self-hosted, linux, x64]
-        - name: ubuntu-bionic-aarch64
-          arch: aarch64
-          platform: ubuntu
-          platform_version: bionic
-          family: debian
-          runs_on: [package-builder, self-hosted, linux, arm64]
         - name: ubuntu-focal-x86_64
           arch: x86_64
           platform: ubuntu
