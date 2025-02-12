@@ -1,5 +1,5 @@
 [package]
-name = "http"
+name = "gel-http"
 version = "0.1.0"
 license = "MIT/Apache-2.0"
 authors = ["MagicStack Inc. <hello@magic.io>"]
@@ -19,6 +19,10 @@ tracing.workspace = true
 
 scopeguard = "1"
 eventsource-stream = "0.2.3"
+http-cache-semantics = { version = "2", features = [] }
+http = "1"
+http-body-util = "0.1.2"
+lru = "0.13"
 
 # We want to use rustls to avoid setenv issues w/ OpenSSL and the system certs. As long
 # as we don't call `openssl_probe::*init*env*()` functions (functions that call setenv
