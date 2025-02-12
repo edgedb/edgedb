@@ -1315,7 +1315,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_discovery = self.mock_oauth_server.requests[
                 discovery_request
             ]
-            self.assertEqual(len(requests_for_discovery), 2)
+            self.assertEqual(len(requests_for_discovery), 1)
 
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
@@ -2121,7 +2121,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_discovery = self.mock_oauth_server.requests[
                 discovery_request
             ]
-            self.assertEqual(len(requests_for_discovery), 2)
+            self.assertEqual(len(requests_for_discovery), 1)
 
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)
@@ -2253,7 +2253,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
 
             redirect_to = f"{self.http_addr}/some/path"
-            _, headers, status = self.http_con_request(
+            body, headers, status = self.http_con_request(
                 http_con,
                 {
                     "provider": provider_name,
@@ -2263,7 +2263,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 path="authorize",
             )
 
-            self.assertEqual(status, 302)
+            self.assertEqual(status, 302, body)
 
             location = headers.get("location")
             assert location is not None
@@ -2428,7 +2428,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             requests_for_discovery = self.mock_oauth_server.requests[
                 discovery_request
             ]
-            self.assertEqual(len(requests_for_discovery), 2)
+            self.assertEqual(len(requests_for_discovery), 1)
 
             requests_for_token = self.mock_oauth_server.requests[token_request]
             self.assertEqual(len(requests_for_token), 1)

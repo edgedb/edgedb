@@ -180,6 +180,7 @@ class HttpClient:
         headers: HeaderType = None,
         data: bytes | str | dict[str, str] | None = None,
         json: Any | None = None,
+        cache: bool = False,
     ) -> tuple[int, bytearray, dict[str, str]]:
         self._ensure_task()
         path = self._process_path(path)
@@ -191,7 +192,9 @@ class HttpClient:
         self._requests[id] = asyncio.Future()
         start_time = time.monotonic()
         try:
-            self._ensure_client()._request(id, path, method, data, headers_list)
+            self._ensure_client()._request(
+                id, path, method, data, headers_list, cache
+            )
             resp = await self._requests[id]
             if self._stat_callback:
                 status_code, body, headers = resp
@@ -217,9 +220,15 @@ class HttpClient:
         finally:
             del self._requests[id]
 
-    async def get(self, path: str, *, headers: HeaderType = None) -> Response:
+    async def get(
+        self,
+        path: str,
+        *,
+        headers: HeaderType = None,
+        cache: bool = False,
+    ) -> Response:
         result = await self.request(
-            method="GET", path=path, data=None, headers=headers
+            method="GET", path=path, data=None, headers=headers, cache=cache
         )
         return Response.from_tuple(result)
 
@@ -387,12 +396,24 @@ class HttpClientContext(HttpClient):
         return path
 
     async def request(
-        self, *, method, path, headers=None, data=None, json=None
+        self,
+        *,
+        method,
+        path,
+        headers=None,
+        data=None,
+        json=None,
+        cache=False,
     ):
         path = self._process_path(path)
         headers = self._process_headers(headers)
         return await self.http_client.request(
-            method=method, path=path, headers=headers, data=data, json=json
+            method=method,
+            path=path,
+            headers=headers,
+            data=data,
+            json=json,
+            cache=cache,
         )
 
     async def stream_sse(
