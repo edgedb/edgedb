@@ -63,8 +63,9 @@ ready. As a last step, we'll activate the environment and get started.
       && source .venv/bin/activate
 
 .. note::
-   Make sure to source the environment every time you open a new terminal
-   session before running ``python``, ``gel`` or ``fastapi``-related commands.
+
+    Make sure to source the environment every time you open a new terminal
+    session before running ``python``, ``gel`` or ``fastapi``-related commands.
 
 
 2. Get started with FastAPI
@@ -81,8 +82,8 @@ called ``app`` in our project root, and put an empty ``__init__.py`` there.
 
    $ mkdir app && touch app/__init__.py
 
-Create a file called ``main.py`` inside the ``app`` directory and put the "Hello
-World" example in it:
+Now let's create a file called ``main.py`` inside the ``app`` directory and put
+the "Hello World" example in it:
 
 .. code-block:: python
     :caption: app/main.py
@@ -96,7 +97,7 @@ World" example in it:
     async def root():
         return {"message": "Hello World"}
 
-To start the server, run:
+To start the server, we'll run:
 
 .. code-block:: bash
 
@@ -121,7 +122,7 @@ In FastAPI land this is done by creating a Pydantic schema and making it the
 type of the input parameter. `Pydantic <https://docs.pydantic.dev/latest/>`_ is
 a data validation library for Python. It has many features, but we don't
 actually need to know about them for now. All we need to know is that FastAPI
-uses Pydantic types to automatically figure out schemae for `input
+uses Pydantic types to automatically figure out schemas for `input
 <https://fastapi.tiangolo.com/tutorial/body/>`_, as well as `output
 <https://fastapi.tiangolo.com/tutorial/response-model/>`_.
 
@@ -138,7 +139,6 @@ Let's add the following to our ``main.py``:
 
     class SearchResult(BaseModel):
         response: str | None = None
-        sources: list[str] | None = None
 
 Now we can define our endpoint and set the two classes we just added as its
 argument and return type.
@@ -163,7 +163,6 @@ with ``curl``:
 
     {
       "response": "string",
-      "sources": null
     }
 
 3. Implement web search
@@ -172,135 +171,159 @@ with ``curl``:
 Now that we have our web app infrastructure in place, let's add some substance
 to it by implementing web search capabilities.
 
-There're many powerful feature-rich products for LLM-driven web search. But for
-purely educational purposes in this tutorial we'll be sailing on the high seas
-🏴‍☠️and scraping Google search results directly. Google tends to actively
-resist such behavior, so the most reliable way for us to get our search results
-is to employ the ``googlesearch-python`` library:
+There're many powerful feature-rich products for LLM-driven web search. But in
+this tutorial we're going to use a much more reliable source of real-world
+information that is comment threads on Hacker News. Their web API is free of
+charge and doesn't require an account. Below is a simple function that requests
+a full-text search for a string query and extracts a nice sampling of comment
+threads from each of the stories that came up in the result.
 
-.. code-block:: bash
+.. note::
 
-    $ uv add googlesearch-python
+    Link to HN
 
-As you can see from it's `repository
-<https://github.com/Nv7-GitHub/googlesearch?tab=readme-ov-file#additional-options>`_,
-it's incredibly straighforward to use. Having dealt with acquiring the links, we
-need to parse HTML in order to extract text. Rather than getting into the weeds,
-we can generate a reasonable solution using an LLM. After some cleanup, the end
-result should look similar to this:
+We are not going to cover this code sample in too much depth. Feel free to grab
+it save it to ``app/web.py``, or make your own.
+
 
 .. code-block:: python
     :caption: app/web.py
+    :class: collapsible
 
     import requests
-    from bs4 import BeautifulSoup
-    import time
-    import re
-
-    from googlesearch import search
-
-    HEADERS = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }
+    from pydantic import BaseModel
+    from datetime import datetime
+    import html
 
 
-    def extract_text_from_url(url: str) -> str:
+    class WebSource(BaseModel):
+        url: str | None = None
+        title: str | None = None
+        text: str | None = None
+
+
+    def extract_comment_thread(
+        comment: dict,
+        max_depth: int = 3,
+        current_depth: int = 0,
+        max_children=3,
+    ) -> list[str]:
         """
-        Extract main text content from a webpage.
+        Recursively extract comments from a thread up to max_depth.
+        Returns a list of formatted comment strings.
         """
-        try:
-            response = requests.get(url, headers=HEADERS, timeout=10)
-            response.raise_for_status()
+        if not comment or current_depth > max_depth:
+            return []
 
-            soup = BeautifulSoup(response.text, "html.parser")
-
-            # Remove script and style elements
-            for element in soup(["script", "style", "header", "footer", "nav"]):
-                element.decompose()
-
-            # Get text and clean it up
-            text = soup.get_text(separator=" ")
-            # Remove extra whitespace
-            text = re.sub(r"\s+", " ", text).strip()
-
-            return text
-
-        except Exception as e:
-            print(f"Error extracting text from {url}: {e}")
-            return ""
-
-
-    def fetch_web_sources(query: str, limit: int = 5) -> list[tuple[str, str]]:
-        """
-        Perform search and extract text from results.
-        Returns list of (url, text_content) tuples.
-        """
         results = []
-        urls = search(query, num_results=limit)
 
-        for url in urls:
-            text = extract_text_from_url(url)
-            if text:  # Only include if we got some text
-                results.append((url, text))
-            # Be nice to servers
-            time.sleep(1)
+        if comment["text"]:
+            timestamp = datetime.fromisoformat(comment["created_at"].replace("Z", "+00:00"))
+            author = comment["author"]
+            text = html.unescape(comment["text"])
+            formatted_comment = f"[{timestamp.strftime('%Y-%m-%d %H:%M')}] {author}: {text}"
+            results.append(("  " * current_depth) + formatted_comment)
+
+        if comment.get("children"):
+            for child in comment["children"][:max_children]:
+                child_comments = extract_comment_thread(child, max_depth, current_depth + 1)
+                results.extend(child_comments)
 
         return results
 
+
+    def fetch_web_sources(query: str, limit: int = 5) -> list[WebSource]:
+        search_url = "http://hn.algolia.com/api/v1/search_by_date"
+
+        response = requests.get(
+            search_url,
+            params={
+                "query": query,
+                "tags": "story",
+                "hitsPerPage": limit,
+                "page": 0,
+            },
+        )
+
+        response.raise_for_status()
+        search_result = response.json()
+
+        web_sources = []
+        for hit in search_result.get("hits", []):
+            item_url = f"https://hn.algolia.com/api/v1/items/{hit['story_id']}"
+            response = requests.get(item_url)
+            response.raise_for_status()
+            item_result = response.json()
+
+            site_url = f"https://news.ycombinator.com/item?id={hit['story_id']}"
+            title = hit["title"]
+            comments = extract_comment_thread(item_result)
+            text = "\n".join(comments) if len(comments) > 0 else None
+            web_sources.append(
+                WebSource(url=site_url, title=title, text=text)
+            )
+
+        return web_sources
+
+
     if __name__ == "__main__":
-        print(fetch_web_sources("gel database", limit=1)[0][0])
+        web_sources = fetch_web_sources("edgedb", limit=5)
 
-Feel free to grab this snippet and save it to ``app/web.py``, or make your own.
+        for source in web_sources:
+            print(source.url)
+            print(source.title)
+            print(source.text)
 
-Good enough for now! We need to add two extra dependencies: ``requests`` for
-making HTTP requests, and Beautiful Soup, which is a commonly used HTML parsing
-library. Let's add them by running:
+
+Notice that we've created another Pydantic type called ``WebSource`` to store
+our web search results. There's no framework-related reason for that, it's just
+nicer than passing dictionaries around.
+
+One more note: this snippet comes with an extra dependency called ``requests``,
+which is a library for making HTTP requests. Let's add it by running:
 
 .. code-block:: bash
 
-    $ uv add beautifulsoup4 requests
+    $ uv add requests
 
-... and test out LLM-generated solution to see if it works:
+
+Now we can test our web search on its own by running it like this:
+
 
 .. code-block:: bash
 
     $ python3 app/web.py
 
-    https://www.geldata.com
 
-Now it's time to reflect the new capabilities in our web app. Let's call our
-newly generated search function like this: search function like this:
+It's time to reflect the new capabilities in our web app. We're going to hack
+our way around the fact that many stories on HN come with no comment threads.
 
 .. code-block:: python
      :caption: app/main.py
 
-     from .web import fetch_web_sources
-
-     class WebSource(BaseModel):
-         url: str | None = None
-         text: str | None = None
+     from .web import fetch_web_sources, WebSource
 
      async def search_web(query: str) -> list[WebSource]:
-         web_sources = [
-             WebSource(url=url, text=text) for url, text in fetch_web_sources(query, limit=1)
-         ]
-         return web_sources
+         raw_souces = fetch_web_sources(query, limit=30)
+         return [s for s in raw_souces if s.text is not None][:5]
 
-Notice that we've created another Pydantic type to store our web search results.
-There's no framework-related reason for that, it's just nicer than passing
-dictionaries around.
 
 Now we can update the ``/search`` endpoint as follows:
 
 .. code-block:: python-diff
     :caption: app/main.py
 
+      class SearchResult(BaseModel):
+          response: str | None = None
+    +     sources: list[WebSource] | None = None
+
+
       @app.post("/search")
       async def search(search_terms: SearchTerms) -> SearchResult:
     +     web_sources = await search_web(search_terms.query)
     -     return SearchResult(response=search_terms.query)
     +     return SearchResult(
-    +         response=search_terms.query, sources=[source.url for source in web_sources]
+    +         response=search_terms.query, sources=web_sources
     +     )
 
 
@@ -312,58 +335,41 @@ those results to the LLM to get a nice-looking summary.
 
 There's a million different LLMs accessible via a web API, feel free to choose
 whichever you prefer. In this tutorial we will roll with OpenAI, primarily for
-how ubiquitous it is. To avoid delicate fiddling with HTML requests, let's add
-their library as another dependency:
-
-.. code-block:: bash
-
-    $ uv add openai
-
-Then we can grab some code straight from their `API documentation
+how ubiquitous it is. To keep things somewhat provider-agnostic, we're going to
+get completions via raw HTTP requests. Let's grab API descriptions from
+OpenAI's `API documentation
 <https://platform.openai.com/docs/api-reference/chat/create>`_, and set up LLM
 generation like this:
 
 .. code-block:: python
     :caption: app/main.py
 
-    from openai import OpenAI
-    from dotenv import load_dotenv()
+    import requests
+    from dotenv import load_dotenv
 
     _ = load_dotenv()
 
-    llm_client = OpenAI()
 
-    async def generate_answer(
-        query: str,
-        web_sources: list[WebSource],
-    ) -> str:
-        system_prompt = (
-            "You are a helpful assistant that answers user's questions"
-            + " by finding relevant information in web search results."
+    def get_llm_completion(system_prompt: str, messages: list[dict[str, str]]) -> str:
+        api_key = os.getenv("OPENAI_API_KEY")
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+
+        response = requests.post(
+            url,
+            headers=headers,
+            json={
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {"role": "developer", "content": system_prompt},
+                    *messages,
+                ],
+            },
         )
+        response.raise_for_status()
+        result = response.json()
+        return result["choices"][0]["message"]["content"]
 
-        prompt = f"User search query: {query}\n\nWeb search results:\n"
-
-        for i, source in enumerate(web_sources):
-            prompt += f"Result {i} (URL: {source.url}):\n"
-            prompt += f"{source.text}\n\n"
-
-        completion = llm_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt,
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ],
-        )
-
-        llm_response = completion.choices[0].message.content
-        return llm_response
 
 Note that this cloud LLM API (and many others) requires a secret key to be set
 as an environment variable. A common way to manage those is to use the
@@ -378,7 +384,54 @@ root directory and put your api key in there:
 
     OPENAI_API_KEY="sk-..."
 
-And as usual, let's reflect the new capabilities in the app and test it:
+
+Don't forget to add the new dependency to the environment:
+
+.. code-snippet:: bash
+
+    uv add python-dotenv
+
+
+And now we can integrate this LLM-related code with the rest of the app. First,
+let's set up the function that prepares LLM inputs:
+
+
+.. code-block:: python
+    :caption: app/main.py
+
+    async def generate_answer(
+        query: str,
+        web_sources: list[WebSource],
+    ) -> SearchResult:
+        system_prompt = (
+            "You are a helpful assistant that answers user's questions"
+            + " by finding relevant information in HackerNews threads."
+            + " When answering the question, describe conversations that people have around the subject,"
+            + " provided to you as a context, or say i don't know if they are completely irrelevant."
+        )
+
+        prompt = f"User search query: {query}\n\nWeb search results:\n"
+
+        for i, source in enumerate(web_sources):
+            prompt += f"Result {i} (URL: {source.url}):\n"
+            prompt += f"{source.text}\n\n"
+
+        messages = [{"role": "user", "content": prompt}]
+
+        llm_response = get_llm_completion(
+            system_prompt=system_prompt,
+            messages=messages,
+        )
+
+        search_result = SearchResult(
+            response=llm_response,
+            sources=web_sources,
+        )
+
+        return search_result
+
+
+Then we can plug that function into the ``/search`` endpoint:
 
 .. code-block:: python-diff
     :caption: app/main.py
@@ -386,11 +439,14 @@ And as usual, let's reflect the new capabilities in the app and test it:
       @app.post("/search")
       async def search(search_terms: SearchTerms) -> SearchResult:
           web_sources = await search_web(search_terms.query)
-    +     response = await generate_answer(search_terms.query, web_sources)
-          return SearchResult(
-    -         response=search_terms.query, sources=[source.url for source in web_sources]
-    +         response=response, sources=[source.url for source in web_sources]
-          )
+    +     search_result = await generate_answer(search_terms.query, web_sources)
+    +     return search_result
+    -     return SearchResult(
+    -         response=search_terms.query, sources=web_sources
+    -     )
+
+
+And now we can test the result as usual.
 
 .. code-block:: bash
 
@@ -398,26 +454,20 @@ And as usual, let's reflect the new capabilities in the app and test it:
         'http://127.0.0.1:8000/search' \
         -H 'accept: application/json' \
         -H 'Content-Type: application/json' \
-        -d '{ "query": "what is gel" }'
+        -d '{ "query": "gel" }'
 
-    {
-      "response": "Gel is a next-generation database ... "
-      "sources": [
-        "https://www.geldata.com/"
-      ]
-    }
 
 5. Use Gel to implement chat history
 ====================================
 
-So far we've built an application that can take in a query, fetch top 5 Google
-search results for it, sift through them using an LLM, and generate a nice
-answer.
+So far we've built an application that can take in a query, fetch some Hacker
+News threads for it, sift through them using an LLM, and generate a nice
+summary.
 
-However, right now it's hardly better than Google itself, since you have to
-basically start over every time you want to refine the query. To enable more
-organic multi-turn interaction we need to add chat history and infer the query
-from the context of the entire conversation.
+However, right now it's hardly user-friendly, since you have to speak in
+keywords and basically start over every time you want to refine the query. To
+enable more organic multi-turn interaction we need to add chat history and
+infer the query from the context of the entire conversation.
 
 Now's a good time to introduce Gel.
 
@@ -429,10 +479,11 @@ project like this:
 
     $ gel project init --non-interactive
 
+
 This command is going to put some project scaffolding inside our app, spin up a
 local instace of Gel, and then link the two together. From now on, all
-Gel-related things that happen inside our project folder are going to be
-automatically run on the correct databaser instance, no need to worry about
+Gel-related things that happen inside our project directory are going to be
+automatically run on the correct database instance, no need to worry about
 connection incantations.
 
 
@@ -492,9 +543,9 @@ make sense for us to make sure that it's unique by using an ``excusive``
         multi chats: Chat;
     }
 
-We're going to keep our schema super simple. One cool thing about Gel is that it
-will enable us to easily implement advanced features such as authentification or
-AI down the road, but we're gonna come back to that later.
+We're going to keep our schema super simple. One cool thing about Gel is that
+it will enable us to easily implement advanced features such as authentication
+or AI down the road, but we're gonna come back to that later.
 
 For now, this is the entire schema we came up with:
 
@@ -541,6 +592,7 @@ writing queries in a bit, but for now you can just run the following command in
 the shell:
 
 .. code-block:: bash
+    :class: collapsible
 
     $ mkdir app/sample_data && cat << 'EOF' > app/sample_data/inserts.edgeql
     # Create users first
@@ -620,7 +672,7 @@ the shell:
     };
     EOF
 
-This created an ``app/sample_data/inserts.edgeql`` file, which we can now execute
+This created the ``app/sample_data/inserts.edgeql`` file, which we can now execute
 using the CLI like this:
 
 .. code-block:: bash
@@ -655,8 +707,8 @@ generate typesafe function that we can plug directly into out Python code. If
 you are completely unfamiliar with EdgeQL, now is a good time to check out the
 basics before proceeding.
 
-Let's move on. First, create a directory inside ``app`` called ``queries``. This
-is where we're going to put all of the EdgeQL-related stuff.
+Let's move on. First, we'll create a directory inside ``app`` called
+``queries``. This is where we're going to put all of the EdgeQL-related stuff.
 
 We're going to start by writing a query that fetches all of the users. In
 ``queries`` create a file named ``get_users.edgeql`` and put the following query
@@ -715,7 +767,7 @@ username. In order to do that, we need to write a new query in a separate file
 ``app/queries/get_user_by_name.edgeql``:
 
 .. code-block:: edgeql
-    :caption: app/queries/get_users.edgeql
+    :caption: app/queries/get_user_by_name.edgeql
 
     select User { name }
     filter .name = <str>$name;
@@ -834,17 +886,17 @@ Once more, let's verify that the new endpoint works as expected:
 
 This wraps things up for our user-related functionality. Of course, we now need
 to deal with Chats and Messages, too. We're not going to go in depth for those,
-since the process would be quite similar to what we just done. Instead, feel
+since the process would be quite similar to what we've just done. Instead, feel
 free to implement those endpoints yourself as an exercise, or copy the code
 below if you are in rush.
 
 .. code-block:: bash
 
     $ echo 'select Chat {
-        messages,
+        messages: { role, body, sources },
         user := .<chats[is User],
     } filter .user.name = <str>$username;' > app/queries/get_chats.edgeql && echo 'select Chat {
-        messages,
+        messages: { role, body, sources },
         user := .<chats[is User],
     } filter .user.name = <str>$username and .id = <uuid>$chat_id;' > app/queries/get_chat_by_id.edgeql && echo 'with new_chat := (insert Chat)
     select (
@@ -944,11 +996,8 @@ answer.
     - @app.post("/search")
     - async def search(search_terms: SearchTerms) -> SearchResult:
     -     web_sources = await search_web(search_terms.query)
-    -     response = await generate_answer(search_terms.query, web_sources)
-    -     return SearchResult(
-    -         response=search_terms.query, sources=[source.url for source in web_sources]
-    -         response=response, sources=[source.url for source in web_sources]
-    -     )
+    -     search_result = await generate_answer(search_terms.query, web_sources)
+    -     return search_result
 
     + @app.post("/messages", status_code=HTTPStatus.CREATED)
     + async def post_messages(
@@ -998,11 +1047,12 @@ history-aware.
           query: str,
     +     chat_history: list[GetMessagesResult],
           web_sources: list[WebSource],
-    - ) -> str:
-    + ) -> SearchResult:
+      ) -> SearchResult:
           system_prompt = (
               "You are a helpful assistant that answers user's questions"
-              + " by finding relevant information in web search results."
+              + " by finding relevant information in HackerNews threads."
+              + " When answering the question, describe conversations that people have around the subject,"
+              + " provided to you as a context, or say i don't know if they are completely irrelevant."
           )
 
           prompt = f"User search query: {query}\n\nWeb search results:\n"
@@ -1011,32 +1061,23 @@ history-aware.
               prompt += f"Result {i} (URL: {source.url}):\n"
               prompt += f"{source.text}\n\n"
 
-    +     prompt += "Chat history:\n"
+    -     messages = [{"role": "user", "content": prompt}]
+    +     messages = [
+    +         {"role": message.role, "content": message.body} for message in chat_history
+    +     ]
+    +     messages.append({"role": "user", "content": prompt})
 
-    +     for i, message in enumerate(chat_history):
-    +         prompt += f"{message.role}: {message.body} (sources: {message.sources})\n"
+          llm_response = get_llm_completion(
+              system_prompt=system_prompt,
+              messages=messages,
+          )
 
-           completion = llm_client.chat.completions.create(
-               model="gpt-4o-mini",
-               messages=[
-                   {
-                       "role": "system",
-                       "content": system_prompt,
-                   },
-                   {
-                       "role": "user",
-                       "content": prompt,
-                   },
-               ],
-           )
+          search_result = SearchResult(
+              response=llm_response,
+              sources=web_sources,
+          )
 
-           llm_response = completion.choices[0].message.content
-    +      search_result = SearchResult(
-    +          response=llm_response,
-    +      )
-
-    -      return llm_response
-    +      return search_result
+          return search_result
 
 
 Ok, this should be it for setting up the chat history. Let's test it. First, we
@@ -1064,30 +1105,17 @@ Next, let's add a couple messages and wait for the bot to respond:
       -H 'accept: application/json' \
       -H 'Content-Type: application/json' \
       -d '{
-      "query": "tell me about the best database in existence"
+      "query": "best database in existence"
     }'
-
-    {
-      "response": "Let me tell you about MS SQL Server...",
-      "sources": [
-        "https://www.itta.net/en/blog/top-10-best-databases-to-use-in-2024/"
-      ]
-    }
 
     $ curl -X 'POST' \
       'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
       -H 'accept: application/json' \
       -H 'Content-Type: application/json' \
       -d '{
-      "query": "no i was talking about gel"
+      "query": "gel"
     }'
 
-    {
-      "response": "Gel is an innovative open-source database ... "
-      "sources": [
-        "https://divan.dev/posts/edgedb/"
-      ]
-    }
 
 Finally, let's check that the messages we saw are in fact stored in the chat
 history:
@@ -1098,62 +1126,10 @@ history:
       'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
       -H 'accept: application/json'
 
-    [
-      {
-        "id": "7e0a0f1a-ded8-11ef-ba16-2344d9519bcf",
-        "role": "user",
-        "body": "tell me about the best database in existence",
-        "sources": [],
-        "chat": [
-          {
-            "id": "544ef3f2-ded8-11ef-ba16-f7f254b95e36"
-          }
-        ]
-      },
-      {
-        "id": "8980413e-ded8-11ef-a67b-0bb26b4bb123",
-        "role": "assistant",
-        "body": "Let me tell you about MS SQL Server...",
-        "sources": [
-          "https://www.itta.net/en/blog/top-10-best-databases-to-use-in-2024/"
-        ],
-        "chat": [
-          {
-            "id": "544ef3f2-ded8-11ef-ba16-f7f254b95e36"
-          }
-        ]
-      },
-      {
-        "id": "a7fa9f4c-ded8-11ef-a67b-8394596c51b4",
-        "role": "user",
-        "body": "no i was talking about edgedb",
-        "sources": [],
-        "chat": [
-          {
-            "id": "544ef3f2-ded8-11ef-ba16-f7f254b95e36"
-          }
-        ]
-      },
-      {
-        "id": "ad60c43e-ded8-11ef-a67b-1fd15164d162",
-        "role": "assistant",
-        "body": "EdgeDB is an innovative open-source database ... "
-        "sources": [
-          "https://divan.dev/posts/edgedb/"
-        ],
-        "chat": [
-          {
-            "id": "544ef3f2-ded8-11ef-ba16-f7f254b95e36"
-          }
-        ]
-      }
-    ]
-
 
 In reality this workflow would've been handled by the frontend, providing the
-user with a nice inteface to interact with. But even without one we're built a
-fully functional chatbot already!
-
+user with a nice inteface to interact with. But even without one our chatbot is
+almost functional by now.
 
 Generating a Google search query
 --------------------------------
@@ -1161,9 +1137,10 @@ Generating a Google search query
 Congratulations! We just got done implementing multi-turn conversations for our
 search bot.
 
-However, there's still one crucial piece missing. Right now we're
-simply forwarding the users message straight to Google search. But what happens
-if their message is a followup that cannot be used as a standalone search query?
+However, there's still one crucial piece missing. Right now we're simply
+forwarding the users message straight to the full-text search. But what happens
+if their message is a followup that cannot be used as a standalone search
+query?
 
 Ideally what we should do is we should infer the search query from the entire
 conversation, and use that to perform the search.
@@ -1175,7 +1152,8 @@ working on our query rather than rewriting it from scratch every time.
 This is what we need to do: every time the user submits a message, we need to
 fetch the chat history, extract a search query from it using the LLM, and the
 other steps are going to the the same as before. Let's make the follwing
-modifications to the ``main.py``:
+modifications to the ``main.py``: first we need to create a function that
+prepares LLM inputs for the search query inference.
 
 
 .. code-block:: python
@@ -1186,7 +1164,9 @@ modifications to the ``main.py``:
     ) -> str:
         system_prompt = (
             "You are a helpful assistant."
-            + " Your job is to summarize chat history into a standalone google search query."
+            + " Your job is to extract a keyword search query"
+            + " from a chat between an AI and a human."
+            + " Make sure it's a single most relevant keyword to maximize matching."
             + " Only provide the query itself as your response."
         )
 
@@ -1198,37 +1178,38 @@ modifications to the ``main.py``:
         )
         prompt = f"Chat history: {formatted_history}\n\nUser message: {query} \n\n"
 
-        completion = llm_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt,
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ],
+        llm_response = get_llm_completion(
+            system_prompt=system_prompt, messages=[{"role": "user", "content": prompt}]
         )
 
-        llm_response = completion.choices[0].message.content
         return llm_response
+
+
+And now we can use this function in ``post_messages`` in order to get our
+search query:
 
 
 .. code-block:: python-diff
     :caption: app/main.py
 
-    + @app.post("/messages", status_code=HTTPStatus.CREATED)
+      class SearchResult(BaseModel):
+          response: str | None = None
+    +     search_query: str | None = None
+          sources: list[WebSource] | None = None
+
+
+      @app.post("/messages", status_code=HTTPStatus.CREATED)
       async def post_messages(
           search_terms: SearchTerms,
           username: str = Query(),
           chat_id: str = Query(),
       ) -> SearchResult:
+          # 1. Fetch chat history
           chat_history = await get_messages_query(
               gel_client, username=username, chat_id=chat_id
           )
 
+          # 2. Add incoming message to Gel
           _ = await add_message_query(
               gel_client,
               username=username,
@@ -1238,26 +1219,56 @@ modifications to the ``main.py``:
               chat_id=chat_id,
           )
 
+          # 3. Generate a query and perform googling
     -     search_query = search_terms.query
     +     search_query = await generate_search_query(search_terms.query, chat_history)
-          web_sources = await search_web(search_query)
+    +     web_sources = await search_web(search_query)
 
+
+          # 5. Generate answer
           search_result = await generate_answer(
-              search_terms.query, chat_history, web_sources
+              search_terms.query,
+              chat_history,
+              web_sources,
           )
-
+    +     search_result.search_query = search_query  # add search query to the output
+    +                                                # to see what the bot is searching for
+          # 6. Add LLM response to Gel
           _ = await add_message_query(
               gel_client,
               username=username,
               message_role="assistant",
               message_body=search_result.response,
-              sources=search_result.sources,
+              sources=[s.url for s in search_result.sources],
               chat_id=chat_id,
           )
 
+          # 7. Send result back to the client
           return search_result
 
 
+Done! We've now fully integrated the chat history into out app and enabled
+natural language conversations. As before, let's quickly test out the
+improvements before moving on:
+
+
+.. code-block:: bash
+
+    $ curl -X 'POST' \
+        'http://localhost:8000/messages?username=alice&chat_id=d4eed420-e903-11ef-b8a7-8718abdafbe1' \
+        -H 'accept: application/json' \
+        -H 'Content-Type: application/json' \
+        -d '{
+        "query": "what are people saying about gel"
+      }'
+
+    $ curl -X 'POST' \
+        'http://localhost:8000/messages?username=alice&chat_id=d4eed420-e903-11ef-b8a7-8718abdafbe1' \
+        -H 'accept: application/json' \
+        -H 'Content-Type: application/json' \
+        -d '{
+        "query": "do they like it or not"
+      }'
 
 
 6. Use Gel's advanced features to create a RAG
@@ -1348,7 +1359,11 @@ your head, so here's the query itself:
 
     with
         user := (select User filter .name = <str>$username),
-        chats := (select Chat filter .<chats[is User] = user)
+            chats := (
+                select Chat
+                filter .<chats[is User] = user
+                       and .id != <uuid>$current_chat_id
+            )
 
     select chats {
         distance := min(
@@ -1384,6 +1399,13 @@ our ``post_messages`` endpoint to keep track of those similar chats.
     +     search_chats as search_chats_query,
     + )
 
+      class SearchResult(BaseModel):
+          response: str | None = None
+          search_query: str | None = None
+          sources: list[WebSource] | None = None
+    +     similar_chats: list[str] | None = None
+
+
       @app.post("/messages", status_code=HTTPStatus.CREATED)
       async def post_messages(
           search_terms: SearchTerms,
@@ -1415,27 +1437,35 @@ our ``post_messages`` endpoint to keep track of those similar chats.
     +         search_query, model="text-embedding-3-small"
     +     )
     +     similar_chats = await search_chats_query(
-    +         gel_client, username=username, embedding=embedding, limit=1
+    +         gel_client,
+    +         username=username,
+    +         current_chat_id=chat_id,
+    +         embedding=embedding,
+    +         limit=1,
     +     )
 
           # 5. Generate answer
           search_result = await generate_answer(
-    -         search_terms.query, chat_history, web_sources
-    +         search_terms.query, chat_history, web_sources, similar_chats
+              search_terms.query,
+              chat_history,
+              web_sources,
+    +         similar_chats,
           )
-
+          search_result.search_query = search_query  # add search query to the output
+                                                     # to see what the bot is searching for
           # 6. Add LLM response to Gel
           _ = await add_message_query(
               gel_client,
               username=username,
               message_role="assistant",
               message_body=search_result.response,
-              sources=search_result.sources,
+              sources=[s.url for s in search_result.sources],
               chat_id=chat_id,
           )
 
           # 7. Send result back to the client
           return search_result
+
 
 Finally, the answer generator needs to get updated one more time, since we need
 to inject the additional messages into the prompt.
@@ -1451,11 +1481,12 @@ to inject the additional messages into the prompt.
       ) -> SearchResult:
           system_prompt = (
               "You are a helpful assistant that answers user's questions"
-              + " by finding relevant information in web search results."
+              + " by finding relevant information in HackerNews threads."
+              + " When answering the question, describe conversations that people have around the subject, provided to you as a context, or say i don't know if they are completely irrelevant."
     +         + " You can reference previous conversation with the user that"
     +         + " are provided to you, if they are relevant, by explicitly referring"
-    +         + " to them."
-    +     )
+    +         + " to them by saying as we discussed in the past."
+          )
 
           prompt = f"User search query: {query}\n\nWeb search results:\n"
 
@@ -1463,35 +1494,31 @@ to inject the additional messages into the prompt.
               prompt += f"Result {i} (URL: {source.url}):\n"
               prompt += f"{source.text}\n\n"
 
-          prompt += "Chat history:\n"
-
-          for i, message in enumerate(chat_history):
-              prompt += f"{message.role}: {message.body} (sources: {message.sources})\n"
-
     +     prompt += "Similar chats with the same user:\n"
 
+    +     formatted_chats = []
     +     for i, chat in enumerate(similar_chats):
-    +         prompt += f"Chat {i}: \n"
+    +         formatted_chat = f"Chat {i}: \n"
     +         for message in chat.messages:
-    +             prompt += f"{message.role}: {message.body} (sources: {message.sources})\n"
+    +             formatted_chat += f"{message.role}: {message.body}\n"
+    +         formatted_chats.append(formatted_chat)
 
-          completion = llm_client.chat.completions.create(
-              model="gpt-4o-mini",
-              messages=[
-                  {
-                      "role": "system",
-                      "content": system_prompt,
-                  },
-                  {
-                      "role": "user",
-                      "content": prompt,
-                  },
-              ],
+    +     prompt += "\n".join(formatted_chats)
+
+          messages = [
+              {"role": message.role, "content": message.body} for message in chat_history
+          ]
+          messages.append({"role": "user", "content": prompt})
+
+          llm_response = get_llm_completion(
+              system_prompt=system_prompt,
+              messages=messages,
           )
 
-          llm_response = completion.choices[0].message.content
           search_result = SearchResult(
-              response=llm_response, sources=[source.url for source in web_sources]
+              response=llm_response,
+              sources=web_sources,
+    +         similar_chats=formatted_chats,
           )
 
           return search_result
@@ -1502,16 +1529,28 @@ And one last time, let's check to make sure everything works:
 .. code-block:: bash
 
     $ curl -X 'POST' \
-      'http://127.0.0.1:8000/messages?username=charlie&chat_id=544ef3f2-ded8-11ef-ba16-f7f254b95e36' \
-      -H 'accept: application/json' \
-      -H 'Content-Type: application/json' \
-      -d '{ "query": "how do i write a simple query in it?" }'
+        'http://localhost:8000/messages?username=alice&chat_id=d4eed420-e903-11ef-b8a7-8718abdafbe1' \
+        -H 'accept: application/json' \
+        -H 'Content-Type: application/json' \
+        -d '{
+              "query": "remember that cool db i was talking to you about?"
+            }'
 
-    {
-      "response": "To write a simple query in EdgeQL..."
-      "sources": [
-        "https://docs.edgedb.com/cli/edgedb_query"
-      ]
-    }
+
+Keep going!
+===========
+
+This tutorial is over, but this app surely could use way more features!
+
+Basic functionality like deleting messages, a user interface or real web
+search, sure. But also authentication or access policies -- Gel will let you
+set those up in minutes.
+
+Thanks!
+
+
+
+
+
 
 
