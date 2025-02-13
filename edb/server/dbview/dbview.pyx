@@ -1440,7 +1440,7 @@ cdef class DatabaseConnectionView:
                 if unit.user_schema:
                     user_schema = unit.user_schema
                     user_schema_version = unit.user_schema_version
-            if user_schema and not self.server.config_lookup(
+            if user_schema and not self.config_lookup(
                 "auto_rebuild_query_cache",
             ):
                 user_schema = None

@@ -864,6 +864,27 @@ class TestServerOps(tb.TestCaseWithHttpClient, tb.CLITestCaseMixin):
                     #     con_c = con.with_config(apply_access_policies=False)
                     #     await con_c.query_sql(qry_sql)
 
+                    # At last, make sure recompilation switch works fine
+                    await con.execute(
+                        "configure current database "
+                        "set auto_rebuild_query_cache := false"
+                    )
+                    await con.query('''
+                        create type X
+                    ''')
+                    with self.assertChange(measure_compilations(sd), 1):
+                        await con.query(qry)
+                    with self.assertChange(measure_compilations(sd), 0):
+                        await con.query(qry)
+                    with self.assertChange(measure_sql_compilations(sd), 1):
+                        await con.query_sql(sql)
+                    with self.assertChange(measure_sql_compilations(sd), 0):
+                        await con.query_sql(sql)
+                    await con.execute(
+                        "configure current database "
+                        "reset auto_rebuild_query_cache"
+                    )
+
                 finally:
                     await con.aclose()
 

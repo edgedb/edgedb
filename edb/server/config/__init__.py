@@ -77,6 +77,7 @@ def lookup(
     spec: Spec,
     allow_unrecognized: bool = False,
 ) -> Any:
+    assert len(configs) > 0
 
     try:
         setting = spec[name]
