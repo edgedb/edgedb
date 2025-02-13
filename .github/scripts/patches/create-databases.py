@@ -1,12 +1,11 @@
 # Create databases on the older edgedb version
 
 import edgedb
-import os
 import subprocess
+import sys
 
-version = os.getenv('EDGEDB_VERSION')
 cmd = [
-    f'edgedb-server-{version}/bin/edgedb-server', '-D' 'test-dir',
+    sys.argv[1], '-D' 'test-dir',
     '--testmode', '--security', 'insecure_dev_mode', '--port', '10000',
 ]
 proc = subprocess.Popen(cmd)

@@ -47,19 +47,14 @@ jobs:
     # Run the test
 
     - name: Download an earlier database version and set up a instance
-      env:
-        EDGEDB_VERSION: ${{ matrix.edgedb-version }}
-        EDGEDB_URL: ${{ matrix.edgedb-url }}
       run: |
-        wget -q "$EDGEDB_URL"
-        tar xzf edgedb-server-$EDGEDB_VERSION.tar.gz
-        edgedb-server-$EDGEDB_VERSION/bin/edgedb-server -D test-dir --bootstrap-only --testmode
+        wget -q "${{ matrix.edgedb-url }}"
+        tar xzf ${{ matrix.edgedb-basename }}-${{ matrix.edgedb-version }}.tar.gz
+        ${{ matrix.edgedb-basename }}-${{ matrix.edgedb-version }}/bin/edgedb-server -D test-dir --bootstrap-only --testmode
 
     - name: Create databases on the older version
-      env:
-        EDGEDB_VERSION: ${{ matrix.edgedb-version }}
       if: ${{ matrix.make-dbs }}
-      run: python3 .github/scripts/patches/create-databases.py
+      run: python3 .github/scripts/patches/create-databases.py ${{ matrix.edgedb-basename }}-${{ matrix.edgedb-version }}/bin/edgedb-server
 
     - name: Run tests with instance created on an older version
       run: |
