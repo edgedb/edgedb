@@ -24,3 +24,4 @@ Welcome to the EdgeDB |version| documentation.
     reference/index
     cheatsheets/index
     changelog/index
+    cloud/index
