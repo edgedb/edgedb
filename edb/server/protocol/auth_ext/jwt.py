@@ -32,7 +32,7 @@ from . import errors
 
 
 VALIDATION_TOKEN_DEFAULT_EXPIRATION = datetime.timedelta(seconds=24 * 60 * 60)
-RESET_TOKEN_DEFAULT_EXPIRATION = datetime.timedelta(minutes=5)
+RESET_TOKEN_DEFAULT_EXPIRATION = datetime.timedelta(minutes=10)
 OAUTH_STATE_TOKEN_DEFAULT_EXPIRATION = datetime.timedelta(minutes=5)
 
 
@@ -120,6 +120,11 @@ def verify_str_opt(cls: Any, claims: dict[str, Any], key: str) -> str | None:
 
 @dataclasses.dataclass
 class MagicLinkToken:
+    """
+    A token that can be used to verify a magic link sent to a user via email.
+
+    Expiration is controlled by the provider parameter `token_time_to_live`.
+    """
     subject: str
     callback_url: str
     challenge: str
@@ -158,6 +163,9 @@ class MagicLinkToken:
 
 @dataclasses.dataclass
 class ResetToken:
+    """
+    A token that can be used to verify a password reset request.
+    """
     subject: str
     secret: str
     challenge: str
@@ -194,6 +202,11 @@ class ResetToken:
 
 @dataclasses.dataclass
 class VerificationToken:
+    """
+    A token that can be used to verify a user's email address. Note that we
+    allow expired tokens to trigger a resend of the verification email, but not
+    to verify the email address.
+    """
     subject: str
     verify_url: str
     maybe_challenge: str | None
@@ -242,6 +255,10 @@ class VerificationToken:
 
 @dataclasses.dataclass
 class SessionToken:
+    """
+    The token representing an auth session for a user. Expiration is controlled
+    by the database parameter `ext::auth::AuthConfig::token_time_to_live`.
+    """
     subject: str
 
     def sign(
@@ -272,6 +289,9 @@ class SessionToken:
 
 @dataclasses.dataclass
 class OAuthStateToken:
+    """
+    The token representing an OAuth state passed to the identity provider.
+    """
     provider: str
     redirect_to: str
     challenge: str
