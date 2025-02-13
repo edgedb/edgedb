@@ -20,7 +20,7 @@ Update internal statistics about data.
 Description
 -----------
 
-Collects statistics about the contents of data in the current branch.
+Updates statistics about the contents of data in the current branch.
 Subsequently, the query planner uses these statistics to help determine the
 most efficient execution plans for queries.
 
