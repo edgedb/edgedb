@@ -20,18 +20,23 @@ version = int(re.findall(r'\d+', branch)[0])
 versions = []
 for obj in data['packages'] + data_testing['packages']:
     if (
-        obj['version_details']['major'] == version
+        obj['basename'] in {'gel-server', 'edgedb-server'}
+        and obj['version_details']['major'] == version
         and (
             not obj['version_details']['prerelease']
             or obj['version_details']['prerelease'][0]['phase'] in ('beta', 'rc')
         )
     ):
-        versions.append((obj['version'], base + obj['installrefs'][0]['ref']))
+        versions.append((
+            obj['version'],
+            obj['basename'],
+            base + obj['installrefs'][0]['ref'],
+        ))
 
 matrix = {
     "include": [
-        {"edgedb-version": v, "edgedb-url": url, "make-dbs": mk}
-        for v, url in versions
+        {"edgedb-version": v, "edgedb-url": url, "edgedb-basename": base, "make-dbs": mk}
+        for v, base, url in versions
         for mk in [True, False]
     ]
 }
