@@ -158,7 +158,8 @@ def join_url_params(url: str, params: dict[str, str]) -> str:
 
 
 async def get_remote_jwtset(
-        url: str, fetch_lambda: Callable[[str], Awaitable[jwt_auth.JWKSet]]
+    url: str,
+    fetch_lambda: Callable[[str], Awaitable[jwt_auth.JWKSet]],
 ) -> jwt_auth.JWKSet:
     """
     Get a JWKSet from the cache, or fetch it from the given URL if it's not in
@@ -169,17 +170,20 @@ async def get_remote_jwtset(
         case (_, None):
             jwtset = await fetch_lambda(url)
             jwtset_cache.set(url, jwtset)
-            return jwtset
         case (True, jwtset):
-            return jwtset
-        case (False, jwtset):
+            pass
+        case _:
             # Run fetch in background to refresh cache
             async def refresh_cache(url: str) -> None:
                 try:
                     new_jwtset = await fetch_lambda(url)
                     jwtset_cache.set(url, new_jwtset)
                 except Exception:
-                    logger.exception("Failed to refresh JWKSet cache for %s", url)
+                    logger.exception(
+                        f"Failed to refresh JWKSet cache for {url}"
+                    )
 
             asyncio.create_task(refresh_cache(url))
-            return jwtset
+
+    assert jwtset is not None
+    return jwtset

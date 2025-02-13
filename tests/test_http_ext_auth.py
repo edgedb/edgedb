@@ -629,10 +629,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 redirect_to=None,
                 challenge=None,
             )
-            state_token = state_claims.sign(
-                self.signing_key(),
-                expires_in=datetime.timedelta(minutes=1)
-            )
+            state_token = state_claims.sign(self.signing_key())
 
             _, _, status = self.http_con_request(
                 http_con,
@@ -656,7 +653,6 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
             )
             state_token = state_claims.sign(
                 auth_jwt.SigningKey(lambda: 'wrong key', self.http_addr),
-                expires_in=datetime.timedelta(minutes=1)
             )
 
             _, _, status = self.http_con_request(
@@ -675,8 +671,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 redirect_to_on_signup=None,
                 challenge="challenge",
             )
-            state_token = state_claims.sign(
-                self.signing_key(), expires_in=datetime.timedelta(minutes=1))
+            state_token = state_claims.sign(self.signing_key())
 
             body, _, status = self.http_con_request(
                 http_con,
@@ -767,9 +762,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 redirect_to=f"{self.http_addr}/some/path",
                 challenge=challenge,
             )
-            state_token = state_claims.sign(
-                self.signing_key(), expires_in=datetime.timedelta(minutes=1)
-            )
+            state_token = state_claims.sign(self.signing_key())
 
             data, headers, status = self.http_con_request(
                 http_con,
@@ -893,9 +886,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 redirect_to=f"{self.http_addr}/some/path",
                 challenge="challenge",
             )
-            state_token = state_claims.sign(
-                self.signing_key(), expires_in=datetime.timedelta(minutes=1)
-            )
+            state_token = state_claims.sign(self.signing_key())
 
             data, headers, status = self.http_con_request(
                 http_con,
@@ -956,9 +947,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 redirect_to=f"{self.http_addr}/some/path",
                 challenge="challenge",
             )
-            state_token = state_claims.sign(
-                self.signing_key(), expires_in=datetime.timedelta(minutes=1)
-            )
+            state_token = state_claims.sign(self.signing_key())
 
             data, headers, status = self.http_con_request(
                 http_con,
@@ -1130,9 +1119,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 redirect_to=f"{self.http_addr}/some/path",
                 challenge=challenge,
             )
-            state_token = state_claims.sign(
-                self.signing_key(), expires_in=datetime.timedelta(minutes=1)
-            )
+            state_token = state_claims.sign(self.signing_key())
 
             data, headers, status = self.http_con_request(
                 http_con,
@@ -1277,9 +1264,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 redirect_to=f"{self.http_addr}/some/path",
                 challenge=challenge,
             )
-            state_token = state_claims.sign(
-                self.signing_key(), expires_in=datetime.timedelta(minutes=1)
-            )
+            state_token = state_claims.sign(self.signing_key())
 
             data, headers, status = self.http_con_request(
                 http_con,
@@ -1528,9 +1513,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 redirect_to=f"{self.http_addr}/some/path",
                 challenge=challenge,
             )
-            state_token = state_claims.sign(
-                self.signing_key(), expires_in=datetime.timedelta(minutes=1)
-            )
+            state_token = state_claims.sign(self.signing_key())
 
             data, headers, status = self.http_con_request(
                 http_con,
@@ -1698,9 +1681,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 redirect_to=f"{self.http_addr}/some/path",
                 challenge=challenge,
             )
-            state_token = state_claims.sign(
-                self.signing_key(), expires_in=datetime.timedelta(minutes=1)
-            )
+            state_token = state_claims.sign(self.signing_key())
 
             data, headers, status = self.http_con_request(
                 http_con,
@@ -1797,9 +1778,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 redirect_to_on_signup=f"{self.http_addr}/some/other/path",
                 challenge=challenge,
             )
-            state_token = state_claims.sign(
-                self.signing_key(), expires_in=datetime.timedelta(minutes=1)
-            )
+            state_token = state_claims.sign(self.signing_key())
 
             data, headers, status = self.http_con_request(
                 http_con,
@@ -1898,9 +1877,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 redirect_to=f"{self.http_addr}/some/path",
                 challenge=challenge,
             )
-            state_token = state_claims.sign(
-                self.signing_key(), expires_in=datetime.timedelta(minutes=1)
-            )
+            state_token = state_claims.sign(self.signing_key())
 
             data, headers, status = self.http_con_request(
                 http_con,
@@ -2160,9 +2137,7 @@ class TestHttpExtAuth(tb.ExtAuthTestCase):
                 redirect_to=f"{self.http_addr}/some/path",
                 challenge=challenge,
             )
-            state_token = state_claims.sign(
-                self.signing_key(), expires_in=datetime.timedelta(minutes=1)
-            )
+            state_token = state_claims.sign(self.signing_key())
 
             data, headers, status = self.http_con_request(
                 http_con,

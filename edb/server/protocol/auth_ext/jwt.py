@@ -31,6 +31,11 @@ from edb.ir import statypes as statypes
 from . import errors
 
 
+VALIDATION_TOKEN_DEFAULT_EXPIRATION = datetime.timedelta(seconds=24 * 60 * 60)
+RESET_TOKEN_DEFAULT_EXPIRATION = datetime.timedelta(minutes=5)
+OAUTH_STATE_TOKEN_DEFAULT_EXPIRATION = datetime.timedelta(minutes=5)
+
+
 class SigningKey:
     subkeys: dict[str | None, jwt_auth.JWKSet]
 
@@ -158,7 +163,9 @@ class ResetToken:
     challenge: str
 
     def sign(
-        self, signing_key: SigningKey, expires_in: datetime.timedelta
+        self,
+        signing_key: SigningKey,
+        expires_in: datetime.timedelta = RESET_TOKEN_DEFAULT_EXPIRATION,
     ) -> str:
         signing_ctx = jwt_auth.SigningCtx()
         signing_ctx.set_expiry(int(expires_in.total_seconds()))
@@ -193,7 +200,9 @@ class VerificationToken:
     maybe_redirect_to: str | None
 
     def sign(
-        self, signing_key: SigningKey, expires_in: datetime.timedelta
+        self,
+        signing_key: SigningKey,
+        expires_in: datetime.timedelta = VALIDATION_TOKEN_DEFAULT_EXPIRATION,
     ) -> str:
         signing_ctx = jwt_auth.SigningCtx()
         signing_ctx.set_expiry(int(expires_in.total_seconds()))
@@ -236,7 +245,9 @@ class SessionToken:
     subject: str
 
     def sign(
-        self, signing_key: SigningKey, expires_in: datetime.timedelta
+        self,
+        signing_key: SigningKey,
+        expires_in: datetime.timedelta,
     ) -> str:
         signing_ctx = jwt_auth.SigningCtx()
         signing_ctx.set_expiry(int(expires_in.total_seconds()))
@@ -267,7 +278,9 @@ class OAuthStateToken:
     redirect_to_on_signup: str | None = None
 
     def sign(
-        self, signing_key: SigningKey, expires_in: datetime.timedelta
+        self,
+        signing_key: SigningKey,
+        expires_in: datetime.timedelta = OAUTH_STATE_TOKEN_DEFAULT_EXPIRATION,
     ) -> str:
         signing_ctx = jwt_auth.SigningCtx()
         signing_ctx.set_expiry(int(expires_in.total_seconds()))

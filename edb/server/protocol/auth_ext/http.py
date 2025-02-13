@@ -333,10 +333,7 @@ class Router:
                     else None
                 ),
                 challenge=challenge,
-            ).sign(
-                self.signing_key,
-                expires_in=datetime.timedelta(seconds=5 * 60)
-            ),
+            ).sign(self.signing_key),
         )
         # n.b. Explicitly allow authorization URL to be outside of allowed
         # URLs because it is a trusted URL from the identity provider.
@@ -943,10 +940,7 @@ class Router:
                     subject=identity_id,
                     secret=secret,
                     challenge=data["challenge"],
-                ).sign(
-                    self.signing_key,
-                    expires_in=datetime.timedelta(seconds=5 * 60)
-                )
+                ).sign(self.signing_key)
 
                 reset_token_params = {"reset_token": new_reset_token}
                 reset_url = util.join_url_params(
@@ -2165,7 +2159,7 @@ class Router:
             verify_url=verify_url,
             maybe_challenge=maybe_challenge,
             maybe_redirect_to=maybe_redirect_to,
-        ).sign(self.signing_key, datetime.timedelta(seconds=5 * 60))
+        ).sign(self.signing_key)
 
     async def _send_verification_email(
         self,
